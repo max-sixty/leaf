@@ -1,5 +1,5 @@
 import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, afterScript, bindQueuedWork, cancelRender, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextAnimation, nextFrame, nextRender, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, renderingState, selectsAll, sizeObserver, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, x } from "./bundle-dom-move.js";
-import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live, measure, notice, offer, offerAction, offered, offeredAction, pagePresented, paintKeys, paintKeysWithin, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
+import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live, measure, notice, offer, offered, offeredAction, pagePresented, paintKeys, paintKeysWithin, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, live as live$1, loadShadowRules, marks, marksSheet, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot } from "./bundle-passages.js";
@@ -644,6 +644,27 @@ const drawnThreadId = (node) => node?.dataset.thread ?? null;
 const SAYS_IN = `${THREAD}, .lf-thread-seat`;
 const SAY_ROW = ".lf-thread-reply, .lf-say";
 const SAY_BOX = SAY_ROW.split(", ").map((row) => `:scope > ${row} ${TEXT_FIELD}`).join(", ");
+const declaredParts = /* @__PURE__ */ new WeakMap();
+const declareThreadParts = (thread, parts) => declaredParts.set(thread, parts);
+const ownParts = {
+	reply: (thread) => thread.querySelector(SAY_BOX),
+	settlement: (thread) => [...thread.querySelectorAll(".lf-resolve, .lf-reopen")].find((control) => control.closest(".lf-page-thread, [data-lf-thread-view]") === thread) ?? null
+};
+function* drawingsOf(thread) {
+	const id = drawnThreadId(thread);
+	for (let at = thread; at === thread || at && id && drawnThreadId(at) === id; at = closestAcross(upFrom(at), THREAD)) yield at;
+}
+function wholeThread(thread) {
+	const outer = [...drawingsOf(thread)].at(-1);
+	return declaredParts.get(outer)?.whole(outer) ?? outer;
+}
+function threadPart(thread, name) {
+	for (const at of drawingsOf(thread)) {
+		const part = (declaredParts.get(at) ?? ownParts)[name](at);
+		if (part) return part;
+	}
+	return null;
+}
 
 //#endregion
 //#region runtime/obligations/model.js
@@ -1141,17 +1162,6 @@ function markDeclared(root) {
 		if (authored) {
 			for (const el of elementsIn(root, `[${authored}]`)) if (mark.authored_on !== "declared" || tags.includes(el.localName)) keeps(el, paint, el.getAttribute(authored));
 		}
-	}
-}
-function writePrepaint(root) {
-	for (const tag of tagsDeclaring((entry) => entry["x-prepaint"])) {
-		const declared = registry$1[tag]["x-prepaint"];
-		const markup = document.createElement("template");
-		markup.innerHTML = declared.as ? registry$1[declared.as]["x-prepaint"] : declared;
-		const written = markup.content.firstElementChild;
-		written.toggleAttribute("data-lf-prepaint", true);
-		generatedElement(written, { says: false });
-		for (const el of elementsIn(root, tag)) el.prepend(written.cloneNode(true));
 	}
 }
 function renderSaid(root) {
@@ -4362,7 +4372,6 @@ function prepareAuthoredMessage(message, thread) {
 		const authored = stageAuthoredStates(template.content, /* @__PURE__ */ new Map());
 		rememberPassageParts(template.content, ["event", message.id]);
 		const text = template.content.textContent;
-		writePrepaint(template.content);
 		const nodes = Object.freeze([...template.content.childNodes]);
 		authoredMessages.set(key, {
 			message: message.id,
@@ -4476,7 +4485,6 @@ var MessageView = class {
 	#dressed = false;
 	#arrivalMotion = null;
 	#stopRead = null;
-	#header = document.createElement("div");
 	#editor = null;
 	#kept = false;
 	#stopKept = null;
@@ -4492,7 +4500,6 @@ var MessageView = class {
 		if (!prior) {
 			this.node.classList.add("lf-msg");
 			this.node.dataset.message = model.key;
-			this.#header.className = "lf-msg-head";
 			this.node.classList.add("lf-ui");
 			generatedElement(this.node, { says: false });
 			this.node.dataset.lfOffer = "";
@@ -4524,7 +4531,6 @@ var MessageView = class {
 		if (model.editable && !this.#stopKept) this.#stopKept = watchRewrite(model.id, () => {
 			if (keptRewrite(this.#model.id) !== this.#kept) this.#commands.edit.paint(this.node);
 		});
-		keeps(this.#header, "data-lf-reflow", "text");
 		if (prior && prior.author !== model.author) this.node.classList.toggle(prior.author, false);
 		this.node.classList.toggle(model.author, true);
 		keeps(this.node, "data-event", model.id);
@@ -4556,7 +4562,8 @@ var MessageView = class {
 		const receipt = model.workflowLabel ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
           >${model.workflowLabel}</span
         >` : nothing;
-		render$1(html`
+		const header = html`
+      <div class="lf-msg-head" data-lf-reflow="text">
         <b>${model.by}</b
         ><span class="lf-msg-meta"
           >${dated ? html`<time datetime=${model.timestamp}>${model.age}</time>` : nothing}${model.unread ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>` : nothing}
@@ -4572,7 +4579,8 @@ var MessageView = class {
                 >` : nothing}
         </span>
         ${headerControls}
-      `, this.#header);
+      </div>
+    `;
 		const rewrite = model.editable && !editing ? html`<button
             ${offered("lf-msg-control lf-msg-edit")}
             tabindex="-1"
@@ -4583,7 +4591,7 @@ var MessageView = class {
             ${iconTemplate("edit", "lf-msg-control-icon")}
           </button>` : nothing;
 		render$1(html`
-        ${this.#header}
+        ${header}
         <div
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
         >
@@ -5167,8 +5175,14 @@ function dismissContext(context) {
 	session.owner?.changed();
 }
 const dismissReply = (key) => dismissContext(replyContext(key));
-onPressAway(([node]) => [...compositions.keys()].some((context) => context !== replyDraftContext(node)), ([node], [from]) => {
-	const kept = [replyDraftContext(node), replyDraftContext(from)];
+const pressContext = (node) => {
+	const row = replyDraftContext(node);
+	if (row !== null) return row;
+	const thread = closestAcross(node, THREAD);
+	return thread ? replyDraftContext(threadPart(thread, "reply")) : null;
+};
+onPressAway(([node]) => [...compositions.keys()].some((context) => context !== pressContext(node)), ([node], [from]) => {
+	const kept = [pressContext(node), pressContext(from)];
 	for (const context of [...compositions.keys()]) if (!kept.includes(context)) dismissContext(context);
 });
 const dismissReplyAt = (node) => {
@@ -5435,27 +5449,6 @@ async function landGesture({ land, answer, pending, refused }) {
 //#region runtime/thread/focus.js
 function focusThread(thread, cause) {
 	focusDestination(thread, cause);
-}
-const declaredParts = /* @__PURE__ */ new WeakMap();
-const declareThreadParts = (thread, parts) => declaredParts.set(thread, parts);
-const ownParts = {
-	reply: (thread) => thread.querySelector(SAY_BOX),
-	settlement: (thread) => [...thread.querySelectorAll(".lf-resolve, .lf-reopen")].find((control) => control.closest(".lf-page-thread, [data-lf-thread-view]") === thread) ?? null
-};
-function* drawingsOf(thread) {
-	const id = drawnThreadId(thread);
-	for (let at = thread; at === thread || at && id && drawnThreadId(at) === id; at = closestAcross(upFrom(at), THREAD)) yield at;
-}
-function wholeThread(thread) {
-	const outer = [...drawingsOf(thread)].at(-1);
-	return declaredParts.get(outer)?.whole(outer) ?? outer;
-}
-function threadPart(thread, name) {
-	for (const at of drawingsOf(thread)) {
-		const part = (declaredParts.get(at) ?? ownParts)[name](at);
-		if (part) return part;
-	}
-	return null;
 }
 const threadReplyInput = (thread) => {
 	const input = thread && threadPart(thread, "reply");
@@ -6746,9 +6739,7 @@ var ThreadView = class {
 	#reply = null;
 	#replyShown = false;
 	#draftFrame = 0;
-	#settlements = /* @__PURE__ */ new Map();
 	#settlesAt = null;
-	#actions = document.createElement("span");
 	#marginControls = null;
 	#news = newsNotice();
 	#continuity = null;
@@ -6793,7 +6784,6 @@ var ThreadView = class {
 		this.node.dataset.lfRuntime = "";
 		generatedElement(this.node, { says: false });
 		this.node.dataset.lfOffer = "";
-		this.#actions.className = "lf-thread-meta-actions";
 	}
 	setMarginControls(controls) {
 		this.#marginControls = controls;
@@ -6887,16 +6877,12 @@ var ThreadView = class {
 		keeps(this.node, "data-attempt", model.attempt || null);
 		keeps(this.node, "role", "group");
 		keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
-		const settlement = model.settlement ? this.#settlement(model, settlementPlace) : null;
-		const actions = marginControls ? [
-			model.news ? notice.node : null,
-			marginControls.nav,
-			marginControls.expand,
-			settlement,
-			marginControls.close
-		].filter(Boolean) : [settlement].filter(Boolean);
-		setChildren(this.#actions, actions);
-		const threadActions = actions.length || model.news ? this.#actions : null;
+		const settlement = model.settlement ? this.#settlement(model, settlementPlace) : nothing;
+		const threadActions = marginControls || model.settlement || model.news ? html`<span class="lf-thread-meta-actions">
+            ${marginControls ? news : nothing} ${marginControls?.nav ?? nothing}
+            ${marginControls?.expand ?? nothing}${settlement}
+            ${marginControls?.close ?? nothing}
+          </span>` : nothing;
 		const handedOn = this.#transcript.present(model, {
 			arrived: Boolean(prior),
 			appends: model.surface === "margin"
@@ -6905,7 +6891,7 @@ var ThreadView = class {
 		keeps(notice.node, "data-lf-reflow", marginControls ? null : "text");
 		const body = html`
       ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${this.#transcript.node}
-      ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`${news}
+      ${threadActions !== nothing ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`${news}
                 <div class="lf-thread-controls" data-lf-reflow="text">
                   ${threadActions}
                 </div>` : nothing}
@@ -7015,29 +7001,24 @@ var ThreadView = class {
 		const state = model.settlement;
 		const reopen = state.kind === "unresolve";
 		const icon = place === "head" || place === "margin" && !model.resolved;
-		const face = `${state.kind} ${place}`;
-		let button = this.#settlements.get(face);
-		if (!button) {
-			button = offerAction(icon ? "symbol" : "word", reopen ? "lf-reopen" : "lf-resolve");
-			this.#settlements.set(face, button);
-			const word = reopen ? "Reopen" : "Resolve";
-			keys(button, `On a thread's ${word} button`, [{
-				id: reopen ? "thread.reopen" : "thread.resolve",
-				keys: PRESS,
-				title: word.toLowerCase(),
-				control: button,
-				when: () => !this.#shown.value.settlement?.pending,
-				run: this.#settle
-			}]);
-		}
-		keeps(button, "aria-busy", state.pending);
-		if (icon) {
-			const label = reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
-			keeps(button, "aria-label", label);
-			keeps(button, "title", label);
-		}
-		render$1(icon ? iconTemplate("check", "lf-action-icon") : state.label, button);
-		return button;
+		const word = reopen ? "Reopen" : "Resolve";
+		const label = reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
+		return html`<button
+      ${offeredAction(icon ? "symbol" : "word", reopen ? "lf-reopen" : "lf-resolve")}
+      aria-busy=${state.pending ? "true" : nothing}
+      aria-label=${icon ? label : nothing}
+      title=${icon ? label : nothing}
+      ${commandsOn(`On a thread's ${word} button`, (button) => [{
+			id: reopen ? "thread.reopen" : "thread.resolve",
+			keys: PRESS,
+			title: word.toLowerCase(),
+			control: button,
+			when: () => !this.#shown.value.settlement?.pending,
+			run: this.#settle
+		}])}
+    >
+      ${icon ? iconTemplate("check", "lf-action-icon") : state.label}
+    </button>`;
 	}
 	#showNews() {
 		if (!this.#model?.news) return;
@@ -7053,11 +7034,12 @@ var ThreadView = class {
 			parent: () => this.#model.id,
 			key: model.key,
 			resolved: model.resolved,
-			prepareLanding: model.surface === "margin" ? model.resolved ? null : this.#marginControls?.prepareLanding : this.#prepareInlineLanding,
+			prepareLanding: model.surface === "margin" && !model.resolved ? this.#marginControls?.prepareLanding : this.#prepareThreadLanding,
 			...this.#commands.settlement
 		}).catch(() => {});
 	};
-	#prepareInlineLanding = () => {
+	#prepareThreadLanding = () => {
+		const reopening = this.#model.resolved;
 		const mayLand = retainUserIntent({
 			source: this.node,
 			available: () => this.node.isConnected
@@ -7066,7 +7048,8 @@ var ThreadView = class {
 			await this.#retirement?.catch(() => {});
 			const place = this.#fold?.querySelector(":scope > summary") ?? this.node;
 			if (!mayLand() || !currentLocationIn(place)) return false;
-			scrollThreadIntoView(place, focused());
+			if (reopening) this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node);
+			if (this.#model.surface !== "margin") scrollThreadIntoView(place, focused());
 			return true;
 		};
 	};

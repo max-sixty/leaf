@@ -260,7 +260,10 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
                 "author": "agent",
                 "revision": 1,
                 "text": "Edit this draft.",
-                "markup": '<lf-draft id="crossed-draft"><pre>\n    First line.\n    Second line.\n</pre></lf-draft>',
+                "markup": '<div id="crossed-region">'
+                '<lf-tally id="crossed-tally" for="crossed-region" next></lf-tally>'
+                '<lf-draft id="crossed-draft"><pre>\n    First line.\n    Second line.\n'
+                "</pre></lf-draft></div>",
             },
         )
     holding(page, held, 1, "the frozen draft module")
@@ -300,6 +303,8 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     }
     open_panel_thread(page, "draft-question")
     expect(page.locator("#crossed-draft")).to_have_count(1)
+    expect(page.locator("#crossed-tally .lf-tally-face")).to_have_count(1)
+    expect(page.locator("#crossed-tally .lf-tally-next")).to_be_disabled()
     widget = page.locator("#crossed-draft")
     original = widget.element_handle()
     body = widget.locator(".lf-draft-body")

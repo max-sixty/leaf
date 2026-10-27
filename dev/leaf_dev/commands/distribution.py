@@ -48,8 +48,11 @@ def compiler_root() -> Path:
     return Path(os.environ.get("LEAF_PREVIEW_COMPILER_ROOT", ROOT)).resolve()
 
 
-KEEP_ENTRIES = 12
-KEEP_SECONDS = 24 * 3600
+# An entry serves one state of a checkout, so it is reused within a burst of work and
+# then never again: the entries one day's sessions made were last used under 40
+# minutes after they were built. The longest use that selects an entry only once is a
+# browser-tier suite run, which reads its kernel for up to a little over an hour.
+KEEP_SECONDS = 3 * 3600
 
 
 def cache_root() -> Path:
@@ -85,32 +88,22 @@ def launched_entries() -> set[Path]:
 
 
 def evict(cache: Path) -> None:
-    """Delete entries beyond the newest `KEEP_ENTRIES` that nothing has selected for
-    `KEEP_SECONDS` (a hit touches its entry) and no live session launches from, and
-    abandoned staging directories. Age is read again under the entry's lock, since a
-    reader may have selected it since the listing. Lock files stay: removing one
-    would let a waiter and a newcomer lock different inodes."""
+    """Delete entries nothing has selected for `KEEP_SECONDS` (a hit touches its
+    entry) and no live session launches from, and abandoned staging directories.
+    Age is read again under the entry's lock, since a reader may have selected it
+    since the listing. Lock files stay: removing one would let a waiter and a
+    newcomer lock different inodes."""
     now = time.time()
-    entries = sorted(
-        (p for p in cache.iterdir() if p.is_dir() and not p.name.startswith(".")),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    stale = [
-        p
-        for p in cache.iterdir()
-        if p.name.startswith(".preparing-") and now - p.stat().st_mtime > KEEP_SECONDS
-    ]
-    for old in entries[KEEP_ENTRIES:]:
-        with flocked(cache / f"{old.name}.lock"):
-            if (
-                old.is_dir()
-                and now - old.stat().st_mtime > KEEP_SECONDS
-                and old.resolve() not in launched_entries()
-            ):
-                shutil.rmtree(old, ignore_errors=True)
-    for path in stale:
-        shutil.rmtree(path, ignore_errors=True)
+    launched = launched_entries()
+    for path in cache.iterdir():
+        if now - path.stat().st_mtime <= KEEP_SECONDS or not path.is_dir():
+            continue
+        if path.name.startswith(".preparing-"):
+            shutil.rmtree(path, ignore_errors=True)
+        elif not path.name.startswith(".") and path.resolve() not in launched:
+            with flocked(cache / f"{path.name}.lock"):
+                if path.is_dir() and now - path.stat().st_mtime > KEEP_SECONDS:
+                    shutil.rmtree(path, ignore_errors=True)
 
 
 def bundle_runtime(assets: Path, kernel: Path) -> None:

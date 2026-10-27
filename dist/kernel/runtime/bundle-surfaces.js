@@ -6296,7 +6296,6 @@ var ThreadView = class {
 				this.#draftFrame = 0;
 				if (!this.#reply) return;
 				if (this.#model.resolved) this.repaint();
-				if (this.#model.resolved) this.#commands.reply.changed();
 			});
 		};
 		const commands = this.#commands.reply;

@@ -3152,7 +3152,9 @@ export function createFloatingPanel({
     const show = arrivesAt(item)
       ? html`<button
           type="button"
-          class="lf-fp-face lf-fp-quiet lf-fp-show"
+          class="lf-fp-face lf-fp-icon-btn lf-fp-show"
+          aria-label="Show"
+          title="Show"
           @click=${() => {
             const route = trail.value.at(-1);
             void queueActions.open(queueItemKey(item)).then((arrived) => {
@@ -3160,7 +3162,7 @@ export function createFloatingPanel({
             });
           }}
         >
-          Show
+          ${iconTemplate("locate", "lf-action-icon")}
         </button>`
       : nothing;
     let answers;
@@ -3185,10 +3187,12 @@ export function createFloatingPanel({
           gesture
             ? html`<button
                 type="button"
-                class="lf-fp-face lf-fp-quiet"
+                class="lf-fp-face lf-fp-icon-btn"
+                aria-label="Undo"
+                title="Undo"
                 @click=${() => withdraw(gesture)}
               >
-                Undo
+                ${iconTemplate("undo", "lf-action-icon")}
               </button>`
             : nothing
         }${
@@ -3823,7 +3827,9 @@ export function createFloatingPanel({
         onPageSeat
           ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-quiet"
+              class="lf-fp-face lf-fp-icon-btn lf-fp-on-page"
+              aria-label=${inMessage ? "Show in message" : "Show on page"}
+              title=${inMessage ? "Show in message" : "Show on page"}
               ?disabled=${!thread.anchor}
               ?data-unoffered=${!thread.anchor}
               @click=${() => {
@@ -3847,7 +3853,7 @@ export function createFloatingPanel({
                 );
               }}
             >
-              ${inMessage ? "Show in message" : "Show on page"}
+              ${iconTemplate("locate", "lf-action-icon")}
             </button>`
           : nothing
       }<button

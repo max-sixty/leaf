@@ -5,7 +5,7 @@ import { TEXT_FIELD } from "../control-selectors.js";
 import { loadDraft, saveDraft, sendMessage, watchDraft } from "../drafts.js";
 import { inChrome } from "../passages.js";
 import { matchesWhen, registry } from "../registry.js";
-import { offer } from "../widget-elements.js";
+import { offer, offerAction } from "../widget-elements.js";
 import { quoted } from "../widget-descriptors.js";
 import { notice } from "../notifications.js";
 import { mountFirstMessage } from "./inline.js";
@@ -24,8 +24,8 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
   const row = offer("div", "lf-say lf-comment-box");
   const ta = offer(TEXT_FIELD);
   ta.name = "comment";
-  const send = offer("button", "lf-btn", "Send");
-  const hold = declaration.hold ? offer("button", "lf-btn", declaration.hold) : null;
+  const send = offer("button", "", "Send");
+  const hold = declaration.hold ? offerAction("word", "", declaration.hold) : null;
   const ctx = "say:" + el.id;
   ta.value = loadDraft(ctx) ?? "";
   ta.setAttribute("aria-label", hint);
@@ -62,7 +62,7 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
     },
     altSend: hold
       ? (_text, raw, owns) => {
-          if (sendComment(raw, owns, true)) notice("Message sent — goal paused");
+          if (sendComment(raw, owns, true)) notice("Replied — goal paused");
         }
       : null,
   });

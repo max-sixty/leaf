@@ -6,7 +6,7 @@ Document-bound events also carry `revision`, and an agent's event posted from a 
 session carries that session's `agent` and `session`. An `id` is an opaque string
 matched whole. The append door mints eight hex characters unique within the page's log,
 so an id is not a global identifier. Each kind's record schema is `$events.kinds` in
-`../../browser/registry.json`; this table says what each kind means:
+`../../browser/runtime/kernel-registry.json`; this table says what each kind means:
 
 | Kind                                         | Author          | Door                                                                            | Fields                                                                                                                                                                 | Meaning                                                                                                                                                                                       |
 | -------------------------------------------- | --------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -98,7 +98,10 @@ already withdrawn do not. It says what it would take back and how long ago, in e
 and after a reload, so a gesture made weeks ago is not taken back unseen. Where the
 gesture's thread or element is out of view, or the agent has picked the gesture up, the
 first press opens that place and only the next press, with nothing pressed between,
-withdraws it; showing writes nothing. The served undo list marks `picked_up` each entry
+withdraws it; showing writes nothing. Either way the press leaves the user at that place:
+a gesture whose own landing has just carried the user off it, such as resolving a
+thread, is taken in one press that returns them to its thread, while they have not
+acted elsewhere since (`runtime/undo.js`). The served undo list marks `picked_up` each entry
 a delivery handed into an agent's turn (`delivery.opened_input_ids`).
 `runtime/undo.js` names each gesture, and the served list words an action at its head
 (`GestureWords.gesture`). An exact control, such as a widget's Undo, may withdraw an
@@ -292,7 +295,7 @@ the agent's `todo_end` can retire a question unanswered (`obligations.settle_by_
 widgets', frozen widgets', message requests and user-owned tasks, with a record beside
 them for each update the user handed over (`workflows.handed_over`), read after the
 widget obligations it depends on. `obligations.py` owns a record's statuses
-and its next actor. `$keys["x-awaits"]` in the kernel registry says when a widget's
+and its next actor. `$keys["x-awaits"]` in `browser/registry.json` says when a widget's
 obligation exists and what its id is, and `Obligation` in
 `served_state/state.schema.json` lists the served fields. `obligations.collection`
 selects `all`, `user` and `unanswered` from it. To-dos are separate records, and no

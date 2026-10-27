@@ -1,39 +1,64 @@
 import { closeLayer, currentLocationIn, focusDestination, handBack, openLayer, openerOf } from "./bundle-dom-move.js";
 import { requestJson, sessionIsActive } from "./bundle-layer-client.js";
 import { closeNativeLayer, showNativeLayer } from "./bundle-geometry.js";
-import { html, nothing, offlineInteractive, pageUrl, render, runtime } from "./bundle-context.js";
-import { closeControl, el, reveal } from "./bundle-errors.js";
-import { chromeForeground } from "./bundle-element-frame.js";
+import { guard, html, nothing, offlineInteractive, pageUrl, render, runtime } from "./bundle-context.js";
+import { closeControl, el, offerAction, offeredAction, reveal } from "./bundle-errors.js";
+import { chromeForeground, pageControls } from "./bundle-page-controls.js";
 import { copyControl, retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
 import { scrollBehavior } from "./bundle-motion.js";
 import { readCurrentUserView } from "./bundle-user-view2.js";
 
+//#region runtime/copyable-text.js
+function copyableText(label, value) {
+	return html`<div class="lf-copyable-text">
+    <div class="lf-copyable-head">
+      <span>${label}</span>
+      ${guard([label, value], () => {
+		const copy = copyControl("", {
+			label: `Copy ${label}`,
+			success: `${label[0].toUpperCase()}${label.slice(1)} copied`,
+			error: `${label[0].toUpperCase()}${label.slice(1)} not copied · select the text to copy`
+		});
+		copy.value = value;
+		return copy;
+	})}
+    </div>
+    <pre tabindex="0" aria-label=${label}>${value}</pre>
+  </div>`;
+}
+
+//#endregion
 //#region runtime/page-inspection.js
 const dialog = el("dialog", "lf-ui lf-inspection-dialog");
-dialog.setAttribute("aria-label", "Page diagnostics");
+dialog.setAttribute("aria-label", "About this page");
 const head = el("div", "lf-inspection-head");
-head.append(el("strong", "", "Page diagnostics"));
+head.append(el("strong", "", "About this page"));
 const copy = copyControl("", {
 	label: "Copy diagnostics",
 	success: "Diagnostics copied",
 	error: "Diagnostics not copied. Select the report text to copy it manually."
 });
-const copyLabel = el("button", "lf-btn", "Copy diagnostics");
-copyLabel.type = "button";
+const copyLabel = offerAction("word", "", "Copy diagnostics");
 copy.append(copyLabel);
 const close = closeControl({
-	name: "Close page diagnostics",
-	title: "Close page diagnostics (Esc)"
+	name: "Close about this page",
+	title: "Close about this page (Esc)"
 });
 head.append(copy, close);
 const copyResult = el("p");
 copyResult.hidden = true;
-const body = el("div", "lf-inspection-body");
-dialog.append(head, copyResult, body);
+const scroll = el("div", "lf-inspection-body");
+const identity = el("section");
+identity.setAttribute("aria-label", "Page details");
+const body = el("div");
+scroll.append(identity, body);
+dialog.append(head, copyResult, scroll);
 for (const type of ["wa-copy", "wa-error"]) copy.addEventListener(type, () => {
 	if (!dialog.open) return;
 	const failed = type === "wa-error";
-	const fallback = failed ? html`<button class="lf-btn" @click=${selectReport}>Select report text</button>` : nothing;
+	const fallback = failed ? html`<button ${offeredAction("word")} @click=${selectReport}>
+          Select report text
+        </button>` : nothing;
 	render(html`<span>${failed ? copy.errorLabel : copy.successLabel}</span> ${fallback}`, copyResult);
 	if (copyResult.hidden) copyResult.hidden = false;
 });
@@ -89,7 +114,10 @@ const observations = (label, rows, describe) => html` <dt>${label}</dt>
       ${rows.length ? html`<ul>
               ${rows.map((row) => html` <li>
                     <code>${row.at}</code>: ${describe(row)}
-                    ${destinations.has(row) ? html`<button class="lf-btn" @click=${() => showOnPage(row)}>
+                    ${destinations.has(row) ? html`<button
+                            ${offeredAction("word")}
+                            @click=${() => showOnPage(row)}
+                          >
                             Show on page
                           </button>` : nothing}
                   </li>`)}
@@ -123,7 +151,7 @@ function browserReading(view) {
     </p>
     <details>
       <summary>Rendering environment</summary>
-      <pre>${JSON.stringify(view.identity, null, 2)}</pre>
+      ${copyableText("rendering environment", JSON.stringify(view.identity, null, 2))}
     </details>
     ${view.unavailable ? html`<p>${view.unavailable}</p>` : nothing}
     ${view.readiness ? html`<p>Captured while the page was settling: ${view.readiness}.</p>` : nothing}
@@ -137,7 +165,7 @@ function browserReading(view) {
           </dl>` : nothing}
     <details>
       <summary>Browser observations and locations</summary>
-      <pre>${JSON.stringify(view, null, 2)}</pre>
+      ${copyableText("browser observations and locations", JSON.stringify(view, null, 2))}
     </details>`;
 }
 function present() {
@@ -162,7 +190,7 @@ function present() {
         <h2>Authored CSS</h2>
         ${loading ? html`<p role="status">Reading source…</p>` : nothing}
         ${sourceError ? html`<p role="status">${sourceError}</p>
-                ${report.basis ? html`<button class="lf-btn" @click=${loadSource}>
+                ${report.basis ? html`<button ${offeredAction("word")} @click=${loadSource}>
                         Retry source inspection
                       </button>` : nothing}` : nothing}
         ${report.css ? html`
@@ -212,7 +240,7 @@ function present() {
       </section>
       <details>
         <summary>Structured report</summary>
-        <pre tabindex="0" aria-label="Structured diagnostics">${serialized}</pre>
+        ${copyableText("Structured diagnostics", serialized)}
       </details>
     `, body);
 }
@@ -265,6 +293,8 @@ async function openPageInspection(intent) {
 	};
 	sourceError = available ? null : "Source inspection is unavailable in this export or public preview. Browser context is shown below.";
 	loading = available;
+	render(html`<h2>Page details</h2>
+      ${pageControls().filter((entry) => entry.copies).map((entry) => html`${copyableText(entry.label[0].toUpperCase() + entry.label.slice(1), entry.copies)}${entry.value ? html`<p>${entry.value}</p>` : nothing}`)}`, identity);
 	openLayer(dialog);
 	if (available) loadSource();
 	else present();

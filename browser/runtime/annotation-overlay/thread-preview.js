@@ -51,7 +51,7 @@ import {
   tabStops,
 } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
-import { closeControl, el, offer } from "../widget-elements.js";
+import { closeControl, el, offerAction } from "../widget-elements.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "../keeps.js";
 import { setChildren } from "../dom-children.js";
 import { move } from "../dom-move.js";
@@ -63,8 +63,6 @@ import { boxMotion, liftReach } from "../box-motion.js";
 import { closestAcross } from "../passages.js";
 import { threadIdNamed } from "../thread/state.js";
 import { turns } from "../thread/model.js";
-import { whenDocumentPresented } from "../semantic-state.js";
-import { iconElement } from "../icons.js";
 import { anchorLabel, releaseAuthoredUnder } from "../thread/messages.js";
 import { coarsePointer } from "../pointer.js";
 import {
@@ -103,7 +101,6 @@ export function createThreadPreview({
   inventory,
   renderMarginThread,
   placedAt,
-  openPageThread,
   scrollThreadIntoView,
   scrollToElement,
   openInPanel,
@@ -126,29 +123,25 @@ export function createThreadPreview({
   });
   const previewNav = el("span", "lf-margin-preview-nav");
   const previewPosition = el("span", "lf-margin-preview-position");
-  const previewPrevious = offer(
-    "button",
-    "lf-btn lf-icon-action lf-margin-preview-step",
+  const previewPrevious = offerAction(
+    "symbol",
+    "lf-margin-preview-step",
+    "Previous thread",
+    { icon: "previous" },
   );
-  previewPrevious.append(iconElement("previous", "lf-action-icon"));
-  previewPrevious.setAttribute("aria-label", "Previous thread");
-  previewPrevious.title = "Previous thread";
-  const previewNext = offer("button", "lf-btn lf-icon-action lf-margin-preview-step");
-  previewNext.append(iconElement("next", "lf-action-icon"));
-  previewNext.setAttribute("aria-label", "Next thread");
-  previewNext.title = "Next thread";
+  const previewNext = offerAction("symbol", "lf-margin-preview-step", "Next thread", {
+    icon: "next",
+  });
   previewNav.append(previewPrevious, previewPosition, previewNext);
   // Open in panel moves the card's thread into the floating panel's view of it, which
   // reads a long thread wider than the card's room beside the column. The card closes,
   // so one thread stands open, and the view's Show on page comes back.
-  const previewOpenInPanel = offer(
-    "button",
-    "lf-btn lf-icon-action lf-quiet-action lf-margin-preview-expand",
+  const previewOpenInPanel = offerAction(
+    "symbol",
+    "lf-margin-preview-expand",
+    "Open in panel",
+    { icon: "expand" },
   );
-  previewOpenInPanel.type = "button";
-  previewOpenInPanel.append(iconElement("expand", "lf-action-icon"));
-  previewOpenInPanel.setAttribute("aria-label", "Open in panel");
-  previewOpenInPanel.title = "Open in panel";
   const previewList = el("div", "lf-margin-preview-list");
   let dismiss = () => {};
   // Carried by its grip, the card stands where the user drops it, relative to what it is
@@ -837,28 +830,16 @@ export function createThreadPreview({
         // (box-motion.js, "send"), read before the send draws.
         sending: following.stream,
         // A resolved thread with no draft has no margin card, so resolving closes it and
-        // hands the user to its target, and a resolve that no longer stands opens the
-        // card on the thread again, while the margin is still where threads open.
+        // hands the user to its target.
         prepareLanding: () => {
           const target = targetFor(previewSession?.entry);
-          const thread = sourceItem(item).thread.id;
           const mayLand = retainUserIntent({
             source: focused(),
             available: () => Boolean(target?.isConnected),
           });
-          return {
-            optimistic: () => {
-              if (previewOpen()) return false;
-              return mayLand.handoff(() => focusDestination(target, "return"));
-            },
-            reverse: async (may = mayLand) => {
-              await whenDocumentPresented();
-              return (
-                may() &&
-                mayLand.available() &&
-                Boolean(await openPageThread(thread, { part: "thread", intent: may }))
-              );
-            },
+          return () => {
+            if (previewOpen()) return false;
+            return mayLand.handoff(() => focusDestination(target, "return"));
           };
         },
       },

@@ -7,7 +7,6 @@ export const SHOT_VIEWS = {
   compare: "Pair",
   pixels: "Pixels",
 };
-const CONTROL = "lf-btn lf-quiet-action";
 let nextOptionsId = 0;
 
 // Fit uses the content box: the scrollport's padding keeps the image shadow visible.
@@ -143,15 +142,14 @@ export const shotBox = (tag, cls) =>
     { says: false },
   );
 
-export function drawShot(host, { offer, generatedElement, keeps }) {
+export function drawShot(host, { offer, offerAction, generatedElement, keeps }) {
   const buttons = (label, values, selected) => {
     const group = offer("div", "lf-shot-views");
     group.role = "group";
     group.ariaLabel = label;
     const choices = new Map();
     for (const [value, text] of Object.entries(values)) {
-      const button = offer("button", CONTROL, text);
-      button.type = "button";
+      const button = offerAction("word", "", text);
       button.setAttribute("aria-pressed", String(value === selected));
       choices.set(value, button);
       group.append(button);
@@ -170,9 +168,8 @@ export function drawShot(host, { offer, generatedElement, keeps }) {
   const views = buttons("Comparison view", SHOT_VIEWS, "flip");
   views.choices.get("pixels").disabled = true;
   const tools = offer("div", "lf-shot-tools");
-  const scaleTrigger = offer("button", `${CONTROL} lf-shot-scale`, "…");
-  scaleTrigger.type = "button";
-  scaleTrigger.ariaLabel = "Image options";
+  const scaleTrigger = offerAction("symbol", "lf-shot-scale", "Image options");
+  scaleTrigger.textContent = "…";
   const options = offer("div", "lf-shotoptions");
   options.setAttribute("popover", "auto");
   options.role = "group";
@@ -184,8 +181,7 @@ export function drawShot(host, { offer, generatedElement, keeps }) {
   scaleTrigger.setAttribute("aria-expanded", "false");
   const scale = buttons("Image scale", { fit: "Fit", actual: "100%" }, "fit");
   scale.group.className = "lf-shot-scale-options";
-  const outlines = offer("button", `${CONTROL} lf-shot-outline`, "Outline");
-  outlines.type = "button";
+  const outlines = offerAction("word", "lf-shot-outline", "Outline");
   outlines.ariaLabel = "Outline changes";
   outlines.title = "Outline changes";
   outlines.disabled = true;

@@ -116,6 +116,7 @@ function paintStand(box = null) {
 	root.className = "lf-ui lf-target-paint lf-paint-stand";
 	root.setAttribute("aria-hidden", "true");
 	root.style.position = "fixed";
+	if (box) root.style.setProperty("--lf-paint-outset", "var(--focus-ring-w)");
 	const carrier = document.createElement("div");
 	carrier.className = "lf-paint-carrier";
 	if (box) carrier.append(box);
@@ -506,7 +507,7 @@ function paintAim(element, surface = null) {
 	if (!shaped) aimShape.replaceChildren();
 	keeps(aimBox, "data-for", element.id);
 	keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	aimStood = standOver(aimStand, placed, getComputedStyle(surface ?? element).borderRadius);
+	aimStood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface ?? element).borderRadius);
 	aimPlaced = placed;
 	return placed.shown;
 }
@@ -693,6 +694,14 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 	let streamFrom = /* @__PURE__ */ new Map();
 	let streams = /* @__PURE__ */ new Map();
 	let stopStreaming = new AbortController();
+	let fieldScrolls = /* @__PURE__ */ new Map();
+	const noteFieldScrolls = () => {
+		for (const field of fieldScrolls.keys()) fieldScrolls.set(field, field.scrollTop);
+	};
+	onUserInput((event) => {
+		if (event.type !== "input") noteFieldScrolls();
+	});
+	root.addEventListener("lf-before-edit", noteFieldScrolls, { passive: true });
 	function rebase() {
 		const at = boxOf(root.getBoundingClientRect());
 		const edges = held();
@@ -846,8 +855,11 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 			top: from + (to - from) * progress
 		});
 		streams = /* @__PURE__ */ new Map();
+		const moved = motions;
 		motions = /* @__PURE__ */ new Map();
 		rests = next;
+		const scrolledFrom = fieldScrolls;
+		fieldScrolls = new Map([...rests.keys()].filter((element) => element.matches(TEXT_FIELD)).map((element) => [element, element.scrollTop]));
 		const space = boxOf(room.getBoundingClientRect());
 		const outline = (at, grow, radius) => [[
 			at.top - space.top - grow,
@@ -918,11 +930,12 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 				if (gesture === "send") streamContent(part);
 				return;
 			}
-			const edgeBy = (start, end, length) => length(to) < length(from) - .5 && near(from[end], to[end]) && !near(from[start], to[start]) ? end : start;
+			const emptied = gesture === "send" || part.element.matches(":state(placeholder-shown)");
+			const edgeBy = (start, end, length) => emptied && length(to) < length(from) - .5 && near(from[end], to[end]) && !near(from[start], to[start]) ? end : start;
 			const carries = [rtl ? edgeBy("right", "left", width) : edgeBy("left", "right", width), edgeBy("top", "bottom", height)];
-			let dx = from[carries[0]] - to[carries[0]];
+			const dx = from[carries[0]] - to[carries[0]];
 			let dy = from[carries[1]] - to[carries[1]];
-			const cut = [
+			const cut = () => [
 				from.top - (to.top + dy),
 				to.right + dx - from.right,
 				to.bottom + dy - from.bottom,
@@ -935,21 +948,27 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 					carries
 				});
 				move(part.element, dx, dy);
-				cutFrom(part.element, cut, radiusOf(part.style));
+				cutFrom(part.element, cut(), radiusOf(part.style));
 				return;
 			}
+			const gaveUp = part.element.scrollHeight <= part.element.clientHeight && !emptied ? scrolledFrom.get(part.element) ?? 0 : 0;
+			const left = (moved.get(part.element)?.gaveUp ?? 0) * (1 - progress);
+			dy -= gaveUp + left;
 			motions.set(part.element, {
 				from,
-				to
+				to,
+				gaveUp: gaveUp + left
 			});
-			dx = rtl ? Math.min(0, dx) : Math.max(0, dx);
-			dy = Math.max(0, dy);
+			const reach = Math.max(0, rtl ? dx : -dx, -dy);
+			if (reach > 0) hold(part.element, "overflow", "visible");
 			start(part.element, [{
 				"--lf-field-carry": `${dx}px ${dy}px`,
-				"--lf-field-cut": cut.map((side) => `${side}px`).join(" ")
+				"--lf-field-cut": cut().map((side) => `${side}px`).join(" "),
+				"--lf-field-reach": `${reach}px`
 			}, {
 				"--lf-field-carry": "0px 0px",
-				"--lf-field-cut": "0px 0px 0px 0px"
+				"--lf-field-cut": "0px 0px 0px 0px",
+				"--lf-field-reach": `${reach}px`
 			}]);
 		}
 		function grow(part, from) {
@@ -1033,7 +1052,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		function rise(part, frame, siblings) {
 			const to = part.box;
 			const dy = boxFrom.top - boxAt.top;
-			if (dy < .5) return reveal(part, frame, siblings);
+			if (dy < .5 || to.top >= boxFrom.top - .5) return reveal(part, frame, siblings);
 			motions.set(part.element, {
 				from: shifted(to, 0, dy),
 				to,

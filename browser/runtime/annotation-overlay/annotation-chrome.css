@@ -11,8 +11,8 @@ body.lf-over-mark {
    on its row in Threads, the thread the user is in — and is one hollow line.
    Unlike a text highlight, an element mark is projected above everything the target
    draws, so any interior paint can obscure the target's own words or picture. The
-   target painter keeps the contour above those descendants; the declarations below
-   are the no-JS fallback. The element still takes a press that opens its thread. */
+   target painter keeps the contour above those descendants. The element still takes
+   a press that opens its thread. */
 .lf-mark-el {
   cursor: pointer;
 }
@@ -22,22 +22,8 @@ body.lf-over-mark {
   .lf-mark-el:not(.lf-pending, .lf-mark-here, [data-lf-focus]) {
   cursor: auto;
 }
-/* The draft's own element (an open composer is on screen whenever this is), the pointer
-   on the thread's row in Threads and the thread the user is in share one contour
-   (--mark-contour-w and --mark-contour-ink, theme.css). It stands outside the element
-   at the focus ring's gap, clear of the words at its edge: drawn inside, it ran into a
-   heading's first letters. Focus on the element itself is the distinct state that
-   earns the full ring, in the same place. */
-.lf-mark-el:is(.lf-pending, .lf-mark-hover, .lf-mark-here) {
-  outline: var(--mark-contour-w) solid var(--mark-contour-ink);
-  outline-offset: var(--focus-ring-gap);
-}
 .lf-mark-el.lf-pending {
   cursor: auto;
-}
-.lf-mark-el:not(.lf-projected-mark)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
 }
 /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
    hand here is the aim's answer rather than the thread's: it stands where the aim has
@@ -49,9 +35,11 @@ body:is(.lf-aiming, [data-lf-design-mode]) .lf-mark-el {
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   cursor: pointer;
 }
-/* The chrome layer projects every element mark above the element's own descendants,
-   so source paint would duplicate it. */
-:is(.lf-mark-el, .lf-action-target).lf-projected-mark {
+/* Replace only the source focus cue, preserving authored outlines and obligations
+   while a reference is projected. Native visibility covers the return before the
+   focus owner has reflected its attribute. :root outranks field focus rules even
+   when their sheet arrives later. */
+:root .lf-projected-mark:is(:focus-visible, [data-lf-focus-visible]) {
   outline: none;
 }
 
@@ -135,7 +123,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     max-width: var(--lf-float-w, calc(100vw - 16px));
   }
   .lf-fab-bar[data-lf-margin-raised] {
-    display: none !important;
+    display: none;
   }
   /* A floating surface anchored in the page's plane (floating.js) shows wherever its
      placement puts it, its anchor scrolled away or not. */
@@ -192,26 +180,21 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-visual-marks {
     display: contents;
   }
-  /* Every projected state is a moment (anchor-paint.js), drawn as the contour the
-     fallback above draws, outside the target; focus on the target wears the focus ring
-     there instead, and an action's target alone keeps the hairline. A shaped mark
-     strokes the target's own shape (target-paint-geometry.js), so it spends no outline. */
+  /* Rectangles use the shared brackets in chrome.css; focus draws that perimeter
+     whole. SVG marks retain their actual contour instead of a rectangular frame. */
   .lf-visual-mark {
     position: absolute;
     display: none;
     pointer-events: none;
     --lf-shape-ink: var(--mark-contour-ink);
     --lf-shape-stroke: var(--mark-contour-w);
-    outline: var(--lf-shape-stroke) solid var(--lf-shape-ink);
-    outline-offset: var(--focus-ring-gap);
-    /* This layer is above the target's children. Keep its interior physically unable
-       to paint over them, including under package and page-local theme rules. */
-    background: none !important;
+    /* This layer is above the target's children, so its interior paints nothing over
+       them. */
+    background: none;
   }
   .lf-visual-mark.lf-visual-mark-focus {
     --lf-shape-ink: var(--accent);
     --lf-shape-stroke: var(--focus-ring-w);
-    outline: var(--focus-ring);
   }
   .lf-visual-mark.lf-visual-mark-action:not(
       .lf-visual-mark-pending,
@@ -220,9 +203,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       .lf-visual-mark-here
     ) {
     --lf-shape-stroke: 1px;
-  }
-  .lf-visual-mark.lf-shaped {
-    outline: none;
+    --lf-target-outline: 1px solid var(--mark-contour-ink);
   }
   .lf-visual-mark-shape {
     display: block;
@@ -462,20 +443,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-preview-position {
     white-space: nowrap;
   }
-  .lf-margin-preview-step {
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-  }
   .lf-margin-preview-step:first-child > .lf-action-icon {
     inset-inline-start: 4px;
   }
   .lf-margin-preview-step:last-child > .lf-action-icon {
     inset-inline-end: 4px;
-  }
-  .lf-margin-preview-step:not(:disabled):hover {
-    background: var(--chip);
-    color: var(--ink);
   }
   /* Only the turns scroll, each with its head: the actions and reply keep their own
      places, so the scrollbar describes the content it moves. The card grows to its

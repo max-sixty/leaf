@@ -29,12 +29,12 @@ theme to placement within the pane, such as track sizes, and don't copy the Layo
 full-height rules. Generate plain boxes rather than `lf-pane` elements, which the render
 gate expects to find in the page's file.
 
-A box the module generates to stand beside what it serves, such as a playground's rail
-of controls beside its stage, is a track: mark it `data-lf-track`, and the Layout keeps
-it in view while the window scrolls a taller neighbour past, as it does a sidebar page's
-track. Where the module stacks the track with what it serves, as on a phone, it
-declares `--lf-track-scroll-behavior: flow` on the track's parent, and the track flows
-with the page. Register the track as a reading region, since it may scroll.
+A module can generate a track beside its main content, such as a playground's controls
+beside its preview. Mark it `data-lf-track`, and the Layout keeps it visible while the
+window scrolls the taller content beside it, as with a sidebar page's track. When the
+module stacks the track with the content, as on a phone, it declares
+`--lf-track-scroll-behavior: flow` on the track's parent, and the track scrolls with
+the page. Register the track as a reading region, since it may scroll.
 
 A horizontal scroll surface uses the shared `scroll` class on its actual
 viewport and declares overflow in its CSS. The class supplies containment. Leaf adds

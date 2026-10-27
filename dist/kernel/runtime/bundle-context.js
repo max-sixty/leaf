@@ -599,7 +599,8 @@ function foldThreads(threads, gestures) {
 	const withdrawn = new Set(gestures.flatMap((gesture) => gesture.kind === "undo" ? [gesture.undoes] : []));
 	const copies = threads.filter((thread) => !withdrawn.has(thread.root.id)).map((thread) => ({
 		...thread,
-		msgs: thread.msgs.filter((message) => !withdrawn.has(message.id))
+		msgs: thread.msgs.filter((message) => !withdrawn.has(message.id)),
+		...thread.resolved && "id" in thread.resolved && withdrawn.has(thread.resolved.id) ? { resolved: null } : {}
 	}));
 	const byName = threadNames(copies);
 	const opened = [];

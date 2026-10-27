@@ -2830,11 +2830,7 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		const answer = withdraw(event);
 		if (!answer) return null;
 		disarm();
-		if (returning) answer.then(async (accepted) => {
-			if (!accepted) return;
-			await whenDocumentPresented();
-			await show(event, returning);
-		}).catch(() => {});
+		if (returning) whenDocumentPresented().then(() => show(event, returning)).catch(() => {});
 		return answer;
 	}
 	pageCommand({

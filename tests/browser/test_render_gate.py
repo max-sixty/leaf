@@ -978,8 +978,8 @@ def test_shadow_stage_withholds_package_transitions_until_presentation(
     """The shared shadow stage suppresses a package transition during arrival."""
     theme = tmp_path / "transition-theme"
     theme.mkdir()
-    (theme / "theme-shadow.css").write_text(
-        "details { transition: color 60s linear; }\n"
+    (theme / "widget-shadow.css").write_text(
+        ":host(lf-diff) details { transition: color 60s linear; }\n"
     )
     page = browser.new_page()
     held = []

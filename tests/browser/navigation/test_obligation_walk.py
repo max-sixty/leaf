@@ -321,7 +321,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     page.evaluate(
         """async () => {
           const {notice} = await window.__lfWidgetApi();
-          notice('Saved — sent');
+          notice('Saved');
           dispatchEvent(new Event('resize'));
         }"""
     )
@@ -710,7 +710,9 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
     browser, serve
 ):
-    """Letting go and scrolling starts a new walk where the user is now reading."""
+    """Letting go leaves the user at the obligation they left, so the walk returns to
+    it, either way; scrolling it away starts the walk where they now read, at the
+    obligation there rather than past it."""
     items = "".join(
         f"""
 <lf-ask id="question-{index}"><h2>Question {index}: which route should we take?</h2>
@@ -727,6 +729,21 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
     )
     page.emulate_media(reduced_motion="reduce")
     page.keyboard.press("m")
+    expect(page.locator("#question-1")).to_be_focused()
+    page.keyboard.press("m")
+    expect(page.locator("#question-2")).to_be_focused()
+    for back in ("m", "Shift+m"):
+        page.keyboard.press("Escape")
+        page.keyboard.press(back)
+        expect(page.locator("#question-2")).to_be_focused()
+    # Opening On me from there holds no other place, so the walk still returns.
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    page.keyboard.press("m")
+    expect(page.locator("#question-2")).to_be_focused()
+    page.keyboard.press("Shift+m")
     expect(page.locator("#question-1")).to_be_focused()
     page.keyboard.press("Escape")
     rendered(page)
@@ -748,7 +765,37 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
     expect(third).to_be_in_viewport()
 
     page.keyboard.press("m")
-    expect(page.locator("#question-4")).to_be_focused()
+    expect(page.locator("#question-3")).to_be_focused()
+
+
+def test_letting_go_of_an_obligation_on_screen_leaves_the_user_beside_it(
+    browser, serve
+):
+    """With several obligations in view, letting go of the second leaves the user beside
+    it rather than at the top of the view: `m` returns to it, and Tab carries on into
+    it."""
+    asks = "".join(
+        f"""<lf-ask id="ask-{index}"><h2>Question {index}</h2>
+<lf-options id="pick-{index}" choose>
+  <lf-option id="pick-{index}-yes">Yes</lf-option>
+  <lf-option id="pick-{index}-no">No</lf-option>
+</lf-options></lf-ask>"""
+        for index in range(1, 4)
+    )
+    page = open_page(
+        browser,
+        serve(leaf_page("asks in view", f"<h1>Asks</h1><p>Three asks.</p>{asks}")),
+    )
+    page.keyboard.press("m")
+    expect(page.locator("#ask-1")).to_be_focused()
+    page.keyboard.press("m")
+    expect(page.locator("#ask-2")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("m")
+    expect(page.locator("#ask-2")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Tab")
+    expect(page.locator("#pick-2 lf-option-control").first).to_be_focused()
 
 
 def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an_obligation(
@@ -943,8 +990,8 @@ def test_walking_to_an_obligation_opens_its_discussion(browser, serve, family):
 
 def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     """An obligation and the thread its card shows are one place held from two sides
-    (glossary, Current target). From the obligation, `c` continues that thread and `t` steps
-    on past it; from its thread in the card, the obligation keeps its ring and its digits.
+    (glossary, Current target). From the obligation, `c` continues that thread; from its
+    thread in the card, the obligation keeps its ring and its digits.
     A thread about an enclosing block holds the decision inside it with the agent, so
     On me skips that decision. From an element with no thread, `t` measures from its
     place in the document, as `m` does."""

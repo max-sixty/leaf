@@ -11,7 +11,8 @@
  *
  * Chips are inline-block in front of the title, so a titled option's band lands on its
  * own line above the block <strong> and a bare label's rides in its row. Authors write
- * as many as the decision needs, so the band wraps rather than reserving room.
+ * as many as the decision needs, so the band wraps rather than reserving room. Cards that
+ * share a row float their chips instead, so their titles align (below).
  *
  * Joined is a second axis: under `choose` on screen, the group becomes one control whose
  * cells share hairlines; under `settled`, in an exhibit, or on paper it comes apart.
@@ -27,6 +28,14 @@
  * lf-ask framing a figure does (ask.css); it does not inherit, so a nested group keeps its
  * own. */
 @property --lf-options-across {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+/* Whether an option shares a row with its siblings, which it does only in a group laid
+ * across that is wide enough to hold them all (`--lf-options-row-width`). Each option
+ * computes it against its group's width and its children read it. */
+@property --lf-option-in-row {
   syntax: "<integer>";
   inherits: false;
   initial-value: 0;
@@ -47,6 +56,9 @@
   --lf-option-line: 1lh;
   --lf-option-pad-min: 5px;
   --lf-option-pad-block: var(--lf-option-pad-min);
+  /* The width a row of its options needs, set only where the group lays them across, so
+   * a group nested in an option does not inherit its holder's. */
+  --lf-options-row-width: initial;
   container-type: inline-size;
 }
 /* Options are read as lines of text, so the group keeps the reading measure as its
@@ -96,16 +108,16 @@
  * A narrower card keeps the heading, since a row there broke the title around the
  * floated chips. The card is the container, so both conditions read the same box. */
 @container not (style(--lf-density: working) and (width >= 30rem)) {
+  /* What follows the title starts on its next line, whatever it is. The title's own
+   * margin had set a sentence holding an inline element or Markdown 4px lower than a
+   * plain one, whose title the frame's trim took for the card's last block. */
   :scope:is(lf-option) > strong {
     display: block;
-    margin: 0 0 4px;
+    margin: 0;
   }
   /* A consequence the author set as its own paragraph starts where the sentence written
-   * after the title does, on the title's next line. The paragraph's margin had set it
-   * 13px lower, so those cards read looser than their neighbours. */
-  :scope:is(lf-option) > strong:has(+ p) {
-    margin-block-end: 0;
-  }
+   * after the title does. The paragraph's margin had set it 13px lower, so those cards
+   * read looser than their neighbours. */
   :scope:is(lf-option) > strong + p {
     margin-block-start: 0;
   }
@@ -214,7 +226,8 @@
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(
       > lf-option > strong
     ) {
-    --lf-card-state-room: 80px;
+    /* The seat below, past the card's inset, and a gap before the words. */
+    --lf-card-state-room: calc(var(--lf-key-badge-size) + var(--sp-2));
     --lf-card-state-height: 22px;
     & > :is(lf-option, .lf-another) {
       padding-inline-start: var(--sp-3);
@@ -250,22 +263,6 @@
       min-width: var(--lf-key-badge-size);
       min-height: var(--lf-key-badge-size);
       justify-content: center;
-    }
-    & > lf-option[chosen] > .lf-pick {
-      padding: var(--chip-pad);
-      border-radius: var(--chip-r);
-      background: var(--ok);
-      color: var(--card);
-      font-size: var(--t-6);
-      line-height: var(--chip-lh);
-      gap: 4px;
-    }
-    & > lf-option[chosen] > .lf-pick::before {
-      width: auto;
-      height: auto;
-      border: 0;
-      background: transparent;
-      color: inherit;
     }
     & > lf-option > .lf-key-badge {
       inset-inline-start: auto;
@@ -341,9 +338,8 @@
 :scope:is(lf-option) .lf-pick[role="checkbox"] {
   cursor: pointer;
 }
-/* An offer's word is not drawn; "Choose one" or "choose any" stays the accessible name.
- * A live titled card's picked word is the exception, as a header status in its reserved
- * room above. */
+/* The mark's word is not drawn; "choose one", "choose any" or "selected" stays its
+ * accessible name. */
 :scope:is(lf-option) .lf-pick:not([data-lf-said]) {
   font-size: 0;
   gap: 0;
@@ -440,8 +436,11 @@
 @media screen {
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid;
+    /* The hairline between cells is the group's own ground showing through a 1px gap;
+     * every cell paints its own ground over the rest (below). */
+    gap: 1px;
     --lf-ground: var(--card);
-    background: var(--lf-ground);
+    background: var(--rule);
     border: 1px solid var(--border-2);
     border-radius: var(--r);
     /* Clip, not hidden: a hidden box is a scroll container, which would take a sticky
@@ -460,13 +459,13 @@
     }
     &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
       --lf-missing-cells: var(--lf-add-cell-height);
-      --lf-missing-add: var(--lf-add-cell-height);
+      --lf-missing-add: calc(var(--lf-add-cell-height) + 1px);
     }
     &[multiple]:not(:has(> lf-options-done)) {
       --lf-missing-cells: calc(var(--lf-done-cell-height) + var(--lf-missing-add, 0px));
     }
-    /* The reserve is a cell and draws the hairline above itself; it exists only while a
-     * cell is missing. */
+    /* The reserve is a cell standing in for the missing ones, and the gap above it for
+     * the hairline above them; it exists only while a cell is missing. */
     &:where([data-lf-interactive] *):not(:where(.lf-chrome *)):not(:has(> .lf-another)),
     &:where([data-lf-interactive] *)[multiple]:not(:has(> lf-options-done)) {
       &::after {
@@ -476,7 +475,6 @@
         grid-column: 1 / -1;
         height: var(--lf-missing-cells);
         background: var(--card);
-        box-shadow: var(--lf-cell-rule);
       }
     }
     & > .lf-another {
@@ -499,15 +497,14 @@
     & .lf-btn[data-lf-focus-visible] {
       outline-offset: calc(-1 * var(--focus-ring-w));
     }
-    /* The hairline: every child rings itself with a 1px shadow that takes no room and
-     * paints its own ground. Cells are positioned, so they paint in order and a later
-     * neighbour's ground covers the ring an earlier one cast, leaving one line between
-     * them; a ring cast into an empty grid cell stays as that cell's edge, and the clip
-     * takes what passes the frame. This needs no knowledge of which row a cell ends. */
-    --lf-cell-rule: 0 0 0 1px var(--rule);
+    /* The hairline: every child paints its own ground, so the group's shows only in the
+     * gap between cells, one line wherever two meet, in a column or a row, with no
+     * knowledge of which row a cell ends. The line takes its own pixel, so a ring a cell
+     * draws on its edge, a pick's or the keyboard's, stays whole beside any neighbour.
+     * A shadow cast over the next cell, the line before, cut the lower edge of every
+     * ring but the last cell's. */
     & > * {
       margin-block: 0;
-      box-shadow: var(--lf-cell-rule);
       --fill: var(--card);
       --lf-ground: var(--fill);
       background-color: var(--lf-ground);
@@ -520,9 +517,7 @@
     }
     & > lf-option[chosen] {
       --fill: var(--ok-tint);
-      box-shadow:
-        inset 0 0 0 2px var(--ok),
-        var(--lf-cell-rule);
+      box-shadow: inset 0 0 0 2px var(--ok);
     }
     /* An ok chip on the chosen cell stands on the card's ground, or it loses its ground
      * in the cell's tint. */
@@ -543,8 +538,8 @@
    * holder's width rather than the reading column's. Bare-label rows stay a list.
    *
    * Each column's floor chooses between the two. While the width holds every option at
-   * 14rem, the floor is one option's share of the width (`--lf-option-count`), so all
-   * fit one row; otherwise it is the whole width, so each takes a row. The clamp's
+   * 14rem, the floor is one option's share of the width less its share of the
+   * hairline gaps (`--lf-option-count`), so all fit one row; otherwise it is the whole width, so each takes a row. The clamp's
    * middle term multiplies the width's shortfall from that row by 999, which pushes it
    * past one bound or the other. `auto-fit` keeps a column the spanning Add and Done
    * cells stand in, so the count, not the cells, sets the floor. */
@@ -553,6 +548,7 @@
         > lf-option > strong
       ) {
       --lf-option-count: 99;
+      --lf-options-row-width: calc(var(--lf-option-count) * 14rem);
       &:has(> lf-option:nth-of-type(1):last-of-type) {
         --lf-option-count: 1;
       }
@@ -575,14 +571,39 @@
         auto-fit,
         minmax(
           clamp(
-            100% / var(--lf-option-count),
-            (var(--lf-option-count) * 14rem - 100%) * 999,
+            (100% + 1px) / var(--lf-option-count) - 1px,
+            (var(--lf-options-row-width) - 100%) * 999,
             100%
           ),
           1fr
         )
       );
       max-inline-size: none;
+    }
+  }
+  /* Cards laid across align their titles, whatever chips each opens with. The chips
+   * that open a card float out of the line flow, so its title is the card's first
+   * baseline, and the row aligns each card's contents on it (baseline
+   * content-alignment) while the cards keep the row's height and their corners.
+   * Chromium lacks baseline content-alignment (`notes/browser-support.md`), so where
+   * any card in the row opens with chips every title also clears the state seat:
+   * chips that fit beside the seat then leave every title on the line below it in
+   * both engines. A row without chips keeps its titles beside the seat. Subgrid would
+   * need a box around a card's chips, and a card's children stay as the author wrote
+   * them. */
+  :scope:is(lf-options):has(> lf-option > strong) > lf-option {
+    --lf-option-in-row: clamp(0, sign(100cqi - var(--lf-options-row-width)) + 1, 1);
+    align-content: first baseline;
+  }
+  @container style(--lf-option-in-row: 1) {
+    /* Each chip's row is the seat's height, so the chips wrap level beside the seat and
+     * under it rather than stepping down where the seat ends. */
+    :scope:is(lf-option) > .tag:has(~ strong) {
+      float: inline-start;
+      margin-block-end: calc(var(--lf-card-state-height) - 1lh);
+    }
+    :scope:is(lf-options):has(> lf-option > .tag ~ strong) > lf-option > strong {
+      clear: both;
     }
   }
   /* Focus inside the control is carried by the exact row, so the obligation's location ring
@@ -594,13 +615,10 @@
     ) {
     --lf-obligation-ring: none;
   }
-  /* A ringed row stands above its neighbours, so the next cell's line does not cut its
-   * ring. */
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
     > lf-option:has(> .lf-pick[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
-    z-index: 1;
   }
   /* The landing reads the row's ring carrier in the focus task, before the
    * visible-focus marker is painted. */
@@ -614,7 +632,6 @@
     > .lf-another:has(leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
-    z-index: 1;
     --lf-wears-ring: 1;
   }
   .lf-another {
@@ -845,14 +862,8 @@
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-.lf-settled-count {
-  margin-left: auto;
-  font-weight: 400;
-  font-size: var(--t-6);
-  color: var(--muted);
-  white-space: nowrap;
-}
 .lf-settled-diff {
+  margin-inline-start: auto;
   font-weight: 400;
   font-size: var(--t-6);
   padding: var(--chip-pad);

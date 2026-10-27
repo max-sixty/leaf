@@ -1821,6 +1821,12 @@ details {
   margin: var(--details-margin-block) 0;
   --lf-block-frame: trim;
 }
+details:has(+ details) {
+  margin-block-end: 0;
+}
+details + details {
+  margin-block-start: 0;
+}
 details::details-content {
   grid-column: 1 / -1;
 }
@@ -1977,6 +1983,10 @@ aside.sidenote {
   margin: 0;
   padding-block-start: var(--sp-2);
   border-block-start: 1px solid var(--rule);
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: 0;
 }
 .metric dt {
   color: var(--muted);

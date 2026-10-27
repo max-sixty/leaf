@@ -74,6 +74,7 @@ import { createPageGeometry } from "./runtime/page-geometry.js";
 import * as targetPaint from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
+import { createRewriteRestore } from "./runtime/thread/message-edit.js";
 import { allThreads, threadNamed } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import {
@@ -216,12 +217,11 @@ let goToSequence;
 let floatingPanel;
 const navigation = createNavigation({
   placedAt: (id) => anchorPlacement.placedAt(id),
-  heldPlace: () => floatingPanel?.heldPlace() ?? null,
   threadDestinations: {
     openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
     scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
-    threadHere: () => app.threadDestinations.threadHere(),
-    threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
+    threadAtCurrentLocation: (node) =>
+      app.threadDestinations.threadAtCurrentLocation(node),
     threadPlace: (...args) => app.threadDestinations.threadPlace(...args),
   },
 });
@@ -440,7 +440,6 @@ const queueWalk = createQueueWalk({
   actions: app.queueActions,
   arriveAtRecord: items.arriveAtRecord,
   arriveAtThread: navigation.arriveAtThread,
-  threadHere: () => app.threadDestinations.threadHere(),
   threadPlace: (id) => app.threadDestinations.threadPlace(id),
   prepareNavigationStep: anchorTravel.prepareNavigationStep,
   arrive: anchorTravel.arrive,
@@ -615,12 +614,18 @@ const writingResume = createWritingResume({
     app.threadDestinations.openThreadDraft(context, intent),
   holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
 });
+const rewriteRestore = createRewriteRestore({
+  revealInThread: (context, intent) =>
+    app.threadDestinations.openThreadDraft(context, intent),
+  holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
+});
 goToSequence = createGoToSequence({
   doors: floatingPanel.doors,
   hintChrome,
   openPageMap: (...args) => pageMapDialog.openPageMap(...args),
   directDestinations: () => [
     writingResume,
+    rewriteRestore,
     passageSelection.command,
     navigation.alignTop,
     app.read.firstUnreadCommand,

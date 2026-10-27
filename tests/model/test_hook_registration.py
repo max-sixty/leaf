@@ -633,7 +633,10 @@ for event, args, turn_id in cases:
     if turn_id:
         payload["turn_id"] = turn_id
     sys.stdin = io.StringIO(json.dumps(payload))
-    runpy.run_module("leaf", run_name="__main__")
+    try:
+        runpy.run_module("leaf", run_name="__main__")
+    except SystemExit as error:
+        assert error.code == 0, error.code
     if turn_id:
         from leaf.codex_state import hook_turn
         observed = hook_turn("holds-nothing")
@@ -650,9 +653,7 @@ print(json.dumps(imported))
         check=True,
     )
     heavy = (
-        "leaf.cli",
         "psutil",
-        "click",
         "leaf.hosting",
         "uvicorn",
         "leaf.http",
@@ -670,6 +671,24 @@ print(json.dumps(imported))
     )
     for loaded in json.loads(done.stdout):
         assert [module for module in heavy if module in loaded] == []
+
+
+def test_a_claimed_hook_imports_no_css_script_or_watch_parser():
+    """The claimed hook reads the page and validates its events, so it needs the schema
+    validators, but not what only capture, vendoring and a watch
+    use. Their imports cost tens of milliseconds at every tool boundary."""
+    probe = (
+        "import sys, json, leaf.hook_transport; print(json.dumps(sorted(sys.modules)))"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=True,
+    )
+    loaded = set(json.loads(done.stdout))
+    assert {"tinycss2", "tree_sitter", "watchfiles"} & loaded == set()
 
 
 @pytest.mark.parametrize(

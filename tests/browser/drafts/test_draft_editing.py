@@ -20,7 +20,6 @@ from render_harness import (
     http_error_console,
     leaf_page,
     open_page,
-    panel_field,
     resized,
     round_trip,
     scroll_settled,
@@ -466,9 +465,7 @@ def test_a_press_away_from_an_open_draft_saves_it(browser, serve):
     assert [event["detail"]["value"] for event in edits] == [
         "Land the pointer branch first."
     ]
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Edited “Landing the branches”")
-    )
+    expect(page.locator(".lf-live")).to_have_text("Edited “Landing the branches”")
 
 
 def test_a_rendered_continuation_click_edits_the_exact_source_position(browser, serve):
@@ -537,7 +534,8 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
 ):
     """A draft lends its obligation no digits, so a digit typed while focused on the obligation
     or in the editor is not a command; the user Tabs to Edit and saves with
-    Mod+Enter."""
+    Mod+Enter. Edit shows before the pointer or a key reaches the box, since it is the
+    way to answer."""
     original = "Keep **this** source editable."
     page = open_page(
         browser,
@@ -553,6 +551,7 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
     question = page.locator("#note-decision")
     editor = page.locator("#note leaf-text")
     edit = draft_control(page, "edit", "note")
+    expect(page.locator("#note .lf-draft-tools")).to_have_css("opacity", "1")
 
     page.keyboard.press("m")
     expect(question).to_be_focused()
@@ -935,6 +934,37 @@ def test_a_finger_copies_a_draft_from_anywhere_in_copy_s_reach(browser, serve):
         "() => document.querySelector('#note .lf-draft-tools > wa-copy-button')"
         ".presses === 1"
     )
+
+
+def test_a_finger_on_the_last_line_writes_there_rather_than_discarding(browser, serve):
+    """Under a finger the toolbar stands on the box's bottom border, and each mark's
+    reach half a finger's floor above it. The box's padding keeps that reach off the
+    words, so a press at the end of the last line puts the caret there. The padding was
+    10px, so the press 3px above the field's foot under Discard discarded the edit."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Finger draft",
+                '<h1>Release note</h1><lf-draft id="note"><pre>Keep this note.</pre></lf-draft>',
+            )
+        ),
+        context=context,
+    )
+    draft_control(page, "edit", "note").tap()
+    field = page.locator("#note .lf-draft-edit")
+    expect(field).to_be_visible()
+    discard = draft_control(page, "cancel", "note").bounding_box()
+    words = field.bounding_box()
+    # A mouse press, which Chrome's touch adjustment doesn't move.
+    page.mouse.click(
+        discard["x"] + discard["width"] / 2, words["y"] + words["height"] - 3
+    )
+    expect(field).to_be_focused()
+    expect(draft_control(page, "cancel", "note")).to_be_visible()
 
 
 def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, serve):

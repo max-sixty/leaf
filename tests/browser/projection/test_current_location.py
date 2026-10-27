@@ -100,9 +100,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     )
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Chose “Two” — sent")
-    )
+    expect(page.locator(".lf-live")).to_have_text("Chose “Two”")
     round_trip(page)
 
 

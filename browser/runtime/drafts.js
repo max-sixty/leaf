@@ -363,6 +363,16 @@ export function transferDraft(from, to, text, payload) {
   tellDraft(to, activeDraftRecord(to)?.text ?? text, payload);
   return true;
 }
+// Put words the user put away back into `ctx`, as a new generation every view shows,
+// unless it holds words of its own: those are newer than the words coming back. Shared
+// storage is re-read first, since another tab's storage event may not have arrived.
+export function restoreDraft(ctx, text, payload) {
+  refreshDraftRecord(ctx);
+  if (draftHasContent(ctx)) return false;
+  saveDraft(ctx, text, payload);
+  tellDraft(ctx, text, payload);
+  return true;
+}
 export const loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
 export const loadDraftPayload = (ctx) => activeDraftRecord(ctx)?.payload;
 export const draftContexts = () =>
@@ -661,7 +671,7 @@ export function keepRefusedWords(attempts) {
       keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
   const sentences = [
     hidden.length && "Draft kept — g i resumes writing",
-    held && "Reply kept — it returns when its comment sends",
+    held && "Reply kept — it comes back once its comment is saved",
   ].filter(Boolean);
   return {
     said: sentences.length ? sentences.join(". ") : null,

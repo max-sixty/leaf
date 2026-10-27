@@ -1100,7 +1100,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     )
     page = open_page(browser, url)
     live = page.locator(".lf-live")
-    expect(live).to_have_text("Codex replied")
+    expect(live).to_have_text("Earlier")
 
     open_panel_thread(page, drafting["id"])
     draft = panel_field(page)
@@ -1126,7 +1126,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
         },
     )
     told(page)
-    expect(live).to_have_text("Codex replied")
+    expect(live).to_have_text("For B")
     expect(draft).to_be_focused()
     expect(draft).to_have_js_property("value", "Keep this draft")
 
@@ -1165,7 +1165,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     round_trip(page)
     expect(live).to_have_text("2 replies in 2 threads")
     assert page.evaluate("() => window.__lfReplyAnnouncements") == [
-        "Codex replied",
+        "For B",
         "2 replies in 2 threads",
     ]
     page.reload()
@@ -1180,10 +1180,10 @@ def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):
           const {notice} = await window.__lfWidgetApi();
           notice('Updated to v3', {background: true});
           notice('Updated to v4', {background: true});
-          notice('Saved — sent');
+          notice('Saved');
         }"""
     )
-    expect_panel_says(page, "Saved — sent")
+    expect_panel_says(page, "Saved")
     expect_panel_says(page, "Updated to v4")
 
 
@@ -1329,6 +1329,9 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
     )
     sent_size = body.evaluate("body => getComputedStyle(body).fontSize")
     box = page_comment(page) if surface == "general" else page.locator(box_selector)
+    if surface == "outlet":
+        # Reply rests as a press; open it by user input before write() focuses it.
+        box.click()
     write(box, MARKDOWN)
     box.evaluate("box => box.id = 'draft-face-editor'")
     cdp = page.context.new_cdp_session(page)

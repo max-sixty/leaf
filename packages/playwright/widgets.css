@@ -481,15 +481,6 @@
   translate: -1px 0;
   background: var(--accent);
 }
-.lf-trace-legend {
-  grid-column: 1 / -1;
-  margin: 0;
-  padding: var(--sp-1) var(--sp-2);
-  border-block-start: 1px solid var(--border-2);
-  color: var(--muted);
-  font: var(--lf-trace-small-type) / 1.4 var(--sans);
-  max-inline-size: none;
-}
 .lf-trace-timeline [data-lf-trace-tip-anchor] {
   anchor-name: --lf-trace-tip;
 }
@@ -793,15 +784,9 @@
   font: inherit;
 }
 .lf-trace-transport-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-2);
   flex: 0 0 auto;
   min-inline-size: var(--lf-trace-control-size);
   block-size: var(--lf-trace-control-size);
-  padding: 0 var(--sp-2);
-  font: 500 var(--lf-trace-small-type)/1 var(--sans);
 }
 /* These adjacent targets keep the shared ring inside their own allocation. */
 .lf-trace-transport-button[data-lf-focus-visible],

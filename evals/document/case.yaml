@@ -107,3 +107,13 @@ variants:
       purpose: Read and answer a delivery too large for the hook's context, which arrives by pointer.
       conditions:
         - leaf
+  # From TODO.md, "Test the Layouts on agents": after its comment and decision, the
+  # review becomes the page the team follows during the rollout. The Layouts hold
+  # if the author composes the status in (a sidebar's aside, a status block) rather
+  # than rebuilding the page, and the comment thread survives.
+  live-status:
+    metadata:
+      scenario: document-live-status
+      purpose: Turn a finished review into a review with live status, keeping its comment thread.
+      tags: [workflow, layout]
+      conditions: [leaf]

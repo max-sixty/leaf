@@ -4562,16 +4562,28 @@ def test_a_thread_s_words_start_on_its_head_s_edge(browser, serve):
     far as that rule, so its words keep the message's and its frame stays clear of the
     panel's edge."""
     url = serve(PAGE_ANNOTATED)
-    panel_comment(
+    root = panel_comment(
         serve.page_dir,
         "Is the window long enough?",
         anchor={"section": "p3", "quote": "Paragraph 3."},
+    )
+    # Untitled threads hide the repeated heading; measure an actual thread title.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "thread_title",
+            "author": "agent",
+            "agent": "Claude",
+            "thread": root,
+            "title": "Window length",
+        },
     )
     page = floating(browser, url)
     page.locator("body").focus()
     page.keyboard.press("t")
     view = page.locator(panel_view("thread"))
     expect(view.locator(".lf-msg")).to_contain_text("Is the window long enough?")
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_be_visible()
     settled(page)
     starts = """() => {
       const edge = document.querySelector('.lf-fp-card').getBoundingClientRect().left;

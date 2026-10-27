@@ -173,7 +173,7 @@ def test_public_startup_reports_upgrade_separately_from_held_state(
     assert held, "the positive control did not hold the first state read"
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Loading saved state…")
+        "placeholder", re.compile("^Loading comments and choices…")
     )
     assert reports == []
     assert page.evaluate("firstStateResponses") == []
@@ -283,12 +283,12 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     [
         (
             {"status": 503, "body": ""},
-            "Server offline — reconnecting",
+            "Lost the connection — reconnecting",
             http_error_console(503),
         ),
         (
             {"status": 200, "body": "{"},
-            "Page couldn't apply current state",
+            "Couldn't show the latest",
             "read failed",
         ),
     ],

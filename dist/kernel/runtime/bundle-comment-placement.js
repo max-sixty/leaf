@@ -1,8 +1,10 @@
 import { TAB_STOP, afterScript, atLayoutPrecision, cancelRender, keeps, layoutPx, move, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
-import { LAYOUT, clamp, clippingAxes, coarsePointer, hoveringPointer, overlaps, overlapsAcross, renderedChildren, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, skipped, union } from "./bundle-errors.js";
+import { clamp, clippingAxes, overlaps, overlapsAcross, renderedChildren, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, skipped, union } from "./bundle-geometry.js";
+import { LAYOUT, coarsePointer, hoveringPointer } from "./bundle-errors.js";
 import { afterPresentation, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageScroller, scrollLimit, scrollerFor, shownRegionBounds } from "./bundle-reading-regions.js";
+import { scrollAxes } from "./bundle-page-controls.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";
-import { anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, railStands, scrollAxes, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
+import { anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, railStands, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
 //#region runtime/annotation-overlay/margin-placement.js
@@ -57,21 +59,25 @@ function seatRows(pins, { gap, occupied = [] }) {
 		const heldBounds = folded ? foldBounds : pin.bounds;
 		let rect = held && inside(held, heldBounds) ? held : null;
 		const avoiding = [...pin.cover, ...seated];
+		const pressed = [...pin.controls, ...seated];
 		const lowered = (list) => [
 			...list.slice(0, pin.corner),
 			slid(list[pin.corner], avoiding, gap, "down", pin.floor),
 			...list.slice(pin.corner + 1)
 		];
+		const asideOf = (list, bounds, past = pressed) => slid(boundedHome(list[pin.corner], bounds), past, gap, "left", bounds.left);
+		const clearAside = (list, bounds) => pinSpot([asideOf(list, bounds, avoiding)], [], bounds);
 		if (!rect) {
+			folded = false;
 			rect = pinSpot(lowered(pin.seats), avoiding, pin.bounds);
-			folded = !rect && Boolean(fold);
-			if (folded) rect = pinSpot(lowered(fold.seats), avoiding, foldBounds);
+			if (!rect && fold) [rect, folded] = [pinSpot(lowered(fold.seats), avoiding, foldBounds), true];
+			if (!rect) [rect, folded] = [clearAside(pin.seats, pin.bounds), false];
+			if (!rect && fold) [rect, folded] = [clearAside(fold.seats, foldBounds), true];
 		}
 		const seatsNow = folded ? fold.seats : pin.seats;
 		const boundsNow = folded ? foldBounds : pin.bounds;
-		const pressed = [...pin.controls, ...seated];
 		const corner = boundedHome(seatsNow[pin.corner], boundsNow);
-		const aside = slid(corner, pressed, gap, "left", boundsNow.left);
+		const aside = asideOf(seatsNow, boundsNow);
 		rect ??= leastCovering(seatsNow, pin.cover, pressed, boundsNow);
 		if (!rect) {
 			const push = packRows([{
@@ -1239,6 +1245,13 @@ const INSETS = [
 ];
 const stood = /* @__PURE__ */ new Map();
 const floatingSelections = () => [...stood.values()];
+const heldEdges = (floating) => {
+	const edges = stood.get(floating)?.edges;
+	return edges ? {
+		x: edges.left,
+		y: edges.top
+	} : null;
+};
 const physicalContext = (context) => context instanceof Element ? context : context?.parentElement;
 function floatingGeometry(contexts) {
 	const anchors = /* @__PURE__ */ new Map();
@@ -1831,4 +1844,4 @@ function commentPlacement() {
 }
 
 //#endregion
-export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow };
+export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow };

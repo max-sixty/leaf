@@ -5,7 +5,14 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE, panel_comment
-from render_cases_layout import SHOT_SRC, SHOTS, ring_faults, ring_rule, rings_drawn
+from render_cases_layout import (
+    SHOT_SRC,
+    SHOTS,
+    current_location_ring,
+    ring_faults,
+    ring_rule,
+    rings_drawn,
+)
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     BINDING_BADGE_PAGE,
@@ -31,6 +38,7 @@ from render_harness import (
     open_page,
     open_threads,
     open_versions,
+    panel_control,
     panel_field,
     panel_settled,
     panel_view,
@@ -76,7 +84,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     # An agent's comment asks by construction, so one thread waits on the user, which
     # is what gives the panel's `w` narrowing something to narrow to. It shares the second
     # passage, so the walk's first two landings stay the user's own threads in order.
-    panel_comment(
+    asked = panel_comment(
         serve.page_dir,
         "Is this the passage you meant?",
         {"section": "p2", "quote": "neighbouring block"},
@@ -105,6 +113,21 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     assert not page.evaluate(
         "() => document.activeElement.closest('.lf-margin-projection')"
     )
+    # Letting go leaves the user beside the thread rather than anywhere else, so the
+    # walk takes them back into it, the one they left of the two on that passage.
+    page.keyboard.press("t")
+    expect(threads[1]).to_be_focused()
+    page.keyboard.press("t")
+    agents = preview.locator(f'.lf-page-thread[data-thread="{asked}"]')
+    expect(agents).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    page.keyboard.press("t")
+    expect(agents).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
 
     # From a heading the user was located on, the same way out: the landing is the element
     # the thread is about rather than the heading the walk left.
@@ -115,9 +138,10 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     expect(threads[0]).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator("#p")).to_be_focused()
-    # The element and the card beside it are one place, so that current location names
-    # its thread: the line names it, and the walk goes on from the thread rather than
-    # back into it.
+    # The element with its card beside it is at the thread without being in it, so the
+    # walk goes back into that thread, and on from it with the next press.
+    page.keyboard.press("t")
+    expect(threads[0]).to_be_focused()
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     page.keyboard.press("Escape")
@@ -142,6 +166,36 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
+
+
+def test_the_thread_walk_goes_on_from_the_place_the_panel_holds(browser, serve):
+    """Stepping into the panel from a thread keeps the user in that thread on the page,
+    so `t` pressed in On me goes on to the next thread rather than back into it."""
+    url = serve(
+        INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    panel_comment(
+        serve.page_dir,
+        "Is this the passage you meant?",
+        {"section": "p2", "quote": "neighbouring block"},
+        "agent",
+    )
+    page = open_page(browser, url)
+    threads = [
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        for root in roots
+    ]
+    page.keyboard.press("t")
+    expect(threads[0]).to_be_focused()
+    panel_control(page, "queue").click()
+    panel_settled(page, view="queue")
+    page.keyboard.press("t")
+    expect(threads[1]).to_be_focused()
 
 
 def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
@@ -197,7 +251,12 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(threads[0]).to_be_focused()
     rendered(page)
     # The pointer route keeps keyboard standing without showing a keyboard ring.
-    assert preview.evaluate("node => getComputedStyle(node).outlineStyle") == "none"
+    assert (
+        preview.locator(".lf-margin-preview-card").evaluate(
+            "node => getComputedStyle(node).outlineStyle"
+        )
+        == "none"
+    )
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     out_through("#p2")
@@ -1475,12 +1534,8 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     )
     first.focus()
     assert offered_routes(page) == current_location
-    focus_paint = """control => { const s = getComputedStyle(control); return {
-      style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor,
-      offset: s.outlineOffset
-    }; }"""
-    first_ring = first.evaluate(focus_paint)
-    assert first_ring["style"] == "solid", first_ring
+    rendered(page)
+    assert current_location_ring(page)
 
     bounds = words.bounding_box()
     assert bounds is not None
@@ -1503,7 +1558,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     # destination remains in place until the label's click transfers focus. The
     # pointer press removes its keyboard cue without moving that location.
     assert not first.evaluate("control => control.matches(':focus')")
-    assert first.evaluate(focus_paint)["style"] == "none"
+    assert current_location_ring(page) is None
     assert not ring_faults(rings_drawn(page), "while the label press holds focus")
     intermediate = page.locator("#label-thread")
     expect(intermediate).to_be_focused()
@@ -1515,7 +1570,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     assert intermediate.evaluate(thread_paint) == ["none", "none"]
     page.emulate_media(forced_colors="active")
     assert intermediate.evaluate(thread_paint) == ["none", "none"]
-    assert first.evaluate(focus_paint)["style"] == "none"
+    assert current_location_ring(page) is None
     page.emulate_media(forced_colors="none")
     page.mouse.up()
     expect(control).to_be_checked()

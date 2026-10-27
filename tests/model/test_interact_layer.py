@@ -837,13 +837,10 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # than whatever project the caller's directory sits in. `--no-dev` because
     # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
-    # payload path turns the console script into a `/bin/sh` trampoline. The
-    # checkout's environment exists, so uv skips its cache, which an agent's
-    # sandbox refuses; the hook registration tests run a payload with none.
+    # payload path turns the console script into a `/bin/sh` trampoline.
     assert dispatched == [
         "run",
         "-q",
-        "--no-cache",
         "--no-dev",
         "--project",
         str(PLUGIN_ROOT),
@@ -907,19 +904,6 @@ def test_the_launcher_uses_the_hosts_selected_leaf_for_commands_and_hooks(
         0,
         f"{PLUGIN_ROOT}\n",
         "",
-    )
-    monkeypatch.setenv("LEAF_HOST_LAUNCHER", "leaf")
-    refused = subprocess.run(
-        [launcher, "--version"],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (refused.returncode, refused.stdout, refused.stderr) == (
-        2,
-        "",
-        "LEAF_HOST_LAUNCHER must name an absolute launcher path\n",
     )
 
 
@@ -1027,7 +1011,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/codex.json",
         "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-decisions.md",
+        "skills/leaf/references/authoring-on-me.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -1497,8 +1481,11 @@ def _stated_faces(sheet, *, only_top_level):
 _PAGE_SIDE_SHEETS = [
     schema_model.ASSETS / "theme.css",
     schema_model.ASSETS / "shadow.css",
-    *sorted(schema_model.BUNDLED_PACKAGES.glob("*/theme.css")),
-    *sorted(schema_model.BUNDLED_PACKAGES.glob("*/shadow.css")),
+    *(
+        path
+        for name in schema_model.PACKAGE_STYLES
+        for path in sorted(schema_model.BUNDLED_PACKAGES.glob(f"*/{name}"))
+    ),
 ]
 
 
@@ -1684,6 +1671,57 @@ def test_layout_style_and_widgets_never_read_each_other():
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
 
 
+def test_controls_are_built_by_role_and_never_by_face():
+    """Leaf's controls come from a closed set of roles, each with one face, so a widget
+    cannot draw two controls of one kind two ways. The classes of a role's face are
+    spelled only in prepaint.js's `ACTION_FACES`, which `offerAction` reads; any other
+    bundled module that spells one, in a string or a comment, has chosen a face itself.
+    module-authoring.md lists the roles for package authors, in the table's order.
+    `primary` and the authored `button` face are ordinary words too, so they count
+    where a string lists classes or a template's `class` attribute names them."""
+    owner = schema_model.ASSETS / "runtime" / "prepaint.js"
+    table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
+    roles = dict(re.findall(r"(\w+): \"([^\"]+)\"", table[1]))
+    assert {"symbol", "word", "commit"} <= roles.keys(), roles
+    reference = (SKILL_ROOT / "references" / "module-authoring.md").read_text()
+    documented = re.findall(r"^- `\"(\w+)\"`, ", reference, re.MULTILINE)
+    assert documented == list(roles), "module-authoring.md lists other roles"
+    faces = {name for classes in roles.values() for name in classes.split()}
+    named = re.compile(
+        r"(?<![\w-])("
+        + "|".join(sorted(name for name in faces if name.startswith("lf-")))
+        + r")(?![\w-])"
+    )
+    words = {name for name in faces if not name.startswith("lf-")} | {"button"}
+    assert words == {"primary", "button"}, words
+    spelled = []
+    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
+        for source in sorted(root.rglob("*.js")):
+            if "vendor" in source.parts or source == owner:
+                continue
+            text = source.read_text()
+            where = source.relative_to(ROOT)
+            spelled += [f"{where}: {match[1]}" for match in named.finditer(text)]
+            code = re.sub(r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*", "", text, flags=re.DOTALL)
+            for literal in re.findall(r"([\"'`])((?:(?!\1).)*)\1", code):
+                classes = literal[1].split()
+                if (
+                    len(classes) > 1
+                    and all(re.fullmatch(r"[a-z][\w-]*", name) for name in classes)
+                    and words & set(classes)
+                ):
+                    spelled.append(f"{where}: {literal[1]}")
+            spelled += [
+                f"{where}: class={value[1]}"
+                for value in re.findall(r"class=([\"'])(.*?)\1", code)
+                if words & set(value[1].split())
+            ]
+    assert not spelled, (
+        "build these controls with offerAction or offeredAction by role:\n"
+        + "\n".join(spelled)
+    )
+
+
 def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     """A box marked by a thick edge on one side is not also rounded (assets/AGENTS.md,
     "Visual grammar"): a stripe bent around a corner reads as decoration rather than a
@@ -1842,7 +1880,14 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
 _LAYER_SHEET_ORDER = [
     sheet
     for root in SHIPPED_PACKAGES
-    for sheet in (root / name for name in layer_model.ROOT_SHEETS)
+    for sheet in (
+        root / name
+        for name in (
+            ("shadow.css", "theme.css")
+            if root == schema_model.ASSETS
+            else schema_model.PACKAGE_STYLES
+        )
+    )
     if sheet.is_file()
 ]
 
@@ -1956,7 +2001,16 @@ def test_identical_init_preserves_the_installed_layer(tmp_path):
     } == files
 
 
-@pytest.mark.parametrize("input_name", ["server.py", "pyproject.toml", "uv.lock"])
+@pytest.mark.parametrize(
+    "input_name",
+    [
+        "src/server.py",
+        "src/state.schema.json",
+        "browser/registry.json",
+        "pyproject.toml",
+        "uv.lock",
+    ],
+)
 def test_server_inputs_require_a_transition_without_browser_changes(
     tmp_path, monkeypatch, input_name
 ):
@@ -1967,14 +2021,20 @@ def test_server_inputs_require_a_transition_without_browser_changes(
     script.write_text("# original\n")
     for name in ("pyproject.toml", "uv.lock"):
         (payload / name).write_text("# original\n")
+    for name in ("src/state.schema.json", "browser/registry.json"):
+        path = payload / name
+        path.parent.mkdir(exist_ok=True)
+        path.write_text("{}\n")
     monkeypatch.setattr(layer_model, "PLUGIN_ROOT", payload)
     runner = CliRunner()
     page = tmp_path / "page"
     first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert first_init.exit_code == 0, first_init.output
     first = interact_files.read_json(page / "registry.json")["$layer"]
-    target = script if input_name == "server.py" else payload / input_name
-    target.write_text("# changed\n")
+    target = payload / input_name
+    target.write_text(
+        '{"changed": true}\n' if target.suffix == ".json" else "# changed\n"
+    )
     second_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert second_init.exit_code == 0, second_init.output
     second = interact_files.read_json(page / "registry.json")["$layer"]
@@ -2488,6 +2548,36 @@ def test_composed_sheets_replace_surrogate_escapes_as_the_browser_does(tmp_path,
     assert "é🍂" in sheet
 
 
+def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path):
+    """A package's page and chrome contributions survive acquiring a widget,
+    and package installation captures every source sheet the compositor reads."""
+    package = tmp_path / "contributions"
+    package.mkdir()
+    (package / "registry.json").write_text("{}")
+    for name in ("theme.css", "theme-shadow.css", "controls.css"):
+        (package / name).write_text(f"/* {name} */ p {{ color: purple; }}")
+    before = layer_model.composed_sheets([schema_model.ASSETS, package])
+
+    (package / "registry.json").write_text(
+        json.dumps({"lf-contribution": element_declaration("lf-contribution")})
+    )
+    assert layer_model.composed_sheets([schema_model.ASSETS, package]) == before
+    for name in ("widgets.css", "widget-shadow.css"):
+        (package / name).write_text(":scope { color: green; }")
+    staged = tmp_path / "installed"
+    staged.mkdir()
+    packages_model.copy_package_contract(package, staged)
+    assert {
+        name: (staged / name).read_bytes() for name in schema_model.PACKAGE_STYLES
+    } == {name: (package / name).read_bytes() for name in schema_model.PACKAGE_STYLES}
+    assert {package / name for name in schema_model.PACKAGE_STYLES} <= set(
+        layer_model.input_paths([package])
+    )
+    assert layer_model.composed_sheets([schema_model.ASSETS, staged]) == (
+        layer_model.composed_sheets([schema_model.ASSETS, package])
+    )
+
+
 def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     """A custom widget adds one element declaration; it need not fork the shipped vocabulary.
 
@@ -2803,7 +2893,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     # uncontended; the second is the one taker that can find it held.
     second_waiting = lock_contention(monkeypatch, page, by="second-init")
 
-    def paused_init(page_dir, selected):
+    def paused_init(page_dir, selected, *, theme=None):
         creator = threading.current_thread().name
         creations.append(creator)
         if creator == "first-init":
@@ -2811,7 +2901,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
             assert release_first.wait(STATED_TIMEOUT), "the first init was never let go"
         else:
             second_entered.set()
-        original_init(page_dir, selected)
+        original_init(page_dir, selected, theme=theme)
 
     def initialize():
         try:
@@ -2825,16 +2915,18 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     first.start()
     try:
         wait_for(
-            first_entered.is_set,
+            lambda: first_entered.is_set() or bool(errors),
             bool,
             failure="the first init never began creating the page",
         )
+        assert errors == []
         second.start()
         wait_for(
-            lambda: second_waiting.is_set() or second_entered.is_set(),
+            lambda: second_waiting.is_set() or second_entered.is_set() or bool(errors),
             bool,
             failure="the second init neither waited on the page lock nor began creating",
         )
+        assert errors == []
         assert not second_entered.is_set(), (
             "the second init began creating while the first held the page"
         )
@@ -3366,6 +3458,8 @@ def test_init_refuses_to_write_inside_a_package(tmp_path, monkeypatch):
     ("relative", "directory"),
     [
         ("theme.css", True),
+        ("widgets.css", True),
+        ("controls.css", True),
         ("registry.json", True),
         ("instructions", False),
         ("widgets", False),
@@ -3450,7 +3544,7 @@ def test_package_check_leaves_root_matching_to_native_scope(tmp_path, monkeypatc
     created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
     add_test_widget(tmp_path / ".leaf", "lf-toned-note")
-    (tmp_path / ".leaf" / "theme.css").write_text(
+    (tmp_path / ".leaf" / "widgets.css").write_text(
         ":scope { color: teal; }\n:root { --toned: teal; }\n"
     )
 
@@ -3629,6 +3723,7 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
         "theme.css",
         "vendor",
         "widgets",
+        "widgets.css",
     ]
 
     shutil.rmtree(source)
@@ -4174,7 +4269,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "registry.json").write_text(
         json.dumps({"lf-solo": element_declaration("lf-solo", upgrade=True)})
     )
-    (widget_package / "theme.css").write_text(
+    (widget_package / "widgets.css").write_text(
         ":scope:is(lf-solo) { --lf-block-frame: 1; }\n"
     )
     (widget_package / "widgets" / "lf-solo.js").write_text(
@@ -4220,8 +4315,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert (page / "widgets" / "ready.js").is_file()
     assert (page / "vendor" / "solo.json").is_file()
     theme = (page / "theme.css").read_text()
-    # A package with a widget reaches only inside it; a package without one is a
-    # theme, and its rules reach the page as written.
+    # Each contribution keeps its role regardless of the package's widget count.
     assert theme.index(":scope:is(lf-solo) { --lf-block-frame: 1; }") < theme.index(
         ":root { --solo-night: 1; }"
     )

@@ -47,12 +47,13 @@ document.documentElement.lfInitial.register("lf-worktree", (host, tools) => {
       .join(" · "),
   );
   identity.append(label, ref);
+  summary.append(identity);
   const status = host.getAttribute("status");
-  const state = node(
-    "span",
-    "lf-worktree-status",
-    { changed: "Changed", clean: "Clean", unavailable: "Unavailable" }[status],
-  );
+  // A changed row's counts already say it changed, so a word marks only Clean and
+  // Unavailable, which counts can't say. The user chose this on 2026-10-26 over
+  // "Changed" beside every changed row's counts.
+  const word = { clean: "Clean", unavailable: "Unavailable" }[status];
+  if (word) summary.append(node("span", "lf-worktree-status", word));
   const stats = node("span", "lf-worktree-stats");
   if (status !== "unavailable") {
     const files = Number(host.getAttribute("files"));
@@ -66,7 +67,7 @@ document.documentElement.lfInitial.register("lf-worktree", (host, tools) => {
     const binary = Number(host.getAttribute("binary-files"));
     if (binary) stats.append(node("span", "lf-worktree-binary", `${binary} binary`));
   }
-  summary.append(identity, state, stats);
+  summary.append(stats);
   const path = node("div", "lf-worktree-path");
   tools.generatedElement(path, { says: true });
   path.append(

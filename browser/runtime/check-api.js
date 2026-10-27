@@ -35,6 +35,7 @@ export {
   growthAfterIsSeen,
   stuckBox,
   stackLevel,
+  shownParts,
 } from "./geometry.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export { authoredBody } from "./initial-render.js";
@@ -62,6 +63,7 @@ export {
   segmentsIn,
   spanIn,
   settledAway,
+  textNodesUnder,
 } from "./passages.js";
 export { shallowSigs } from "./projection/presentation.js";
 export { commandDeclarationsWithin } from "./keyboard/scopes.js";
@@ -76,7 +78,7 @@ export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispat
 export { whereDraft, storedDraft, captureDraftEditing } from "./drafts.js";
 export { onCurrentLocation, releaseFocus, takesLetters, tabStops } from "./focus.js";
 export { selectionAnchor } from "./composing/capture.js";
-export { TEXT_BLOCK } from "./passage-facts.js";
+export { TEXT_BLOCK } from "./kernel-facts.js";
 export { renderingState } from "./rendering.js";
 export {
   readingBlock,
@@ -108,7 +110,7 @@ export {
   readSampleVisibility,
 } from "./frame-visibility.js";
 export { observeQueuedWork, bindQueuedWork } from "./queued-work.js";
-export { createPresentationSchedule } from "/vendor/browser-runtime.js";
+export { createPresentationSchedule } from "/runtime/framework.js";
 export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";
 export { flashDuration, agentArrivalDuration } from "./motion.js";
@@ -120,4 +122,6 @@ export { recordInteraction } from "./interaction-log.js";
 export { bringBackSurfaceOf } from "./off-flow.js";
 export { WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
+
+export { observeOutputs } from "./data.js";
 export { selfComparison, servedElements } from "./version.js";

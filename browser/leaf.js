@@ -1,6 +1,6 @@
 /* Leaf runtime boot and application composition root. */
 import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
-import "/vendor/browser-runtime.js";
+import "/runtime/framework.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
@@ -9,7 +9,7 @@ import { offlineInteractive, runtime, annotationMode } from "./runtime/context.j
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
-import { mountHistory } from "./runtime/history.js";
+import { claimTraversals, mountHistory, replaceEntry } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
 import { keepPageRulesOffLayer } from "./runtime/page-sheets.js";
@@ -66,6 +66,7 @@ import { createAnchorTravel } from "./runtime/anchor-travel.js";
 import {
   aimTargetAt,
   aimTargets,
+  fragmentTarget,
   resolveAnchor,
   setAnchoringReady,
 } from "./runtime/anchor-resolution.js";
@@ -73,7 +74,7 @@ import { createPageGeometry } from "./runtime/page-geometry.js";
 import * as targetPaint from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
-import { allThreads } from "./runtime/thread/state.js";
+import { allThreads, threadNamed } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import {
   createThreadLanding,
@@ -86,7 +87,6 @@ import { currentLocationThreadId } from "./runtime/thread/focus.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createObligationView } from "./runtime/obligations/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
-import { OBLIGATION_CONTROL } from "./runtime/obligations/view-elements.js";
 import {
   commandHintLayer,
   createCommandHints,
@@ -107,7 +107,7 @@ import {
   createGoToSequence,
   goToHintLayer,
 } from "./runtime/keyboard/go-to-sequence.js";
-import { windowChromeBoxes } from "./runtime/geometry.js";
+import { presented, windowChromeBoxes } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
 import { declareCurrentLocation } from "./runtime/keyboard/page.js";
@@ -140,6 +140,7 @@ import {
   focused,
 } from "./runtime/focus.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
+import { raiseError } from "./runtime/errors.js";
 import { mediaViewer } from "./runtime/media.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
 
@@ -170,6 +171,10 @@ if (validationEntry) {
 // Automatic recovery belongs to this arrival. A press made while its presentation
 // waits owns the page; recovery must not capture a fresh focus intent after that wait.
 const recoverComposer = retainUserIntent({ since: 0 });
+// Capture the requested address before widgets add their display fragment. Authored
+// fragments take precedence, so a copied heading still reaches its passage.
+const arrivalUrl = new URL(location.href);
+const threadArrival = retainUserIntent({ since: 0 });
 
 // This declaration belongs to the executable document lifetime. The revision capture
 // includes it in executable identity, so selecting another presentation retires this
@@ -211,12 +216,11 @@ let goToSequence;
 let floatingPanel;
 const navigation = createNavigation({
   placedAt: (id) => anchorPlacement.placedAt(id),
-  heldPlace: () => floatingPanel?.heldPlace() ?? null,
   threadDestinations: {
     openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
     scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
-    threadHere: () => app.threadDestinations.threadHere(),
-    threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
+    threadAtCurrentLocation: (node) =>
+      app.threadDestinations.threadAtCurrentLocation(node),
     threadPlace: (...args) => app.threadDestinations.threadPlace(...args),
   },
 });
@@ -435,7 +439,6 @@ const queueWalk = createQueueWalk({
   actions: app.queueActions,
   arriveAtRecord: items.arriveAtRecord,
   arriveAtThread: navigation.arriveAtThread,
-  threadHere: () => app.threadDestinations.threadHere(),
   threadPlace: (id) => app.threadDestinations.threadPlace(id),
   prepareNavigationStep: anchorTravel.prepareNavigationStep,
   arrive: anchorTravel.arrive,
@@ -447,7 +450,6 @@ const commandHints = createCommandHints({
 });
 
 const currentTarget = createCurrentTarget({
-  isObligationControl: (node) => node?.matches?.(OBLIGATION_CONTROL),
   currentLocationIn: items.currentLocationIn,
 });
 
@@ -461,7 +463,7 @@ floatingPanel = createFloatingPanel({
   obligations: { choicesOf: items.choicesOf },
   queueActions: app.queueActions,
   arrivesAt: (item) => queueWalk.arrivesAt(item),
-  inWalkOrder: (items) => queueWalk.inWalkOrder(items),
+  onMe: queueWalk.onMe,
   withdraw: app.withdraw,
   settlement: app.settlement,
   placedAt: anchorPlacement.placedAt,
@@ -758,6 +760,39 @@ const { landArrival, savedView } = offlineInteractive
   ? { landArrival: () => {}, savedView: null }
   : version.installArrival();
 const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
+// A thread address follows the same return rule as an authored fragment: keep the
+// entry's working place while its destination is still shown; reveal it again when
+// another view has hidden it. The browser owns the entry in either case.
+function threadRoute(url, returning = false) {
+  const id = url.searchParams.get("thread");
+  if (!id || fragmentTarget(url.hash)) return null;
+  const destination = app.threadDestinations.threadFocusTarget(id, { part: "thread" });
+  if (returning && destination && presented(destination)) return null;
+  const retained = returning ? retainUserIntent() : threadArrival;
+  // This is navigation even without focus on a return, not an editing continuation
+  // allowed to materialize after the user has moved elsewhere.
+  const intent = restrictUserIntent(retained, retained);
+  return async () => {
+    if (!intent()) return false;
+    if (!threadNamed(id)) {
+      raiseError(`Thread ${id} is unavailable`);
+      return false;
+    }
+    const opened = await app.threadDestinations.openPageThread(id, {
+      part: "thread",
+      focus: !returning,
+      history: false,
+      intent,
+    });
+    // Revealing a destination may rename the entry to its enclosing view. This
+    // arrival owns the final address, so Reload and copied links reach the thread.
+    if (opened && intent()) replaceEntry(url);
+    return Boolean(opened);
+  };
+}
+claimTraversals((url) => threadRoute(url, true));
+if (arrivalUrl.searchParams.has("thread"))
+  void afterPresentation(() => threadRoute(arrivalUrl)?.());
 
 async function presentPage() {
   // Saved state gates state-dependent interaction, not the commenting interface.
@@ -831,6 +866,9 @@ async function startPage() {
   try {
     const draftOpened =
       !offlineInteractive &&
+      // A thread address takes the reader to its destination. The saved draft
+      // remains available through Resume writing, without taking that arrival's focus.
+      !threadRoute(arrivalUrl) &&
       recoverComposer() &&
       responseSurface.openDraft(savedComposer);
     await app.presentThread();

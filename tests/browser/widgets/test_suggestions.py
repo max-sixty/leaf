@@ -840,7 +840,7 @@ def test_a_refused_decision_returns_to_pending_with_failure_controls(
     # And the page's own count is derived from that, so it comes back too.
     expect_accept_all(page, 3)
     expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("Couldn't send")
+        "placeholder", re.compile("Couldn't take this")
     )
     assert [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"

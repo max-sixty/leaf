@@ -976,7 +976,9 @@ def test_shadow_stage_withholds_package_transitions_until_presentation(
     """The shared shadow stage suppresses a package transition during arrival."""
     theme = tmp_path / "transition-theme"
     theme.mkdir()
-    (theme / "shadow.css").write_text("details { transition: color 60s linear; }\n")
+    (theme / "theme-shadow.css").write_text(
+        "details { transition: color 60s linear; }\n"
+    )
     page = browser.new_page()
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
@@ -1318,7 +1320,7 @@ def test_a_transition_on_a_hidden_control_leaves_the_page_settled(
     """A scheme switch starts the colour transitions of controls inside a closed
     disclosure too. Firefox never runs them while the disclosure stays closed, and they
     move no box, so the page settles; reading them as motion held `leaf-dev probe
-    --firefox` on live-progress until its 120 s limit."""
+    --browser firefox` on live-progress until its 120 s limit."""
     page = open_page(
         firefox_browser,
         serve(
@@ -1403,7 +1405,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         held = render_gate_scheme.served(page, url, "/api/state").json()
         wait_until_ready(page, held, through="state")
         # The leaf names the agent's status.
-        assert "awaits" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
+        assert "Ready" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
     finally:
         leases_model.release_lease(lease)
 
@@ -3237,10 +3239,13 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     the overlay and classic track share the drawing's own blank bottom padding.
     """
     source = (ROOT / "examples" / "security-boundary.html").read_text()
-    source = source.replace(
-        'id="security-before-flow" data-height="77"',
+    # The example draws its five-step chain top-down so it fits a phone; drawn
+    # left-to-right it runs past a 678px viewport and scrolls, which this test needs.
+    source = source.replace("flowchart TD", "flowchart LR", 1).replace(
+        'id="security-before-flow" data-height="449"',
         'id="security-before-flow" data-height="200"',
     )
+    assert "flowchart LR" in source and 'data-height="200"' in source
     if track:
         source = source.replace(
             "</head>",
@@ -4333,6 +4338,15 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     last = page.get_by_role("button", name="Last choice")
     expect(last).to_be_focused()
     assert last.evaluate("el => el.matches(':focus-visible')")
+    # Native focus scrolling can finish after focus arrives (notably on macOS).
+    # Read the clearance once the keyboard destination has actually come into view.
+    page.wait_for_function(
+        """() => {
+          const box = document.getElementById('strip');
+          return box.lastElementChild.getBoundingClientRect().right <=
+                 box.getBoundingClientRect().right + 1;
+        }"""
+    )
     reached = last.evaluate(
         """el => {
           const box = el.parentElement, rect = box.getBoundingClientRect();

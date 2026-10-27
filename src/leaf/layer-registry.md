@@ -24,6 +24,13 @@ readings.
 
 Each layer records its identities under `$layer`:
 
+- `packages` records content-package selections. `theme` is the separately selected
+  personal theme, `{name, source}` with `source` explicit or default, or null.
+  The theme composes after the content packages. Re-vendoring preserves the captured
+  choice until `--theme` replaces it or `--no-theme` / `--no-packages` clears it. User catalogue
+  changes affect new pages; `themes.py` owns selection and `package-themes.md`
+  documents its authoring interface.
+
 - `generation`, a fresh epoch whenever the fingerprint, the server identity or the
   package selection changes. It is recorded in the registry, a served document names
   the generation of the revision it shows, event requests carry it, and contract
@@ -131,8 +138,9 @@ overwriting any a layer declared: `$decisions`, each widget's deciding `x-state`
 and the member tags each of its outcomes retires, and `$states`, each verb's writer
 and the operation definition an admitted event records.
 
-The kernel registry declares the other facts both runtimes read
-(`registry.layer.KERNEL_FACTS`, described in `registry/kernel.py`'s header, and the
-classifications on each `$events.kinds` entry). The build generates the browser's
-copy of each (`build/registry.mjs`), so none is stamped, and a layer that changes
-one is refused.
+The kernel registry, `browser/runtime/kernel-registry.json`, declares the other facts
+both runtimes read (`registry.layer.KERNEL_FACTS`, described in `registry/kernel.py`'s
+header, and the classifications on each `$events.kinds` entry). It is part of the
+runtime, so both read the serving Leaf's copy, the browser through
+`runtime/kernel-facts.js`. Composition lays each layer over it, none is stamped for
+the browser to read, and a layer that changes one is refused.

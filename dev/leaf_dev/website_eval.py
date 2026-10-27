@@ -31,7 +31,7 @@ from leaf_dev.arms import (
     scratch,
     serving,
 )
-from leaf_dev.commands.distribution import cached_installation
+from leaf_dev.commands.distribution import current_kernel
 from leaf_dev.eval_cases import definition
 
 CASES = {
@@ -54,7 +54,7 @@ def execute_scenario(
     condition: str = "leaf",
 ) -> dict:
     """Run the arm's hosted adapter against the local login and a seeded page."""
-    payload = cached_installation(payload)
+    payload = current_kernel(payload)
     with scratch(payload) as cwd:
         state, page = cwd / "state", cwd / "page"
         build_source(payload, state, ROOT / "evals/website-replies/page.html", page)

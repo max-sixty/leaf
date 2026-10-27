@@ -334,8 +334,8 @@ def test_the_obligation_walk_lands_on_a_suggestion_the_reveal_just_opened(
     browser, serve
 ):
     """Stepping the obligations opens the closed <details> a change waits inside, and does
-    it in the same task as the arrival. The row un-waits on the runtime's reveal signal
-    rather than at the observer's next frame: settled asynchronously, the arrival landed
+    it in the same task as the arrival. The row un-waits as the arrival lands rather than
+    at the observer's next frame: settled asynchronously, the arrival landed
     on a display:none element and the user stayed where they were — at the previous
     decision — while the announce said otherwise, so Enter was aimed at a decision they
     had already seen."""

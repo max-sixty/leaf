@@ -390,15 +390,16 @@ the same `data-room` layout applies to authored and generated controls.
 
 A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a
-box. After a view swap that rearranges a widget's contents without resizing it, await
-`layoutChanged(element)` before restoring scroll. It dispatches `LAYOUT` to widgets that
-measure what they hold, which pass their asynchronous work to `detail.present(promise)`.
+box. After a view swap that rearranges a widget's contents without resizing it, call
+`layoutChanged(element)`, which dispatches `LAYOUT` to the widgets and runtime readers
+that measure what they hold, so they read again.
 
 `searchField(className, {name, label, placeholder})` builds a search or filter field
 with Leaf's frame, label, editor and Clear button; the widget owns the query and
 results, and can put a match count in its `end` slot.
 
-To fold content it may show again, set its `hidden` to `"until-found"`. Find-in-page and
-fragment links still reach it and fire `beforematch` on it, where the widget opens it;
-print shows it open. Take a folded element that is itself a Tab stop out of the Tab
+To fold content it may show again, set its `hidden` to `"until-found"`. Find-in-page,
+fragment links and Leaf's travel still reach it and fire `beforematch` on it, where the
+widget opens it (`module-scroll-and-motion.md`, "Travel and history"); print shows it
+open. Take a folded element that is itself a Tab stop out of the Tab
 order, since the fold hides only what it holds.

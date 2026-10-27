@@ -1203,8 +1203,6 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
     The source and value publication use the same real refresh as a resumed or
     live preview; a literal seed edited on the page remains that page's data.
     """
-    from leaf_dev.commands.distribution import cached_installation
-
     from leaf.data import read_data
     from leaf.publishing import authored_digest
     from leaf.registry.storage import load_registry
@@ -1224,10 +1222,9 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
             {"$captures": {"before": {"file": "code.txt"}}, "notes": "Initial seed"}
         )
     )
-    installed = cached_installation(ROOT)
-    run_leaf = partial(preview.leaf, installed / "bin/leaf", ROOT)
+    run_leaf = partial(preview.leaf, ROOT / "bin/leaf", ROOT)
     page = tmp_path / "page"
-    prepare_page(page, read_fixture(source, runtime=installed), run_leaf)
+    prepare_page(page, read_fixture(source, runtime=ROOT), run_leaf)
     state = {"authored": authored_digest(preview.incoming_files(source))}
     run_leaf("data", "set", str(page), "notes", input_text=json.dumps("Page edit"))
     retained_log = (page / "events.jsonl").read_bytes()
@@ -1243,7 +1240,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
     service = preview.PreviewService(page, False)
     try:
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         values = read_data(page, load_registry(page))["sources"]
         assert values["after"]["value"] == "First capture"
@@ -1256,7 +1253,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
 
         captured.write_text("Edited capture")
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         values = read_data(page, load_registry(page))["sources"]
         assert values["after"]["value"] == "Edited capture"
@@ -1264,7 +1261,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
         assert values["notes"]["value"] == "Page edit"
         run = values["after"]["run"]
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         assert read_data(page, load_registry(page))["sources"]["after"]["run"] == run
         assert (page / "events.jsonl").read_bytes().startswith(retained_log)
@@ -1277,7 +1274,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
             captured.write_text("42")
             companion.write_text(json.dumps({"$captures": {"invalid": spec}}))
             assert not preview.refresh_preview(
-                source, page, installed / "bin/leaf", ROOT, state, service
+                source, page, ROOT / "bin/leaf", ROOT, state, service
             )
             assert (page / "index.html").read_bytes() == published
             assert (
@@ -1288,7 +1285,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
         captured.write_text("1")
         companion.write_text(json.dumps({"$captures": {"after": {"file": "code.txt"}}}))
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         source.write_text(
             source.read_text().replace(
@@ -1297,7 +1294,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
             )
         )
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         assert (
             read_data(page, load_registry(page))["sources"]["after"]["contract"]
@@ -1307,13 +1304,13 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
             json.dumps({"$captures": {"after": {"file": "code.txt", "format": "json"}}})
         )
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         captured.write_text(
             "true"
         )  # Python compares True == 1; JSON distinguishes them.
         assert not preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         assert (
             type(read_data(page, load_registry(page))["sources"]["after"]["value"])

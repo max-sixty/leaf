@@ -1,9 +1,9 @@
 import { SVG_NS, boxMotion, dropStand, liftReach, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-box-motion.js";
 import { Z } from "./bundle-signals-core.js";
-import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextFrame, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, roomPx, rove, sizeObserver, tabStops, under } from "./bundle-dom-move.js";
+import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextFrame, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, ringBox, roomPx, rove, sizeObserver, tabStops, under, visibleFocus } from "./bundle-dom-move.js";
 import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { clamp, hostIn, rightCover, seenRect, shownBox, shownWindow, skipped, slotTop, union, watchRoom } from "./bundle-geometry.js";
-import { bareReaction, html, render, sameAnchor, turns, whenDocumentPresented } from "./bundle-context.js";
+import { bareReaction, html, render, sameAnchor, turns } from "./bundle-context.js";
 import { LAYOUT, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, iconElement, keys, notice, offer, paintKeys, repaint, rowArrows } from "./bundle-errors.js";
 import { atScrollEnd, effectiveScroller, moveScrollerBy, pageScroller, placeKept, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-page-controls.js";
@@ -218,7 +218,7 @@ const CUT_EDGES = [
 	"--lf-cut-bottom",
 	"--lf-cut-left"
 ];
-function createThreadPreview({ inventory, renderMarginThread, placedAt, openPageThread, scrollThreadIntoView, scrollToElement, openInPanel, onClose }) {
+function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollThreadIntoView, scrollToElement, openInPanel, onClose }) {
 	const { targetFor, entryPoint, entryPlace, sourceItem } = inventory;
 	const preview = el("aside", "lf-ui lf-margin-preview");
 	preview.id = THREAD_CARD;
@@ -714,23 +714,13 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			sending: following.stream,
 			prepareLanding: () => {
 				const target = targetFor(previewSession?.entry);
-				const thread = sourceItem(item).thread.id;
 				const mayLand = retainUserIntent({
 					source: focused(),
 					available: () => Boolean(target?.isConnected)
 				});
-				return {
-					optimistic: () => {
-						if (previewOpen()) return false;
-						return mayLand.handoff(() => focusDestination(target, "return"));
-					},
-					reverse: async (may = mayLand) => {
-						await whenDocumentPresented();
-						return may() && mayLand.available() && Boolean(await openPageThread(thread, {
-							part: "thread",
-							intent: may
-						}));
-					}
+				return () => {
+					if (previewOpen()) return false;
+					return mayLand.handoff(() => focusDestination(target, "return"));
 				};
 			}
 		});
@@ -1123,7 +1113,6 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		inventory,
 		renderMarginThread,
 		placedAt,
-		openPageThread,
 		scrollThreadIntoView,
 		scrollToElement,
 		openInPanel,
@@ -2209,7 +2198,10 @@ function createAnchorPaint({ targetPaint, pointer, currentLocationThreadId, rowT
 			hover,
 			here
 		].flatMap((states) => [...states]).filter((element) => element instanceof Element));
-		const focus = new Set([...elements].filter((element) => element.matches("[data-lf-focus]")));
+		const active = visibleFocus();
+		const ownsRing = active && ringBox(active) === active;
+		if (ownsRing && active.getRootNode() === document && pageWords(active)) elements.add(active);
+		const focus = new Set(ownsRing && elements.has(active) ? [active] : []);
 		const sources = [
 			["pending", pending],
 			["action", action],
@@ -2380,6 +2372,15 @@ const STATE_CLASSES = {
 	focus: "lf-visual-mark-focus",
 	here: "lf-visual-mark-here"
 };
+const INSET = "lf-visual-mark-inset";
+function ringRoom() {
+	const style = getComputedStyle(document.documentElement);
+	return parseFloat(style.getPropertyValue("--focus-ring-gap")) + parseFloat(style.getPropertyValue("--focus-ring-w"));
+}
+function cramped({ rect, levels }, room) {
+	const short = (band, low, high) => rect[low] >= band[low] && rect[low] - room < band[low] || rect[high] <= band[high] && rect[high] + room > band[high];
+	return levels.some(({ holder, band, axes }) => holder && (axes.x && short(band, "left", "right") || axes.y && short(band, "top", "bottom")));
+}
 function createVisualMarkPaint() {
 	const layer = el("div", "lf-ui lf-visual-marks");
 	layer.setAttribute("aria-hidden", "true");
@@ -2395,8 +2396,9 @@ function createVisualMarkPaint() {
 		}
 	}
 	function paintTargets(rebuildGeometry = true) {
+		const room = ringRoom();
 		for (const element of [...overlays.keys()]) if (!targets.has(element)) {
-			element.classList.remove(PROJECTED);
+			element.classList.toggle(PROJECTED, false);
 			dropStand(overlays.get(element).stand);
 			overlays.delete(element);
 		}
@@ -2434,6 +2436,7 @@ function createVisualMarkPaint() {
 			element.classList.toggle(PROJECTED, true);
 			keeps(overlay, "data-for", element.id || null);
 			overlay.classList.toggle("lf-shaped", Boolean(geometry));
+			overlay.classList.toggle(INSET, !geometry && cramped(placed, room));
 			if (rebuildGeometry || record.geometry !== geometry || record.shapeKey !== shapeKey) {
 				if (geometry) paintShape(shape, geometry, rect);
 				else shape.replaceChildren();

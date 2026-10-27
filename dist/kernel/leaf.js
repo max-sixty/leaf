@@ -3,9 +3,9 @@ import { EVERYTHING, LAYOUT, LINK, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, adver
 import { COLLAPSE, LitElement, PRESENTATION_DOM, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, agentName, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, clamp, clippedContents, closeNativeLayer, decisionFor, declareOccluder, declareWindowChrome, dismissPopoversOutside, documentChanged, guard, hostIn, html, inUi, intersect, isNews, itemNoun, itemOutcome, keyed, landingBand, layoutWindow, live as live$1, marksSheet, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, overlaps, overlapsAcross, presented, readPart, ref, registry, render, repeat, runtime, runtimeResource, sameAnchor, scrollGlides, scrolling, seenRect, shareUrl, showNativeLayer, shownBox, shownParts, shownRect, skipped, stackLevel, startsAt, tagsDeclaring, threadCounts, threadKey, threadNames, tick, underOccluder, union, watchLayerChanges, watchScrollEnds, watchScrolls, whenApplicationPresented, whileConnected, windowChromeBoxes } from "./runtime/bundle-geometry.js";
 import { ADDRESSABLE, JUST_NOW, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentId, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
-import { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, PAGE_DRAFT, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, disclosed, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDisclosures, workflowLabel, workflowStep } from "./runtime/bundle-data.js";
+import { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, PAGE_DRAFT, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, comparisonBase, comparisonChanges, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, disclosed, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, stopComparison, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDisclosures, workflowLabel, workflowStep } from "./runtime/bundle-data.js";
 import { LEAF_SURFACE, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
-import { copyControl, landingRoom, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./runtime/bundle-copy-control.js";
+import { alreadyShown, copyControl, landingRoom, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./runtime/bundle-copy-control.js";
 import { mediaViewer, motionEasing, motionPlays, motionTime, playMotion, readAttachedMedia, reducedMotion, scopedMediaUrl, scrollBehavior, writeAttachedMedia } from "./runtime/bundle-media.js";
 import { DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, annotationItems, beginRead, clearContributionControls, composerOpen, composerQuote, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, declareThreadKeys, entryControls, fabBar, fabInput, fabOptionsTrigger, inPageOrder, leavesBox, mountApplication, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerContribution, sendReaction, spokenSubject, textField, threadInput, visibleContributionEntryLabel } from "./runtime/bundle-page-layout.js";
 import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
@@ -6006,7 +6006,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                     type="button"
                     role="menuitem"
                     class="lf-fp-face lf-fp-quiet lf-fp-compare"
-                    aria-pressed=${String(selection.on && selection.base === entry.version)}
+                    aria-pressed=${String(selection.on && selection.base === entry.revision)}
                     aria-label=${`Compare with ${entry.name}`}
                     @click=${() => putAwayThen(() => versionPicker.compare(entry.version))}
                   >
@@ -8156,6 +8156,76 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		goToObligation,
 		choicesOf
 	};
+}
+
+//#endregion
+//#region runtime/change-walk.js
+const changes = () => byRenderedOrder(comparisonChanges(), (block) => block);
+const currentChange = (list, origin = currentLocationOrigin()) => origin?.kind === "current-location" ? list.find((block) => renderedUnder(origin.node, block)) ?? null : null;
+const position = () => {
+	const list = changes();
+	const base = comparisonBase();
+	return listWalkPosition(list, currentChange(list), { qualifier: base ? `since ${base.name}` : "" });
+};
+function step(dir) {
+	const list = changes();
+	const origin = walkOrigin();
+	const current = currentChange(list, origin);
+	const next = current ? cycledRow(list, current, dir) : stepFrom(list, origin, dir, (block) => block);
+	if (!next) return;
+	if (!alreadyShown(next)) scrollIntoView(next, {
+		behavior: scrollBehavior(),
+		block: "start"
+	});
+	focusDestination(next, "move");
+	const said = beginWalk("change", "Change", position);
+	if (said) announce(said);
+}
+function createChangeWalk() {
+	const offered = () => comparisonChanges().length > 0;
+	let wasOffered = false;
+	let watching = null;
+	pageRung("changes", () => offered() && !nativeLayers().length ? {
+		title: "stop marking changes",
+		out: stopComparison
+	} : null);
+	pageCommand({
+		id: "change.marks.stop",
+		keys: [],
+		title: "stop marking changes",
+		touch: "Stop marking changes",
+		when: offered,
+		run: stopComparison
+	});
+	pageCommand({
+		id: "change.walk",
+		touch: false,
+		keys: ["h", "Shift+h"],
+		routes: [{
+			id: "change.next",
+			binding: "h",
+			title: "Next change"
+		}, {
+			id: "change.previous",
+			binding: "Shift+h",
+			title: "Previous change"
+		}],
+		title: "changes",
+		when: offered,
+		repeat: true,
+		travels: true,
+		run: (binding) => step(binding === "h" ? 1 : -1)
+	});
+	return { mount() {
+		watching ??= x(() => {
+			if (offered() === wasOffered) return;
+			wasOffered = offered();
+			d(() => {
+				paintKeys();
+				repaint();
+			});
+		});
+	} };
 }
 
 //#endregion
@@ -10576,6 +10646,7 @@ async function boot() {
 		readableDestination: anchorTravel.readableDestination,
 		announce
 	});
+	const changeWalk = createChangeWalk();
 	const commandHints = createCommandHints({ presentedControl: (control) => app.overlay?.presentedControl(control) ?? control });
 	const currentTarget = createCurrentTarget({ currentLocationIn: items.currentLocationIn });
 	floatingPanel = createFloatingPanel({
@@ -10798,6 +10869,7 @@ async function boot() {
 		pageMapDialog.mount(chromeForeground);
 		items.mount();
 		queueWalk.mount();
+		changeWalk.mount();
 		commandHints.mount();
 		app.mountAnnotations();
 		app.overlay?.mount();

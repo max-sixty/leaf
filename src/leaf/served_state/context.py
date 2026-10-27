@@ -75,6 +75,19 @@ class PageRead:
     def data(self) -> dict:
         return self.stored_data()
 
+    def descriptor(self, revision: int) -> dict:
+        """One immutable revision's descriptor, as `active` describes the live one."""
+        if self.active is not None and revision == self.active["revision"]:
+            return self.active
+        reading = self.revision(revision)
+        return document_descriptor(
+            revision,
+            self.events,
+            url=f"/revisions/{reading.marker.name}",
+            executable=reading.manifest["executable"],
+            activated_at=reading.activated_at,
+        )
+
     def through(self, sequence: int) -> PageRead:
         """The read as it stood once event `sequence` was appended: the log and the
         versions it had stamped by then, without a live streaming reply.

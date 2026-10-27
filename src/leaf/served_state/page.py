@@ -12,6 +12,7 @@ from typing import NamedTuple
 from ..activity import WORKING_GRACE
 from ..data import browser_data_from
 from ..files import revision_label
+from ..read_state import seen_revision
 from .browser import BrowserReading, project_browser_state
 from .context import PageRead, read_page
 
@@ -74,6 +75,11 @@ def read_served_page(
                 | {event["revision"] for event in context.events if "revision" in event}
             )
         },
+        "seen": (
+            context.descriptor(seen)
+            if (seen := seen_revision(context.events)) is not None
+            else None
+        ),
         "source_error": source_error,
         "data": browser_data_from(context.data, selected_registry),
         "files": context.bound_files(),

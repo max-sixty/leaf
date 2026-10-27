@@ -31,6 +31,14 @@ is a new version needing fresh evidence. An explicit summary
 does not mark read what it covers. Unread is independent of turn-taking and of the
 user's outstanding work: reading never answers an obligation, and answering one does
 mark it read.
+
+The page itself is agent content too, one revision at a time. A `seen` event names the
+live revision a tab showed the user in a visible document, posted as they leave it, and
+`seen_revision` is the newest one any tab named: the revision the browser compares the
+page against to mark what changed since (`browser/runtime/since-seen.js`). It needs no
+exposure of each passage, as a message's read does: a reader comes back to a page to
+see what moved, and the marks it then shows are the evidence's whole use. A page has
+one user, so like `read` it names no account and holds across tabs and browsers.
 """
 
 from .events import taken_back
@@ -113,3 +121,11 @@ def unread_content(
             and (message["id"], version := content_version(message)) not in marked
         ]
     return unread
+
+
+def seen_revision(events: list[dict]) -> int | None:
+    """The newest revision a `seen` event names, or None before any tab showed one."""
+    return max(
+        (event["revision"] for event in events if event["kind"] == "seen"),
+        default=None,
+    )

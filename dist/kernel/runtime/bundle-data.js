@@ -1466,7 +1466,8 @@ const RUNG_LADDER = [
 	"floating panel",
 	"draw mode",
 	"design mode",
-	"page"
+	"page",
+	"changes"
 ];
 const PAGE_COMMANDS = [
 	"comment.create",
@@ -1479,6 +1480,8 @@ const PAGE_COMMANDS = [
 	"page.search.repeat",
 	"thread.walk",
 	"queue.walk",
+	"change.walk",
+	"change.marks.stop",
 	"page.move",
 	"scroll.move",
 	"reading.align.top",
@@ -8279,6 +8282,24 @@ let initialDocument = (() => {
 	};
 })();
 const stamped = (version) => runtime.versions.find((candidate) => candidate.version === version);
+const revisionBase = ({ revision, version, url, activated_at }) => Object.freeze({
+	revision,
+	url,
+	name: version != null ? `v${version}` : wentLive(activated_at)
+});
+const wentLive = (iso) => {
+	const at = new Date(iso);
+	const sameDay = at.toDateString() === (/* @__PURE__ */ new Date()).toDateString();
+	return at.toLocaleString(void 0, {
+		...sameDay ? {} : {
+			weekday: "short",
+			day: "numeric",
+			month: "short"
+		},
+		hour: "numeric",
+		minute: "2-digit"
+	});
+};
 const currentVersionToken = () => runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
 const draftRevisions = () => {
 	const revisions = /* @__PURE__ */ new Set();
@@ -8299,7 +8320,7 @@ function menuRows(state, notes) {
 		note: notes[entry.version] ?? null,
 		current: entry.version === runtime.currentStamp,
 		active: false,
-		comparable: comparable(entry.version)
+		comparable: comparable(entry.revision)
 	}));
 	for (const revision of draftRevisions()) {
 		const active = revision === state.active.revision;
@@ -8328,8 +8349,8 @@ function pickerModel(state) {
 			token: currentVersionToken(),
 			compared: diffOn.value || diffPendingBase.value !== null,
 			news: behind,
-			keyTitle: offered ? diffPendingBase.value !== null ? `${currentLabel}: loading a comparison with v${diffPendingBase.value}${newer}` : diffOn.value ? `${currentLabel}: showing what changed since v${diffBase.value} — pick a version, or press Compare again to stop${newer}` : `${currentLabel}: versions; read one, or mark what changed since it${newer}` : currentLabel,
-			ariaLabel: offered ? diffPendingBase.value !== null ? `${currentLabel}: loading comparison with v${diffPendingBase.value}; open versions${newer}` : diffOn.value ? `${currentLabel}: comparing with v${diffBase.value}; open versions${newer}` : `${currentLabel}: open versions${newer}` : currentLabel
+			keyTitle: offered ? diffPendingBase.value !== null ? `${currentLabel}: loading a comparison with ${diffPendingBase.value.name}${newer}` : diffOn.value ? `${currentLabel}: showing what changed since ${diffBase.value.name} — pick a version, or press Compare again to stop${newer}` : `${currentLabel}: versions; read one, or mark what changed since it${newer}` : currentLabel,
+			ariaLabel: offered ? diffPendingBase.value !== null ? `${currentLabel}: loading comparison with ${diffPendingBase.value.name}; open versions${newer}` : diffOn.value ? `${currentLabel}: comparing with ${diffBase.value.name}; open versions${newer}` : `${currentLabel}: open versions${newer}` : currentLabel
 		}),
 		latest: Object.freeze({
 			failed: sourceFailed,
@@ -8345,11 +8366,11 @@ function pickerModel(state) {
 		}),
 		rows: state === null || runtime.active === null ? Object.freeze([]) : menuRows(state, runtime.browser?.version_notes ?? {}),
 		selection: Object.freeze({
-			base: diffPendingBase.value ?? (diffOn.value ? diffBase.value : null),
+			base: (diffPendingBase.value ?? (diffOn.value ? diffBase.value : null))?.revision ?? null,
 			currentRevision: runtime.currentRevision,
 			on: diffOn.value,
 			pendingBase: diffPendingBase.value,
-			baseRevision: stamped(diffBase.value)?.revision ?? null
+			baseRevision: diffBase.value?.revision ?? null
 		})
 	});
 }
@@ -8524,8 +8545,8 @@ function servedElements() {
 	}
 	return served;
 }
-function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
-	const baseView = baseReading.views[String(stamped(baseVersion).revision)];
+function applyDiff(doc, baseAuthored, base, baseReading) {
+	const baseView = baseReading.views[String(base.revision)];
 	const baseProjection = projectView(baseView);
 	const declaredAlike = ({ e, spec }) => {
 		const current = baseAuthored.get(e.widget)?.specs.get(e.action);
@@ -8625,9 +8646,9 @@ function openInlineComparison(target) {
 	const before = diffBefore.get(target);
 	const reading = authoredReading(target);
 	const current = currentVersionToken();
-	const label = el("span", "lf-ui lf-quiet lf-version-inline-label", before === null ? `New since v${diffBase.value}` : `v${diffBase.value} → ${current}`);
+	const label = el("span", "lf-ui lf-quiet lf-version-inline-label", before === null ? `New since ${diffBase.value.name}` : `${diffBase.value.name} → ${current}`);
 	label.id = inlineId(target);
-	label.setAttribute("aria-label", before === null ? `New since version ${diffBase.value}` : `Inline comparison from version ${diffBase.value} to ${current}`);
+	label.setAttribute("aria-label", before === null ? `New since ${diffBase.value.name}` : `Inline comparison from ${diffBase.value.name} to ${current}`);
 	const nodes = [label];
 	const additions = [];
 	const insertions = [{
@@ -8663,7 +8684,7 @@ function openInlineComparison(target) {
 	});
 	paintInlineInsertions();
 	layoutChanged(target);
-	return before === null ? `v${diffBase.value} had nothing here` : `showing an inline diff from v${diffBase.value}`;
+	return before === null ? `${diffBase.value.name} had nothing here` : `showing an inline diff from ${diffBase.value.name}`;
 }
 function closeInlineComparison(target) {
 	const entry = inlineOpen.get(target);
@@ -8672,12 +8693,12 @@ function closeInlineComparison(target) {
 	for (const node of entry?.nodes ?? []) node.remove();
 	paintInlineInsertions();
 	layoutChanged(target);
-	return `inline diff from v${diffBase.value} hidden`;
+	return `inline diff from ${diffBase.value.name} hidden`;
 }
 const inlineComparison = (target) => diffOn.value && diffBefore.has(target) && (diffBefore.get(target) === null || diffBefore.get(target) !== quoteFrom(comparisonTextNodes(target))) ? {
 	id: inlineId(target),
 	open: inlineOpen.has(target),
-	offer: `v${diffBase.value} → ${currentVersionToken()}`
+	offer: `${diffBase.value.name} → ${currentVersionToken()}`
 } : null;
 function toggleInlineComparison(target) {
 	if (!inlineComparison(target)) return null;
@@ -8685,10 +8706,7 @@ function toggleInlineComparison(target) {
 	tick(comparisonGeneration);
 	return said;
 }
-const comparable = (version) => {
-	const base = stamped(version);
-	return runtime.currentRevision !== null && base !== void 0 && base.revision < runtime.currentRevision;
-};
+const comparable = (revision) => runtime.currentRevision !== null && revision < runtime.currentRevision;
 function setDiff(on, base, pendingBase = null) {
 	W(() => {
 		diffOn.value = on;
@@ -8704,17 +8722,11 @@ function setDiff(on, base, pendingBase = null) {
 		tick(comparisonGeneration);
 	});
 }
-async function showComparison(base) {
+async function showComparison(base, { offered = false } = {}) {
 	setDiff(false, null, base);
 	const mine = ++diffRequest;
-	const baseVersion = stamped(base);
-	const baseRevision = baseVersion?.revision;
-	if (baseRevision == null) {
-		diffPendingBase.value = null;
-		raiseError(`Couldn't load v${base}`);
-		return;
-	}
-	const documentRequest = authoredDocument(baseVersion.url);
+	const baseRevision = base.revision;
+	const documentRequest = authoredDocument(base.url);
 	let doc;
 	let reading;
 	let baseAuthored;
@@ -8731,16 +8743,26 @@ async function showComparison(base) {
 	} catch {
 		if (mine === diffRequest) {
 			diffPendingBase.value = null;
-			raiseError(`Couldn't load v${base}`);
+			raiseError(`Couldn't load ${base.name}`);
 		}
 		return;
 	}
 	if (mine !== diffRequest) return;
 	const n = applyDiff(doc, baseAuthored, base, reading);
+	if (offered && !n) return setDiff(false);
 	setDiff(true, base);
-	notice(n ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}` : `No text changes since v${base}`);
+	notice(n ? `${n} changed passage${n === 1 ? "" : "s"} since ${base.name}` : `No text changes since ${base.name}`);
 }
-const pressComparison = (base) => diffOn.value && base === diffBase.value || diffPendingBase.value === base ? setDiff(false) : showComparison(base);
+function offerComparison(base) {
+	if (selectedBase() !== null || !comparable(base.revision)) return;
+	showComparison(base, { offered: true });
+}
+const pressComparison = (version) => {
+	const entry = stamped(version);
+	if (!entry) return;
+	return selectedBase()?.revision === entry.revision ? setDiff(false) : showComparison(revisionBase(entry));
+};
+const stopComparison = () => setDiff(false);
 const comparisonBase = () => diffOn.value ? diffBase.value : null;
 const selectedBase = () => diffPendingBase.value ?? comparisonBase();
 function comparisonChanges(owner = null) {
@@ -9515,7 +9537,7 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 				restoreRetainedCurrentLocation(handoff.retainedCurrentLocation);
 				restoreCarryScroll();
 				await restoreEditingContinuity(handoff, currentIntent);
-				if (handoff.comparison !== null && stamped(handoff.comparison)) showComparison(handoff.comparison);
+				if (handoff.comparison) showComparison(handoff.comparison);
 				return;
 			}
 			if (navigationType === "navigate" && !aimedAt && savedView && savedView.revision !== runtime.currentRevision) restoreView(savedView, currentIntent);
@@ -9739,4 +9761,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bodyText, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataBody, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, disclosed, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, once, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quietWord, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, reportFailure$1 as reportFailure, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, selfComparison, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shadowStage, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDisclosures, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep };
+export { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bodyText, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataBody, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, disclosed, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, offerComparison, onReadingInterrupted, once, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quietWord, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, reportFailure$1 as reportFailure, restorePlace, retainThreadSeats, returnPlace, revealHeld, revisionBase, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, selfComparison, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shadowStage, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, stopComparison, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDisclosures, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep };

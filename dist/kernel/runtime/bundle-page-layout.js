@@ -1,8 +1,8 @@
 import { TEXT_FIELD, Z, afterScript, bindQueuedWork, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, d, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, keepsText, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, q, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft, x } from "./bundle-dom-move.js";
 import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, elementDirective, generatedElement, holdingError, iconTemplate, isCommandScope, keys, layerHeaders, notice, offer, offerAction, paintKeys, paintKeysWithin, postEvent, pressIsKeyboardActivation, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
-import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, discussed, documentChanged, drawingSchema, editable, growthIsSeen, hasArea, html, intersect, isMessageEvent, isThreadEvent, layoutWindow, matchesWhen, moved, offlineInteractive, offlineState, pageUrl, placeBox, placeHolder, presentDocument, presented as presented$1, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, seenRect, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, shownWindow, stateCoordinate, tagsDeclaring, threadKey, tokenChoices, turns, union, watchOwner, watchPresentation, watchRoom, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented, whileConnected } from "./bundle-geometry.js";
+import { DRAFT_FORMAT, LIVE_ROOT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, discussed, documentChanged, drawingSchema, editable, growthIsSeen, hasArea, html, intersect, isMessageEvent, isThreadEvent, layoutWindow, matchesWhen, moved, offlineInteractive, offlineState, pageUrl, placeBox, placeHolder, presentDocument, presented as presented$1, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, seenRect, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, shownWindow, stateCoordinate, tagsDeclaring, threadKey, tokenChoices, turns, union, watchOwner, watchPresentation, watchRoom, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented, whileConnected } from "./bundle-geometry.js";
 import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleMarginContentLayout, sectionOf, settlePageInterface, syncLayoutRegion, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
-import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, importWidgets, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, once, openMessageEditIn, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, reportFailure, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoLabel, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowLabel } from "./bundle-data.js";
+import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, importWidgets, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, offerComparison, onReadingInterrupted, once, openMessageEditIn, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingIsContinuous, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, reportFailure, retainThreadSeats, revealHeld, revisionBase, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoLabel, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowLabel } from "./bundle-data.js";
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
 import { alreadyShown, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { agentArrivalDuration, isCanonicalMediaUrl, reducedMotion, scopedMediaUrl, scrollBehavior } from "./bundle-media.js";
@@ -230,11 +230,11 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 	}
 	return { drain };
 }
-async function deliverBookkeeping(event, applyState) {
+async function deliverBookkeeping(event, applyState, { keepalive = false } = {}) {
 	const held = runtime.data;
 	let response;
 	try {
-		response = await postEvent(event, held);
+		response = await postEvent(event, held, { keepalive });
 	} catch {
 		return "unreached";
 	}
@@ -3343,7 +3343,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 		}
 		const base = comparisonBase();
 		comparisonChanges().forEach((target, index) => {
-			const account = `${addressableWord(target)} changed${base == null ? "" : ` since v${base}`}`;
+			const account = `${addressableWord(target)} changed${base == null ? "" : ` since ${base.name}`}`;
 			const inline = inlineComparison(target);
 			const mapAccount = inline ? `${addressableWord(target)} changed` : account;
 			add(groups, target, {
@@ -5552,6 +5552,61 @@ function createReadTracking({ markRead, openThread }) {
 }
 
 //#endregion
+//#region runtime/since-seen.js
+function createSinceSeen({ markSeen }) {
+	let arriving = true;
+	let shown = 0;
+	function present() {
+		const seen = runtime.seen;
+		const current = runtime.currentRevision;
+		if (!LIVE_ROOT || runtime.state === null || current === null || !runtime.showsActive || !readingIsContinuous()) return;
+		shown = Math.max(shown, current);
+		if (!arriving) return;
+		arriving = false;
+		if (seen !== null && seen.revision < current) {
+			const base = revisionBase(seen);
+			whenDocumentPresented().then(() => offerComparison(base));
+		}
+	}
+	function leave() {
+		if (shown > (runtime.seen?.revision ?? 0) && sessionIsActive()) {
+			markSeen(shown);
+			shown = 0;
+		}
+	}
+	onReadingInterrupted(() => {
+		arriving = true;
+	});
+	document.addEventListener("lf-reading-continuity", present);
+	document.addEventListener("visibilitychange", () => {
+		if (document.visibilityState === "hidden") leave();
+	});
+	window.addEventListener("pagehide", leave);
+	x(present);
+}
+
+//#endregion
+//#region runtime/at-work.js
+const AT_WORK = "data-lf-at-work";
+function createAtWork(inventory) {
+	let marked = /* @__PURE__ */ new Set();
+	inventory.watch((entries) => {
+		const places = /* @__PURE__ */ new Set();
+		for (const entry of entries) if (progressFace(entry.workflowReceipt) === "working") {
+			const target = inventory.targetFor(entry);
+			if (target) places.add(target);
+		}
+		for (const todo of runtime.todos) if (todo.owner === "agent" && todo.state === "open" && todo.running && (todo.subject.kind === "widget" || todo.subject.kind === "element")) {
+			const target = elementById(todo.subject.id);
+			if (target) places.add(target);
+		}
+		for (const place of marked) if (!places.has(place)) keeps(place, AT_WORK, null);
+		for (const place of places) keeps(place, AT_WORK, "");
+		marked = places;
+	});
+}
+
+//#endregion
 //#region runtime/thread/box.js
 const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => {
 	if (inChrome(el) || quoted$1(el)) return null;
@@ -6217,6 +6272,10 @@ function mountApplication(dependencies) {
 			applicationState.settleMarkRead(messages);
 		}
 	};
+	createSinceSeen({ markSeen: (revision) => deliverBookkeeping({
+		kind: "seen",
+		revision
+	}, receiveState, { keepalive: true }) });
 	const read = createReadTracking({
 		markRead,
 		openThread: openPageThread
@@ -6271,6 +6330,7 @@ function mountApplication(dependencies) {
 		scrollToElement: dependencies.anchorTravel.scrollToElement
 	});
 	const inlineContributions = createInlineContributions(annotations);
+	createAtWork(annotations);
 	const onPaper = matchMedia("print");
 	function refreshAnnotationInventory() {
 		if (onPaper.matches) return annotations.read();

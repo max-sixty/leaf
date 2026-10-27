@@ -419,7 +419,7 @@ export function createAnnotationInventory({
 
     const base = comparisonBase();
     comparisonChanges().forEach((target, index) => {
-      const account = `${addressableWord(target)} changed${base == null ? "" : ` since v${base}`}`;
+      const account = `${addressableWord(target)} changed${base == null ? "" : ` since ${base.name}`}`;
       const inline = inlineComparison(target);
       const mapAccount = inline ? `${addressableWord(target)} changed` : account;
       add(groups, target, {

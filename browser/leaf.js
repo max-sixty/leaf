@@ -87,6 +87,7 @@ import { currentLocationThreadId } from "./runtime/thread/focus.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createObligationView } from "./runtime/obligations/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
+import { createChangeWalk } from "./runtime/change-walk.js";
 import {
   commandHintLayer,
   createCommandHints,
@@ -450,6 +451,7 @@ async function boot() {
     readableDestination: anchorTravel.readableDestination,
     announce,
   });
+  const changeWalk = createChangeWalk();
   const commandHints = createCommandHints({
     presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
   });
@@ -706,6 +708,7 @@ async function boot() {
     pageMapDialog.mount(chromeForeground);
     items.mount();
     queueWalk.mount();
+    changeWalk.mount();
     commandHints.mount();
     app.mountAnnotations();
     app.overlay?.mount();

@@ -102,6 +102,10 @@
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
+        "seen": {
+          "description": "The newest revision a tab showed the user before they left it (`read_state.seen_revision`), which the browser marks the page's changes since, or null before any.",
+          "anyOf": [{ "$ref": "#/$defs/Revision" }, { "type": "null" }]
+        },
         "source_error": {
           "description": "Why activating the page's authored source failed, or null.",
           "type": ["string", "null"]
@@ -295,6 +299,7 @@
         "active",
         "versions",
         "revision_labels",
+        "seen",
         "source_error",
         "data",
         "files",

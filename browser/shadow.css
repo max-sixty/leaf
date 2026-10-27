@@ -664,7 +664,7 @@ button.lf-primary-news {
 :where(:root, .lf-thread-transcript) a:hover {
   text-decoration-color: currentColor;
 }
-:where(:root, .lf-thread-transcript) code {
+:where(:root, .lf-thread-transcript) :is(code, samp, kbd:where(:not(.lf-key-badge))) {
   background: var(--code-bg);
   border-radius: var(--code-inline-r);
   padding: var(--code-inline-pad);
@@ -675,6 +675,10 @@ button.lf-primary-news {
   display: inline;
   contain: none;
   isolation: auto;
+}
+:where(:root, .lf-thread-transcript) kbd:where(:not(.lf-key-badge)) {
+  border: 1px solid var(--border-2);
+  background: var(--chip);
 }
 :where(:root, .lf-thread-transcript) pre {
   background: var(--pre-bg);
@@ -689,7 +693,8 @@ button.lf-primary-news {
   font-variant-ligatures: none;
   contain: inline-size;
 }
-:where(:root, .lf-thread-transcript) pre > code {
+:where(:root, .lf-thread-transcript) pre > :is(code, samp, kbd) {
+  border: 0;
   background: none;
   padding: 0;
   font-size: 100%;
@@ -737,7 +742,7 @@ button.lf-primary-news {
 :where(:root, .lf-thread-transcript) table > * {
   --lf-top: 0px;
 }
-:where(:root, .lf-thread-transcript) :is(th, td) code:not(pre code) {
+:where(:root, .lf-thread-transcript) :is(th, td) :is(code, samp):not(pre *) {
   padding: 0;
   background: none;
   font-size: 0.9em;

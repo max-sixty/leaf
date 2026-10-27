@@ -23,10 +23,12 @@ assert:
   - type: llm-rubric
     metric: distinguishes-view-replacement
     value: |
-      Pass only if the mutually exclusive panel's lf-reveal handler calls the event
-      detail's replacedView() when it changes the active visible panel, while the
-      expanding disclosure does not report replacement. Both handlers join any
-      asynchronous layout completion through detail.present(promise). Fail if the
-      handlers implement scrolling themselves, delay replacement until layout
-      finishes, treat every reveal as a replacement, or claim the replacement's
-      initial placement waits for those layout promises.
+      Pass only if the panel widget hides an inactive panel with
+      hidden="until-found" and, on that panel's beforematch event, shows it and
+      hides the panel it replaces in the same handler, while the disclosure opens
+      through a native <details> or a hidden="until-found" block without hiding
+      anything beside it. Layout that finishes later is joined through the
+      element's updateComplete (getUpdateComplete). Fail if the handlers implement
+      scrolling themselves, listen for a Leaf-specific reveal event, wait for layout
+      before hiding the replaced panel, or claim the replacement's initial placement
+      waits for those layout promises.

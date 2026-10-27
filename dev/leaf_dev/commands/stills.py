@@ -340,6 +340,16 @@ def floating_thread(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
 
 
+def floating_thread_resting(page: Page) -> None:
+    """The same thread with the reader's focus in its view, so the reply field rests
+    without its frame and only the view's foot stands between them."""
+    floating_thread(page)
+    page.locator(".lf-fp-view[data-view=thread]").focus()
+    page.wait_for_function(
+        "() => !document.querySelector('.lf-fp-field').matches(':focus-within')"
+    )
+
+
 def floating_thread_retitled(page: Page) -> None:
     """The same thread once its opening message is rewritten short, so its title is far
     narrower than the view it names."""
@@ -1485,7 +1495,7 @@ def page_end(page: Page) -> None:
 
 def visual_review_inspection(page: Page) -> None:
     """Capture the artifact inspection popover beside the selected comparison."""
-    page.locator('.lf-vr-case[aria-hidden="false"] .lf-vr-inspect').click()
+    page.locator(".lf-vr-case:not([hidden]) .lf-vr-inspect").click()
     page.mouse.move(0, 0)
 
 
@@ -1707,6 +1717,19 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
+    State(
+        "floating-thread-resting",
+        "ship-review",
+        floating_thread_resting,
+        region=".lf-fp-card",
+    ),
+    State(
+        "floating-thread-resting-dark",
+        "ship-review",
+        floating_thread_resting,
+        scheme="dark",
+        region=".lf-fp-card",
+    ),
     State("ship-threads", "ship-review", go_to_threads, region=".lf-fp-opened"),
     State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
     State(

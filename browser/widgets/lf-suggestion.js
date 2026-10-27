@@ -150,13 +150,6 @@ customElements.define(
       // exhibit shows what a pending change looks like, so it keeps the marks
       // the theme draws and never grows controls to decide it with.
       if (quoted(this)) return;
-      // The runtime says it just opened this element's containers (reveal): the entry
-      // may be waiting on geometry the target only now has, and the caller is about
-      // to focus it, so the layout question is answered now rather than at the
-      // observer's next frame.
-      this.addEventListener("lf-reveal", () =>
-        this.#margin?.update({ immediate: true }),
-      );
     }
 
     disconnectedCallback() {

@@ -1,5 +1,5 @@
 import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, afterScript, bindQueuedWork, cancelRender, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextAnimation, nextFrame, nextRender, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, renderingState, selectsAll, sizeObserver, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, x } from "./bundle-dom-move.js";
-import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live, measure, notice, offer, offered, offeredAction, pagePresented, paintKeys, paintKeysWithin, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
+import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live, measure, notice, offer, offered, offeredAction, pagePresented, paintKeys, paintKeysWithin, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, revealedBy, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, live as live$1, loadShadowRules, marks, marksSheet, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot } from "./bundle-passages.js";
@@ -6288,12 +6288,12 @@ var Transcript = class {
 		this.#home = home;
 		this.node = document.createElement("div");
 		this.node.className = "lf-thread-transcript";
-		this.node.addEventListener("lf-reveal", (event) => {
-			const id = (event.detail?.target?.closest?.(".lf-msg[data-lf-summary]"))?.dataset.lfSummary;
-			if (!id || this.#expandedSummaries.has(id)) return;
-			this.#expandedSummaries.add(id);
-			this.#repaint();
-		});
+	}
+	#unfold(node) {
+		const id = node.dataset.lfSummary;
+		if (!id || this.#expandedSummaries.has(id)) return;
+		this.#expandedSummaries.add(id);
+		this.#repaint();
 	}
 	get views() {
 		return (this.#model?.messages ?? []).flatMap(({ key }) => this.#messages.get(key) ?? []);
@@ -6392,7 +6392,11 @@ var Transcript = class {
 		}
 		for (const message of model.messages) {
 			let view = this.#messages.get(message.key);
-			if (!view) this.#messages.set(message.key, view = new MessageView(this.#messageCommands));
+			if (!view) {
+				this.#messages.set(message.key, view = new MessageView(this.#messageCommands));
+				const { node } = view;
+				revealedBy(node, () => this.#unfold(node));
+			}
 			view.present(message, {
 				arrived,
 				dated: dated.has(message.key),

@@ -61,7 +61,7 @@ from leaf_dev.arms import (
     serving,
 )
 from leaf_dev.browser import DESKTOP, go_to_threads, headless_shell
-from leaf_dev.commands.distribution import cached_installation
+from leaf_dev.commands.distribution import current_kernel
 from leaf_dev.example_data import named_source
 from leaf_dev.main_thread import SCRIPT as MAIN_THREAD_SCRIPT
 from leaf_dev.main_thread import main_thread
@@ -373,7 +373,7 @@ class Session:
 @contextmanager
 def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path):
     """Build `source` into a page with `arm_dir`'s launcher, serve it, and open a tab."""
-    arm_dir = cached_installation(arm_dir)
+    arm_dir = current_kernel(arm_dir)
     state = scratch / f"{arm}-{source}-state"
     page_dir = scratch / f"{arm}-{source}" / "page"
     build_source(arm_dir, state, named_source(source), page_dir)

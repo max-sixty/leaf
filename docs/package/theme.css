@@ -68,3 +68,22 @@ body.site-page footer.site-footer p {
 body.site-page footer.site-footer p + p {
   margin-top: 6px;
 }
+/* Native diagrams share caption spacing; the package owns their layout. */
+.diagram-figure {
+  margin-block: var(--sp-4);
+  font: 15px/1.5 var(--sans);
+}
+.diagram-figure figcaption {
+  margin-top: var(--sp-3);
+  color: var(--muted);
+  font: 14px/1.5 var(--sans);
+}
+.topic-outline {
+  margin-block: var(--sp-3) var(--sp-5);
+}
+.topic-outline nav {
+  font: var(--t-5) / 1.5 var(--sans);
+}
+.topic-outline ul {
+  margin-block: var(--sp-2);
+}

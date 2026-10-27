@@ -12,7 +12,7 @@ from render_harness import (
     TOKEN,
     consume_browser_errors,
     open_page,
-    panel_settled,
+    open_threads,
     told,
 )
 
@@ -30,7 +30,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     url = serve(LONG_PAGE)
     page = open_page(browser, url)
     status = page.locator(".lf-fp-leaf")
-    offline = re.compile("Server offline")
+    offline = re.compile("Lost the connection")
     port = serve.httpd.server_address[1]
     next(server for server in serve.servers if server.httpd is serve.httpd).close()
     expect(status).to_have_attribute("aria-label", offline)
@@ -45,8 +45,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     )
     told(page)
     expect(status).not_to_have_attribute("aria-label", offline)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(page.locator(".lf-fp-thread", has_text="Back.")).to_have_count(1)
     # The requests that failed while the server was down are the one thing the
     # console may hold; a page fault of the runtime's own would say something else.

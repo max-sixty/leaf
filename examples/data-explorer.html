@@ -18,7 +18,9 @@
       .query-row-actions {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--sp-2);
+        /* Wrapped rows keep each button's reach, which stands past its face
+           under a finger, clear of the row above it. */
+        gap: max(var(--sp-2), 2 * var(--lf-reach-room)) var(--sp-2);
         align-items: center;
       }
 
@@ -82,6 +84,7 @@
         keepsText,
         layoutChanged,
         offer,
+        offerAction,
         once,
         setChildren,
         whileInterfaceConnected,
@@ -154,7 +157,7 @@
             toolbar.append(
               document.createTextNode("Releases must match every filter."),
             );
-            const add = offer("button", "lf-btn query-add", "Add filter");
+            const add = offerAction("word", "query-add", "Add filter");
             add.addEventListener("click", () => {
               const state = this.#filters.get();
               const next =
@@ -296,9 +299,9 @@
             valueLabel.append(input);
             const actions = document.createElement("div");
             actions.className = "query-row-actions";
-            const up = offer("button", "lf-btn small");
-            const down = offer("button", "lf-btn small");
-            const remove = offer("button", "lf-btn small");
+            const up = offerAction("word", "small");
+            const down = offerAction("word", "small");
+            const remove = offerAction("word", "small");
             up.addEventListener("click", () => this.#move(id, -1));
             down.addEventListener("click", () => this.#move(id, 1));
             remove.addEventListener("click", () => this.#remove(id));
@@ -375,6 +378,7 @@
         <h2>Which release query should the agent build?</h2>
         <lf-playground
           id="release-query-playground"
+          contract="data-explorer-values"
           submit-label="Build query"
           data-width="available"
         >

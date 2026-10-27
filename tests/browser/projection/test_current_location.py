@@ -100,9 +100,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     )
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Chose “Two” — sent")
-    )
+    expect(page.locator(".lf-live")).to_have_text("Chose “Two”")
     round_trip(page)
 
 
@@ -679,7 +677,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     # keys rather than by backing out of the panel — a surface lands them on the page,
     # never on the control that reopens it. What is asserted here is the band the ring
     # is drawn in while they stand there.
-    toggle = page.locator(".lf-fp-threads")
+    toggle = page.locator(".lf-fp-on-user")
     toggle.focus()
     # Return by keyboard to exercise the same focus band through sequential navigation.
     page.keyboard.press("Tab")
@@ -963,10 +961,10 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
         "The first revision's existing body."
     )
     revised.locator(".lf-draft-body").click()
-    editor = revised.get_by_role("textbox", name="Edit revised-draft")
+    editor = revised.locator("leaf-text")
     write(editor, "The user's unsent replacement.\n")
-    # The user leaves the editor open and steps back to the page.
-    page.locator("h1").click()
+    # The editor stays open with the focus elsewhere; a press away would save it.
+    editor.blur()
     expect(editor).not_to_be_focused()
     assert take_browser_errors(page) == []
 
@@ -979,7 +977,7 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
     expect(page.locator("#arriving-draft .lf-draft-body")).to_have_text(
         "The second revision's newly inserted body."
     )
-    expect(
-        revised.get_by_role("textbox", name="Edit revised-draft")
-    ).to_have_js_property("value", "The user's unsent replacement.\n")
+    expect(revised.locator("leaf-text")).to_have_js_property(
+        "value", "The user's unsent replacement.\n"
+    )
     assert take_browser_errors(page) == []

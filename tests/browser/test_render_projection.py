@@ -30,6 +30,7 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     draft_control,
     expect_obligations_answered,
+    expect_on_me,
     expect_panel_offers,
     holding,
     leaf_page,
@@ -109,7 +110,14 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
                 {
                     "path": "gateway/limits.py",
                     "patch": patch,
-                }
+                },
+                # A second file, so the diff draws the filter a reveal clears.
+                {
+                    "path": "gateway/README.md",
+                    "patch": "diff --git a/gateway/README.md b/gateway/README.md\n"
+                    "--- a/gateway/README.md\n+++ b/gateway/README.md\n"
+                    "@@ -1 +1 @@\n-Limits by address.\n+Limits by token.\n",
+                },
             ]
         },
     )
@@ -418,7 +426,7 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
     expect(send).to_be_focused()
 
     (serve.page_dir / "index.html").write_text(second)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me: 1")
+    expect_on_me(page, 1)
     expect(send).to_be_focused()
 
     third = second.replace('<p id="subject">Work under discussion.</p>', "")
@@ -450,7 +458,7 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
     expect(editor).to_be_focused()
     editor.press("Escape")
     page.wait_for_function("window.heldReply === undefined")
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me: 1")
+    expect_on_me(page, 1)
 
 
 def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
@@ -572,7 +580,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     page = open_page(browser, live_url(url))
     draft = page.locator("#ledger-cargo")
     draft_control(page, "edit", "ledger-cargo").click()
-    editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
+    editor = draft.locator("leaf-text")
     if provided.startswith("\n"):
         # CodeMirror's bulk insertText reading drops an initial LF;
         # create that line through the editor's ordinary key route instead.

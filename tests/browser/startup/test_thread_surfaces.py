@@ -212,6 +212,10 @@ customElements.define('lf-test-surface', class extends LeafElement {
     )
     strip = broken.locator(".lf-react-strip")
     trigger = strip.locator(".lf-react-trigger")
+    if activation == "pointer":
+        # Exercise retirement of a saved draft separately from active continuations.
+        input.press("Escape")
+        assert not page.evaluate(editing, roots[0])
     if activation.startswith("pointer"):
         trigger.click()
     else:
@@ -225,7 +229,7 @@ customElements.define('lf-test-surface', class extends LeafElement {
     rendered(page)
     page.evaluate("lfWordsJudged()")
     if activation == "pointer":
-        # The reaction press already ended this composition, before the passive
+        # Escape already ended this composition, before the passive
         # adapter fault. Retiring its unfocused view withdraws saved work, not a
         # typing continuation. Calibrate only this exact report at that handoff;
         # adapter faults and every other loss remain with the strict collector.

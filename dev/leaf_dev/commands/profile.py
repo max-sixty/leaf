@@ -1,6 +1,6 @@
 """Attribute one transition's time on an open Leaf page, for this checkout.
 
-    uv run leaf-dev profile SOURCE TRANSITION
+    uv run leaf-dev profile SOURCE TRANSITION [--base [REF]] [--marks]
 
 `leaf-dev bench-latency` says how long a transition takes; this says where the time
 goes. It drives TRANSITION on this checkout's page exactly as the benchmark does
@@ -15,12 +15,19 @@ run: style and layout time and how much of it script forced, the forced style
 recalculations and the writes that invalidated style with the JS behind each, and JS
 by self and inclusive time.
 
+--base also profiles the merge base with main (or REF), built as `leaf-dev probe
+--base` builds it (`leaf_dev.arms.build_arm`), and prints the per-run detail for each
+arm followed by a side-by-side summary. --marks counts the user-timing marks and
+measures the page made inside the window, so a temporary `performance.mark('x')` in
+source shows how many times a path ran per transition on each arm.
+
 Tracing slows the page, so read proportions here and durations from the benchmark.
 Each run's `.trace.json` (DevTools or Perfetto) and `.cpuprofile` land in
 a separate run directory under `.tmp/profile/`.
 """
 
 import json
+import statistics
 import tempfile
 from collections import Counter
 from contextlib import contextmanager
@@ -29,7 +36,7 @@ from pathlib import Path
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.arms import run_directory
+from leaf_dev.arms import base_ref, build_arm, run_directory
 from leaf_dev.browser import headless_shell
 from leaf_dev.commands.bench_latency import SOURCES, TRANSITIONS, served
 
@@ -203,6 +210,15 @@ def attribute(trace: Path, profile: Profile) -> dict:
                     recalcs[site] += 1
                     recalc_time[site] += inside(e)
         open_spans.append((e["name"], e["ts"] + e.get("dur", 0)))
+    # Marks (instant events) and measures (async begin events) the page made.
+    user_timing = Counter(
+        e["name"]
+        for e in events
+        if e["ts"] >= start
+        and "blink.user_timing" in e.get("cat", "")
+        and e.get("ph") in ("R", "I", "i", "b")
+        and not e["name"].startswith("lf-bench:")
+    )
     invalidations = Counter()
     for e in events:
         if e["ts"] < start or "nvalidation" not in e.get("name", ""):
@@ -228,6 +244,7 @@ def attribute(trace: Path, profile: Profile) -> dict:
         "recalcs": recalcs,
         "recalc_time": recalc_time,
         "invalidations": invalidations,
+        "user_timing": user_timing,
         "own": own,
         "inclusive": inclusive,
     }
@@ -252,6 +269,14 @@ def recorded(session, browser, name: str, runs: list, out: Path):
     runs.append(attribute(trace, Profile(profile)))
 
 
+def per_run(runs: list, value) -> float:
+    return ms(value / len(runs))
+
+
+def total(runs: list, key: str) -> Counter:
+    return sum((run[key] for run in runs), Counter())
+
+
 def show(runs: list) -> None:
     for number, run in enumerate(runs, 1):
         painted = ", ".join(f"{name} {ms(at)}" for name, at in run["marks"].items())
@@ -261,40 +286,87 @@ def show(runs: list) -> None:
                 f"  {ms(at):7.1f} ms  task {ms(duration):6.1f} ms  {' | '.join(paths)}"
             )
 
-    def total(key):
-        return sum((run[key] for run in runs), Counter())
-
-    def per_run(value):
-        return ms(value / len(runs))
-
-    render, forced = total("render"), total("forced")
+    render, forced = total(runs, "render"), total(runs, "forced")
     click.echo(f"\nper run, over {len(runs)} runs")
     click.echo(
         "  render ms: "
         + ", ".join(
-            f"{k} {per_run(v)} (forced {per_run(forced[k])})"
+            f"{k} {per_run(runs, v)} (forced {per_run(runs, forced[k])})"
             for k, v in render.most_common()
         )
     )
     click.echo("  forced style recalculations (ms, count, elements, forced by):")
-    recalcs = total("recalcs")
-    for (where, count), spent in total("recalc_time").most_common(TOP):
+    recalcs = total(runs, "recalcs")
+    for (where, count), spent in total(runs, "recalc_time").most_common(TOP):
         click.echo(
-            f"    {per_run(spent):6.1f}  {recalcs[(where, count)]:4}  {count or '?':>5}  {where}"
+            f"    {per_run(runs, spent):6.1f}  {recalcs[(where, count)]:4}  {count or '?':>5}  {where}"
         )
     click.echo("  style invalidations (count, event, cause, node, written by):")
-    for (event, cause, node, where), n in total("invalidations").most_common(TOP):
+    for (event, cause, node, where), n in total(runs, "invalidations").most_common(TOP):
         click.echo(f"    {n:4}  {event} | {cause} | {node} | {where}")
     for key, title in (("own", "self"), ("inclusive", "inclusive")):
         click.echo(f"  JS by {title} ms:")
-        for frame, value in total(key).most_common(TOP):
-            click.echo(f"    {per_run(value):7.1f}  {frame}")
+        for frame, value in total(runs, key).most_common(TOP):
+            click.echo(f"    {per_run(runs, value):7.1f}  {frame}")
+
+
+def show_marks(arms: dict[str, list]) -> None:
+    """User-timing marks and measures in the window: the count each run made, per arm."""
+    names = sorted(
+        {n for runs in arms.values() for r in runs for n in r["user_timing"]}
+    )
+    click.echo("\nuser-timing marks and measures in the window (count per run):")
+    if not names:
+        click.echo("  none")
+    for name in names:
+        counts = "   ".join(
+            f"{arm} {','.join(str(r['user_timing'][name]) for r in runs)}"
+            for arm, runs in arms.items()
+        )
+        click.echo(f"  {name}: {counts}")
+
+
+def compare(arms: dict[str, list]) -> None:
+    """The arms' headline numbers in columns."""
+    click.echo("\nside by side, per run:")
+    click.echo(f"  {'':22}" + "".join(f"{arm:>16}" for arm in arms))
+
+    def line(label, value):
+        click.echo(
+            f"  {label:22}" + "".join(f"{value(runs):>16}" for runs in arms.values())
+        )
+
+    line(
+        "window ms (median)", lambda rs: ms(statistics.median(r["window"] for r in rs))
+    )
+    for kind in RENDER.values():
+        line(
+            f"{kind} ms (forced)",
+            lambda rs, kind=kind: (
+                f"{per_run(rs, total(rs, 'render')[kind])}"
+                f" ({per_run(rs, total(rs, 'forced')[kind])})"
+            ),
+        )
 
 
 @click.command()
 @click.argument("source", type=click.Choice(SOURCES))
 @click.argument("transition", type=click.Choice(TRANSITIONS))
-def profile(source: str, transition: str) -> None:
+@click.option(
+    "--base",
+    is_flag=False,
+    flag_value="",
+    default=None,
+    help="Also profile the merge base with main, or the ref given. Put it after "
+    "the arguments or give it one (--base=REF).",
+)
+@click.option(
+    "--marks",
+    is_flag=True,
+    help="List the user-timing marks and measures made inside the window, with "
+    "their counts per run.",
+)
+def profile(source: str, transition: str, base: str | None, marks: bool) -> None:
     """Say where a transition spends its time.
 
     Runs one `bench-latency` TRANSITION on SOURCE a few times on this working tree,
@@ -302,20 +374,39 @@ def profile(source: str, transition: str) -> None:
     the last painted goal (Sent, for a gesture), forced style and layout and the writes that invalidated
     style, and JS by function. Each run's trace and CPU profile land in
     .tmp/profile/ for DevTools or Perfetto.
+
+    --base profiles the merge base with main (or REF) the same way and compares
+    the two. --marks counts `performance.mark` and `performance.measure` entries in
+    the window, so a temporary `performance.mark('x')` in the source counts how
+    often a path ran on each arm.
     """
     out = run_directory(OUT)
-    runs = []
+    arms: dict[str, list] = {}
     with (
-        tempfile.TemporaryDirectory(prefix="leaf-profile-") as scratch,
+        tempfile.TemporaryDirectory(prefix="leaf-profile-") as built,
         headless_shell() as browser,
-        served(browser, "head", ROOT, source, Path(scratch)) as session,
     ):
-        for run in range(RUNS):
-            session.open()
-            name = f"{source}-{transition}-{run + 1}"
-            session.recording = lambda name=name: recorded(
-                session, browser, name, runs, out
-            )
-            getattr(session, transition)(run)
-    show(runs)
+        scratch = Path(built)
+        trees = {"worktree": ROOT}
+        if base is not None:
+            build_arm(base_ref(base), scratch / "base-arm")
+            trees = {"base": scratch / "base-arm", **trees}
+        for arm, tree in trees.items():
+            arms[arm] = runs = []
+            with served(browser, arm, tree, source, scratch) as session:
+                for run in range(RUNS):
+                    session.open()
+                    name = f"{arm}-{source}-{transition}-{run + 1}"
+                    session.recording = lambda name=name, runs=runs: recorded(
+                        session, browser, name, runs, out
+                    )
+                    getattr(session, transition)(run)
+    for arm, runs in arms.items():
+        if len(arms) > 1:
+            click.echo(f"\n=== {arm} ===")
+        show(runs)
+    if len(arms) > 1:
+        compare(arms)
+    if marks:
+        show_marks(arms)
     click.echo(f"\nfiles in {out}")

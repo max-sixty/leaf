@@ -188,13 +188,14 @@ the headings over the document's height.
 | **Go-to sequence** | The `g` keys: Leaf paints hint codes on the current Go-to targets and goes to the one whose code the user types |
 | **Target picker** | The `s` interaction that shows addressable elements and ends when the user picks one or closes it |
 | **Page search** | The `/` interaction that filters or steps through text matches for a query |
-| **Walk** | Stepping in order through one kind of destination: open threads (`t`), the user's On me list (`m`), a list's rows |
+| **Walk** | Stepping in order through one kind of destination: open threads (`t`), the user's On me list (`m`), a list's rows. A press steps off the stop the user is on, in its destination, and arrives at one they are only at, such as one they just left with Escape (`current-target.js`) |
 | **Obligation** | What a widget or an agent's message waits on the user for, what an update the user handed over is owed, or a to-do given to the user (`obligations.py`, `readObligations()`): its prompt, its answer once given, its status and its next actor, under an id that never changes (`widget:<id>`, `message:<message>`, `update:<event-id>`, or the to-do's own id). A thread is never one |
 | **On me** | The user's list of everything waiting on them (`queues.on_user`): the open obligations whose next actor is the user and the to-dos the agent gave them. `m` walks it. Labels for what waits on the user name the list, as **Next on me** and **Waiting on me** do, and a row names its obligation by the widget's word (`x-word`) |
 | **On *agent*** | The agent's list of everything waiting on it (`queues.on_agent`), named for the agent, such as **On Claude**: the obligations whose next actor is the agent and its own to-dos. Prose about no particular agent writes `On <agent>` |
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user |
 | **Plan** | The agent's outline of the page's work (`plan` in the protocol): goals and steps by depth, each step plain or naming a to-do or obligation, which it arranges without owning |
 | **Tally** | `lf-tally`: how many of a region's obligations are still open and whose turn each is, “2 of 8 to answer · 1 on Claude”, with an optional Next on me that walks the region's obligations waiting on the user |
+| **Deck** | `lf-deck`: cards worked through one at a time, each holding its own obligations. An answered card moves on by itself; **Later** leaves one waiting for the end of the pass and records nothing |
 | **Resend** | An update a harness handed back to the user to send again: its obligation stays in On me, next actor the user, until they do |
 | **Done** | The control with which the user ends a to-do the agent gave them (`todo_end`). A widget may also call its own submit control Done |
 | **Done items** | The items that left either list, under a Done heading at the foot of the On view; resolved threads stand likewise under Resolved at the foot of Threads |

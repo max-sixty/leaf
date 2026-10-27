@@ -24,6 +24,7 @@ from render_harness import (
     leaf_page,
     open_page,
     resized,
+    restarting,
     round_trip,
     scroll_settled,
     select_words,
@@ -572,20 +573,25 @@ customElements.define('lf-page-live', class extends HTMLElement {
             "color", before["out"][0]
         )
 
-        page_registry["lf-page-new"] = declaration
-        (serve.page_dir / "page/registry.json").write_text(json.dumps(page_registry))
-        stamp_page(
-            serve.page_dir,
-            source.replace(
-                '<lf-page-box id="page-box">',
-                '<lf-page-new id="revised"><p id="revised-words">New vocabulary.</p></lf-page-new>'
-                '<lf-page-box id="page-box">',
-            ),
-            "Add a page-declared widget",
-        )
-        wait_for_revision(page, 2)
-        expect(page.locator("#revised-words")).to_have_css("color", before["out"][0])
-        assert faces() == before
+        with restarting(page):
+            page_registry["lf-page-new"] = declaration
+            (serve.page_dir / "page/registry.json").write_text(
+                json.dumps(page_registry)
+            )
+            stamp_page(
+                serve.page_dir,
+                source.replace(
+                    '<lf-page-box id="page-box">',
+                    '<lf-page-new id="revised"><p id="revised-words">New vocabulary.</p></lf-page-new>'
+                    '<lf-page-box id="page-box">',
+                ),
+                "Add a page-declared widget",
+            )
+            wait_for_revision(page, 2)
+            expect(page.locator("#revised-words")).to_have_css(
+                "color", before["out"][0]
+            )
+            assert faces() == before
     finally:
         for route in boot:
             route.continue_()

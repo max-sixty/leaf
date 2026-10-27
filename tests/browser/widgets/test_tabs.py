@@ -1040,15 +1040,21 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
 def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     """Each run of neighbouring queue items that share a `group` stands under a label
     of it: a heading over the run in the column, and a word before the run's first tab
-    in a phone's row, which comes into the row with that tab. A run of items with no
-    group is ruled off from the run before it, so it never reads as part of that group.
-    A label is not a tab, so the walk passes it by and assistive technology hears the
-    group in each tab's description instead. A revision that moves an item to another
-    group moves it under that group's label."""
+    in a phone's row, which comes into the row with that tab and stays at the row's
+    start, clear of the press there, while a later tab of a run longer than the row is
+    open, so the open item's group stays named. A tab too long to share the row with
+    its label comes in whole instead, and the label scrolls with its run. A run of
+    items with no group is ruled off from the run before it, so it never reads as part
+    of that group. A label is not a tab, so the walk passes it by and assistive
+    technology hears the group in each tab's description instead. A revision that
+    moves an item to another group moves it under that group's label."""
 
     def item(key, group):
+        name = f"Item {key} with a long name" + (
+            " that no label can share a phone's row with" if key == "c" else ""
+        )
         return (
-            f'<lf-tab id="i-{key}" label="Item {key} with a long name"'
+            f'<lf-tab id="i-{key}" label="{name}"'
             + (f' group="{group}"' if group else "")
             + f' summary="{key} summary"><p id="p-{key}">Item {key}.</p></lf-tab>'
         )
@@ -1117,7 +1123,9 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
 
     # On a phone, loaded there so the row has its presses from the start. A run's
     # first tab comes into the row with its label, clear of the presses: at rest, and
-    # walking back onto it from the run after.
+    # walking back onto it from the run after. Its second tab, past the row's end,
+    # comes in beside the label, which the row keeps at its start; its third, too long
+    # to share the row with the label, comes in whole with the label out of its way.
     phone = open_page(
         browser,
         url,
@@ -1133,17 +1141,35 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
         {"label": None, "placed": True, "ruled": True, "tabs": ["i-d"]},
         {"label": "FYI", "placed": True, "ruled": True, "tabs": ["i-e", "i-f"]},
     ]
+    # The open tab's label in the row before the tab, both clear of the presses.
     label_shown = """() => {
       const strip = document.querySelector('#queue > .lf-tabstrip');
       const room = strip.getBoundingClientRect();
-      const tab = strip.querySelector('[aria-selected="true"]');
-      const label = tab.parentElement.querySelector('.lf-tab-group')
+      const open = strip.querySelector('[aria-selected="true"]');
+      const tab = open.getBoundingClientRect();
+      const label = open.parentElement.querySelector('.lf-tab-group')
         .getBoundingClientRect();
       const faces = [...strip.querySelectorAll('.lf-tabstrip-scroll > span')]
         .filter((face) => face.checkVisibility())
         .map((face) => face.getBoundingClientRect());
-      return faces.length > 0 && room.left <= label.left && label.right <= room.right
-        && faces.every((face) => face.right <= label.left + 0.5 || label.right <= face.left + 0.5);
+      return faces.length > 0 && room.left <= label.left
+        && label.right <= tab.left + 0.5 && tab.right <= room.right
+        && faces.every((face) => face.right <= label.left + 0.5 || tab.right <= face.left + 0.5);
+    }"""
+    # The open tab whole in the row and clear of the presses, with no label over it.
+    tab_whole = """() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const room = strip.getBoundingClientRect();
+      const open = strip.querySelector('[aria-selected="true"]');
+      const tab = open.getBoundingClientRect();
+      const label = open.parentElement.querySelector('.lf-tab-group')
+        .getBoundingClientRect();
+      const faces = [...strip.querySelectorAll('.lf-tabstrip-scroll > span')]
+        .filter((face) => face.checkVisibility())
+        .map((face) => face.getBoundingClientRect());
+      return faces.length > 0 && room.left <= tab.left && tab.right <= room.right
+        && (label.right <= tab.left + 0.5 || tab.right <= label.left + 0.5)
+        && faces.every((face) => face.right <= tab.left + 0.5 || tab.right <= face.left + 0.5);
     }"""
     phone_tabs = phone.locator("#queue").get_by_role("tab")
     phone_tabs.first.click()
@@ -1153,6 +1179,72 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     phone.keyboard.press("ArrowLeft")
     expect(phone_tabs.nth(4)).to_have_attribute("aria-selected", "true")
     phone.wait_for_function(label_shown)
+    phone_tabs.nth(1).click()
+    assert phone.evaluate(
+        """() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip');
+      return strip.querySelector('.lf-tab-run').getBoundingClientRect().width
+        > strip.clientWidth;
+    }"""
+    ), "the run is longer than the row"
+    phone.wait_for_function(label_shown)
+    phone_tabs.nth(2).click()
+    phone.wait_for_function(tab_whole)
+    assert phone.evaluate(
+        """() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const tab = strip.querySelector('[aria-selected="true"]').getBoundingClientRect();
+      const label = strip.querySelector('.lf-tab-group').getBoundingClientRect();
+      const press = parseFloat(getComputedStyle(strip).scrollPaddingLeft);
+      return tab.width + label.width > strip.clientWidth - 2 * press;
+    }"""
+    ), "the tab and its label cannot share the row between the presses"
+
+
+def test_a_scrolling_queue_brings_a_group_s_heading_in_with_its_first_item(
+    browser, serve
+):
+    """In a workspace whose queue scrolls on its own, walking up onto the first item of
+    a group brings the group's heading into the list with it, so the item the user
+    reaches is named by its group rather than standing under a heading cut off above
+    the list."""
+    groups = ["Merge", "Close", "FYI"]
+    tickets = "".join(
+        f'<lf-tab id="t-{n}" label="Ticket {n}" group="{groups[n // 10]}"'
+        f' summary="sev {n % 3}"><p id="p-{n}">What went wrong with ticket {n}.</p>'
+        "</lf-tab>"
+        for n in range(30)
+    )
+    source = leaf_page(
+        "a grouped queue",
+        f'<header><h1>Queue</h1></header><lf-tabs id="queue" list="side">{tickets}'
+        "</lf-tabs>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 500)
+    page.get_by_role("tab", name="Ticket 11").click()
+    # Cut the run's first item off above the list, its heading hidden over it.
+    page.evaluate("""() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const first = strip.querySelector('[aria-controls="t-10"]');
+      strip.scrollTop +=
+        first.getBoundingClientRect().top - strip.getBoundingClientRect().top + 10;
+    }""")
+    page.get_by_role("tab", name="Ticket 11").focus()
+    page.keyboard.press("ArrowUp")
+    expect(page.get_by_role("tab", name="Ticket 10")).to_have_attribute(
+        "aria-selected", "true"
+    )
+    page.wait_for_function("""() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const band = strip.getBoundingClientRect();
+      const tab = strip.querySelector('[aria-selected="true"]').getBoundingClientRect();
+      const heading = [...strip.querySelectorAll('.lf-tab-group')]
+        .find((label) => label.textContent === 'Close').getBoundingClientRect();
+      return strip.scrollTop > 0 && heading.top >= band.top - 0.5
+        && heading.bottom <= tab.top + 0.5 && tab.bottom <= band.bottom + 0.5;
+    }""")
 
 
 def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):

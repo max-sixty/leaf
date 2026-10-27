@@ -140,7 +140,10 @@ const label = (option) => wrote(option.querySelector(":scope > strong") ?? optio
 // registry's card shape lays it out, written inline or as the paragraph that follows the
 // title, up to any picture or other block below it. A label-only option says nothing
 // beyond its name. On me shows these words under the option's name, where the user
-// answers away from the card.
+// answers away from the card. The command row reads them only when a surface shows
+// them: the computed display below forces a layout in Firefox, which taken between the
+// render's own insertions leaves a row of cards off their shared title baseline
+// (`notes/browser-support.md`, "Baseline content-alignment").
 const consequence = (option) => {
   const title = option.querySelector(":scope > strong");
   let words = "";
@@ -450,7 +453,7 @@ customElements.define(
           decision: true,
           bindingBadge,
           title: label(option) || option.id,
-          description: consequence(option),
+          description: () => consequence(option),
           recommended: recommended(option),
           when: () => this.#available("choose"),
           run: () => mark.click(),

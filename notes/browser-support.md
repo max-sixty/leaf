@@ -54,6 +54,16 @@ clips them, so it can't stand in. Recheck with the `browser` case of
 `test_cards_laid_across_align_their_titles_whatever_chips_open_them` in
 `tests/browser/widgets/test_obligations.py`, extended to its `all` row.
 
+Firefox 155.0 holds that shift only through a layout of the whole row. After a
+later reflow dirties one card, such as an absolutely positioned child inserted or
+its padding changed, it lays the row out again and drops another card's shift,
+on 2026-10-26 in a plain grid with no Leaf code as well. A forced layout in the
+middle of the options render, between its insertions of key badges and marks,
+therefore left a card whose chips wrap a chip line or two below its neighbours on
+load, until a resize; `lf-options.js` reads computed style only when a surface
+shows an option's consequence for that reason. The test's `firefox_browser` case
+catches a render that splits the row's first layout again.
+
 ### A restyle skipped under a nested container in Chromium
 
 Playwright Chromium 153.0.8010.12 left the visual review's case buttons in the

@@ -94,7 +94,7 @@
  * quiet, and what a leading suggestion meets the day one is written. */
 /* A table box keeps to its content unless given a width, so the sample fills its holder,
  * and an authored width widens it (layouts.css). */
-:scope:is(lf-sample) {
+lf-sample {
   display: table;
   table-layout: fixed;
   width: 100%;
@@ -107,11 +107,11 @@
 /* Containment does not apply to a table, so the sample cannot be the size container
  * a framed box is (theme.css, at the pane's body). Its width is fixed, so it states the
  * cap for what it holds as a percentage instead, which resolves against its cell. */
-:scope:is(lf-sample) > * {
+lf-sample > * {
   --lf-box-cap: 100%;
 }
-:scope:is(lf-sample)::before,
-:scope:is(lf-sample) > [data-lf-said="label"] {
+lf-sample::before,
+lf-sample > [data-lf-said="label"] {
   display: table-caption;
   font-size: var(--t-6);
   margin-bottom: var(--sp-1);
@@ -126,24 +126,24 @@
  * 2026-10-26 the user chose that over opening with "interactive sample" or "live
  * sample", a word whose one distinction, this page's log or the sample's own, the
  * note no longer draws; a live sample's Reset and Full view still set it apart. */
-:scope:is(lf-sample) {
+lf-sample {
   --lf-sample-word: "quoted";
   --lf-sample-prefix: "quoted · ";
 }
-:scope:is(lf-sample):is([interactive], [data-lf-sample-live]) {
+lf-sample:is([interactive], [data-lf-sample-live]) {
   --lf-sample-word: none;
   --lf-sample-prefix: "";
 }
-:scope:is(lf-sample)::before {
+lf-sample::before {
   content: var(--lf-sample-word);
 }
-:scope:is(lf-sample)[label]::before {
+lf-sample[label]::before {
   content: var(--lf-sample-prefix) attr(label);
 }
-:scope:is(lf-sample):has(> [data-lf-said="label"])::before {
+lf-sample:has(> [data-lf-said="label"])::before {
   content: none;
 }
-:scope:is(lf-sample) > [data-lf-said="label"]::before {
+lf-sample > [data-lf-said="label"]::before {
   content: var(--lf-sample-prefix);
 }
 /* Like the label, host controls describe the exhibit; they stand outside its gutter.
@@ -165,10 +165,10 @@
   color: inherit;
   background: transparent;
 }
-:scope:is(lf-sample):has(> .lf-sample-view:modal) {
+lf-sample:has(> .lf-sample-view:modal) {
   height: var(--lf-sample-height);
 }
-:scope:is(lf-sample)[data-lf-sample-live] {
+lf-sample[data-lf-sample-live] {
   padding-left: 0;
   border-left: 0;
 }
@@ -257,7 +257,7 @@
 /* A window sample keeps its outer height rather than its page's, and scrolls inside.
  * Three quarters of the viewport leaves its label, Reset, and the containing page's
  * floating panel in view with the whole frame. */
-:scope:is(lf-sample)[window] .lf-sample-frame {
+lf-sample[window] .lf-sample-frame {
   box-sizing: border-box;
   height: min(75vh, 48rem);
 }
@@ -295,7 +295,7 @@
 }
 /* Inside a block sample the viewport follows the content, so there a window takes a
  * fixed height rather than a share of the frame it is growing. */
-@scope (html[data-lf-sample-block] :scope) {
+@scope (html[data-lf-sample-block] lf-sample) {
   :scope:is(lf-sample)[window] .lf-sample-frame {
     height: 32rem;
   }

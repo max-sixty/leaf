@@ -527,6 +527,14 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     short = page.evaluate(CARD_AND_REPLY)
     assert short["cardTop"] == pytest.approx(before["cardTop"], abs=0.5), short
     send = preview.get_by_role("button", name="Send", exact=True)
+    # rendered() settles Leaf's preparation, while the shrinking draft can still
+    # animate. click() waits for a stable Send; measure the same landing it presses.
+    page.wait_for_function(
+        """() => !document.querySelector('.lf-margin-preview')
+            .getAnimations({subtree: true}).some(animation =>
+                animation.playState === 'running' &&
+                animation.effect.getComputedTiming().iterations !== Infinity)"""
+    )
     pressed = send.evaluate("button => button.getBoundingClientRect().top")
     with sending(page, "the reply"):
         send.click()

@@ -1,7 +1,9 @@
-/* The screenshot's synchronous first drawing and source-coordinate geometry. The
- * initial producer makes the actual retained controls and frames; upgrade only
- * attaches behavior. Both stages use this geometry, so decoded images add pixels
- * without changing the box delivery reserved from their dimensions. */
+/* The screenshot's retained Lit drawing and source-coordinate geometry. Initial
+ * delivery and live behavior use the same template instance. Images load before
+ * their sources enter the drawing; frames and controls survive capture revisions.
+ * ShotView owns inspection state, retained nodes and fitting from delivery onward.
+ * Live behavior fills the same owner with decoded captures and difference readings. */
+import { html, nothing, ref, render, styleMap } from "/vendor/lit.js";
 export const SHOT_VIEWS = {
   flip: "Slider",
   compare: "Pair",
@@ -9,10 +11,21 @@ export const SHOT_VIEWS = {
 };
 let nextOptionsId = 0;
 
+const differenceMark = (region, reading) =>
+  html`<span
+    data-lf-shot-mark=${region.kind}
+    style=${styleMap({
+      "--lf-shot-x": `${(100 * region.x) / reading.width}%`,
+      "--lf-shot-y": `${(100 * region.y) / reading.height}%`,
+      "--lf-shot-w": `${(100 * region.width) / reading.width}%`,
+      "--lf-shot-h": `${(100 * region.height) / reading.height}%`,
+    })}
+  ></span>`;
+
 // Fit uses the content box: the scrollport's padding keeps the image shadow visible.
 // In flow nothing bounds the stage's height, so a stacked Pair takes the screen's room
 // below the toolbar as its bound: the reader compares both frames in one view.
-export function shotAllocation(host, stage) {
+function shotAllocation(host, stage) {
   const style = getComputedStyle(stage);
   const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
   return {
@@ -31,7 +44,7 @@ export function shotAllocation(host, stage) {
   };
 }
 
-export function fitShotGeometry({
+function fitShotGeometry({
   available,
   availableHeight,
   screenHeight,
@@ -111,169 +124,309 @@ export function fitShotGeometry({
   };
 }
 
-export function applyShotGeometry(host, geometry, keeps) {
+function applyShotGeometry(host, geometry, keeps) {
   for (const [name, value] of Object.entries(geometry.vars))
     host.style.setProperty(`--lf-shot-${name}`, `${Math.round(value * 64) / 64}px`);
   keeps(host, "data-lf-shot-layout", geometry.layout);
   keeps(host, "data-lf-shot-crop", geometry.crop);
   keeps(host, "data-lf-shot-focus", geometry.focus);
-  // Only the visible copy is page text, so a source name remains a unique
-  // comment target as the pair stacks or the reader changes views. The other copy
-  // echoes it, which paper prints as a plain label: paper shows the frames' copies
-  // whichever one the screen shows.
-  const stacked = host.dataset.lfShotMode === "compare" && geometry.layout === "stack";
-  for (const caption of host.querySelectorAll(".lf-shotcap"))
-    document.documentElement.lfInitial.generatedElement(caption, {
-      says:
-        caption.parentElement.classList.contains("lf-shot-frame-label") === stacked ||
-        "echo",
-    });
 }
 
-// A box that holds the screenshot: the stage, its frames and labels' rows, the image
-// windows and the slider. These are the widget's drawing, which paper prints with the
-// page, where it drops what `offer` makes. A press on the image or the slider runs
-// through the link's and the widget's own handlers, and inside a container the
-// lf-shot itself is what holds the gesture (`worksInside`), so none needs an offer;
-// the toolbar's controls and the source labels stay offers.
+// The third-party comparison owns its frame slots; its shell is generated page
+// drawing, so paper prints its images while dropping the toolbar's offered chrome.
 export const shotBox = (tag, cls) =>
   document.documentElement.lfInitial.generatedElement(
     Object.assign(document.createElement(tag), { className: cls }),
     { says: false },
   );
 
-export function drawShot(host, { offer, offerAction, generatedElement, keeps }) {
-  const buttons = (label, values, selected) => {
-    const group = offer("div", "lf-shot-views");
-    group.role = "group";
-    group.ariaLabel = label;
-    const choices = new Map();
-    for (const [value, text] of Object.entries(values)) {
-      const button = offerAction("word", "", text);
-      button.setAttribute("aria-pressed", String(value === selected));
-      choices.set(value, button);
-      group.append(button);
-    }
-    return { group, choices };
-  };
-  const checkbox = (text) => {
-    const label = offer("label", "choice lf-shotchoice");
-    const input = offer("input", "", undefined, "checkbox");
-    const words = offer("span", "", text);
-    label.append(input, words);
-    return { label, input };
-  };
-  const toolbar = offer("div", "lf-shot-toolbar lf-ui");
-  const actions = offer("div", "lf-shot-actions");
-  const views = buttons("Comparison view", SHOT_VIEWS, "flip");
-  views.choices.get("pixels").disabled = true;
-  const tools = offer("div", "lf-shot-tools");
-  const scaleTrigger = offerAction("symbol", "lf-shot-scale", "Image options");
-  scaleTrigger.textContent = "…";
-  const options = offer("div", "lf-shotoptions");
-  options.setAttribute("popover", "auto");
-  options.role = "group";
-  options.ariaLabel = "Image options";
-  do options.id = `lf-shot-options-${++nextOptionsId}`;
-  while (document.getElementById(options.id));
-  scaleTrigger.setAttribute("aria-controls", options.id);
-  scaleTrigger.setAttribute("popovertarget", options.id);
-  scaleTrigger.setAttribute("aria-expanded", "false");
-  const scale = buttons("Image scale", { fit: "Fit", actual: "100%" }, "fit");
-  scale.group.className = "lf-shot-scale-options";
-  const outlines = offerAction("word", "lf-shot-outline", "Outline");
-  outlines.ariaLabel = "Outline changes";
-  outlines.title = "Outline changes";
-  outlines.disabled = true;
-  outlines.setAttribute("aria-pressed", "false");
-  const full = checkbox("Full frame");
-  full.label.hidden = true;
-  const key = offer("div", "lf-shot-pixel-key");
-  const swatch = offer("span", "lf-shot-key-swatch");
-  swatch.ariaHidden = "true";
-  key.append(swatch, offer("span", "", "Changed pixels"));
-  options.append(scale.group, full.label, key);
-  tools.append(scaleTrigger, outlines, options);
-  actions.append(views.group, tools);
-  toolbar.append(actions);
-  const stage = shotBox("div", "lf-shotstage");
-  stage.tabIndex = 0;
-  stage.role = "region";
-  stage.ariaLabel = `Screenshot comparison — ${host.getAttribute("alt")}`;
-  const canvas = shotBox("div", "lf-shotcanvas");
-  stage.append(canvas);
-  const frames = [],
-    viewports = [],
-    shots = [],
-    captions = new Map(),
-    frameCaptions = new Map(),
-    openers = new Map();
-  for (const state of ["before", "after"]) {
-    const frame = shotBox("div", "lf-shotframe lf-media-frame");
-    frame.dataset.lfState = state;
-    const caption = generatedElement(
-      offer("span", "lf-shotcap lf-label", state === "before" ? "Before" : "After"),
-      { says: true },
+export class ShotView {
+  view = "flip";
+  position = 50;
+  actual = false;
+  full = false;
+  outlines = false;
+  metadata = {};
+  reading = null;
+  description = null;
+  geometry = null;
+  images = [];
+  pixels = false;
+  pixelUrl = null;
+  frames = [];
+  viewports = [];
+  /** @type {((view: string) => void) | undefined} */
+  chooseView;
+  /** @type {((scale: string) => void) | undefined} */
+  chooseScale;
+  /** @type {((event: MouseEvent) => void) | undefined} */
+  toggleOptions;
+  /** @type {(() => void) | undefined} */
+  toggleOutlines;
+  /** @type {((event: Event) => void) | undefined} */
+  changeFull;
+
+  constructor(host, tools) {
+    this.host = host;
+    this.tools = tools;
+    this.choiceRef = (node) => node && tools.offerActionElement(node, "word");
+    this.outlineRef = (node) =>
+      node && tools.offerActionElement(node, "word", "lf-shot-outline");
+    this.scaleRef = (node) => {
+      if (node)
+        this.scaleTrigger = tools.offerActionElement(node, "symbol", "lf-shot-scale");
+    };
+    let optionsId;
+    do optionsId = `lf-shot-options-${++nextOptionsId}`;
+    while (document.getElementById(optionsId));
+    this.optionsId = optionsId;
+    host.replaceChildren();
+    this.paint();
+    if (this.fit()) this.paint();
+  }
+
+  paint() {
+    const { host, tools, optionsId } = this;
+    const { offerElement, generatedElement, keeps } = tools;
+    const offered = (cls, save = undefined) =>
+      ref((node) => {
+        if (!node) return;
+        offerElement(node, cls);
+        save?.(node);
+      });
+    const box = (save = undefined) =>
+      ref((node) => {
+        if (!node) return;
+        generatedElement(node, { says: false });
+        save?.(node);
+      });
+    const caption = (state, frame = false) => {
+      const label = (this.metadata.labels ?? { before: "Before", after: "After" })[
+        state
+      ];
+      const stacked = this.view === "compare" && this.geometry?.layout === "stack";
+      return html`<span
+        ${ref(
+          (node) =>
+            node &&
+            generatedElement(offerElement(node, "lf-shotcap lf-label"), {
+              says: frame === stacked || "echo",
+            }),
+        )}
+        data-lf-state=${state}
+        title=${label}
+        aria-label=${frame ? nothing : `${label} — ${host.getAttribute("alt")}`}
+        ?data-lf-shot-hidden=${
+          !frame &&
+          this.view === "flip" &&
+          (state === "before" ? this.position === 0 : this.position === 100)
+        }
+        >${label}</span
+      >`;
+    };
+    const choices = (label, values, selected, choose, cls = "lf-shot-views") =>
+      html`<div ${offered(cls)} role="group" aria-label=${label}>
+        ${Object.entries(values).map(
+          ([value, text]) =>
+            html`<button
+              ${ref(this.choiceRef)}
+              type="button"
+              aria-pressed=${String(value === selected)}
+              ?disabled=${value === "pixels" && !this.reading}
+              title=${
+                value === "fit"
+                  ? this.geometry
+                    ? `Fit · ${Math.round(this.geometry.fitScale * 100)}%`
+                    : nothing
+                  : value === "actual"
+                    ? this.metadata.pixelRatio
+                      ? "Captured CSS size"
+                      : "One image pixel per CSS pixel"
+                    : nothing
+              }
+              @click=${() => choose?.(value)}
+            >
+              ${text}
+            </button>`,
+        )}
+      </div>`;
+    const frame = (state, index) => {
+      const alt = host.getAttribute("alt");
+      const label = (this.metadata.labels ?? { before: "Before", after: "After" })[
+        state
+      ];
+      const pair = this.view === "compare";
+      const reading = this.reading;
+      const regions = reading?.regions
+        .filter((region) => region.side === state)
+        .map((region) => differenceMark(region, reading));
+      return html`<div
+        class="lf-shotframe lf-media-frame"
+        data-lf-state=${state}
+        ${box((node) => (this.frames[index] = node))}
+      >
+        <div class="lf-shot-frame-label" data-lf-state=${state} ${box()}>
+          ${caption(state, true)}
+        </div>
+        <div
+          class="lf-shotviewport"
+          role="region"
+          aria-label=${`${label} — ${alt}`}
+          ${box((node) => (this.viewports[index] = node))}
+        >
+          <a
+            class="lf-shotimage lf-shot-open"
+            data-lf-shot-open=${state}
+            data-lf-media-caption=${`${state}: ${alt}`}
+            aria-label=${`Open ${state} image — ${alt}`}
+            href=${pair ? this.images[index]?.src || nothing : nothing}
+            tabindex=${pair ? nothing : "-1"}
+            title=${pair ? `Open ${state} image` : nothing}
+            ${box()}
+            ><div class="lf-shotplane" ${box()}>
+              <img
+                crossorigin="anonymous"
+                alt=${`${state}: ${alt}`}
+                src=${this.images[index]?.getAttribute("src") || nothing}
+              />
+              ${
+                reading
+                  ? html`<div ${offered("lf-shotdiff")} aria-hidden="true">
+                      ${regions}
+                    </div>`
+                  : nothing
+              }
+            </div></a
+          >
+        </div>
+      </div>`;
+    };
+
+    const pixelStyle = styleMap({
+      "--lf-shot-pixels": this.pixelUrl ? `url("${this.pixelUrl}")` : undefined,
+    });
+    keeps(host, "data-lf-shot-mode", this.view);
+    keeps(host, "data-lf-shot-outlines", this.outlines);
+    render(
+      html`
+        <div ${offered("lf-shot-toolbar lf-ui", (node) => (this.toolbar = node))}>
+          ${caption("before")}
+          <div ${offered("lf-shot-actions")}>
+            ${choices("Comparison view", SHOT_VIEWS, this.view, this.chooseView)}
+            <div ${offered("lf-shot-tools")}>
+              <button
+                ${ref(this.scaleRef)}
+                type="button"
+                aria-label="Image options"
+                popovertarget=${optionsId}
+                @click=${this.toggleOptions ?? null}
+              >
+                …
+              </button>
+              <button
+                ${ref(this.outlineRef)}
+                type="button"
+                aria-label="Outline changes"
+                title="Outline changes"
+                aria-pressed=${String(this.outlines)}
+                aria-description=${this.description ?? nothing}
+                ?disabled=${this.view === "pixels" || !this.reading?.regions.length}
+                @click=${this.toggleOutlines ?? null}
+              >
+                Outline
+              </button>
+              <div
+                ${offered("lf-shotoptions", (node) => (this.options = node))}
+                id=${optionsId}
+                popover="auto"
+                role="group"
+                aria-label="Image options"
+              >
+                ${choices(
+                  "Image scale",
+                  { fit: "Fit", actual: "100%" },
+                  this.actual ? "actual" : "fit",
+                  this.chooseScale,
+                  "lf-shot-scale-options",
+                )}
+                <label
+                  ${offered("choice lf-shotchoice")}
+                  ?hidden=${!this.metadata.focus}
+                >
+                  <input
+                    ${offered("")}
+                    type="checkbox"
+                    .checked=${this.full}
+                    @change=${this.changeFull ?? null}
+                  />
+                  <span ${offered("")}>Full frame</span>
+                </label>
+                <div ${offered("lf-shot-pixel-key")}>
+                  <span ${offered("lf-shot-key-swatch")} aria-hidden="true"></span>
+                  <span ${offered("")}>Changed pixels</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          ${caption("after")}
+        </div>
+        <div
+          class="lf-shotstage"
+          tabindex="0"
+          role="region"
+          aria-label=${`Screenshot comparison — ${host.getAttribute("alt")}`}
+          ${box((node) => (this.stage = node))}
+        >
+          <div class="lf-shotcanvas" ${box((node) => (this.canvas = node))}>
+            ${["before", "after"].map(frame)}
+            ${
+              this.pixels
+                ? html`<div
+                    class="lf-shotpixels lf-shotimage lf-media-frame"
+                    role="img"
+                    aria-label=${`changed pixels: ${host.getAttribute("alt")}`}
+                    ${box()}
+                  >
+                    <div class="lf-shotplane" ${box()}>
+                      <img alt="" src=${this.images[1]?.src || nothing} />
+                      <span class="lf-shot-pixel-mask" style=${pixelStyle}></span>
+                    </div>
+                  </div>`
+                : nothing
+            }
+          </div>
+        </div>
+      `,
+      host,
     );
-    caption.dataset.lfState = state;
-    const heading = shotBox("div", "lf-shot-frame-label");
-    heading.dataset.lfState = state;
-    const frameCaption = offer("span", "lf-shotcap lf-label", caption.textContent);
-    frameCaption.dataset.lfState = state;
-    heading.append(frameCaption);
-    frameCaptions.set(state, frameCaption);
-    if (state === "before") toolbar.prepend(caption);
-    else toolbar.append(caption);
-    const viewport = shotBox("div", "lf-shotviewport");
-    viewport.role = "region";
-    viewport.ariaLabel = `${state}: ${host.getAttribute("alt")}`;
-    const imageBox = shotBox("a", "lf-shotimage lf-shot-open");
-    imageBox.dataset.lfShotOpen = state;
-    imageBox.tabIndex = -1;
-    const plane = shotBox("div", "lf-shotplane");
-    const image = document.createElement("img");
-    image.crossOrigin = "anonymous";
-    image.alt = `${state}: ${host.getAttribute("alt")}`;
-    shots.push(image);
-    captions.set(state, caption);
-    openers.set(state, imageBox);
-    plane.append(image);
-    imageBox.append(plane);
-    viewport.append(imageBox);
-    frame.append(heading, viewport);
-    frames.push(frame);
-    viewports.push(viewport);
-    canvas.append(frame);
   }
-  keeps(host, "data-lf-shot-mode", "flip");
-  keeps(host, "data-lf-shot-outlines", false);
-  host.append(toolbar, stage);
-  const geometry = fitShotGeometry({
-    ...shotAllocation(host, stage),
-    labelHeight: parseFloat(getComputedStyle(frames[0].firstElementChild).blockSize),
-    sourceWidth: Number(host.dataset.lfMediaWidth),
-    sourceHeight: Number(host.dataset.lfMediaHeight),
-    gap: parseFloat(getComputedStyle(host).getPropertyValue("--lf-shot-gap")),
-  });
-  if (geometry) {
-    applyShotGeometry(host, geometry, keeps);
-    scale.choices.get("fit").title = `Fit · ${Math.round(geometry.scale * 100)}%`;
+
+  fit() {
+    const { host, stage, metadata, images, frames } = this;
+    const allocation = shotAllocation(host, stage);
+    // Hidden cases retain their last geometry until shown.
+    if (allocation.available <= 0) return null;
+    const ratio = metadata.pixelRatio ?? 1;
+    const geometry = fitShotGeometry({
+      ...allocation,
+      labelHeight: parseFloat(getComputedStyle(frames[0].firstElementChild).blockSize),
+      sourceWidth:
+        images[0]?.naturalWidth / ratio ||
+        Number(host.dataset.lfMediaWidth) / ratio ||
+        metadata.captureWidth,
+      sourceHeight:
+        Math.max(0, ...images.map((image) => image.naturalHeight)) / ratio ||
+        Number(host.dataset.lfMediaHeight) / ratio,
+      focus: metadata.focus,
+      full: this.full,
+      actual: this.actual,
+      view: this.view,
+      gap: parseFloat(getComputedStyle(host).getPropertyValue("--lf-shot-gap")),
+    });
+    if (geometry) {
+      this.geometry = geometry;
+      applyShotGeometry(host, geometry, this.tools.keeps);
+    }
+    return geometry;
   }
-  return {
-    toolbar,
-    scaleTrigger,
-    options,
-    views,
-    outlines,
-    scale,
-    full,
-    stage,
-    canvas,
-    frames,
-    viewports,
-    shots,
-    captions,
-    frameCaptions,
-    openers,
-  };
 }

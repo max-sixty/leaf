@@ -287,7 +287,6 @@ function wireReply(
   key,
   row,
   input,
-  send,
   wireInput,
   { hint, hintAside, accessibleName, busy },
 ) {
@@ -297,7 +296,7 @@ function wireReply(
     context: draftCtx,
     key,
     row,
-    controls: { input, send },
+    controls: { input, send: null },
     binding: null,
     changed: () => composition.binding?.onChange(),
   };
@@ -309,7 +308,7 @@ function wireReply(
     accessibleName,
     busy,
     sends: "send",
-    sendBtn: send,
+    sendClass: "lf-thread-send",
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
     // reply boxes are views of one draft here, so they take the same bus directly.
     // Other draft kinds still have one view per document.
@@ -345,6 +344,7 @@ function wireReply(
       },
     ],
   });
+  composition.controls.send = sync.button;
   composition.sync = sync;
   sync();
   return composition;
@@ -458,9 +458,8 @@ export function createReplyView(
     const row = offer("div", "lf-thread-reply");
     const input = offer(TEXT_FIELD);
     input.name = "reply";
-    const send = offer("button", "lf-thread-send", "Send");
-    row.append(input, send);
-    return wireReply(key, row, input, send, commands.wireInput, {
+    row.append(input);
+    return wireReply(key, row, input, commands.wireInput, {
       hint,
       hintAside,
       accessibleName,

@@ -2299,10 +2299,9 @@ composerQuote.id = "lf-composer-quote";
 composerQuote.hidden = true;
 const composerInput = fabInput;
 composerInput.setAttribute("aria-describedby", composerQuote.id);
-const composerSend = el("button", "", "Comment");
 const composerField = document.createDocumentFragment();
 composerField.append(composerInput);
-composer.append(composerQuote, composerSend);
+composer.append(composerQuote);
 fabBar.prepend(composer);
 let pendingAnchor = null;
 let pendingAbout = null;
@@ -2619,7 +2618,6 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 		syncComposer = wireInput(composerInput, {
 			hint: () => suggestionMode ? "Replacement text" : pendingAbout ? "About the layer" : "Comment…",
 			sends: () => suggestionMode ? "suggest" : "comment",
-			sendBtn: composerSend,
 			allowsMedia: () => suggestionMode ? "Images can be added to comments, not replacement text" : true,
 			hasContent: holdsContent,
 			save: saveComposerDraft,
@@ -5564,12 +5562,10 @@ const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => 
 	const row = offer("div", "lf-say lf-comment-box");
 	const ta = offer(TEXT_FIELD);
 	ta.name = "comment";
-	const send = offer("button", "", "Send");
-	const hold = declaration.hold ? offerAction("word", "", declaration.hold) : null;
 	const ctx = "say:" + el.id;
 	ta.value = loadDraft(ctx) ?? "";
 	ta.setAttribute("aria-label", hint);
-	row.append(ta, send, ...hold ? [hold] : []);
+	row.append(ta);
 	const sendComment = (text, owns, holds = false) => {
 		const land = sendLanding(ta);
 		const sent = sendMessage(ctx, owns, (attempt) => createComment({
@@ -5584,13 +5580,12 @@ const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => 
 	const sync = wireInput(ta, {
 		hint,
 		sends: "send",
-		sendBtn: send,
-		altBtn: hold,
+		altLabel: declaration.hold ?? null,
 		save: (value) => saveDraft(ctx, value),
 		send: (_text, raw, owns) => {
 			sendComment(raw, owns);
 		},
-		altSend: hold ? (_text, raw, owns) => {
+		altSend: declaration.hold ? (_text, raw, owns) => {
 			if (sendComment(raw, owns, true)) notice("Replied — goal paused");
 		} : null
 	});
@@ -5912,15 +5907,16 @@ async function readState(bound) {
 				fault: (await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`
 			};
 		}
+		let text;
 		try {
-			return {
-				state: completeData(await res.json(), held),
-				fault: null
-			};
-		} catch (error) {
-			if (signal.aborted) return NOTHING;
-			throw error;
+			text = await res.text();
+		} catch {
+			return NOTHING;
 		}
+		return {
+			state: completeData(JSON.parse(text), held),
+			fault: null
+		};
 	} finally {
 		countTraffic("heard");
 	}

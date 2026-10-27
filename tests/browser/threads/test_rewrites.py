@@ -372,7 +372,9 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
         first_line,
     )
     unmoved()
-    field = message.locator(".lf-msg-editor > .lf-compose-field").bounding_box()
+    field = message.locator(
+        ".lf-msg-editor > leaf-composition-field > .lf-compose-field"
+    ).bounding_box()
     reply_field = reply_row(page, thread).locator(".lf-compose-field").bounding_box()
     # The panel's reply box stands in its field, under the view and across the row, so
     # there the rewrite takes its height alone; Feed draws its reply box at the part's

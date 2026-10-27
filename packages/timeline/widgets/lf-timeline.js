@@ -135,7 +135,7 @@ customElements.define(
       });
     }
 
-    // The drawing is retained from first paint, not template-owned.
+    // The initial drawing retains and updates its Lit templates from first paint.
     render() {
       return noChange;
     }

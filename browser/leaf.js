@@ -664,7 +664,7 @@ async function boot() {
     paintTargetPickerHints: targets.paintTargetPickerHints,
     paintCommandHints: commandHints.paint,
     paintCoreControls,
-    paintInputs: inputs.paintInputs,
+    publishInputHint: inputs.publishInputHint,
   };
 
   if (!offlineInteractive) {
@@ -738,7 +738,7 @@ async function boot() {
     // Exports retain image inspection, but no page controls. Their other current location is
     // what a widget's own box shows, such as an options group's addition field.
     mountRepaint({
-      paintInputs: inputs.paintInputs,
+      publishInputHint: inputs.publishInputHint,
       paintCloseRequests,
       reflectFirstScopes,
       reflectKeys,

@@ -9,10 +9,10 @@
 
 /* The shared source primitive owns pre-upgrade appearance. The rendered diff
  * keeps code typography while its own shadow tree scrolls the evidence. */
-:scope:is(lf-diff) {
+lf-diff {
   contain: inline-size;
 }
-:scope:is(lf-diff).lf-rendered {
+lf-diff.lf-rendered {
   font-family: var(--mono);
   font-size: var(--code-size);
   line-height: var(--code-line);
@@ -29,7 +29,7 @@
  * on the hairline above it, and an open file adds a hairline above its rows and the
  * scroll track below them. Where nothing was counted (a `source`, a patch the counter
  * declines) the declaration is invalid at computed time and the box is its source's. */
-html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)) {
+html[data-lf-interactive] lf-diff:not(.lf-rendered, :has(> .lf-error)) {
   box-sizing: border-box;
   block-size: calc(
     min(1, var(--lf-diff-files) - 1) * (var(--lf-line) + var(--lf-diff-gap)) + 1px +
@@ -46,7 +46,7 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
 /* CallDiff is literal review evidence rather than a second diagram language. Its
  * unchanged rows hold the mental map still while additions and removals carry the
  * same semantic washes as the source diff. */
-:scope:is(lf-call-diff) {
+lf-call-diff {
   --lf-block-frame: 1;
   display: block;
   max-width: 100%;
@@ -244,7 +244,7 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
 }
 
 @media print {
-  :scope:is(lf-call-diff),
+  lf-call-diff,
   .lf-call-line[data-meta],
   .lf-call-root-location,
   .lf-call-line[data-status="added"],

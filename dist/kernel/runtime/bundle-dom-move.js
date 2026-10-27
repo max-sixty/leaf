@@ -1051,10 +1051,7 @@ function watchCurrentLocationIn(root) {
 watchCurrentLocationIn(document);
 watchCurrentLocationAround(deepFocus());
 document.addEventListener("focusout", (event) => {
-	if (event.relatedTarget !== null) {
-		departed = true;
-		return;
-	}
+	if (event.relatedTarget !== null) departed = true;
 	const left = event.composedPath()[0];
 	lastLocation = new WeakRef(left);
 	if (restoring) return;

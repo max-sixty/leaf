@@ -1,6 +1,6 @@
 import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, afterScript, bindQueuedWork, cancelRender, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextAnimation, nextFrame, nextRender, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, renderingState, selectsAll, sizeObserver, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, x } from "./bundle-dom-move.js";
 import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live, measure, notice, offer, offerAction, offered, offeredAction, pagePresented, paintKeys, paintKeysWithin, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
-import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, loadShadowRules, marks, marksSheet, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
+import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, live as live$1, loadShadowRules, marks, marksSheet, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote } from "./bundle-passages.js";
 import { alreadyShown, copyControl, fitsWhole, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
@@ -1386,9 +1386,15 @@ function releaseControl(control) {
 //#region runtime/code-copy.js
 const controls = /* @__PURE__ */ new WeakMap();
 const wired = /* @__PURE__ */ new WeakMap();
+const deferred = /* @__PURE__ */ new WeakSet();
+let prepareDocumentBlocks;
+const revealed = sizeObserver((entries) => {
+	nextRender(() => prepareDocumentBlocks(entries.map(({ target }) => target).filter((target) => deferred.has(target))));
+});
 const COPY_SCOPE = Symbol("code copy");
 onCurrentLocation((node) => {
 	for (let at = node; at; at = upFrom(at)) {
+		if (deferred.has(at) && !skipped(at)) prepareDocumentBlocks([at]);
 		const copy = controls.get(at);
 		if (copy) return revealControl(copy, at);
 	}
@@ -1434,32 +1440,45 @@ function watchCodeBlocks() {
 		arrive: (block) => block.classList.toggle("scroll", true),
 		leave: () => {}
 	});
-	watchArrivals("pre:has(> code)", ["style"], {
-		arriveBatch(blocks) {
-			const prepared = blocks.filter((pre) => pre.getRootNode() === document).map((pre) => [
-				pre,
-				prepareCodeBlock(pre, () => pre.querySelector(":scope > code").textContent, "code"),
-				headerLevels(pre)
-			]);
-			for (const [pre, pending, levels] of prepared) {
-				const copy = aimControl(pending);
-				standInChrome(copy, pre, levels);
-				copy.tabIndex = -1;
-				claimReachStop(pre);
-				if (!wired.has(pre)) {
-					const events = new AbortController();
-					wired.set(pre, events);
-					declareCopy(pre, copy, "code");
-					const options = { signal: events.signal };
-					tabFromBlock(copy, pre, events.signal);
-					pre.addEventListener("pointerenter", () => copy.classList.add("lf-code-copy-hover"), options);
-					pre.addEventListener("pointerleave", () => copy.classList.remove("lf-code-copy-hover"), options);
-					pre.addEventListener("focus", () => copy.classList.add("lf-code-copy-focused"), options);
-					pre.addEventListener("blur", () => copy.classList.remove("lf-code-copy-focused"), options);
+	prepareDocumentBlocks = (blocks) => {
+		const prepared = blocks.filter((pre) => {
+			if (pre.getRootNode() !== document) return false;
+			if (skipped(pre)) {
+				if (!wired.has(pre) && !deferred.has(pre)) {
+					deferred.add(pre);
+					revealed.observe(pre);
 				}
+				return false;
 			}
-		},
+			if (deferred.delete(pre)) revealed.unobserve(pre);
+			return true;
+		}).map((pre) => [
+			pre,
+			prepareCodeBlock(pre, () => pre.querySelector(":scope > code").textContent, "code"),
+			headerLevels(pre)
+		]);
+		for (const [pre, pending, levels] of prepared) {
+			const copy = aimControl(pending);
+			standInChrome(copy, pre, levels);
+			copy.tabIndex = -1;
+			claimReachStop(pre);
+			if (!wired.has(pre)) {
+				const events = new AbortController();
+				wired.set(pre, events);
+				declareCopy(pre, copy, "code");
+				const options = { signal: events.signal };
+				tabFromBlock(copy, pre, events.signal);
+				pre.addEventListener("pointerenter", () => copy.classList.add("lf-code-copy-hover"), options);
+				pre.addEventListener("pointerleave", () => copy.classList.remove("lf-code-copy-hover"), options);
+				pre.addEventListener("focus", () => copy.classList.add("lf-code-copy-focused"), options);
+				pre.addEventListener("blur", () => copy.classList.remove("lf-code-copy-focused"), options);
+			}
+		}
+	};
+	watchArrivals("pre:has(> code)", ["style"], {
+		arriveBatch: prepareDocumentBlocks,
 		leave(pre) {
+			if (deferred.delete(pre)) revealed.unobserve(pre);
 			wired.get(pre)?.abort();
 			wired.delete(pre);
 			const copy = controls.get(pre);
@@ -1838,50 +1857,56 @@ function toggle(video) {
 		if (error.name !== "AbortError") throw error;
 	});
 }
-function paintTime({ video, time }) {
-	const at = String(video.currentTime);
-	if (time.value !== at) time.value = at;
-	keeps(time, "aria-valuetext", `${clock(video.currentTime)} of ${clock(duration(video))}`);
-}
-function paint(player) {
-	const { video, bar, play, time } = player;
-	const playing = !video.paused;
-	bar.classList.toggle("lf-video-playing", playing);
-	keeps(play, "aria-label", playing ? "Pause recording" : "Play recording");
-	keeps(time, "max", String(duration(video)));
-	keeps(time, "disabled", duration(video) ? null : "");
-	paintTime(player);
+function paintRecordingControls(video, bar, enterFullScreen) {
+	keeps(bar, "data-playing", video.paused ? null : "");
+	keeps(bar, "role", "group");
+	keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
+	render$1(html`<button
+        ${offered("lf-video-play")}
+        tabindex="-1"
+        aria-label=${!video.paused ? "Pause recording" : "Play recording"}
+      >
+        ${iconTemplate("play", "lf-video-icon")}${iconTemplate("pause", "lf-video-icon")}
+      </button>
+      <input
+        ${offered("lf-video-time")}
+        type="range"
+        tabindex="-1"
+        min="0"
+        step="any"
+        max=${String(duration(video))}
+        ?disabled=${!duration(video)}
+        .value=${live$1(String(video.currentTime))}
+        aria-label="Recording position"
+        aria-valuetext=${`${clock(video.currentTime)} of ${clock(duration(video))}`}
+        @input=${(event) => {
+		video.currentTime = Number(event.currentTarget.value);
+	}}
+      />
+      ${enterFullScreen ? html`<button
+              ${offered("lf-video-full-screen")}
+              tabindex="-1"
+              aria-label="Full screen"
+            >
+              ${iconTemplate("expand", "lf-video-icon")}
+            </button>` : nothing}`, bar);
 }
 function prepare(video) {
 	const bar = offer("div", "lf-video-controls");
-	const play = offer("button", "lf-video-play");
-	play.tabIndex = -1;
-	play.append(iconElement("play", "lf-video-icon"), iconElement("pause", "lf-video-icon"));
-	const time = offer("input", "lf-video-time", void 0, "range");
-	time.tabIndex = -1;
-	time.min = "0";
-	time.step = "any";
-	keeps(time, "aria-label", "Recording position");
-	bar.append(play, time);
 	const enterFullScreen = fillScreen(video);
-	const fullScreen = enterFullScreen && offer("button", "lf-video-full-screen");
-	if (fullScreen) {
-		fullScreen.tabIndex = -1;
-		fullScreen.append(iconElement("expand", "lf-video-icon"));
-		keeps(fullScreen, "aria-label", "Full screen");
-		bar.append(fullScreen);
-	}
-	keeps(bar, "role", "group");
-	keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
+	const paint = () => paintRecordingControls(video, bar, enterFullScreen);
+	paint();
+	const play = bar.querySelector(".lf-video-play");
+	const fullScreen = bar.querySelector(".lf-video-full-screen");
 	const player = {
 		video,
 		bar,
 		play,
-		time,
 		authoredTabindex: video.getAttribute("tabindex"),
 		filling: false,
 		events: new AbortController(),
-		scope: null
+		scope: null,
+		paint
 	};
 	const { signal } = player.events;
 	const on = (target, type, listener) => target.addEventListener(type, listener, { signal });
@@ -1891,12 +1916,12 @@ function prepare(video) {
 		"ended",
 		"loadedmetadata",
 		"durationchange"
-	]) on(video, type, () => paint(player));
-	on(video, "seeked", () => paintTime(player));
-	on(video, "timeupdate", () => paintTime(player));
+	]) on(video, type, paint);
+	on(video, "seeked", paint);
+	on(video, "timeupdate", paint);
 	let frame = 0;
 	const followFrames = () => {
-		paintTime(player);
+		paint();
 		frame = video.paused || signal.aborted ? 0 : video.requestVideoFrameCallback(followFrames);
 	};
 	on(video, "playing", () => {
@@ -1906,15 +1931,14 @@ function prepare(video) {
 	on(video, "click", (event) => {
 		if (plainPress(event) && !player.filling) toggle(video);
 	});
-	on(time, "input", () => video.currentTime = Number(time.value));
 	const show = (flag, force) => {
 		if (force) revealControl(bar, video);
-		bar.classList.toggle(flag, force);
+		keeps(bar, `data-${flag}`, force ? "" : null);
 	};
-	on(video, "pointerenter", () => show("lf-video-hover", true));
-	on(video, "pointerleave", () => show("lf-video-hover", false));
-	on(video, "focus", () => show("lf-video-keyed", video.matches(":focus-visible")));
-	on(video, "blur", () => show("lf-video-keyed", false));
+	on(video, "pointerenter", () => show("hovered", true));
+	on(video, "pointerleave", () => show("hovered", false));
+	on(video, "focus", () => show("keyed", video.matches(":focus-visible")));
+	on(video, "blur", () => show("keyed", false));
 	tabFromBlock(bar, video, signal);
 	player.scope = commandScope("On a recording", [
 		{
@@ -1923,7 +1947,7 @@ function prepare(video) {
 			title: () => video.paused ? "play recording" : "pause recording",
 			control: play,
 			run: () => {
-				if (focused() === video) show("lf-video-keyed", true);
+				if (focused() === video) show("keyed", true);
 				toggle(video);
 			}
 		},
@@ -1942,7 +1966,7 @@ function prepare(video) {
 			title: `back / forward ${STEP_SECONDS} seconds`,
 			repeat: true,
 			run: (binding) => {
-				show("lf-video-keyed", true);
+				show("keyed", true);
 				const step = binding === "ArrowLeft" ? -5 : STEP_SECONDS;
 				video.currentTime = Math.min(duration(video), Math.max(0, video.currentTime + step));
 			}
@@ -1963,7 +1987,7 @@ function prepare(video) {
 		player.filling = !player.filling;
 		keeps(video, "controls", player.filling ? "" : null);
 		projectCommandScope(video, SCOPE, player.filling ? null : player.scope);
-		show("lf-video-hover", false);
+		show("hovered", false);
 	});
 	players.set(video, player);
 	return player;
@@ -1974,7 +1998,7 @@ function trade(player) {
 	keeps(video, PLAYER, "");
 	keeps(video, "controls", null);
 	if (player.authoredTabindex === null) keeps(video, "tabindex", "0");
-	paint(player);
+	player.paint();
 }
 function giveBack(video) {
 	const player = players.get(video);
@@ -3999,7 +4023,6 @@ var MessageEditor = class {
 		this.input = offer(TEXT_FIELD);
 		this.input.name = "edit";
 		const actions = offer("span", "lf-msg-edit-actions");
-		const save = offer("button", "lf-msg-control lf-msg-edit-save");
 		const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
 		cancel.type = "button";
 		cancel.setAttribute("aria-label", "Discard");
@@ -4059,7 +4082,7 @@ var MessageEditor = class {
 			hint: "Edit message",
 			accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
 			sends: "save",
-			sendBtn: save,
+			sendClass: "lf-msg-control lf-msg-edit-save",
 			icon: "save",
 			submitIn: actions,
 			sentMedia: true,
@@ -5272,7 +5295,7 @@ function replyControlDestination(node) {
 function sendReply(draftCtx, key, text, owns, actions) {
 	return sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
 }
-function wireReply(key, row, input, send, wireInput, { hint, hintAside, accessibleName, busy }) {
+function wireReply(key, row, input, wireInput, { hint, hintAside, accessibleName, busy }) {
 	row.classList.add("lf-comment-box");
 	const draftCtx = replyContext(key);
 	const composition = {
@@ -5281,7 +5304,7 @@ function wireReply(key, row, input, send, wireInput, { hint, hintAside, accessib
 		row,
 		controls: {
 			input,
-			send
+			send: null
 		},
 		binding: null,
 		changed: () => composition.binding?.onChange()
@@ -5294,7 +5317,7 @@ function wireReply(key, row, input, send, wireInput, { hint, hintAside, accessib
 		accessibleName,
 		busy,
 		sends: "send",
-		sendBtn: send,
+		sendClass: "lf-thread-send",
 		save: (v) => {
 			saveDraft(draftCtx, v);
 			tellDraft(draftCtx, v);
@@ -5317,6 +5340,7 @@ function wireReply(key, row, input, send, wireInput, { hint, hintAside, accessib
 			run: () => composition.binding?.editLast?.open()
 		}]
 	});
+	composition.controls.send = sync.button;
 	composition.sync = sync;
 	sync();
 	return composition;
@@ -5376,9 +5400,8 @@ function createReplyView(key, commands, redraw, { onChange = () => {}, editLast 
 		const row = offer("div", "lf-thread-reply");
 		const input = offer(TEXT_FIELD);
 		input.name = "reply";
-		const send = offer("button", "lf-thread-send", "Send");
-		row.append(input, send);
-		return wireReply(key, row, input, send, commands.wireInput, {
+		row.append(input);
+		return wireReply(key, row, input, commands.wireInput, {
 			hint,
 			hintAside,
 			accessibleName,
@@ -6316,20 +6339,18 @@ const stepOf = (message) => Object.freeze({
 	condition: null
 });
 let nextTranscriptId = 0;
-var Transcript = class Transcript {
+var Transcript = class {
 	#commands;
 	#messageCommands;
 	#repaint;
 	#home;
 	#model = null;
+	#rows = [];
 	#messages = /* @__PURE__ */ new Map();
-	#faces = /* @__PURE__ */ new Map();
 	#facing = /* @__PURE__ */ new Map();
-	#working = Transcript.#face("working");
 	#stopWorkingExposure = null;
 	#pendingCovers = /* @__PURE__ */ new Map();
 	#pendingOpen = false;
-	#checkpoints = /* @__PURE__ */ new Map();
 	#folding = /* @__PURE__ */ new Map();
 	#expandedSummaries = /* @__PURE__ */ new Set();
 	#id = ++nextTranscriptId;
@@ -6359,7 +6380,7 @@ var Transcript = class Transcript {
 		return [...this.#messages].flatMap(([key, { node }]) => wanted.has(key) || !node.isConnected ? [] : [node]);
 	}
 	summaryNode(id) {
-		return this.#checkpoints.get(id)?.node ?? null;
+		return this.node.querySelector(`:scope > [data-summary-id="${CSS.escape(id)}"]`);
 	}
 	get foot() {
 		return [...this.node.children].findLast((node) => node.checkVisibility()) ?? null;
@@ -6460,57 +6481,68 @@ var Transcript = class Transcript {
 			return node;
 		};
 		const feet = /* @__PURE__ */ new Map();
-		const checkpoints = /* @__PURE__ */ new Map();
-		const faces = /* @__PURE__ */ new Map();
 		const transcript = [];
 		let working = null;
 		const facing = /* @__PURE__ */ new Map();
-		const face = (node, reading, controls) => {
-			keeps(node, "data-lf-live", reading.live ? "" : null);
-			render$1(workingView(reading, controls), node);
-			transcript.push(node);
-			return node;
+		const messageRow = (node, key) => ({
+			key: `message:${key}`,
+			body: node
+		});
+		const face = (id, reading, controls) => {
+			const row = {
+				key: `face:${id}`,
+				body: (tail) => html`<div
+            class="lf-thread-working"
+            data-face=${id}
+            aria-live="polite"
+            data-lf-live=${reading.live ? "" : nothing}
+            data-lf-append-tail=${tail ? "" : nothing}
+          >
+            ${workingView(reading, controls)}
+          </div>`
+			};
+			transcript.push(row);
+			return row;
 		};
 		for (const [at, range] of rangeState.entries()) {
-			if (range.kind === "message") transcript.push(placed(range.message.key));
+			if (range.kind === "message") transcript.push(messageRow(placed(range.message.key), range.message.key));
 			else {
 				const id = range.summary.id;
-				const checkpoint = this.#checkpoints.get(id) ?? this.#checkpoint(id);
-				checkpoints.set(id, checkpoint);
 				const covered = range.messages.map((message) => placed(message.key, id, !range.expanded));
 				for (const node of covered) node.id ||= `lf-msg-${this.#id}-${++this.#named}`;
-				this.#paintCheckpoint(checkpoint, range, covered);
-				transcript.push(checkpoint.node, ...covered);
-				feet.set(covered.at(-1), checkpoint.foot);
+				const anchor = `--lf-fold-${this.#id}-${CSS.escape(id)}`;
+				transcript.push({
+					key: `summary:${id}`,
+					body: this.#checkpoint(range, covered, anchor)
+				}, ...covered.map((node, at) => messageRow(node, range.messages[at].key)));
+				feet.set(covered.at(-1), `${anchor}-foot`);
 			}
 			const hosts = at === workingAt;
 			if (range.summary?.pending) {
 				const id = range.summary.id;
-				const node = this.#faces.get(id) ?? Transcript.#face(id);
-				faces.set(id, node);
 				const kept = range.messages.length > 1 && model.messages.indexOf(range.messages[0]) < spoke;
-				face(node, hosts ? model.working : stepOf(range.messages.at(-1)), kept ? this.#summaryToggle([range], true) : nothing);
-				facing.set(range.messages.at(-1).key, node);
-				if (hosts) working = node;
-			} else if (hosts) working = face(this.#working, model.working);
+				const row = face(id, hosts ? model.working : stepOf(range.messages.at(-1)), kept ? this.#summaryToggle([range], true) : nothing);
+				facing.set(range.messages.at(-1).key, row);
+				if (hosts) working = row;
+			} else if (hosts) working = face("working", model.working);
 		}
-		this.#faces = faces;
-		this.#facing = facing;
-		for (const node of [...faces.values(), this.#working]) keeps(node, "data-lf-append-tail", node === transcript.at(-1) ? "" : null);
-		this.#stopWorkingExposure?.();
-		this.#stopWorkingExposure = model.working?.feedback ? this.#commands.read.observeFeedback(working.querySelector(".lf-thread-working-words"), {
-			...model.working.feedback,
-			presentation_kind: "working_words",
-			surface: model.surface
-		}) : null;
-		this.#checkpoints = checkpoints;
 		for (const { node } of this.#messages.values()) {
 			const foot = feet.get(node);
 			if (foot) node.style.setProperty("--lf-fold-foot", foot);
 			else node.style.removeProperty("--lf-fold-foot");
 		}
 		keeps(this.node, "data-lf-reflow", appends ? "append" : null);
-		setChildren(this.node, this.#withFolds(transcript));
+		for (const row of transcript) row.tail = row === transcript.at(-1);
+		this.#rows = this.#withFolds(transcript);
+		this.#paint();
+		const faceNode = (row) => this.node.querySelector(`:scope > [data-face="${CSS.escape(row.key.slice(5))}"]`);
+		this.#facing = new Map([...facing].map(([key, row]) => [key, faceNode(row)]));
+		this.#stopWorkingExposure?.();
+		this.#stopWorkingExposure = model.working?.feedback ? this.#commands.read.observeFeedback(faceNode(working).querySelector(".lf-thread-working-words"), {
+			...model.working.feedback,
+			presentation_kind: "working_words",
+			surface: model.surface
+		}) : null;
 		for (const [key, fold] of this.#folding) {
 			if (fold.played) continue;
 			fold.played = foldBlock(fold.node);
@@ -6527,50 +6559,39 @@ var Transcript = class Transcript {
 		const succeeded = currentLocationToggle.dataset.summaryToggle;
 		return [succeeded, ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id)].map(toggleFor).find(Boolean) ?? null;
 	}
-	#withFolds(nodes) {
-		if (!this.#folding.size) return nodes;
-		const folding = new Set([...this.#folding.values()].map(({ node }) => node));
-		const staying = new Set(nodes);
+	#withFolds(rows) {
+		if (!this.#folding.size) return rows;
+		const staying = new Set(rows.map(({ key }) => key));
 		const after = /* @__PURE__ */ new Map();
 		let anchor = null;
-		for (const child of this.node.children) if (folding.has(child)) after.set(anchor, [...after.get(anchor) ?? [], child]);
-		else if (staying.has(child)) anchor = child;
-		return [...after.get(null) ?? [], ...nodes.flatMap((node) => [node, ...after.get(node) ?? []])];
+		for (const row of this.#rows) if (row.key.startsWith("message:") && this.#folding.has(row.key.slice(8))) after.set(anchor, [...after.get(anchor) ?? [], row]);
+		else if (staying.has(row.key)) anchor = row.key;
+		return [...after.get(null) ?? [], ...rows.flatMap((row) => [row, ...after.get(row.key) ?? []])];
 	}
 	#endFold(key, removed) {
 		const fold = this.#folding.get(key);
 		this.#folding.delete(key);
-		if (removed) fold.node.remove();
-		else fold.played?.cancel();
+		if (removed) {
+			this.#rows = this.#rows.filter((row) => row.key !== `message:${key}`);
+			this.#paint();
+		} else fold.played?.cancel();
 		fold.node.inert = false;
 		for (const [name, value] of fold.names) if (value !== null) fold.node.setAttribute(name, value);
 	}
-	static #face(id) {
-		const node = document.createElement("div");
-		node.className = "lf-thread-working";
-		node.dataset.face = id;
-		node.setAttribute("aria-live", "polite");
-		return node;
+	#paint() {
+		render$1(repeat(this.#rows, (row) => row.key, (row) => typeof row.body === "function" ? row.body(row.tail) : row.body), this.node);
 	}
-	#checkpoint(id) {
-		const node = document.createElement("section");
-		node.className = "lf-thread-checkpoint";
-		node.dataset.summaryId = id;
-		const name = `--lf-fold-${this.#id}-${++this.#named}`;
-		const foot = `${name}-foot`;
-		node.style.setProperty("--lf-fold-head", name);
-		node.style.setProperty("--lf-fold-foot", foot);
-		return {
-			node,
-			foot
-		};
-	}
-	#paintCheckpoint({ node }, range, covered) {
+	#checkpoint(range, covered, anchor) {
 		const progress = Boolean(range.summary.pending);
-		keeps(node, "data-expanded", range.expanded);
-		keepsHidden(node, progress && !range.expanded);
-		keeps(node, "aria-owns", covered.map(({ id }) => id).join(" "));
-		render$1(html`${progress ? nothing : html`<div class="lf-summary-checkpoint">
+		return html`<section
+      class="lf-thread-checkpoint"
+      data-summary-id=${range.summary.id}
+      data-expanded=${range.expanded}
+      ?hidden=${progress && !range.expanded}
+      aria-owns=${covered.map(({ id }) => id).join(" ")}
+      style=${`--lf-fold-head: ${anchor}; --lf-fold-foot: ${anchor}-foot;`}
+    >
+      ${progress ? nothing : html`<div class="lf-summary-checkpoint">
               <div class="lf-summary-header">
                 <div class="lf-summary-label">${range.summary.label}</div>
                 ${range.forced ? nothing : this.#summaryToggle([range])}
@@ -6581,7 +6602,8 @@ var Transcript = class Transcript {
                     ></div>` : nothing}
               ${range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}
             </div>`}
-      ${progress && range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}`, node);
+      ${progress && range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}
+    </section>`;
 	}
 	#summaryToggle(ranges, progress = false) {
 		const ids = ranges.map((range) => range.summary.id);

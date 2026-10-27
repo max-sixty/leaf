@@ -177,7 +177,7 @@ moving anything. `leaf package check --render` reports a widget that moves as
   ignore the drawing. `render` is synchronous, fetches nothing and reads nothing from the log; it may move authored
   nodes within the host. To put every authored child inside a box it builds, as
   `lf-worktree` puts its evidence under its disclosure's summary, pass that box to
-  `authoredBody(box)`, which moves the children into it. Leaf treats the boxes around
+  `tools.authoredBody(box)`, which moves the children into it. Leaf treats the boxes around
   it as the widget's own and its contents as the page's, and an `x-patch: members`
   revision edits inside it. It returns the node references the module needs, with an
   update function where the drawing changes later. The module gets that result with

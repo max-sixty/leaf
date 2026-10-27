@@ -644,6 +644,27 @@ const drawnThreadId = (node) => node?.dataset.thread ?? null;
 const SAYS_IN = `${THREAD}, .lf-thread-seat`;
 const SAY_ROW = ".lf-thread-reply, .lf-say";
 const SAY_BOX = SAY_ROW.split(", ").map((row) => `:scope > ${row} ${TEXT_FIELD}`).join(", ");
+const declaredParts = /* @__PURE__ */ new WeakMap();
+const declareThreadParts = (thread, parts) => declaredParts.set(thread, parts);
+const ownParts = {
+	reply: (thread) => thread.querySelector(SAY_BOX),
+	settlement: (thread) => [...thread.querySelectorAll(".lf-resolve, .lf-reopen")].find((control) => control.closest(".lf-page-thread, [data-lf-thread-view]") === thread) ?? null
+};
+function* drawingsOf(thread) {
+	const id = drawnThreadId(thread);
+	for (let at = thread; at === thread || at && id && drawnThreadId(at) === id; at = closestAcross(upFrom(at), THREAD)) yield at;
+}
+function wholeThread(thread) {
+	const outer = [...drawingsOf(thread)].at(-1);
+	return declaredParts.get(outer)?.whole(outer) ?? outer;
+}
+function threadPart(thread, name) {
+	for (const at of drawingsOf(thread)) {
+		const part = (declaredParts.get(at) ?? ownParts)[name](at);
+		if (part) return part;
+	}
+	return null;
+}
 
 //#endregion
 //#region runtime/obligations/model.js
@@ -5226,8 +5247,14 @@ function dismissContext(context) {
 	session.owner?.changed();
 }
 const dismissReply = (key) => dismissContext(replyContext(key));
-onPressAway(([node]) => [...compositions.keys()].some((context) => context !== replyDraftContext(node)), ([node], [from]) => {
-	const kept = [replyDraftContext(node), replyDraftContext(from)];
+const pressContext = (node) => {
+	const row = replyDraftContext(node);
+	if (row !== null) return row;
+	const thread = closestAcross(node, THREAD);
+	return thread ? replyDraftContext(threadPart(thread, "reply")) : null;
+};
+onPressAway(([node]) => [...compositions.keys()].some((context) => context !== pressContext(node)), ([node], [from]) => {
+	const kept = [pressContext(node), pressContext(from)];
 	for (const context of [...compositions.keys()]) if (!kept.includes(context)) dismissContext(context);
 });
 const dismissReplyAt = (node) => {
@@ -5494,27 +5521,6 @@ async function landGesture({ land, answer, pending, refused }) {
 //#region runtime/thread/focus.js
 function focusThread(thread, cause) {
 	focusDestination(thread, cause);
-}
-const declaredParts = /* @__PURE__ */ new WeakMap();
-const declareThreadParts = (thread, parts) => declaredParts.set(thread, parts);
-const ownParts = {
-	reply: (thread) => thread.querySelector(SAY_BOX),
-	settlement: (thread) => [...thread.querySelectorAll(".lf-resolve, .lf-reopen")].find((control) => control.closest(".lf-page-thread, [data-lf-thread-view]") === thread) ?? null
-};
-function* drawingsOf(thread) {
-	const id = drawnThreadId(thread);
-	for (let at = thread; at === thread || at && id && drawnThreadId(at) === id; at = closestAcross(upFrom(at), THREAD)) yield at;
-}
-function wholeThread(thread) {
-	const outer = [...drawingsOf(thread)].at(-1);
-	return declaredParts.get(outer)?.whole(outer) ?? outer;
-}
-function threadPart(thread, name) {
-	for (const at of drawingsOf(thread)) {
-		const part = (declaredParts.get(at) ?? ownParts)[name](at);
-		if (part) return part;
-	}
-	return null;
 }
 const threadReplyInput = (thread) => {
 	const input = thread && threadPart(thread, "reply");

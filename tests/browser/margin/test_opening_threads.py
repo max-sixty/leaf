@@ -608,24 +608,32 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(preview.locator("leaf-text")).to_have_js_property(
         "value", "Keep this draft visible."
     )
-    write(reply, "Keep this draft visible.")
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "resolve",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": preview.locator(".lf-page-thread").get_attribute("data-thread"),
-        },
-    )
-    told(page)
-    resolved = preview.get_by_role("button", name="Resolved", exact=True)
-    expect(resolved).to_be_visible()
-    resolved.click()
-    with sending(page, "reopen the thread beside its kept draft"):
-        preview.get_by_role("button", name="Reopen", exact=True).click()
-    expect(reply).to_be_focused()
-    expect(reply).to_have_js_property("value", "Keep this draft visible.")
+    for activation in ("keyboard", "pointer"):
+        write(reply, "Keep this draft visible.")
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "resolve",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": preview.locator(".lf-page-thread").get_attribute(
+                    "data-thread"
+                ),
+            },
+        )
+        told(page)
+        # Editing keeps the reply drawn, so only the control changes, with no
+        # changed room to hold behind a news notice. Both routes return to the draft.
+        reopen = preview.get_by_role("button", name="Reopen", exact=True)
+        if activation == "keyboard":
+            reopen.focus()
+        with sending(page, "reopen the thread beside its kept draft"):
+            if activation == "keyboard":
+                page.keyboard.press("Enter")
+            else:
+                reopen.click()
+        expect(reply).to_be_focused()
+        expect(reply).to_have_js_property("value", "Keep this draft visible.")
     write(preview.locator("leaf-text"), "")
     page.locator(".lf-margin-preview-close").click()
     page.keyboard.press("Enter")

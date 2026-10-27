@@ -1272,6 +1272,24 @@ def test_a_page_draws_the_actions_of_a_playground_without_controls(browser, serv
     assert playground.evaluate("root => root.values.tile.size") == 2
 
 
+def test_a_playground_whose_page_never_hands_over_its_actions_fails(browser, serve):
+    """Under `actions="page"`, a page that never registers its buttons leaves the user
+    no way to answer, so the playground fails where `page check` reads failures."""
+    source = PAGE_ACTIONS_PAGE.replace(
+        "playground.registerActions({submit: save, reset});", ""
+    )
+    assert source != PAGE_ACTIONS_PAGE
+    page = open_page(browser, serve(source))
+    report = '<lf-playground id="tile-config"> failed: '
+    expect(page.locator("#tile-config .lf-error")).to_contain_text("registerActions")
+    round_trip(page)
+    assert any(
+        event["kind"] == "error" and event["text"].startswith(report)
+        for event in events_model.read_events(serve.page_dir)
+    )
+    consume_browser_errors(page, report)
+
+
 def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
     """The alert playground's stage, an alert per section with its controls beside it,
     runs past the window. While the user works down it, the rail beside it, the page

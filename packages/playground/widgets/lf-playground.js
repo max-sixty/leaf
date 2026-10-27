@@ -48,10 +48,12 @@
  * own handlers with a decision state to label from, which would leave every page to
  * restate when the press withdraws the choice. */
 import {
+  afterPresentation,
   commands,
   compoundReadingRegionId,
   closeNativeLayer,
   copyControl,
+  failSoft,
   focusDestination,
   layoutChanged,
   initialRender,
@@ -159,6 +161,27 @@ customElements.define(
     setup() {
       this.#build();
       this.#ready = true;
+      // A page that draws the actions hands them over in its view's `declare`, which
+      // the page's first presentation waits for (`whileInterfaceConnected`). Missing
+      // then, nothing would let the user answer, so the playground fails where `page
+      // check` reads it. A playground arriving after that presentation, in a revision
+      // applied in place or a message, has no settled point of its own to wait for, so
+      // only the page's first presentation is checked.
+      if (
+        this.#initial.pageActions &&
+        this.#interactive &&
+        !document.body.hasAttribute("data-lf-presented")
+      )
+        afterPresentation(() => {
+          if (this.isConnected && !this.#submit)
+            failSoft(
+              this,
+              new Error(
+                'actions="page" needs the page script to pass its Save and Reset ' +
+                  "buttons to playground.registerActions({submit, reset}) in declare",
+              ),
+            );
+        });
       whileConnected(this, (signal) => {
         const stops = this.#regions.map((region) => registerReadingRegion(region));
         // The narrow layout places shared controls above the stage. Their actual

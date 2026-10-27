@@ -3253,7 +3253,6 @@ export function createFloatingPanel({
   // what is queued, what its newest step says, how far the plan has come, and what it
   // finished last.
   function workSummary(inHand, queued, done) {
-    const agent = agentName();
     const work = inHand.map(workOn);
     const since = work
       .map((each) => each.since)
@@ -3268,12 +3267,12 @@ export function createFloatingPanel({
     const waiting = queued.length ? `${queued.length} up next` : "";
     const first =
       held && waiting
-        ? `${agent}: ${held}; ${waiting}.`
+        ? `${held}; ${waiting}.`
         : held
-          ? `${agent}: ${held}.`
+          ? `${held}.`
           : waiting
-            ? `${agent}: ${waiting}.`
-            : `Nothing is on ${agent}.`;
+            ? `${waiting[0].toUpperCase()}${waiting.slice(1)}.`
+            : "Nothing to do right now.";
     const now = work.find((each) => each.line && each.line !== each.word)?.line;
     const progress = planProgress();
     const [last] = done;

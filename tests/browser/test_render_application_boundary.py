@@ -624,7 +624,7 @@ def test_versions_wait_for_a_reading_of_the_log(browser, serve):
     page.goto(serve(OBLIGATION_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", re.compile("Server offline")
+        "aria-label", re.compile("Lost the connection")
     )
     # Versions waits for a reading of the log too.
     versions = panel_menu(page).locator('.lf-fp-item[data-row="versions"]')

@@ -171,18 +171,18 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 			const sent = await Promise.race([postEvent(event, held).then((response) => ({ response }), (error) => ({ error })), entry.read.then((accepted) => ({ accepted }))]);
 			if (sent.accepted) return { accepted: sent.accepted };
 			if (sent.error) {
-				await retry(runtime.keyRefused ? "Key refused — open Leaf's link in a new tab and the change will send" : "Connection lost — keep this page open while it retries");
+				await retry(runtime.keyRefused ? "This tab lost access — open the link again in a new tab and this goes through" : "Lost the connection — keep this page open and this goes through");
 				continue;
 			}
 			if (!sent.response) return { accepted: null };
 			if (sent.response.status === 503) {
-				await retry("The server isn't ready yet — retrying the change…");
+				await retry("Not through yet — trying again…");
 				continue;
 			}
 			const decoded = await Promise.race([sent.response.json().then((answer) => ({ answer }), (error) => ({ error })), entry.read.then((accepted) => ({ accepted }))]);
 			if (decoded.accepted) return { accepted: decoded.accepted };
 			if (decoded.error) {
-				await retry("Couldn't read the answer — retrying the change…");
+				await retry("Not through yet — trying again…");
 				continue;
 			}
 			const answer = decoded.answer;
@@ -196,9 +196,9 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 			if (refusedAnswer(answer) && (!("attempt" in answer) || answer.attempt === event.attempt)) return {
 				accepted: null,
 				state: completeData(answer.state, held),
-				refusal: `Couldn't ${event.kind === "edit" ? "save edit" : "send"} — ${answer.error || "the server refused it"}`
+				refusal: `Couldn't ${event.kind === "edit" ? "save the edit" : "take this"} — ${answer.error || "it was refused"}`
 			};
-			await retry("Server answer was incomplete — retrying the change…");
+			await retry("Not through yet — trying again…");
 		}
 	}
 	async function drain() {
@@ -4467,17 +4467,16 @@ function semanticNewsNotice(news) {
 		const { message } = content[0];
 		obligations = obligations.filter((item) => item.message !== message.id);
 		const words = excerptWords(message.text, MESSAGE_WORDS);
-		const speaker = message.edited ? `${message.agent} (edited)` : message.agent;
-		clauses.push(words ? `${speaker}: ${words}` : `${message.agent} ${message.kind === "reply" ? "replied" : "commented"}`);
+		clauses.push(words ? message.edited ? `Edited: ${words}` : words : message.kind === "reply" ? "Replied" : "Commented");
 	} else if (content.length) {
 		const replies = content.filter(({ message }) => message.kind === "reply");
 		const threads = new Set(content.map((item) => item.thread)).size;
 		clauses.push(replies.length === content.length ? `${plural(content.length, "reply", "replies")} in ${plural(threads, "thread")}` : `${plural(content.length, "agent message")} in ${plural(threads, "thread")}`);
 	}
-	for (const condition of ["failed", "interrupted"]) {
-		const count = failures.filter((item) => item.condition === condition).length;
-		if (count) clauses.push(count === 1 ? `Response ${condition}` : `${plural(count, "response")} ${condition}`);
-	}
+	const failed = failures.filter((item) => item.condition === "failed").length;
+	const interrupted = failures.filter((item) => item.condition === "interrupted").length;
+	if (failed) clauses.push(failed === 1 ? "Couldn't answer" : `Couldn't answer ${failed}`);
+	if (interrupted) clauses.push(interrupted === 1 ? "Interrupted mid-answer" : `Interrupted on ${interrupted}`);
 	if (obligations.length) clauses.push(obligations.length === 1 ? "New on me" : `${obligations.length} new on me`);
 	return clauses.join(" · ");
 }

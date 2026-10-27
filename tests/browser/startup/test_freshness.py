@@ -35,7 +35,7 @@ from leaf.leases import release_lease, take_lease, waiter_lease_path
 pytestmark = pytest.mark.shifts_unsurveyed
 
 # The status the panel's empty field says while the server does not answer.
-OFFLINE = re.compile(r"^Server offline")
+OFFLINE = re.compile(r"^Lost the connection")
 
 
 def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):

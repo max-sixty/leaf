@@ -283,12 +283,12 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     [
         (
             {"status": 503, "body": ""},
-            "Server offline — reconnecting",
+            "Lost the connection — reconnecting",
             http_error_console(503),
         ),
         (
             {"status": 200, "body": "{"},
-            "Page couldn't apply current state",
+            "Couldn't show the latest",
             "read failed",
         ),
     ],

@@ -79,7 +79,7 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
             claim["id"], "provider-turn", {"kind": "awaiting_input"}
         )
     told(page)
-    expect(live).to_contain_text("Claude: Need your input in the terminal")
+    expect(live).to_contain_text("Need your input in the terminal")
     announced_wait = live.text_content()
 
     with service_model.PageTransaction(serve.page_dir) as transaction:
@@ -94,7 +94,7 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
             claim["id"], "provider-turn", {"kind": "awaiting_approval"}
         )
     told(page)
-    expect(live).to_contain_text("Claude: Need your approval in the terminal")
+    expect(live).to_contain_text("Need your approval in the terminal")
     leases_model.release_lease(lease)
 
     page.route("**/api/**", refuse)
@@ -104,14 +104,14 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
         nudge(serve.page_dir)
         # An unreachable server turns the leaf red, and the field says it as a status
         # rather than an error.
-        expect(live).to_contain_text("Server offline")
+        expect(live).to_contain_text("Lost the connection")
         expect(page.locator(".lf-fp-leaf .lf-dot.blocked")).to_be_visible()
         expect(panel_field(page)).to_have_attribute("data-says", "status")
         # The server coming back to refuse this tab's key asks something new of the
         # user, which only they can end, so it is heard and the field says it as an
         # error.
         page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
-        expect(live).to_contain_text("no longer accepts this tab's key")
+        expect(live).to_contain_text("This tab lost access")
         expect(panel_field(page)).to_have_attribute("data-says", "error")
         # A server that answers with an error of its own is up and failing, which is
         # neither offline nor a key to replace: the status says its words.
@@ -121,9 +121,7 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
                 status=500, json={"error": "projection failed"}
             ),
         )
-        expect(live).to_contain_text(
-            "The server answered with an error: projection failed"
-        )
+        expect(live).to_contain_text("Hit a problem: projection failed")
         # The refused and failed reads recur on the page's clock until it closes.
         page.close()
         consume_browser_errors(page, http_error_console(401), http_error_console(500))

@@ -26,14 +26,15 @@ const STAGE_LABELS = Object.freeze({
 });
 
 const CONDITION_LABELS = Object.freeze({
-  ended: "Turn ended",
+  ended: "Stopped",
   interrupted: "Interrupted",
-  stale: "Update stale",
+  stale: "Gone quiet",
   failed: "Failed",
 });
 
-const WAITING_FOR_DELIVERY = "Waiting for delivery";
-const NOT_ANSWERED = "Not answered";
+const WAITING_FOR_DELIVERY = "Haven't seen it yet";
+// A failed response's word, on its workflow and on the failure reply that reports it.
+export const NOT_ANSWERED = "Couldn't answer";
 
 export const workflowLabel = (workflow, { answered = false } = {}) => {
   if (!workflow) return "";

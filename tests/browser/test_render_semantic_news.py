@@ -37,7 +37,7 @@ def test_a_reply_asking_the_user_is_one_notice_without_moving_focus(browser, ser
     )
     told(page)
     # One fact: the question is the reply, not a second clause beside it.
-    notice = re.compile(r".+: I changed the route\.(?! ·)")
+    notice = re.compile(r"^I changed the route\.(?! ·)")
     said(page).to_have_attribute("placeholder", notice)
     expect(page.locator(".lf-live")).to_have_text(notice)
     expect(toggle).to_be_focused()
@@ -54,7 +54,7 @@ def test_a_new_agent_comment_is_announced_without_moving_focus(browser, serve):
         serve.page_dir, None, None, None, "A new page-wide agent note.", None
     )
     told(page)
-    notice = re.compile(r".+: A new page-wide agent note\.")
+    notice = re.compile(r"^A new page-wide agent note\.")
     said(page).to_have_attribute("placeholder", notice)
     expect(page.locator(".lf-live")).to_have_text(notice)
     expect(toggle).to_be_focused()
@@ -74,8 +74,8 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
         attempt="response-failed-attempt",
     )
     told(page)
-    said(page).to_have_attribute("placeholder", re.compile("^Response failed"))
-    expect(page.locator(".lf-live")).to_have_text("Response failed")
+    said(page).to_have_attribute("placeholder", re.compile("^Couldn't answer"))
+    expect(page.locator(".lf-live")).to_have_text("Couldn't answer")
 
 
 def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, request):
@@ -109,8 +109,8 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
             "codex-thread", "leaf-turn", attempt, "Draft", "interrupted"
         )
     told(page)
-    said(page).to_have_attribute("placeholder", re.compile("^Response interrupted"))
-    expect(page.locator(".lf-live")).to_have_text("Response interrupted")
+    said(page).to_have_attribute("placeholder", re.compile("^Interrupted mid-answer"))
+    expect(page.locator(".lf-live")).to_have_text("Interrupted mid-answer")
 
 
 def test_deferred_notice_describes_only_the_current_message_version(browser, serve):
@@ -126,9 +126,7 @@ def test_deferred_notice_describes_only_the_current_message_version(browser, ser
     told(page)
 
     page.keyboard.press("Escape")
-    said(page).to_have_attribute(
-        "placeholder", re.compile(r".+ \(edited\): Current note\.")
-    )
+    said(page).to_have_attribute("placeholder", re.compile(r"^Edited: Current note\."))
 
 
 def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):
@@ -163,4 +161,4 @@ def test_the_agent_starting_work_is_said_by_the_status_not_a_notice(browser, ser
         working(serve.page_dir, line)
         told(page)
         said(page).to_have_attribute("data-says", "status")
-        said(page).to_have_attribute("placeholder", re.compile(rf"\w: {line}"))
+        said(page).to_have_attribute("placeholder", re.compile(f"^{line}"))

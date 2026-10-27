@@ -219,13 +219,13 @@ test("an open thread stays reachable while Page Map retains every action in orde
 
 test("thread aggregation preserves canonical user attention and obligation precedence", () => {
   const recovery = marker("recovery", "comment", {
-    userAttention: { label: "Not answered", reason: "workflow" },
+    userAttention: { label: "Couldn't answer", reason: "workflow" },
   });
   const item = marker("question", "comment", {
     userAttention: { label: "On you", reason: "obligation" },
   });
   assert.equal(awaitingUser([recovery]), true);
-  assert.equal(readingContext({ items: [recovery] }), "Not answered");
+  assert.equal(readingContext({ items: [recovery] }), "Couldn't answer");
   assert.equal(readingContext({ items: [recovery, item] }), "On you");
 });
 
@@ -283,7 +283,7 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
         { workflows: [failed] },
       ),
     ),
-    ["Not answered", "Not answered"],
+    ["Couldn't answer", "Couldn't answer"],
   );
   const onUser = thread(
     { kind: "needs_user", reason: "obligation", workflow: null },

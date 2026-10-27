@@ -213,7 +213,7 @@ test("current content versions and admitted messages determine arrivals", () => 
   assert.equal(changed.news[0].message.id, "original");
   assert.equal(
     semanticNewsNotice(currentSemanticNews(changed.news, next, changed.observed)),
-    "Agent (edited): Words of original. · Response failed",
+    "Edited: Words of original. · Couldn't answer",
   );
   const same = observeSemanticNews(
     changed.observed,
@@ -363,7 +363,7 @@ test("a new message speaks for itself, with what it asks of the user", () => {
   const result = observeSemanticNews(baseline.observed, current);
   assert.equal(
     semanticNewsNotice(currentSemanticNews(result.news, current, result.observed)),
-    "Sam: Does this answer your question?",
+    "Does this answer your question?",
   );
   assert.deepEqual(combineSemanticNews(result.news, result.news), result.news);
   // Something else new on the user's list is its own fact, counted by the list's name.
@@ -375,7 +375,7 @@ test("a new message speaks for itself, with what it asks of the user", () => {
   const both = observeSemanticNews(baseline.observed, more);
   assert.equal(
     semanticNewsNotice(currentSemanticNews(both.news, more, both.observed)),
-    "Sam: Does this answer your question? · New on me",
+    "Does this answer your question? · New on me",
   );
 });
 
@@ -422,7 +422,7 @@ test("deferred failure wording follows its current condition and a cleared failu
     semanticNewsNotice(
       currentSemanticNews(interrupted.news, latest, interrupted.observed),
     ),
-    "Response failed",
+    "Couldn't answer",
   );
   assert.deepEqual(
     currentSemanticNews(interrupted.news, reading(), interrupted.observed),
@@ -446,7 +446,7 @@ test("agent content is news while it is unread, including on the first reading",
   );
   assert.equal(
     semanticNewsNotice(currentSemanticNews(opened.news, waiting, opened.observed)),
-    "Agent: Words of away.",
+    "Words of away.",
   );
   // Taken in before the notice could show — here, or in another tab — it drops out.
   const taken = reading({
@@ -537,8 +537,8 @@ test("held producer batches preserve interrupted news and merge later arrivals",
   assert.equal(noticeReading().visible, false);
   assert.deepEqual(announcements, [
     "2 replies in 2 threads",
-    "Codex: Words of queued-2.",
-    "Codex: Words of queued-3.",
+    "Words of queued-2.",
+    "Words of queued-3.",
   ]);
   const before = [...announcements];
   holdStatus(1);

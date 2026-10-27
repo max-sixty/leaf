@@ -68,11 +68,11 @@ test("workflow labels retain exact input progress and positive conditions", () =
   assert.equal(workflowLabel(newer), "Up next");
   assert.equal(
     workflowLabel(workflow("ended", "picked_up", { condition: { kind: "ended" } })),
-    "Turn ended",
+    "Stopped",
   );
   assert.equal(
     workflowLabel(workflow("stale", "working", { condition: { kind: "stale" } })),
-    "Update stale",
+    "Gone quiet",
   );
   assert.equal(
     workflowLabel(
@@ -80,7 +80,7 @@ test("workflow labels retain exact input progress and positive conditions", () =
         condition: { kind: "failed", operation: "response" },
       }),
     ),
-    "Not answered",
+    "Couldn't answer",
   );
 });
 

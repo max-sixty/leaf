@@ -682,7 +682,7 @@ def test_a_capture_attaches_to_the_box_an_error_stood_over(browser, serve):
     write(box, "Words a refusal handed back.")
     page.evaluate(
         """async () => (await window.__lfWidgetApi()).raiseError(
-          "Couldn't send — refused before append",
+          "Couldn't take this — refused before append",
           { subject: document.querySelector('.lf-fab-input') })"""
     )
     cover = page.locator(".lf-fab-bar .lf-compose-error")

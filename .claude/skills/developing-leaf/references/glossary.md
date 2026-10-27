@@ -33,31 +33,25 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
 
-Every visible line has one speaker, and its presentation says which:
+Leaf's interface speaks in the agent's voice: the user is talking with the agent, and
+the page is where that conversation happens. Every status, notice and label reads as
+something the agent would say to the user in conversation (“Got it”, “Your turn”,
+“running the browser suite”, “Lost the connection — reconnecting”), with no name in
+front of it and never as a narrator describing the agent from outside (“Claude is
+working”, “Waiting for Claude”), which puts a third party between them. A line Leaf
+composes from what it observes, such as an agent that stopped or a server it can't
+reach, is Leaf's best guess at what the agent would say, and reads the same way.
 
-- **The user**: their own acts (“Moved to Done”), and the labels that tell their side
-  from the agent's, in the first person: **Me** as an author, **Waiting on me**, **my
-  change**, and commands such as **Edit my last message**.
-- **The agent**: what it says, as it would say it in conversation, under its name
-  where the line isn't already its own (“Claude: running the browser suite”, “Got it”,
-  “Your turn”), never a narrator describing it from outside (“Claude is working”,
-  “Waiting for Claude”). The user is talking with the agent, and a narrator puts a
-  third party between them. The agent's lines take no first person, so *me* and *my*
-  always mean the user.
-- **Leaf**: what Leaf itself observes or needs about the connection, the page or the
-  agent's session, such as an agent that stopped without answering or a server it
-  can't reach. Leaf's words never take the agent's presentation; a line that can't be
-  put in the agent's voice is Leaf's.
-
-Never narrate what the user saw, decided or is doing (*since I last looked*), since
-Leaf can't know it. The user's and Leaf's lines that don't tell sides apart drop the
-pronoun: “The draft is kept”, “New messages”. Text addressed to the agent, such as
+The agent's lines take no first person, so *me* and *my* always mean the user: **Me**
+as an author, **Waiting on me** and **On me**, **my change**, and commands such as
+**Edit my last message**. Never narrate what the user saw, decided or is doing (*since
+I last looked*), since Leaf can't know it. Text addressed to the agent, such as
 `x-instructions` and event handling, uses the second person, as does the website's
 prose to a visitor.
 
 Visible copy is personal, not technical: it speaks of the user, the agent and the page,
-never of the machinery between them. Say what the user did (“Moved to Done”) or let the
-agent say what it did, not that something was sent, logged, stored or retried. Name the
+never of the machinery between them. Say what the user did (“Moved to Done”) or what
+the agent is doing, not that something was sent, logged, stored or retried. Name the
 machinery only where the user must act on it, as an unreachable server asks them to keep
 the tab open.
 
@@ -73,9 +67,9 @@ agent owes as **Reply** and a revision it owes as **Answer**. Undo keeps its nam
 whatever widget action it takes back.
 
 **All pages**, a view of Leaf's panel opened from Navigate in the leaf's menu, lists
-live pages on this machine. **No session** means no agent session holds the page, in
-the panel's status and on All pages' rows. **Page closed** means the page's work has
-ended.
+live pages on this machine. **Not on this page right now** means no agent session holds
+the page, in the panel's status and on All pages' rows. **Done with this page** means
+the page's work has ended.
 
 ## Pages, packages, and layers
 

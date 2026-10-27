@@ -1100,7 +1100,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     )
     page = open_page(browser, url)
     live = page.locator(".lf-live")
-    expect(live).to_have_text("Codex: Earlier")
+    expect(live).to_have_text("Earlier")
 
     open_panel_thread(page, drafting["id"])
     draft = panel_field(page)
@@ -1126,7 +1126,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
         },
     )
     told(page)
-    expect(live).to_have_text("Codex: For B")
+    expect(live).to_have_text("For B")
     expect(draft).to_be_focused()
     expect(draft).to_have_js_property("value", "Keep this draft")
 
@@ -1165,7 +1165,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     round_trip(page)
     expect(live).to_have_text("2 replies in 2 threads")
     assert page.evaluate("() => window.__lfReplyAnnouncements") == [
-        "Codex: For B",
+        "For B",
         "2 replies in 2 threads",
     ]
     page.reload()

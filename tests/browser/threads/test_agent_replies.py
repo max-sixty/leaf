@@ -933,7 +933,7 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(
         thread.locator(f'.lf-msg[data-event="{failure["id"]}"] .lf-msg-failure')
-    ).to_have_text("Not answered")
+    ).to_have_text("Couldn't answer")
     expect(thread.locator(".lf-thread-working")).to_contain_text("Checking the board")
 
 
@@ -1098,7 +1098,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(page.locator("#cd-q .lf-thread-working")).to_contain_text(
         "Checking the south pair"
     )
-    expect(inline.locator(".lf-msg-failure")).to_have_text("Not answered")
+    expect(inline.locator(".lf-msg-failure")).to_have_text("Couldn't answer")
     assert inline.get_attribute("data-failure") == "turn_failed"
     # The real answer above it wears nothing, so the mark is a difference the user
     # can see rather than a decoration every agent message carries.

@@ -93,7 +93,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     claim("running the migration")
     expect_status_says(
         page,
-        re.compile(r"^\s*Claude: running the migration \(just now\)\."),
+        re.compile(r"^\s*running the migration \(just now\)\."),
     )
 
     # An hour fast. A fixed time rather than an installed clock, so the page's own
@@ -104,7 +104,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     claim("waiting on the shard")
     expect_status_says(
         page,
-        re.compile(r"^\s*Claude: waiting on the shard \(just now\)\."),
+        re.compile(r"^\s*waiting on the shard \(just now\)\."),
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
@@ -161,7 +161,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
     cleanup_model.close_session_turn("s")
     told(page)
-    expect(held_workflow).to_have_text("Turn ended")
+    expect(held_workflow).to_have_text("Stopped")
     cleanup_model.open_session_turn("s")
 
     def start(item, line):
@@ -288,11 +288,11 @@ def test_the_leaf_and_all_pages_say_the_served_activity(browser, serve, other_le
     declare_work(serve.page_dir, "Writing the page")
     told(page)
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", "Page menu · Claude: Writing the page"
+        "aria-label", "Page menu · Writing the page"
     )
     expect_status_says(
         page,
-        re.compile(r"^\s*Claude: Writing the page \(just now\)\."),
+        re.compile(r"^\s*Writing the page \(just now\)\."),
     )
     expect(page.locator(LEAF_DOT)).to_have_class(re.compile(r"\bworking\b"))
     page.locator("body").focus()
@@ -323,8 +323,8 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     )
     page = open_page(browser, url)
     workflow = workflow_of(open_panel_thread(page, comment["id"]), comment["id"])
-    expect(workflow).to_have_text("Waiting for delivery")
-    expect(workflow).to_have_attribute("title", "Waiting for delivery")
+    expect(workflow).to_have_text("Haven't seen it yet")
+    expect(workflow).to_have_attribute("title", "Haven't seen it yet")
 
 
 def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
@@ -432,7 +432,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     work_line = workflow_of(open_panel_thread(page, held), held)
     work_button = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
-    page_work = re.compile(r"^\s*Claude: rerunning the failing shard")
+    page_work = re.compile(r"^\s*rerunning the failing shard")
 
     def claim(claim_ts, session="s"):
         """A start on the comment last renewed whenever, beside a start on the page's
@@ -460,9 +460,9 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
         timespec="seconds"
     )
     claim(quiet_ts)
-    expect(work_line).to_have_text("Update stale")
+    expect(work_line).to_have_text("Gone quiet")
     expect(work_line).to_have_attribute(
-        "title", "Update stale · reading the reconnect traces"
+        "title", "Gone quiet · reading the reconnect traces"
     )
     expect(work_line.locator("time")).to_have_count(0)
     expect(work_button).not_to_have_attribute(
@@ -472,7 +472,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     # The page's own line is as fresh as it was, which is the whole case: this is one
     # claim going quiet beside a live one, not a page that has gone quiet all over.
     expect_status_says(page, page_work)
-    expect(thread_row_says(page, held)).to_contain_text("Update stale")
+    expect(thread_row_says(page, held)).to_contain_text("Gone quiet")
 
     # The exact claim is stale when its own turn has ended, even while the newer page
     # declaration remains active.
@@ -489,7 +489,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
             timespec="seconds"
         )
     )
-    expect(work_line).to_have_text("Update stale")
+    expect(work_line).to_have_text("Gone quiet")
     expect(work_line.locator("time")).to_have_count(0)
     assert work_line.evaluate("node => getComputedStyle(node).color") == token_colour(
         page, "--muted"
@@ -533,7 +533,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     expect(inline).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     claim(quiet_ts)
-    expect(inline.locator(".lf-msg-sending")).to_have_text("Update stale")
+    expect(inline.locator(".lf-msg-sending")).to_have_text("Gone quiet")
     expect(inline).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(inline.locator(".lf-msg-sending")).to_have_css(

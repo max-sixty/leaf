@@ -3321,13 +3321,13 @@ const STAGE_LABELS = Object.freeze({
 	answered: "Answered"
 });
 const CONDITION_LABELS = Object.freeze({
-	ended: "Turn ended",
+	ended: "Stopped",
 	interrupted: "Interrupted",
-	stale: "Update stale",
+	stale: "Gone quiet",
 	failed: "Failed"
 });
-const WAITING_FOR_DELIVERY = "Waiting for delivery";
-const NOT_ANSWERED = "Not answered";
+const WAITING_FOR_DELIVERY = "Haven't seen it yet";
+const NOT_ANSWERED = "Couldn't answer";
 const workflowLabel = (workflow, { answered = false } = {}) => {
 	if (!workflow) return "";
 	if (workflow.condition) return workflow.condition.kind === "stale" && workflow.condition.operation === "delivery" ? WAITING_FOR_DELIVERY : workflow.condition.kind === "failed" && workflow.condition.operation === "response" ? NOT_ANSWERED : CONDITION_LABELS[workflow.condition.kind] ?? "Failed";
@@ -3643,7 +3643,6 @@ function authoredHolder(id) {
 	for (const view of authoredHolders.values()) if (view.model.id === id && shown(view)) return view.node;
 	return null;
 }
-const FAILURE_LABEL = "Not answered";
 function messageReading(message, { authoredRank = 0, reactions, workflows, leaves = null }) {
 	const workflow = strongestWorkflow(workflows);
 	const token = isReaction(message) ? tokenEntry(message.token) : null;
@@ -3779,7 +3778,7 @@ var MessageView = class {
           ><time datetime=${model.timestamp}>${model.age}</time>${model.unread ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>` : nothing}
           ${receipt}
           ${model.leaves ? html`<span class="lf-msg-leaves">${model.leaves}</span>` : nothing}
-          ${model.failure ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>` : nothing}
+          ${model.failure ? html`<span class="lf-msg-failure">${NOT_ANSWERED}</span>` : nothing}
           ${model.body.kind === "suggestion" ? html`<span class="lf-suggest-label">Suggestion</span>` : nothing}
           ${model.edited ? html`<span class="lf-edited" title=${model.edited}>edited</span>` : nothing}
           ${this.#kept ? html`<span

@@ -1926,7 +1926,7 @@ def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, s
     for key in ["Enter", "ArrowRight", "Enter"]:
         page.keyboard.press(key)
     holding(page, refused, 2, "the move the rollout would not take")
-    expect_panel_says(page, "isn't ready yet")
+    expect_panel_says(page, "Not through yet")
     # The same gesture throughout: a refusal that admits nothing cannot mint a second.
     assert len(set(refused)) == 1
 

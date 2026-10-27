@@ -78,15 +78,16 @@ const after = (head, words, step = false) =>
       ? `${head} · ${words}`
       : `${head}${head.endsWith(".") ? "" : "."} ${words}`;
 
-// Status sentences for an unreachable server or a state the page cannot apply.
+// Status sentences for an unreachable server or a state the page cannot apply, in the
+// agent's voice like every other (glossary.md, "Reader-facing words").
 const OFFLINE_LINE =
-  "Server offline — reconnecting. Keep this page open so pending changes can send.";
+  "Lost the connection — reconnecting. Keep this page open so changes made here go through.";
 // A refused key leaves the page as cut off as a dead server, but the server is up and
 // only the user can end it. Opening the link in another tab sets the key this tab's
 // next request carries, so its pending changes send without a reload.
 const KEY_REFUSED_LINE =
-  "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.";
-const BROKEN_LINE = "Page couldn't apply current state — reload";
+  "This tab lost access. Open the page's link again in a new tab, and keep this one open so changes made here go through.";
+const BROKEN_LINE = "Couldn't show the latest — reload";
 // A published page states what it is, whose copy the visitor reads, and where to
 // install Leaf; the status line beside it says who revises the copy.
 const publicationWords = (published) => [
@@ -133,7 +134,6 @@ const appendWords = (parts, words, step = false) => {
 // that asks sets.
 function statusWords({
   age,
-  agent,
   dated,
   detail,
   detailSource,
@@ -145,17 +145,20 @@ function statusWords({
   waits,
   work,
 }) {
-  if (kind === "closed") return ["Page closed", "Page closed", ""];
+  if (kind === "closed") return ["Done with this page", "Done with this page.", ""];
   if (kind === "unheld") {
-    const meanwhile = `${saved} It picks up again when a session does.`;
-    return ["No session", `No session holds this page. ${meanwhile}`, meanwhile];
+    const meanwhile = `${saved} They're picked up next time.`;
+    return [
+      "Not on this page right now",
+      `Not on this page right now. ${meanwhile}`,
+      meanwhile,
+    ];
   }
-  // While it works the agent speaks, under its name as a chat line is: its own
-  // sentence is the reason to look at the row, so the row keeps it and the ellipsis
-  // fits it to the room the controls leave. A sentence just renewed needs no date; an
-  // older one is dated ahead of the sentence, because the sentence is what the ellipsis
-  // eats first and a stale sentence with its date cut off is the one reading this row
-  // must not give.
+  // While it works, its own sentence is the reason to look at the row, so the row keeps
+  // it and the ellipsis fits it to the room the controls leave. A sentence just renewed
+  // needs no date; an older one is dated ahead of the sentence, because the sentence is
+  // what the ellipsis eats first and a stale sentence with its date cut off is the one
+  // reading this row must not give.
   //
   // Until the agent writes that sentence, what Leaf knows is which of the user's
   // updates were delivered into its open turn, so the agent acknowledges them ("Got your
@@ -170,11 +173,7 @@ function statusWords({
       : detail
         ? sentence
         : [delivered ? `Got ${delivered}` : work];
-    return [
-      [`${agent}${age && age !== JUST_NOW ? " · " + age : ""}: `, ...said],
-      [`${agent}: `, ...said],
-      "",
-    ];
+    return [[...(age && age !== JUST_NOW ? [`${age} · `] : []), ...said], said, ""];
   }
   // The stock words say where a comment starts; they report and ask nothing. An
   // update still on its way says so on its own label and in the explanation's count,
@@ -201,15 +200,15 @@ function statusWords({
   // can reach once it has seen the turn end.
   return overdue
     ? [
-        `Nudge ${agent} in the terminal`,
-        `${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
+        "Not answering — nudge the terminal",
+        `${dated}. ${saved} Nothing is answering them, so nudge the terminal.`,
         `${dated}. ${saved} Nothing is answering them.`,
         true,
       ]
     : [
-        `${agent} away`,
-        `${agent} isn't watching right now. ${saved} It picks them up next turn.`,
-        `${saved} It picks them up next turn.`,
+        "Away",
+        `Away right now. ${saved} They're picked up next turn.`,
+        `${saved} They're picked up next turn.`,
       ];
 }
 
@@ -242,9 +241,9 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
     return {
       kind: "refused",
       tone: "blocked",
-      summary: "Key refused — open Leaf's link in a new tab",
+      summary: "This tab lost access — open the link again",
       explanation: KEY_REFUSED_LINE,
-      adds: "Keep this tab open so pending changes can send.",
+      adds: "Keep this tab open so changes made here go through.",
       asks: true,
     };
   // A server answering with an error of its own is up and failing, which nothing the
@@ -255,9 +254,9 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
     return {
       kind: "faulted",
       tone: "blocked",
-      summary: "Server error — retrying",
-      explanation: `The server answered with an error: ${said}. Retrying.`,
-      adds: `It answered: ${said}. Retrying.`,
+      summary: "Hit a problem — trying again",
+      explanation: `Hit a problem: ${said}. Trying again.`,
+      adds: `${said}. Trying again.`,
     };
   }
   // An unreachable server is reported, not asked about: the page retries on its own, the
@@ -268,11 +267,11 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
     return {
       kind: "unreachable",
       tone: "blocked",
-      summary: "Server offline — reconnecting",
+      summary: "Lost the connection — reconnecting",
       explanation: OFFLINE_LINE,
       adds: "",
     };
-  const { activity, agent, publication = null } = state;
+  const { activity, publication = null } = state;
   // On Leaf's website any comment starts the agent (`leaf_website`), so whenever it
   // isn't working it listens: no session holds a copy until its first comment, and one
   // that has gone quiet since starts again at the next. Its work reads as on any page,
@@ -286,13 +285,12 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
   // end; the only thing attendance changes is when they are read.
   const saved = "Updates are saved.";
   const checkedIn = facts.silentSince
-    ? `${agent} last checked in ${facts.silentSince}`
-    : `${agent} hasn't checked in`;
-  const ended = `${agent}’s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
+    ? `Last checked in ${facts.silentSince}`
+    : "Haven't checked in yet";
+  const ended = `Stopped${facts.silentSince ? " " + facts.silentSince : ""}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
   const [summaryWords, explanationWords, beyond, asked = false] = statusWords({
     age,
-    agent,
     dated: facts.left ? ended : checkedIn,
     detail,
     detailSource: activity.detail_source,
@@ -301,8 +299,8 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       answers: activity.counts.handling - activity.counts.handling_comments,
     },
     invite: publication
-      ? `${agent}: Ready — comment to revise this copy`
-      : `${agent}: Ready — select text to comment`,
+      ? "Ready — comment to revise this copy"
+      : "Ready — select text to comment",
     kind,
     overdue: activity.counts.overdue,
     saved,
@@ -432,13 +430,13 @@ export function leafRow(entry) {
   // three pages waiting rendered as three identical rows said least about the one row
   // they are here to act on.
   const stated = (word) => word + (detail ? " — " + detail : "");
-  // The status's two silences in the status's own words, less the agent's name.
+  // The status's two silences in the status's own words.
   const since = facts.silentSince ? ` ${facts.silentSince}` : "";
   const silence = facts.left
-    ? `Turn ended${since}`
+    ? `Stopped${since}`
     : since
       ? `Last checked in${since}`
-      : "No check-in";
+      : "Haven't checked in yet";
   const primary =
     kind === "working"
       ? detail || facts.work
@@ -451,8 +449,8 @@ export function leafRow(entry) {
               ? silence
               : "Away"
             : kind === "unheld"
-              ? "No session"
-              : "Closed";
+              ? "Not on this page right now"
+              : "Done with this page";
   const line = facts.waiting.length
     ? `${primary} · ${facts.waiting.join(" · ")}`
     : primary;

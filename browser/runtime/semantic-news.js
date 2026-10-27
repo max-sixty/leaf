@@ -174,11 +174,11 @@ export function combineSemanticNews(older, newer) {
 const plural = (count, singular, pluralForm = `${singular}s`) =>
   `${count} ${count === 1 ? singular : pluralForm}`;
 
-// One clause per fact, joined by the middle dot the panel's line joins every fact with.
-// A single new message speaks for itself: its opening words under the agent's name, as
-// a chat line reads ("Claude: I changed the route."), with whatever it asks of the user,
-// since the question and the message are one piece of news. What else is new on the
-// user's list is counted by the list's name.
+// One clause per fact, joined by the middle dot the panel's line joins every fact with,
+// all in the agent's voice. A single new message speaks for itself, its opening words
+// ("I changed the route."), with whatever it asks of the user, since the question and
+// the message are one piece of news. What else is new on the user's list is counted by
+// the list's name.
 const MESSAGE_WORDS = 60;
 export function semanticNewsNotice(news) {
   if (!news.length) return "";
@@ -192,11 +192,14 @@ export function semanticNewsNotice(news) {
     const { message } = content[0];
     obligations = obligations.filter((item) => item.message !== message.id);
     const words = excerptWords(message.text, MESSAGE_WORDS);
-    const speaker = message.edited ? `${message.agent} (edited)` : message.agent;
     clauses.push(
       words
-        ? `${speaker}: ${words}`
-        : `${message.agent} ${message.kind === "reply" ? "replied" : "commented"}`,
+        ? message.edited
+          ? `Edited: ${words}`
+          : words
+        : message.kind === "reply"
+          ? "Replied"
+          : "Commented",
     );
   } else if (content.length) {
     const replies = content.filter(({ message }) => message.kind === "reply");
@@ -207,15 +210,16 @@ export function semanticNewsNotice(news) {
         : `${plural(content.length, "agent message")} in ${plural(threads, "thread")}`,
     );
   }
-  for (const condition of ["failed", "interrupted"]) {
-    const count = failures.filter((item) => item.condition === condition).length;
-    if (count)
-      clauses.push(
-        count === 1
-          ? `Response ${condition}`
-          : `${plural(count, "response")} ${condition}`,
-      );
-  }
+  const failed = failures.filter((item) => item.condition === "failed").length;
+  const interrupted = failures.filter(
+    (item) => item.condition === "interrupted",
+  ).length;
+  if (failed)
+    clauses.push(failed === 1 ? "Couldn't answer" : `Couldn't answer ${failed}`);
+  if (interrupted)
+    clauses.push(
+      interrupted === 1 ? "Interrupted mid-answer" : `Interrupted on ${interrupted}`,
+    );
   if (obligations.length)
     clauses.push(
       obligations.length === 1 ? "New on me" : `${obligations.length} new on me`,

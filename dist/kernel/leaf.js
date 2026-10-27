@@ -4045,9 +4045,9 @@ function activityFacts({ activity }) {
 	});
 }
 const after = (head, words, step = false) => !head ? words : step ? `${head} · ${words}` : `${head}${head.endsWith(".") ? "" : "."} ${words}`;
-const OFFLINE_LINE = "Server offline — reconnecting. Keep this page open so pending changes can send.";
-const KEY_REFUSED_LINE = "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.";
-const BROKEN_LINE = "Page couldn't apply current state — reload";
+const OFFLINE_LINE = "Lost the connection — reconnecting. Keep this page open so changes made here go through.";
+const KEY_REFUSED_LINE = "This tab lost access. Open the page's link again in a new tab, and keep this one open so changes made here go through.";
+const BROKEN_LINE = "Couldn't show the latest — reload";
 const publicationWords = (published) => [`${published.kind === "example" ? "This is an example on the Leaf website" : "This website is a Leaf page"}, and this copy is private to this browser. `, "Install Leaf"];
 function deliveredWords({ comments, answers }) {
 	if (comments + answers === 1) return comments ? "your comment" : "your answer";
@@ -4060,17 +4060,17 @@ const appendWords = (parts, words, step = false) => {
 	const head = textOf(parts);
 	parts.push({ text: after(head, words, step).slice(head.length) });
 };
-function statusWords({ age, agent, dated, detail, detailSource, handling, invite, kind, overdue, saved, waits, work }) {
+function statusWords({ age, dated, detail, detailSource, handling, invite, kind, overdue, saved, waits, work }) {
 	if (kind === "closed") return [
-		"Page closed",
-		"Page closed",
+		"Done with this page",
+		"Done with this page.",
 		""
 	];
 	if (kind === "unheld") {
-		const meanwhile = `${saved} It picks up again when a session does.`;
+		const meanwhile = `${saved} They're picked up next time.`;
 		return [
-			"No session",
-			`No session holds this page. ${meanwhile}`,
+			"Not on this page right now",
+			`Not on this page right now. ${meanwhile}`,
 			meanwhile
 		];
 	}
@@ -4082,8 +4082,8 @@ function statusWords({ age, agent, dated, detail, detailSource, handling, invite
 		}] : [];
 		const said = waits ? [work, ...detail ? [" — ", ...sentence] : []] : detail ? sentence : [delivered ? `Got ${delivered}` : work];
 		return [
-			[`${agent}${age && age !== "just now" ? " · " + age : ""}: `, ...said],
-			[`${agent}: `, ...said],
+			[...age && age !== "just now" ? [`${age} · `] : [], ...said],
+			said,
 			""
 		];
 	}
@@ -4112,14 +4112,14 @@ function statusWords({ age, agent, dated, detail, detailSource, handling, invite
 		] : [], saved]
 	];
 	return overdue ? [
-		`Nudge ${agent} in the terminal`,
-		`${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
+		"Not answering — nudge the terminal",
+		`${dated}. ${saved} Nothing is answering them, so nudge the terminal.`,
 		`${dated}. ${saved} Nothing is answering them.`,
 		true
 	] : [
-		`${agent} away`,
-		`${agent} isn't watching right now. ${saved} It picks them up next turn.`,
-		`${saved} It picks them up next turn.`
+		"Away",
+		`Away right now. ${saved} They're picked up next turn.`,
+		`${saved} They're picked up next turn.`
 	];
 }
 function pageStatus(state, { reach = "reached", fault = null } = {}) {
@@ -4134,9 +4134,9 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	if (reach === "refused") return {
 		kind: "refused",
 		tone: "blocked",
-		summary: "Key refused — open Leaf's link in a new tab",
+		summary: "This tab lost access — open the link again",
 		explanation: KEY_REFUSED_LINE,
-		adds: "Keep this tab open so pending changes can send.",
+		adds: "Keep this tab open so changes made here go through.",
 		asks: true
 	};
 	if (reach === "faulted") {
@@ -4144,30 +4144,29 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		return {
 			kind: "faulted",
 			tone: "blocked",
-			summary: "Server error — retrying",
-			explanation: `The server answered with an error: ${said}. Retrying.`,
-			adds: `It answered: ${said}. Retrying.`
+			summary: "Hit a problem — trying again",
+			explanation: `Hit a problem: ${said}. Trying again.`,
+			adds: `${said}. Trying again.`
 		};
 	}
 	if (reach !== "reached") return {
 		kind: "unreachable",
 		tone: "blocked",
-		summary: "Server offline — reconnecting",
+		summary: "Lost the connection — reconnecting",
 		explanation: OFFLINE_LINE,
 		adds: ""
 	};
-	const { activity, agent, publication = null } = state;
+	const { activity, publication = null } = state;
 	const onCall = Boolean(publication) && activity.kind !== "working";
 	const kind = onCall ? "listening" : activity.kind;
 	const detail = onCall ? "" : activity.detail;
 	const facts = activityFacts(state);
 	const saved = "Updates are saved.";
-	const checkedIn = facts.silentSince ? `${agent} last checked in ${facts.silentSince}` : `${agent} hasn't checked in`;
-	const ended = `${agent}’s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
+	const checkedIn = facts.silentSince ? `Last checked in ${facts.silentSince}` : "Haven't checked in yet";
+	const ended = `Stopped${facts.silentSince ? " " + facts.silentSince : ""}`;
 	const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
 	const [summaryWords, explanationWords, beyond, asked = false] = statusWords({
 		age,
-		agent,
 		dated: facts.left ? ended : checkedIn,
 		detail,
 		detailSource: activity.detail_source,
@@ -4175,7 +4174,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 			comments: activity.counts.handling_comments,
 			answers: activity.counts.handling - activity.counts.handling_comments
 		},
-		invite: publication ? `${agent}: Ready — comment to revise this copy` : `${agent}: Ready — select text to comment`,
+		invite: publication ? "Ready — comment to revise this copy" : "Ready — select text to comment",
 		kind,
 		overdue: activity.counts.overdue,
 		saved,
@@ -4277,8 +4276,8 @@ function leafRow(entry) {
 	const facts = activityFacts(entry);
 	const stated = (word) => word + (detail ? " — " + detail : "");
 	const since = facts.silentSince ? ` ${facts.silentSince}` : "";
-	const silence = facts.left ? `Turn ended${since}` : since ? `Last checked in${since}` : "No check-in";
-	const primary = kind === "working" ? detail || facts.work : kind === "listening" ? "Ready" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "No session" : "Closed";
+	const silence = facts.left ? `Stopped${since}` : since ? `Last checked in${since}` : "Haven't checked in yet";
+	const primary = kind === "working" ? detail || facts.work : kind === "listening" ? "Ready" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "Not on this page right now" : "Done with this page";
 	const line = facts.waiting.length ? `${primary} · ${facts.waiting.join(" · ")}` : primary;
 	return {
 		tone: facts.tone,
@@ -6639,13 +6638,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`${planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on ${agentName()}.</p>`}${groupedItems(groups, (item, group) => onItemCard(item, group.key === "done" ? "done" : "agent"))}`}`;
 	}
 	function workSummary(inHand, queued, done) {
-		const agent = agentName();
 		const work = inHand.map(workOn);
 		const since = work.map((each) => each.since).filter(Boolean).toSorted()[0];
 		const longest = since ? shortAgo(since) : "";
 		const held = inHand.length ? `Working on ${inHand.length}${longest && longest !== "now" ? `, the longest for ${longest}` : ""}` : "";
 		const waiting = queued.length ? `${queued.length} up next` : "";
-		const first = held && waiting ? `${agent}: ${held}; ${waiting}.` : held ? `${agent}: ${held}.` : waiting ? `${agent}: ${waiting}.` : `Nothing is on ${agent}.`;
+		const first = held && waiting ? `${held}; ${waiting}.` : held ? `${held}.` : waiting ? `${waiting[0].toUpperCase()}${waiting.slice(1)}.` : "Nothing to do right now.";
 		const now = work.find((each) => each.line && each.line !== each.word)?.line;
 		const progress = planProgress();
 		const [last] = done;

@@ -698,14 +698,10 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 	const noteFieldScrolls = () => {
 		for (const field of fieldScrolls.keys()) fieldScrolls.set(field, field.scrollTop);
 	};
-	for (const type of [
-		"keydown",
-		"pointerdown",
-		"lf-before-edit"
-	]) root.addEventListener(type, noteFieldScrolls, {
-		capture: true,
-		passive: true
+	onUserInput((event) => {
+		if (event.type !== "input") noteFieldScrolls();
 	});
+	root.addEventListener("lf-before-edit", noteFieldScrolls, { passive: true });
 	function rebase() {
 		const at = boxOf(root.getBoundingClientRect());
 		const edges = held();

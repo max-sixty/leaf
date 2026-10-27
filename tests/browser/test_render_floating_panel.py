@@ -4864,10 +4864,46 @@ BELOW_THE_EDGE = r"""() => {
     opacity: Number(getComputedStyle(mark).opacity),
   };
 }"""
-SEEK_MOTION = (
-    "at => document.getAnimations().forEach(motion => {"
-    " motion.pause(); motion.currentTime = at; })"
-)
+# Held motion: each motion the panel starts is held at its first frame (`HOLD_MOTION`)
+# once the fixture is set up, so a reading of a frame doesn't depend on how fast the
+# page runs.
+SEEK_HELD = "at => __lfHeld.forEach(motion => { motion.currentTime = at; })"
+
+
+def held_motion(page, part=".lf-fp-ground"):
+    """Wait until a held motion moves `part`, as the box's own tween does."""
+    page.wait_for_function(
+        "part => __lfHeld.some(motion => motion.effect?.target?.matches?.(part))",
+        arg=part,
+    )
+
+
+def hold_motion(page):
+    """Hold each motion the page starts from now on at its first frame."""
+    page.evaluate("() => { window.__lfAnimate = Element.prototype.animate;" + HOLD_MOTION + "}")
+
+
+def finish_held(page):
+    """Stop holding, finish what is held and wait for the panel to settle."""
+    page.evaluate(
+        "() => { Element.prototype.animate = window.__lfAnimate;"
+        " __lfHeld.splice(0).filter(motion => motion.playState !== 'idle')"
+        ".forEach(motion => motion.finish()); }"
+    )
+    settled(page)
+
+
+def ink_rows(image):
+    """The rows of `image` holding words, which a line cut off or jumping changes,
+    while antialiasing, which differs between engines, and the caret's thin stroke
+    do not."""
+    width, height = image.size
+    pixels = image.load()
+    return {
+        y
+        for y in range(height)
+        if sum(pixels[x, y] < 110 for x in range(width)) >= 3
+    }
 
 
 def test_the_field_s_words_and_mark_ride_its_top_edge_both_ways(browser, serve):
@@ -4875,19 +4911,13 @@ def test_the_field_s_words_and_mark_ride_its_top_edge_both_ways(browser, serve):
     line added carries them up, and the more-room mark rides that edge's corner, fading
     in with the fourth line and out with it. The words used to jump to their place on
     removal while the edge travelled, and the mark stood still while the rising edge
-    uncovered it. The tween's first frame shows the panel as it stood, so no word is
-    cut off where the field's box no longer reaches."""
+    uncovered it. The tween's first frame shows the field's words where they stood, so
+    no line is cut off where the field's box no longer reaches."""
     from io import BytesIO
 
-    from PIL import Image, ImageChops
+    from PIL import Image
 
-    def picture(card):
-        region = {
-            "x": card["x"] - 8,
-            "y": card["y"] - 40,
-            "width": card["width"] + 16,
-            "height": card["height"] + 48,
-        }
+    def picture(region):
         return Image.open(BytesIO(page.screenshot(clip=region))).convert("L")
 
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
@@ -4901,30 +4931,27 @@ def test_the_field_s_words_and_mark_ride_its_top_edge_both_ways(browser, serve):
     three = page.evaluate(BELOW_THE_EDGE)
     assert three["opacity"] == 0, three
     for key, opacity in (("Shift+Enter", 1), ("Backspace", 0)):
-        card = page.locator(".lf-fp-card").bounding_box()
-        stood = picture(card)
+        hold_motion(page)
+        # The words inside the field's ring as it stood, short of Send.
+        box = page.locator(".lf-fp-field").bounding_box()
+        region = {
+            "x": box["x"] + 3,
+            "y": box["y"] + 3,
+            "width": box["width"] - 40,
+            "height": box["height"] - 6,
+        }
+        stood = picture(region)
         page.keyboard.press(key)
-        page.wait_for_function(
-            "() => document.querySelector('.lf-fp-ground').getAnimations()"
-            ".some(motion => motion.playState === 'running')"
-        )
-        page.evaluate(SEEK_MOTION, 0)
-        moved = ImageChops.difference(stood, picture(card)).point(
-            lambda v: 255 if v > 16 else 0
-        )
-        # The caret blinks, and Linux rasterizes the travelling words a little
-        # differently; a line cut off or jumping ahead moves thousands of pixels.
-        assert moved.histogram()[255] < 300, (key, moved.getbbox())
+        held_motion(page)
+        page.evaluate(SEEK_HELD, 0)
+        assert ink_rows(picture(region)) == ink_rows(stood), key
         for at in (0, 60, 150):
-            page.evaluate(SEEK_MOTION, at)
+            page.evaluate(SEEK_HELD, at)
             drawn = page.evaluate(BELOW_THE_EDGE)
             assert [drawn["words"], drawn["mark"]] == pytest.approx(
                 [three["words"], three["mark"]], abs=1
             ), (key, at, drawn)
-        page.evaluate(SEEK_MOTION, 0)
-        assert page.evaluate(BELOW_THE_EDGE)["opacity"] == 1 - opacity, key
-        page.evaluate("() => document.getAnimations().forEach(motion => motion.play())")
-        settled(page)
+        finish_held(page)
         rest = page.evaluate(BELOW_THE_EDGE)
         assert [rest["words"], rest["mark"]] == pytest.approx(
             [three["words"], three["mark"]], abs=1
@@ -4936,7 +4963,8 @@ def test_lines_removed_below_the_field_s_cap_leave_the_rest_in_place(browser, se
     """A draft past the field's cap scrolls inside it; deleting its last lines until
     the rest fits stops that scroll, and the lines still shown stay where they stood
     on the tween's first frame, then travel down as the lines scrolled away come into
-    view. They used to jump down by the scroll the field gave up."""
+    view, carrying on from where they are drawn when another line goes midway. They
+    used to jump down by the scroll the field gave up."""
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     page.emulate_media(reduced_motion="no-preference")
     field(page).click()
@@ -4946,47 +4974,41 @@ def test_lines_removed_below_the_field_s_cap_leave_the_rest_in_place(browser, se
         lines += 1
         page.keyboard.press("Shift+Enter")
         page.keyboard.type(f"Line {lines}")
-    for _ in range(4):
+    for extra in range(lines + 1, lines + 5):
         page.keyboard.press("Shift+Enter")
-        page.keyboard.type(f"Line {lines + 1 + _}")
+        page.keyboard.type(f"Line {extra}")
     settled(page)
     shown = f"Line {lines - 4}"
     where = """(host, words) => [...window.editorRoots.get(host).querySelectorAll('.cm-line')]
       .find((line) => line.textContent === words).getBoundingClientRect().top"""
     stood = field(page).evaluate(where, shown)
+    hold_motion(page)
     # Back past the line that first made the field scroll, so the rest fits.
     for _ in range(7):
         page.keyboard.press("Shift+ArrowUp")
     page.keyboard.press("Backspace")
-    page.wait_for_function(
-        "() => document.querySelector('.lf-fp-ground').getAnimations()"
-        ".some(motion => motion.playState === 'running')"
-    )
+    held_motion(page)
     assert field(page).evaluate("box => box.scrollHeight <= box.clientHeight")
-    page.evaluate(SEEK_MOTION, 0)
     assert field(page).evaluate(where, shown) == pytest.approx(stood, abs=1)
-    # Another line deleted midway carries on from where the lines are drawn.
-    page.evaluate(SEEK_MOTION, 60)
+    page.evaluate(SEEK_HELD, 60)
     midway = field(page).evaluate(where, shown)
     page.keyboard.press("Shift+ArrowUp")
     page.keyboard.press("Backspace")
+    # The second deletion's tween, held at its start beside the first's, cancelled.
     page.wait_for_function(
-        "() => document.querySelector('.lf-fp-ground').getAnimations()"
-        ".some(motion => motion.playState === 'running')"
+        "() => __lfHeld.some(motion => motion.playState !== 'idle'"
+        " && motion.currentTime === 0 && motion.effect?.target?.matches?.('.lf-fp-ground'))"
     )
-    page.evaluate(SEEK_MOTION, 0)
     assert field(page).evaluate(where, shown) == pytest.approx(midway, abs=1)
-    page.evaluate("() => document.getAnimations().forEach(motion => motion.play())")
-    settled(page)
+    finish_held(page)
     assert field(page).evaluate(where, shown) > stood + 20
 
 
 def test_a_send_s_reply_field_takes_the_row_s_seat_where_it_stands(browser, serve):
     """Sending a page comment of several lines opens its thread above the row, and the
     thread's reply field takes the page field's seat in the row from the tween's first
-    frame. It
-    used to rise from below the window with the box's top edge, so the row showed no
-    field until the tween's last frames."""
+    frame. It used to rise from below the window with the box's top edge, so the row
+    showed no field until the tween's last frames."""
     page = floating(browser, serve(LONG_PAGE))
     page.emulate_media(reduced_motion="no-preference")
     field(page).click()
@@ -4995,18 +5017,14 @@ def test_a_send_s_reply_field_takes_the_row_s_seat_where_it_stands(browser, serv
         page.keyboard.press("Shift+Enter")
         page.keyboard.type(line)
     settled(page)
+    hold_motion(page)
     page.keyboard.press("Enter")
     # The box's tween as the thread's view opens over the row.
-    page.wait_for_function(
-        "() => document.querySelector('.lf-fp-opened')?.getAnimations()"
-        ".some(motion => motion.playState === 'running')"
-    )
-    page.evaluate(SEEK_MOTION, 0)
+    held_motion(page, ".lf-fp-opened")
     reply = page.locator(".lf-fp-reply")
     drawn = "reply => [reply.getBoundingClientRect().top, getComputedStyle(reply).clipPath]"
     first = reply.evaluate(drawn)
-    page.evaluate("() => document.getAnimations().forEach(motion => motion.play())")
-    settled(page)
+    finish_held(page)
     assert first == reply.evaluate(drawn), first
 
 

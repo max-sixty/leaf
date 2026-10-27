@@ -239,8 +239,11 @@ export function boxMotion({
   const noteFieldScrolls = () => {
     for (const field of fieldScrolls.keys()) fieldScrolls.set(field, field.scrollTop);
   };
-  for (const type of ["keydown", "pointerdown", "lf-before-edit"])
-    root.addEventListener(type, noteFieldScrolls, { capture: true, passive: true });
+  // An `input` reports an edit already made, so it is too late.
+  onUserInput((event) => {
+    if (event.type !== "input") noteFieldScrolls();
+  });
+  root.addEventListener("lf-before-edit", noteFieldScrolls, { passive: true });
   function rebase() {
     const at = boxOf(root.getBoundingClientRect());
     const edges = held();

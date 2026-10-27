@@ -13,8 +13,10 @@
  *   the outline, so the outline moves by its cut from where it was drawn to where it
  *   stands. A ring the box or a part of it wears, such as the field's focus ring, is
  *   drawn there too while it moves (`ring`), since no transform draws a box changing
- *   size. A box anchored in the page holds its surface inside itself, so the page's
- *   scroll carries both.
+ *   size. The surface stands behind every part, so the box's face is the only ground
+ *   between it and a ring it draws: a part around the ring's wearer that paints its
+ *   own would cover the ring's band. A box anchored in the page holds its surface
+ *   inside itself, so the page's scroll carries both.
  * - A part that kept its size is carried: drawn where it stood, and moved by a
  *   transform to where it stands.
  * - A part that changed size and holds parts of its own leaves each of them to these

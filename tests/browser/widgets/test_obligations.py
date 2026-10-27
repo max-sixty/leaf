@@ -970,6 +970,18 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
                 has_text=binding,
             )
         ).to_have_count(1)
+    # A covered or clipped face's chip takes the face's place, which the widget chose,
+    # rather than its control's corner, where a field's chip covered its first words.
+    for face, binding in (
+        ("#covered-binding-badge", "6"),
+        ("#clipped-binding-badge", "7"),
+    ):
+        seat = page.locator(face).bounding_box()
+        chip = page.locator(
+            ".lf-command-binding-badges .lf-command-binding-badge", has_text=binding
+        ).bounding_box()
+        assert abs(chip["x"] + chip["width"] / 2 - seat["x"] - seat["width"] / 2) <= 1
+        assert abs(chip["y"] + chip["height"] / 2 - seat["y"] - seat["height"] / 2) <= 1
 
 
 def test_obligation_binding_badges_do_not_cover_their_key_line(browser, serve):
@@ -1412,7 +1424,10 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # promise.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-obligation]')].map(e => {
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
-               ring: getComputedStyle(e).outlineStyle !== 'none' };
+               ring: (() => {
+                 const mark = document.querySelector(`.lf-visual-mark[data-for="${e.id}"]`);
+                 return mark && getComputedStyle(mark, '::after').outlineStyle === 'solid';
+               })() };
     })""")
     assert [m["what"] for m in marks] == ["sug-refill"]
     assert marks[0]["ring"]

@@ -1073,6 +1073,64 @@ def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser,
     expect(thread.locator("leaf-text")).to_be_focused()
 
 
+def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, serve):
+    """A question's frame holds what it asks about, so a press on a control there is the
+    user reading the question. After `m`, a click that flips the shot or drags its divider
+    once moved `c` onto the shot, because it put focus on the shot's own controls, while
+    a press on its Pixels button left `c` on the question, and once the question was
+    answered every press named the shot. The control is the same press on a shot
+    outside any question, where `c` names the shot."""
+    shot = (
+        f'alt="the board before and after" before="{SHOT_SRC["before"]}" '
+        f'after="{SHOT_SRC["after"]}"></lf-shot>'
+    )
+    url = serve(
+        leaf_page(
+            "calls",
+            f"""<h1>Review</h1>
+<section id="calls"><h2>Judgment calls</h2>
+<lf-ask id="count-ask"><h3>Show the card count?</h3>
+<lf-shot id="count-shot" {shot}
+<lf-options id="count" choose>
+  <lf-option id="count-keep">Keep it</lf-option>
+  <lf-option id="count-cut">Remove it</lf-option>
+</lf-options></lf-ask></section>
+<section id="loose"><h2>Loose</h2><lf-shot id="loose-shot" {shot}</section>""",
+        ),
+        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    )
+    page = open_page(browser, url)
+    composer = page.locator(".lf-composer")
+
+    def comment_after_flipping(shot_id):
+        comparison = page.locator(f"#{shot_id} wa-comparison")
+        comparison.scroll_into_view_if_needed()
+        box = comparison.bounding_box()
+        page.mouse.click(box["x"] + box["width"] * 0.3, box["y"] + box["height"] / 2)
+        page.keyboard.press("c")
+        expect(composer).to_be_visible()
+
+    page.keyboard.press("m")
+    expect(page.locator("#count-ask")).to_be_focused()
+    comment_after_flipping("count-shot")
+    expect(composer).to_contain_text("question · Show the card count?")
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+
+    # Answered, the frame still holds what the question is about.
+    option = page.locator("#count-keep")
+    option.click()
+    expect(option).to_have_attribute("chosen", "")
+    comment_after_flipping("count-shot")
+    expect(composer).to_contain_text("question · Show the card count?")
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+
+    comment_after_flipping("loose-shot")
+    expect(composer).to_contain_text("shot")
+    expect(composer).not_to_contain_text("question")
+
+
 def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     browser, serve
 ):

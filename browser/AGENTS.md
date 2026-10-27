@@ -135,8 +135,8 @@ representative desktop viewport.
   handles a send and the refusal that returns the words to their box. The new content
   and its Undo confirm success, so success needs no notice beyond the announcement
   for a listener. A gesture that moves the
-  user, such as resolving a thread, moves them back when it is refused or undone
-  (`thread/folding.js`). A result only the log can supply waits with `aria-busy`, shown
+  user, such as resolving a thread, leaves them at its place again when it is refused
+  or undone (`undo.js` owns where undo leaves the user). A result only the log can supply waits with `aria-busy`, shown
   after a delay so a fast answer shows nothing. Persistent status text is for a
   state the user must return to, such as a failure.
 

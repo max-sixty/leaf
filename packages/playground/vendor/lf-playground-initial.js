@@ -201,8 +201,8 @@
       for (const control of bare)
         for (let box = control.parentElement; box !== preview && box !== host && !bare.has(box) && holdsOnlyBare(box); box = box.parentElement) {
           bare.add(box);
-          box.classList.add("lf-playground-control-box");
         }
+      for (const hidden of [...bare, ...presets]) hidden.hidden = true;
     }
     const inputs = /* @__PURE__ */ new Map(), presetButtons = /* @__PURE__ */ new Map(), regions = [];
     const presetSettings = new Map(

@@ -2,7 +2,7 @@ import { aimLayer, boxMotion, liftReach, mountTargetPaint, paintSet, targetTrace
 import { Z, bindQueuedWork, d, observeQueuedWork, x } from "./runtime/bundle-signals-core.js";
 import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
-import { annotationSheets, chromeSheet, clamp, clippedContents, closeNativeLayer, decisionFor, declareOccluder, declareWindowChrome, dismissPopoversOutside, hostIn, inUi, intersect, landingBand, layoutWindow, marksSheet, nativeLayers, nativeModalAdmits, overlaps, overlapsAcross, presented, registry, scrollGlides, scrolling, seenRect, showNativeLayer, shownBox, shownParts, shownRect, stackLevel, startsAt, tagsDeclaring, underOccluder, union, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes } from "./runtime/bundle-geometry.js";
+import { annotationSheets, chromeSheet, clamp, clippedContents, closeNativeLayer, decisionFor, declareOccluder, declareWindowChrome, dismissPopoversOutside, hostIn, inUi, intersect, landingBand, layoutWindow, marksSheet, nativeLayers, nativeModalAdmits, overlaps, overlapsAcross, presented, registry, scrollGlides, scrolling, seenRect, showNativeLayer, shownBox, shownParts, shownRect, skipped, stackLevel, startsAt, tagsDeclaring, underOccluder, union, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes } from "./runtime/bundle-geometry.js";
 import { COLLAPSE, LitElement, PRESENTATION_DOM, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, bareReaction, carriesObligation, documentChanged, html, isNews, itemNoun, itemOutcome, keyed, live, noChange, nothing, offlineInteractive, readPart, ref, render, repeat, runtime, runtimeResource, sameAnchor, shareUrl, threadCounts, threadKey, threadNames, whenApplicationPresented } from "./runtime/bundle-context.js";
 import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconElement, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, notice, noticeReading, offer, offered, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, spell, spokenBinding, submitBindings, titleOf, watchCommandAvailability, word } from "./runtime/bundle-errors.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
@@ -2940,6 +2940,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 		return visibleTargetParts(element).length > 0;
 	};
 	function firstShown(range, owner, reading) {
+		if (skipped(range.startContainer.parentElement)) return null;
 		const clip = reading.clipOver(owner);
 		if (!clip) return null;
 		return [...range.getClientRects()].map((box) => reading.clearPart(box, clip)).find((part) => reading.exposes(null, part)) ?? null;
@@ -3389,8 +3390,17 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 }
 
 //#endregion
+//#region runtime/obligations/view-elements.js
+const OBLIGATION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
+
+//#endregion
 //#region runtime/composing/current-target.js
-function createCurrentTarget({ isObligationControl, currentLocationIn }) {
+function frameHolding(node) {
+	const framed = readObligations().all.map((item) => obligationPlace(item)).filter(({ source, context }) => source && context && context !== source && under(node, context));
+	const frame = framed.reduce((inner, { context }) => inner && under(inner, context) ? inner : context, null);
+	return framed.some(({ source, context }) => context === frame && under(node, source)) ? null : frame;
+}
+function createCurrentTarget({ currentLocationIn }) {
 	return function currentTarget() {
 		const held = focused();
 		if (!held || held === document.body) return null;
@@ -3398,8 +3408,12 @@ function createCurrentTarget({ isObligationControl, currentLocationIn }) {
 		const place = placeOf(held);
 		if (!place || inChrome(place)) return null;
 		if (place !== held) return aimTargetAt(place);
-		const working = isObligationControl(held) ? currentLocationIn() : null;
-		return aimTargetAt(working ?? held);
+		const working = held.matches(":is(button[data-lf-offer], [data-lf-offer][tabindex])") ? currentLocationIn() : null;
+		if (working) return aimTargetAt(working);
+		const aim = aimTargetAt(held);
+		if (!aim || aim.anchor.datum || aim.anchor.visual || aim.element === held) return aim;
+		const frame = frameHolding(held);
+		return frame ? aimTargetAt(frame) : aim;
 	};
 }
 
@@ -5311,50 +5325,32 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const fromThreads = trail.value.at(-2)?.view === "threads";
 		const at = openThreads().indexOf(thread);
 		const mayLand = retainUserIntent();
-		let mayRestore = () => false;
-		return {
-			optimistic: () => {
-				if (!mayLand() || trail.value.at(-1) !== route) return false;
-				const kept = openThreads();
-				const next = fromThreads ? kept[at] ?? kept[at - 1] : null;
-				if (next) {
-					open({
-						view: "thread",
-						thread: next.key
-					}, {
-						replace: true,
-						focus: false
-					});
-					const view = shownView();
-					if (view) focusDestination(view, "move");
-				} else back();
-				mayRestore = retainUserIntent();
-				return true;
-			},
-			reverse: (may = mayRestore) => {
-				if (!may() || !showing({ view: "threads" })) return;
-				const row = shownView()?.querySelector(`.lf-fp-thread[data-key="${CSS.escape(thread.key)}"]`);
-				if (row) focusDestination(row, "move");
-			}
+		return () => {
+			if (!mayLand() || trail.value.at(-1) !== route) return false;
+			const kept = openThreads();
+			const next = fromThreads ? kept[at] ?? kept[at - 1] : null;
+			if (next) {
+				open({
+					view: "thread",
+					thread: next.key
+				}, {
+					replace: true,
+					focus: false
+				});
+				const view = shownView();
+				if (view) focusDestination(view, "move");
+			} else back();
+			return true;
 		};
 	}
 	function reopenLanding() {
 		const route = trail.value.at(-1);
 		const mayLand = retainUserIntent();
-		let mayRestore = () => false;
-		return {
-			optimistic: () => {
-				const input = fieldInput();
-				if (!mayLand() || trail.value.at(-1) !== route || !input) return false;
-				focusDestination(input, "move");
-				mayRestore = retainUserIntent();
-				return true;
-			},
-			reverse: (may = mayRestore) => {
-				const view = shownView();
-				if (!may() || trail.value.at(-1) !== route || !view) return;
-				focusDestination(view, "return");
-			}
+		return () => {
+			const input = fieldInput();
+			if (!mayLand() || trail.value.at(-1) !== route || !input) return false;
+			focusDestination(input, "move");
+			return true;
 		};
 	}
 	function back() {
@@ -7805,10 +7801,6 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 }
 
 //#endregion
-//#region runtime/obligations/view-elements.js
-const OBLIGATION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
-
-//#endregion
 //#region runtime/obligations/view.js
 function createObligationView({ prepareNavigationStep, arrive, openPageThread, focusForNavigation, presentedControl, announce, repaint }) {
 	const obligationNode = (item) => obligationPlace(item).node;
@@ -8241,6 +8233,7 @@ function createCommandHints({ presentedControl }) {
 		for (const { bindingBadge } of visualRoutes) if (bindingBadge) bindingBadgeClaims.set(bindingBadge, (bindingBadgeClaims.get(bindingBadge) ?? 0) + 1);
 		const lent = /* @__PURE__ */ new Set();
 		const worn = /* @__PURE__ */ new Set();
+		const faceBoxes = /* @__PURE__ */ new Map();
 		for (const { binding, control, bindingBadge } of visualRoutes) {
 			if (!bindingBadge?.isConnected || bindingBadgeClaims.get(bindingBadge) !== 1 || !placement.visibleBounds(control)) continue;
 			if (!wornBindingBadges.has(bindingBadge)) {
@@ -8257,7 +8250,10 @@ function createCommandHints({ presentedControl }) {
 			if (exposed) {
 				restoreStyle(bindingBadge, "opacity");
 				worn.add(bindingBadge);
-			} else bindingBadge.style.opacity = "0";
+			} else {
+				bindingBadge.style.opacity = "0";
+				if (box) faceBoxes.set(bindingBadge, bindingBadge.getBoundingClientRect());
+			}
 		}
 		restoreBindingBadges(lent);
 		const chips = [];
@@ -8265,7 +8261,15 @@ function createCommandHints({ presentedControl }) {
 			if (bindingBadge && worn.has(bindingBadge)) continue;
 			const presented = presentedControl(control) ?? control;
 			if (!presented.checkVisibility()) continue;
-			const box = placement.badgeBox(presented);
+			const face = bindingBadge && faceBoxes.get(bindingBadge);
+			const x = face && (face.left + face.right) / 2;
+			const y = face && (face.top + face.bottom) / 2;
+			const box = face ? {
+				left: x,
+				top: y,
+				right: x,
+				bottom: y
+			} : placement.badgeBox(presented);
 			if (!box) continue;
 			let chip = bindingChips.get(control);
 			if (!chip) {
@@ -10492,10 +10496,7 @@ const queueWalk = createQueueWalk({
 	announce
 });
 const commandHints = createCommandHints({ presentedControl: (control) => app.overlay?.presentedControl(control) ?? control });
-const currentTarget = createCurrentTarget({
-	isObligationControl: (node) => node?.matches?.(OBLIGATION_CONTROL),
-	currentLocationIn: items.currentLocationIn
-});
+const currentTarget = createCurrentTarget({ currentLocationIn: items.currentLocationIn });
 floatingPanel = createFloatingPanel({
 	wireInput: inputs.wireInput,
 	observeFeedback: app.read.observeFeedback,

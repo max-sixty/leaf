@@ -196,6 +196,6 @@
 @media print {
   .lf-margin-projection,
   .lf-margin-marker.lf-margin-entry {
-    display: none !important;
+    display: none;
   }
 }

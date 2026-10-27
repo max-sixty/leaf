@@ -358,7 +358,7 @@
   .lf-vr-queue,
   .lf-vr-inspect,
   .lf-vr-decision {
-    display: none !important;
+    display: none;
   }
   .lf-vr-dashboard,
   .lf-vr-workspace,

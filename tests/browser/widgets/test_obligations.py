@@ -293,8 +293,9 @@ def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
     assert at["obligation"] > 720, at
     assert abs(at["list"] - at["obligation"]) <= 1, at
     assert len(set(at["tops"])) == 1, at
-    # The group's frame takes 2px of its width.
-    assert abs(sum(at["widths"]) - (at["list"] - 2)) <= 2, at
+    # The group's frame takes 2px of its width, and each hairline between cards 1px.
+    hairlines = len(at["widths"]) - 1
+    assert abs(sum(at["widths"]) - (at["list"] - 2 - hairlines)) <= 2, at
 
 
 def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):

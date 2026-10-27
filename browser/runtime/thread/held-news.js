@@ -1,7 +1,7 @@
 /* News a thread surface holds back while it would move what the reader reads.
 
    These holds protect existing reading and active composition
-   (`browser/AGENTS.md`, "Interface principles"). Each surface's rule below
+   (`skills/leaf/references/interface-principles.md`). Each surface's rule below
    determines which surrounding content may move as messages arrive. A held change
    shows when a gesture takes the user to it. A hidden tab ends that reading. Returning reveals its held
    news and its first refreshed reading through the shared reading-continuity owner;

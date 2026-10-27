@@ -22,8 +22,8 @@
  * instead of the message's: each heading and code block in the type, padding and indent
  * the page gives it there, each outermost block's quote and list insets, and the
  * display's gap between two outermost blocks in place of the blank lines that part them
- * in the source, so no word moves as the editor opens (browser/AGENTS.md, "Editing in
- * place"). The cascade answers what those faces are: as the editor builds, and when its
+ * in the source, so no word moves as the editor opens (skills/leaf/references/interface-principles.md,
+ * "Editing in place"). The cascade answers what those faces are: as the editor builds, and when its
  * width changes, an empty copy of that element holding one of each block stands hidden
  * beside the field, where the page's own rules and density reach it, and is read and
  * removed in the same task. The rules it yields go in a sheet of the field's own, which

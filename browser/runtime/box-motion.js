@@ -64,7 +64,7 @@
  * Whose change it is decides what travels. The user's own change, a key, a press or
  * typing, owns what it sets going until that rendering settles, and carries what it
  * moved, so the eye follows it. News, such as an answer arriving, moves nothing the
- * reader reads (browser/AGENTS.md, "Stability"): each part it moved shows where it now
+ * reader reads (skills/leaf/references/interface-principles.md, "Stability"): each part it moved shows where it now
  * stands, revealed by the frame it stands in or growing from its own old box, while
  * the box's outline and ring still follow.
  *
@@ -643,7 +643,7 @@ export function boxMotion({
       // inside itself as far as that box holds them. Where its start moved up or back,
       // as more room re-wrapping a paragraph moves it, the editor is carried whole
       // instead, except while the user types in it, since typing never moves the field
-      // (browser/AGENTS.md, "Stability"): a line the user removed carries the words
+      // (skills/leaf/references/interface-principles.md, "Stability"): a line the user removed carries the words
       // down from above the field's box, which stops cutting them off that far
       // (`--lf-field-reach`, composing/text-field.js) and stops scrolling while they
       // travel, since what it holds now fits.

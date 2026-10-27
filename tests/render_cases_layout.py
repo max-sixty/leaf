@@ -795,7 +795,7 @@ def displaced(before, boxes, news=False):
     A control that is hidden or removed reads None and is left out: it was put away
     rather than moved, which is a thing both sweeps below deliberately allow.
 
-    `news` reads the rule for a change nobody gestured (`browser/AGENTS.md`,
+    `news` reads the rule for a change nobody gestured (`skills/leaf/references/interface-principles.md`,
     "Stability"): a box whose own words changed may grow or shrink into free room, so its
     width is its own, but its place is not, and no other box may move or resize. The
     free room may lie on either side: a box packed against the run to its right grows

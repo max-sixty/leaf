@@ -24,8 +24,8 @@ and candidate before the author's assessment.
 ## Derive
 
 For a recurring sweep, start from a user workflow in the examples.
-`browser/AGENTS.md` holds the UI contracts, render gates, and the
-ownership map. Read the source as part of the audit, including when delegating it.
+`skills/leaf/references/interface-principles.md` holds the UI contracts, and
+`browser/AGENTS.md` the render gates and the ownership map. Read the source as part of the audit, including when delegating it.
 
 Keep a short working model of the interaction: the user's goal; the source, control,
 surface, focus, and retained state involved; and the transitions that create,
@@ -89,7 +89,7 @@ Generate experiments by perturbing the model: nest or replace an interaction, re
 or cancel it, exhaust its available room, or change external state while it remains
 active. Where several modes take turns in one place, switch through each with no
 content in it and compare the place's box with the token that sizes it
-(`browser/AGENTS.md`, "Shared containers determine control dimensions"). Vary one factor at a time across an ownership boundary, exercise both the
+(`skills/leaf/references/interface-principles.md`, "Shared containers determine control dimensions"). Vary one factor at a time across an ownership boundary, exercise both the
 forward and return paths, and include an unrelated change that should preserve the
 active relationship. State what must change and what must survive before driving.
 When a change sends an existing surface into a different layout or fallback, compare
@@ -126,7 +126,7 @@ native-scale details where the full image can't support the judgment. Computed s
 and geometry explain a visual result but don't establish that it looks coherent. Test
 affected paint in both color schemes and in print.
 
-Judge against `browser/AGENTS.md`, "Interface principles". Visual grammar stays a browser
+Judge against `skills/leaf/references/interface-principles.md`. Visual grammar stays a browser
 judgment; automate only the concrete failures it finds.
 
 ## Reconcile

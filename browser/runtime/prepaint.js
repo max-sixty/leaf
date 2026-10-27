@@ -461,7 +461,7 @@
   // `tests/model/test_interact_layer.py` holds that).
   //
   // - `symbol`: a press drawn as one of Leaf's icons, named by its tooltip and
-  //   accessible name (browser/AGENTS.md, "Visual grammar"): quiet at rest, the chip
+  //   accessible name (skills/leaf/references/interface-principles.md, "Visual grammar"): quiet at rest, the chip
   //   under a hovering pointer or visible focus.
   // - `word`: a press that says what it does in words, quiet as a symbol is, a row of
   //   a list or menu included. A toggle is a word whose `aria-pressed` the theme draws

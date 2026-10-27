@@ -2450,15 +2450,14 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * A widget that composes regions out of boxes it generates, such as a playground's
  * controls beside its preview or a visual review's evidence, marks them with the same
  * role and takes these same rules, so no package keeps a copy of them. They are the
- * kernel's rather than the default package's for that reason: a package's rules reach
- * only its own widgets (layer.py, `widget_confinement`), and these reach every
- * package's.
+ * kernel's rather than the default package's for that reason: a package's rules name
+ * its own widgets, and these reach every package's.
  *
  * The grammar (the rows, and which child stands in which) holds over what a widget
  * declares for itself, such as a board's block margin and minimum width when the board
  * is a pane's body, so it stands in the Layouts tier above every package (layouts.css)
- * rather than here: a widget's root rule (`:scope:is(lf-board)`) ties a selector here
- * on specificity and wins on scope proximity. The look (frame, paper, padding, the
+ * rather than here, where a widget's own root rule (`lf-board { … }`) could outrank
+ * it. The look (frame, paper, padding, the
  * header's voice) is a default inside :where(), so a package that draws its generated
  * pane another way, the visual review framing its evidence with the review's own
  * border, does so with one class rather than by outranking the attribute. */

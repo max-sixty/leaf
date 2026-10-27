@@ -305,12 +305,22 @@ def test_reduced_motion_reaches_declared_shadow_stages(
     }
     package = tmp_path / ".leaf"
     package.mkdir()
+    # The sheet reaches both trees and names each widget it styles: by tag in the
+    # document, by its host in the shadow tree.
     (package / "widget-shadow.css").write_text("""
-.pulse { animation: package-pulse 30s linear infinite; }
-.pulse::before { content: 'Activity'; animation: package-pulse 30s linear infinite; }
+lf-motion-light .pulse, :host(lf-motion-shadow) .pulse {
+  animation: package-pulse 30s linear infinite;
+}
+lf-motion-light .pulse::before, :host(lf-motion-shadow) .pulse::before {
+  content: 'Activity'; animation: package-pulse 30s linear infinite;
+}
 @keyframes package-pulse { from { opacity: .25; } to { opacity: 1; } }
-button { transition: background-color 30s linear; background-color: rgb(10, 20, 30); }
-button.chosen { background-color: rgb(40, 50, 60); }
+lf-motion-light button, :host(lf-motion-shadow) button {
+  transition: background-color 30s linear; background-color: rgb(10, 20, 30);
+}
+lf-motion-light button.chosen, :host(lf-motion-shadow) button.chosen {
+  background-color: rgb(40, 50, 60);
+}
 """)
     modules = {}
     for tag, declaration in registry.items():

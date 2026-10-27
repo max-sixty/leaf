@@ -1,6 +1,8 @@
 """What a new version or an arriving edit leaves of each open editor: its words, caret,
 focus and session, and the revision a draft aims at."""
 
+import os
+
 import pytest
 from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
@@ -38,6 +40,7 @@ from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import revisioning as revisioning_model
 from leaf import vendoring as vendoring_model
+from leaf.registry.storage import layer_packages
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -351,9 +354,14 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
         words = "Half a thought the reload must not take"
         write(editor, words)
         birth = page.evaluate("performance.timeOrigin")
-        theme = page_dir / "theme.css"
-        theme.write_text(theme.read_text() + "\n/* a newer layer */\n")
-        vendoring_model.cmd_init(page_dir)
+        # A newer layer: the page selects one more package.
+        newer = page_dir.parent / "newer-layer"
+        newer.mkdir()
+        (newer / "theme.css").write_text("/* a newer layer */\n")
+        vendoring_model.cmd_init(
+            page_dir,
+            (*layer_packages(page_dir), "./" + os.path.relpath(newer)),
+        )
         revised = revisioning_model.activate_source(page_dir)
         assert revised.error is None
         with restarting(page):

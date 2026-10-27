@@ -70,6 +70,7 @@ from leaf import schema as schema_model
 from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
+from leaf.registry.storage import layer_packages, layer_record, selected
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
@@ -304,16 +305,13 @@ def opened(page, url):
     navigate(page, url, wait_until="load")
 
 
-def test_product_pages_vendor_the_composed_theme(site, monkeypatch):
+def test_product_pages_select_the_sources_packages(site):
     """Publication and local previews compose the product source's same layer."""
-    monkeypatch.chdir(ROOT)
     for page in pages_under(DOCS):
-        inputs = layer_model.layer_inputs(tuple(source_packages(page)))
-        expected_theme = layer_model.composed_sheets(inputs)["theme.css"]
         target = site_build.product_page(site, page.name)
         source_markup = page.read_text()
         assert 'href="/theme.css"' not in source_markup, page.name
-        assert (target / "theme.css").read_bytes() == expected_theme, page.name
+        assert layer_packages(target) == source_packages(page), page.name
 
 
 @pytest.mark.parametrize("name", ["index", "event-log", "how-it-works"])
@@ -329,13 +327,15 @@ def test_published_product_page_renders(site, browser, name):
     assert failures == [], "\n".join(map(str, failures))
 
 
-def test_published_examples_keep_the_site_theme_out_of_their_layer(site):
+def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeypatch):
     """A website example uses the authored example's layout layer."""
+    monkeypatch.chdir(ROOT)  # resolve project-relative package selections
     package = DOCS / "package"
     context_theme = layer_model.stylesheet(package / "theme.css", package).rstrip()
     for source in site_build.published_page_sources():
-        theme = site / "examples" / source.stem / "theme.css"
-        assert context_theme not in theme.read_text(), source
+        record = layer_record(site / "examples" / source.stem)
+        theme = selected(record).top_files["theme.css"].decode()
+        assert context_theme not in theme, source
 
 
 def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
@@ -362,21 +362,19 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
 
 
 def test_product_pages_are_published_as_complete_page_records(site):
-    """Each page retains its layer, history, and every captured media input."""
+    """Each page retains its layer selection, history, and every captured media
+    input."""
     sources = pages_under(DOCS)
     for source in sources:
         page = site_build.product_page(site, source.name)
         expected = authored_markup(source)
         assert (page / "index.html").read_text() == expected, source.name
-        for name in (
-            *schema_model.VENDORED_FILES,
-            "events.jsonl",
-        ):
+        for name in (schema_model.LAYER_FILE, "events.jsonl"):
             assert (page / name).is_file(), f"{source.name}: no {name}"
-        # The runtime is the serving Leaf's, which the release publishes beside each
-        # revision rather than the page vendoring it (`runtime_selection`).
-        for name in ("instructions", "revisions", "vendor", "widgets"):
-            assert list((page / name).iterdir()), f"{source.name}: {name}/ is empty"
+        # The layer and runtime are the serving Leaf's, which the release publishes
+        # beside each revision rather than the page holding them
+        # (`runtime_selection`).
+        assert list((page / "revisions").iterdir()), f"{source.name}: no revisions"
         artifact = read_artifact(page, files_model.latest_revision(page))
         for path, resource in artifact.resources.items():
             if path.startswith("/media/"):
@@ -607,16 +605,12 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
             stored = data_model.source_file(page_dir, operation["source"])
             assert json.loads(stored.read_text())["value"] == operation["value"]
 
-        for name in (
-            "events.jsonl",
-            "icon.svg",
-            "registry.json",
-            "theme.css",
-        ):
+        for name in ("events.jsonl", schema_model.LAYER_FILE):
             assert (page_dir / name).is_file(), f"{source.name}: no {name}"
-        # The runtime is the serving Leaf's, which the release publishes beside each
-        # revision rather than the page vendoring it (`runtime_selection`).
-        for sub in ("instructions", "media", "revisions", "vendor", "widgets"):
+        # The layer and runtime are the serving Leaf's, which the release publishes
+        # beside each revision rather than the page holding them
+        # (`runtime_selection`).
+        for sub in ("media", "revisions"):
             assert list((page_dir / sub).iterdir()), f"{source.name}: {sub}/ is empty"
         assert declared(page_dir)["state"] == "idle"
         assert not (page_dir / "service.json").exists()

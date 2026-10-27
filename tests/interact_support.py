@@ -73,7 +73,7 @@ from leaf.findings import Finding
 from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
-from leaf.registry.storage import load_registry
+from leaf.registry.storage import read_page_registry
 from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
 from leaf.validation import composition as composition_model
@@ -527,7 +527,7 @@ def declare_on_page(page_dir: Path, mutate) -> None:
 
     before = {
         key: value
-        for key, value in load_registry(page_dir).items()
+        for key, value in read_page_registry(page_dir).registry.items()
         if key != "$layer"
     }
     after = deepcopy(before)
@@ -676,8 +676,9 @@ def command_findings(*args) -> list[Finding]:
 
 
 def read_page_data(page_dir) -> dict:
-    """Every source the page records, judged against the page's own layer."""
-    return data_model.read_data(page_dir, load_registry(page_dir))
+    """Every source the page records, judged against its vocabulary: the layer with
+    the page's own declarations over it."""
+    return data_model.read_data(page_dir, read_page_registry(page_dir).registry)
 
 
 def declare_data_input(

@@ -1,16 +1,18 @@
-"""Disposable pages built from an authored template and its captured layer.
+"""Disposable pages built from an authored template and its parent revision.
 
 A sample owns an ordinary source, revision, data store, and event log. Its parent
 supplies immutable resources and optional selected thread history, never a live
 state projection. Each unguessable child path is a capability for that child's
 ordinary document, captured dependencies, and APIs. It grants no parent routes.
-Browser gestures enter the ordinary page event door. Each page owns its child
-capabilities; releasing one drops its whole subtree. Admitted requests retain their
-samples until delivery ends, and the last reference cleans each temporary directory.
-Nothing reads one after a crash, so revisions are staged without fsync
-(`revision_artifact.Disposable`).
+The child selects the layer its parent's revision names, which this Leaf composes
+for it as for any page. Browser gestures enter the ordinary page event door. Each
+page owns its child capabilities; releasing one drops its whole subtree. Admitted
+requests retain their samples until delivery ends, and the last reference cleans each
+temporary directory. Nothing reads one after a crash, so revisions are staged without
+fsync (`revision_artifact.Disposable`).
 """
 
+import json
 import secrets
 import shutil
 import weakref
@@ -22,9 +24,12 @@ from threading import Lock
 from .data import write_data
 from .event_log import start_log
 from .page_memory import PageMemory, memory_of
+from .registry.kernel import kernel_protocol
+from .registry.storage import LAYER
 from .revision_artifact import Disposable, RevisionArtifact
 from .revisioning import activate_source
 from .sample_content import initial_sample_events
+from .schema import LAYER_FILE
 from .structure import SourceDocument
 from .thread_context import thread_structure
 
@@ -125,6 +130,13 @@ class Samples:
                     }
                     for name, reading in data["sources"].items()
                     if "value" in reading
+                },
+            )
+            LAYER.write(
+                child / LAYER_FILE,
+                {
+                    **json.loads(artifact.manifest)["layer"],
+                    "protocol": kernel_protocol(),
                 },
             )
             (child / "index.html").write_bytes(source)

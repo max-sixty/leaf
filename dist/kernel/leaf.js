@@ -3999,13 +3999,13 @@ const TONE = {
 	closed: ""
 };
 const WORK_WORDS = {
-	working: "working",
-	thinking: "thinking",
-	tool: "using a tool",
-	awaiting_approval: "waiting for approval",
-	awaiting_input: "waiting for input",
-	awaiting_user: "waiting for me",
-	replying: "replying"
+	working: "Working on it",
+	thinking: "Thinking",
+	tool: "Using a tool",
+	awaiting_approval: "Need your approval",
+	awaiting_input: "Need your input",
+	awaiting_user: "Have a question for you",
+	replying: "Writing a reply"
 };
 const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
 const COUNT_PHRASES = {
@@ -4020,7 +4020,7 @@ function activityFacts({ activity }) {
 	const { counts } = activity;
 	return Object.freeze({
 		tone: TONE[activity.kind],
-		work: (activity.observed_kind ? WORK_WORDS[activity.observed_kind] : "working") + (activity.awaiting ? " in the terminal" : ""),
+		work: WORK_WORDS[activity.observed_kind ?? "working"] + (activity.awaiting ? " in the terminal" : ""),
 		left: Boolean(activity.dropped),
 		silentSince: ago(activity.ts),
 		waiting: Object.freeze(phrased(counts, ["queued", "pending"])),
@@ -4037,7 +4037,7 @@ const KEY_REFUSED_LINE = "The server no longer accepts this tab's key. Open the 
 const BROKEN_LINE = "Page couldn't apply current state — reload";
 const publicationWords = (published) => [`${published.kind === "example" ? "This is an example on the Leaf website" : "This website is a Leaf page"}, and this copy is private to this browser. `, "Install Leaf"];
 function deliveredWords({ comments, answers }) {
-	if (comments + answers === 1) return comments ? "the comment" : "the answer";
+	if (comments + answers === 1) return comments ? "your comment" : "your answer";
 	const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
 	return [comments && counted(comments, "comment"), answers && counted(answers, "answer")].filter(Boolean).join(" and ");
 }
@@ -4047,7 +4047,7 @@ const appendWords = (parts, words, step = false) => {
 	const head = textOf(parts);
 	parts.push({ text: after(head, words, step).slice(head.length) });
 };
-function statusWords({ age, agent, dated, detail, detailSource, handling, invite, kind, overdue, saved, work }) {
+function statusWords({ age, agent, dated, detail, detailSource, handling, invite, kind, overdue, saved, waits, work }) {
 	if (kind === "closed") return [
 		"Page closed",
 		"Page closed",
@@ -4063,14 +4063,15 @@ function statusWords({ age, agent, dated, detail, detailSource, handling, invite
 	}
 	if (kind === "working") {
 		const delivered = deliveredWords(handling);
-		const said = detail ? [" — ", {
+		const sentence = detail ? [{
 			text: detail,
 			source: detailSource
-		}] : delivered ? [" — has " + delivered] : [];
+		}] : [];
+		const said = waits ? [work, ...detail ? [" — ", ...sentence] : []] : detail ? sentence : [delivered ? `Got ${delivered}` : work];
 		return [
-			[`${agent} ${work}${age && age !== "just now" ? " · " + age : ""}`, ...said],
-			detail || !delivered ? [`${agent} is ${work}`, ...said] : `${agent} has ${delivered} and hasn't said what it's doing yet`,
-			detail || !delivered ? "" : "It hasn't said what it's doing yet."
+			[`${agent}${age && age !== "just now" ? " · " + age : ""}: `, ...said],
+			[`${agent}: `, ...said],
+			""
 		];
 	}
 	if (kind === "listening") return [
@@ -4161,10 +4162,11 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 			comments: activity.counts.handling_comments,
 			answers: activity.counts.handling - activity.counts.handling_comments
 		},
-		invite: publication ? `${agent} awaits — comment to revise this copy` : `${agent} awaits — select text to comment`,
+		invite: publication ? `${agent}: Ready — comment to revise this copy` : `${agent}: Ready — select text to comment`,
 		kind,
 		overdue: activity.counts.overdue,
 		saved,
+		waits: Boolean(activity.awaiting),
 		work: facts.work
 	});
 	const summaryParts = textParts(summaryWords);
@@ -4263,8 +4265,7 @@ function leafRow(entry) {
 	const stated = (word) => word + (detail ? " — " + detail : "");
 	const since = facts.silentSince ? ` ${facts.silentSince}` : "";
 	const silence = facts.left ? `Turn ended${since}` : since ? `Last checked in${since}` : "No check-in";
-	const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
-	const primary = kind === "working" ? stated(work) : kind === "listening" ? "Awaits" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "No session" : "Closed";
+	const primary = kind === "working" ? detail || facts.work : kind === "listening" ? "Ready" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "No session" : "Closed";
 	const line = facts.waiting.length ? `${primary} · ${facts.waiting.join(" · ")}` : primary;
 	return {
 		tone: facts.tone,
@@ -6612,7 +6613,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			},
 			{
 				key: "queued",
-				title: "Queued",
+				title: "Up next",
 				items: queued
 			},
 			{
@@ -6629,9 +6630,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const work = inHand.map(workOn);
 		const since = work.map((each) => each.since).filter(Boolean).toSorted()[0];
 		const longest = since ? shortAgo(since) : "";
-		const held = inHand.length ? `${agent} has ${inHand.length} in hand${longest && longest !== "now" ? `, the longest for ${longest}` : ""}` : "";
-		const waiting = queued.length ? `${queued.length} queued` : "";
-		const first = held && waiting ? `${held}, and ${waiting}.` : held ? `${held}.` : waiting ? `${agent} has ${waiting}.` : `Nothing is on ${agent}.`;
+		const held = inHand.length ? `Working on ${inHand.length}${longest && longest !== "now" ? `, the longest for ${longest}` : ""}` : "";
+		const waiting = queued.length ? `${queued.length} up next` : "";
+		const first = held && waiting ? `${agent}: ${held}; ${waiting}.` : held ? `${agent}: ${held}.` : waiting ? `${agent}: ${waiting}.` : `Nothing is on ${agent}.`;
 		const now = work.find((each) => each.line && each.line !== each.word)?.line;
 		const progress = planProgress();
 		const [last] = done;

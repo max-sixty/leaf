@@ -1016,7 +1016,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     with sending(page, "the card move"):
         page.keyboard.press("Enter")
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
-    expect(receipt).to_have_text("Sent")
+    expect(receipt).to_have_text("Saved")
     status = thread_row(page, root).locator(".lf-fp-value")
     expect(status).to_have_text("")
     card = open_panel_thread(page, root)
@@ -1109,11 +1109,11 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     # `needs_user` for recovery: the margin and panel name the action owed.
     margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
     expect(margin).to_have_attribute("data-lf-turn", "user")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("My turn to resend")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
 
     # Threads names the action owed on the thread's row, whole.
     status = thread_row(page, unanswered["id"]).locator(".lf-fp-value")
-    expect(status).to_have_text("My turn to resend")
+    expect(status).to_have_text("Send it again")
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the row clips its failure status"
     )
@@ -1134,7 +1134,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("My turn to resend")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
 
     # The failed answer remains distinct from the muted clock without a chip face.
     head = page.evaluate(

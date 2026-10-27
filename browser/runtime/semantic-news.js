@@ -16,6 +16,7 @@
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it. */
 import { moved } from "./thread/model.js";
+import { excerptWords } from "./words.js";
 
 const identity = (record) => record.attempt ?? record.id;
 
@@ -174,9 +175,11 @@ const plural = (count, singular, pluralForm = `${singular}s`) =>
   `${count} ${count === 1 ? singular : pluralForm}`;
 
 // One clause per fact, joined by the middle dot the panel's line joins every fact with.
-// A single new message that holds something the user owes says so in its verb
-// ("Claude asked"), since the question and the message are one piece of news; what
-// else is new on the user's list is counted by the list's name.
+// A single new message speaks for itself: its opening words under the agent's name, as
+// a chat line reads ("Claude: I changed the route."), with whatever it asks of the user,
+// since the question and the message are one piece of news. What else is new on the
+// user's list is counted by the list's name.
+const MESSAGE_WORDS = 60;
 export function semanticNewsNotice(news) {
   if (!news.length) return "";
   const byKind = (kind) => news.filter((item) => item.kind === kind);
@@ -187,17 +190,13 @@ export function semanticNewsNotice(news) {
 
   if (content.length === 1) {
     const { message } = content[0];
-    const { agent } = message;
-    const verb = message.kind === "reply" ? "reply" : "comment";
-    const asks =
-      !message.edited && obligations.some((item) => item.message === message.id);
-    if (asks) obligations = obligations.filter((item) => item.message !== message.id);
+    obligations = obligations.filter((item) => item.message !== message.id);
+    const words = excerptWords(message.text, MESSAGE_WORDS);
+    const speaker = message.edited ? `${message.agent} (edited)` : message.agent;
     clauses.push(
-      message.edited
-        ? `${agent} edited a ${verb}`
-        : asks
-          ? `${agent} asked`
-          : `${agent} ${verb === "reply" ? "replied" : "commented"}`,
+      words
+        ? `${speaker}: ${words}`
+        : `${message.agent} ${message.kind === "reply" ? "replied" : "commented"}`,
     );
   } else if (content.length) {
     const replies = content.filter(({ message }) => message.kind === "reply");

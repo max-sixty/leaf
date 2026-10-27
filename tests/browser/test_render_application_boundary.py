@@ -1472,9 +1472,7 @@ def test_compact_reader_draws_the_native_interactive_message(browser, serve, sur
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     if surface == "margin":
-        page.get_by_role(
-            "button", name=re.compile("Thread, My turn to answer")
-        ).first.click()
+        page.get_by_role("button", name=re.compile("Thread, Your turn")).first.click()
         compact = page.locator(".lf-margin-thread")
     else:
         compact = page.locator('#jobs .lf-page-thread[data-thread="native-thread"]')

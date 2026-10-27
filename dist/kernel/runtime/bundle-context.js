@@ -813,7 +813,7 @@ const OUTCOMES = Object.freeze({
 	failed: "Failed",
 	dropped: "Dropped"
 });
-const itemOutcome = (item) => item.kind === "update" ? "Sent" : OUTCOMES[item.state] ?? item.state;
+const itemOutcome = (item) => item.kind === "update" ? "Answered" : OUTCOMES[item.state] ?? item.state;
 
 //#endregion
 //#region runtime/framework/application.js

@@ -3312,11 +3312,11 @@ var MessageEditor = class {
 //#endregion
 //#region runtime/thread/workflow.js
 const STAGE_LABELS = Object.freeze({
-	sending: "Sending",
-	sent: "Sent",
-	queued: "Queued",
-	picked_up: "Delivered",
-	working: "Working",
+	sending: "Saving…",
+	sent: "Saved",
+	queued: "Up next",
+	picked_up: "Got it",
+	working: "On it",
 	replying: "Replying",
 	answered: "Answered"
 });
@@ -3349,18 +3349,18 @@ function strongestWorkflow(workflows) {
 	for (const candidate of workflows) if (strongest === null || tier(candidate) < tier(strongest)) strongest = candidate;
 	return strongest;
 }
-const todoLabel = (running) => running ? "Working" : "To-do open";
+const todoLabel = (running) => running ? "On it" : "To-do open";
 function threadAttention(thread) {
 	if (thread.resolved) return null;
 	const workflow = thread.attention?.workflow ? thread.workflows.find((candidate) => candidate.id === thread.attention.workflow) ?? null : null;
 	if (thread.attention?.kind === "needs_user") {
 		const answering = thread.attention.reason === "obligation";
-		const nextMove = answering ? "answer" : workflow?.subject.kind === "thread" ? "resend" : "retry";
+		const nextMove = answering ? "Your turn" : workflow?.subject.kind === "thread" ? "Send it again" : "Try it again";
 		const owed = new Set((thread.obligations ?? []).filter((item) => item.source.kind === "update" && item.next_actor === "agent").map((item) => item.id));
 		const secondary = strongestWorkflow(thread.workflows.filter((candidate) => owed.has(candidate.obligation) && candidate.id !== workflow?.id));
 		return Object.freeze({
 			kind: "needs_user",
-			label: `My turn to ${nextMove}`,
+			label: nextMove,
 			workflow,
 			secondary: [answering ? "" : workflowLabel(workflow), workflowLabel(secondary)].filter(Boolean).join(" · ")
 		});

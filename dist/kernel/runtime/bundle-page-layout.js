@@ -4455,6 +4455,7 @@ function combineSemanticNews(older, newer) {
 	return [...new Map([...older, ...newer].map((item) => [item.key, item])).values()];
 }
 const plural = (count, singular, pluralForm = `${singular}s`) => `${count} ${count === 1 ? singular : pluralForm}`;
+const MESSAGE_WORDS = 60;
 function semanticNewsNotice(news) {
 	if (!news.length) return "";
 	const byKind = (kind) => news.filter((item) => item.kind === kind);
@@ -4464,11 +4465,10 @@ function semanticNewsNotice(news) {
 	const clauses = [];
 	if (content.length === 1) {
 		const { message } = content[0];
-		const { agent } = message;
-		const verb = message.kind === "reply" ? "reply" : "comment";
-		const asks = !message.edited && obligations.some((item) => item.message === message.id);
-		if (asks) obligations = obligations.filter((item) => item.message !== message.id);
-		clauses.push(message.edited ? `${agent} edited a ${verb}` : asks ? `${agent} asked` : `${agent} ${verb === "reply" ? "replied" : "commented"}`);
+		obligations = obligations.filter((item) => item.message !== message.id);
+		const words = excerptWords(message.text, MESSAGE_WORDS);
+		const speaker = message.edited ? `${message.agent} (edited)` : message.agent;
+		clauses.push(words ? `${speaker}: ${words}` : `${message.agent} ${message.kind === "reply" ? "replied" : "commented"}`);
 	} else if (content.length) {
 		const replies = content.filter(({ message }) => message.kind === "reply");
 		const threads = new Set(content.map((item) => item.thread)).size;

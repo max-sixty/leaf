@@ -1338,7 +1338,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         newest = len(example_versions(source))
         expect_showing(page, newest)
         expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-            "aria-label", "Page menu · Agent awaits — comment to revise this copy"
+            "aria-label", "Page menu · Agent: Ready — comment to revise this copy"
         )
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")

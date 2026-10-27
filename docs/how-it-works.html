@@ -742,7 +742,7 @@ flowchart TD
                     <strong>An update started in this turn lets the turn end.</strong>
                     Long work runs in background workers whose results start a later
                     turn, so the Stop hook doesn't hold a turn open for an update the
-                    agent started in it. The update reads Working, with the agent's line
+                    agent started in it. The update reads On it, with the agent's line
                     beside it, until the next turn answers it or starts it again;
                     otherwise it soon reads
                     <a href="#stages-stale">Update stale</a>.
@@ -1191,10 +1191,10 @@ flowchart TD
                   <tr id="ontology-workflow">
                     <td>Workflow</td>
                     <td>
-                      An unsettled update's delivery and work stage: Sent, Queued,
-                      Delivered, Working, Replying or Answered. Conditions report
-                      interruptions or failures. The workflow names its thread and owed
-                      answer, if any.
+                      An unsettled update's delivery and work stage: Saved, Up next, Got
+                      it, On it, Replying or Answered. Conditions report interruptions
+                      or failures. The workflow names its thread and owed answer, if
+                      any.
                     </td>
                     <td>the update's event id</td>
                   </tr>
@@ -1697,35 +1697,34 @@ flowchart TD
             <ol id="progress-timeline">
               <li id="progress-sent">
                 <time>0s</time> <small>observation</small>
-                <strong>Sending → Sent</strong> The comment appears immediately as
-                Sending. It reads Sent once the server accepts and records it.
+                <strong>Saving… → Saved</strong> The comment appears immediately as
+                Saving…. It reads Saved once the server accepts and records it.
               </li>
               <li id="progress-picked">
-                <time>1s</time> <small>observation</small>
-                <strong>Delivered</strong> The hook puts the comment into the agent’s
-                turn, and Claude Code's transcript then confirms it reached the agent.
-                Until the agent names its work, the page reads
-                <em>Claude working — has the comment</em>.
+                <time>1s</time> <small>observation</small> <strong>Got it</strong> The
+                hook puts the comment into the agent’s turn, and Claude Code's
+                transcript then confirms it reached the agent. Until the agent names its
+                work, the page reads <em>Claude: Got your comment</em>.
               </li>
               <li id="progress-reply">
-                <time>5s</time> <small>intervention</small> <strong>Working</strong> The
+                <time>5s</time> <small>intervention</small> <strong>On it</strong> The
                 agent posts
                 <code
                   >leaf thread reply &lt;answer.ref&gt; --ephemeral --text "Cutting the
                   lede to two sentences."</code
-                >. The comment reads Working, and the same sentence becomes the page’s
+                >. The comment reads On it, and the same sentence becomes the page’s
                 status.
               </li>
               <li id="progress-phase">
                 <time>1m</time> <small>intervention</small>
                 <strong>Each new phase gets a new line</strong> When the work moves from
                 editing to checking, the agent starts the same update again:
-                <em>Claude working — checking the page at phone width</em>.
+                <em>Claude: checking the page at phone width</em>.
               </li>
               <li id="progress-done">
                 <time>2m</time> <small>observation</small> <strong>Answered</strong> The
                 revision goes live, the agent's reply reports it, and the status returns
-                to <em>Claude awaits — select text to comment</em>.
+                to <em>Claude: Ready — select text to comment</em>.
               </li>
             </ol>
           </section>
@@ -1746,23 +1745,23 @@ flowchart TD
               </thead>
               <tbody>
                 <tr id="stages-sending">
-                  <td>Sending</td>
+                  <td>Saving…</td>
                   <td>The user's browser is still sending the update to the server.</td>
                 </tr>
                 <tr id="stages-sent">
-                  <td>Sent</td>
+                  <td>Saved</td>
                   <td>
                     The server checked the update and added it to the page's event log.
                   </td>
                 </tr>
                 <tr id="stages-queued">
-                  <td>Queued</td>
+                  <td>Up next</td>
                   <td>
                     Codex accepted the update's delivery as the task's next message.
                   </td>
                 </tr>
                 <tr id="stages-picked">
-                  <td>Delivered</td>
+                  <td>Got it</td>
                   <td>
                     <p>
                       <strong>Claude Code and Pi.</strong> The prompt hook, or a hook
@@ -1790,7 +1789,7 @@ flowchart TD
                   </td>
                 </tr>
                 <tr id="stages-working">
-                  <td>Working</td>
+                  <td>On it</td>
                   <td>
                     The agent started work on the update and named the work in one line,
                     as a progress message in its thread or with
@@ -1819,7 +1818,7 @@ flowchart TD
                 </tr>
                 <tr id="stages-pickup-late">
                   <td>Waiting for delivery</td>
-                  <td>The update is still Sent two minutes after the user sent it.</td>
+                  <td>The update is still Saved two minutes after the user sent it.</td>
                 </tr>
                 <tr id="stages-ended">
                   <td>Turn ended</td>
@@ -1833,9 +1832,9 @@ flowchart TD
                   <td>
                     The agent's start on the update is 15 minutes old, or the turn that
                     wrote it ended more than two minutes ago, and the agent has not
-                    started the update again since. A Delivered update reads the same
-                    once nothing shows its turn still running (no status, start, or step
-                    for 15 minutes), or once the agent is in a later turn. On Codex App
+                    started the update again since. A Got it update reads the same once
+                    nothing shows its turn still running (no status, start, or step for
+                    15 minutes), or once the agent is in a later turn. On Codex App
                     Server, so does a Replying update whose stream disconnects.
                   </td>
                 </tr>
@@ -1954,7 +1953,9 @@ flowchart TD
                     A <a href="#updates-notices">notice</a>, or a walk's position while
                     the user stays on its stop
                   </td>
-                  <td><em>Claude replied</em>, <em>Thread 2 of 5</em></td>
+                  <td>
+                    <em>Claude: I shortened the lede.</em>, <em>Thread 2 of 5</em>
+                  </td>
                 </tr>
                 <tr id="panel-line-stance">
                   <td>The mode the user is in, which the ✕ at the row's end leaves</td>
@@ -1962,23 +1963,25 @@ flowchart TD
                 </tr>
                 <tr id="panel-line-status">
                   <td>The page's <a href="#updates-silence">status</a></td>
-                  <td><em>Claude working — running the browser suite</em></td>
+                  <td><em>Claude: running the browser suite</em></td>
                 </tr>
               </tbody>
             </table>
             <p id="panel-line-thread">
               With a thread open, the field is that thread's reply box. It says
-              <em>Reply</em> and whose turn it is, such as
-              <em>Reply · My turn to answer</em>; a notice takes that place for its four
-              seconds, and a walk's position stands at the line's end.
+              <em>Reply</em> and whose turn it is, such as <em>Reply · Your turn</em>; a
+              notice takes that place for its four seconds, and a walk's position stands
+              at the line's end.
             </p>
             <p id="panel-line-grammar">
               A middle dot joins separate facts, as in
-              <em>In Draw mode · Claude replied</em>, and a dash attaches a detail to
-              the fact before it. Words the user is writing hide the line, while screen
-              readers still hear notices and changes of status. The leaf and the tab's
-              icon keep the status's colour throughout, and the leaf's menu holds the
-              status's full sentence. A folded panel shows notices beside the leaf.
+              <em>In Draw mode · Thread 2 of 5</em>, a dash attaches a detail to the
+              fact before it, and the agent's own words follow its name and a colon, as
+              a chat line does (<em>Claude: running the browser suite</em>). Words the
+              user is writing hide the line, while screen readers still hear notices and
+              changes of status. The leaf and the tab's icon keep the status's colour
+              throughout, and the leaf's menu holds the status's full sentence. A folded
+              panel shows notices beside the leaf.
             </p>
           </section>
           <section id="updates-silence">
@@ -2041,11 +2044,11 @@ flowchart TD
               Leaf shows work as active when a start is still current, when the harness
               reports a step in an active turn, or when that turn has received input
               requiring an answer. The freshness rules above determine when a start or
-              turn stops counting as active. Input is stalled if it remains Sent for two
-              minutes, or if the turn that received it ends without answering. After
+              turn stops counting as active. Input is stalled if it remains Saved for
+              two minutes, or if the turn that received it ends without answering. After
               about a minute, the status also shows the working reading's age, for
               example
-              <em>Claude working · 5m ago — running the browser suite</em>.
+              <em>Claude · 5m ago: running the browser suite</em>.
             </p>
             <table id="updates-readings">
               <thead>
@@ -2056,7 +2059,7 @@ flowchart TD
               </thead>
               <tbody>
                 <tr id="updates-reading-held">
-                  <td>Claude working — has the comment</td>
+                  <td>Claude: Got your comment</td>
                   <td>
                     The user's comment, or their answer to an obligation, was delivered
                     into the agent's running turn, and the agent has not yet said what
@@ -2075,7 +2078,7 @@ flowchart TD
                   </td>
                 </tr>
                 <tr id="updates-reading-awaits">
-                  <td>Claude awaits — select text to comment</td>
+                  <td>Claude: Ready — select text to comment</td>
                   <td>
                     The agent is taking input. An update still on its way to the agent
                     says so on its own label, and the menu's full status counts it.
@@ -2131,9 +2134,10 @@ flowchart TD
             <p id="updates-notices-lede">
               A notice stands in the panel's line for four seconds and is announced to
               screen readers. Simultaneous news shares one notice, such as
-              <em>Claude replied · New on me</em>. Opening a page announces only unread
-              agent messages, not its existing activity. The agent starting or stopping
-              work is no notice: the status in the same line says it.
+              <em>Claude: Does this read better? · New on me</em>. Opening a page
+              announces only unread agent messages, not its existing activity. The agent
+              starting or stopping work is no notice: the status in the same line says
+              it.
             </p>
             <table id="updates-notice-kinds">
               <thead>
@@ -2145,13 +2149,13 @@ flowchart TD
               <tbody>
                 <tr id="updates-notice-content">
                   <td>
-                    Claude replied, Claude commented, Claude asked, Claude edited a
-                    reply, 3 replies in 2 threads
+                    Claude: I shortened the lede., Claude (edited): …, 3 replies in 2
+                    threads
                   </td>
                   <td>
-                    An agent message the user hasn't read arrives, or one is edited. A
-                    message holding a question or decision for the user reads
-                    <em>asked</em>.
+                    An agent message the user hasn't read arrives, or one is edited. One
+                    message speaks for itself, its opening words under the agent's name,
+                    including anything it asks of the user.
                   </td>
                 </tr>
                 <tr id="updates-notice-input">
@@ -2200,9 +2204,9 @@ flowchart TD
               <li id="updates-written-working">
                 <strong><code>leaf task start … &lt;id&gt; --text "…"</code></strong>
                 Names the current operation for an update or to-do, such as
-                <em>Claude working — running the browser suite</em>. Its line remains
-                beside the thread or widget until answered or ended. The panel’s leaf
-                and tab icon take the status’s colour; All pages repeats its line.
+                <em>Claude: running the browser suite</em>. Its line remains beside the
+                thread or widget until answered or ended. The panel’s leaf and tab icon
+                take the status’s colour; All pages repeats its line.
               </li>
               <li id="updates-written-waiting">
                 <strong><code>leaf page open …</code></strong> Leaves feedback open and
@@ -2235,9 +2239,9 @@ flowchart TD
               <li id="updates-written-question">
                 <strong><code>leaf thread reply … --obligation</code></strong>
                 Opens a question on On me and makes the thread read
-                <em>My turn to answer</em>. A reply or settling reaction answers it. The
-                agent can end it with <code>leaf task end</code> as answered elsewhere
-                or withdrawn.
+                <em>Your turn</em>. A reply or settling reaction answers it. The agent
+                can end it with <code>leaf task end</code> as answered elsewhere or
+                withdrawn.
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task create … --on user</code></strong> Puts a task
@@ -2464,7 +2468,7 @@ flowchart TD
                     >Interface initialization and the state request overlap.</span
                   >
                   <span id="loading-comments"
-                    >New comments and drawings appear immediately and remain Sending
+                    >New comments and drawings appear immediately and remain Saving…
                     until accepted; choices that change saved state wait for the current
                     reading.</span
                   >
@@ -2489,7 +2493,7 @@ flowchart TD
             <p id="browser-updates-drawn">
               A pick, drag or comment enters an ordered pending list. Its result appears
               in the sending task, before the next frame: the option is selected, the
-              card moves, or the comment appears as Sending (<a href="#stages"
+              card moves, or the comment appears as Saving… (<a href="#stages"
                 >Stages of an update</a
               >). Sent words leave the input but remain in the draft store until
               accepted.

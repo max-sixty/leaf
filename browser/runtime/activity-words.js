@@ -16,16 +16,17 @@ const TONE = {
   unheld: "",
   closed: "",
 };
-// Every step the server may report (`ServedWorkKind`) has its words here.
+// Every step the server may report (`ServedWorkKind`) has its words here, as the agent
+// would say them (glossary.md, "Reader-facing words").
 /** @type {Record<import("../types/contract.js").ServedWorkKind, string>} */
 const WORK_WORDS = {
-  working: "working",
-  thinking: "thinking",
-  tool: "using a tool",
-  awaiting_approval: "waiting for approval",
-  awaiting_input: "waiting for input",
-  awaiting_user: "waiting for me",
-  replying: "replying",
+  working: "Working on it",
+  thinking: "Thinking",
+  tool: "Using a tool",
+  awaiting_approval: "Need your approval",
+  awaiting_input: "Need your input",
+  awaiting_user: "Have a question for you",
+  replying: "Writing a reply",
 };
 const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
 // What each canonical count says the agent owes, in the order a reader is told.
@@ -57,7 +58,7 @@ export function activityFacts({ activity }) {
   return Object.freeze({
     tone: TONE[activity.kind],
     work:
-      (activity.observed_kind ? WORK_WORDS[activity.observed_kind] : "working") +
+      WORK_WORDS[activity.observed_kind ?? "working"] +
       (activity.awaiting ? " in the terminal" : ""),
     left: Boolean(activity.dropped),
     silentSince: ago(activity.ts),
@@ -98,9 +99,10 @@ const publicationWords = (published) => [
 ];
 
 // The updates delivered into an open turn, by kind: a comment in a thread, or an answer to an
-// obligation. A lone update is the user's own; several are counted.
+// obligation, as the agent acknowledges them. A lone update is the user's own; several
+// are counted.
 function deliveredWords({ comments, answers }) {
-  if (comments + answers === 1) return comments ? "the comment" : "the answer";
+  if (comments + answers === 1) return comments ? "your comment" : "your answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   return [
     comments && counted(comments, "comment"),
@@ -140,6 +142,7 @@ function statusWords({
   kind,
   overdue,
   saved,
+  waits,
   work,
 }) {
   if (kind === "closed") return ["Page closed", "Page closed", ""];
@@ -147,29 +150,30 @@ function statusWords({
     const meanwhile = `${saved} It picks up again when a session does.`;
     return ["No session", `No session holds this page. ${meanwhile}`, meanwhile];
   }
-  // The agent's own sentence is the reason to look at the row while it works, so the
-  // row keeps it and the ellipsis fits it to the room the controls leave. A sentence just
-  // renewed needs no date; an older one is dated ahead of the detail, because the detail
-  // is what the ellipsis eats first and a stale sentence with its date cut off is the one
-  // reading this row must not give.
+  // While it works the agent speaks, under its name as a chat line is: its own
+  // sentence is the reason to look at the row, so the row keeps it and the ellipsis
+  // fits it to the room the controls leave. A sentence just renewed needs no date; an
+  // older one is dated ahead of the sentence, because the sentence is what the ellipsis
+  // eats first and a stale sentence with its date cut off is the one reading this row
+  // must not give.
   //
   // Until the agent writes that sentence, what Leaf knows is which of the user's
-  // updates were delivered into its open turn, so the row names them, in the words of
-  // their Delivered stage, rather than standing on a bare "working", and the
-  // disclosure says the agent's own words are still to come.
+  // updates were delivered into its open turn, so the agent acknowledges them ("Got your
+  // comment"), the words of their Got it stage, rather than a bare "Working on it".
   if (kind === "working") {
     const delivered = deliveredWords(handling);
-    const said = detail
-      ? [" — ", { text: detail, source: detailSource }]
-      : delivered
-        ? [" — has " + delivered]
-        : [];
+    // A wait the user answers in the terminal leads, ahead of the sentence it
+    // interrupts, since it is the one thing on the line the user must act on.
+    const sentence = detail ? [{ text: detail, source: detailSource }] : [];
+    const said = waits
+      ? [work, ...(detail ? [" — ", ...sentence] : [])]
+      : detail
+        ? sentence
+        : [delivered ? `Got ${delivered}` : work];
     return [
-      [`${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}`, ...said],
-      detail || !delivered
-        ? [`${agent} is ${work}`, ...said]
-        : `${agent} has ${delivered} and hasn't said what it's doing yet`,
-      detail || !delivered ? "" : "It hasn't said what it's doing yet.",
+      [`${agent}${age && age !== JUST_NOW ? " · " + age : ""}: `, ...said],
+      [`${agent}: `, ...said],
+      "",
     ];
   }
   // The stock words say where a comment starts; they report and ask nothing. An
@@ -297,11 +301,12 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       answers: activity.counts.handling - activity.counts.handling_comments,
     },
     invite: publication
-      ? `${agent} awaits — comment to revise this copy`
-      : `${agent} awaits — select text to comment`,
+      ? `${agent}: Ready — comment to revise this copy`
+      : `${agent}: Ready — select text to comment`,
     kind,
     overdue: activity.counts.overdue,
     saved,
+    waits: Boolean(activity.awaiting),
     work: facts.work,
   });
   const summaryParts = textParts(summaryWords);
@@ -422,11 +427,10 @@ export function statusModel(status, queues, agent) {
 export function leafRow(entry) {
   const { kind, counts, detail } = entry.activity;
   const facts = activityFacts(entry);
-  // The same join for both kinds that have words of their own. The user opens this
-  // panel to find which page needs them, so a bare `Awaits` beside a neighbour's
-  // `Working — recording the demo` said least about the one row they are here to act
-  // on: three pages waiting rendered as three identical rows, and which to go to
-  // first is the whole question the panel was opened to answer.
+  // The user opens this panel to find which page needs them, so a row says what the
+  // agent last said, in its own words (`recording the demo`), or what it is doing:
+  // three pages waiting rendered as three identical rows said least about the one row
+  // they are here to act on.
   const stated = (word) => word + (detail ? " — " + detail : "");
   // The status's two silences in the status's own words, less the agent's name.
   const since = facts.silentSince ? ` ${facts.silentSince}` : "";
@@ -435,12 +439,11 @@ export function leafRow(entry) {
     : since
       ? `Last checked in${since}`
       : "No check-in";
-  const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
   const primary =
     kind === "working"
-      ? stated(work)
+      ? detail || facts.work
       : kind === "listening"
-        ? "Awaits"
+        ? "Ready"
         : kind === "stalled"
           ? stated(silence)
           : kind === "away"

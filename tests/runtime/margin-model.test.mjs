@@ -260,7 +260,7 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
   ]);
   assert.deepEqual(
     said(thread(waitingOnTodo, { todos: todo("Rebuilding it"), unread: 1 })),
-    ["Working", "Working"],
+    ["On it", "On it"],
   );
   // A thread whose workflow is under way carries it as its receipt, which says it in
   // the workflow's own words; its line is what else it holds.
@@ -290,10 +290,10 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     { unread: 1 },
   );
   assert.deepEqual(threadMarks(onUser).userAttention, {
-    label: "My turn to answer",
+    label: "Your turn",
     reason: "obligation",
   });
-  assert.deepEqual(said(onUser), ["My turn to answer", "My turn to answer"]);
+  assert.deepEqual(said(onUser), ["Your turn", "Your turn"]);
 });
 
 test("declared representation and a workflow carrier suppress only duplicate readings", () => {

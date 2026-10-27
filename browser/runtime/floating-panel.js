@@ -3233,7 +3233,7 @@ export function createFloatingPanel({
     const queued = lists.agent.filter((item) => !item.live);
     const groups = [
       { key: "in-hand", title: "In hand", items: inHand },
-      { key: "queued", title: "Queued", items: queued },
+      { key: "queued", title: "Up next", items: queued },
       { key: "done", title: "Done", items: lists.done },
     ].filter((group) => group.items.length);
     forgetOpened([...lists.agent, ...lists.done]);
@@ -3261,18 +3261,18 @@ export function createFloatingPanel({
       .toSorted()[0];
     const longest = since ? shortAgo(since) : "";
     const held = inHand.length
-      ? `${agent} has ${inHand.length} in hand${
+      ? `Working on ${inHand.length}${
           longest && longest !== "now" ? `, the longest for ${longest}` : ""
         }`
       : "";
-    const waiting = queued.length ? `${queued.length} queued` : "";
+    const waiting = queued.length ? `${queued.length} up next` : "";
     const first =
       held && waiting
-        ? `${held}, and ${waiting}.`
+        ? `${agent}: ${held}; ${waiting}.`
         : held
-          ? `${held}.`
+          ? `${agent}: ${held}.`
           : waiting
-            ? `${agent} has ${waiting}.`
+            ? `${agent}: ${waiting}.`
             : `Nothing is on ${agent}.`;
     const now = work.find((each) => each.line && each.line !== each.word)?.line;
     const progress = planProgress();

@@ -26,46 +26,40 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Response** | Work owed to user input of unknown kind: “2 responses owed” |
 | **Answer** | The current value of an obligation, or the response that satisfies a user update; there is no separate Answer record |
 | **Reply** | A message in a conversation, including an answer or an unprompted message |
-| **Delivery** | How far an update has got toward the agent: **Sending**, **Sent**, **Queued**, then **Delivered** (stage `picked_up`), handed into the agent's turn. Delivered doesn't mean work has begun |
-| **Sent** | An update Leaf has logged that no harness has queued or opened into a turn yet (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Sending** |
-| **Working** | The agent has explicitly started this update or to-do; page activity alone doesn't mean it has |
+| **Delivery** | How far an update has got toward the agent: **Saving…** and **Saved** on the user's side, then the agent's **Up next** (stage `queued`) and **Got it** (stage `picked_up`), handed into its turn. Got it doesn't mean work has begun |
+| **Saved** | An update Leaf has logged that no harness has queued or opened into a turn yet (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Saving…** |
+| **On it** | The agent has explicitly started this update or to-do (stage `working`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back |
 | **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
 
-Visible copy speaks in the user's voice, since the page is their space. Use the first
-person only for labels that tell the user's side from the agent's: **Me** as an
-author, **Waiting on me**, **My turn to answer**, **my change**, and commands such as
-**Edit my last message**. Never narrate what the user saw, decided or is doing (*since
-I last looked*), since Leaf can't know it. Other status drops the pronoun rather than
-saying *you* or *my*: “The draft is kept”, “New messages”. Text addressed to the
-agent, such as `x-instructions` and event handling, uses the second person, as does
-the website's prose to a visitor.
+Every visible line has one speaker, and its presentation says which:
+
+- **The user**: their own acts (“Moved to Done”), and the labels that tell their side
+  from the agent's, in the first person: **Me** as an author, **Waiting on me**, **my
+  change**, and commands such as **Edit my last message**.
+- **The agent**: what it says, as it would say it in conversation, under its name
+  where the line isn't already its own (“Claude: running the browser suite”, “Got it”,
+  “Your turn”), never a narrator describing it from outside (“Claude is working”,
+  “Waiting for Claude”). The user is talking with the agent, and a narrator puts a
+  third party between them. The agent's lines take no first person, so *me* and *my*
+  always mean the user.
+- **Leaf**: what Leaf itself observes or needs about the connection, the page or the
+  agent's session, such as an agent that stopped without answering or a server it
+  can't reach. Leaf's words never take the agent's presentation; a line that can't be
+  put in the agent's voice is Leaf's.
+
+Never narrate what the user saw, decided or is doing (*since I last looked*), since
+Leaf can't know it. The user's and Leaf's lines that don't tell sides apart drop the
+pronoun: “The draft is kept”, “New messages”. Text addressed to the agent, such as
+`x-instructions` and event handling, uses the second person, as does the website's
+prose to a visitor.
 
 Visible copy is personal, not technical: it speaks of the user, the agent and the page,
-never of the machinery between them. Say what the user did (“Moved to Done”) or what the
-agent did (“Claude replied”), not that something was sent, logged, stored or retried.
-Name the machinery only where the user must act on it, as an unreachable server asks
-them to keep the tab open.
-
-Where a label speaks for the agent's side, such as where the agent stands with the
-user's update, the agent says it, as it would in conversation (“Got it”), rather than
-a narrator describing the agent from outside (“Waiting for Claude”, “Delivered to
-Claude”). The user is talking with the agent, and a narrator puts a third party
-between them.
-
-So every visible line has one speaker, and its presentation says which:
-
-- **The user**: their own acts and turn, in the first person where it tells their
-  side from the agent's (“Moved to Done”, “My turn to answer”).
-- **The agent**: what the agent says, its own sentence or where it stands with the
-  user's words (“Got it”, “running the browser suite”).
-- **Leaf**: what Leaf itself observes or needs, about the connection, the page or the
-  agent's session, such as an agent that stopped without answering or a server it
-  can't reach.
-
-Leaf's words never take the agent's presentation, so nothing Leaf reports reads as
-the agent speaking. Where a line can't be put in the agent's voice, it is Leaf's.
+never of the machinery between them. Say what the user did (“Moved to Done”) or let the
+agent say what it did, not that something was sent, logged, stored or retried. Name the
+machinery only where the user must act on it, as an unreachable server asks them to keep
+the tab open.
 
 Name an update's kind where it is known: a **comment**, **reply**, **choice**
 or **reaction**; in protocol text a widget's is an **action**, after its

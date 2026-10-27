@@ -38,12 +38,12 @@ test.beforeEach((t) => t.mock.timers.enable({ apis: ["Date"], now: NOW }));
 test("working says the agent's own sentence, dated on the row once it is old", () => {
   const work = { kind: "working", detail: "revising the plan", ts: minutesAgo(0) };
   assert.deepEqual(said({ ...work, counts: { pending: 1 } }), [
-    "Claude working — revising the plan",
-    "Claude is working — revising the plan (just now). 1 response owed on updates awaiting delivery.",
+    "Claude: revising the plan",
+    "Claude: revising the plan (just now). 1 response owed on updates awaiting delivery.",
   ]);
   assert.deepEqual(said({ ...work, ts: minutesAgo(5) }), [
-    "Claude working · 5m ago — revising the plan",
-    "Claude is working — revising the plan (5m ago)",
+    "Claude · 5m ago: revising the plan",
+    "Claude: revising the plan (5m ago)",
   ]);
 });
 
@@ -56,7 +56,7 @@ test("authored activity detail retains its exact source only in the words that s
   };
   const reading = pageStatus(state(activity));
   const model = statusModel(reading, NO_QUEUES, "Claude");
-  assert.equal(model.summary, "Claude working — checking the roof");
+  assert.equal(model.summary, "Claude: checking the roof");
   assert.deepEqual(
     model.summaryParts.filter((part) => part.source),
     [{ text: "checking the roof", source }],
@@ -98,13 +98,16 @@ test("working with no sentence of the agent's names what its turn picked up", ()
       counts: { handling, handling_comments },
     });
   assert.deepEqual(picked(1, 1), [
-    "Claude working — has the comment",
-    "Claude has the comment and hasn't said what it's doing yet (just now)",
+    "Claude: Got your comment",
+    "Claude: Got your comment (just now)",
   ]);
-  assert.equal(picked(1, 0)[0], "Claude working — has the answer");
-  assert.equal(picked(3, 2)[0], "Claude working — has 2 comments and 1 answer");
+  assert.equal(picked(1, 0)[0], "Claude: Got your answer");
+  assert.equal(picked(3, 2)[0], "Claude: Got 2 comments and 1 answer");
   // Nothing picked up and nothing said is plain work.
-  assert.deepEqual(picked(0, 0), ["Claude working", "Claude is working (just now)"]);
+  assert.deepEqual(picked(0, 0), [
+    "Claude: Working on it",
+    "Claude: Working on it (just now)",
+  ]);
 });
 
 test("a step the transport watched names the work and stands beside the agent's sentence", () => {
@@ -117,8 +120,8 @@ test("a step the transport watched names the work and stands beside the agent's 
       counts: { pending: 1 },
     }),
     [
-      "Claude using a tool — revising the plan",
-      "Claude is using a tool — revising the plan (just now) · Running the tests. 1 response owed on updates awaiting delivery.",
+      "Claude: revising the plan",
+      "Claude: revising the plan (just now) · Running the tests. 1 response owed on updates awaiting delivery.",
     ],
   );
 });
@@ -135,20 +138,32 @@ test("work waiting in the agent's own session says where it is answered, and is 
   );
   assert.equal(
     status.explanation,
-    "Claude is waiting for approval in the terminal (just now)",
+    "Claude: Need your approval in the terminal (just now)",
   );
   assert.equal(status.actionableWork, "awaiting_approval");
+  // The wait leads the sentence it interrupts.
+  assert.equal(
+    pageStatus(
+      state({
+        kind: "working",
+        detail: "Writing the page",
+        observed_kind: "awaiting_input",
+        awaiting: true,
+      }),
+    ).summary,
+    "Claude: Need your input in the terminal — Writing the page",
+  );
   assert.equal(pageStatus(state({ kind: "working" })).actionableWork, null);
 });
 
 test("listening says where a comment starts, with input on its way counted after", () => {
   assert.equal(
     said({ kind: "listening", detail: "" })[0],
-    "Claude awaits — select text to comment",
+    "Claude: Ready — select text to comment",
   );
   assert.deepEqual(said({ kind: "listening", detail: "", counts: { pending: 1 } }), [
-    "Claude awaits — select text to comment",
-    "Claude awaits — select text to comment. 1 response owed on updates awaiting delivery.",
+    "Claude: Ready — select text to comment",
+    "Claude: Ready — select text to comment. 1 response owed on updates awaiting delivery.",
   ]);
 });
 
@@ -276,7 +291,7 @@ test("the explanation names what waits on each side", () => {
   assert.match(long.explanation, /Waiting on Codex Research Agent: 1 reply/);
   assert.equal(
     model.explanation,
-    "Agent awaits — select text to comment. Waiting on me: 2 to answer, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",
+    "Agent: Ready — select text to comment. Waiting on me: 2 to answer, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",
   );
   // A page with nothing waiting adds nothing, and an offline page counts nothing.
   assert.equal(statusModel(status, NO_QUEUES, "Agent").explanation, status.explanation);
@@ -312,7 +327,7 @@ test("what the disclosure adds to the row says only what the row does not", () =
       ts: minutesAgo(0),
       counts: { handling: 1, handling_comments: 1 },
     }),
-    "It hasn't said what it's doing yet.",
+    "",
   );
   assert.equal(
     adds({ kind: "listening", detail: "", counts: { pending: 1 } }),
@@ -342,17 +357,17 @@ test("a published page's agent is on call, and its explanation introduces the pa
     const status = published({ kind, detail });
     assert.equal(status.kind, "listening");
     assert.equal(status.tone, "listening");
-    assert.equal(status.summary, "Agent awaits — comment to revise this copy");
+    assert.equal(status.summary, "Agent: Ready — comment to revise this copy");
     assert.equal(status.asks, false);
   }
   // Its work reads as on any page.
   const working = published({ kind: "working", detail: "revising the plan" });
   assert.equal(working.tone, "working");
-  assert.equal(working.summary, "Agent working — revising the plan");
+  assert.equal(working.summary, "Agent: revising the plan");
   const model = statusModel(published({ kind: "closed" }), NO_QUEUES, "Agent");
   assert.equal(
     model.explanation,
-    "Agent awaits — comment to revise this copy. This website is a Leaf page, and this copy is private to this browser. Install Leaf",
+    "Agent: Ready — comment to revise this copy. This website is a Leaf page, and this copy is private to this browser. Install Leaf",
   );
   assert.equal(model.adds, "");
   assert.deepEqual(model.publication, {
@@ -369,7 +384,7 @@ test("a published page's agent is on call, and its explanation introduces the pa
   );
   assert.equal(
     example.explanation,
-    "Agent awaits — comment to revise this copy. This is an example on the Leaf website, and this copy is private to this browser. Other examples Install Leaf",
+    "Agent: Ready — comment to revise this copy. This is an example on the Leaf website, and this copy is private to this browser. Other examples Install Leaf",
   );
   assert.equal(example.publication.examplesUrl, "/examples/");
 });
@@ -378,7 +393,7 @@ test("a leaves row says each kind in a row's words, with the updates still waiti
   const row = (activity) => leafRow(state(activity)).line;
   assert.equal(
     row({ kind: "working", detail: "recording the demo" }),
-    "Working — recording the demo",
+    "recording the demo",
   );
   assert.equal(
     row({
@@ -389,10 +404,10 @@ test("a leaves row says each kind in a row's words, with the updates still waiti
     }),
     "Using a tool · 2 responses owed on queued updates · 1 response owed on updates awaiting delivery",
   );
-  assert.equal(row({ kind: "listening", detail: "" }), "Awaits");
+  assert.equal(row({ kind: "listening", detail: "" }), "Ready");
   assert.equal(
     row({ kind: "listening", detail: "", counts: { pending: 1 } }),
-    "Awaits · 1 response owed on updates awaiting delivery",
+    "Ready · 1 response owed on updates awaiting delivery",
   );
   assert.equal(
     row({ kind: "stalled", detail: "revising", ts: minutesAgo(20) }),

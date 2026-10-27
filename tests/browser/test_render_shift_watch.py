@@ -4758,7 +4758,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     header = surface_root.locator(".lf-msg-head").first
     receipt = header.locator(".lf-msg-sending")
     timestamp = header.locator("time")
-    expect(receipt).to_have_text("Sent")
+    expect(receipt).to_have_text("Saved")
     expect(timestamp).to_have_text("just now")
     # Age changes are news after Chrome's recent-input grace, even when opening the
     # surface and resizing it happened immediately before this clock transition.
@@ -4785,7 +4785,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
         page.clock.set_fixed_time(now + delta)
         ticked(page)
         expect(timestamp).to_have_text(age)
-        expect(receipt).to_have_text("Sent")
+        expect(receipt).to_have_text("Saved")
         judge_watches()
         assert surface_root.bounding_box() == thread_before
         assert owner.bounding_box() == owner_before

@@ -19,6 +19,7 @@ const message = (id, extra = {}) => ({
   author: "agent",
   agent: "Agent",
   kind: "reply",
+  text: `Words of ${id}.`,
   // The served content version: its latest rewrite's id, else its own.
   content_version: extra.edited?.id ?? id,
   ...extra,
@@ -212,7 +213,7 @@ test("current content versions and admitted messages determine arrivals", () => 
   assert.equal(changed.news[0].message.id, "original");
   assert.equal(
     semanticNewsNotice(currentSemanticNews(changed.news, next, changed.observed)),
-    "Agent edited a reply · Response failed",
+    "Agent (edited): Words of original. · Response failed",
   );
   const same = observeSemanticNews(
     changed.observed,
@@ -344,21 +345,25 @@ test("page obligations come from the shown revision, not a waiting activation", 
   assert.deepEqual(selected.obligations, [item("shown")]);
 });
 
-test("a new message that asks the user something says so in its verb", () => {
+test("a new message speaks for itself, with what it asks of the user", () => {
   const baseline = observeSemanticNews(null, reading());
   const current = reading({
     threadObligations: [replyObligation("answer")],
     threads: [
-      thread("t", [message("answer", { agent: "Sam" })], {
-        kind: "needs_user",
-        reason: "obligation",
-      }),
+      thread(
+        "t",
+        [message("answer", { agent: "Sam", text: "Does this answer your question?" })],
+        {
+          kind: "needs_user",
+          reason: "obligation",
+        },
+      ),
     ],
   });
   const result = observeSemanticNews(baseline.observed, current);
   assert.equal(
     semanticNewsNotice(currentSemanticNews(result.news, current, result.observed)),
-    "Sam asked",
+    "Sam: Does this answer your question?",
   );
   assert.deepEqual(combineSemanticNews(result.news, result.news), result.news);
   // Something else new on the user's list is its own fact, counted by the list's name.
@@ -370,7 +375,7 @@ test("a new message that asks the user something says so in its verb", () => {
   const both = observeSemanticNews(baseline.observed, more);
   assert.equal(
     semanticNewsNotice(currentSemanticNews(both.news, more, both.observed)),
-    "Sam asked · New on me",
+    "Sam: Does this answer your question? · New on me",
   );
 });
 
@@ -441,7 +446,7 @@ test("agent content is news while it is unread, including on the first reading",
   );
   assert.equal(
     semanticNewsNotice(currentSemanticNews(opened.news, waiting, opened.observed)),
-    "Agent replied",
+    "Agent: Words of away.",
   );
   // Taken in before the notice could show — here, or in another tab — it drops out.
   const taken = reading({
@@ -532,8 +537,8 @@ test("held producer batches preserve interrupted news and merge later arrivals",
   assert.equal(noticeReading().visible, false);
   assert.deepEqual(announcements, [
     "2 replies in 2 threads",
-    "Codex replied",
-    "Codex replied",
+    "Codex: Words of queued-2.",
+    "Codex: Words of queued-3.",
   ]);
   const before = [...announcements];
   holdStatus(1);

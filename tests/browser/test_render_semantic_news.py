@@ -27,9 +27,7 @@ def test_a_reply_asking_the_user_is_one_notice_without_moving_focus(browser, ser
     toggle = page.locator(".lf-fp-on-user")
     toggle.focus()
     expect(toggle).to_be_focused()
-    said(page).not_to_have_attribute(
-        "placeholder", re.compile("replied|commented|Response")
-    )
+    said(page).not_to_have_attribute("data-says", "notice")
 
     thread_model.post_reply(
         serve.page_dir,
@@ -39,7 +37,7 @@ def test_a_reply_asking_the_user_is_one_notice_without_moving_focus(browser, ser
     )
     told(page)
     # One fact: the question is the reply, not a second clause beside it.
-    notice = re.compile(r".+ asked(?! ·)")
+    notice = re.compile(r".+: I changed the route\.(?! ·)")
     said(page).to_have_attribute("placeholder", notice)
     expect(page.locator(".lf-live")).to_have_text(notice)
     expect(toggle).to_be_focused()
@@ -50,16 +48,15 @@ def test_a_new_agent_comment_is_announced_without_moving_focus(browser, serve):
     toggle = page.locator(".lf-fp-on-user")
     toggle.focus()
     expect(toggle).to_be_focused()
-    said(page).not_to_have_attribute(
-        "placeholder", re.compile("replied|commented|Response")
-    )
+    said(page).not_to_have_attribute("data-says", "notice")
 
     thread_model.cmd_comment(
         serve.page_dir, None, None, None, "A new page-wide agent note.", None
     )
     told(page)
-    said(page).to_have_attribute("placeholder", re.compile(r".+ commented"))
-    expect(page.locator(".lf-live")).to_have_text(re.compile(r".+ commented"))
+    notice = re.compile(r".+: A new page-wide agent note\.")
+    said(page).to_have_attribute("placeholder", notice)
+    expect(page.locator(".lf-live")).to_have_text(notice)
     expect(toggle).to_be_focused()
 
 
@@ -67,9 +64,7 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Please run this request.")
     page = open_page(browser, url)
-    said(page).not_to_have_attribute(
-        "placeholder", re.compile("replied|commented|Response")
-    )
+    said(page).not_to_have_attribute("data-says", "notice")
 
     thread_model.post_reply(
         serve.page_dir,
@@ -107,9 +102,7 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
             "active",
         )
     page = open_page(browser, url)
-    said(page).not_to_have_attribute(
-        "placeholder", re.compile("replied|commented|Response")
-    )
+    said(page).not_to_have_attribute("data-says", "notice")
 
     with service_model.PageTransaction(serve.page_dir) as transaction:
         assert transaction.set_stream_reply_state(
@@ -133,7 +126,9 @@ def test_deferred_notice_describes_only_the_current_message_version(browser, ser
     told(page)
 
     page.keyboard.press("Escape")
-    said(page).to_have_attribute("placeholder", re.compile(r".+ edited a comment"))
+    said(page).to_have_attribute(
+        "placeholder", re.compile(r".+ \(edited\): Current note\.")
+    )
 
 
 def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):
@@ -145,13 +140,16 @@ def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):
         "The initial historical answer.",
     )
     page = open_page(browser, url)
-    said(page).not_to_have_attribute("placeholder", re.compile("replied"))
+    history = re.compile("The initial historical answer")
+    said(page).not_to_have_attribute("placeholder", history)
 
     # A fresh accepted status reading must not rediscover historical content.
     declare_idle(serve.page_dir)
     told(page)
-    said(page).not_to_have_attribute("placeholder", re.compile("replied"))
-    assert "replied" not in page.locator(".lf-live").text_content()
+    said(page).not_to_have_attribute("placeholder", history)
+    assert (
+        "The initial historical answer" not in page.locator(".lf-live").text_content()
+    )
 
 
 def test_the_agent_starting_work_is_said_by_the_status_not_a_notice(browser, serve):
@@ -165,4 +163,4 @@ def test_the_agent_starting_work_is_said_by_the_status_not_a_notice(browser, ser
         working(serve.page_dir, line)
         told(page)
         said(page).to_have_attribute("data-says", "status")
-        said(page).to_have_attribute("placeholder", re.compile(f"working — {line}"))
+        said(page).to_have_attribute("placeholder", re.compile(rf"\w: {line}"))

@@ -13,12 +13,14 @@
    surface; a thread's word is `threadAttention`'s label, which Threads states as its
    status and the margin and Page Map as its line (`margin-model.js`, `threadMarks`). */
 
+// The user's side in plain words while their update is theirs (Saving…, Saved), then
+// the agent's, as it would say them (glossary.md, "Reader-facing words").
 const STAGE_LABELS = Object.freeze({
-  sending: "Sending",
-  sent: "Sent",
-  queued: "Queued",
-  picked_up: "Delivered",
-  working: "Working",
+  sending: "Saving…",
+  sent: "Saved",
+  queued: "Up next",
+  picked_up: "Got it",
+  working: "On it",
   replying: "Replying",
   answered: "Answered",
 });
@@ -101,7 +103,7 @@ export function strongestWorkflow(workflows) {
 }
 
 // An open to-do's word, wherever it stands: Working while a start runs on it.
-export const todoLabel = (running) => (running ? "Working" : "To-do open");
+export const todoLabel = (running) => (running ? "On it" : "To-do open");
 
 export function threadAttention(thread) {
   if (thread.resolved) return null;
@@ -112,11 +114,13 @@ export function threadAttention(thread) {
     : null;
   if (thread.attention?.kind === "needs_user") {
     const answering = thread.attention.reason === "obligation";
+    // The agent hands the turn over in its own voice; an update that never reached it
+    // asks the user to send it again.
     const nextMove = answering
-      ? "answer"
+      ? "Your turn"
       : workflow?.subject.kind === "thread"
-        ? "resend"
-        : "retry";
+        ? "Send it again"
+        : "Try it again";
     // The updates in the thread the agent still owes an answer.
     const owed = new Set(
       (thread.obligations ?? [])
@@ -130,7 +134,7 @@ export function threadAttention(thread) {
     );
     return Object.freeze({
       kind: "needs_user",
-      label: `My turn to ${nextMove}`,
+      label: nextMove,
       workflow,
       secondary: [answering ? "" : workflowLabel(workflow), workflowLabel(secondary)]
         .filter(Boolean)

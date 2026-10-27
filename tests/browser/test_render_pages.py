@@ -4138,7 +4138,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     field = page.locator(".lf-fp-field leaf-text")
     stamp_page(d, TWIN_V2, "a twin")
     wait_for_revision(page, 2)
-    expect(field).not_to_have_attribute("placeholder", re.compile("replied"))
+    expect(field).not_to_have_attribute("placeholder", re.compile("this one does"))
 
     open_panel_thread(page, root["id"])
     write(panel_field(page), "keep this unfinished reply")
@@ -4201,13 +4201,13 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(panel_menu(page, "versions")).not_to_contain_text("Rejected version")
     page.keyboard.press("Escape")
 
-    assert "replied" not in (field.get_attribute("placeholder") or "")
-    assert "Codex replied" not in page.locator(".lf-live").text_content()
+    assert "this one does" not in (field.get_attribute("placeholder") or "")
+    assert "Codex: this one does" not in page.locator(".lf-live").text_content()
 
     page.unroute("**/api/state*")
     nudge(d)
     told(page)
-    expect(field).to_have_attribute("placeholder", re.compile("Codex replied"))
+    expect(field).to_have_attribute("placeholder", re.compile("Codex: this one does"))
     view = open_panel_thread(page, root["id"])
     expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
 

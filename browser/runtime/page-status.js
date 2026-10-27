@@ -29,6 +29,7 @@ const LOADING = Object.freeze({
   kind: "loading",
   tone: "",
   summary: "Loading comments and choices…",
+  voice: "leaf",
   explanation: LOADING_LINE,
   adds: LOADING_LINE,
 });

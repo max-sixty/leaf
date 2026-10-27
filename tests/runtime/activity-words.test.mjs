@@ -203,11 +203,22 @@ test("a page nobody holds, and a closed one, say so without the agent", () => {
   ]);
 });
 
+test("only words the agent can't be saying are Leaf's", () => {
+  // Nudging the terminal is said about the agent, which isn't answering; the rest of
+  // the status is the agent's own voice, Leaf's guesses at its words included.
+  const voice = (activity) => pageStatus(state(activity)).voice;
+  assert.equal(voice({ kind: "away", counts: { overdue: 1 } }), "leaf");
+  for (const kind of ["working", "listening", "stalled", "away", "unheld", "closed"])
+    assert.equal(voice({ kind, detail: "" }), "agent", kind);
+  assert.equal(pageStatus(null, { reach: "unreachable" }).voice, "leaf");
+});
+
 test("an unreachable server reports itself in the blocked tone; a refused key and an unappliable state ask", () => {
   assert.deepEqual(pageStatus(null, { reach: "unreachable" }), {
     kind: "unreachable",
     tone: "blocked",
     summary: "Lost the connection — reconnecting",
+    voice: "leaf",
     explanation:
       "Lost the connection — reconnecting. Keep this page open so changes made here go through.",
     adds: "",
@@ -216,6 +227,7 @@ test("an unreachable server reports itself in the blocked tone; a refused key an
     kind: "refused",
     tone: "blocked",
     summary: "This tab lost access — open the link again",
+    voice: "leaf",
     explanation:
       "This tab lost access. Open the page's link again in a new tab, and keep this one open so changes made here go through.",
     adds: "Keep this tab open so changes made here go through.",
@@ -225,6 +237,7 @@ test("an unreachable server reports itself in the blocked tone; a refused key an
     kind: "faulted",
     tone: "blocked",
     summary: "Hit a problem — trying again",
+    voice: "leaf",
     explanation: "Hit a problem: KeyError: 'x'. Trying again.",
     adds: "KeyError: 'x'. Trying again.",
   });
@@ -232,6 +245,7 @@ test("an unreachable server reports itself in the blocked tone; a refused key an
     kind: "broken",
     tone: "blocked",
     summary: "Couldn't show the latest — reload",
+    voice: "leaf",
     explanation: "Couldn't show the latest — reload",
     adds: "",
     asks: true,

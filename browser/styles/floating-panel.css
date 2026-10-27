@@ -586,6 +586,14 @@
     leaf-text[data-says="status"]::part(placeholder) {
     color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
   }
+  /* A status the agent can't be saying is set in italic, as a stage direction stands
+     apart from the lines spoken: Leaf's own state, or an instruction about the agent
+     (the user's choice, 26 October 2026). */
+  .lf-floating-panel[data-voice="leaf"]
+    .lf-fp-field
+    leaf-text[data-says="status"]::part(placeholder) {
+    font-style: italic;
+  }
   /* The panel shows no key hints but the one that enters an open thread's reply, which
      the empty field says as a margin card's reply box does (`fieldReading`). */
   .lf-fp-field leaf-text:not([data-says="turn"]) .lf-compose-placeholder kbd {

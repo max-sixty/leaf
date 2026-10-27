@@ -131,7 +131,9 @@ const appendWords = (parts, words, step = false) => {
 // side instead (`queueWords`). The third wording is what the sentence says that the
 // summary does not, for a seat that shows both (`pageStatus`, `adds`), and the fourth
 // whether the words ask the user to act (`pageStatus`, `asks`), which only a wording
-// that asks sets.
+// that asks sets. The fifth is `leaf` for words the agent can't be saying, an
+// instruction about the agent such as nudging its terminal (`pageStatus`, `voice`);
+// every other wording is the agent's.
 function statusWords({
   age,
   dated,
@@ -204,6 +206,7 @@ function statusWords({
         `${dated}. ${saved} Nothing is answering them, so nudge the terminal.`,
         `${dated}. ${saved} Nothing is answering them.`,
         true,
+        "leaf",
       ]
     : [
         "Away",
@@ -222,7 +225,8 @@ function statusWords({
 // that explanation `adds` to the summary for a seat that shows both (the floating
 // panel's menu), whether it `asks` the user to act, such as to nudge the agent, answer
 // what it declared it waits for, approve in its own session, or reload, which a seat
-// can draw louder than a status that only reports, and the `actionableWork` whose
+// can draw louder than a status that only reports, its `voice`, `leaf` where the
+// agent can't be saying the words, and the `actionableWork` whose
 // change is announced. Each reading the user acts on differently
 // has its own `kind`, since a change of kind is what the status announces
 // (page-status.js): a server that went away and then starts refusing this tab's key
@@ -233,6 +237,7 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       kind: "broken",
       tone: "blocked",
       summary: BROKEN_LINE,
+      voice: "leaf",
       explanation: BROKEN_LINE,
       adds: "",
       asks: true,
@@ -242,6 +247,7 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       kind: "refused",
       tone: "blocked",
       summary: "This tab lost access — open the link again",
+      voice: "leaf",
       explanation: KEY_REFUSED_LINE,
       adds: "Keep this tab open so changes made here go through.",
       asks: true,
@@ -255,6 +261,7 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       kind: "faulted",
       tone: "blocked",
       summary: "Hit a problem — trying again",
+      voice: "leaf",
       explanation: `Hit a problem: ${said}. Trying again.`,
       adds: `${said}. Trying again.`,
     };
@@ -268,6 +275,7 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       kind: "unreachable",
       tone: "blocked",
       summary: "Lost the connection — reconnecting",
+      voice: "leaf",
       explanation: OFFLINE_LINE,
       adds: "",
     };
@@ -289,24 +297,25 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
     : "Haven't checked in yet";
   const ended = `Stopped${facts.silentSince ? " " + facts.silentSince : ""}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-  const [summaryWords, explanationWords, beyond, asked = false] = statusWords({
-    age,
-    dated: facts.left ? ended : checkedIn,
-    detail,
-    detailSource: activity.detail_source,
-    handling: {
-      comments: activity.counts.handling_comments,
-      answers: activity.counts.handling - activity.counts.handling_comments,
-    },
-    invite: publication
-      ? "Ready — comment to revise this copy"
-      : "Ready — select text to comment",
-    kind,
-    overdue: activity.counts.overdue,
-    saved,
-    waits: Boolean(activity.awaiting),
-    work: facts.work,
-  });
+  const [summaryWords, explanationWords, beyond, asked = false, voice = "agent"] =
+    statusWords({
+      age,
+      dated: facts.left ? ended : checkedIn,
+      detail,
+      detailSource: activity.detail_source,
+      handling: {
+        comments: activity.counts.handling_comments,
+        answers: activity.counts.handling - activity.counts.handling_comments,
+      },
+      invite: publication
+        ? "Ready — comment to revise this copy"
+        : "Ready — select text to comment",
+      kind,
+      overdue: activity.counts.overdue,
+      saved,
+      waits: Boolean(activity.awaiting),
+      work: facts.work,
+    });
   const summaryParts = textParts(summaryWords);
   const explanationParts = textParts(explanationWords);
   if (age) explanationParts.push({ text: ` (${age})` });
@@ -337,6 +346,7 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
     adds: textOf(addsParts),
     addsParts,
     asks: asked || waitsThere,
+    voice,
     actionableWork,
     publication,
   };
@@ -380,7 +390,14 @@ const WITHOUT_QUEUES = new Set(["broken", "refused", "faulted", "unreachable"]);
 // what it `adds` to the summary, whether the status `asks` the user to act, and a
 // publication's introduction and links, with which the explanation ends.
 export function statusModel(status, queues, agent) {
-  const { kind, tone, summary, asks = false, publication = null } = status;
+  const {
+    kind,
+    tone,
+    summary,
+    asks = false,
+    voice = "agent",
+    publication = null,
+  } = status;
   let { explanation, adds } = status;
   const explanationParts = [...(status.explanationParts ?? textParts(explanation))];
   const addsParts = [...(status.addsParts ?? textParts(adds))];
@@ -412,6 +429,7 @@ export function statusModel(status, queues, agent) {
     explanationParts,
     addsParts,
     asks,
+    voice,
     explanation,
     adds,
     publication: publicationModel,

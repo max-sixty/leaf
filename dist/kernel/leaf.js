@@ -4116,7 +4116,8 @@ function statusWords({ age, dated, detail, detailSource, handling, invite, kind,
 		"Not answering — nudge the terminal",
 		`${dated}. ${saved} Nothing is answering them, so nudge the terminal.`,
 		`${dated}. ${saved} Nothing is answering them.`,
-		true
+		true,
+		"leaf"
 	] : [
 		"Away",
 		`Away right now. ${saved} They're picked up next turn.`,
@@ -4128,6 +4129,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		kind: "broken",
 		tone: "blocked",
 		summary: BROKEN_LINE,
+		voice: "leaf",
 		explanation: BROKEN_LINE,
 		adds: "",
 		asks: true
@@ -4136,6 +4138,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		kind: "refused",
 		tone: "blocked",
 		summary: "This tab lost access — open the link again",
+		voice: "leaf",
 		explanation: KEY_REFUSED_LINE,
 		adds: "Keep this tab open so changes made here go through.",
 		asks: true
@@ -4146,6 +4149,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 			kind: "faulted",
 			tone: "blocked",
 			summary: "Hit a problem — trying again",
+			voice: "leaf",
 			explanation: `Hit a problem: ${said}. Trying again.`,
 			adds: `${said}. Trying again.`
 		};
@@ -4154,6 +4158,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		kind: "unreachable",
 		tone: "blocked",
 		summary: "Lost the connection — reconnecting",
+		voice: "leaf",
 		explanation: OFFLINE_LINE,
 		adds: ""
 	};
@@ -4166,7 +4171,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	const checkedIn = facts.silentSince ? `Last checked in ${facts.silentSince}` : "Haven't checked in yet";
 	const ended = `Stopped${facts.silentSince ? " " + facts.silentSince : ""}`;
 	const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-	const [summaryWords, explanationWords, beyond, asked = false] = statusWords({
+	const [summaryWords, explanationWords, beyond, asked = false, voice = "agent"] = statusWords({
 		age,
 		dated: facts.left ? ended : checkedIn,
 		detail,
@@ -4204,6 +4209,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		adds: textOf(addsParts),
 		addsParts,
 		asks: asked || waitsThere,
+		voice,
 		actionableWork,
 		publication
 	};
@@ -4235,7 +4241,7 @@ const WITHOUT_QUEUES = /* @__PURE__ */ new Set([
 	"unreachable"
 ]);
 function statusModel(status, queues, agent) {
-	const { kind, tone, summary, asks = false, publication = null } = status;
+	const { kind, tone, summary, asks = false, voice = "agent", publication = null } = status;
 	let { explanation, adds } = status;
 	const explanationParts = [...status.explanationParts ?? textParts(explanation)];
 	const addsParts = [...status.addsParts ?? textParts(adds)];
@@ -4267,6 +4273,7 @@ function statusModel(status, queues, agent) {
 		explanationParts,
 		addsParts,
 		asks,
+		voice,
 		explanation,
 		adds,
 		publication: publicationModel
@@ -4293,6 +4300,7 @@ const LOADING = Object.freeze({
 	kind: "loading",
 	tone: "",
 	summary: "Loading comments and choices…",
+	voice: "leaf",
 	explanation: LOADING_LINE,
 	adds: LOADING_LINE
 });
@@ -4940,6 +4948,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		adds: "",
 		addsParts: [],
 		asks: false,
+		voice: "leaf",
 		publication: null
 	};
 	const status = () => statusReading() ?? CONNECTING;
@@ -7052,6 +7061,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
 		keeps(host, "data-tone", status().tone || null);
 		keeps(host, "data-asks", status().asks ? "" : null);
+		keeps(host, "data-voice", status().voice === "leaf" ? "leaf" : null);
 		const selection = !search && reading.says === "selection" && words;
 		const searchLabel = pageSearch?.open ? "Search page" : "Search threads";
 		render(search ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate("search", "lf-fp-mode-icon")}<span>${pageSearch?.open ? "page" : "threads"}</span>` : selection ? "Selection" : nothing, fieldMode);

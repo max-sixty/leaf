@@ -534,6 +534,7 @@ export function createFloatingPanel({
     adds: "",
     addsParts: [],
     asks: false,
+    voice: "leaf",
     publication: null,
   };
   const status = () => statusReading() ?? CONNECTING;
@@ -3869,6 +3870,10 @@ export function createFloatingPanel({
     keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
+    // A status the agent can't be saying, Leaf's own state or an instruction about the
+    // agent such as nudging its terminal, takes a face of its own, as a script sets a
+    // stage direction apart from the lines (`pageStatus`, `voice`).
+    keeps(host, "data-voice", status().voice === "leaf" ? "leaf" : null);
     // A mode names the destination while a draft hides the placeholder. Passing
     // notices use the empty field and live region; they never allocate another row.
     const selection = !search && reading.says === "selection" && words;

@@ -50,7 +50,20 @@
   const { frame, later: task, listen } = window.lfWatchPlatform;
   const text = (field) =>
     typeof field.value === "string" ? field.value : (field.textContent ?? "");
-  const drawn = (node) => node.isConnected && node.checkVisibility();
+  // Named document properties, such as a form named "host", are not ancestry.
+  // Only a shadow root crosses to its host after its ordinary parents run out.
+  const parent = (node) =>
+    node.parentNode ??
+    (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? node.host : null);
+  // A closed dialog has put its words away, though its pixels may still be fading out
+  // (an exit transition keeps it drawn in the top layer meanwhile).
+  const inClosedDialog = (node) => {
+    for (let at = node; at; at = parent(at))
+      if (at.localName === "dialog" && !at.open) return true;
+    return false;
+  };
+  const drawn = (node) =>
+    node.isConnected && node.checkVisibility() && !inClosedDialog(node);
   // Every field of the page, through its open shadow roots; a `leaf-text` is its host.
   const FIELDS = "textarea, input, [contenteditable], leaf-text";
   function* fields(root = document) {
@@ -200,8 +213,7 @@
     if (source.nativeDefault) {
       if (source.event.defaultPrevented || drawn(field)) return false;
       let owner = field;
-      while (owner && owner !== source.nativeDefault)
-        owner = owner.parentNode ?? owner.host;
+      while (owner && owner !== source.nativeDefault) owner = parent(owner);
       if (!owner) return false;
     }
     const { event, node } = source;

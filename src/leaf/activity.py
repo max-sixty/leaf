@@ -40,12 +40,12 @@ def undeclared() -> dict:
     """The status of a page whose agent has declared nothing, such as one before any
     `leaf page open` or a copy a host serves: no work under way and nothing ended, so
     the page is open for feedback and a wait keeps watching it."""
-    return {"state": "waiting", "detail": ""}
+    return {"state": "waiting"}
 
 
 def declaration(events: list) -> dict:
-    """The agent's declaration about the page: the state, detail and time of the
-    newest `status` event in `events`, or `undeclared` before the first.
+    """The agent's declaration about the page: the state and time of the newest
+    `status` event in `events`, or `undeclared` before the first.
 
     Work taken in hand reopens a page the agent had closed: `idle` says it was done
     with the page, and every watcher stands down for an idle page. So a start after
@@ -58,8 +58,8 @@ def declaration(events: list) -> dict:
     for event in reversed(events):
         if event["kind"] == "status":
             if event["state"] == "idle" and reopened is not None:
-                return {"state": "waiting", "detail": "", "ts": reopened["ts"]}
-            return {key: event[key] for key in ("state", "detail", "ts")}
+                return {"state": "waiting", "ts": reopened["ts"]}
+            return {key: event[key] for key in ("state", "ts")}
         if start_reading(event):
             reopened = event
     return undeclared()
@@ -475,6 +475,14 @@ def takes_input(present: dict, turn: Turn) -> bool:
     return present["listening"] or (turn.running and present["turn_takes_input"])
 
 
+def nudge_due(present: dict, turn: Turn) -> bool:
+    """Whether input arriving now is put in front of the claimant
+    (`presence.nudge_unwatched`): nothing takes it, and its turn was seen to end.
+    A turn Leaf only stopped believing in may still be running a long step, whose
+    Stop hook refuses to end with the input unpicked."""
+    return turn.ended is not None and not takes_input(present, turn)
+
+
 def _start_age(
     start: dict, present: dict, now: datetime, turn: Turn
 ) -> tuple[bool, bool]:
@@ -728,7 +736,11 @@ def canonical_activity(
 
     # The page's `kind` reads this wherever it asks whether anyone is there; a watch
     # question such as the Stop hook's still asks for the lease.
-    taking_input = takes_input(present, turn)
+    # Nor is the agent away where the nudge the next input gets starts a turn
+    # (`Harness.input_wakes`).
+    taking_input = takes_input(present, turn) or (
+        nudge_due(present, turn) and present["input_wakes"]
+    )
     kind = "away"
     detail = ""
     detail_source = None
@@ -765,7 +777,7 @@ def canonical_activity(
         detail_source = {"event_id": start["id"], "item": start["item"]}
         kind = "stalled" if taking_input else "away"
     elif taking_input:
-        kind, detail, dropped = "listening", status.get("detail", ""), False
+        kind, dropped = "listening", False
     if dropped and kind != "working":
         # A belief the turn's ending retired is dated by that ending, not by the
         # start's own last word: "last checked in just now" beside an amber dot

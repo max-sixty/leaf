@@ -60,7 +60,7 @@ An example's markup is its current version. Beside it may sit:
 `prepare_page` in `dev/leaf_dev/page_fixtures.py` builds a page directory from an
 example.
 
-Capture a seeded anchor with `leaf thread open --quote` against the file, since a
+Capture a seeded anchor with `leaf thread create --quote` against the file, since a
 hand-written `{section, quote, suffix}` detaches silently when its sentence changes.
 A widget that shows live time, such as an `lf-atlas-worker` row saying how long since
 its worker reported, needs a seed so the corpus sweeps see it, and a fixture that sets

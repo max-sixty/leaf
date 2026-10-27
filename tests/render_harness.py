@@ -29,6 +29,7 @@ matching build is installed once with `playwright install chromium --only-shell`
 
 import base64
 import difflib
+import hashlib
 import io
 import itertools
 import json
@@ -58,7 +59,8 @@ from interact_support import (
     wait_for,
     write_record,
 )
-from leaf_dev.browser import scroll_settled, slow_cpu
+from leaf_dev import browser as dev_browser
+from leaf_dev.browser import ON_ME_MARK, scroll_settled, slow_cpu, threads_tab
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
     example_media,
@@ -71,9 +73,9 @@ from leaf_dev.thread_snapshot_plugin import (
 )
 from model_folds import leaf_page
 from PIL import Image
+from playwright.sync_api import BrowserContext, Page, expect
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
-from playwright.sync_api import expect
 
 from leaf import cli as cli_model
 from leaf import files as files_model
@@ -144,11 +146,11 @@ def shift_watch_source():
             "--input-type=module",
             "--eval",
             (
-                'import { WORKS, PRESSES } from "./browser/runtime/control-selectors.js";'
+                'import { WORKS, PRESSES, CARET_KEYS } from "./browser/runtime/control-selectors.js";'
                 'import { clippingAxes } from "./browser/runtime/rect.js";'
                 'import { elementAxes, scrollAxes } from "./browser/runtime/element-frame.js";'
                 'import { shadowHost, upFrom, renderedParent } from "./browser/runtime/shadow.js";'
-                "process.stdout.write(JSON.stringify([WORKS,PRESSES,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
+                "process.stdout.write(JSON.stringify([WORKS,PRESSES,CARET_KEYS,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
             ),
         ],
         cwd=ROOT,
@@ -158,6 +160,7 @@ def shift_watch_source():
     (
         interactive,
         presses,
+        caret_keys,
         clipping,
         host,
         parent,
@@ -171,10 +174,10 @@ def shift_watch_source():
         + "const nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
         + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
-        + f"((interactive, pressControls, clippingAxes) => {{\n"
+        + f"((interactive, pressControls, caretKeys, clippingAxes) => {{\n"
         f"const shadowHost = {host};\nconst upFrom = {parent};\n"
         f"const renderedParent = {rendered_parent};\nconst elementAxes = {element_axes};\nconst scrollAxes = {axes};\n"
-        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {json.dumps(presses)}, {clipping});"
+        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {json.dumps(presses)}, {json.dumps(caret_keys)}, {clipping});"
     )
 
 
@@ -333,7 +336,7 @@ SAID_PAGE = leaf_page(
     """
 <h1 id="h">This week</h1>
 <div class="layout-tiles" id="numbers">
-  <dl id="m-open" class="panel"><dt>Open sessions</dt><dd><strong>1,204</strong> <small>+18%</small></dd></dl>
+  <dl id="m-open" class="metric"><dt>Open sessions</dt><dd><strong>1,204</strong> <small>+18%</small></dd></dl>
 </div>
 <lf-board id="board">
   <lf-column id="col-now" label="In flight">
@@ -1272,7 +1275,8 @@ def clean_browser(test=None):
     A worker runs one test at a time, so one process-local collector covers pages made
     by `WatchedBrowser`, render helpers, and tests that navigate a page
     themselves. The fixture hands over its `test` node to select shift coverage
-    (`watches_shifts`); every problem a watch reports reaches this collector.
+    (`watches_shifts`); every problem a watch reports reaches this collector. A test
+    that failed or left problems leaves a picture of each page (`_picture_pages`).
     """
     global _BROWSER_PROBLEM_LISTS, _TEST
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
@@ -1289,7 +1293,28 @@ def clean_browser(test=None):
         for page, problem_list in captured
         for problem in problem_list
     ]
+    if test is not None and (problems or getattr(test, "lf_failed", False)):
+        _picture_pages(test, [page for page, _ in captured])
     assert not problems, "\n".join(problems)
+
+
+def _picture_pages(test, pages):
+    """Save what each page of a failing test shows under `.tmp/test-results/screens/`,
+    which CI uploads with the junit results: an assertion names only what it read, and
+    the picture shows the rest, such as a widget drawn without its styles. A page that
+    can't answer leaves no picture, since the test's own failure is the one to report.
+    The node id is cut to fit a file name, and its hash keeps cut names apart."""
+    stem = re.sub(r"[^\w.-]+", "_", test.nodeid)[:150]
+    name = f"{stem}-{hashlib.sha1(test.nodeid.encode()).hexdigest()[:8]}"
+    for n, page in enumerate(pages):
+        if page.is_closed():
+            continue
+        try:
+            page.screenshot(
+                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png", timeout=5000
+            )
+        except PlaywrightError:
+            continue
 
 
 def judge_watches():
@@ -1418,12 +1443,28 @@ def watched(page, *, java_script_enabled=True):
     page.expose_binding(
         "__leafWatchFinding", lambda _source, found: errors.append(Finding.read(found))
     )
-    page.add_init_script(path=WRITE_WATCH_SOURCE)
-    # One init script keeps cause tracking installed before its words and swap
-    # subscribers; Playwright does not promise an order between separately registered
-    # scripts.
-    page.add_init_script(
-        script="\n".join(
+    # The watch reads the Layout Instability API, which only Chromium implements.
+    shifts = page.context.browser.browser_type.name == "chromium" and (
+        _TEST is None or watches_shifts(_TEST)
+    )
+    page.add_init_script(script=watch_sources(shifts))
+    return errors
+
+
+@cache
+def watch_sources(shifts: bool) -> str:
+    """Every sensor `watched` installs, as the one init script it registers.
+
+    One script keeps them in the order they rely on: write tracking first, then cause
+    tracking before the words and swap subscribers, then the shift watch, which
+    installs after write_watch.js. Playwright does not promise an order between
+    separately registered scripts, and each registration is a round trip to the
+    browser for every page a test makes. Each sensor runs in a block of its own, so
+    one that throws still reaches the page's error collector and the rest install,
+    as they did as separate scripts."""
+    sensors = [
+        WRITE_WATCH_SOURCE.read_text(),
+        *(
             source.read_text()
             for source in (
                 WATCH_PLATFORM_SOURCE,
@@ -1431,21 +1472,14 @@ def watched(page, *, java_script_enabled=True):
                 WORDS_WATCH_SOURCE,
                 SWAP_WATCH_SOURCE,
             )
-        )
-        + "\n"
-        + rendering_job_binding_source()
-        + "\n"
-        + document_port_binding_source()
-    )
-    # The watch reads the Layout Instability API, which only Chromium implements.
-    if page.context.browser.browser_type.name == "chromium" and (
-        _TEST is None or watches_shifts(_TEST)
-    ):
-        page.add_init_script(script=shift_watch_source())
-    # Diagnostics join the captured graph through its compiled public entries. Tests
-    # cannot name a private source path or load a second runtime from the mutable layer.
-    page.add_init_script(
-        script="""(() => {
+        ),
+        rendering_job_binding_source(),
+        document_port_binding_source(),
+        *([shift_watch_source()] if shifts else []),
+        # Diagnostics join the captured graph through its compiled public entries.
+        # Tests cannot name a private source path or load a second runtime from the
+        # mutable layer.
+        """(() => {
           const entry = path => {
             const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
             return import(new URL(path, new URL(boot, location.href)).href);
@@ -1455,18 +1489,24 @@ def watched(page, *, java_script_enabled=True):
           window.__lfOverlayApi = () => entry('runtime/annotation-overlay/check-api.js');
           window.__lfClientApi = () => entry('runtime/layer-client.js');
           window.__lfVendorImport = name => entry(`vendor/${name}`);
-        })();"""
+        })();""",
+    ]
+    return "\n".join(
+        f"try {{\n{sensor}\n}} catch (error) {{ queueMicrotask(() => {{ throw error; }}); }}"
+        for sensor in sensors
     )
-    return errors
 
 
 @contextmanager
 def restarting(page):
-    """Enclose a span in which the test stops and replaces the page's own server.
+    """Enclose a span in which the test replaces the page's server or executable layer.
 
-    A stopped server answers no fetch, and the words the failure arrives in depend on
-    which fetch was in flight when it stopped: a bare `Failed to fetch`, a named module,
-    a stack through the icon load, one of several `net::` codes. A reading written over
+    A layer replacement reloads the document. WebKit reports even a caught fetch
+    rejection from the departing document as a native page exception while its
+    replacement is loading. A stopped server answers no fetch, and the words the
+    failure arrives in depend on which fetch was in flight when it stopped: a bare
+    `Failed to fetch`, a named module, a stack through the icon load, one of several
+    `net::` codes. A reading written over
     those words needs a new member every time a fetch moves, and it ends up describing
     the noise this test makes.
 
@@ -1525,14 +1565,29 @@ def said(problem):
 _ABSENT = object()
 
 
+def place_step_matches(actual, expected):
+    """Match a watch's tag/id step and the classes an assertion names.
+
+    Classes describe the node at observation time, not a complete identity: focus,
+    rendering and other state can add classes. Keep the tag/id and every requested
+    class, without depending on additional classes or their order. These are the
+    watch's unescaped diagnostic steps, not arbitrary CSS selectors.
+    """
+    actual_name, *actual_classes = actual.split(".")
+    expected_name, *expected_classes = expected.split(".")
+    return actual_name == expected_name and set(expected_classes) <= set(actual_classes)
+
+
 def is_problem(problem, expected):
     """Whether a browser problem is the one a test expects.
 
     A string is a fragment of what the page said (`said`), so stack locations cannot
     authorize a problem. A dict names the record as a probe returns one,
-    `{code, at, ...values}`: its `code`, and each field the test cares about, equal to
+    `{code, at, ...values}`: its `code`, and each field the test cares about, match
     what was found, such as `{"code": "console-error", "url": "http://page/api/event"}`.
-    A function of the record answers for itself, for a field read other than by equality."""
+    Watch paths (`node`, `field`, `place`) keep every step and match the tag/id and
+    requested classes via `place_step_matches`. Other fields compare by equality.
+    A function of the record answers for itself, for another kind of reading."""
     if callable(expected):
         return expected(problem)
     if isinstance(expected, str):
@@ -1540,10 +1595,16 @@ def is_problem(problem, expected):
     fields = dict(expected)
     if problem.code != fields.pop("code"):
         return False
-    return all(
-        (problem.at if name == "at" else problem.values.get(name, _ABSENT)) == value
-        for name, value in fields.items()
-    )
+    for name, value in fields.items():
+        actual = problem.at if name == "at" else problem.values.get(name, _ABSENT)
+        if name in {"node", "field", "place"} and isinstance(value, list):
+            if not isinstance(actual, list) or len(actual) != len(value):
+                return False
+            if not all(place_step_matches(a, e) for a, e in zip(actual, value)):
+                return False
+        elif actual != value:
+            return False
+    return True
 
 
 def shown(problems):
@@ -1684,8 +1745,6 @@ def panel_view(name: str) -> str:
 
 # A view of one thread, which names the thread it shows by id in `data-thread`.
 PANEL_THREAD = panel_view("thread")
-# Rows the panel's own row holds, rather than its menu.
-PANEL_ROW_CONTROLS = {"threads": ".lf-fp-threads", "queue": ".lf-fp-on-user"}
 
 
 def panel_field(page):
@@ -1723,6 +1782,53 @@ def panel_settled(page, open=True, view=None):
     )
 
 
+def open_threads(page):
+    """Open the panel's Threads view by pointer, as a user reaches it
+    (`leaf_dev.browser.open_threads`), and wait for its motion to end."""
+    dev_browser.open_threads(page)
+    panel_settled(page, view="threads")
+
+
+# How many open threads the page's reading holds, the number the Threads tab says
+# (thread/model.js, `threadCounts`): those not resolved, a bare reaction being no
+# thread; null until the saved inventory has arrived. It leaves the reading as
+# `window.__lfOpenThreads` for a wait to poll.
+OPEN_THREAD_COUNT = """async () => {
+  const { readThreads } = await window.__lfWidgetApi();
+  const { threadCounts } = await window.__lfCheckApi();
+  window.__lfOpenThreads = () => {
+    const reading = readThreads();
+    return reading.phase === "ready" ? threadCounts(reading.threads).open : null;
+  };
+  return window.__lfOpenThreads();
+}"""
+
+
+def expect_open_threads(page, count):
+    """Wait until the page's reading holds `count` open threads (`OPEN_THREAD_COUNT`).
+
+    The count stands on the Threads tab, behind a press on the On me mark, so this
+    reads it without one, leaving focus, the open view and any card as they are; where
+    the tab itself is the subject, read `threads_tab`'s `.lf-fp-count`."""
+    page.evaluate(OPEN_THREAD_COUNT)
+    try:
+        page.wait_for_function(
+            "(want) => window.__lfOpenThreads() === want",
+            arg=count,
+            polling=render_checks_model.PROBE_POLL_MS,
+        )
+    except PlaywrightTimeout as error:
+        held = page.evaluate("() => window.__lfOpenThreads()")
+        raise AssertionError(f"open threads read {held}, not {count}") from error
+
+
+def expect_on_me(page, count):
+    """Wait until the panel counts `count` items waiting on the user. The folded leaf's
+    badge carries the count the On me mark does, whatever view stands open, where the
+    mark gives its seat to the view's ✕, and whatever news its name goes on to say."""
+    expect(page.locator(".lf-fp-badge")).to_have_text(str(count) if count else "")
+
+
 def panel_menu(page, at=None):
     """Open the leaf's menu and return it, open at its root or at the list `at`
     names: a group (`navigate`, `annotate`, `about`) or `versions`.
@@ -1756,16 +1862,19 @@ def panel_control(page, key, at=None):
     """Return the panel's control for the page's control row `key`, opening the leaf's
     menu, and the list `at` names (`panel_menu`), where the row stands there.
 
-    Threads (`threads`) and On me (`queue`) are the row's marks. Every other row is
-    the menu's, by its key:
+    On me (`queue`) is the row's mark, standing while no view or stance does, and
+    Threads (`threads`) the tab at the foot of On, which the mark opens to reach it
+    (`leaf_dev.browser.threads_tab`). Every other row is the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
     `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
     of the current panel view is the `.lf-fp-exit` ✕ named by its `aria-label`,
     and the page comment is `page_comment`'s, offering selected words as
     `selection_field`'s."""
-    if key in PANEL_ROW_CONTROLS:
-        control = page.locator(PANEL_ROW_CONTROLS[key])
+    if key == "queue":
+        control = page.locator(ON_ME_MARK)
+    elif key == "threads":
+        control = threads_tab(page)
     else:
         control = panel_menu(page, at).locator(f'.lf-fp-item[data-row="{key}"]')
     expect(control).to_be_visible()
@@ -2070,15 +2179,88 @@ def opened_tab(page, destination, press):
 # side. It is the escape `held_events` was written around, and why that fixture
 # routes from navigation onward.
 #
-# So each page arms itself when it is made, on a pattern nothing ever asks for.
-# Nothing is intercepted by it and no request's behavior changes; what changes is
-# that a route registered later — a keystroke before the gesture it holds — only
-# adds a pattern to a list the browser is already consulting.
+# Interception is not free, though. While any route is set, Playwright pauses every
+# request the page makes until its driver lets it go, and turns Chromium's HTTP cache
+# off (`Fetch.enable` on `*` and `Network.setCacheDisabled`). Measured on a plain test
+# page in October 2026, the arm added about 30 ms of CPU to each opening's 550, in the
+# browser process and the driver. Most pages are never routed.
 #
-# The arm is the render gate's own, which needs it for the other end of the same
-# fact: interception comes back down when a route list empties, and requests
-# crossing that transition are lost just as silently.
-arm_interception = render_gate_model.arm_interception
+# So a page the suite makes arms itself when something first routes it or its
+# context, on a pattern nothing else asks for, ahead of that first route. Before the
+# page navigates, nothing is in flight to escape and the arm is in place before the
+# first request, as `held_events` needs. After, the arm proves itself before the
+# test's route is added: the page fetches a probe the arm answers, and a probe the
+# arm missed escaped to the page server's quiet `favicon.ico` and is sent again. A
+# route registered later then only adds a pattern to a list the browser is already
+# consulting. The arm stays for the page's life, since interception comes back down
+# when a route list empties and requests crossing that transition are lost just as
+# silently; `unroute_all` takes it too, so the next route arms again.
+ARM_PROBE = re.compile(r"/favicon\.ico\?lf-interception-armed=\d+$")
+_route_page = Page.route
+_route_context = BrowserContext.route
+_unroute_all_page = Page.unroute_all
+
+
+def _arm(page):
+    """Turn interception on for a page the suite made, before its first route."""
+    if getattr(page, "lf_armed", True):
+        return
+    page.lf_armed = True
+    caught = set()
+
+    def arm(route):
+        caught.add(route.request.url)
+        route.fulfill(status=204)
+
+    _route_page(page, ARM_PROBE, arm)
+    # A page that has not navigated has nothing in flight, and a document that is no
+    # page server's has no quiet address to probe.
+    if not page.url.startswith(("http://", "https://")):
+        return
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+    for attempt in itertools.count():
+        probe = page.evaluate(
+            """attempt => {
+              const probe = new URL(`/favicon.ico?lf-interception-armed=${attempt}`,
+                location.href).href;
+              return fetch(probe, { cache: "no-store" }).then(() => probe, () => probe);
+            }""",
+            attempt,
+        )
+        if probe in caught:
+            return
+        assert time.monotonic() < deadline, (
+            f"request interception never caught a probe on {page.url}"
+        )
+
+
+def _arming_page(self, url, handler, **kwargs):
+    __tracebackhide__ = True
+    _arm(self)
+    return _route_page(self, url, handler, **kwargs)
+
+
+def _arming_context(self, url, handler, **kwargs):
+    __tracebackhide__ = True
+    # A page this context makes from here on starts with the context's route set, so
+    # it arms as it is made (`readable`).
+    self.lf_routed = True
+    for page in self.pages:
+        _arm(page)
+    return _route_context(self, url, handler, **kwargs)
+
+
+def _disarming(self, *args, **kwargs):
+    __tracebackhide__ = True
+    result = _unroute_all_page(self, *args, **kwargs)
+    if hasattr(self, "lf_armed"):
+        self.lf_armed = False
+    return result
+
+
+Page.route = _arming_page
+BrowserContext.route = _arming_context
+Page.unroute_all = _disarming
 
 # A browser wait bounds a hang; it does not time the work it waits for (tests/AGENTS.md,
 # "Functional results do not depend on execution speed"). One that names no deadline
@@ -2093,7 +2275,8 @@ def readable(page, *, java_script_enabled=True):
     """Install what the suite reads off a page, before the page navigates.
 
     The three readings are the same for every scripted page: the delivery ledger the traffic
-    helpers consume, the arm that keeps a later route real, and the problem list the
+    helpers consume, the arm that keeps a later route real (installed with the page's
+    first route, `_arm`), and the problem list the
     browser fixture rejects at the end of the test. None of them can be installed
     afterwards — an init script has to precede the navigation it instruments, and a
     console entry from a page nobody was listening to is simply gone — so a page that
@@ -2114,7 +2297,9 @@ def readable(page, *, java_script_enabled=True):
     if _CPU_THROTTLE and page.context.browser.browser_type.name == "chromium":
         slow_cpu(page, _CPU_THROTTLE)
     page.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
-    arm_interception(page)
+    page.lf_armed = False
+    if getattr(page.context, "lf_routed", False):
+        _arm(page)
     if java_script_enabled:
         page.lf_traffic = Traffic(page)
     watched(page, java_script_enabled=java_script_enabled)
@@ -2359,11 +2544,11 @@ def any_suggestion_control(scope, key: str | None = None, *, visible=True):
 
 
 def command_reference_rows(page, heading):
-    """The rows of the command reference table titled `heading`."""
+    """The rows of the command reference section titled `heading`."""
     heading_id = page.get_by_role("heading", name=heading, exact=True).get_attribute(
         "id"
     )
-    return page.locator(f'tbody[aria-labelledby="{heading_id}"]')
+    return page.locator(f'[role=rowgroup][aria-labelledby="{heading_id}"]')
 
 
 # The page shell's box on screen: where the document's room starts and ends. The runtime
@@ -2569,6 +2754,21 @@ def root_overflow(page) -> float:
     return render_checks_model.evaluate_probe(page, "rootOverflow")
 
 
+def wide_width(page) -> float:
+    """The page's `--wide` in pixels: the theme derives it from the code size, and a
+    page may restate it, so a width check reads it rather than copying the number."""
+    return page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--wide'))"
+    )
+
+
+def painted_words(page, selector: str) -> list[dict]:
+    """Where the words under `selector` are painted, as the render gate reads them
+    (`paintedWords`): one `{left, top, right, bottom, text}` per run, each cut to what
+    the boxes holding it show, so a word said only to a screen reader hides nothing."""
+    return render_checks_model.evaluate_probe(page, "paintedWords", selector)
+
+
 def hold_selection(page, start, end, steps=8, frame_the_press=False):
     """Drag a selection without releasing, pressing on a whole pixel.
 
@@ -2691,60 +2891,63 @@ def scroll_writes(page, steps, scroller="document.scrollingElement"):
     )
 
 
-_GESTURE = """async ([scroller, by, sample]) => {
+# How many frames a gesture takes, whatever the host's frame rate.
+GESTURE_FRAMES = 24
+
+_GESTURE = """async ([scroller, by, sample, frames]) => {
   const box = eval(scroller);
   const read = sample ? eval(sample) : () => null;
-  let frame = 0;
-  let ended = false;
+  const start = box.scrollTop;
   const samples = [];
-  const end = () => { ended = true; };
-  document.addEventListener('scrollend', end, {capture: true, once: true});
-  window.lfWrites = [];
-  window.lfWriteStep = frame;
-  // A task posted from a frame callback runs once that frame has rendered, before the
-  // next frame's scroll step.
-  const rendered = (then) => {
+  let frame = 0;
+  const {scrollGlides, watchScrollEnds} = await window.__lfCheckApi();
+  scrollGlides(true);
+  // A task posted from a frame callback runs once that frame has rendered.
+  const rendered = () => new Promise((then) => {
     const {port1, port2} = new MessageChannel();
     port1.onmessage = then;
     port2.postMessage(null);
-  };
-  const take = () => {
-    const scrolled = box.scrollTop;
-    if (!samples.length || scrolled !== samples.at(-1).scrolled)
-      samples.push({scrolled, read: read()});
-  };
-  const tick = () => {
+  });
+  window.lfWrites = [];
+  window.lfWriteStep = frame;
+  while (frame < frames) {
+    await new Promise(requestAnimationFrame);
     window.lfWriteStep = ++frame;
-    if (!ended) {
-      rendered(take);
-      requestAnimationFrame(tick);
-    }
-  };
-  box.scrollBy({top: by, behavior: 'smooth'});
-  requestAnimationFrame(tick);
-  while (!ended) await new Promise(requestAnimationFrame);
-  await new Promise(rendered);
-  return {frames: frame, samples};
+    box.scrollTo({top: start + Math.round(by * frame / frames), behavior: 'instant'});
+    await rendered();
+    samples.push({scrolled: box.scrollTop, read: read()});
+  }
+  const settled = new Promise((then) => {
+    const stop = watchScrollEnds(() => { stop(); then(); });
+  });
+  scrollGlides(false);
+  await settled;
+  await new Promise(requestAnimationFrame);
+  await rendered();
+  return samples;
 }"""
 
 
 def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
-    """Scroll `scroller` (a page expression) by `by` in one smooth gesture, as a wheel
-    or a key does, and return each DOM write it caused, numbered by the frame it came
-    in, with what its settle wrote under its last, and how many frames it took. The
-    pointer is moved off the page's controls first, so the scroll brings nothing new
-    under it. With `sample`, a page function, it also returns that function's reading
-    beside how far the scroller had gone, on the first frame and each frame that moves
-    the scroller. Both are read once the frame has rendered: a box anchored to scrolled
-    content takes the frame's scroll at the frame's anchor recalculation, after its
-    frame callbacks, so read in one it stands where the frame before drew it. A frame
-    that moves nothing is left out, since the runtime settles once the scroll has been
-    still a while (arrivals.js, `SETTLE_MS`), which on slow frames comes before
-    `scrollend`, so such a frame can show what the scroll held laid out again at rest."""
+    """Scroll `scroller` (a page expression) by `by` in one gesture of
+    `GESTURE_FRAMES` frames, each moving it an equal share, and return each DOM write it
+    caused, numbered by the frame it came in, with what its settle wrote under its last,
+    and how many frames it took. The pointer is moved off the page's controls first, so
+    the scroll brings nothing new under it. With `sample`, a page function, it also
+    returns that function's reading beside how far the scroller had gone, on each frame.
+    Both are read once the frame has rendered: a box anchored to scrolled content takes
+    the frame's scroll at the frame's anchor recalculation, after its frame callbacks,
+    so read in one it stands where the frame before drew it.
+
+    The test drives the frames, rather than a smooth `scrollBy`, so a slow host draws
+    as many as a fast one. The runtime settles on each write's own `scrollend`, and
+    between frames further apart than `SETTLE_MS`, so the gesture holds it as the
+    runtime's own frame-by-frame scrolls do (arrivals.js, `scrollGlides`) and lets it
+    settle once, after the last frame."""
     page.mouse.move(2, 300)
     rendered(page)
     start = page.evaluate(f"() => {scroller}.scrollTop")
-    gesture = page.evaluate(_GESTURE, [scroller, by, sample])
+    samples = page.evaluate(_GESTURE, [scroller, by, sample, GESTURE_FRAMES])
     rendered(page)
     assert page.evaluate(f"() => {scroller}.scrollTop") == pytest.approx(
         start + by, abs=1
@@ -2753,21 +2956,22 @@ def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
         "() => { const w = window.lfWrites; window.lfWrites = null; return w; }"
     )
     if sample:
-        return writes, gesture["frames"], gesture["samples"]
-    return writes, gesture["frames"]
+        return writes, GESTURE_FRAMES, samples
+    return writes, GESTURE_FRAMES
 
 
 def scroll_followers(writes, frames=None):
-    """The places a scroll writes on more than two of its steps, or on more than a
-    third of a gesture's `frames`, as findings.
+    """The places a scroll writes on more than two of its `frames`, a gesture's frames
+    or a pass's steps, and on more than a third of them, as findings.
 
-    A state the scroll changes crosses a small pass at most once each way, while a
-    position written from scroll events is written on every step, a frame behind the
+    A position written from scroll events is written on every step, a frame behind the
     browser, which carries a box that CSS lays out (an anchor, a sticky offset, a scroll
-    timeline) with the scroll itself. A gesture takes as many frames as its speed gives
-    it, and crosses more as it goes further, as a tag steps clear of each neighbour
-    crossing beside it, so it is allowed a share of them. A write that changes nothing needs no reading here: the browser fixture
-    fails it wherever it happens (`write_watch.js`)."""
+    timeline) with the scroll itself. A state the scroll changes is written only where
+    the scroll crosses it, and a scroll crosses more as it goes further, as a section
+    shorter than a pass is current once each way for each of its two edges, or a tag
+    steps clear of each neighbour crossing beside it, so the scroll is allowed a share
+    of its frames. A write that changes nothing needs no reading here: the browser
+    fixture fails it wherever it happens (`write_watch.js`)."""
     places = {}
     for w in writes:
         places.setdefault(w["key"], []).append(w)

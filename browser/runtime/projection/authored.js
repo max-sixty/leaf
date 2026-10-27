@@ -10,10 +10,10 @@ import { dataBody } from "../widget-upgrade.js";
 import { authoredRank } from "./model.js";
 import { initialParent, initialSource } from "../initial-render.js";
 
-/** @typedef {import("../../framework/domain.ts").ActionSpec} ActionSpec */
-/** @typedef {import("../../framework/domain.ts").AuthoredWidget} AuthoredWidget */
-/** @typedef {import("../../framework/domain.ts").AuthoredMap} AuthoredMap */
-/** @typedef {import("../../framework/domain.ts").StateRecord} StateRecord */
+/** @typedef {import("../../types/domain.js").ActionSpec} ActionSpec */
+/** @typedef {import("../../types/domain.js").AuthoredWidget} AuthoredWidget */
+/** @typedef {import("../../types/domain.js").AuthoredMap} AuthoredMap */
+/** @typedef {import("../../types/domain.js").StateRecord} StateRecord */
 
 /* The authored initial condition, read once from validated source before upgrade.
    These typed values are inputs to the complete widget projection; no cloned DOM,

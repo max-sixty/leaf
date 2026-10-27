@@ -845,7 +845,7 @@ def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
     registry_path.write_text(json.dumps(declarations))
     stage = "shadowStage(this, [...this.children]);" if shadow else ""
     if shadow:
-        (tmp_path / ".leaf" / "shadow.css").write_text(
+        (tmp_path / ".leaf" / "widget-shadow.css").write_text(
             "lf-current, lf-proposed { display: block; }"
         )
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(

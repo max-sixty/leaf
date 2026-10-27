@@ -13,6 +13,14 @@ the watcher's `error` event. The check therefore runs the exact candidate once,
 wherever the page carries any of these: through upgrade, authoritative presentation,
 and one rendering frame after it, at the render viewport in the light scheme.
 
+A thread message's markup is run the same way before it posts (`message_page`,
+`command.message_check`), wherever it places one of those widgets. Nothing else draws
+it before the user opens its thread, and the log freezes it, so posting is the one
+moment its author can still fix it. In the `widgets-draw-as-written` evals, 5 of 6
+Codex thread messages holding a Mermaid sequence diagram didn't draw (a `;` in a
+loop label or note ends the statement), and their authors never ran `--render`. A
+message with no such widget waits on no browser.
+
 What fails it is what the runtime would report to the agent. `runtime/layer-client.js`
 posts every uncaught error and unhandled rejection, every widget that fails soft, and
 every fault the runtime reports about the page itself, as an `error` event; that is
@@ -28,6 +36,8 @@ reads layout, color schemes, print, or replay, and code that throws only after a
 gesture or a timer is not reached.
 """
 
+import turbohtml
+
 from leaf.findings import Finding
 from leaf.render_checks import (
     RENDER_VIEWPORT,
@@ -38,7 +48,7 @@ from leaf.render_checks import (
 )
 from leaf.revision_artifact import RevisionArtifact
 from leaf.schema import MEDIA_DIR
-from leaf.structure import SourceDocument, script_kind
+from leaf.structure import SourceDocument, element_attrs, script_kind
 
 from .scheme import answer_reports, served
 
@@ -55,6 +65,13 @@ def needs_browser(document: SourceDocument, artifact: RevisionArtifact) -> bool:
     ]
     if any(script_kind(script["attrs"]) in {"module", "classic"} for script in scripts):
         return True
+    return places_judged_widget(document, artifact)
+
+
+def places_judged_widget(document: SourceDocument, artifact: RevisionArtifact) -> bool:
+    """Whether the document places a widget whose module reads what no static check
+    has: a page widget's own code, a data widget's body, or the page media its
+    attributes name. A widget the document never places never loads."""
     registry = artifact.registry
     implementations = artifact.implementations
     return any(
@@ -67,6 +84,30 @@ def needs_browser(document: SourceDocument, artifact: RevisionArtifact) -> bool:
         for record in document.lf_elements
         if record["tag"] in implementations
     )
+
+
+def message_page(markup: str) -> SourceDocument:
+    """A message's markup as a page of its own, as a sample's template is one.
+
+    A message's widgets stand in its thread rather than the page, where a chart in a
+    shut panel has no room to draw, so the run gives them the column the page's own
+    widgets have. The page's document stays out of it, so an error here is the
+    message's. A thread inserts markup through `template.innerHTML`, which never runs
+    a script in it, so the page leaves out every script a browser would run: the run is
+    for the widgets the markup places (`places_judged_widget`), and a script there would
+    refuse a message for code the user never runs, or change what the run reads."""
+    source = (
+        '<!doctype html><html lang="en"><head><title>Message</title></head>'
+        f'<body><main class="layout-column">{markup}</main></body></html>'
+    )
+    tree = turbohtml.parse(source, scripting=True, source_locations=True)
+    for script in reversed(tree.find_all("script")):
+        location = script.source_location
+        if location is None or script_kind(element_attrs(script)) == "data":
+            continue
+        end = (location.end_tag or location.start_tag).end_offset
+        source = source[: location.start_tag.start_offset] + source[end:]
+    return SourceDocument(source)
 
 
 def run_page_code(browser, url: str) -> list[Finding]:

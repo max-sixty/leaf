@@ -14,7 +14,7 @@ from .activity import (
     current_turn,
     declaration,
     declared_at,
-    takes_input,
+    nudge_due,
     undeclared,
 )
 from .files import file_stamp
@@ -256,7 +256,13 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
         "session_alive": active is not None if claim else None,
         "live_turn": claim_harness(active).live_turn() if active else None,
         "session_name": claim_harness(claim).session_name() if claim else None,
+        # Whether a nudge would start the claimant's next turn (`Harness.input_wakes`).
+        "input_wakes": bool(active and claim_harness(active).input_wakes()),
     }
+
+
+# The keys `live_facts` returns.
+LIVE_FACTS = ("listening", "session_alive", "live_turn", "session_name", "input_wakes")
 
 
 def page_agent(claim: dict | None, events: list) -> str:
@@ -374,13 +380,7 @@ def presence(page_dir: Path, events: list) -> dict:
 def presence_fingerprint(present: dict, others: list) -> str:
     """The half of a reading that file stamps cannot supply, from the facts a state
     already carries: its `live_facts`, and the neighbours as All pages shows them."""
-    facts = (
-        [
-            present[key]
-            for key in ("listening", "session_alive", "live_turn", "session_name")
-        ],
-        others,
-    )
+    facts = ([present[key] for key in LIVE_FACTS], others)
     return hashlib.sha256(
         json.dumps(facts, sort_keys=True, default=str).encode()
     ).hexdigest()[:8]
@@ -424,12 +424,10 @@ def nudge_unwatched(page: PageTransaction) -> None:
     """Message the claimant of a page holding input nothing will carry, once per
     ending of its turn.
 
-    Nothing carries it when no wait lease is held and the claimant takes no input
-    by the activity fold's own reading (`activity.takes_input`), because its turn
-    was seen to end: closed by the Stop hook, or interrupted as its harness's record
-    says. A turn Leaf only stopped believing in may still be running a long step,
-    and a running turn needs no nudge, because its Stop hook refuses to end with the
-    input unpicked. Each ending gets one nudge per page, named by the claim's turn
+    Nothing carries it when no wait lease is held and the activity fold reads a
+    nudge as due (`activity.nudge_due`): the claimant takes no input, because its
+    turn was seen to end, closed by the Stop hook or interrupted as its harness's
+    record says. Each ending gets one nudge per page, named by the claim's turn
     and the stamp that ended or last renewed it, so a user ticking three boxes queues
     one turn or one approval rather than three, while a turn interrupted again after
     a new prompt is messaged again. The claimant's harness decides whether its
@@ -446,8 +444,7 @@ def nudge_unwatched(page: PageTransaction) -> None:
     present, turn = claimant_reading(page_dir, page.events)
     mark = turn_ending(claim)
     if (
-        turn.ended is not None
-        and not takes_input(present, turn)
+        nudge_due(present, turn)
         and claim.get("messaged_ending") != mark
         and claim_harness(claim).nudge(page_dir)
     ):
@@ -465,18 +462,21 @@ def nudge_interrupted(page_dir: Path) -> None:
     """Message the claimant whose turn was interrupted, as Escape ends one, for the
     input that turn left on the page (`nudge_unwatched`): what arrived while it ran
     and its tool boundaries had not yet taken, and what its hooks handed over that
-    no later hook confirmed (`delivery.deliverable`), as when Escape landed while
-    another prompt hook still ran and Claude Code dropped the prompt with Leaf's
-    context.
+    its harness's record does not show reached the model (`delivery.deliverable`),
+    as when Escape landed while another prompt hook still ran and Claude Code
+    dropped the prompt with Leaf's context.
 
     No hook runs on an interrupt, so nothing on the page moves when one happens;
     the page's server reads it from the harness's own record, among the live facts
     it looks at every presence interval (`server_rows`), and calls this when they
-    change. A watch from before the turn still holds the lease and wakes for the
-    input itself, and marks the ending it woke the session for, so the moment
+    change. Claude Code's prompt hook starts a watch that holds the lease through
+    its turn and wakes for what an interrupt leaves, so this sends only where no
+    watch runs: after a turn whose prompt came before the session held any page,
+    whose watch ended at once, or once a watch has failed. A watch that wakes the
+    session marks the ending it woke it for (`session.woke_after`), so the moment
     between its lease going and the woken turn starting sends nothing more. A turn
-    a Stop hook closed is left alone: that hook starts the watch that wakes for what
-    the turn left."""
+    a Stop hook closed is left alone: that hook starts the watch that wakes for
+    what the turn left."""
     from .delivery import deliverable
     from .session import wake_inputs
 

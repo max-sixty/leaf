@@ -193,7 +193,8 @@ moving anything. `leaf package check --render` reports a widget that moves as
 - A widget that shows one member at a time, as `lf-tabs` does, declares `x-views`.
   Before upgrade only the member marked `data-lf-opening` shows; on upgrade, open the
   member `openingView(holder, members)` returns, and record each member it shows with
-  `keepView(holder, member)` so a reload reopens it. A holder whose members share the
+  `keepView(holder, member)` so a reload reopens it. Pass `null` as a third argument
+  to get null where neither the address nor the tab names a member, and choose then. A holder whose members share the
   surrounding page's flow declares `--lf-views-flow: page` in its stylesheet (the
   default is `box`), so Layouts can seat a member's sidebar in the page margin.
 

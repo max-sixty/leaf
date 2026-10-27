@@ -221,7 +221,7 @@ import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
-import { declareSide } from "./current-target.js";
+import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
@@ -4252,10 +4252,17 @@ export function createFloatingPanel({
   // Where the reader stood before stepping into the panel, which a row's command that
   // acts on that place gets back (history.js, `readPlace`).
   let heldCurrentLocation = null;
+  // It is still where they are on the page while they stand in the panel.
+  holdPagePlace(() => (currentLocationIn(host) ? heldCurrentLocation : null));
+  // A press reads it before the press moves focus, which may put away what held it.
+  let pressedIn = false;
   host.addEventListener(
     "pointerdown",
     () => {
-      if (!currentLocationIn(host)) heldCurrentLocation = readPlace();
+      if (currentLocationIn(host)) return;
+      heldCurrentLocation = readPlace();
+      pressedIn = true;
+      setTimeout(() => (pressedIn = false));
     },
     true,
   );
@@ -4267,10 +4274,11 @@ export function createFloatingPanel({
     if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu))
       setMenu(false);
     const inside = Boolean(node) && renderedUnder(node, host);
-    // Stepping in from the page holds where the user was. A row the panel just took
-    // away, as a pressed menu row hands the user to the leaf, is no longer under the
-    // panel but came from it, and holds nothing.
-    if (inside && left?.isConnected && !renderedUnder(left, host))
+    // Stepping in from the page holds where the user was, and from nowhere holds no
+    // place. A row the panel just took away, as a pressed menu row hands the user to the
+    // leaf, is no longer under the panel but came from it, and holds nothing.
+    if (inside && !left && !pressedIn) heldCurrentLocation = null;
+    else if (inside && left?.isConnected && !renderedUnder(left, host))
       heldCurrentLocation = readPlace(left);
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
@@ -4502,9 +4510,6 @@ export function createFloatingPanel({
     // `finishPlacement`).
     responseHome: responseSeat,
     revealResponse: clearRow,
-    // Where the reader stood before stepping into the panel, while they are in it
-    // (navigation.js, `currentItem`).
-    heldPlace: () => (currentLocationIn(host) ? heldCurrentLocation : null),
     // The thread whose row in Threads the pointer is on, and the row Threads draws for
     // a thread, through which hover links a row and its passage both ways
     // (anchor-paint.js, `markRow`).

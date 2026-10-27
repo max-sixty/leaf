@@ -180,6 +180,9 @@ arrives. Each `source.kind` adds its own facts:
 returns the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and
 `lf-tally` count with it, so a module marking obligations per card or section should
 too, passing `readObligations().user` for those waiting on the user.
+`tally(obligations)` counts such a set as `{onUser, onAgent, open, total}`, splitting the
+open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
+does, such as "2 of 8 to answer · 1 on Claude", so every count of a queue reads alike.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation

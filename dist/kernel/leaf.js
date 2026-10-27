@@ -1,4 +1,4 @@
-import { aimLayer, boxMotion, liftReach, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
+import { aimLayer, boxMotion, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
 import { Z, bindQueuedWork, d, observeQueuedWork, x } from "./runtime/bundle-signals-core.js";
 import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under as under$1, upFrom } from "./runtime/bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
@@ -4827,13 +4827,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const outMs = () => motionTime("--lf-motion-view-out", host);
 	host.setAttribute("role", "region");
 	host.setAttribute("aria-label", "Leaf");
-	const ground = el("div", "lf-ui lf-fp-ground");
-	ground.setAttribute("aria-hidden", "true");
-	const ring = el("div", "lf-fp-ring");
-	const fill = el("div", "lf-fp-fill");
-	const fieldRing = el("div", "lf-fp-field-ring");
-	const fieldFill = el("div", "lf-fp-fill");
-	ground.append(ring, fill, fieldRing, fieldFill);
 	const card = el("div", "lf-fp-card");
 	const inner = el("div", "lf-fp-inner");
 	const opened = el("div", "lf-fp-opened");
@@ -5424,15 +5417,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const following = boxMotion({
 		root: host,
 		box: card,
-		room: ground,
-		surface: () => [
-			[ground, liftReach(ground, 2)],
-			[ring, 1],
-			[fill, 0]
-		],
-		ring: [fieldRing, fieldFill],
+		surface: "lf-ui lf-fp-ground",
+		lift: 2,
+		outset: 1,
 		observer: follow
 	});
+	const { ground } = following;
 	function streamSend() {
 		following.stream();
 	}
@@ -5446,10 +5436,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			easing: compact ? foldEase() : ease()
 		}, compact);
 	}
-	addEventListener("resize", () => {
-		following.forget();
-		followBox();
-	});
+	addEventListener("resize", followBox);
 	let onPageSeat = false;
 	let unreadSeat = null;
 	function decideUnreadSeat() {

@@ -210,12 +210,41 @@ html[data-lf-region-capture] main * {
 /* Everything below is private to the chrome: no widget or page class can match it. */
 @scope (.lf-chrome) {
   /* The tween a floating box's change of layout travels on (runtime/box-motion.js),
-     the floating panel's and the margin card's alike, which their scripts read off the
-     box: the Codex panel's one strong ease-out, at a length the user singled out as the
-     panel's best motion for a box growing as the words do (15 October). */
-  :is(.lf-floating-panel, .lf-margin-preview) {
+     every box's alike, which its motion reads off the box: the Codex panel's one
+     strong ease-out, at a length the user singled out as the panel's best motion for a
+     box growing as the words do (15 October). */
+  :scope {
     --lf-motion-box-ease: cubic-bezier(0.23, 1, 0.32, 1);
     --lf-motion-box-resize: 300ms;
+  }
+  /* A floating box's surface (runtime/box-motion.js): a layer behind the box, cut to
+     its outline grown by its shadow's reach, holding a ring and a fill inside it cut to
+     the outline, and while the box moves a ring a part of it wears. Each box's own rule
+     places the layer and colours the ring and fill. */
+  .lf-box-ground {
+    pointer-events: none;
+  }
+  .lf-box-ground,
+  .lf-box-ground > * {
+    clip-path: inset(50%);
+  }
+  .lf-box-ground > * {
+    position: absolute;
+    inset: 0;
+  }
+  .lf-box-ring {
+    background: var(--lf-box-ring);
+  }
+  .lf-box-fill {
+    background: var(--lf-box-fill);
+  }
+  @media (forced-colors: active) {
+    .lf-box-fill {
+      background: Canvas;
+    }
+    .lf-box-ring {
+      background: CanvasText;
+    }
   }
   /* The foreground dialog (chrome.js) is an empty box at the document's origin, so what
      it holds positions against the window or that origin and never reads its size. Left

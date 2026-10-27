@@ -878,7 +878,7 @@ def tally_after_an_answer(page: Page) -> None:
     next_on_me = page.locator("#ar-left .lf-tally-next")
     next_on_me.click()
     page.locator("#ar-canary-consecutive").click()
-    expect(page.locator("#ar-left .lf-tally-words")).to_have_text("8 of 9 to answer")
+    expect(page.locator("#ar-left .lf-tally-words")).to_have_text("8 left to answer")
     next_on_me.click()
     expect(page.locator("#ar-latency-decision")).to_be_focused()
     settle(page)

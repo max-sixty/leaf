@@ -15,8 +15,7 @@ import { pathToFileURL } from "node:url";
 import { capture, publish } from "./dependency-bundles.mjs";
 
 const path = "browser/vendor/test.js";
-const theme = "browser/theme.css";
-const packageTheme = "packages/default/theme.css";
+const theme = "browser/styles/vendor/webawesome-theme.css";
 const head = "original-head";
 const repo = "owner/leaf";
 const run = {
@@ -29,7 +28,6 @@ const artifact = {
   files: [
     { path, content: "new bundle" },
     { path: theme, content: "new theme" },
-    { path: packageTheme, content: "new package theme" },
   ],
 };
 
@@ -58,6 +56,7 @@ test("capture includes changed, new and deleted generated files, but rejects sou
     const git = (...args) => execFileSync("git", args, { stdio: "ignore" });
     git("init", "-q");
     mkdirSync("browser/vendor", { recursive: true });
+    mkdirSync("browser/styles/vendor", { recursive: true });
     writeFileSync(path, "old");
     writeFileSync(theme, "old theme");
     writeFileSync("package.json", "{}");
@@ -137,13 +136,12 @@ function endpoint({
 
 test("publisher changes only bundles on the exact Dependabot branch and preserves parent custody", async () => {
   const { api, calls } = endpoint({
-    extra: ["package.json", "pnpm-workspace.yaml", theme, packageTheme],
+    extra: ["package.json", "pnpm-workspace.yaml", theme],
   });
   assert.equal(await publish(api, repo, run, artifact), "generated-commit");
   assert.deepEqual(calls.find((c) => c.route.endsWith("/trees")).data.tree, [
     { path, mode: "100644", type: "blob", content: "new bundle" },
     { path: theme, mode: "100644", type: "blob", content: "new theme" },
-    { path: packageTheme, mode: "100644", type: "blob", content: "new package theme" },
   ]);
   assert.deepEqual(
     calls.find((c) => c.route.endsWith("/commits") && c.method === "POST").data.parents,
@@ -160,9 +158,11 @@ test("publisher refuses untrusted paths, foreign builds and non-dependency sourc
     ".github/workflows/ci.yaml",
     "browser/vendor/../runtime/evil.js",
     "browser/vendor/.hidden.js",
+    "browser/theme.css",
     "browser/styles/theme.css",
+    "packages/default/widgets.css",
     "browser/runtime/authored.css",
-    "packages/playground/theme.css",
+    "packages/playground/widgets.css",
   ]) {
     const { api, calls } = endpoint();
     await assert.rejects(

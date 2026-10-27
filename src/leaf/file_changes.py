@@ -23,8 +23,6 @@ import threading
 import weakref
 from pathlib import Path
 
-from watchfiles import watch
-
 from .findings import Finding, note
 from .page_memory import memo
 from .served_state.reading import outside_inputs, page_input, page_roots
@@ -205,6 +203,8 @@ def _changes(paths, recursive, accepts, started):
     native watcher left to give. Exhaustion arises only while the watcher is
     created, before `started` reports it installed (notify drops a later watch it
     can't add), so the polling watcher misses no change the native one reported."""
+    from watchfiles import watch
+
     options = {
         "watch_filter": lambda _change, path: accepts(Path(path)),
         "debounce": 25,

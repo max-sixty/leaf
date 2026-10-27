@@ -19,6 +19,7 @@ Commands:
   page        Create, check, stamp, and read pages.
   server      Start, run, or stop the local server.
   task        Create or end to-dos, start work on your list, and plan.
+  theme       Discover personal themes for page authoring.
   thread      Create, answer, edit, summarize, or resolve a thread.
   wait        Wait for the next batch.
 

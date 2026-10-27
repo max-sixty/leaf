@@ -44,8 +44,9 @@ from leaf.thread import post_reply
 from leaf.todos import cmd_start
 from leaf.vendoring import cmd_init
 from leaf_dev import LEAF_COMMAND
-from leaf_dev.browser import headless_shell, settle, tab
+from leaf_dev.browser import headless_shell, open_threads, settle, tab
 from leaf_dev.leaf_assets import publish, stage
+from leaf_dev.page_fixtures import fixture_environment
 from leaf_dev.recording import write_gif
 
 GIF_SIZE = (1120, 700)
@@ -338,7 +339,7 @@ def record(
     field.press("ControlOrMeta+Enter")
     page.wait_for_selector(".lf-margin-thread")
     shot(1500)
-    page.locator(".lf-fp-threads").click()
+    open_threads(page)
     thread = page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first
     thread.wait_for()
 
@@ -438,8 +439,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
                 ")?.content === String(revision)",
                 arg=revision,
             )
-            page.locator(".lf-fp-threads").click()
-            page.locator(".lf-fp-filters button", has_text="Open").click()
+            open_threads(page)
             page.locator(".lf-fp-thread").first.click()
             page.wait_for_selector(".lf-fp-view[data-view=thread] .lf-msg.agent")
             page.locator("#top").scroll_into_view_if_needed()
@@ -453,7 +453,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
 def demo_session(scratch: Path):
     """Own the recorder's state and delivery loop, independently of its invoking agent."""
     previous = os.environ.copy()
-    recording_environment = detached_environment(None) | {
+    recording_environment = fixture_environment(detached_environment(None)) | {
         "XDG_STATE_HOME": str(scratch / "state"),
         "CLAUDE_CODE_SESSION_ID": f"leaf-demo-{uuid4()}",
         "CLAUDE_PID": str(os.getpid()),

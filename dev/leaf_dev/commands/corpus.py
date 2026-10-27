@@ -6,21 +6,25 @@ and the combined-page tests generate them when requested. Edit their authored so
 <main> body keeps its ids and content, including its contents outline: the surrounding
 corpus tab scopes that outline to its source page. Every source must therefore keep
 its ids disjoint, which this command enforces.
-An example that owns an element (a page/registry.json declaration with its module under
-page/widgets/) brings that element into the corpus through examples/corpus.page/, the
-corpus's own page directory, so its markup still names a declared element there.
+Each example's page declarations and files join examples/corpus.page/, so its
+markup keeps its named contracts and custom widgets in the composed page.
 
     uv run leaf-dev corpus
 """
 
 import html
 import json
+import tempfile
 from pathlib import Path
 
 import click
 import turbohtml
+from click.testing import CliRunner
 
+from leaf.cli import cli
+from leaf.event_log import read_events
 from leaf.registry.contract import is_element_name
+from leaf.registry.kernel import kernel_event_ownership
 from leaf.registry.layer import merge_layer_declarations
 from leaf.state import flocked, replace_bytes
 from leaf.structure import SourceDocument, rel_tokens
@@ -35,6 +39,7 @@ from leaf_dev.example_data import (
     regression_sources,
     seed_log,
 )
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 # Focused chrome galleries with several live child pages stay separate; their
 # underlying widget and thread states already stand in the feature gallery.
@@ -48,6 +53,8 @@ DEVELOPER_SOURCES = (
     "visual-review-gallery",
     "playwright-trace-gallery",
     "motion",
+    "deck",
+    "playground",
 )
 
 
@@ -234,12 +241,11 @@ def build(inputs: list[Path]) -> str:
 
 
 def build_page(inputs: list[Path]) -> dict[str, bytes]:
-    """The corpus's page directory: every element an example owns, with its modules.
+    """The corpus's page directory: every example's declarations and page files.
 
-    An element is the example's own when it ships the module that defines it,
-    `widgets/<tag>.js`; a declaration without one narrows a layer widget for that page
-    alone (a playground's fixed id) and stays out of the corpus. Every example's
-    other page files come along, including scripts that use only package widgets.
+    Named instance contracts compose under `$data`, so each widget keeps its own
+    payload schema in the combined page. Conflicting tag declarations must be
+    resolved by their authors rather than silently dropping a page's contract.
     """
     declarations = {}
     files = {}
@@ -253,11 +259,7 @@ def build_page(inputs: list[Path]) -> dict[str, bytes]:
             if registry_path.is_file()
             else {}
         )
-        owned = {
-            tag: entry
-            for tag, entry in registry.items()
-            if is_element_name(tag) and (page / "widgets" / f"{tag}.js").is_file()
-        }
+        owned = {tag: entry for tag, entry in registry.items() if is_element_name(tag)}
         shared = {
             key: entry for key, entry in registry.items() if not is_element_name(key)
         }
@@ -286,12 +288,31 @@ def build_page(inputs: list[Path]) -> dict[str, bytes]:
     return {"registry.json": registry.encode(), **files}
 
 
+def _run_leaf(*args: str, input_text: str | None = None) -> None:
+    result = CliRunner().invoke(cli, list(args), input=input_text)
+    if result.exit_code:
+        raise ValueError(f"leaf {' '.join(args)}: {result.output}") from (
+            result.exception
+        )
+
+
+def admitted_history(source: Path) -> list[dict]:
+    """The log a page built from `source` holds: its seed as the door admitted it,
+    with the fields admission derives, which a thread closure reads."""
+    with tempfile.TemporaryDirectory(prefix="leaf-corpus-") as scratch:
+        page = Path(scratch) / "page"
+        prepare_page(page, read_fixture(source), _run_leaf, final_status=None)
+        return read_events(page)
+
+
 def build_events(inputs: list[Path]) -> str:
-    """Carry the threads embedded samples explicitly depend on.
+    """Carry the threads embedded samples explicitly depend on, as the commands
+    the corpus's own seed admits.
 
     The corpus otherwise starts undecided; composing every example's history would
     settle unrelated controls before the corpus can exercise them.
     """
+    derived = kernel_event_ownership()["derived"]
     combined = {}
     for source in inputs:
         document = SourceDocument(source.read_text(encoding="utf-8"))
@@ -302,11 +323,7 @@ def build_events(inputs: list[Path]) -> str:
         }
         if not selected:
             continue
-        events = [
-            json.loads(line)
-            for line in seed_log(source).read_text().splitlines()
-            if line.strip()
-        ]
+        events = admitted_history(source)
         # A declaration naming nothing is a typo here and nothing else: the history
         # is the example's own shipped log, so a thread absent from it will be absent
         # from every page built from this source. `sample_events` seeds what a log
@@ -316,7 +333,8 @@ def build_events(inputs: list[Path]) -> str:
                 f"{source.name} declares sample threads its log does not "
                 f"hold: {', '.join(sorted(unknown))}"
             )
-        for event in sample_events(document, events, selected):
+        for record in sample_events(document, events, selected):
+            event = {key: value for key, value in record.items() if key not in derived}
             if event["id"] in combined and combined[event["id"]] != event:
                 raise ValueError(
                     f"corpus examples contribute conflicting event {event['id']!r}"

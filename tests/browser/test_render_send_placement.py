@@ -524,6 +524,36 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     assert card["right"] <= boundary["right"] + 1
 
 
+def test_send_opens_the_card_a_reopen_shows(browser, serve):
+    """The card Send opens from a one-line comment is the card its margin marker
+    reopens: the same width, at least the card's minimum, at the same place."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(browser, serve(PAGE), context=context)
+    FIRST_LINE.open(page, False)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "data-lf-placement", re.compile(".+")
+    )
+    page.keyboard.insert_text("Keep the runner fixed.")
+    rendered(page)
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    sent = page.evaluate(RECT, ".lf-margin-preview")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
+    page.locator(".lf-margin-marker").click()
+    expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    reopened = page.evaluate(RECT, ".lf-margin-preview")
+    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
+    assert reopened["right"] - reopened["left"] >= minimum - 0.5, (reopened, minimum)
+    assert sent == pytest.approx(reopened, abs=0.5), (sent, reopened)
+
+
 @pytest.mark.parametrize(
     "region,route",
     # Each scrolling arrangement once; the two routes alternate between them, since
@@ -1078,8 +1108,8 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
 
 def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
     """A card sent in a pane grows out of its box no further than the pane's edge
-    cuts it at rest: the growth's clip and the region's are one clip, so the card and
-    its shadow never paint past the pane, even for the growth's 240ms."""
+    cuts it at rest: the growth moves the card's surface inside the region's cut, so the
+    card and its shadow never paint past the pane, even while it grows."""
     page = open_page(
         browser,
         serve(
@@ -1107,7 +1137,8 @@ def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
       window.clips = [];
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');
-        if (card?.getAnimations().length) window.clips.push(getComputedStyle(card).clipPath);
+        if (card?.querySelector('.lf-margin-preview-ground').getAnimations().length)
+          window.clips.push(getComputedStyle(card).clipPath);
         window.sampling = requestAnimationFrame(sample);
       };
       window.sampling = requestAnimationFrame(sample);
@@ -1118,7 +1149,7 @@ def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
     expect(card).to_be_visible()
     wait_for(
         lambda: page.evaluate(
-            "document.querySelector('.lf-margin-preview').getAnimations().length"
+            "document.querySelector('.lf-margin-preview-ground').getAnimations().length"
         ),
         lambda n: n == 0,
         failure="Thread growth never finished",
@@ -1186,7 +1217,8 @@ def test_send_grows_thread_around_the_words(
     the rectangle the box's frame reserved, so the draft's words stand where they were
     typed through Send and its acknowledgement: the box and the card share one text
     column and foot, and the card stands its words as far above its end as the box did.
-    The growth only clips the card, so the words its layout places are the ones painted.
+    The growth only cuts the card's surface and parts, so the words its layout places
+    are the ones painted.
     Read inside the editor solely to measure its actual glyphs, without changing its
     closed-root behavior."""
     browser = request.getfixturevalue(engine)
@@ -1236,6 +1268,11 @@ def test_send_grows_thread_around_the_words(
         rendered(page)
     if long == "passage":
         assert FIRST_LINE.line(page)["bottom"] > 0
+    # The words stand where the box's growth with them ends (box-motion.js).
+    page.evaluate(
+        """() => Promise.all(document.querySelector('.lf-fab-ground')
+          .getAnimations().map(motion => motion.finished.catch(() => {})))"""
+    )
     page.evaluate("""() => {
       const input = document.querySelector('.lf-fab-input');
       const blockRects = node => {
@@ -1281,8 +1318,8 @@ def test_send_grows_thread_around_the_words(
       window.grew = false;
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');
-        window.grew ||= Boolean(card?.getAnimations().some(animation =>
-          animation.effect.getKeyframes().some(frame => 'clipPath' in frame)));
+        window.grew ||= Boolean(
+          card?.querySelector('.lf-margin-preview-ground').getAnimations().length);
         const body = card?.querySelector('.lf-msg-body');
         if (body && card.checkVisibility()) {
           window.sendFrames.push({rects:rects(body), pageScroll:scrollY,
@@ -1304,7 +1341,7 @@ def test_send_grows_thread_around_the_words(
     rendered(page)
     wait_for(
         lambda: page.evaluate(
-            "document.querySelector('.lf-margin-preview').getAnimations().length"
+            "document.querySelector('.lf-margin-preview-ground').getAnimations().length"
         ),
         lambda n: n == 0,
         failure="Thread growth never finished",
@@ -1316,8 +1353,7 @@ def test_send_grows_thread_around_the_words(
     assert not reading["box"]["painted"], "The box being written painted its frame"
     assert reading["grew"], "Send showed the card without growing it out of the box"
     assert reading["frames"]
-    # The card takes the editor's reserved rectangle. The Other responses button
-    # stands beside that rectangle and disappears when the card opens.
+    # The card takes the editor's reserved rectangle.
     edges = ("left", "right", "top") if options else ("left", "right", "top", "bottom")
     for frame in reading["frames"]:
         assert {edge: frame["frame"][edge] for edge in edges} == pytest.approx(

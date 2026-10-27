@@ -232,7 +232,7 @@ def browser_state(
             ),
             "coverage": coverage,
             "published_at": published_at,
-            "queues": queues(workflows, todos, items),
+            "queues": queues(workflows, todos, items, threads, reading.within),
         }
     if wants_history(readings[revision] for revision in view_revisions):
         page_history = {

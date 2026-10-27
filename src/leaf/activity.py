@@ -475,6 +475,14 @@ def takes_input(present: dict, turn: Turn) -> bool:
     return present["listening"] or (turn.running and present["turn_takes_input"])
 
 
+def nudge_due(present: dict, turn: Turn) -> bool:
+    """Whether input arriving now is put in front of the claimant
+    (`presence.nudge_unwatched`): nothing takes it, and its turn was seen to end.
+    A turn Leaf only stopped believing in may still be running a long step, whose
+    Stop hook refuses to end with the input unpicked."""
+    return turn.ended is not None and not takes_input(present, turn)
+
+
 def _start_age(
     start: dict, present: dict, now: datetime, turn: Turn
 ) -> tuple[bool, bool]:
@@ -728,7 +736,11 @@ def canonical_activity(
 
     # The page's `kind` reads this wherever it asks whether anyone is there; a watch
     # question such as the Stop hook's still asks for the lease.
-    taking_input = takes_input(present, turn)
+    # Nor is the agent away where the nudge the next input gets starts a turn
+    # (`Harness.input_wakes`).
+    taking_input = takes_input(present, turn) or (
+        nudge_due(present, turn) and present["input_wakes"]
+    )
     kind = "away"
     detail = ""
     detail_source = None

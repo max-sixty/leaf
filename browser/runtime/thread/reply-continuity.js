@@ -1,63 +1,46 @@
-/* Natural thread layout with explicit space retained for passive presentation.
+/* Natural thread layout, with the room a publication removes held for the reply.
 
-   Transcript, quote and response size themselves through CSS. A semantic presentation
-   preserves the visible reply's position by converting removed content into a spacer;
-   later content consumes that spacer. Local disclosures and native edits never take
-   an allocation snapshot, so returning to a collapsed shape is ordinary layout.
-   Message rewrites identify their changing boxes at the presentation boundary, so their
-   own height change does not become passive space. The reply editor retains its room
-   across mirrored draft replacement and while it is scrolled out of sight; native
-   input returns it to intrinsic size. A departed or closed response releases both
-   mechanical allocations. A message folding away (transcript.js) gives its room back
-   over the fold rather than at once, so the spacer takes that room frame by frame,
-   holding the extent the presentation left, until the last fold ends. */
+   Transcript, quote, response and the reply editor size themselves through CSS. A
+   semantic presentation preserves the visible reply's position by converting the room
+   it removed into a spacer; later content consumes that spacer, and it goes once the
+   reply leaves sight or the thread closes. Local disclosures and native edits take no
+   snapshot, so returning to a collapsed shape is ordinary layout. The boxes a
+   presentation changes itself are measured at its boundary, so their own height change
+   does not become passive space: a message rewrite the user has open, and a message
+   leaving the thread, as a reply the log refuses does, which gives its room back as it
+   folds away (transcript.js).
+
+   The editor holds no room of its own. Words a refused send hands back, and a draft
+   typed in another tab, grow it as typing does, in a card as in the floating panel
+   (browser/AGENTS.md, "Stability is owed to the common path"; the user's choice, 25
+   October 2026), over holding the room for returned and synced words, where the
+   editor kept its height from before Send and the spacer kept the refused turn's room
+   through its fold, so the card held still while a gap stood above the box, and a
+   mirrored draft stayed in the box of the last native edit, clipped mid-glyph. */
 import { growthIsSeen, whenNone } from "../geometry.js";
-import { atLayoutPrecision, layoutPx } from "../keeps.js";
-import { TEXT_FIELD } from "../control-selectors.js";
-import { nextAnimation, nextRender, sizeObserver } from "../rendering.js";
+import { layoutPx } from "../keeps.js";
 import { placeKeeper } from "../user-place.js";
 import { scrollerFor } from "../reading-regions.js";
 import { offFlowSurfaceOf } from "../off-flow.js";
-import { draftHasContent } from "../drafts.js";
-import { replyDraftContext } from "./replies.js";
+
+// The room a box takes in its flow, its margins included; none once it has gone.
+const room = (node) => {
+  if (!node.isConnected) return 0;
+  const { marginBlockStart, marginBlockEnd } = getComputedStyle(node);
+  return (
+    node.getBoundingClientRect().height +
+    parseFloat(marginBlockStart) +
+    parseFloat(marginBlockEnd)
+  );
+};
 
 export class ReplyContinuity {
   #owner;
   #row = null;
   #departure = null;
   #space = 0;
-  // The folds the spacer follows now (`#holdThrough`).
-  #through = null;
-  // Growth already deducted from passive space while a refused draft returns.
-  #returningWriting = 0;
-  // The writing areas a presentation changes, each with its height before it.
+  // The boxes a presentation changes itself, each with its height before it.
   #presenting = [];
-  #writing = null;
-  #measure = null;
-  #sizes = sizeObserver((entries) => {
-    const writing = this.#writing;
-    if (
-      !writing ||
-      !entries.some(
-        ({ target, borderBoxSize }) =>
-          target === writing.input &&
-          atLayoutPrecision(borderBoxSize[0].inlineSize) !== writing.width,
-      ) ||
-      this.#measure != null
-    )
-      return;
-    // A new inline measure changes wrapping, independently of the draft's value.
-    // Reallocate through the rendering pass, outside ResizeObserver delivery.
-    this.#measure = nextRender(() => {
-      this.#measure = null;
-      if (this.#writing !== writing) return;
-      if (!this.#visible()) return this.#releaseSpace();
-      writing.width = atLayoutPrecision(
-        parseFloat(getComputedStyle(writing.input).inlineSize),
-      );
-      this.#allocateWriting(writing.input, layoutPx(writing.input.naturalBlockSize));
-    });
-  });
   gap = document.createElement("div");
   constructor(owner) {
     this.#owner = owner;
@@ -67,31 +50,20 @@ export class ReplyContinuity {
     owner.addEventListener("toggle", () => {
       if (!this.#visible()) this.release();
     });
-    // Only native reply edits resize the editor; restored draft values fire no input.
-    owner.addEventListener(
-      "input",
-      (event) => {
-        if (!this.#row?.contains(event.target)) return;
-        const input = this.#row.querySelector(TEXT_FIELD);
-        if (input.value) this.#allocateWriting(input, layoutPx(input.naturalBlockSize));
-        else this.#releaseWriting();
-      },
-      { capture: true },
-    );
   }
 
   #visible() {
     return this.#owner.isConnected && this.#row?.isConnected && growthIsSeen(this.#row);
   }
-  // `writing` are the boxes the presentation opens, closes or changes the words of, as
-  // rewrites do, whose own height changes the extent follows.
-  before(writing = []) {
+  // `own` are the boxes the presentation opens, closes, changes the words of or removes,
+  // whose own height change the extent follows.
+  before(own = []) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     this.#presenting = [];
     if (!this.#visible()) return null;
-    this.#presenting = writing
+    this.#presenting = own
       .filter((node) => node.isConnected)
-      .map((node) => ({ node, height: node.getBoundingClientRect().height }));
+      .map((node) => ({ node, height: room(node) }));
     const extent = parseFloat(getComputedStyle(this.#owner).blockSize);
     // Natural measurement can briefly clamp a surrounding scroller before the gap
     // settles. Use the shared synchronous place keeper to pay for that reflow only.
@@ -106,92 +78,28 @@ export class ReplyContinuity {
         });
     return { extent, place, held: place?.take({ spans: false }) };
   }
-  // `folds` are the transcript's folds under way (transcript.js, `folds`).
-  after(reading, folds = []) {
+  after(reading) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     const presenting = this.#presenting;
     this.#presenting = [];
     if (!this.#row?.isConnected) return this.release();
     if (!this.#visible()) {
       reading?.place?.finish(reading.held);
-      return this.#releaseSpace();
+      return this.release();
     }
-    this.#retainWriting();
     if (reading != null) {
       const { extent, place, held } = reading;
-      const body = getComputedStyle(this.#owner);
-      const written = presenting
-        .filter(({ node }) => node.isConnected)
-        .reduce(
-          (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
-          0,
-        );
-      // A refusal lifts the draft mask after this thread presentation. Its words
-      // will grow the still-empty field back to the writing room we retained from
-      // before Send. Account for that growth while replacing the departed turn
-      // with passive space, rather than adding both the space and the words.
-      const input = this.#row.querySelector(TEXT_FIELD);
-      const context = input && replyDraftContext(input);
-      const returning =
-        this.#writing?.input === input &&
-        context &&
-        draftHasContent(context) &&
-        !this.#owner.querySelector(".lf-msg.user[data-attempt]")
-          ? Math.max(
-              0,
-              parseFloat(this.#writing.room) - input.getBoundingClientRect().height,
-            )
-          : 0;
-      this.#keep(
-        Math.max(
-          0,
-          this.#space +
-            extent -
-            parseFloat(body.blockSize) +
-            written +
-            this.#returningWriting -
-            returning,
-        ),
+      const own = presenting.reduce(
+        (sum, { node, height }) => sum + room(node) - height,
+        0,
       );
-      this.#returningWriting = returning;
+      const now = parseFloat(getComputedStyle(this.#owner).blockSize);
+      this.#keep(Math.max(0, this.#space + extent - now + own));
       place?.finish(held);
     }
-    if (!this.#visible()) return this.#releaseSpace();
+    if (!this.#visible()) return this.release();
     this.#departure?.();
-    this.#departure = whenNone([this.#row], growthIsSeen, () => {
-      if (!this.#owner.isConnected) this.release();
-      else this.#releaseSpace();
-    });
-    if (reading != null && folds.length) this.#holdThrough(folds);
-  }
-  // The extent this presentation left holds until its folds end. Words a refusal hands
-  // back grow the editor only into room a fold has given back, scrolling inside it
-  // until then, since the turn's room has not yet gone.
-  #holdThrough(folds) {
-    const extent = parseFloat(getComputedStyle(this.#owner).blockSize);
-    const through = { cut: 0 };
-    this.#through = through;
-    const take = () => {
-      if (this.#through !== through) return;
-      const writing = this.#writing;
-      const cut = writing?.input.matches(":state(placeholder-shown)") ? 0 : through.cut;
-      const now = parseFloat(getComputedStyle(this.#owner).blockSize);
-      const room = extent - (now - this.#space + cut);
-      this.#cutWriting(writing ? Math.max(0, -room) : 0);
-      this.#keep(Math.max(0, room));
-    };
-    const frame = () => {
-      if (this.#through !== through) return;
-      take();
-      nextAnimation(frame);
-    };
-    nextAnimation(frame);
-    // A fold's end removes its message before the frame paints, which this last
-    // reading answers in the same frame.
-    void Promise.all(folds.map(({ finished }) => finished.catch(() => {}))).then(() => {
-      take();
-      if (this.#through === through) this.#through = null;
-    });
+    this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
   }
   #keep(space) {
     if (space === this.#space) return;
@@ -200,66 +108,11 @@ export class ReplyContinuity {
     if (this.gap.style.getPropertyValue("--lf-reply-space") !== value)
       this.gap.style.setProperty("--lf-reply-space", value);
   }
-  #retainWriting() {
-    const input = this.#row?.querySelector(TEXT_FIELD);
-    if (!input?.value) {
-      const context = input && replyDraftContext(input);
-      if (context && draftHasContent(context) && this.#writing?.context === context) {
-        if (this.#writing.input === input) return;
-        const width = atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize));
-        if (width === this.#writing.width)
-          return this.#allocateWriting(input, this.#writing.room);
-      }
-      return this.#releaseWriting();
-    }
-    if (this.#writing?.input === input) return;
-    this.#allocateWriting(input, getComputedStyle(input).blockSize);
-  }
-  #allocateWriting(input, room) {
-    if (this.#writing?.input !== input) {
-      this.#releaseWriting();
-      this.#writing = {
-        input,
-        context: replyDraftContext(input),
-        width: atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize)),
-        room: null,
-      };
-      this.#sizes.observe(input, { box: "border-box" });
-    }
-    if (this.#writing.room === room) return;
-    this.#writing.room = room;
-    input.style.setProperty("--lf-reply-writing-room", room);
-  }
-  #releaseWriting() {
-    if (!this.#writing) return;
-    this.#returningWriting = 0;
-    const { input } = this.#writing;
-    input.style.removeProperty("--lf-reply-writing-room");
-    this.#sizes.unobserve(input);
-    this.#writing = null;
-  }
-  #cutWriting(cut) {
-    const through = this.#through;
-    if (!through || cut === through.cut) return;
-    through.cut = cut;
-    const { input, room } = this.#writing ?? {};
-    input?.style.setProperty(
-      "--lf-reply-writing-room",
-      cut ? `calc(${room} - ${layoutPx(cut)})` : room,
-    );
-  }
-  #releaseSpace() {
-    this.#cutWriting(0);
-    this.#through = null;
+  release() {
     this.#departure?.();
     this.#departure = null;
     this.#space = 0;
-    this.#returningWriting = 0;
     if (this.gap.style.getPropertyValue("--lf-reply-space"))
       this.gap.style.removeProperty("--lf-reply-space");
-  }
-  release() {
-    this.#releaseSpace();
-    this.#releaseWriting();
   }
 }

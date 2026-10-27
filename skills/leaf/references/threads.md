@@ -24,6 +24,13 @@ the `id` of its opening comment, in the record the command prints.
 `leaf page state <page> <message>`, `leaf thread reply`, `edit` and `resolve` take
 the id of any message in the thread.
 
+Link directly to a thread by adding `thread=<message-id>` to the page URL's query
+parameters, preserving any existing access parameters: `?thread=<message-id>`, or
+`&thread=<message-id>` when a query is already present. Use a URL without a fragment
+to open the thread; an authored `#element-id` takes precedence and reaches that
+passage. The link opens the thread's usual card or reader, including a page-level
+thread with no anchor. Input during startup cancels the automatic opening.
+
 When the user comments on repeated words that the surrounding text cannot tell
 apart, Leaf keeps the quote but not which copy they meant. The comment has
 `anchor.detached: true`, and Threads keeps it with the quote it was about.
@@ -126,16 +133,19 @@ open a new thread for a different subject. Don't resolve a thread to get rid of 
 anchor you removed: Leaf leaves a resolved thread's anchor as it was, so if the user
 reopens it, it points at something the page no longer shows.
 
-Every answer declares what it leaves the thread with:
+Every answer declares whose move it leaves:
 
-- `--done`: it delivers what the message asked for.
-- `--todo "<what you owe>"`: it promises work it does not deliver, and opens that
-  to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
+- `--obligation`: the user's. It leaves them a decision, or something to try or
+  review before making one, or asks them for an answer or permission. It creates
+  `message:<its id>` on On me until their next reply or a settling reaction answers
+  it, or they resolve the thread, so the answer stays on their list even where the
+  decision it informs is already there. A widget in `--markup` can instead register
+  the answer it captures ([The On lists](conversation-loop.md#the-on-lists)).
+- `--todo "<what you owe>"`: yours. It promises work it does not deliver, and opens
+  that to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
   ([Long-running work](conversation-loop.md#long-running-work)).
-- `--obligation`: the message needs the user's answer, decision, permission or review.
-  It creates `message:<its id>` on On me until their next reply or a settling
-  reaction answers it. A widget in `--markup` can instead register the answer it
-  captures ([The On lists](conversation-loop.md#the-on-lists)).
+- `--done`: nobody's. It delivers what the message asked for and leaves the user
+  nothing to decide.
 
 ```bash
 leaf thread reply <answer.ref> --obligation --text "Which store should own it?"
@@ -156,7 +166,7 @@ leaf thread reply <answer.ref> --ephemeral --text "Checking the keyboard route."
 
 It does not answer the update, so a turn whose final message is the answer still
 posts that message. On an update you owe it starts the update, and
-its text becomes the **Working** status in Leaf's panel, so keep it to one line
+its text becomes your line in Leaf's panel status, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply <page> <message> --ephemeral`.
 
@@ -168,7 +178,7 @@ questions, to-dos, markup, anchor moves and failure receipts each need a reply o
 their own.
 
 Any widget in a reply's markup whose registry entry declares `x-awaits`, such as an
-`lf-options` or an `lf-ask`, waits on the user and keeps its thread at "My turn to answer"
+`lf-options`, waits on the user and keeps its thread at "Your turn"
 until they answer it. A thread you open waits on nobody by itself: `--obligation` registers the
 message's request without markup. A user task attached to the thread instead waits
 for Done; discussing it does not complete it.

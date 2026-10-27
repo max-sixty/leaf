@@ -2,13 +2,21 @@
 under zoom and short windows, and the chrome's rules staying apart from page and package
 styles."""
 
+import io
 import json
 import re
+from datetime import datetime, timedelta
 
 import pytest
 from interact_support import append_carried_log_record
+from PIL import Image
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
+from render_cases_interaction import (
+    PANEL_PAGE,
+    THREAD_DIFF_PAGE,
+    live_url,
+    panel_comment,
+)
 from render_harness import (
     LONG_PAGE,
     example_media,
@@ -109,6 +117,97 @@ def test_thread_actions_share_consistently_sized_message_headers(
             geometry
         )
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
+
+
+@pytest.mark.parametrize("surface", ["panel", "margin"])
+def test_a_message_says_its_age_only_where_it_changes(browser, serve, surface):
+    """A thread says each message's age only where that age, as displayed, differs
+    from the message above, the first always saying it: three messages written on one
+    day three days ago read one age, and a reply written now reads its own."""
+    url = serve(PANEL_PAGE)
+    then = datetime.now().astimezone() - timedelta(days=3)
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Is the retry bounded?",
+            "ts": then.isoformat(),
+            **({"anchor": {"section": "lede"}} if surface == "margin" else {}),
+        },
+    )["id"]
+    for at, (author, text) in enumerate(
+        [("agent", "Yes, three tries."), ("user", "Then park it after.")], start=1
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": author,
+                **({"agent": "Claude"} if author == "agent" else {}),
+                "parent": root,
+                "revision": 1,
+                "text": text,
+                "ts": (then + timedelta(minutes=at)).isoformat(),
+            },
+        )
+    append_agent_reply(serve.page_dir, root, "Parked after the third.")
+    page = open_page(browser, url)
+    if surface == "panel":
+        card = open_panel_thread(page, root)
+    else:
+        page.locator(".lf-margin-marker").first.click()
+        card = page.locator(".lf-margin-preview .lf-page-thread")
+        expect(card).to_be_visible()
+    ages = card.locator(".lf-msg-head")
+    expect(ages).to_have_count(4)
+    assert ages.evaluate_all(
+        "heads => heads.map((head) => head.querySelector('time')?.textContent ?? null)"
+    ) == ["3d ago", None, None, "just now"]
+
+
+# Where a message's words may run to, and the thread's inset before its words.
+WORDS_END = """message => {
+  const words = message.querySelector('.lf-msg-text');
+  const end = words.getBoundingClientRect().right
+    - parseFloat(getComputedStyle(words).paddingInlineEnd);
+  const inset = parseFloat(
+    getComputedStyle(message).getPropertyValue('--lf-thread-text-inset'));
+  return {end, inset};
+}"""
+
+
+@pytest.mark.parametrize("surface", ["panel", "seat"])
+def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
+    """The user's own message runs to the thread's column, as the agent's under it
+    does, keeping at its end only the inset its words start with, where its rewrite's
+    frame stands. In the panel the user's lines stopped 86px short of the agent's, and
+    41px in a thread on the page, the room Send takes in the field they were typed in,
+    so every message the user sent wrapped narrower than the reply under it."""
+    words = (
+        "Check that these balance robust interfaces with code simplicity, deferring "
+        "to standards and the browser wherever they can, and keeping the code simple."
+    )
+    url = serve(PANEL_PAGE if surface == "panel" else THREAD_DIFF_PAGE)
+    root = panel_comment(
+        serve.page_dir, words, None if surface == "panel" else {"section": "cd-q"}
+    )
+    append_agent_reply(serve.page_dir, root, words)
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    if surface == "panel":
+        thread = open_panel_thread(page, root)
+    else:
+        thread = page.locator("#cd-q .lf-page-thread").first
+    user, agent = thread.locator(".lf-msg.user"), thread.locator(".lf-msg.agent")
+    expect(agent).to_contain_text("Check that these")
+    rendered(page)
+    mine, theirs = user.evaluate(WORDS_END), agent.evaluate(WORDS_END)
+    assert theirs["end"] - mine["end"] == pytest.approx(mine["inset"], abs=0.5), (
+        mine,
+        theirs,
+    )
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):
@@ -327,59 +426,63 @@ setTimeout(() => {
     assert not [f for f in faces["chrome"] if f in {"cursive", "fantasy"}], faces
 
 
-def test_a_packages_rules_reach_only_inside_its_widgets(browser, serve, tmp_path):
-    """A package that declares widgets styles those widgets and nothing else, whatever
-    its sheet says: its rule for `p` dresses the paragraph inside its widget and leaves
-    the page's own paragraphs alone, and its rule for the widget's host still reaches
-    the host. The confinement is the composition's (layer.py, `widget_confinement`),
-    so it holds for any package, not only the ones this repository ships."""
-    package = tmp_path / ".leaf"
-    package.mkdir()
-    (package / "theme.css").write_text(
-        "p { color: rgb(0, 128, 0); }\n"
-        "em { @media screen { color: rgb(0, 128, 0); } }\n"
-        ":scope:is(lf-shelf) { display: block; border: 3px solid rgb(0, 128, 0); }\n"
+def test_the_chromes_adopted_sheets_stay_whole_where_style_sheets_lists_them(
+    browser, serve
+):
+    """iOS WebKit lists adopted sheets in `document.styleSheets`, where the other
+    engines leave them out. The chrome's own sheets are adopted, so narrowing page CSS
+    by walking that list once took every chrome rule off the chrome on iPhones: the
+    panel lost its face and its motion timings, and each animation threw."""
+    url = serve(leaf_page("t", "<h1>t</h1><p>Body.</p>"))
+    page = open_page(
+        browser,
+        live_url(url),
+        init_script="""{
+          const listed = Object.getOwnPropertyDescriptor(Document.prototype, "styleSheets").get;
+          Object.defineProperty(Document.prototype, "styleSheets", {
+            configurable: true,
+            get() { return [...listed.call(this), ...this.adoptedStyleSheets]; },
+          });
+        }""",
     )
-    url = serve(
-        leaf_page(
-            "t",
-            '<h1>t</h1><p id="out">Outside <em id="out-em">here</em>.</p>'
-            '<lf-shelf id="shelf"><p id="in">Inside <em id="in-em">here</em>.</p>'
-            "</lf-shelf>",
-        ),
-        layer_registry={
-            "lf-shelf": {
-                "description": "A project-supplied box.",
-                "type": "object",
-                "properties": {"id": {"type": "string"}},
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "markup",
-                "x-upgrade": False,
-            }
-        },
+    # A sheet a page script writes later sends the narrowing over the list again.
+    page.evaluate(
+        "() => document.head.append(Object.assign(document.createElement('style'),"
+        " {textContent: 'p { color: inherit; }'}))"
     )
-    page = open_page(browser, url)
-    faces = page.evaluate("""() => Object.fromEntries(
-        ['out', 'in', 'out-em', 'in-em', 'shelf'].map(id => {
-        const cs = getComputedStyle(document.getElementById(id));
-        return [id, [cs.color, cs.borderTopWidth]]; }))""")
-    assert faces["in"][0] == faces["in-em"][0] == "rgb(0, 128, 0)", faces
-    assert "rgb(0, 128, 0)" not in (faces["out"][0], faces["out-em"][0]), faces
-    assert faces["shelf"][1] == "3px", faces
+    # The panel's own sheet declares its fold's duration on it (floating-panel.css).
+    fold = page.locator(".lf-floating-panel").evaluate(
+        "el => getComputedStyle(el).getPropertyValue('--lf-motion-panel-fold')"
+    )
+    assert fold.endswith("ms"), fold
 
 
 def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     browser, serve, tmp_path
 ):
-    """A package that declares no widgets is a theme: its rules outrank the Layouts and
+    """A theme contribution, even beside a widget, outranks the Layouts and
     every widget package's defaults (layer.py, `lf-theme`), so its `main` padding beats
-    the column Layout's and its plain `lf-card` rule beats the board's own
-    `:scope:is(lf-card)`. Like the page's own rules, its bare `button` dresses the
+    the column Layout's and its plain `lf-card` rule beats the board's own `lf-card`
+    rule. Like the page's own rules, its bare `button` dresses the
     page's buttons and leaves the controls the board builds alone. A separate controls.css
     sheet grants deliberate access to board controls (runtime/page-sheets.js)."""
     theme = tmp_path / "theme"
     theme.mkdir()
+    (theme / "registry.json").write_text(
+        json.dumps(
+            {
+                "lf-theme-box": {
+                    "description": "A widget beside a page-wide theme.",
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                    "additionalProperties": False,
+                    "x-content": "markup",
+                    "x-upgrade": False,
+                }
+            }
+        )
+    )
     (theme / "theme.css").write_text(
         "main { padding-top: 11px; }\n"
         "lf-card { padding-left: 13px; }\n"
@@ -422,17 +525,21 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     assert {color for _, color in faces["controls"]} == {"rgb(0, 128, 0)"}, faces
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
-    browser, serve, tmp_path
+    request, serve, tmp_path, engine
 ):
-    """Every declared shadow tree receives the layer's shadow sheet, so a package's
-    `shadow.css` is confined there too: its rule for `span` dresses the tree its own
-    widget hosts and not the tree another package's widget hosts."""
+    """Every declared shadow tree receives the layer's composed shadow sheet in every
+    engine, so a package's `widget-shadow.css` rule naming its host, `:host(lf-own-tree)
+    span`, dresses that widget's tree and not another package's. Each engine reads the
+    composed sheet itself: Firefox once applied none of a generated `:host` scope."""
     own, own_module = _shadow_tree_widget("lf-own-tree")
     other, other_module = _shadow_tree_widget("lf-other-tree")
     project = tmp_path / ".leaf"
     project.mkdir()
-    (project / "shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
+    (project / "widget-shadow.css").write_text(
+        ":host(lf-own-tree) span { color: rgb(0, 128, 0); }\n"
+    )
     neighbour = tmp_path / "other"
     (neighbour / "widgets").mkdir(parents=True)
     (neighbour / "registry.json").write_text(json.dumps({"lf-other-tree": other}))
@@ -447,39 +554,12 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
         layer_registry={"lf-own-tree": own},
         layer_widgets={"lf-own-tree.js": own_module},
     )
-    page = open_page(browser, url)
+    page = open_page(request.getfixturevalue(engine), url)
     colors = page.evaluate("""() => Object.fromEntries(['own', 'other'].map(id => [id,
         getComputedStyle(document.getElementById(id).shadowRoot.querySelector('span'))
             .color]))""")
     assert colors["own"] == "rgb(0, 128, 0)", colors
     assert colors["other"] != "rgb(0, 128, 0)", colors
-
-
-def test_a_theme_packages_shadow_rules_outrank_the_widget_packages_own(
-    browser, serve, tmp_path
-):
-    """A theme package's `shadow.css` reaches every declared shadow tree from the
-    `lf-theme` tier, above the shadow rules of the package that owns the widget: its
-    bare `span` beats the owner's more specific rule for the same span."""
-    own, own_module = _shadow_tree_widget("lf-own-tree")
-    project = tmp_path / ".leaf"
-    project.mkdir()
-    (project / "shadow.css").write_text(":scope span { color: rgb(255, 0, 0); }\n")
-    theme = tmp_path / "theme"
-    theme.mkdir()
-    (theme / "shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
-    url = serve(
-        leaf_page("t", '<h1>t</h1><lf-own-tree id="own"></lf-own-tree>'),
-        packages=("./theme",),
-        layer_registry={"lf-own-tree": own},
-        layer_widgets={"lf-own-tree.js": own_module},
-    )
-    page = open_page(browser, url)
-    color = page.evaluate(
-        """() => getComputedStyle(document.getElementById('own').shadowRoot
-            .querySelector('span')).color"""
-    )
-    assert color == "rgb(0, 128, 0)", color
 
 
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
@@ -641,7 +721,7 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
                 heads: [...box.querySelectorAll('.lf-msg-head')]
                   .map(head => head.getBoundingClientRect().toJSON()),
                 top: box.getBoundingClientRect().top + box.clientTop
-                  + parseFloat(getComputedStyle(box).paddingTop)};
+                  + parseFloat(getComputedStyle(box).getPropertyValue('--lf-top'))};
             }"""
         )
         cdp = page.context.new_cdp_session(page)
@@ -723,6 +803,89 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
         assert cue["fade_bottom"] <= cue["heads"][1]["top"] + 1, cue
 
 
+@pytest.mark.parametrize("forced", [False, True])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
+    engine, forced, request, serve
+):
+    """Wherever the card's transcript is scrolled, its stuck head stands on the line
+    of the card's actions, and the focus-ring room above that line shows no words,
+    in forced colours too, which drop shadows. Firefox stuck a head at its subgrid
+    scroller's edge, past the room, so the name stood 6px above the actions and words
+    showed over Resolve; in Chromium they showed above the name."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
+    )
+    for turn in range(1, 8):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if turn % 2 else "user",
+                "parent": root,
+                "text": f"Turn {turn}. " + LANDING_WORDS,
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1200, 600)
+    if forced:
+        page.emulate_media(forced_colors="active")
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    transcript = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        " > .lf-thread-transcript"
+    )
+    expect(transcript).to_be_visible()
+    rendered(page)
+    travel = transcript.evaluate("box => box.scrollHeight - box.clientHeight")
+    # Through the first messages, including where one pushes the last one's head off.
+    assert travel > 300, travel
+    for scroll in range(0, 300, 7):
+        transcript.evaluate("(box, y) => { box.scrollTop = y; }", scroll)
+        rendered(page)
+        reading = transcript.evaluate(
+            """box => {
+              const controls = box.parentElement
+                .querySelector(':scope > .lf-margin-thread-controls');
+              const edge = box.getBoundingClientRect().top + box.clientTop;
+              const head = [...box.querySelectorAll('.lf-msg-head')]
+                .find(head => head.getBoundingClientRect().bottom > edge + 1);
+              const at = head.getBoundingClientRect();
+              const card = box.parentElement.getBoundingClientRect();
+              return {edge, head: at.top, left: card.left, right: card.right,
+                pushed: at.bottom >= head.parentElement.getBoundingClientRect().bottom - 1,
+                line: controls.getBoundingClientRect().top
+                  + parseFloat(getComputedStyle(controls).paddingTop),
+                // The focus-ring room, which the transcript's landings also keep.
+                ring: parseFloat(getComputedStyle(box).scrollPaddingTop)};
+            }"""
+        )
+        # A head the next message pushes off rises with it; every other stands on the
+        # actions' line or below it.
+        assert reading["pushed"] or reading["head"] >= reading["line"] - 0.5, (
+            scroll,
+            reading,
+        )
+        assert reading["line"] - reading["edge"] >= reading["ring"], reading
+        room = min(reading["line"], reading["head"]) - reading["edge"]
+        if room < 1:
+            continue
+        band = Image.open(
+            io.BytesIO(
+                page.screenshot(
+                    clip={
+                        "x": reading["left"],
+                        "y": reading["edge"],
+                        "width": reading["right"] - reading["left"],
+                        "height": room,
+                    }
+                )
+            )
+        ).convert("L")
+        assert band.getextrema()[1] - band.getextrema()[0] < 40, (scroll, reading)
+
+
 @pytest.mark.parametrize(("width", "touch"), [(1200, False), (311, True)])
 def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     browser, serve, width, touch
@@ -730,9 +893,18 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     """Reading down a long reply keeps its writer and time at the top while the
     edited annotation leaves with the reply's first line."""
     url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Explain with examples?", {"section": "how-store"}
-    )
+    # Asked an hour before the answer, so the answer's head says an age of its own.
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Explain with examples?",
+            "anchor": {"section": "how-store"},
+            "ts": (datetime.now().astimezone() - timedelta(hours=1)).isoformat(),
+        },
+    )["id"]
     answer = thread_model.post_reply(
         serve.page_dir, {"responds": root}, LANDING_WORDS * 8
     )["id"]

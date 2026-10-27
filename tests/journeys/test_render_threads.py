@@ -124,7 +124,7 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     expect(bar.locator(".lf-response-options")).to_be_visible()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
-    action = bar.locator(".lf-compose-field > button:visible")
+    action = bar.get_by_role("button", name="Other responses", exact=True)
     action.focus()
     expect(action).to_be_focused()
     page.keyboard.press("Escape")

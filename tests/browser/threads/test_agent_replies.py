@@ -20,6 +20,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_harness import (
+    expect_on_me,
     holding,
     leaf_page,
     open_page,
@@ -173,7 +174,7 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
         )
     page = open_page(browser, url)
     mark = page.locator(".lf-fp-on-user")
-    expect(mark).to_have_attribute("aria-label", "On me: 1")
+    expect_on_me(page, 1)
     mark.click()
     row = page.locator('.lf-fp-on-item[data-list="you"]')
     expect(row).to_contain_text(question)
@@ -195,7 +196,7 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
     write(reply, "02:00–02:40 UTC on Thursday")
     with sending(page, "the maintenance window"):
         page.keyboard.press("ControlOrMeta+Enter")
-    expect(mark).to_have_attribute("aria-label", "On me")
+    expect_on_me(page, 0)
     assert any(
         event["kind"] == "reply"
         and event["author"] == "user"
@@ -214,7 +215,7 @@ def test_a_thread_task_stays_on_me_until_done(browser, serve):
     assert todo["subject"] == {"kind": "thread", "id": root}
     page = open_page(browser, url)
     mark = page.locator(".lf-fp-on-user")
-    expect(mark).to_have_attribute("aria-label", "On me: 1")
+    expect_on_me(page, 1)
     mark.click()
     row = page.locator(f'.lf-fp-on-item[data-obligation="{todo["id"]}"]')
     expect(row).to_contain_text("Try the build on your phone")
@@ -223,15 +224,15 @@ def test_a_thread_task_stays_on_me_until_done(browser, serve):
     write(reply, "Which phone should I use?")
     with sending(page, "the device clarification"):
         page.keyboard.press("ControlOrMeta+Enter")
-    expect(mark).to_have_attribute("aria-label", "On me: 1")
-    mark.click()
+    expect_on_me(page, 1)
+    page.locator(".lf-fp-controls .lf-fp-back", has_text="On me").click()
     with sending(page, "the completed phone check"):
         row.get_by_role("button", name="Done", exact=True).click()
-    expect(mark).to_have_attribute("aria-label", "On me")
+    expect_on_me(page, 0)
     expect(row.locator(".lf-fp-said")).to_have_text("Done")
     with sending(page, "undo the phone check"):
         row.get_by_role("button", name="Undo", exact=True).click()
-    expect(mark).to_have_attribute("aria-label", "On me: 1")
+    expect_on_me(page, 1)
     expect(row.get_by_role("button", name="Done", exact=True)).to_be_visible()
 
 
@@ -257,7 +258,7 @@ def test_a_thread_heads_with_the_task_it_holds_on_me(browser, serve):
     line.get_by_role("button", name="Done", exact=True).click()
     holding(page, held, 1, "the thread's Done")
     expect(line).to_have_count(0)
-    expect(mark).to_have_attribute("aria-label", "On me")
+    expect_on_me(page, 0)
     page.unroute("**/api/event")
     for route in held:
         route.continue_()
@@ -627,7 +628,10 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     panel_settled(page, view="queue")
     page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
     card = page.locator('.lf-fp-on-item[data-list="agent"]')
-    expect(card.locator(".lf-fp-said")).to_have_text("Trying a lighter weight.")
+    card.locator(".lf-fp-on-line").click()
+    expect(card.locator(".lf-fp-answers .lf-fp-said")).to_have_text(
+        "Trying a lighter weight."
+    )
     # Nothing counts unread.
     expect(thread_row(page, root)).not_to_have_attribute("data-unread", "")
     page.locator(".lf-fp-close").click()
@@ -637,7 +641,9 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
             response.url.endswith("/api/interaction")
             and response.ok
             and any(
-                entry["type"] == "reply_visible" and entry.get("input_id") == root
+                entry["type"] == "reply_visible"
+                and entry.get("input_id") == root
+                and entry["presentation_kind"] == "working_words"
                 for entry in response.request.post_data_json["entries"]
             )
         )
@@ -749,8 +755,9 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
 @pytest.mark.watch_shifts
 def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     """A step's words wrap, so a new step can change the working message's height. In a
-    seat where that would move the reply being typed, the step waits behind the
-    thread's notice, as a reply would, and the draft keeps its place."""
+    seat where that would move the reply being typed, the step waits and the draft
+    keeps its place. The notice says nothing of it, since progress is no unread news,
+    and sending the draft shows it."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
     thread_model.post_reply(
@@ -777,15 +784,14 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
         ephemeral=True,
     )
     told(page)
-    notice = thread.get_by_role("button", name="1 new message", exact=True)
-    expect(notice).to_be_visible()
     expect(words).to_have_text("Reading the jobs")
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
     assert editor.bounding_box() == pytest.approx(box, abs=0.5)
 
-    notice.click()
+    with sending(page, "the draft"):
+        editor.press("Enter")
     expect(words).to_contain_text("what each one needs before it can start")
-    assert editor.evaluate("box => box.value") == "Start with the mounts."
 
 
 def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, serve):
@@ -927,7 +933,7 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(
         thread.locator(f'.lf-msg[data-event="{failure["id"]}"] .lf-msg-failure')
-    ).to_have_text("Not answered")
+    ).to_have_text("Couldn't answer")
     expect(thread.locator(".lf-thread-working")).to_contain_text("Checking the board")
 
 
@@ -942,8 +948,8 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     question = thread_model.post_reply(
         serve.page_dir,
         {"responds": asked},
-        "One question:",
-        markup='<lf-ask id="store-choice">The session store or the page store?</lf-ask>',
+        "The session store or the page store?",
+        obligation=True,
         identity=codex,
     )
     promise = thread_model.post_reply(
@@ -996,9 +1002,9 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         },
     )
     page = open_page(browser, url)
-    # Nobody's turn: the thread's row says it is open and no more.
+    # The unread reply is the row's mark, with no turn owed by either participant.
     status = thread_row(page, root).locator(".lf-fp-value")
-    expect(status).to_have_text(re.compile(r"^(Open)?$"))
+    expect(status).to_have_text("")
     card = open_panel_thread(page, root)
     receipt = page.locator(
         f'.lf-fp-view .lf-msg[data-event="{board["id"]}"] .lf-msg-sending'
@@ -1010,9 +1016,9 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     with sending(page, "the card move"):
         page.keyboard.press("Enter")
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
-    expect(receipt).to_have_text("Sent")
+    expect(receipt).to_have_text("Saved")
     status = thread_row(page, root).locator(".lf-fp-value")
-    expect(status).to_have_text(re.compile(r"^(Open)?$"))
+    expect(status).to_have_text("")
     card = open_panel_thread(page, root)
 
     [moved] = [
@@ -1092,7 +1098,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(page.locator("#cd-q .lf-thread-working")).to_contain_text(
         "Checking the south pair"
     )
-    expect(inline.locator(".lf-msg-failure")).to_have_text("Not answered")
+    expect(inline.locator(".lf-msg-failure")).to_have_text("Couldn't answer")
     assert inline.get_attribute("data-failure") == "turn_failed"
     # The real answer above it wears nothing, so the mark is a difference the user
     # can see rather than a decoration every agent message carries.
@@ -1103,11 +1109,11 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     # `needs_user` for recovery: the margin and panel name the action owed.
     margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
     expect(margin).to_have_attribute("data-lf-turn", "user")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("My turn to resend")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
 
     # Threads names the action owed on the thread's row, whole.
     status = thread_row(page, unanswered["id"]).locator(".lf-fp-value")
-    expect(status).to_have_text("My turn to resend")
+    expect(status).to_have_text("Send it again")
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the row clips its failure status"
     )
@@ -1128,7 +1134,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("My turn to resend")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
 
     # The failed answer remains distinct from the muted clock without a chip face.
     head = page.evaluate(

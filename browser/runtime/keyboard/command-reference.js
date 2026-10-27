@@ -44,7 +44,7 @@ import {
   dismissPopoversOutside,
 } from "./layer-stack.js";
 import { scrollIntoView } from "../landing-scroll.js";
-import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
+import { html, nothing, render, repeat } from "/runtime/framework.js";
 
 import {
   bindings,
@@ -205,7 +205,6 @@ function declaredStack(origin) {
 }
 
 let commandRoutesAtOpen = { on: new Map(), off: new Map() };
-let commandReferenceIsOpen = false;
 let commandReferenceInvoke = null;
 
 const EMPTY_CATALOG = Object.freeze({
@@ -863,7 +862,7 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
 let commandReferenceReturn = null;
 
 function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
-  const fresh = open && !commandReferenceIsOpen;
+  const fresh = open && !commandReferenceDialog.open;
   // Focusing a text input replaces the document selection. Keep a passage the user has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
@@ -888,7 +887,6 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
       off: availableCommandRoutes({ commands: true, quick: false }),
     };
   }
-  commandReferenceIsOpen = open;
   if (fresh) {
     commandReferenceCatalog = captureCommandReferenceCatalog();
     commandReferenceState = {
@@ -912,7 +910,6 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
       body: results,
     });
   }
-  commandReferenceDialog.classList.toggle("open", open);
   if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
   // The reference is a bounded interaction rather than a level of the page: it claims the
   // whole keyboard while it stands and hands the user back itself, to the control the
@@ -1009,7 +1006,6 @@ function activateSelectedCommand() {
   return true;
 }
 
-const commandReferenceOpen = () => commandReferenceIsOpen;
 // The opening command supplies the action chosen from this particular reference. The
 // rendered catalog retains only ids and sends one back through that injected authority.
 const openCommandReference = (invokeCommand, returnTo = null) =>
@@ -1025,7 +1021,7 @@ pageScope("command reference", {
   title: "In the command reference",
   escape: "inner",
   root: () => commandReferenceDialog,
-  at: () => commandReferenceOpen(),
+  at: () => commandReferenceDialog.open,
   claims: EVERYTHING,
   rows: [
     {

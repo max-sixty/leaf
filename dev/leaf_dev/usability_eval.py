@@ -188,6 +188,15 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
             admit(run, page, move)
 
 
+def build_diagnostics_report(run: Run, page: Path) -> None:
+    run.leaf("page", "init", str(page), check=True)
+    (page / "index.html").write_text((FIXTURES / "diagnostics-report.html").read_text())
+    run.leaf(
+        "page", "stamp", str(page), "--text",
+        FIXTURE_INPUTS["diagnostics-report"]["stamp"], check=True,
+    )  # fmt: skip
+
+
 def said(html: str) -> dict[str, str]:
     """id → the words the element says, in Leaf's own reading of the markup: the
     text a user selects and an anchor quotes."""
@@ -466,6 +475,7 @@ def append_elided_history(run: Run, page: Path) -> None:
 
 
 BUILDERS = {
+    "diagnostics-report": build_diagnostics_report,
     "board": build_board,
     "constructs": build_constructs,
     "resume": build_resume,

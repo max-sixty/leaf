@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
+from leaf.data_contracts import output_findings
 from leaf.event_endpoint import event_rejection
 from leaf.files import version_num
 from leaf.findings import Finding
@@ -17,6 +18,9 @@ from leaf.render_checks import (
     PageNotReady,
     evaluate_probe,
     install_window_errors,
+    is_runtime_entry,
+    observe_output_documents,
+    output_values,
     pre_upgrade_findings,
     wait_for_probe,
     wait_for_theme,
@@ -225,6 +229,7 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[Finding]:
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
+    observe_output_documents(page)
     held = []
     released = False
     open_requests = set()
@@ -233,8 +238,8 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[Finding]:
         # Only the first is held. A later one is passed through rather than left
         # held, because this handler has to outlive the entry it holds and a
         # second hold nothing releases would be a wait with no end.
-        if held:
-            route.continue_()
+        if held or not is_runtime_entry(route.request):
+            route.fallback()
             return
         held.append(route)
 
@@ -270,7 +275,7 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[Finding]:
             "an authored main",
             lambda: page.wait_for_selector("body > main", state="attached"),
         )
-        if page.locator('script[src$="/leaf.js"]').count() != 1:
+        if page.locator("script[data-lf-runtime][src]").count() != 1:
             raise PreUpgradeFailed("entry-not-single")
         reaching("its theme stylesheet", lambda: wait_for_theme(page))
         # The held entry is a module script, which runs only once the parser is done,
@@ -282,13 +287,14 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[Finding]:
         findings = [Finding.read(record) for record in pre_upgrade_findings(page)]
         if len(held) != 1:
             raise PreUpgradeFailed("entry-not-requested")
-        held[0].continue_()
+        # The output route subscribes before this entry upgrades the document.
+        held[0].fallback()
         released = True
         reaching("load", lambda: page.wait_for_load_state("load"))
         return findings
     finally:
         if held and not released:
-            held[0].continue_()
+            held[0].fallback()
         page.unroute("**/leaf.js", hold_entry)
         page.remove_listener("request", opened)
         page.remove_listener("requestfinished", settled)
@@ -296,7 +302,15 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[Finding]:
 
 
 def _render_scheme(
-    browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=None
+    browser,
+    url,
+    scheme,
+    viewport,
+    served_timeout_ms,
+    opened_pages,
+    then=None,
+    implementations=None,
+    declaration_sources=None,
 ):
     """Read and report the browser gate for one color scheme and viewport: the
     findings that refuse the version, the ResizeObserver loop notices its retry
@@ -461,4 +475,7 @@ def _render_scheme(
     heard = len(errors)
     found += thread_findings(context, found)
     found += errors[heard:]
+    found += output_findings(
+        output_values(page), registry, implementations, declaration_sources
+    )
     return ended(found, resize_notices, complete=True)

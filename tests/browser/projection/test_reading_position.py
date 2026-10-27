@@ -601,7 +601,11 @@ def test_revision_keeps_a_focused_control_visible_without_a_text_landmark(
 
 
 def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser, serve):
-    """An empty flow region does not displace the page reading that contains it."""
+    """An empty flow region does not displace the page reading that contains it.
+
+    The page is read a little past its top, so the title is its reading place; a page
+    at its very top would stay there, and the result the revision adds above the title
+    would push the title down."""
     content = """
 <h1 id="reading-title">The page landmark surrounding these controls remains stable.</h1>
 <lf-pane id="controls-pane" label="Controls">
@@ -611,6 +615,7 @@ def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser,
     """
     first = leaf_page("Empty active region continuity", content)
     page = open_page(browser, live_url(serve(first)))
+    page.evaluate("scrollTo({top: 20, behavior: 'instant'})")
     page.locator("#focused-control").focus()
     before = page.locator("#reading-title").evaluate(
         "heading => heading.getBoundingClientRect().top"
@@ -684,10 +689,9 @@ def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
         browser, serve(leaf_page("Reading the Question inventory", questions))
     )
     resized(page, 1200, 900)
-    # The walk starts from the Ask the reader stands at, the first, so it arrives at
-    # the second.
+    # With nothing focused, the walk enters the first Ask the reader sees.
     page.keyboard.press("m")
-    expect(page.locator("#ask-1")).to_be_focused()
+    expect(page.locator("#ask-0")).to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")

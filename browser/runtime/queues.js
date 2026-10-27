@@ -34,4 +34,4 @@ export const itemNoun = (item) =>
 // obligation says its own ending (obligations/answer.js).
 const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
 export const itemOutcome = (item) =>
-  item.kind === "update" ? "Sent" : (OUTCOMES[item.state] ?? item.state);
+  item.kind === "update" ? "Answered" : (OUTCOMES[item.state] ?? item.state);

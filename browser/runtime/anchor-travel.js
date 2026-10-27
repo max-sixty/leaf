@@ -524,10 +524,10 @@ export function createAnchorTravel({
   };
 
   /** @param {string} id
-   * @param {{part?: any, focus?: boolean, presented?: any, intent?: any}} [options] */
+   * @param {{part?: any, focus?: boolean, presented?: any, intent?: any, history?: boolean}} [options] */
   async function scrollToThread(
     id,
-    { part = null, focus = true, presented = null, intent } = {},
+    { part = null, focus = true, presented = null, intent, history = true } = {},
   ) {
     const mayArrive = retainTravel(intent);
     const thread = threadNamed(id);
@@ -538,8 +538,10 @@ export function createAnchorTravel({
     // Decided before the navigation step awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
     const landing = () => threadDestination(id);
-    const departure = prepareNavigationStep({ landing, intent: mayArrive });
-    if (destination || hydrating) departure.plan(destination);
+    const departure = history
+      ? prepareNavigationStep({ landing, intent: mayArrive })
+      : null;
+    if (destination || hydrating) departure?.plan(destination);
     if (hydrating) {
       const source = sectionOf(anchor);
       // A visual settles on its part, including cancelling a pending replacement of

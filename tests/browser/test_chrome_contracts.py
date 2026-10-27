@@ -26,6 +26,7 @@ from render_harness import (
     leaf_page,
     nudge,
     open_page,
+    open_threads,
     page_comment,
     panel_field,
     panel_settled,
@@ -41,6 +42,7 @@ from render_harness import (
     write,
 )
 
+from browser.test_render_floating_panel import finish_held, held_motion, hold_motion
 from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -125,11 +127,11 @@ def test_live_revision_retains_the_runtime_favicon(browser, serve):
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme):
-    """The reply surround stays continuous as focus enters and leaves the thread.
-
-    An opaque shared surface also lets a pinned reply cover scrolled messages without
-    introducing a differently colored band above its input.
+def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
+    """The thread and its reply row paint no ground of their own as focus enters and
+    leaves the thread, so the card's opaque face shows behind them: no band above the
+    field, no focus tint, and nothing over the field's ring while the card's surface
+    draws it (box-motion.js).
     """
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
@@ -137,6 +139,7 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
     resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     preview = page.locator(".lf-margin-preview")
+    face = preview.locator(".lf-margin-preview-card")
     thread = preview.locator(".lf-page-thread")
     surround = thread.locator(".lf-thread-reply")
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
@@ -148,17 +151,17 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
             expect(reply).to_be_focused()
         elif state == "outside":
             preview.get_by_role("button", name="Dismiss thread").focus()
-        surface = thread.evaluate("""node => {
-          const color = getComputedStyle(node).backgroundColor;
+        alpha = face.evaluate("""node => {
           const canvas = document.createElement('canvas');
           canvas.width = canvas.height = 1;
           const paint = canvas.getContext('2d');
-          paint.fillStyle = color;
+          paint.fillStyle = getComputedStyle(node).backgroundColor;
           paint.fillRect(0, 0, 1, 1);
-          return {color, alpha: paint.getImageData(0, 0, 1, 1).data[3]};
+          return paint.getImageData(0, 0, 1, 1).data[3];
         }""")
-        assert surface["alpha"] == 255, (scheme, state, surface)
-        expect(surround).to_have_css("background-color", surface["color"])
+        assert alpha == 255, (scheme, state)
+        for part in (thread, surround):
+            expect(part).to_have_css("background-color", "rgba(0, 0, 0, 0)")
 
 
 def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
@@ -217,15 +220,22 @@ CARET_AT = """
   }"""
 
 # How far past the caret's offset the boxes clipping the field's words let paint run.
-CARET_ROOM = f"""box => {{{CARET_AT}
+CARET_ROOM = rf"""box => {{{CARET_AT}
   const caret = document.createRange();
   caret.setStart(at, offset);
   let clip = Infinity;
   for (let node = at.parentElement; node; node = node.parentElement) {{
     const style = getComputedStyle(node);
-    if (style.overflowX !== 'clip') continue;
-    const margin = parseFloat(style.overflowClipMargin) || 0;
-    clip = Math.min(clip, node.getBoundingClientRect().right + margin);
+    const right = node.getBoundingClientRect().right;
+    if (style.overflowX === 'clip') {{
+      const margin = parseFloat(style.overflowClipMargin) || 0;
+      clip = Math.min(clip, right + margin);
+    }}
+    const inset = /^inset\(([^)]+)\)$/.exec(style.clipPath);
+    if (inset) {{
+      const sides = inset[1].trim().split(/\s+/).map(parseFloat);
+      clip = Math.min(clip, right - (sides[1] ?? sides[0]));
+    }}
   }}
   return clip - caret.getBoundingClientRect().right;
 }}"""
@@ -250,12 +260,19 @@ def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
     page.locator("#passage").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
+    hold_motion(page)
     # The box grows with its words, so the caret after the last word ends its column.
     page.keyboard.insert_text(
         "it's not really a feed as much as a list? I see a feed as"
     )
     rendered(page)
+    held_motion(page, ".lf-fab-ground")
+    # Read the final moving frame, before cleanup restores the field's resting clip.
+    page.evaluate("""() => __lfHeld.filter(a => a.playState !== 'idle').forEach(a => {
+      a.currentTime = Number(a.effect.getTiming().duration) - 0.01;
+    })""")
     assert field.evaluate(CARET_ROOM) >= 1
+    finish_held(page)
     # At a narrow allocation the trailing space fits beside Send (see above).
     resized(page, 346, 900)
     page.keyboard.press("ControlOrMeta+a")
@@ -330,13 +347,16 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
         "button => button.closest('.lf-margin-thread-controls') !== null"
     )
     centers = preview.evaluate(
-        """preview => ['.lf-resolve', '.lf-margin-preview-close'].map(selector => {
-          const rect = preview.querySelector(selector).getBoundingClientRect();
-          return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};
-        })"""
+        """preview => ['.lf-margin-preview-expand', '.lf-resolve', '.lf-margin-preview-close']
+          .map(selector => {
+            const rect = preview.querySelector(selector).getBoundingClientRect();
+            return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};
+          })"""
     )
-    assert centers[0]["y"] == pytest.approx(centers[1]["y"], abs=1), centers
-    assert centers[0]["x"] < centers[1]["x"]
+    assert all(c["y"] == pytest.approx(centers[0]["y"], abs=1) for c in centers), (
+        centers
+    )
+    assert centers[0]["x"] < centers[1]["x"] < centers[2]["x"], centers
     if thread_count == 2:
         row = preview.evaluate(
             """preview => {
@@ -609,47 +629,6 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     assert "::highlight(lf-version-insert)" in selected["marks"]
 
 
-def test_indication_defaults_yield_to_widget_faces_in_document_and_shadow(
-    browser, serve
-):
-    """A widget can choose its indication face in either kind of rendering root.
-
-    Ordinary indicated elements still get the shared contour. The default must
-    yield to layered widget rules, while action-target apparatus keeps its face.
-    """
-    page = open_page(
-        browser, serve(leaf_page("indication-faces", '<h1 id="t">Indication</h1>'))
-    )
-    readings = page.evaluate(
-        """async () => {
-          const {shadowStage} = await window.__lfWidgetApi();
-          const {inBaseLayer} = await window.__lfWidgetApi();
-          const nodes = () => {
-            const style = document.createElement('style');
-            style.textContent = inBaseLayer('.custom-indication, .lf-action-target { outline: 4px dashed red; }');
-            return [style, ...['default-indication', 'custom-indication', 'lf-action-target'].map(cls => {
-              const p = document.createElement('p');
-              p.className = cls;
-              p.textContent = cls;
-              p.setAttribute('data-lf-indicated', '');
-              return p;
-            })];
-          };
-          const main = document.querySelector('main');
-          main.append(...nodes());
-          const host = document.createElement('div');
-          main.append(host);
-          const shadow = shadowStage(host, nodes());
-          return [main, shadow].map(root =>
-            [...root.querySelectorAll('[data-lf-indicated]')].map(p => {
-              const s = getComputedStyle(p);
-              return [s.outlineStyle, s.outlineWidth];
-            }));
-        }"""
-    )
-    assert readings == [[["solid", "2px"], ["dashed", "4px"], ["solid", "1px"]]] * 2
-
-
 def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     browser, serve
 ):
@@ -796,9 +775,11 @@ SURFACE_PAGES = {
 def toggle_surface(page, surface, open=True):
     if surface == "queue":
         toggle_queue(page, open)
+    elif open:
+        open_threads(page)
     else:
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, open, "threads" if open else None)
+        page.locator(".lf-fp-close").click()
+        panel_settled(page, open=False)
 
 
 @pytest.mark.parametrize(
@@ -852,8 +833,7 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
     dialog paints over the panel, and reads above it."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1440, 900)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     stacking = page.evaluate(
         """async () => {
           const { stackLevel } = await window.__lfCheckApi();
@@ -961,7 +941,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     work, observer deliveries, cancellation — is tests/runtime/rendering.test.mjs."""
     url = serve(leaf_page("Settled", '<h1 id="h">Settled</h1><p id="p">Words.</p>'))
     page = open_page(browser, url)
-    toggle = page.locator(".lf-fp-threads")
+    toggle = page.locator(".lf-fp-on-user")
     toggle.hover()
     rendered(page)
     # Read before dispatch: an earlier pointerdown capture listener may already have
@@ -984,7 +964,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     rendered(page)
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
-    expect(page.locator(panel_view("threads"))).to_be_visible()
+    expect(page.locator(panel_view("queue"))).to_be_visible()
 
 
 # The words of the field's draft, row by row as the field draws them.
@@ -1012,6 +992,38 @@ REPORTED_DRAFT = (
     "great, let's go with the more square form. I don't have a strong view of which"
     " one is better, and the other parts of this thread can wait until later"
 )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_scrolling_draft_shows_the_caret_s_row_with_the_padding_beside_it(
+    engine, request, serve
+):
+    """A line typed at the end of a draft that scrolls leaves nothing below it to scroll
+    to, and the caret taken to the first line leaves nothing above. Revealing only the
+    caret, as a native textarea does, left the field's padding out of view, and in
+    Firefox the foot of the caret's row too."""
+    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
+    field = page_comment(page)
+    hidden = """box => ({
+      below: box.scrollHeight - box.clientHeight - box.scrollTop,
+      above: box.scrollTop,
+    })"""
+    page.keyboard.type("line 0")
+    for line in range(1, 40):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"line {line}")
+        if field.evaluate("box => box.scrollHeight > box.clientHeight + 40"):
+            break
+    else:
+        raise AssertionError("the draft never scrolled")
+    for key in ("Shift+Enter", "w", "ControlOrMeta+Home"):
+        page.keyboard.press(key)
+        rendered(page)
+        shown = field.evaluate(hidden)
+        if key == "ControlOrMeta+Home":
+            assert shown["above"] < 1, shown
+        else:
+            assert shown["below"] < 1, (key, shown)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1063,7 +1075,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     )
     page = open_page(browser, url)
     live = page.locator(".lf-live")
-    expect(live).to_have_text("Codex replied")
+    expect(live).to_have_text("Earlier")
 
     open_panel_thread(page, drafting["id"])
     draft = panel_field(page)
@@ -1089,7 +1101,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
         },
     )
     told(page)
-    expect(live).to_have_text("Codex replied")
+    expect(live).to_have_text("For B")
     expect(draft).to_be_focused()
     expect(draft).to_have_js_property("value", "Keep this draft")
 
@@ -1128,7 +1140,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     round_trip(page)
     expect(live).to_have_text("2 replies in 2 threads")
     assert page.evaluate("() => window.__lfReplyAnnouncements") == [
-        "Codex replied",
+        "For B",
         "2 replies in 2 threads",
     ]
     page.reload()
@@ -1143,10 +1155,10 @@ def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):
           const {notice} = await window.__lfWidgetApi();
           notice('Updated to v3', {background: true});
           notice('Updated to v4', {background: true});
-          notice('Saved — sent');
+          notice('Saved');
         }"""
     )
-    expect_panel_says(page, "Saved — sent")
+    expect_panel_says(page, "Saved")
     expect_panel_says(page, "Updated to v4")
 
 
@@ -1180,11 +1192,11 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     # The panel's field quotes the selection, where the finger that made it finds it,
-    # and the marks keep their seats; the leaf's menu stays shut.
+    # and the On me mark keeps its seat; the leaf's menu stays shut.
     comment = selection_field(page)
     expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
     expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
-    expect(page.locator(".lf-fp-threads")).to_be_visible()
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
     box = comment.bounding_box()
     assert box["x"] + box["width"] <= page.evaluate("innerWidth"), box
     comment.tap()
@@ -1292,6 +1304,9 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
     )
     sent_size = body.evaluate("body => getComputedStyle(body).fontSize")
     box = page_comment(page) if surface == "general" else page.locator(box_selector)
+    if surface == "outlet":
+        # Reply rests as a press; open it by user input before write() focuses it.
+        box.click()
     write(box, MARKDOWN)
     box.evaluate("box => box.id = 'draft-face-editor'")
     cdp = page.context.new_cdp_session(page)

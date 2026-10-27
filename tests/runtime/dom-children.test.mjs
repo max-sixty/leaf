@@ -9,7 +9,7 @@ import {
 import { under } from "/runtime/shadow.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
-import { createRef, html, ref, render } from "/vendor/browser-runtime.js";
+import { createRef, html, ref, render } from "/runtime/framework.js";
 
 test("failure replacement releases directives and supports native and template recovery", () => {
   const host = document.createElement("test-widget");

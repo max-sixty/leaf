@@ -256,3 +256,118 @@ variants:
           choose, such as recommending "Show, then take" without saying what it
           does, or offering to keep "the Tend policy change" without saying what it
           is.
+  # From session 6f5623e3, which had just diagnosed why agents built a second drawing
+  # path for lf-diff (#3174) and drafted wording to stop it. Asked to "shade things
+  # like 'never'", it put a keep-or-soften decision on each of three absolutes, with
+  # one-line options such as "Closes the exception the triage agent used, at the
+  # sentence it read". The user wrote "there's not nearly enough context here, this
+  # is a bad question!" on two of them. The prompt carries the reply the session had
+  # just sent, whose shorthand the decisions reused. Stated this plainly, base writes
+  # richer decisions than the session did, but at 41754cb35 still left out what
+  # keeping each absolute costs (tradeoff-stated 1/3 on Claude Code, 1/2 on Codex);
+  # asking for each option's cost, the recommended one's included, made it 3/3 and
+  # 2/2. Both arms still lean on "the triage agent" and "the evals" undescribed
+  # (names-described 0/3 and 0/3), as unseen-names also fails on both.
+  absolutes-in-a-draft:
+    metadata:
+      purpose: "Asks: a decision on a wording says what each choice would change in a case the user can picture, what the recommended one costs, and who any agent or run it cites was."
+    vars:
+      prompt: |
+        You have been diagnosing, for the user, why agents nearly landed a Leaf
+        prototype for issue #3174. The prototype made `lf-diff` draw a patch's rows
+        (file headers, hunk separators, line rows, unhighlighted) itself before first
+        paint, at the metrics Pierre (the diff library the widget delegates to) uses,
+        so nothing moves when Pierre's highlighted drawing replaces it: +850 / −445
+        lines, a second drawing path beside Pierre's. A later measurement found that
+        main already first-paints the raw patch in a plain `<pre>` at about the right
+        height and shifts only 10 px when Pierre's drawing arrives.
+
+        Your notes from the diagnosis:
+        - The triage agent read Leaf's AGENTS.md "Use dependencies" ("writes a
+          mechanism itself only when existing ones can't meet a concrete
+          requirement") and treated "Pierre draws after first paint" as such a
+          requirement.
+        - You drafted wording for CLAUDE.md and Leaf's AGENTS.md (diffs below) and
+          scored it with evals that replay the triage decision. Until the wording
+          said "even in a plain or partial form", Codex kept proposing to draw the
+          rows unhighlighted in an `x-initial` script that reuses Pierre's own
+          structural code, and argued that wasn't a copy.
+
+        Your last reply to the user, sent a few minutes ago:
+
+        > I've added the protection in three places: your global development
+        > principles, Leaf's own principles (which Tend's Codex reviewer applies), and
+        > the Leaf render check that misled every agent about how big the problem was.
+        > Evals show it fixes the recommendation to land the prototype. It only partly
+        > fixes the earlier triage decision.
+        >
+        > **Speed slipped through the dependency exception.** CLAUDE.md lets you build
+        > your own for "a requirement its model lacks", and Leaf's "Use dependencies"
+        > says the same for "a concrete requirement". Agents read "Pierre loads after
+        > first paint" as such a requirement.
+        >
+        > - Codex keeps proposing an unhighlighted first-paint layout of the rows, on
+        >   the condition that it reuses Pierre's own structural code.
+
+        The drafted diffs:
+
+        ```diff
+        --- a/.claude/CLAUDE.md
+        +++ b/.claude/CLAUDE.md
+        @@ #### Canonical Homes
+           dependency's own output, such as a results table of mostly empty cells; fix the setup
+        -  rather than hiding that output behind your own.
+        +  rather than hiding that output behind your own. Speed never justifies a second
+        +  implementation. Where a dependency or module delivers too late or too slowly, make
+        +  that path earlier or faster, or size what shows while it runs; don't reproduce its
+        +  output ahead of it, even in a plain or partial form.
+        --- a/AGENTS.md
+        +++ b/AGENTS.md
+        @@ ## Fix the underlying issue
+        -suggests the shared boundary is still unsettled.
+        +suggests the shared boundary is still unsettled. Reproducing a dependency's or
+        +module's output ahead of it so a result shows sooner, even in a plain or partial
+        +form, leaves the delay in place and adds a second implementation that must keep
+        +agreeing with the first. Make that path earlier or faster, or reserve the room
+        +it will need, as "Responsiveness" does for the server's reading.
+        @@ ### Use dependencies
+         behavior and integration, and writes a mechanism itself only when existing ones
+        -can't meet a concrete requirement. In the browser, use the platform's layout,
+        +can't meet a concrete requirement; arriving too late isn't one ("Fix the
+        +underlying issue"). In the browser, use the platform's layout,
+        ```
+
+        The user then wrote: "make a leaf that has the diffs on
+
+        shade things like "never""
+
+        You are writing that page. The diff sections are done. The page shades
+        three absolutes, "never", "even in a plain or partial form" and "arriving
+        too late isn't one", and puts a decision to the user on each. You'd keep
+        all three. Write the section holding the three decisions. The
+        page directory is not reachable here, so reply with the section's HTML.
+    assert:
+      - type: llm-rubric
+        metric: tradeoff-stated
+        value: |
+          Grade the HTML. The user is the project's maintainer and knows Leaf and its
+          agents. They answer each of the three decisions later from their On me list,
+          with only that decision in view. Pass only if each decision lets them weigh
+          the choice for reasons it states:
+          1. It says what the shaded words change, through a case they can picture:
+             an agent action the words would rule out or allow, such as drawing a
+             diff's rows unhighlighted before Pierre loads. Quoting the sentence
+             alone fails.
+          2. It says what keeping the absolute costs: what it would also forbid or
+             make harder that could be wanted, or the risk it carries. A decision
+             whose options state only what the recommended choice gains fails.
+      - type: llm-rubric
+        metric: names-described
+        value: |
+          Grade the HTML. The user is the project's maintainer and knows Leaf and its
+          agents. They skimmed the reply quoted in the prompt a few minutes earlier,
+          but answer each decision later from their On me list, with only that
+          decision in view, and don't recall the evals or the triage. Pass only if
+          every agent, run or earlier argument a decision leans on is described where
+          it is used. "The exception the triage agent used", "the skeleton Codex
+          proposed" or "the evals" without saying what they were fails.

@@ -67,13 +67,25 @@ def test_response_picker_keeps_the_comment_in_place(
         control.tap() if touch else control.click()
     bar = page.locator(".lf-fab-bar")
     field = bar.locator(".lf-fab-input")
-    write(field, "Keep this draft")
-    before = field.bounding_box()
     trigger = bar.get_by_role("button", name="Other responses", exact=True)
+    # The empty field holds the ⋯ in its corner, and the draft's first word takes it
+    # away without widening the field.
     if reactions:
         expect(trigger).to_be_visible()
+        empty = field.bounding_box()
+        corner = trigger.bounding_box()
+        assert empty["x"] < corner["x"], (empty, corner)
+        assert corner["x"] + corner["width"] <= empty["x"] + empty["width"], (
+            empty,
+            corner,
+        )
     else:
         expect(trigger).to_be_hidden()
+    write(field, "Keep this draft")
+    before = field.bounding_box()
+    expect(trigger).to_be_hidden()
+    if reactions:
+        assert abs(before["width"] - empty["width"]) <= 1, (empty, before)
     expect(bar.locator(".lf-compose-field button:visible")).to_have_count(1)
     expect(bar.locator(".lf-compose-submit")).to_be_visible()
     field.press("Tab")
@@ -95,6 +107,7 @@ def test_response_picker_keeps_the_comment_in_place(
     expect(bar.locator(".lf-response-options")).to_be_hidden()
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "Keep this draft")
+    write(field, "")
     trigger.tap() if touch else trigger.click()
     expect(bar.locator(".lf-response-options")).to_be_visible()
     picker = bar.locator(".lf-response-options").bounding_box()
@@ -102,4 +115,4 @@ def test_response_picker_keeps_the_comment_in_place(
     assert picker["x"] >= 0 and picker["x"] + picker["width"] <= width, picker
     trigger.tap() if touch else trigger.click()
     expect(bar.locator(".lf-response-options")).to_be_hidden()
-    expect(field).to_have_js_property("value", "Keep this draft")
+    expect(field).to_have_js_property("value", "")

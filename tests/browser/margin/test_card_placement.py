@@ -75,12 +75,12 @@ def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve)
         expect(preview).to_contain_text("Check the tools separately.")
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
-        page.locator(".lf-fp-threads").focus()
+        page.locator(".lf-fp-on-user").focus()
 
         held.pop(0).continue_()
         rendered(page)
         expect(preview).to_be_hidden()
-        expect(page.locator(".lf-fp-threads")).to_be_focused()
+        expect(page.locator(".lf-fp-on-user")).to_be_focused()
         expect(preview).not_to_have_attribute("data-lf-thread-placement")
 
         first.click()
@@ -170,7 +170,7 @@ def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serv
         page.locator("#row").click(position={"x": 20, "y": 10})
     expect(
         page.locator('[data-lf-margin-for="choice"] .lf-margin-marker')
-    ).to_have_attribute("aria-label", re.compile(r"^Sent\b"))
+    ).to_have_attribute("aria-label", re.compile(r"^Saved\b"))
     for _ in range(2):
         rendered(page)
         assert preview.evaluate(where) == card
@@ -194,7 +194,7 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
         page.locator("#two").click(position={"x": 20, "y": 10})
     receipt = page.locator('[data-lf-margin-for="choice"]')
     expect(receipt.locator(".lf-margin-marker")).to_have_attribute(
-        "aria-label", re.compile(r"^Sent\b")
+        "aria-label", re.compile(r"^Saved\b")
     )
     rendered(page)
     assert thread.evaluate(where) == row
@@ -209,10 +209,10 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
     assert receipt.evaluate(where) == stands
 
 
-# Each visible message head's time against what could cut it: its own box, the
-# metadata it stands in and the head.
+# Each visible message head's time, where it says one, against what could cut it: its
+# own box, the metadata it stands in and the head.
 TIMES_WHOLE = """card => [...card.querySelectorAll('.lf-msg-head')]
-  .filter((head) => head.checkVisibility())
+  .filter((head) => head.checkVisibility() && head.querySelector('time'))
   .map((head) => {
     const time = head.querySelector('time');
     const right = time.getBoundingClientRect().right;
@@ -266,8 +266,8 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
 @pytest.mark.watch_shifts
 def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve):
     """A card standing above what it is about holds its foot, so a step would carry
-    its head row and messages up: the step waits behind the thread's notice even with
-    no draft, and shows when the user presses it."""
+    its head row and messages up: the step waits even with no draft, with no notice,
+    since progress is no unread news, and shows when the user opens the card again."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Make the banner quieter", {"section": "m19"})
     address = {"parent": root, "responds": root}
@@ -290,12 +290,15 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
         ephemeral=True,
     )
     told(page)
-    notice = preview.locator(".lf-thread-notice-news")
-    expect(notice).to_have_text("1 new message")
+    working = preview.locator(".lf-thread-working-words")
+    expect(working).to_have_text("Reading the banner's styles")
+    expect(preview.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
     assert preview.bounding_box() == pytest.approx(opened, abs=0.5)
-    notice.click()
-    expect(preview.locator(".lf-thread-working-words")).to_contain_text("the change")
+    preview.get_by_role("button", name="Dismiss thread view", exact=True).click()
+    expect(preview).to_be_hidden()
+    page.locator(".lf-margin-marker").first.click()
+    expect(working).to_contain_text("the change")
 
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):
@@ -307,7 +310,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     marker = page.locator('[data-lf-margin-for="off-t-resync"] > .lf-margin-marker')
     expect(marker).to_have_count(1)
     expect(marker.locator("..")).to_have_attribute(
-        "aria-label", re.compile(r"Page actions for section · iOS reconnect stall")
+        "aria-label", re.compile(r"Page actions for item · iOS reconnect stall")
     )
     marker.evaluate(
         "marker => scrollBy(0, marker.getBoundingClientRect().top - innerHeight + 52)"
@@ -329,7 +332,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const reply = document.querySelector('.lf-margin-thread .lf-thread-reply')
             .getBoundingClientRect();
-          const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
+          const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview-card'));
           return {mainLeft: main.left,
                   mainRight: main.right, controlsRight: controls.right,
                   controlsTop: controls.top, controlsBottom: controls.bottom,
@@ -689,6 +692,35 @@ def test_a_scroll_that_carries_the_card_only_updates_the_rail_tab_stop(browser, 
         for change in writes
     ), writes
     assert page.evaluate(offset) == pytest.approx(before, abs=0.5)
+
+
+def test_the_rail_tab_stop_follows_a_carried_row_back_into_view(browser, serve):
+    """The rail's one Tab stop is its highest row in view, whichever way the page got
+    there. ship-review's first row stands in a carrier, which the browser moves with
+    the scroll but whose own box reads a frame late: read there, a scroll back to the
+    top left the stop on the second row, below the first, until something else
+    re-read the rail."""
+    example = next(p for p in EXAMPLES if p.stem == "ship-review")
+    page = open_page(browser, serve(example))
+    resized(page, 1200, 900)
+    rendered(page)
+    first = page.locator('[data-lf-margin-for="off-t-resync"] .lf-margin-marker')
+    second = page.locator('[data-lf-margin-for="off-t-vendor"] .lf-margin-marker')
+    assert first.evaluate("row => row.closest('.lf-margin-carrier') !== null"), (
+        "the fixture's first row no longer stands in a carrier"
+    )
+    expect(first).to_have_attribute("tabindex", "0")
+
+    page.mouse.move(300, 300)
+    page.mouse.wheel(0, 600)
+    scroll_settled(page)
+    rendered(page)
+    expect(second).to_have_attribute("tabindex", "0")
+    page.mouse.wheel(0, -600)
+    scroll_settled(page)
+    rendered(page)
+    expect(first).to_have_attribute("tabindex", "0")
+    expect(second).to_have_attribute("tabindex", "-1")
 
 
 @pytest.mark.parametrize("target", ["sec-mounts", "bracket"])

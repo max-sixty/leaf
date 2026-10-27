@@ -16,16 +16,21 @@ from journeys.test_render_read_state import (
     _box_height,
     _expect_news,
     _first_unread,
+    _on_me_mark,
     _read_events,
     _said,
     _seat_comment,
     _select_new_route,
     _thread_row,
-    _threads_mark,
     _to_upper_third,
+)
+from leaf_dev.browser import (
+    panel_tab,
+    threads_tab,
 )
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
+from render_cases_layout import overlapped_words
 from render_cases_navigation import source_revision
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
@@ -39,6 +44,7 @@ from render_harness import (
     http_error_console,
     is_problem,
     open_page,
+    open_threads,
     panel_settled,
     reported_browser_errors,
     resized,
@@ -315,7 +321,7 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
     row = (
         seat.locator(":scope > .lf-seat-news")
         if beside == "box"
-        else threads.first.locator(":scope > .lf-thread-content > .lf-thread-controls")
+        else threads.first.locator(":scope > .lf-thread-content")
     )
     news = row.get_by_role("button", name="1 new thread")
     expect(news).to_be_visible()
@@ -359,9 +365,8 @@ def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve):
     )
     page = open_page(browser, url)
     resized(page, width, 900)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    page.locator(".lf-fp-threads").focus()
+    open_threads(page)
+    panel_tab(page, "Threads").focus()
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
@@ -385,7 +390,9 @@ def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve):
 def test_reading_a_thread_moves_nothing_in_it(browser, serve):
     """A read receipt keeps the thread's reading position and content in place.
 
-    The New mark may close its metadata row sideways when it disappears.
+    The New mark disappears when read. Its metadata wrapper can become empty
+    where the preceding message already shows the same age; the remaining content,
+    message heads, bodies and controls keep their geometry.
     """
     url = serve(PANEL_PAGE)
     root = panel_comment(
@@ -424,8 +431,10 @@ def test_reading_a_thread_moves_nothing_in_it(browser, serve):
       for (const [element, box] of window.__before) {{
         if (!after.has(element) || !element.isConnected) continue;
         const now = after.get(element);
-        const kept = element.matches('.lf-msg-meta') ? [0, 1, 3] : [0, 1, 2, 3];
-        if (kept.some(at => now[at] !== box[at]))
+        // Compare the metadata's contents below, rather than its wrapper: a
+        // wrapper holding only New becomes empty without moving any content.
+        if (element.matches('.lf-msg-meta')) continue;
+        if (now.some((value, at) => value !== box[at]))
           moved.push(`${{element.tagName}}.${{element.className}} ${{box}} -> ${{now}}`);
       }}
       return moved;
@@ -441,18 +450,16 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     root = panel_comment(serve.page_dir, "An answer for the user.", author="agent")
     page = open_page(browser, url)
 
-    mark = _threads_mark(page)
-    expect(mark).to_have_text("2")
-    expect(mark).to_have_attribute("aria-label", "Threads, 2 open, 1 with news")
-    expect(mark).to_have_attribute("title", "Threads, 2 open, 1 with news")
+    mark = _on_me_mark(page)
+    expect(mark).to_have_attribute("aria-label", "On me, 1 thread with news")
+    expect(mark).to_have_attribute("title", "On me, 1 thread with news")
     expect(mark.locator(".lf-fp-news")).to_be_visible()
     thread_control_width = mark.bounding_box()["width"]
-    # With news waiting, Threads opens on the threads that hold it.
+    # With news waiting and nothing on the user, the mark opens Threads, where the
+    # thread holding it says so.
     mark.click()
     panel_settled(page, view="threads")
-    expect(page.locator(".lf-fp-filters button", has_text="Unread")).to_have_attribute(
-        "aria-pressed", "true"
-    )
+    expect(threads_tab(page).locator(".lf-fp-count")).to_have_text("2")
     row = _thread_row(page, root)
     expect(row).to_have_attribute("data-unread", "")
     with sending(page, "first unread acknowledgement"):
@@ -462,14 +469,15 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     expect(card.locator(f'.lf-msg[data-message="{root}"]')).not_to_have_class(
         re.compile(r"(^|\s)lf-unread(\s|$)")
     )
-    expect(mark).to_have_attribute("aria-label", "Threads, 2 open")
-    expect(mark).to_have_attribute("title", "Threads, 2 open")
-    expect(mark.locator(".lf-fp-news")).to_be_hidden()
-    assert abs(mark.bounding_box()["width"] - thread_control_width) < 1
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
-    expect(mark).to_have_text("2")
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+    expect(mark).to_have_attribute("aria-label", "On me")
+    expect(mark).to_have_attribute("title", "On me")
+    expect(mark.locator(".lf-fp-news")).to_be_hidden()
+    assert abs(mark.bounding_box()["width"] - thread_control_width) < 1
     page.reload()
     _expect_news(page, False)
 
@@ -488,8 +496,7 @@ def test_progress_is_never_unread_and_reading_its_answer_reads_only_it(browser, 
         ephemeral=True,
     )["id"]
     page = open_page(browser, url)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     row = _thread_row(page, root)
     expect(row).to_be_visible()
     expect(row).not_to_have_attribute("data-unread", "")
@@ -615,6 +622,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
     )
     page.unroute("**/api/event")
     held[1].abort()
+    round_trip(page)
     told(page)
     _expect_news(page, False)
     assert _read_events(serve.page_dir) == []
@@ -623,7 +631,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         for event in events_model.read_events(serve.page_dir)
         if event["author"] == "user"
     ] == ["comment", "resolve"]
-    assert "Couldn't send" not in _said(page)
+    assert "Couldn't take this" not in _said(page)
     reported_browser_errors(
         page,
         lambda error: (
@@ -689,9 +697,9 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
         "The route-line answer is ready.",
     )
     told(page)
-    news = thread.locator(
-        ":scope > .lf-thread-content > .lf-thread-controls"
-    ).get_by_role("button", name="1 new reply")
+    news = thread.locator(":scope > .lf-thread-content").get_by_role(
+        "button", name="1 new reply"
+    )
     expect(news).to_be_visible()
     expect(thread.locator(".lf-msg")).to_have_count(1)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
@@ -781,12 +789,15 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
             )["id"]
         )
         told(page)
-    news = thread.locator(
-        ":scope > .lf-thread-content > .lf-thread-controls"
-    ).get_by_role("button", name="2 new replies")
+    news = thread.locator(":scope > .lf-thread-content").get_by_role(
+        "button", name="2 new replies"
+    )
     expect(news).to_be_visible()
     expect(thread.locator(".lf-msg")).to_have_count(1)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
+    # The notice stands after the header's words, in a box of its own, so axe still
+    # reads their contrast (`overlapped_words`).
+    assert overlapped_words(page) == []
 
     if end == "opened":
         news.click()
@@ -849,9 +860,9 @@ def test_a_walk_to_a_thread_a_diff_line_holds_lands_in_its_outlet(browser, serve
         },
     )["id"]
     told(page)
-    news = thread.locator(
-        ":scope > .lf-thread-content > .lf-thread-controls"
-    ).get_by_role("button", name="1 new thread")
+    news = thread.locator(":scope > .lf-thread-content").get_by_role(
+        "button", name="1 new thread"
+    )
     expect(news).to_be_visible()
     landed = page.locator(f'lf-diff .lf-page-thread[data-thread="{second}"]')
     expect(landed).to_have_count(0)
@@ -1120,7 +1131,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
             range.selectNodeContents(node); const selection = getSelection();
             selection.removeAllRanges(); selection.addRange(range); }"""
         )
-        _threads_mark(page).focus()
+        _on_me_mark(page).focus()
         # The user scrolls the line away, a gesture of theirs the page answers.
         page.mouse.move(40, 400)
         page.mouse.wheel(
@@ -1221,8 +1232,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         """thread => scrollBy(0, thread.getBoundingClientRect().top - innerHeight - 40)""",
         page.locator("lf-diff .lf-page-thread").element_handle(),
     )
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     reply = thread_model.post_reply(
         serve.page_dir,
         {"responds": root},

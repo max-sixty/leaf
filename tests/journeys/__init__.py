@@ -2,23 +2,18 @@
 
 from browser.threads import open_panel_thread
 from playwright.sync_api import expect
-from render_harness import PANEL, panel_menu, panel_settled, panel_view
+from render_harness import PANEL, open_threads, panel_menu, panel_settled, panel_view
 
 from leaf import event_log as events_model
 
 
 def listed_threads(page):
-    """The keys of every thread the panel's Threads view lists, open and resolved, read
-    by opening Threads under each filter; Threads is put away after."""
-    if page.locator(PANEL).get_attribute("data-open") != "threads":
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
-    keys = []
-    for name in ("Open", "Resolved"):
-        page.locator(".lf-fp-filters button").filter(has_text=name).click()
-        keys += page.locator(f"{panel_view('threads')} .lf-fp-thread").evaluate_all(
-            "rows => rows.map(row => row.dataset.key)"
-        )
+    """The keys of every thread the panel's Threads view lists, the open ones and then
+    those under Resolved; Threads is put away after."""
+    open_threads(page)
+    keys = page.locator(f"{panel_view('threads')} .lf-fp-thread").evaluate_all(
+        "rows => rows.map(row => row.dataset.key)"
+    )
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     return keys

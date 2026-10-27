@@ -41,6 +41,7 @@ from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
+from model.interact_contract import _stateful_page_declaration
 
 
 def test_delivery_ids_are_short_and_rerolled_under_the_store_lock(monkeypatch):
@@ -382,6 +383,111 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert undone in selected and changed in selected
 
 
+def test_recordless_requests_wake_without_user_obligations(
+    page_dir, sessionless, capsys
+):
+    from leaf.files import latest_revision
+    from leaf.served_state.context import read_page
+
+    declaration = _stateful_page_declaration(page_dir, "lf-archive")
+    verb = {
+        "unit": "widget",
+        "detail": {"type": "object", "properties": {}, "additionalProperties": False},
+    }
+    declaration["x-state"] = {
+        "archive": {**verb, "attention": True},
+        "edit": verb,
+    }
+    (page_dir / "page" / "registry.json").write_text(
+        json.dumps({"lf-archive": declaration})
+    )
+    source = PAGE.replace(
+        "</section>", '<lf-archive id="row">Archive this</lf-archive></section>'
+    )
+    (page_dir / "index.html").write_text(source)
+    serving(page_dir, 1)
+    publish(page_dir)
+    session_model.cmd_waiting(page_dir)
+
+    def action(verb, widget="row"):
+        return append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": latest_revision(page_dir),
+                "widget": widget,
+                "action": verb,
+                "detail": {},
+            },
+        )
+
+    def work():
+        return read_page(page_dir, events_model.read_events(page_dir)).work.durable
+
+    assert work().all_obligations["all"] == []
+    quiet = action("edit")
+    assert not quiet["attention"]
+    first = action("archive")
+    assert first["attention"]
+    assert work().all_obligations["all"] == []
+    assert owed_answers(page_dir) == []
+    assert session_model.cmd_wait(page_dir) == 0
+    payload, _, events = printed(capsys.readouterr().out)
+    assert [event["id"] for event in events] == [first["id"]]
+    assert "answer" not in events[0]
+    delivery_model.receive_delivery(payload["id"])
+    assert page_state(page_dir)["pending"] == 0
+
+    repeated = action("archive")
+    assert repeated["attention"]
+    assert not action("edit")["attention"]
+    (page_dir / "index.html").write_text(
+        source.replace("Archive this", "Archive this row")
+    )
+    note = publish(page_dir)
+    assert not note["attention"]
+    assert work().workflows == []
+    # A stamp settles the receipt; taking back the requested state still needs
+    # to reach the agent, just as changing it again does.
+    undone = append_command(
+        page_dir, {"kind": "undo", "author": "user", "undoes": repeated["id"]}
+    )
+    assert undone["attention"]
+    fresh = action("archive")
+    assert fresh["attention"]
+    assert service_model.unacknowledged(
+        events_model.read_events(page_dir), first["seq"]
+    ) == [repeated, undone, fresh]
+
+    # The same declaration belongs to a widget frozen into a thread message.
+    thread = append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": latest_revision(page_dir),
+            "text": "An optional command:",
+            "markup": '<lf-archive id="thread-row">Archive this</lf-archive>',
+        },
+    )
+    frozen = action("archive", "thread-row")
+    assert frozen["attention"]
+    assert "answer" not in frozen["meaning"]
+    assert owed_answers(page_dir) == []
+    append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": thread["id"],
+            "text": "Archived.",
+        },
+    )
+    assert not any(item["input"] == frozen["id"] for item in work().workflows)
+    assert action("archive", "thread-row")["attention"]
+
+
 def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     source = PAGE.replace(
         "</section>",
@@ -608,7 +714,8 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "revision": 1,
             "text": "Which mitigations should I carry into the patch?",
             "markup": '<lf-options id="gm" choose>'
-            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
+            '<lf-option id="m-cap"><small class="tag">recommended</small>'
+            "<strong>Cap retries</strong> Bound retry load.</lf-option>"
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
             "</lf-options>",
         },
@@ -635,7 +742,8 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     assert 'id="m-cap"' in thread["messages"][0]["markup"]
     # And the pick in words, read from that frozen message: the group is left
     # out because it only encloses the option chosen in it.
-    assert shown[0]["says"] == {"m-cap": "Cap retries"}
+    assert shown[0]["says"] == {"m-cap": "recommended Cap retries Bound retry load."}
+    assert shown[0]["names"] == {"m-cap": "Cap retries"}
 
     # In force, so a later delivery in this thread carries what the user
     # settled. Without it the agent meets the question with no answer under it
@@ -685,7 +793,9 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     (page_dir / "index.html").write_text(asked)
     publish(page_dir)
     (page_dir / "index.html").write_text(
-        asked.replace("Ship dark.", "Ship behind the flag, reworded.")
+        asked.replace("Ship dark.", "Ship behind the flag, reworded.").replace(
+            "<strong>Flag first</strong>", "<strong>Reworded choice</strong>"
+        )
     )
     advanced = stamp(page_dir, "Reworded the first plan")
     assert advanced.exit_code == 0, advanced.output
@@ -718,6 +828,8 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     _, _, shown = delivered(capsys)
     assert [e["id"] for e in shown] == [answered["id"]]
     assert chose["attention"] is False
+    [chosen] = freeze_events(page_dir, [chose])["batches"][0]["events"]
+    assert chosen["names"] == {"flag-first": "Flag first"}
     [(widget, whole)] = shown[0]["says"].items()
     assert widget == "plan-choice"
     assert "Ship behind the flag, reworded." in whole and "Backfill first" in whole
@@ -731,6 +843,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     assert undone["says"] == {
         "flag-first": "effort: low risk: med Flag first Ship dark."
     }
+    assert undone["names"] == {"flag-first": "Flag first"}
 
 
 def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
@@ -1030,7 +1143,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
     publish(page_dir)
     session_model.cmd_waiting(page_dir)
     question = thread_model.cmd_comment(
-        page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
+        page_dir, "", "", "", "Forty?", "", obligation=True
     )
     quiet = append_command(
         page_dir,
@@ -1144,3 +1257,63 @@ def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
             with_leaf_resources(delivery_model.DELIVERY.schema), envelope
         )
         assert error is None, f"{case}: {error}"
+
+
+def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir):
+    """An action on a decision carries, in `waiting`, the agent's questions that still
+    wait on the user in a thread about that decision, so the agent can judge which the
+    pick settles; a question in a thread elsewhere stays out."""
+    source = PAGE.replace(
+        "</section>",
+        '</section><section id="ship-ask"><h2>Ship on Friday?</h2>'
+        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-option id="hold">Keep it private</lf-option></lf-options></section>'
+        '<p id="aside">An aside.</p>',
+    )
+    (page_dir / "index.html").write_text(source)
+    publish(page_dir)
+
+    def asked(anchor):
+        root = append_carried_log_record(
+            page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Show me.",
+                "anchor": {"section": anchor},
+            },
+        )
+        return append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "revision": 1,
+                "parent": root["id"],
+                "responds": root["id"],
+                "text": "Try it before choosing.",
+                "obligation": True,
+            },
+        )["id"]
+
+    about = asked("ship-ask")
+    asked("aside")
+    pick = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "permit",
+            "action": "choose",
+            "detail": {"value": ["publish"]},
+        },
+    )
+    [batch] = freeze_events(page_dir, [pick])["batches"]
+    [event] = batch["events"]
+    assert event["waiting"] == [
+        {"id": f"message:{about}", "text": "Try it before choosing."}
+    ]
+    assert any("`waiting`" in batch["handling"][clause] for clause in event["handling"])

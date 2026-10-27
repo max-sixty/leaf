@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Playground choice controls</title>
+    <meta
+      name="description"
+      content="Compact native selects and visible radio choices share one playground configuration, presets, Reset and submission."
+    />
+    <style>
+      #job-accelerators {
+        display: table;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="playground-example" class="layout-column">
+      <h1>Try compact choice controls</h1>
+      <p>
+        Two example training jobs. Change their accelerators and priority, or try the
+        GPU batch preset. Reset restores the starting values. Sending posts these demo
+        settings to this chat.
+      </p>
+      <lf-ask id="job-question">
+        <h2>Training settings</h2>
+        <lf-playground id="job-configuration" submit-label="Send demo settings">
+          <lf-playground-preset label="GPU batch">
+            <lf-playground-setting for="embeddings" value="a10"></lf-playground-setting>
+            <lf-playground-setting for="ranking" value="a100"></lf-playground-setting>
+            <lf-playground-setting
+              for="priority"
+              value="normal"
+            ></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preview>
+            <table id="job-accelerators">
+              <thead>
+                <tr>
+                  <th>Training job</th>
+                  <th>Accelerator</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th>Embeddings</th>
+                  <td>
+                    <lf-playground-control
+                      name="embeddings"
+                      label="Embeddings accelerator"
+                      kind="choice"
+                      appearance="select"
+                      value="cpu"
+                    >
+                      <lf-playground-choice
+                        value="cpu"
+                        label="CPU"
+                      ></lf-playground-choice>
+                      <lf-playground-choice
+                        value="a10"
+                        label="A10"
+                      ></lf-playground-choice>
+                      <lf-playground-choice
+                        value="a100"
+                        label="A100"
+                      ></lf-playground-choice>
+                      <lf-playground-choice
+                        value="h100"
+                        label="H100"
+                      ></lf-playground-choice>
+                    </lf-playground-control>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Ranking</th>
+                  <td>
+                    <lf-playground-control
+                      name="ranking"
+                      label="Ranking accelerator"
+                      kind="choice"
+                      appearance="select"
+                      value="cpu"
+                    >
+                      <lf-playground-choice
+                        value="cpu"
+                        label="CPU"
+                      ></lf-playground-choice>
+                      <lf-playground-choice
+                        value="a10"
+                        label="A10"
+                      ></lf-playground-choice>
+                      <lf-playground-choice
+                        value="a100"
+                        label="A100"
+                      ></lf-playground-choice>
+                      <lf-playground-choice
+                        value="h100"
+                        label="H100"
+                      ></lf-playground-choice>
+                    </lf-playground-control>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <lf-playground-control
+              name="priority"
+              label="Scheduling priority"
+              kind="choice"
+              value="normal"
+            >
+              <lf-playground-choice
+                value="normal"
+                label="Normal"
+              ></lf-playground-choice>
+              <lf-playground-choice value="high" label="High"></lf-playground-choice>
+            </lf-playground-control>
+          </lf-playground-preview>
+          <lf-playground-output
+            >Configure embeddings to use
+            <lf-playground-value for="embeddings"></lf-playground-value> and ranking to
+            use <lf-playground-value for="ranking"></lf-playground-value>, both with
+            <lf-playground-value for="priority"></lf-playground-value> scheduling
+            priority. Record these example settings.</lf-playground-output
+          >
+        </lf-playground>
+      </lf-ask>
+    </main>
+  </body>
+</html>

@@ -8,7 +8,7 @@ import { nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { repaintPage } from "./repaint.js";
 import { layoutChanged } from "./widget-elements.js";
 import { layoutBox, pageDocument } from "./passages.js";
-import { marks } from "./marks.js";
+import { marks } from "./kernel-facts.js";
 import { pageControlsChanged } from "./page-controls.js";
 // One computed reading seats the rail first without moving the column, then each
 // authored margin element on its preferred side, or in flow when there is no room. The

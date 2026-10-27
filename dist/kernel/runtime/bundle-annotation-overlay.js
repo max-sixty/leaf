@@ -1,19 +1,14 @@
-import { SVG_NS, dropStand, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-target-paint.js";
-import { Z, bareReaction, html, render, sameAnchor, turns } from "./bundle-browser-runtime.js";
-import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, roomPx, rove, tabStops, under } from "./bundle-dom-move.js";
-import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, iconElement, keys, notice, offer, paintKeys, repaint, rightCover, rowArrows, seenRect, shownBox, shownWindow, skipped, union, watchRoom } from "./bundle-errors.js";
-import { whenDocumentPresented } from "./bundle-context.js";
-import { atScrollEnd, effectiveScroller, moveScrollerBy, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
-import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
-import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
-import { exactTarget, passageGeometry, pointBand, rangeGeometry, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
-import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, retainUserIntent, revealHeld, rowWalk, selectionAnchor, showReturnTurn, tabStore, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-surfaces.js";
-import { setChildLists, setChildren } from "./bundle-abort.js";
-import { reducedMotion } from "./bundle-motion.js";
-import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-margin-model.js";
+import { TEXT_FIELD, Z, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, ringBox, roomPx, rove, sizeObserver, tabStops, under, visibleFocus } from "./bundle-dom-move.js";
+import { LAYOUT, PAGE_PAINT_ATTRIBUTE, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
+import { bareReaction, clamp, hostIn, html, render, rightCover, sameAnchor, seenRect, shownBox, shownWindow, skipped, slotTop, turns, union, watchRoom } from "./bundle-geometry.js";
+import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, passageGeometry, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
-import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
+import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, setChildLists, setChildren, showReturnTurn, tabStore, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
+import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
+import { retainUserIntent } from "./bundle-copy-control.js";
+import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
+import { SVG_NS, boxMotion, dropStand, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-box-motion.js";
+import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 
 //#region runtime/annotation-overlay/surface-grip.js
 const SLOP = 3;
@@ -216,7 +211,7 @@ const CUT_EDGES = [
 	"--lf-cut-bottom",
 	"--lf-cut-left"
 ];
-function createThreadPreview({ inventory, renderMarginThread, placedAt, openPageThread, scrollThreadIntoView, scrollToElement, onClose }) {
+function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollThreadIntoView, scrollToElement, openInPanel, onClose }) {
 	const { targetFor, entryPoint, entryPlace, sourceItem } = inventory;
 	const preview = el("aside", "lf-ui lf-margin-preview");
 	preview.id = THREAD_CARD;
@@ -230,16 +225,12 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 	});
 	const previewNav = el("span", "lf-margin-preview-nav");
 	const previewPosition = el("span", "lf-margin-preview-position");
-	const previewPrevious = offer("button", "lf-btn lf-icon-action lf-margin-preview-step");
-	previewPrevious.append(iconElement("previous", "lf-action-icon"));
-	previewPrevious.setAttribute("aria-label", "Previous thread");
-	previewPrevious.title = "Previous thread";
-	const previewNext = offer("button", "lf-btn lf-icon-action lf-margin-preview-step");
-	previewNext.append(iconElement("next", "lf-action-icon"));
-	previewNext.setAttribute("aria-label", "Next thread");
-	previewNext.title = "Next thread";
+	const previewPrevious = offerAction("symbol", "lf-margin-preview-step", "Previous thread", { icon: "previous" });
+	const previewNext = offerAction("symbol", "lf-margin-preview-step", "Next thread", { icon: "next" });
 	previewNav.append(previewPrevious, previewPosition, previewNext);
+	const previewOpenInPanel = offerAction("symbol", "lf-margin-preview-expand", "Open in panel", { icon: "expand" });
 	const previewList = el("div", "lf-margin-preview-list");
+	let dismiss = () => {};
 	const carry = surfaceGrip({
 		surface: preview,
 		bounds: () => commentBoundary({ region: previewSession?.region }),
@@ -259,7 +250,24 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			placeThreadPreview();
 		}
 	});
-	preview.append(carry.grip, previewList);
+	const face = el("div", "lf-margin-preview-card");
+	face.append(previewList);
+	const followCard = () => {
+		if (!preview.hasAttribute("data-lf-thread-placement")) return following.forget();
+		following.follow();
+	};
+	const followed = sizeObserver(followCard);
+	const following = boxMotion({
+		root: face,
+		box: face,
+		surface: "lf-margin-preview-ground",
+		lift: 3,
+		outset: 0,
+		observer: followed,
+		held: () => heldEdges(preview)
+	});
+	preview.append(following.ground, carry.grip, face);
+	followed.observe(face);
 	const opener = () => previewSession?.control?.checkVisibility() ? previewSession.control : null;
 	const onOpener = () => Boolean(opener()) && focused() === opener();
 	const stopsBeside = (root, at, side) => tabStops(root).filter((stop) => stop !== at && !renderedUnder(at, stop) && Math.sign(renderedOrder(stop, at)) === side);
@@ -322,8 +330,9 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			paintContinuation: (above) => {
 				let edge = 0;
 				let height = above ? 12 : 0;
+				const room = slotTop(transcript);
 				if (above) {
-					const top = transcript.getBoundingClientRect().top + transcript.clientTop + parseFloat(getComputedStyle(transcript).paddingTop);
+					const top = transcript.getBoundingClientRect().top + transcript.clientTop + room;
 					for (const head of transcript.querySelectorAll(".lf-msg-head")) {
 						const box = head.getBoundingClientRect();
 						if (!box.height || box.bottom <= top) continue;
@@ -337,6 +346,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 				const card = transcript.parentElement;
 				card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
 				card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
+				card.style.setProperty("--lf-thread-room-cover", layoutPx(above ? room : 0));
 			}
 		});
 	}
@@ -383,13 +393,6 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			const holdingGone = focused() === document.body && (!pending.holding?.isConnected || !pending.holding?.checkVisibility());
 			if (placed && (focused() === pending.holding || holdingGone)) mayFocus.handoff(focus);
 		});
-	}
-	function paintReach(card) {
-		const shadows = getComputedStyle(card).boxShadow.split(/,(?![^(]*\))/);
-		return Math.max(0, ...shadows.map((shadow) => {
-			const [x = 0, y = 0, blur = 0, spread = 0] = (shadow.match(/-?[\d.]+px/g) ?? []).map(parseFloat);
-			return Math.max(Math.abs(x), Math.abs(y)) + blur + spread;
-		}));
 	}
 	function measureThreadCard(room, cap, reading) {
 		preview.style.setProperty("--lf-thread-width", layoutPx(room));
@@ -536,12 +539,17 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 				(card.right - region.right) / scale.x,
 				(card.bottom - region.bottom) / scale.y,
 				(region.left - card.left) / scale.x
-			].map((cut) => layoutPx(Math.max(cut, -paintReach(preview)))) : [];
+			].map((cut) => layoutPx(Math.max(cut, -following.shadowReach()))) : [];
 			CUT_EDGES.forEach((edge, i) => {
 				if (region) preview.style.setProperty(edge, cuts[i]);
 				else preview.style.removeProperty(edge);
 			});
 			keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
+			if (!session.followed) {
+				session.followed = true;
+				if (session.sent) following.drawnAt(session.sent.field);
+				followCard();
+			}
 			keepThreadLanding(previewList.querySelector(".lf-page-thread"));
 			session.positionResult?.resolve(true);
 			session.positionResult = null;
@@ -577,7 +585,10 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			preparing: false,
 			latest: null,
 			arriving: true,
-			sent: origin && { fromEnd: origin.fromEnd },
+			sent: origin && {
+				fromEnd: origin.fromEnd,
+				field: origin.field
+			},
 			away: false,
 			positionFrame: 0,
 			positionResult: null,
@@ -589,9 +600,11 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			side: commentPlacement(),
 			anchor: new CardAnchor(preview),
 			width: origin?.box.width ?? null,
-			region: null
+			region: null,
+			followed: false
 		};
 		if (origin) previewSession.side.adopt(origin);
+		keeps(preview, "data-lf-grows", origin ? "" : null);
 		return previewSession;
 	}
 	function buildThreadCard(entry, requestedItem = null) {
@@ -662,29 +675,26 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			const body = el("div", "lf-margin-thread-body");
 			node.append(body);
 		}
-		renderMarginThread(node.querySelector(":scope > .lf-margin-thread-body"), sourceItem(item).thread, {
+		const shownThread = sourceItem(item).thread;
+		previewOpenInPanel.onclick = () => {
+			dismiss();
+			openInPanel(shownThread.id);
+		};
+		renderMarginThread(node.querySelector(":scope > .lf-margin-thread-body"), shownThread, {
 			nav: previewNav.hidden ? null : previewNav,
+			expand: previewOpenInPanel,
 			close: previewClose,
 			anchor: previewSession.anchor,
+			sending: following.stream,
 			prepareLanding: () => {
 				const target = targetFor(previewSession?.entry);
-				const thread = sourceItem(item).thread.id;
 				const mayLand = retainUserIntent({
 					source: focused(),
 					available: () => Boolean(target?.isConnected)
 				});
-				return {
-					optimistic: () => {
-						if (previewOpen()) return false;
-						return mayLand.handoff(() => focusDestination(target, "return"));
-					},
-					reverse: async (may = mayLand) => {
-						await whenDocumentPresented();
-						return may() && mayLand.available() && Boolean(await openPageThread(thread, {
-							part: "thread",
-							intent: may
-						}));
-					}
+				return () => {
+					if (previewOpen()) return false;
+					return mayLand.handoff(() => focusDestination(target, "return"));
 				};
 			}
 		});
@@ -742,17 +752,9 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		keeps(preview, "inert", null);
 		buildThreadCard(entry, selected.id);
 		const positioned = placedThreadPreview();
-		return session.sent ? growOut(session, positioned) : positioned;
+		paintKeysWithin(preview);
+		return positioned;
 	}
-	function growOut(session, positioned) {
-		return positioned.then((placed) => {
-			if (placed && previewSession === session && !reducedMotion()) keeps(preview, "data-lf-grows", "");
-			return placed;
-		});
-	}
-	preview.addEventListener("animationend", (event) => {
-		if (event.target === preview) keeps(preview, "data-lf-grows", null);
-	});
 	function refresh(entry, control, carry = focused() === previewSession?.control) {
 		if (!previewSession || previewSession.preparing) return;
 		transferThreadCard(control, carry);
@@ -771,6 +773,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
 			keepsHidden(preview, true);
 			keeps(preview, "inert", null);
+			paintKeysWithin(preview);
 		};
 		const fade = preview.hidden ? null : preview.getAnimations().find((played) => played.transitionProperty === "opacity");
 		if (fade) {
@@ -798,6 +801,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		}) : null;
 	}
 	function mount(onDismiss) {
+		dismiss = onDismiss;
 		previewClose.onclick = onDismiss;
 		previewPrevious.onclick = () => stepPreviewThread(-1);
 		previewNext.onclick = () => stepPreviewThread(1);
@@ -854,7 +858,7 @@ function mountAnnotationControls() {
 		when: () => watchers.size > 0,
 		run: () => {
 			setAnnotationsHidden(!hidden.value);
-			notice(!hidden.value ? "Annotations shown" : coarsePointer.matches ? "Annotations hidden" : "Annotations hidden. o shows them");
+			notice(!hidden.value ? "Annotations shown" : coarsePointer.matches ? "Annotations hidden" : "Annotations hidden — o shows them");
 		}
 	});
 }
@@ -1063,7 +1067,7 @@ function createMarginClusterViews({ activateContribution, materializeReading, op
 
 //#endregion
 //#region runtime/annotation-overlay/margin-projection.js
-function createMarginProjection({ inventory, refreshInventory, renderAnnotations, openPageThread, designModeActive, pointerModeActive, leavePageMap, openPageMap, pageMapDialogContains, scrollThreadIntoView, renderMarginThread, placedAt, marksFor, scrollToElement }) {
+function createMarginProjection({ inventory, refreshInventory, renderAnnotations, openPageThread, designModeActive, pointerModeActive, leavePageMap, openPageMap, pageMapDialogContains, scrollThreadIntoView, renderMarginThread, placedAt, marksFor, scrollToElement, openInPanel }) {
 	const { targetFor, entryPoint, entryPlace, entryPassage, sourceItem, workflowReceipt, threadIdsAt, threadItem: marginThreadItem } = inventory;
 	const nav = el("nav", "lf-ui lf-margin-projection");
 	generatedElement(nav, { says: false });
@@ -1076,9 +1080,9 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		inventory,
 		renderMarginThread,
 		placedAt,
-		openPageThread,
 		scrollThreadIntoView,
 		scrollToElement,
+		openInPanel,
 		onClose: closedPreview
 	});
 	const preview = card.element;
@@ -1226,9 +1230,10 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 	function availableRows() {
 		return [...markerRows()].filter((row) => !row.hidden && !row.closest(".lf-withheld") && row.checkVisibility({ visibilityProperty: true }));
 	}
+	const markerBox = (row) => paintedBox(row, closestAcross(row, "[data-lf-margin-for]"));
 	function visibleRows() {
 		const clips = /* @__PURE__ */ new Map();
-		return availableRows().filter((row) => seenRect(row, clips));
+		return availableRows().filter((row) => seenRect(row, clips, markerBox(row)));
 	}
 	function clusterMarginEntries(host) {
 		if (!host) return [];
@@ -1353,7 +1358,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		const candidates = visible.length ? visible : available;
 		const room = shownWindow();
 		const place = (row) => {
-			const box = row.getBoundingClientRect();
+			const box = markerBox(row);
 			return [
 				box.bottom < room.top ? room.top - box.bottom : box.top > room.bottom ? box.top - room.bottom : 0,
 				box.top,
@@ -2160,7 +2165,10 @@ function createAnchorPaint({ targetPaint, pointer, currentLocationThreadId, rowT
 			hover,
 			here
 		].flatMap((states) => [...states]).filter((element) => element instanceof Element));
-		const focus = new Set([...elements].filter((element) => element.matches("[data-lf-focus]")));
+		const active = visibleFocus();
+		const ownsRing = active && ringBox(active) === active && !active.hasAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
+		if (ownsRing && active.getRootNode() === document && pageWords(active)) elements.add(active);
+		const focus = new Set(ownsRing && elements.has(active) ? [active] : []);
 		const sources = [
 			["pending", pending],
 			["action", action],
@@ -2331,6 +2339,14 @@ const STATE_CLASSES = {
 	focus: "lf-visual-mark-focus",
 	here: "lf-visual-mark-here"
 };
+const INSET = "lf-visual-mark-inset";
+function ringRoom() {
+	return parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"));
+}
+function cramped({ rect, levels }, room) {
+	const short = (band, low, high) => rect[low] >= band[low] && rect[low] - room < band[low] || rect[high] <= band[high] && rect[high] + room > band[high];
+	return levels.some(({ holder, band, axes }) => holder && (axes.x && short(band, "left", "right") || axes.y && short(band, "top", "bottom")));
+}
 function createVisualMarkPaint() {
 	const layer = el("div", "lf-ui lf-visual-marks");
 	layer.setAttribute("aria-hidden", "true");
@@ -2346,8 +2362,9 @@ function createVisualMarkPaint() {
 		}
 	}
 	function paintTargets(rebuildGeometry = true) {
+		const room = ringRoom();
 		for (const element of [...overlays.keys()]) if (!targets.has(element)) {
-			element.classList.remove(PROJECTED);
+			element.classList.toggle(PROJECTED, false);
 			dropStand(overlays.get(element).stand);
 			overlays.delete(element);
 		}
@@ -2385,6 +2402,7 @@ function createVisualMarkPaint() {
 			element.classList.toggle(PROJECTED, true);
 			keeps(overlay, "data-for", element.id || null);
 			overlay.classList.toggle("lf-shaped", Boolean(geometry));
+			overlay.classList.toggle(INSET, !geometry && cramped(placed, room));
 			if (rebuildGeometry || record.geometry !== geometry || record.shapeKey !== shapeKey) {
 				if (geometry) paintShape(shape, geometry, rect);
 				else shape.replaceChildren();
@@ -2470,11 +2488,41 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		}
 	});
 	fabBar.append(carry.grip);
+	const fabField = () => fabInput.parentElement;
+	let following = null;
+	const readFab = () => {
+		if (!following && !response.open) return;
+		if (!response.floating || !fabBar.hasAttribute("data-lf-placement")) return following?.forget();
+		following ??= fabMotion();
+		following.follow();
+	};
+	const followed = sizeObserver(() => {
+		if (following && response.open && fabBar.hasAttribute("data-lf-placement")) {
+			nativeAttachment = false;
+			if (placeFab()) return;
+		}
+		readFab();
+	});
+	function fabMotion() {
+		const box = fabField();
+		const motion = boxMotion({
+			root: box.parentElement,
+			box,
+			surface: "lf-fab-ground",
+			lift: 1,
+			outset: 0,
+			observer: followed,
+			held: () => heldEdges(fabBar)
+		});
+		fabBar.prepend(motion.ground);
+		followed.observe(box.parentElement);
+		return motion;
+	}
 	let selectedPassage = null;
 	const fabFrameAt = () => {
 		if (!response.open || !response.floating) return null;
 		const bar = fabBar.getBoundingClientRect();
-		const field = fabInput.getBoundingClientRect();
+		const field = fabField().getBoundingClientRect();
 		const style = getComputedStyle(fabBar);
 		const scaleX = bar.width / parseFloat(style.width);
 		const scaleY = bar.height / parseFloat(style.height);
@@ -2485,6 +2533,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		return {
 			box: new DOMRect(field.left - left * scaleX, field.top - top * scaleY, width * scaleX, height * scaleY).toJSON(),
 			placement: fabPlacement.capture(),
+			field: following?.outline() ?? field.toJSON(),
 			fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop
 		};
 	};
@@ -2504,6 +2553,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		cancelRender(fabPositionFrame);
 		fabPositionFrame = 0;
 		if (!reset) return;
+		following?.forget();
 		editingAttachment = null;
 		windowPosture = false;
 		fabPlacement.forget();
@@ -2688,12 +2738,17 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			if (!position || !stillCurrent()) return;
 			fabPlacement.landed(position);
 			editingAttachment = response.open ? attachment : null;
-			keeps(fabBar, "data-lf-placement", position.placement);
-			fabPosition.stand(position);
+			const stand = () => {
+				keeps(fabBar, "data-lf-placement", position.placement);
+				fabPosition.stand(position);
+			};
+			if (following) following.placed(stand);
+			else stand();
 			carry.placed();
 			nativeAttachment = response.open && fabPosition.follows();
 			positioned(true);
 			stoodAgain();
+			readFab();
 			return true;
 		}).catch((error) => {
 			if (!stillCurrent()) return;

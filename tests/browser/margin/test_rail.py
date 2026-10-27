@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url
 from render_harness import (
     EXAMPLES,
+    expect_open_threads,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -271,9 +272,7 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
         {"kind": "resolve", "author": "user", "parent": comment["id"]},
     )
     told(page)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", "Threads, 0 open"
-    )
+    expect_open_threads(page, 0)
     assert position() == initial
 
 

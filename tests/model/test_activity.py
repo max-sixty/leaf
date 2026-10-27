@@ -65,6 +65,54 @@ def test_a_claimant_inside_a_turn_is_listening_between_two_waits(claimed):
     assert activity_reading(claimed)["kind"] == "away"
 
 
+def test_a_session_the_next_input_wakes_reads_listening(page_dir, tmp_path):
+    """With no watch after its turn ended, a session is away only if the nudge the
+    next input gets (`ClaudeCodeHarness.nudge`) might not start a turn. A background
+    job whose daemon retired its idle worker, and the watch with it, is resumed with
+    that input as its prompt. A live session takes it from its socket as a turn
+    where the user's settings accept other sessions' messages; elsewhere the message
+    may wait behind a dialog."""
+    job = tmp_path / "job"
+    job.mkdir()
+    cleanup_model.write_json(job / "state.json", {"sessionId": "s1"})
+    record_claim(page_dir, job=str(job), turn_closed=cleanup_model.now_iso())
+    assert activity_reading(page_dir)["kind"] == "listening"
+
+    sessions = harness_model.claude_code_sessions()
+    sessions.mkdir(exist_ok=True)
+    project = tmp_path / "project"
+    (project / ".git").mkdir(parents=True)
+    worker = {
+        "pid": os.getpid(),
+        "sessionId": "s1",
+        "cwd": str(project / "src"),
+        "messagingSocketPath": str(tmp_path / "peer.sock"),
+    }
+    cleanup_model.write_json(sessions / f"{os.getpid()}.json", worker)
+    cleanup_model.write_json(sessions / f"{os.getpid()}.k.key", {"peerToken": "t"})
+    assert activity_reading(page_dir)["kind"] == "away"
+
+    cleanup_model.write_json(
+        harness_model.claude_code_config() / "settings.json",
+        {"crossSessionInbound": "accept"},
+    )
+    assert activity_reading(page_dir)["kind"] == "listening"
+
+    # A project can narrow the user's accept, from the repository's root too.
+    (project / ".claude").mkdir()
+    cleanup_model.write_json(
+        project / ".claude" / "settings.local.json", {"crossSessionInbound": "hold"}
+    )
+    assert activity_reading(page_dir)["kind"] == "away"
+
+    # Only the user's settings grant it.
+    cleanup_model.write_json(
+        project / ".claude" / "settings.local.json", {"crossSessionInbound": "accept"}
+    )
+    cleanup_model.write_json(harness_model.claude_code_config() / "settings.json", {})
+    assert activity_reading(page_dir)["kind"] == "away"
+
+
 def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     claimed, codex_claimed_page
 ):

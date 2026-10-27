@@ -12,6 +12,7 @@ in a `main` module runs nowhere near the change that breaks it.
 """
 
 import json
+import os
 import shlex
 import shutil
 import socket
@@ -34,14 +35,55 @@ from interact_support import (
     wait_for,
 )
 from leaf_dev import arms, page_fixtures
-from leaf_dev.commands import preview
+from leaf_dev.commands import preview, record_demo, site
 from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 from leaf import cli as cli_model
 from leaf import codex_adapter, leases, server, service, session
 from leaf.interaction_log import read_interactions
+from leaf.layer import stylesheet
 from leaf.media import media_name
 from leaf.structure import SourceDocument
+
+
+def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_path):
+    from leaf.packages import cmd_package_install
+    from leaf.registry.storage import layer_metadata
+
+    personal = tmp_path / "personal"
+    personal.mkdir()
+    (personal / "theme.css").write_text(":root { --accent: #814b07; }")
+    cmd_package_install(personal)
+    config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
+    config.parent.mkdir(parents=True)
+    config.write_text('themes = ["personal"]\ndefault = "personal"\n')
+    ordinary = tmp_path / "ordinary"
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(ordinary)])
+    assert result.exit_code == 0, result.output
+    assert layer_metadata(ordinary)["theme"]["name"] == "personal"
+
+    runners = {
+        "arm": partial(
+            arms.run_leaf, ROOT, Path(os.environ["XDG_STATE_HOME"]), check=True
+        ),
+        "preview": partial(preview.leaf, ROOT / "bin/leaf", ROOT),
+        "site": site.checkout_leaf(),
+    }
+    for name, run in runners.items():
+        page = tmp_path / name
+        run(
+            "page",
+            "init",
+            *page_fixtures.package_selection_args(("diagram",)),
+            str(page),
+        )
+        assert layer_metadata(page)["packages"] == ["diagram"]
+        assert layer_metadata(page)["theme"] is None
+
+    page = tmp_path / "demo"
+    with record_demo.demo_session(tmp_path / "demo-run"):
+        record_demo.cmd_init(page)
+        assert layer_metadata(page)["theme"] is None
 
 
 def test_automated_page_producers_record_the_run_before_input(tmp_path, serve, request):
@@ -162,9 +204,11 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     )
     registry = json.loads((page / "registry.json").read_text())
     assert "nav.sitenav" in registry
-    assert (ROOT / "docs" / "package" / "theme.css").read_text().rstrip() in (
-        page / "theme.css"
-    ).read_text()
+    package = ROOT / "docs" / "package"
+    assert (
+        stylesheet(package / "theme.css", package).rstrip()
+        in (page / "theme.css").read_text()
+    )
     watched = preview.watch_paths(source, ROOT, [])
     assert str(ROOT / "docs" / "layer.json") in watched.paths
     # A composed part's owner is an input: a caption follows its example's edit.
@@ -337,6 +381,13 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
 
     added_script.unlink()
     assert str(added_script) not in watched().paths
+
+    # Python loads schema data at import time too; changing it needs both the
+    # server's refresh and a fresh watcher, just like changing a Python module.
+    schema = scripts / "state.schema.json"
+    schema.write_text("{}")
+    assert str(schema) in watched().paths
+    assert schema in preview.worker_inputs(runtime)
 
     versions = source.parent / "versions"
     versions.mkdir()
@@ -1120,7 +1171,7 @@ def test_a_fixture_acknowledges_its_seed_with_the_runtime_it_was_read_for(tmp_pa
     comparison across a protocol bump builds both arms (`leaf-dev stills`)."""
     runtime = tmp_path / "runtime"
     arms.extract_payload(runtime)
-    registry = runtime / "browser/registry.json"
+    registry = runtime / "browser/runtime/kernel-registry.json"
     layer = json.loads(registry.read_text())
     layer["$events"]["protocol"] += 1
     registry.write_text(json.dumps(layer, ensure_ascii=False))
@@ -1271,10 +1322,8 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
         service.stop()
 
 
-def test_preview_keeps_watching_after_an_invalid_capture_companion(
-    tmp_path, monkeypatch, capsys
-):
-    """An interrupted JSON save refuses one refresh, then its repair reaches the page."""
+def test_preview_keeps_watching_after_unreadable_inputs(tmp_path, monkeypatch, capsys):
+    """Unreadable runtime inputs or incomplete captures leave the last page serving."""
     from leaf.data import read_data
     from leaf.registry.storage import load_registry
 
@@ -1292,6 +1341,17 @@ def test_preview_keeps_watching_after_an_invalid_capture_companion(
     page = tmp_path / "page"
 
     def edits():
+        output = capsys.readouterr().out
+        url = next(line for line in output.splitlines() if line.startswith("http://"))
+
+        def unavailable(_runtime):
+            raise OSError("runtime input temporarily unavailable")
+
+        with monkeypatch.context() as unreadable:
+            unreadable.setattr(preview, "worker_identity", unavailable)
+            yield {str(captured)}
+            assert "runtime input temporarily unavailable" in capsys.readouterr().err
+            assert fetch(url)[0] == 200
         companion.write_text("{")
         yield {str(companion)}
         assert (

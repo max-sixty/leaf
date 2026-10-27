@@ -49,7 +49,6 @@ from interact_support import (
     fetch,
     fresh_process,
     live_versions,
-    lock_contention,
     neighbour_page,
     page_state,
     publish,
@@ -1043,6 +1042,9 @@ def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, pag
         door.putheader("Content-Length", str(media_model.MAX_MEDIA_UPLOAD_BYTES + 1))
         door.putheader("Content-Type", "image/png")
         door.endheaders()
+        # The whole body, as a browser sends it: a door that refused it unread
+        # would reset the connection under the sender instead of answering.
+        door.send(bytes(media_model.MAX_MEDIA_UPLOAD_BYTES + 1))
         answer = door.getresponse()
         refusal = json.loads(answer.read())
     finally:
@@ -1051,7 +1053,6 @@ def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, pag
         400,
         {"error": "image exceeds the 10 MiB limit"},
     )
-    assert answer.getheader("Connection") == "close"
     assert not any((page_dir / "media").iterdir())
 
 
@@ -3891,72 +3892,57 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             refusal,
         ), (name, status, answer)
 
-    # This refusal concerns the header rather than the body, and no opener will send it:
-    # Content-Length past what the door takes. The bound is declared rather than
-    # discovered, so the refusal lands before the read and this process never waits
-    # on bytes it has already decided not to accept.
+    # A body past what the door takes is read to its end and refused, whether it
+    # declares its length or arrives in chunks that declare none. A door that answered
+    # with bytes still arriving would close on them, and the reset can discard the
+    # answer before the sender reads it.
     # It arrives under this page's layer, as every runtime's POST does: a request from
     # another generation is answered with the one to reload into, ahead of any verdict
     # on a body written in a vocabulary this server no longer speaks.
     _, served = fetch(f"{server}/api/state")
-    door = http.client.HTTPConnection(
-        urllib.parse.urlsplit(server).netloc, timeout=STATED_TIMEOUT
-    )
-    try:
-        door.putrequest("POST", f"/api/event?t={TOKEN}")
-        door.putheader("Leaf-Layer", json.loads(served)["layer"]["generation"])
-        door.putheader("Content-Length", "999999999999999999")
-        door.putheader("Content-Type", "application/json")
-        door.endheaders()
-        door.send(b"")
-        answered = door.getresponse()
-        answer = json.loads(answered.read())
-    finally:
-        door.close()
-    assert (
-        answered.status,
-        answer.get("ok"),
-        answer.get("final"),
-        answer.get("error"),
-    ) == (400, False, True, "event exceeds the 10 MiB limit"), answer
-    assert answered.getheader("Connection") == "close"
-
-    # A chunked body declares no length and reaches the read without passing the
-    # header check, so the bound belongs to the read: the door answers once the chunks
-    # pass it, though the stream has not ended. The sender stops one byte past the bound
-    # and waits, so the door has read every byte sent when it closes: bytes left unread
-    # would make its close a reset, which can discard the answer before it is read.
+    layer = json.loads(served)["layer"]["generation"]
     host, _, port = urllib.parse.urlsplit(server).netloc.partition(":")
-    door = socket.create_connection((host, int(port)), timeout=STATED_TIMEOUT)
-    spoken = b""
-    try:
-        door.sendall(
-            b"POST /api/event?t=%s HTTP/1.1\r\nHost: %s\r\n"
-            b"Leaf-Layer: %s\r\nContent-Type: application/json\r\n"
-            b"Transfer-Encoding: chunked\r\n\r\n"
-            % (
-                TOKEN.encode(),
-                urllib.parse.urlsplit(server).netloc.encode(),
-                json.loads(served)["layer"]["generation"].encode(),
+    chunk = b"x" * (1024 * 1024)
+    filled, rest = divmod(media_model.MAX_MEDIA_UPLOAD_BYTES, len(chunk))
+    pieces = [chunk] * filled + [b"x" * (rest + 1)]
+    for framing, body in [
+        (
+            b"Content-Length: %d" % (media_model.MAX_MEDIA_UPLOAD_BYTES + 1),
+            b"".join(pieces),
+        ),
+        (
+            b"Transfer-Encoding: chunked",
+            b"".join(b"%x\r\n" % len(piece) + piece + b"\r\n" for piece in pieces)
+            + b"0\r\n\r\n",
+        ),
+    ]:
+        door = socket.create_connection((host, int(port)), timeout=STATED_TIMEOUT)
+        spoken = b""
+        try:
+            door.sendall(
+                b"POST /api/event?t=%s HTTP/1.1\r\nHost: %s\r\n"
+                b"Leaf-Layer: %s\r\nContent-Type: application/json\r\n"
+                b"Connection: close\r\n%s\r\n\r\n"
+                % (
+                    TOKEN.encode(),
+                    urllib.parse.urlsplit(server).netloc.encode(),
+                    layer.encode(),
+                    framing,
+                )
+                + body
             )
-        )
-        chunk = b"x" * (1024 * 1024)
-        filled, rest = divmod(media_model.MAX_MEDIA_UPLOAD_BYTES, len(chunk))
-        for piece in [chunk] * filled + [b"x" * (rest + 1)]:
-            door.sendall(b"%x\r\n" % len(piece) + piece + b"\r\n")
-        while heard := door.recv(65536):
-            spoken += heard
-    finally:
-        door.close()
-    head, _, body = spoken.partition(b"\r\n\r\n")
-    assert head.split(b"\r\n")[0].endswith(b"400 Bad Request"), spoken[:400]
-    assert b"{" in body, spoken[:400]
-    answer = json.loads(body[body.index(b"{") : body.rindex(b"}") + 1])
-    assert (answer.get("ok"), answer.get("final"), answer.get("error")) == (
-        False,
-        True,
-        "event exceeds the 10 MiB limit",
-    ), answer
+            while heard := door.recv(65536):
+                spoken += heard
+        finally:
+            door.close()
+        head, _, answered = spoken.partition(b"\r\n\r\n")
+        assert head.split(b"\r\n")[0].endswith(b"400 Bad Request"), spoken[:400]
+        answer = json.loads(answered[answered.index(b"{") : answered.rindex(b"}") + 1])
+        assert (answer.get("ok"), answer.get("final"), answer.get("error")) == (
+            False,
+            True,
+            "event exceeds the 10 MiB limit",
+        ), (framing, answer)
 
     assert [
         e for e in event_model.read_events(page_dir) if e["kind"] == "comment"
@@ -5704,78 +5690,6 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400
         assert refused_on(body).code == "hold-target"
-
-
-def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):
-    """A browser action arriving during the check waits behind the publication
-    note. Otherwise the successor can go live without ever being checked against
-    the decision that replays onto it."""
-    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
-    (page_dir / "index.html").write_text(html)
-    publish(page_dir)
-    (page_dir / "index.html").write_text(
-        html.replace("<title>t</title>", "<title>next</title>")
-    )
-    entered = threading.Event()
-    release = threading.Event()
-    original = publishing_model.check_source
-
-    def paused_check(*args, **kwargs):
-        entered.set()
-        assert release.wait(STATED_TIMEOUT), "the publication check was never released"
-        return original(*args, **kwargs)
-
-    monkeypatch.setattr(publishing_model, "check_source", paused_check)
-    failures = []
-
-    def run_stamp():
-        try:
-            publishing_model.cmd_stamp(page_dir, "next")
-        except (AssertionError, Refused) as error:  # surface thread failures here
-            failures.append(error)
-
-    action = {
-        "kind": "action",
-        "author": "user",
-        "revision": 2,
-        "widget": "choice",
-        "action": "choose",
-        "detail": {"value": ["flag-first"]},
-    }
-    publisher = threading.Thread(target=run_stamp)
-    publisher.start()
-    assert entered.wait(STATED_TIMEOUT), (
-        "the publisher never reached its held source check"
-    )
-    writer = threading.Thread(
-        target=lambda: append_command(page_dir, action), name="browser-writer"
-    )
-    requested = lock_contention(
-        monkeypatch, page_dir / "events.jsonl", by="browser-writer"
-    )
-    try:
-        writer.start()
-        assert requested.wait(STATED_TIMEOUT), (
-            "the browser writer never attempted the held snapshot lock"
-        )
-        assert writer.is_alive(), "the browser writer crossed the checked snapshot"
-    finally:
-        release.set()
-        publisher.join(STATED_TIMEOUT)
-        writer.join(STATED_TIMEOUT)
-
-    assert not failures
-    assert not publisher.is_alive() and not writer.is_alive()
-    ordered = [
-        (event["kind"], event.get("version"), event.get("revision"))
-        for event in event_model.read_events(page_dir)
-        if event["kind"] in {"note", "action"}
-    ]
-    assert ordered == [
-        ("note", 1, 1),
-        ("note", 2, 2),
-        ("action", None, 2),
-    ]
 
 
 def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(

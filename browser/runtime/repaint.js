@@ -22,7 +22,7 @@
    answering that as a move would paint the fixed chrome, whose layout pass asks for
    the next placement. */
 
-import { onCurrentLocation } from "./focus.js";
+import { onCurrentLocation, onFocusVisibility } from "./focus.js";
 import { nextRender } from "./rendering.js";
 
 let painters = null;
@@ -32,6 +32,7 @@ let movePage = false;
 export function mountRepaint(slots) {
   painters = slots;
   onCurrentLocation(requestFrame);
+  onFocusVisibility(requestFrame);
   requestFrame();
 }
 
@@ -55,16 +56,15 @@ function requestFrame() {
     p.paintSelectedMarginEntries?.();
     // A finger's stand-ins for the keys, read where the register is read.
     p.paintTouchControls?.();
+    // A close request takes the step Escape would (close-requests.js).
+    p.paintCloseRequests?.();
     // What the panel says between notices about where the keyboard has the user.
     p.paintStatusContext?.();
     p.syncLayout?.();
     if (shiftPage) p.pageShifted?.();
-    // Controls and geometry that depend on the laid-out content above. Text boxes paint
-    // first: their contextual hints read which box is shown, and the Go-to chips below
-    // read each send button's aria-disabled to decide whether it is a destination.
-    // Nothing a box paints changes geometry, a placeholder never widens its box and a
-    // disabled send keeps its size, so chrome layout above measures the composer first.
-    p.paintInputs?.();
+    // Contextual entry hints read the destination after chrome layout. Lit fields
+    // follow this reading; their committed controls invalidate the key projection.
+    p.publishInputHint?.();
     // The chips are where the user can go, beside the ring saying where they are and the
     // line saying what the next press does: one paint, because a chip repainted by its
     // own door alone went stale on the door it did not have, as when a poll that retires

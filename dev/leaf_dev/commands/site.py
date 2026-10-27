@@ -79,6 +79,7 @@ from leaf_dev.docs import catalog_preview, media_url, product_route, product_sou
 from leaf_dev.example_data import catalog_sources, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import (
+    fixture_environment,
     package_selection_args,
     prepare_page,
     read_fixture,
@@ -211,7 +212,7 @@ def leaf(
     done = subprocess.run(
         [*command, *args],
         cwd=ROOT,
-        env=env,
+        env=fixture_environment(env),
         capture_output=True,
         text=True,
         input=input_text,

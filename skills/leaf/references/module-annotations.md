@@ -95,6 +95,16 @@ resolve, reopen}` says which actions are available now. A message's `reactions` 
 the reactions it takes and those in force, and is `null` on a message that takes none.
 An agent's message carries `agent`, the name it shows under.
 
+`agentName()` returns the page's current agent name, or "the agent" when none is
+supplied. Use it when a package attributes agent activity.
+
+`threadInput(element)` returns the reply editor of the Thread containing that element,
+or `null` outside one. `landInThread(editor, {target, line})` enters an existing reply
+editor and records where Escape returns when the Thread has no own focus destination:
+`target` is the package's return element and `line` is its accessible return label.
+It returns whether it could land. Use `threadActions.open` below when starting from a
+Thread key rather than an editor already present.
+
 `threadActions` acts on Threads through Leaf's own path, showing the result at once:
 
 ```js
@@ -155,8 +165,8 @@ with `parts.thread(thread.key, outlet)`, or its parts with
 its turns as a whole conversation does, for a widget that draws the conversation's head
 itself, in place of message parts. Leaf fills the outlets and keeps the rendering,
 reactions, read tracking and reply draft; the package keeps layout, order, selection,
-scroll and disclosure. A rewrite of the user's message opens where the message stands,
-its frame reaching a little past the message's edges, so a scroller holding message
+scroll and disclosure. The user's message editor opens in place of the message,
+with its frame extending slightly beyond the message's edges, so a scroller holding message
 parts keeps about 12px of padding beside them (the worked example's `.reader`).
 `parts.reply` takes `{hint, accessibleName, sent}`, where
 `sent()` runs after a send instead of moving the user to the thread. The collection

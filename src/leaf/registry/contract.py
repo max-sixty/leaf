@@ -259,7 +259,9 @@ RANK = "[0-9a-z]*[1-9a-z]"
 _IDENTITY = {"type": "string", "minLength": 1}
 
 
-def detail_schema(entry: dict, spec: dict) -> dict:
+def detail_schema(
+    entry: dict, spec: dict, *, attrs: dict | None = None, registry: dict | None = None
+) -> dict:
     """The event payload contract: an effect's fixed fields or custom command data.
 
     Recorded values use `value`; positions add `unit` and `rank`, and a verb
@@ -268,23 +270,35 @@ def detail_schema(entry: dict, spec: dict) -> dict:
     (`event_meaning.direct_dependencies`) is a nonempty string: a custom verb's
     fold unit, and an attribute set's or position's ids. Derived schemas are
     readings, never inserted into the registry beside the effect that owns them.
+
+    A custom verb may bind one field to a data contract named by an authored
+    attribute. Without an instance this reads the package's base schema. With an
+    instance it also applies the selected contract, keeping each schema's local
+    references rooted in that schema. An unknown contract refuses every value;
+    markup validation reports the unknown name before the page is published.
     """
     record = spec.get("record")
     if record is None:
         detail, unit = spec["detail"], spec["unit"]
-        if unit == "widget":
-            return detail
-        # Into the unit's own declaration rather than an `allOf` around the detail,
-        # which would move the base a `#/properties/…` reference inside it resolves on.
-        properties = detail.get("properties", {})
-        declared = properties.get(unit, {})
-        return {
-            **detail,
-            "properties": {
-                **properties,
-                unit: {**declared, "minLength": max(declared.get("minLength", 0), 1)},
-            },
-        }
+        properties = dict(detail.get("properties", {}))
+        if unit != "widget":
+            # Keep the base of `#/properties/…` references in the declared detail.
+            declared = properties[unit]
+            properties[unit] = {
+                **declared,
+                "minLength": max(declared.get("minLength", 0), 1),
+            }
+        binding = spec.get("contract")
+        if binding and attrs and (name := attrs.get(binding["attribute"])):
+            contract = registry["$data"]["contracts"].get(name)
+            selected = (
+                {"$id": f"leaf:contract/{name}", **contract["schema"]}
+                if contract is not None
+                else False
+            )
+            field = binding["field"]
+            properties[field] = {"allOf": [properties[field], selected]}
+        return {**detail, "properties": properties}
     kind = record["kind"]
     if kind == "value":
         value = entry["properties"][record["attr"]]
@@ -311,11 +325,12 @@ def detail_schema(entry: dict, spec: dict) -> dict:
 
 
 def decides(spec: dict) -> bool:
-    """Whether one verb is a deciding verb: its detail declares the reserved
-    `outcome`, which says which retirable members leave the page (x-retired-when,
-    x-withdrawn-as). The browser reads the answer from `$decisions`
+    """Whether a verb declares the role that selects retirable members
+    (x-retired-when, x-withdrawn-as). Its required `outcome` carries that choice;
+    the same field name on any other verb is ordinary domain data.
+    The browser reads the role from `$decisions`
     (`registry.contract.stamp_decisions`)."""
-    return not spec.get("record") and "outcome" in spec["detail"].get("properties", {})
+    return spec.get("decides", False)
 
 
 def deciding_verbs(entry: dict) -> list[str]:
@@ -406,13 +421,22 @@ def _semantic_schema(schema):
     return result
 
 
-def state_definition(origin: str, entry: dict, spec: dict) -> dict:
+def state_definition(
+    origin: str,
+    entry: dict,
+    spec: dict,
+    *,
+    attrs: dict | None = None,
+    registry: dict | None = None,
+) -> dict:
     """The admitted semantic definition and payload domain of one widget verb.
 
     Later declarations may reuse a verb's name with different meaning or types.
     Recorded definitions distinguish those new operations from history, while
     descriptive schema annotations remain free to change. A verb's `text` flag
-    is not recorded: all it changes is the required `text` in `detail`.
+    is not recorded: all it changes is the required `text` in `detail`. Its
+    `attention` declaration changes delivery, not the state operation; admission
+    records that decision separately on the event.
     """
     from copy import deepcopy
 
@@ -422,7 +446,10 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
             "unit": spec["unit"],
             "record": spec.get("record"),
             "creates": spec.get("creates"),
-            "detail": _semantic_schema(detail_schema(entry, spec)),
+            "decides": decides(spec),
+            "detail": _semantic_schema(
+                detail_schema(entry, spec, attrs=attrs, registry=registry)
+            ),
         }
     )
 

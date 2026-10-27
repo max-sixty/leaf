@@ -38,7 +38,7 @@ import type {
   ServedEventAnswer,
   ServedSampleAnswer,
   ServedState,
-} from "../../browser/framework/contract.js";
+} from "../../browser/types/contract.js";
 import {
   CHUNK_BYTES,
   PageStore,

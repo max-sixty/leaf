@@ -1,4 +1,4 @@
-"""The browser fixture fails what the "What takes turns in a place doesn't size it" rule
+"""The browser fixture fails what the "Shared containers determine control dimensions" rule
 forbids (`swap_watch.js`): a place that changes size as one occupant gives way to
 another."""
 

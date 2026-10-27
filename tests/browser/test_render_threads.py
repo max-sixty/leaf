@@ -232,6 +232,10 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     page = open_page(browser, url)
     thread = open_panel_thread(page, root)
     title = page.locator(".lf-fp-head .lf-fp-title")
+    # Untitled, the view's name would repeat the opening message right under it, so it
+    # names the view to assistive tech alone.
+    expect(title).to_contain_text(opening)
+    assert title.bounding_box()["width"] <= 1
     editor = panel_field(page)
     write(editor, "Keep this unfinished reply")
     for name in ("Workshop venue", "Terrace accessibility"):
@@ -249,6 +253,7 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
         assert result.exit_code == 0, result.output
         told(page)
         expect(title).to_have_text(name)
+        assert title.bounding_box()["width"] > 1
         expect(editor).to_have_js_property("value", "Keep this unfinished reply")
         expect(thread.get_by_text(opening, exact=True)).to_be_visible()
     # Threads finds the thread by the title the agent gave it.

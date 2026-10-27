@@ -30,14 +30,13 @@ import {
   paintKeys,
   quietWord,
   quoted,
-  renderRetired,
   registerContribution,
   says,
-  shownParts,
-  textNodesUnder,
   notice,
   currentLocationIn,
 } from "/runtime/widget-api.js";
+import { renderRetired, textNodesUnder } from "../runtime/passages.js";
+import { shownParts } from "../runtime/geometry.js";
 
 const WORDS = { accept: "Accept", reject: "Reject" };
 // The outcome of the decision in force, or null while the suggestion is undecided.
@@ -335,7 +334,6 @@ customElements.define(
           bindingBadge: null,
           decision: true,
           title: label,
-          description: `${label} the suggested change`,
           when: () => this.#offered().includes(key),
           run: () => this.#margin?.activate(key),
         })),

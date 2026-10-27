@@ -261,6 +261,15 @@ const insetAt = (at, scroller, slot, padding) => {
   return (Number.parseFloat(getComputedStyle(scroller)[padding]) || 0) + inset;
 };
 const TOP = ["--lf-top", "paddingTop"];
+// Where a header sticking at the top of `scroller` stands, below its border edge: past
+// its padding, at the slot it starts (`--lf-top`, theme.css).
+export function slotTop(scroller) {
+  const style = getComputedStyle(scroller);
+  return (
+    (Number.parseFloat(style.paddingTop) || 0) +
+    (Number.parseFloat(style.getPropertyValue("--lf-top")) || 0)
+  );
+}
 const FOOT = ["--lf-bottom", "paddingBottom"];
 const edgeInset = (el, scroller, edge) =>
   !scrollContainer(scroller) || el === scroller

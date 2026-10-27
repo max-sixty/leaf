@@ -6,7 +6,9 @@ registration use the same boundary as a real authoring run. The agent may edit,
 run commands and check rendering; this executor independently checks the final
 page, plain and with `--render`, without repairing it. Existing assertions read
 the authored HTML, not a claim in the reply. Page files, prompts, native traces
-and both checks' output survive in the sample's evidence directory. `check_log`
+and both checks' output survive in the sample's evidence directory. The final
+render check's screenshots survive alongside the sample, with their measured
+dimensions and the saved page recorded in the standard report metadata. `check_log`
 lists the author's tool calls in order with the output of each page check it ran,
 so a grader can tell what the checks told the author and what it did next. Reading
 and instruction-only probes stay with native providers.
@@ -18,6 +20,8 @@ import json
 import shutil
 import time
 from pathlib import Path
+
+from PIL import Image
 
 from leaf.media import media_name
 from leaf_dev import ROOT
@@ -112,6 +116,24 @@ def check_log(trace: list[dict]) -> list[dict]:
     return log
 
 
+def render_captures(check: dict, shots: Path) -> tuple[dict, dict]:
+    """Retain the check's exact captures before its isolated state is removed."""
+    screens = (check.get("browser") or {}).get("screens")
+    captures, widths = {}, {}
+    if screens is not None:
+        shots.mkdir(parents=True, exist_ok=True)
+        for shot in screens["files"]:
+            source = Path(screens["directory"]) / shot["file"]
+            target = shots / shot["file"]
+            shutil.copy2(source, target)
+            with Image.open(target) as image:
+                width, height = image.size
+            name = f"{width}x{height}"
+            widths[name] = [width, height]
+            captures.setdefault(name, []).append(str(target))
+    return captures, widths
+
+
 def execute(
     prompt: str,
     payload: Path,
@@ -150,7 +172,7 @@ def execute(
         request = definition("authoring_eval")["prompt"].format(
             prompt=prompt, page=page, cwd=cwd, payload=payload
         )
-        (evidence / "prompt.txt").write_text(request)
+        (evidence / "prompt-1.txt").write_text(request)
         try:
             trace = run_agent(
                 cwd,
@@ -171,6 +193,14 @@ def execute(
             (evidence / "check-plain.txt").write_text(plain.stdout + plain.stderr)
             check = run_leaf(payload, state, "page", "check", str(page), "--render")
             (evidence / "check.txt").write_text(check.stdout + check.stderr)
+            captures, widths = (
+                render_captures(
+                    json.loads(check.stdout),
+                    (shots or evidence / "screens") / "render",
+                )
+                if check.stdout
+                else ({}, {})
+            )
             document = page / "index.html"
             output = document.read_text() if document.is_file() else ""
             summary = trace_summary(trace)
@@ -182,6 +212,26 @@ def execute(
                         "page-valid": check.returncode == 0,
                     },
                     "trace": summary,
+                    "diagnostics": {
+                        "subject": metadata["case"],
+                        "harness": harness,
+                        "condition": "leaf",
+                        "payload": str(payload),
+                        "comparison": {
+                            "brief": prompt,
+                            "decision_task": None,
+                            "phases": {"": "1"},
+                            "author_phases": [1],
+                            "widths": widths,
+                        },
+                        "phases": {
+                            "1": {
+                                "page": str(evidence / "page"),
+                                "trace": summary,
+                                "captures": captures,
+                            }
+                        },
+                    },
                     "check_output": {
                         "plain": plain.stdout + plain.stderr,
                         "render": check.stdout + check.stderr,

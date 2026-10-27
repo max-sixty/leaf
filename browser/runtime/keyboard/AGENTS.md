@@ -35,12 +35,14 @@ parent. Both depend only on what is open now, so a surface opened by pointer or 
 closes the same way as one opened by its key. The focused control's own step comes
 first, then steps inside the focused surface, then the surface itself, then steps
 outside it; `STACK` and `RUNG_LADDER` order siblings, and native modals and popovers
-keep the browser's order.
+keep the browser's order. A close request, such as Android's back gesture, takes the
+same step, through its row's `keep` where `run` would throw away unsent words
+(`close-requests.js`).
 
 - The document is the base. In a live sample, one more Escape returns focus to the
   containing page.
 - Draw and Design are page modes; surfaces opened inside them close first.
-- A surface's own state, such as a Threads filter, clears before the surface closes.
+- A surface's own state, such as Threads' search, clears before the surface closes.
   Page-side selections, targets, margin clusters and the page composer coexist beside a view the
   floating panel opens, and focus decides which answers first.
 - A composer, reply box or find box returns to its container: an element comment's
@@ -50,8 +52,11 @@ keep the browser's order.
   title, never on the page. The panel's field, and a box that stays open for more
   messages such as a widget's thread box (`x-thread-seat`), keep focus.
 - A selected destination (a thread, an obligation, a heading) steps back to the document
-  through `letGo` (`focus.js`), landing on the visible block rather than on the control
-  that opened it. Page Map returns focus to whatever opened it.
+  through `letGo` (`focus.js`), landing beside it while it is in view, else on the
+  visible block, rather than on the control that opened it, so Tab carries on from it.
+  Page Map returns focus to whatever opened it. Leaving a walk's stop leaves the user
+  at it rather than on it, so the walk's next press returns there
+  (`current-target.js`).
 
 Go-to, target hints, page search, reactions and the command reference own the keyboard
 while active and handle their own exit. Escape closes a surface even if it was open
@@ -73,25 +78,27 @@ widget's declared `contextKeys`, and widgets assign their own `1`–`9`.
 
 ## Touch routes
 
-Every page capability that a key reaches and no direct gesture does has a row among the
-page's controls (`page-controls.js`), which serves a finger and a mouse alike and is
-built from the same row the key uses (`touch-controls.js`). What a gesture does next, a
-finger does on what the gesture acts on: a search's arrows walk its matches from its
-box, a drawing's composer undoes its stroke, and the page's field comments on selected
-words. So a page scope's rows take no words: each that runs a press says
-`touch: false` or is the `exit` of a stance a finger can enter, such as page search,
-the target picker or Draw mode, or a to-do on the user that they stand on, whose exit is
-its Done. While that stance is the innermost one standing, the panel offers its exit as
-one ✕, or the icon the row names (the to-do's check), which leaves the stance even
-where Escape would first close something inside it. The picker's ✕ is the exception: while typed hint letters
-stand, it takes back one (`target-picker.js`). The register refuses a page command
-without `touch` and a scope row whose `run` is neither `exit` nor `touch: false`.
-`false` says a finger reaches the result directly, by scrolling and tapping or through
-a control of the row's own beside what it changes.
+Every page capability available through a key but not a direct gesture has a row among
+the page's controls (`page-controls.js`). It supports both touch and mouse input and
+comes from the same command row as the key (`touch-controls.js`). Actions within a
+scope have controls beside the content they act on: a search box has arrows to move
+between matches, a drawing's composer can undo a stroke, and the page's field can
+comment on selected words. Page scope rows therefore have no touch labels: each row
+that runs a press declares `touch: false` or is the `exit` of a stance accessible by
+touch. Examples include page search, the target picker, Draw mode and the user's
+current to-do, whose exit is Done. The panel shows the innermost active stance's exit
+as one ✕, or the icon the row names (the to-do's check). It leaves the stance even
+where Escape would first close something inside it. The picker's ✕ is the exception:
+while typed hint letters remain, it removes one (`target-picker.js`). The register
+refuses a page command without `touch` and a scope row whose `run` is neither `exit`
+nor `touch: false`.
+`false` means the result is directly accessible by scrolling and tapping or through
+the row's own control beside the content it changes.
 
 The comment field has one primary action, Dictate while empty and Send once it has
-words. Suggest and reactions share an anchored Other responses picker, reached by its
-button, Tab from the field, or the contextual reaction command. Opening the picker
+words. Suggest and reactions share an anchored Other responses picker, reached by the
+⋯ beside Dictate while the field is empty, Tab from the field, or the contextual
+reaction command. Opening the picker
 keeps the field in place on desktop and touch surfaces alike.
 
 A command that should leave the user where they are declares `retainCurrentLocation`: the

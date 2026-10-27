@@ -880,7 +880,7 @@ def test_atlas_input_is_trimmed_before_it_enters_the_record(browser, serve):
     page = open_page(browser, url)
     draft = page.locator("#ledger-cargo")
     draft_control(page, "edit", "ledger-cargo").click()
-    editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
+    editor = draft.locator("leaf-text")
     write(
         editor,
         "ledger_id,customer_name,billing_email,amount\n7,Alice,a@example.test,42",

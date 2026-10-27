@@ -200,11 +200,7 @@ def _seed_card_threads(page_dir):
                 "parent": text["id"],
                 "revision": 1,
                 "text": reply,
-                **(
-                    {"markup": '<lf-ask id="crop-question">Wider?</lf-ask>'}
-                    if question
-                    else {}
-                ),
+                **({"obligation": True} if question else {}),
             },
         )
     crowded = comment(
@@ -268,7 +264,6 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     editor = page.locator("#d-draft leaf-text")
     body = "The workshop moved outdoors.\nBring a folding chair."
     write(editor, body)
-    page.locator("#editing-guide").click()
     expect(draft_control(page, "save", "d-draft")).to_be_visible()
     expect(draft_control(page, "cancel", "d-draft")).to_be_visible()
     with sending(page, "save the draft"):
@@ -408,10 +403,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     assert narrow["innerWidth"] - 8 - (narrow["wordsRight"] + 8) < narrow["minimum"], (
         narrow
     )
-    # The card takes the box's field rectangle (`test_send_grows_thread_around_the_words`);
-    # beside a one-line comment's field the options trigger leaves that rectangle
-    # narrower than the card's minimum, so its reply's width says it reads.
-    assert narrow["cardWidth"] <= narrow["preferred"], narrow
+    assert narrow["minimum"] <= narrow["cardWidth"] <= narrow["preferred"], narrow
     assert narrow["replyWidth"] >= 160, narrow
     # The sent thread retains the comment frame's width and inline start.
     # Its control cluster remains clear when the card takes the lower route.
@@ -442,7 +434,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     # At this width clearing the controls would narrow the message. Both the
     # editor and its sent card use that space, retaining the editor's frame.
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert wide["cardWidth"] <= wide["preferred"], wide
+    assert wide["minimum"] <= wide["cardWidth"] <= wide["preferred"], wide
     assert wide["replyWidth"] >= 160, wide
     assert wide["cardLeft"] == pytest.approx(editor_start, abs=0.5), wide
     assert wide["cardLeft"] == pytest.approx(wide["wordsRight"] + 8, abs=0.5), wide
@@ -535,6 +527,14 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     short = page.evaluate(CARD_AND_REPLY)
     assert short["cardTop"] == pytest.approx(before["cardTop"], abs=0.5), short
     send = preview.get_by_role("button", name="Send", exact=True)
+    # rendered() settles Leaf's preparation, while the shrinking draft can still
+    # animate. click() waits for a stable Send; measure the same landing it presses.
+    page.wait_for_function(
+        """() => !document.querySelector('.lf-margin-preview')
+            .getAnimations({subtree: true}).some(animation =>
+                animation.playState === 'running' &&
+                animation.effect.getComputedTiming().iterations !== Infinity)"""
+    )
     pressed = send.evaluate("button => button.getBoundingClientRect().top")
     with sending(page, "the reply"):
         send.click()

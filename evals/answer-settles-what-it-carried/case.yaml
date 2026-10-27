@@ -1,0 +1,133 @@
+# Added when the agent's answer about a decision rode on the decision's On me row
+# (`also`): once the user picks, the answer stands alone on On me until the user
+# replies or resolves the thread, though the pick often settles it. The user wanted
+# the agent to judge whether it still needs them. A pick's delivery now carries the
+# agent's questions still waiting in a thread about the widget (`waiting`), with a
+# clause to end the ones the pick settles. The envelopes are real deliveries frozen
+# from a page; the old arm drops `waiting` and its clause.
+# Without `waiting`: settled 0/3 on Claude Code and on Codex, still-asking 3/3 on each.
+# With it: settled 3/3 and still-asking 3/3 on each harness.
+description: answer-settles-what-it-carried
+metadata:
+  purpose:
+    A user's pick that settles the agent's question about the same decision ends that question;
+    one that leaves part of it unanswered does not.
+  tags:
+    - threads
+    - asks
+    - wait-loop
+vars:
+  prompt:
+    'You are a Claude Code session using Leaf, five hours into an issue-triage page with the user
+    at /Users/max/.local/state/leaf/pages/issue-triage. You loaded the Leaf skill and the references it
+    routes to at the start of the session and have answered a dozen of their comments since, so act on
+    this without reloading them. The page puts prototype decisions to the user, each an `lf-options` choice
+    between landing the prototype and keeping it on its branch, inside a section such as `#proto-timeline-ask`.
+
+
+    Earlier the user commented on `#proto-timeline-ask`: "these gotta have previews!". You added the previews
+    and answered in that thread with `--obligation`, as message `message:3c7af481`:
+
+
+    Each prototype decision now carries its demo live in a frame you can operate in place or open in its
+    own tab ([timeline preview](#proto-timeline-ask)). Try them before you decide.
+
+
+    Leaf''s prompt hook has now handed you this complete inline delivery:
+
+    {"format": "leaf-delivery/15", "id": "70f3afed", "created_at": 1792975809.950627, "acknowledge": null,
+    "batches": [{"page": "/Users/max/.local/state/leaf/pages/issue-triage", "claim": null, "through_seq":
+    4, "threads": [], "handling": {"h1": "The user already sees the action applied.", "h2": "If you need
+    clarification, ask in a thread on the picked option. To override the pick in a later version, mark
+    the element `restated` and say why in the version note.", "h3": "Your questions in `waiting`, asked
+    in a thread about this widget, still wait on the user. Judge from each one''s `text` whether this
+    action answers it: end one it settles with `leaf task end <page> <id> done --text \"<what answered
+    it>\"`, and leave one that still needs the user.", "h4": "It answers the page''s obligation, which
+    waits on you until the markup records the answer. Before starting the work it selects or unblocks,
+    name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it, write
+    the answer into the markup, and stamp a version. An option the user added needs no writing in; the
+    page keeps it where the user put it."}, "events": [{"kind": "action", "author": "user", "revision":
+    1, "widget": "proto-timeline", "action": "choose", "detail": {"value": ["timeline-land"]}, "id": "3843a3a5",
+    "meaning": {"scope": "page", "unit": "proto-timeline", "depends": ["proto-timeline", "timeline-land"],
+    "state": {"origin": "lf-options", "decides": false, "unit": "widget", "record": {"kind": "attribute", "attr": "chosen"},
+    "creates": null, "detail": {"type": "object", "properties": {"value": {"type": "array", "items": {"type":
+    "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"], "additionalProperties": false}},
+    "answer": null}, "attention": true, "ts": "2026-10-25T17:50:09.949-07:00", "seq": 4, "subject": {"kind":
+    "widget", "id": "proto-timeline"}, "threads": [], "says": {"timeline-land": "Land it Merge the branch."},
+    "waiting": [{"id": "message:3c7af481", "text": "Each prototype decision now carries its demo live
+    in a frame you can operate in place or open in its own tab ([timeline preview](#proto-timeline-ask)).
+    Try them before you decide."}], "handling": ["h1", "h2", "h3", "h4"], "answer": {"kind": "markup",
+    "action": "3843a3a5", "ref": "70f3afed:0:3843a3a5"}}]}]}
+
+
+    The page and services are unreachable in this exercise. Write out each command you would run in response,
+    with its full arguments, then end your answer.'
+assert:
+  - type: llm-rubric
+    metric: settles
+    value:
+      Pass only if the agent ends the obligation `message:3c7af481` as done, with `leaf task end` naming
+      that id and the outcome `done`. The agent's earlier message only asked the user to try the previews
+      before deciding, and the user has now decided, so the pick settles it. Fail if the agent leaves `message:3c7af481`
+      open, drops it, or only mentions it. Other commands don't matter.
+variants:
+  still-asking:
+    metadata:
+      purpose: A question the pick leaves unanswered stays on the user.
+    vars:
+      prompt:
+        'You are a Claude Code session using Leaf, five hours into an issue-triage page with the
+        user at /Users/max/.local/state/leaf/pages/issue-triage. You loaded the Leaf skill and the references
+        it routes to at the start of the session and have answered a dozen of their comments since, so
+        act on this without reloading them. The page puts prototype decisions to the user, each an `lf-options`
+        choice between landing the prototype and keeping it on its branch, inside a section such as `#proto-timeline-ask`.
+
+
+        Earlier the user commented on `#proto-timeline-ask`: "these gotta have previews!". You added the
+        previews and answered in that thread with `--obligation`, as message `message:65737160`:
+
+
+        Each prototype decision now carries its demo live in a frame you can operate in place or open
+        in its own tab ([timeline preview](#proto-timeline-ask)). Try them before you decide. Separately:
+        should the frames stay at 640px or take the column''s full width? That decides how I lay out the
+        other three.
+
+
+        Leaf''s prompt hook has now handed you this complete inline delivery:
+
+        {"format": "leaf-delivery/15", "id": "f3afc2a0", "created_at": 1792975809.919296, "acknowledge":
+        null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/issue-triage", "claim": null, "through_seq":
+        4, "threads": [], "handling": {"h1": "The user already sees the action applied.", "h2": "If you
+        need clarification, ask in a thread on the picked option. To override the pick in a later version,
+        mark the element `restated` and say why in the version note.", "h3": "Your questions in `waiting`,
+        asked in a thread about this widget, still wait on the user. Judge from each one''s `text` whether
+        this action answers it: end one it settles with `leaf task end <page> <id> done --text \"<what
+        answered it>\"`, and leave one that still needs the user.", "h4": "It answers the page''s obligation,
+        which waits on you until the markup records the answer. Before starting the work it selects or
+        unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then
+        do it, write the answer into the markup, and stamp a version. An option the user added needs no
+        writing in; the page keeps it where the user put it."}, "events": [{"kind": "action", "author":
+        "user", "revision": 1, "widget": "proto-timeline", "action": "choose", "detail": {"value": ["timeline-land"]},
+        "id": "19b4437a", "meaning": {"scope": "page", "unit": "proto-timeline", "depends": ["proto-timeline",
+        "timeline-land"], "state": {"origin": "lf-options", "decides": false, "unit": "widget", "record": {"kind": "attribute",
+        "attr": "chosen"}, "creates": null, "detail": {"type": "object", "properties": {"value": {"type":
+        "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"],
+        "additionalProperties": false}}, "answer": null}, "attention": true, "ts": "2026-10-25T17:50:09.917-07:00",
+        "seq": 4, "subject": {"kind": "widget", "id": "proto-timeline"}, "threads": [], "says": {"timeline-land":
+        "Land it Merge the branch."}, "waiting": [{"id": "message:65737160", "text": "Each prototype decision
+        now carries its demo live in a frame you can operate in place or open in its own tab ([timeline
+        preview](#proto-timeline-ask)). Try them before you decide. Separately: should the frames stay
+        at 640px or take the column''s full width? That decides how I lay out the other three."}], "handling":
+        ["h1", "h2", "h3", "h4"], "answer": {"kind": "markup", "action": "19b4437a", "ref": "f3afc2a0:0:19b4437a"}}]}]}
+
+
+        The page and services are unreachable in this exercise. Write out each command you would run in
+        response, with its full arguments, then end your answer.'
+    assert:
+      - type: llm-rubric
+        metric: keeps
+        value:
+          'Pass only if the agent leaves the obligation `message:65737160` open: no `leaf task end`
+          on `message:65737160`, with any outcome. Besides asking the user to try the previews, the agent''s
+          earlier message asked whether the preview frames should stay at 640px or take the column''s full
+          width, which picking "Land it" does not answer. Other commands don''t matter.'

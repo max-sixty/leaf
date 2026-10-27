@@ -22,7 +22,7 @@
  * reads them follows their native signals.
  * A row whose answer moves outside the page's readings, such as a stance's way out, says
  * so with `pageControlsChanged`, which publishes that invalidation as a signal. */
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 import { afterScript } from "./rendering.js";
 
 const EMPTY = Object.freeze([]);
@@ -49,11 +49,11 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 });
 
 // What a row is about, which decides where a menu built from rows puts it: on the menu
-// itself (`page`), behind its Navigate, Annotations or About entry, or, for a keyboard's
+// itself (`page`), behind its Navigate or Annotations entry, or, for a keyboard's
 // convenience for where the reader stands, such as Resume writing (`keys`), behind
 // Navigate only where no keyboard is there to reach it, so the menu a keyboard user
 // reads stays short and a finger keeps a way to each.
-const GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
+const GROUPS = Object.freeze(["page", "navigate", "annotate", "keys"]);
 
 const rows = new Map();
 let sequence = 0;

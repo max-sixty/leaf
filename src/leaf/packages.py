@@ -15,6 +15,7 @@ from .layer import (
     checked_inputs,
     checked_layer_inputs,
     compose_layer,
+    imported_sheets,
     input_paths,
     layer_inputs,
     named_package,
@@ -34,6 +35,7 @@ from .schema import (
     ELEMENT_ID,
     HTML_NAME,
     PACKAGE_DIRS,
+    PACKAGE_FILES,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     SCRIPTS_DIR,
@@ -63,7 +65,7 @@ def package_write_lock(*packages: Path):
     keys = {
         path_lock_key(package / name)
         for package in packages
-        for name in (*VENDORED_FILES, *PACKAGE_DIRS, SCRIPTS_DIR)
+        for name in (*PACKAGE_FILES, *PACKAGE_DIRS, SCRIPTS_DIR)
     }
     with contextlib.ExitStack() as held:
         for key in sorted(keys):
@@ -303,7 +305,7 @@ def copy_package_contract(package: Path, staged: Path) -> None:
     as `package init` creates them; `scripts/` is copied only when it exists,
     since most packages ship none.
     """
-    for name in VENDORED_FILES:
+    for name in PACKAGE_FILES:
         source = package / name
         if source.is_file():
             shutil.copy2(source, staged / name)
@@ -316,6 +318,16 @@ def copy_package_contract(package: Path, staged: Path) -> None:
             target.mkdir()
     if (package / SCRIPTS_DIR).is_dir():
         shutil.copytree(package / SCRIPTS_DIR, staged / SCRIPTS_DIR)
+    # A sheet's imports are part of it (`layer.stylesheet`), wherever in the package
+    # they stand; one inside a directory copied above is already staged.
+    for name in PACKAGE_FILES:
+        if not name.endswith(".css") or not (package / name).is_file():
+            continue
+        for imported in imported_sheets(package / name, package):
+            target = staged / imported.relative_to(package.resolve())
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(imported, target)
 
 
 def validate_starter_candidate(package: Path, files: dict[str, bytes]) -> None:
@@ -367,7 +379,7 @@ def init_starter_widget(
     }
     validate_starter_candidate(package, files)
     refuse_package_overlap(
-        [package, *(package / name for name in (*VENDORED_FILES, *PACKAGE_DIRS))],
+        [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
         protected,
     )
 
@@ -375,8 +387,10 @@ def init_starter_widget(
     for name in PACKAGE_DIRS:
         (package / name).mkdir(exist_ok=True)
     creates = [(module_path, files[f"widgets/{module_name}"])]
-    if not ((package / "theme.css").exists() or (package / "theme.css").is_symlink()):
-        creates.append((package / "theme.css", b""))
+    if not (
+        (package / "widgets.css").exists() or (package / "widgets.css").is_symlink()
+    ):
+        creates.append((package / "widgets.css", b""))
     created = create_package_files(package, creates)
     try:
         replace_files([(registry_path, files["registry.json"], True)])
@@ -393,7 +407,7 @@ def cmd_package_init(package: Path, widget: str | None = None) -> dict:
             return {"package": str(package), "widget": widget}
 
         refuse_package_overlap(
-            [package, *(package / name for name in (*VENDORED_FILES, *PACKAGE_DIRS))],
+            [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
             protected,
         )
 

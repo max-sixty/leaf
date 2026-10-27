@@ -14,13 +14,20 @@
  * have already been rejected by the dispatcher. Accessible shortcuts compose with
  * existing control scopes through scopes.js rather than a second attribute writer.
  */
-import { bindings, commandRoutes, routedCommand, spell, word } from "./bindings.js";
+import {
+  advertisesKeys,
+  bindings,
+  commandRoutes,
+  routedCommand,
+  spell,
+  word,
+} from "./bindings.js";
 import { availableCommandRoutes } from "./dispatch.js";
 import { buttonCommand, commandScope, projectCommandScope } from "./scopes.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
 import { renderedUnder } from "../shadow.js";
-import { el } from "../widget-elements.js";
+import { html, render } from "/runtime/framework.js";
 import { keepsText } from "../keeps.js";
 import { repaint } from "../repaint.js";
 import { scrolling, watchScrollEnds } from "../arrivals.js";
@@ -166,9 +173,6 @@ export function createCommandHints({ presentedControl }) {
     for (const bindingBadge of [...wornBindingBadges.keys()])
       if (!kept.has(bindingBadge)) restoreBindingBadge(bindingBadge);
   }
-  // A chip per control, kept across passes, so a pass that finds the same chips in place
-  // where they were writes nothing.
-  const bindingChips = new Map();
   // Withdraw the routes' scope from every control but the ones still routed.
   function withdrawRoutes(kept = new Set()) {
     for (const control of routedControls) {
@@ -207,13 +211,14 @@ export function createCommandHints({ presentedControl }) {
       routedControls.add(control);
     }
     withdrawRoutes(new Set(routes.map(({ control }) => control)));
-    const visualRoutes = routes.filter(
-      ({ bindingBadge }) => bindingBadge !== undefined,
-    );
+    // A touch screen gets the accessible shortcuts and no faces: a digit drawn where the
+    // user has no keyboard names a press they cannot make (`advertisesKeys`).
+    const visualRoutes = advertisesKeys()
+      ? routes.filter(({ bindingBadge }) => bindingBadge !== undefined)
+      : [];
     hasRoutes = visualRoutes.length > 0;
     if (!visualRoutes.length) {
       restoreBindingBadges();
-      bindingChips.clear();
       seats.place([]);
       return;
     }
@@ -236,8 +241,13 @@ export function createCommandHints({ presentedControl }) {
     // its route stands: one that is not exposed keeps the digit and its box but turns
     // transparent, rather than being put back after each measurement and lent again on
     // the next pass. The widget routes a press on its face to the labeled control.
+    // The core chip takes the face's own place, the widget owning where its digit goes:
+    // hung off the control's corner instead, a field's chip covered its first words.
+    // Where what hides the face covers that place too, as an open thread card does, the
+    // chip yields to it as the face did.
     const lent = new Set();
     const worn = new Set();
+    const faceBoxes = new Map();
     for (const { binding, control, bindingBadge } of visualRoutes) {
       // A control the window does not show cannot show its face either, and wearing
       // the face only to measure it away would write it twice on every scroll.
@@ -269,35 +279,41 @@ export function createCommandHints({ presentedControl }) {
       if (exposed) {
         restoreStyle(bindingBadge, "opacity");
         worn.add(bindingBadge);
-      } else bindingBadge.style.opacity = "0";
+      } else {
+        bindingBadge.style.opacity = "0";
+        if (box) faceBoxes.set(bindingBadge, bindingBadge.getBoundingClientRect());
+      }
     }
     restoreBindingBadges(lent);
 
     const chips = [];
+    const moving = scrolling();
     for (const { binding, control, bindingBadge } of visualRoutes) {
       if (bindingBadge && worn.has(bindingBadge)) continue;
       const presented = presentedControl(control) ?? control;
       if (!presented.checkVisibility()) continue;
-      const box = placement.badgeBox(presented);
+      const face = bindingBadge && faceBoxes.get(bindingBadge);
+      const x = face && (face.left + face.right) / 2;
+      const y = face && (face.top + face.bottom) / 2;
+      const box = face
+        ? { left: x, top: y, right: x, bottom: y }
+        : placement.badgeBox(presented);
       if (!box) continue;
-      let chip = bindingChips.get(control);
-      if (!chip) {
-        chip = el("span", "lf-key-badge lf-command-binding-badge");
-        chip.setAttribute("aria-hidden", "true");
-        bindingChips.set(control, chip);
-      }
-      keepsText(chip, spell(binding));
-      chips.push({ chip, owner: presented, corner: box });
+      // During a scroll only existing seats update; new chips wait for placement
+      // so they cannot flash at an unmeasured position.
+      const seat = moving ? seats.seated(presented) : seats.seat(presented);
+      if (!seat) continue;
+      render(
+        html`<span class="lf-key-badge lf-command-binding-badge" aria-hidden="true"
+          >${spell(binding)}</span
+        >`,
+        seat,
+      );
+      chips.push({ seat, owner: presented, corner: box });
     }
-    // `chips` holds seats, so a chip is kept by the seat that names it; comparing a chip
-    // with the seats themselves dropped every chip, and each pass made its chips again
-    // at their anchors, where a chip pulled inside the window was painted a frame early.
-    const seated = new Set(chips.map(({ chip }) => chip));
-    for (const control of [...bindingChips.keys()])
-      if (!seated.has(bindingChips.get(control))) bindingChips.delete(control);
     // A scroll holds the seats; each chip's digit is current in its own, and a chip whose
     // command left reach is hidden.
-    if (scrolling()) seats.keepOnly(new Set(chips.map(({ owner }) => owner)));
+    if (moving) seats.keepOnly(new Set(chips.map(({ owner }) => owner)));
     else placement.paint(seats, chips);
   }
 
@@ -313,7 +329,6 @@ export function createCommandHints({ presentedControl }) {
     mounted = false;
     hasRoutes = false;
     clearProjections();
-    bindingChips.clear();
     seats.clear();
   }
   return { mount, paint, destroy };

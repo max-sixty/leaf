@@ -136,7 +136,7 @@ def _value_error(source: str, contract: str, value, revision: str, registry: dic
         return held
     if len(_JUDGED) >= 1024:
         _JUDGED.clear()
-    error = payload_error(source, contract, value, registry)
+    error = payload_error(f"source {source!r}", contract, value, registry)
     _JUDGED[key] = error
     return error
 
@@ -364,7 +364,7 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
                 f"source {source!r} is not bound by the page source, a version, or "
                 f"a thread widget; choose one of {json_value(sorted(bindings))}"
             )
-        if error := payload_error(source, contract, value, registry):
+        if error := payload_error(f"source {source!r}", contract, value, registry):
             raise DataError(error)
         write_data(
             page_dir,

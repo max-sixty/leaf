@@ -8,6 +8,7 @@ import struct
 import zlib
 from weakref import WeakKeyDictionary
 
+import tinycss2
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -613,8 +614,9 @@ def with_one_obligation(html):
 
 
 def toggle_queue(page, open=True):
-    """Open or close the panel's On me view from its mark and wait for it to stand."""
-    page.locator(".lf-fp-on-user").click()
+    """Open the panel's On me view from its mark, or close it from the same seat, where
+    its ✕ stands while the view does, and wait for it to stand or go."""
+    page.locator(".lf-fp-on-user" if open else ".lf-fp-close").click()
     panel_settled(page, open=open, view="queue" if open else None)
 
 
@@ -1435,6 +1437,9 @@ RING_CANDIDATES = browser_function(
 # another selector added to the list, the rule moving file) and changes when what
 # selects the ring does. Tests assert on the part of it that makes the rule the
 # control's own, such as `.lf-grip`, rather than on the whole text.
+# Read the browser's serialized selector list, not each selector's source range:
+# formatting is not part of a ring's identity. Only top-level commas divide the
+# list; commas and whitespace within functions or strings keep their meaning.
 #
 # Only a declaration that draws with the ring's own token is a ring rule: `--focus-ring`
 # for an outline, `--focus-shadow` for the band cast as a shadow. A contour written out
@@ -1464,8 +1469,15 @@ def _matched_selector(match):
     rule = match["rule"]
     if rule["origin"] == "inline":
         return "style attribute"
-    selectors = rule["selectorList"]["selectors"]
-    said = ", ".join(selectors[i]["text"] for i in match["matchingSelectors"])
+    selectors = [[]]
+    for token in tinycss2.parse_component_value_list(rule["selectorList"]["text"]):
+        if token.type == "literal" and token.value == ",":
+            selectors.append([])
+        else:
+            selectors[-1].append(token)
+    said = ", ".join(
+        tinycss2.serialize(selectors[i]).strip() for i in match["matchingSelectors"]
+    )
     context = [f"@scope {scope['text']}" for scope in rule.get("scopes", [])]
     context += reversed(rule.get("nestingSelectors", []))
     return " { ".join([*context, said])

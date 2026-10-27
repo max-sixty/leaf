@@ -30,7 +30,7 @@ import {
   directive,
   effect,
   nothing,
-} from "/vendor/browser-runtime.js";
+} from "/runtime/framework.js";
 import {
   activeRows,
   ariaShortcuts,

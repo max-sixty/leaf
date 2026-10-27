@@ -36,11 +36,17 @@ Events keep their stored fields and log order, and add:
 - `subject`: the page, thread, or widget the event changes.
 - `says`: the words of what the user pressed, such as each picked option, as the
   page they pressed on wrote them. A later rewording does not change them.
+- `names`: the same elements by id, named by their declared name or leading title,
+  with their full words used when neither is present. An option's title names the
+  choice separately from its tag labels and explanation.
 - `threads`: every thread the event belongs to. The event appears once in the batch
   however many threads it is in.
 - `was`: on the user's rewrite of their own message, the words it replaced.
   `suggestion: true` beside it means the message is a suggestion, so its new `text`
   is the exact replacement it proposes.
+- `waiting`: on a widget action, your questions still waiting on the user in a thread
+  about that widget, each its obligation `id` and the `text` that asked it. Its
+  `handling` says how to settle the ones the action answers.
 - `answer`: the response the event owes. A `kind: "reply"` answer is a thread reply,
   written with `leaf thread reply <answer.ref>` ([threads](threads.md)), or by your
   turn's final message where its `writer` is `"turn"`. A `kind: "markup"` answer is the
@@ -70,7 +76,7 @@ Confirm a delivery only once every part is in context, by following its
 does not confirm it. Input your harness already confirmed arrives with
 `acknowledge: null`.
 
-Confirming marks the user's updates **Delivered**; it does not answer them.
+Confirming marks the user's updates **Got it**; it does not answer them.
 
 `leaf wait` waits only on pages this session holds; to take over a page, run
 `leaf page claim <page>` first. A wait exits 0 with input, or 2 with a diagnostic

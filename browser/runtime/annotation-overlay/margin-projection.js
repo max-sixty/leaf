@@ -46,6 +46,7 @@ import {
   layoutMarginRows,
   marginColumn,
   mountMarginLayer,
+  paintedBox,
   registerMarginRow,
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
@@ -151,6 +152,7 @@ export function createMarginProjection({
   placedAt,
   marksFor,
   scrollToElement,
+  openInPanel,
 }) {
   const {
     targetFor,
@@ -179,9 +181,9 @@ export function createMarginProjection({
     inventory,
     renderMarginThread,
     placedAt,
-    openPageThread,
     scrollThreadIntoView,
     scrollToElement,
+    openInPanel,
     onClose: closedPreview,
   });
   const preview = card.element;
@@ -421,11 +423,15 @@ export function createMarginProjection({
     );
   }
 
+  // Where a row's marker is painted (margin-layout.js, `paintedBox`).
+  const markerBox = (row) =>
+    paintedBox(row, closestAcross(row, "[data-lf-margin-for]"));
+
   // The rows in front of the user (`seenRect`): one under the floating panel,
   // or scrolled out of a pane, is no row the walk or the rail's way in may land on.
   function visibleRows() {
     const clips = new Map();
-    return availableRows().filter((row) => seenRect(row, clips));
+    return availableRows().filter((row) => seenRect(row, clips, markerBox(row)));
   }
 
   function clusterMarginEntries(host) {
@@ -638,7 +644,7 @@ export function createMarginProjection({
     // another row first.
     const room = shownWindow();
     const place = (row) => {
-      const box = row.getBoundingClientRect();
+      const box = markerBox(row);
       const away =
         box.bottom < room.top
           ? room.top - box.bottom

@@ -61,17 +61,6 @@ name a datum not yet drawn. Where your key is a source location rather than the 
 lasting identity, translate it and read `projectedDatum(widget, key)`, the one matching
 element or `null`.
 
-#### Indicating (experimental)
-
-`indicate(this, attribute, key)` marks the elements `key` names in the referenced
-widget with `data-lf-indicated`, replacing this widget's previous mark through that
-attribute, and returns
-whether it marked anything; pass `null` to clear it, including in your cleanup. It
-doesn't scroll, focus, load, announce or record anything, so a widget may move the mark
-every frame and says in its own words what the mark means. A target whose parts have
-their own look styles `[data-lf-indicated]` in place of the default outline, and calls
-`layoutChanged(this)` after redrawing what a key names.
-
 ## Content helpers
 
 ### Markdown
@@ -101,7 +90,10 @@ names a language.
 Leaf adds a Copy button to each `pre > code` in the page. For other source text a widget
 draws, such as code in its shadow stage, append the button `copyBlock(block, source,
 noun)` returns once the block is connected; it copies `source()`, and `noun`, such as
-`"code"`, names what it copies.
+`"code"`, names what it copies. A copy that stands among a widget's own controls rather
+than over a block, such as in a popover's header, is `copyControl(className, {label,
+success, error})`: set its `value` before it copies, and it reports `success` or
+`error` as a code block's does.
 
 ### Text alignment
 
@@ -118,8 +110,8 @@ on a generated image or link, so it resolves on published pages too.
 ### Icons
 
 `iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons.
-For a thread control, put `iconElement("comment", "lf-action-icon")` in an
-`lf-icon-action` button, which gives the label.
+A press drawn as an icon is a symbol (`module-authoring.md`, "Generated controls"):
+`offerAction("symbol", className, label, {icon: "comment"})` draws it with its label.
 
 ## Page readings
 
@@ -160,14 +152,13 @@ arrives. Each `source.kind` adds its own facts:
 
 - A bound-data record's obligation names the owning widget in `source.id` and the
   record key in `source.unit`.
-- For a widget declaring `x-awaits.reply`, such as an `lf-ask` holding no widget, the
-  user's next message in its thread or comment on it is its `answer.value` (`{text}`,
-  or `{token}` for a settling reaction); `answeredInWords(obligation)` says whether an
-  obligation is one. When the agent ends it with `leaf task end`, `status` is
+- For a `message` obligation, an agent message sent with `--obligation`, the user's
+  next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
+  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. When the agent ends it with `leaf task end`, `status` is
   `answered_elsewhere` or `withdrawn` and `end.detail` says why.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
-  widget it stands on. Its next actor is the agent while it owes a reply or a version,
+  widget the update concerns. Its next actor is the agent while it owes a reply or a version,
   the user when it was handed back to send again, and `null` once a reply, named by
   `answer.event`, answered it. Of several messages the user sent in a row, only the
   newest has one. `obligationsIn` never counts an update.
@@ -177,6 +168,9 @@ arrives. Each `source.kind` adds its own facts:
 returns the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and
 `lf-tally` count with it, so a module marking obligations per card or section should
 too, passing `readObligations().user` for those waiting on the user.
+`tally(obligations)` counts such a set as `{onUser, onAgent, open, total}`, splitting the
+open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
+does, such as "2 left to answer · 1 on Claude", so every count of a queue reads alike.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation
@@ -199,7 +193,9 @@ through `answer`, so the view records nothing of its own.
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On me and On <agent>. Each row has a `kind`, which is its obligation's
 `source.kind` (with the obligation as `obligation`) or `todo` (with the to-do as
-`todo`), and an `owner`, `user` or `agent`. Rows not done carry `offers: {open, done}`.
+`todo`), and an `owner`, `user` or `agent`. An obligation's row lists in `also` the ids
+of the other obligations the user answers at the same place, such as the agent's answer
+in a thread about it. Rows not done carry `offers: {open, done}`.
 `queueItemKey(row)` names a row across moves between lists, and `queueTitle(row)` gives
 its title. `queueActions.open(key)` goes to a row. `queueActions.done(key)` ends a to-do
 the agent opened on the user, returning its admission promise, and returns `null` for

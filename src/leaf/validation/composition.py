@@ -4,6 +4,7 @@ from leaf.data_contracts import declared_data_bindings, payload_error
 from leaf.registry.contract import read_registry_declarations, registry_error
 from leaf.registry.layer import merge_layer_declarations, stamp_composition
 from leaf.registry.validation import validate_registry
+from leaf.state import KERNEL_REGISTRY
 from leaf.structure import SourceDocument
 
 from .instances import fragment_errors
@@ -35,11 +36,13 @@ def validate_registry_examples(registry: dict, source) -> dict:
 
 
 def incoming_registry(packages: list) -> dict:
-    """The merged registry `page init` will vendor.
+    """The merged registry `page init` will vendor: the kernel registry's facts, then
+    each layer's declarations over them.
 
     Packages are additive at the top level; merge_layer_declarations holds the grain.
     """
     merged = {}
+    merge_layer_declarations(merged, read_registry_declarations(KERNEL_REGISTRY))
     paths = []
     for package in packages:
         path = package / "registry.json"

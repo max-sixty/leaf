@@ -19,6 +19,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_control,
     panel_field,
@@ -62,8 +63,7 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
             page_comment(page)
             surface = page.locator(".lf-fp-field")
         else:
-            page.locator(".lf-fp-threads").click()
-            panel_settled(page, view="threads")
+            open_threads(page)
             page.locator(".lf-fp-thread").first.click()
             panel_settled(page, view="thread")
             surface = page.locator(".lf-fp-field")
@@ -117,8 +117,7 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     compose(page, "#p3", kept)
     assert pending_text(page), "the open box left its own passage unmarked"
 
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert pending_text(page) == "", "a box off screen left its passage marked"
     expect_panel_says(page, "Draft kept — g i resumes writing")
@@ -337,8 +336,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     expect(shelf.locator("img")).to_be_visible()
 
     # Put away: the picture is words enough to keep, and to be told about.
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
     expect_panel_says(page, "Draft kept — g i resumes writing")
     assert "writing.resume" in available_commands(page)
@@ -423,7 +421,10 @@ def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
 def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back(
     browser, serve, hidden_tab
 ):
-    """Resume exposes a hidden editor's place immediately and keeps the outgoing reading."""
+    """Resume exposes a hidden editor's place immediately and keeps the outgoing reading.
+
+    The user leaves the open draft by the keyboard and by scrolling: a press away from
+    it would save it, leaving nothing to resume."""
     writing = (
         '<details id="fold" open><summary>Editable content</summary>'
         '<lf-draft id="editable"><pre>Initial words</pre></lf-draft></details>'
@@ -451,10 +452,12 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     write(edit, "Last edit")
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
-    page.locator("#fold > summary").click()
+    page.locator("#fold > summary").focus()
+    page.keyboard.press("Enter")
     if hidden_tab:
-        page.get_by_role("tab", name="Reading", exact=True).click()
-    page.locator("#elsewhere").click()
+        page.get_by_role("tab", name="Reading", exact=True).focus()
+        page.keyboard.press("Enter")
+    page.locator("#elsewhere").scroll_into_view_if_needed()
     resized(page, 390, 844)
     scroll_settled(page)
     source_entry = page.evaluate("navigation.currentEntry.key")
@@ -503,9 +506,11 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     expect(edit).to_be_focused()
     edit.press("ControlOrMeta+a")
     edit.press("Backspace")
+    edit.blur()
     if hidden_tab:
-        page.get_by_role("tab", name="Reading", exact=True).click()
-    page.locator("#elsewhere").click()
+        page.get_by_role("tab", name="Reading", exact=True).focus()
+        page.keyboard.press("Enter")
+    page.locator("#elsewhere").scroll_into_view_if_needed()
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(edit).to_be_focused()

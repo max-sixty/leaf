@@ -270,7 +270,6 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     expect(floating).to_be_focused()
     physical_face = face(floating)
     assert float(physical_face["padding-top"].removesuffix("px")) + 1 == 12
-    assert float(physical_face["padding-right"].removesuffix("px")) + 1 == 60
     page.emulate_media(forced_colors="active")
     forced = floating.evaluate(
         "node => [getComputedStyle(node).outlineWidth, "
@@ -279,6 +278,8 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     assert forced[1] != "none"
     page.emulate_media(forced_colors="none")
     write(floating, markdown)
+    draft_face = face(floating)
+    assert float(draft_face["padding-right"].removesuffix("px")) + 1 == 60
     floating.press("Control+Enter" if touch else "Enter")
     physical_reading = reading(page.locator(".lf-margin-preview .lf-msg-body").first)
     sent_insets = page.locator(".lf-margin-preview .lf-msg-text").first.evaluate(
@@ -310,5 +311,6 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     )
     page.emulate_media(forced_colors="none")
     write(inline, markdown)
+    assert face(inline) == draft_face
     inline.press("Control+Enter" if touch else "Enter")
     assert reading(diff.locator(".lf-msg-body").first) == physical_reading

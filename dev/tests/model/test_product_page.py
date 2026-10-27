@@ -75,7 +75,7 @@ def test_data_structures_page_lists_every_declared_schema():
     source = DOCS / "data-structures.html"
     tree = SourceDocument(docs.compose(source, source.read_text())).tree
     entries = {entry.attrs["id"] for entry in tree.select("section.schema-entry")}
-    registry = docs.read_json(docs.ASSETS / "registry.json")["$events"]
+    registry = docs.read_json(docs.KERNEL_REGISTRY)["$events"]
     expected = {
         "served-state",
         "event-envelope",

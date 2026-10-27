@@ -10,13 +10,13 @@ from click.testing import CliRunner
 from leaf_dev.page_fixtures import authored_markup
 from unidiff import PatchSet
 
-from leaf import __main__ as leaf_entry
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
+from leaf.state import kernel_registry
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
 
@@ -29,7 +29,7 @@ DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
 
 def test_kernel_event_contracts_declare_closed_records():
-    events = json.loads((ASSETS / "registry.json").read_text())["$events"]["kinds"]
+    events = kernel_registry()["$events"]["kinds"]
     assert events
     envelope = {"id", "ts", "author", "kind", "seq"}
     for kind, contract in events.items():
@@ -336,8 +336,7 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     to every other gate here, so a stale command would go on being published
     indefinitely. The names are resolved against click's own tree rather than listed
     in this file, because a list here is a second copy of the command surface and goes
-    stale the same way the page does; the harness entries, which no click group holds,
-    are read from the application entry that routes them.
+    stale the same way the page does.
     """
 
     def shown_in(tree):
@@ -359,10 +358,7 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     )
 
     def named(tokens):
-        """The subcommand path these tokens walk, greedily, from the root group, or
-        the harness entry the application routes before the group loads."""
-        if tokens[:1] and tokens[0] in leaf_entry.HARNESS_ENTRIES:
-            return tokens[:1]
+        """The subcommand path these tokens walk from the root Click group."""
         command, path = cli_model.cli, []
         for token in tokens:
             if not isinstance(command, click.Group):

@@ -105,8 +105,40 @@ document.addEventListener(
   { capture: true, passive: true },
 );
 
+// Boxes whose content is drawn away from where its layout stands it. A send's stream
+// (box-motion.js) draws a scroller's content where it stood, below where its layout now
+// stands it, and the browser counts that drawing in the box's scroll height while the
+// content rides (`contentRides`, false when the ride ends). Meanwhile the box's height
+// is read from its layout each time it is asked, so its end stays where its layout puts
+// it, content arriving mid-ride included, and a landing at the end doesn't chase the
+// ride.
+const riding = new WeakSet();
+export const contentRides = (box, rides) =>
+  rides ? riding.add(box) : riding.delete(box);
+// A box's scroll height as its layout gives it: from where its children stand, which
+// offsets read without any transform, and its own end padding. A child placed against
+// something other than the box leaves the browser's reading.
+function laidOutHeight(box) {
+  let end = 0;
+  for (const child of box.children) {
+    if (!child.checkVisibility()) continue;
+    if (child.offsetParent !== box) return box.scrollHeight;
+    end = Math.max(
+      end,
+      child.offsetTop +
+        child.offsetHeight +
+        Number.parseFloat(getComputedStyle(child).marginBottom),
+    );
+  }
+  const padding = Number.parseFloat(getComputedStyle(box).paddingBottom);
+  return Math.min(box.scrollHeight, end + padding);
+}
 // The furthest a box scrolls down: its scroll height less what its scrollport shows.
-export const scrollLimit = (box) => Math.max(0, box.scrollHeight - box.clientHeight);
+export const scrollLimit = (box) =>
+  Math.max(
+    0,
+    (riding.has(box) ? laidOutHeight(box) : box.scrollHeight) - box.clientHeight,
+  );
 
 // How far short of a scroll edge a box still stands at it: fractional layout and scaled
 // displays leave the browser a pixel short of where a scroll was aimed.
@@ -116,7 +148,7 @@ export const SCROLL_SLACK = 2;
 export const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= SCROLL_SLACK;
 export const scrollToEnd = (box, behavior = "instant") => {
   if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
-  box.scrollTo({ top: box.scrollHeight, behavior });
+  box.scrollTo({ top: scrollLimit(box), behavior });
 };
 
 // Apply a relative movement to the scroller the caller resolved. Keeping the box explicit

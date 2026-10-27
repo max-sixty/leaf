@@ -1,9 +1,9 @@
 /** Names hand-written code spells out stay the ones the other runtime spells.
  *
- * Runtime modules import what they can from modules build/registry.mjs generates, but a
- * stylesheet's selector, the inline prepaint, a package's own module
- * (`references/package-themes.md`), a render check's probe and the markup Python
- * writes can only spell a name out. Each test here holds those spellings to their other
+ * Runtime modules read what they can from the kernel registry itself
+ * (`runtime/kernel-facts.js`), but a stylesheet's selector, the inline prepaint, a
+ * package's own module (`references/package-themes.md`), a render check's probe and
+ * the markup Python writes can only spell a name out. Each test here holds those spellings to their other
  * side:
  *
  * - each `$marks` paint is still spelled somewhere, and no source spells another
@@ -23,25 +23,20 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const GENERATED = "browser/runtime/marks.js";
 // The `data-lf-` names Python writes only for itself: the export's fallback style
 // hides a page until its bootstrap replaces the document, and the inlined annotation
 // sheet is named for the suite to find.
 const PYTHON_ONLY = new Set(["data-lf-export-pending", "data-lf-annotation-theme"]);
 
 const registry = JSON.parse(
-  await readFile(new URL("browser/registry.json", `file://${root}`)),
+  await readFile(new URL("browser/runtime/kernel-registry.json", `file://${root}`)),
 );
 
 const tracked = (...patterns) =>
   execFileSync("git", ["ls-files", ...patterns], { cwd: root, encoding: "utf8" })
     .split("\n")
     .filter(
-      (file) =>
-        file &&
-        file !== GENERATED &&
-        !file.startsWith("dist/kernel/") &&
-        !file.includes("/vendor/"),
+      (file) => file && !file.startsWith("dist/kernel/") && !file.includes("/vendor/"),
     );
 const python = tracked("src/*.py", "src/*.js");
 const browser = tracked(
@@ -49,7 +44,6 @@ const browser = tracked(
   "browser/*.js",
   "packages/*.css",
   "packages/*.js",
-  "browser/framework/*.ts",
 );
 
 // Each `data-lf-` name the files spell, as markup or a selector writes it or as an

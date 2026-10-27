@@ -44,11 +44,6 @@ def _text(node) -> str:
     return "".join(_text(child) for child in node["content"])
 
 
-def element_text(node: dict) -> str:
-    """Every word an element's authored content holds, collapsed."""
-    return collapse(_text(node))
-
-
 def leading_title_node(node: dict) -> dict | None:
     """The element that titles `node`: its first title element, looking inside a
     leading <header> or <hgroup> and past other elements, until text intervenes."""
@@ -249,6 +244,8 @@ class GestureWords:
     def name(self, event: dict, identity: str) -> str:
         """What the gesture's document calls one element it names: its title, else
         its words, else the words a user wrote it with, else the id itself."""
+        if event["kind"] == "undo":
+            event = self.by_id.get(event["undoes"], event)
         document = self._document(event)
         if document is None:
             return identity

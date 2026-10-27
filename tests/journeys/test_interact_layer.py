@@ -37,7 +37,7 @@ from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import layer as layer_model
 from leaf import packages as packages_model
-from leaf import schema as schema_model
+from leaf.state import kernel_registry
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
@@ -454,7 +454,7 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
         (config / "leaf", "xdg"),
     ):
         (package / "widgets").mkdir(parents=True)
-        (package / "theme.css").write_text(f"/* {marker} package */\n")
+        (package / "theme.css").write_text(f":root {{ --{marker}-package: 1; }}\n")
         (package / "widgets" / f"{marker}.js").write_text(f"// {marker}\n")
     page = tmp_path / "page"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
@@ -482,8 +482,8 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
     theme = (page / "theme.css").read_text()
     # Selected packages follow the kernel in order, and the Layouts close the theme.
     assert (
-        theme.index("/* user package */")
-        < theme.index("/* project package */")
+        theme.index("--user-package")
+        < theme.index("--project-package")
         < theme.index("@layer lf-layouts")
     )
     assert (page / "widgets" / "user.js").is_file()
@@ -588,7 +588,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
 
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
-    kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
+    kernel = kernel_registry()
     vendored = json.loads((page_dir / "registry.json").read_text())
     assert vendored["$events"]["kinds"] == kernel["$events"]["kinds"]
     recovered = check(page_dir)
@@ -766,7 +766,7 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
         '<lf-risk-note id="risk-note"><strong>Risk note</strong> The retry budget '
         "is three attempts before manual review.</lf-risk-note>"
     )
-    assert (package_root / "theme.css").read_bytes() == b""
+    assert (package_root / "widgets.css").read_bytes() == b""
     module = (package_root / "widgets" / "lf-risk-note.js").read_text()
     checked = runner.invoke(cli_model.cli, ["package", "check", str(package)])
     assert checked.exit_code == 0, checked.output
@@ -949,7 +949,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     )
     assert initialized.exit_code == 0, initialized.output
     # The package's rule reaches the page confined to the package's own widget.
-    assert "@scope (:is(lf-callout)) {" in (page / "theme.css").read_text()
+    assert "@scope (:is(lf-callout)) to (" in (page / "theme.css").read_text()
     assert json.loads((page / "registry.json").read_text())["lf-callout"] == entry
     assert (
         "Use them for short notices."

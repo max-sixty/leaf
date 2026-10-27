@@ -61,6 +61,7 @@ signal.signal(signal.SIGINT, signal.default_int_handler)
 # (render_harness.wait_for_check_api).
 def _refusing_async_predicates(wait_for_function):
     def wait(self, expression, *args, **kwargs):
+        __tracebackhide__ = True  # also files the wait under its caller (suite_profile)
         if re.match(r"\s*async\b", expression):
             raise ValueError(
                 "wait_for_function returns at once on an async predicate; "
@@ -348,11 +349,16 @@ def pytest_addoption(parser):
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_call(item):
     """A test body that returns has its last shifts and lost words judged before its
-    fixtures end (`render_harness.judge_watches`)."""
+    fixtures end (`render_harness.judge_watches`). One that fails is marked so its
+    browser fixture keeps a picture of each page (`render_harness.clean_browser`)."""
     from render_harness import judge_watches
 
-    result = yield
-    judge_watches()
+    try:
+        result = yield
+        judge_watches()
+    except (Exception, pytest.fail.Exception):
+        item.lf_failed = True
+        raise
     return result
 
 
@@ -529,8 +535,9 @@ def isolated_session(tmp_path_factory, monkeypatch):
     by the loop guard. Isolate XDG_STATE_HOME, where Leaf stores claims and installed
     packages, and CODEX_HOME, where Codex reads its configuration and sessions,
     while retaining HOME so subprocesses share the host's uv cache. Clear the
-    developer's App Server endpoint and host launcher override so a fake task
-    cannot use them.
+    developer's App Server endpoint, host launcher override and page commit
+    provider so a fake task cannot use them and a website restore cannot leave
+    its provider in later tests.
 
     The session the tests run as is this worker: a synthetic id, so nothing of
     the developer's answers for it, and the worker's own pid. Every page a test
@@ -553,12 +560,14 @@ def isolated_session(tmp_path_factory, monkeypatch):
     run's tests fill it, so each test's three lookups grew with the tests before it,
     1.3 worker-minutes of a push run in October 2026."""
     home = tmp_path_factory.mktemp(f"session{next(_SESSIONS)}", numbered=False)
-    for name in ("state", "codex", "claude"):
+    for name in ("state", "config", "codex", "claude"):
         (home / name).mkdir()
     monkeypatch.setenv("XDG_STATE_HOME", str(home / "state"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(home / "config"))
     monkeypatch.setenv("CODEX_HOME", str(home / "codex"))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
+    monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
     monkeypatch.delenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", raising=False)
     for name in (*harness_model.IDENTITY_VARIABLES, *machine_model.SANDBOX_REMEDIES):
         monkeypatch.delenv(name, raising=False)

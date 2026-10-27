@@ -4,7 +4,7 @@
     <title>Extending Leaf</title>
     <meta
       name="description"
-      content="Choose between page-local presentation, reusable packages, and Leaf's shared kernel, then build a small package."
+      content="Build composable Leaf packages: ownership boundaries, widget data and actions, CSS contracts, and a small working package."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
@@ -57,6 +57,107 @@
           grid-template-columns: minmax(0, 1fr);
         }
       }
+      /* "Which rule wins": a band per rule in tier order, the card beside them. Each
+         switch turns on a rule in the tier it names (lf-base, lf-theme, or the page's
+         unlayered sheet), so the card shows what the real cascade picks; the
+         highest rule that is on is outlined. */
+      .try {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+        gap: var(--sp-4);
+        align-items: center;
+        --lf-holds-edge: 1;
+      }
+      .try-rules {
+        display: grid;
+        gap: 6px;
+      }
+      .try-rules label {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: center;
+        gap: 2px var(--sp-2);
+        padding: 8px 12px;
+        border: 1px solid var(--band);
+        border-radius: var(--r);
+        background: var(--band-tint);
+        font: var(--t-5) / 1.45 var(--sans);
+        cursor: pointer;
+      }
+      .try-rules .try-decl {
+        grid-column: 2;
+        justify-self: start;
+      }
+      .try-rules label.page {
+        --band: var(--accent);
+        --band-tint: var(--accent-tint);
+      }
+      .try-rules label.pkg {
+        --band: var(--ok);
+        --band-tint: var(--ok-tint);
+      }
+      .try-rules label:has(input:not(:checked)) {
+        --band-tint: transparent;
+        color: var(--muted);
+      }
+      .try-rules label:has(input:not(:checked)) .try-decl {
+        text-decoration: line-through;
+      }
+      #styles-try:has(#try-page:checked) #try-page-rule,
+      #styles-try:not(:has(#try-page:checked)) #try-theme-rule:has(input:checked),
+      #styles-try:not(:has(#try-page:checked, #try-theme:checked))
+        #try-widget-rule:has(input:checked) {
+        box-shadow: 0 0 0 2px var(--band);
+      }
+      .try-rules input {
+        margin: 0;
+        accent-color: var(--band);
+      }
+      .try-stage {
+        padding: var(--sp-4);
+        border: 1px dashed var(--rule);
+        border-radius: var(--r);
+      }
+      .try-card {
+        padding: var(--try-pad, 0px);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        background: var(--try-tint, var(--field));
+      }
+      .try-says {
+        margin: 0;
+        padding: 6px 10px;
+        border: 1px solid var(--rule);
+        border-radius: calc(var(--r) / 2);
+        background: var(--paper);
+        font: var(--t-5) / 1.45 var(--sans);
+      }
+      .try-says::before {
+        content: var(--try-says, "No rule sets the padding, so it is 0.");
+      }
+      @layer lf-base {
+        #styles-try:has(#try-widget:checked) .card.featured {
+          --try-pad: 8px;
+          --try-tint: var(--ok-tint);
+          --try-says: "Padding 8px, from the widget's package";
+        }
+      }
+      @layer lf-theme {
+        #styles-try:has(#try-theme:checked) .card {
+          --try-pad: 18px;
+          --try-tint: var(--ok-tint);
+          --try-says: "Padding 18px, from the theme package";
+        }
+      }
+      #styles-try:has(#try-page:checked) .card {
+        --try-pad: 32px;
+        --try-tint: color-mix(in srgb, var(--accent) 28%, var(--paper));
+        --try-says: "Padding 32px, from the page's <style>";
+      }
+
+      #styles-reach-table td:first-child code {
+        white-space: nowrap;
+      }
     </style>
   </head>
   <body class="site-page">
@@ -67,231 +168,338 @@
         <p class="eyebrow">extending</p>
         <h1>Extending Leaf</h1>
         <p class="lede" id="lede">
-          A change can belong to one page, a reusable package, or Leaf's shared kernel.
-          Put it where its behavior should apply; most new reusable widgets belong in a
-          package. This guide sets those boundaries, then builds the smallest useful
-          package.
+          Packages add reusable widgets, themes and behavior to Leaf. Their contracts
+          let each contribution work alongside other packages and the page's own
+          content.
+        </p>
+        <p id="extending-scope">
+          Start with the ownership boundaries, follow the package tutorial, or look up
+          the CSS contract. For composing a page from existing widgets and themes, see
+          the <a href="/ui/">UI guide</a>.
         </p>
       </header>
 
-      <aside class="sidebar" id="extending-route">
-        <lf-toc id="extending-contents"></lf-toc>
-      </aside>
-
-      <section id="boundaries">
-        <h2>Choose the extension boundary</h2>
-        <ol class="steps">
-          <li id="extend-page">
-            <strong>One page.</strong> Semantic HTML, existing Leaf elements, a
-            page-local <code>&lt;style&gt;</code>, and inline SVG shape one document.
-            Keep presentation here when no other page needs it.
-          </li>
-          <li id="extend-package">
-            <strong>A package.</strong> A reusable element, theme, browser behavior, or
-            author instructions belong in a package. A project-local package, an
-            installed package, and a package bundled with Leaf all use the same
-            composition format.
-          </li>
-          <li id="extend-kernel">
-            <strong>Leaf's kernel.</strong> Runtime, chrome, and protocol behavior
-            shared by every page belongs in Leaf itself. A package consumes those
-            capabilities; it does not add a parallel runtime path.
-          </li>
-        </ol>
-      </section>
-
-      <section id="bundled">
-        <h2>Choose a bundled package</h2>
-        <p>
-          The <a href="/examples/feature-gallery/">core product gallery</a> shows Leaf’s
-          default widgets and controls. The pages below demonstrate optional packages;
-          the Code review package provides authoring instructions.
-        </p>
-        <div class="package-catalog">
-          <a
-            class="package-card"
-            data-package="code-review"
-            href="https://github.com/max-sixty/leaf/blob/main/packages/code-review/instructions/author.md"
-          >
-            <strong>Code review</strong>
-            <span>Instructions for writing code reviews.</span>
-            <em>Read instructions</em>
-          </a>
-          <a
-            class="package-card"
-            data-package="diagram"
-            href="/examples/security-boundary/"
-          >
-            <strong>Diagram</strong>
-            <span>Render Mermaid diagrams with comments anchored to nodes.</span>
-            <em>Open page ↗</em>
-          </a>
-          <a class="package-card" data-package="diff" href="/examples/pr-walkthrough/">
-            <strong>Diff</strong>
-            <span>Review unified diffs with file and line threads.</span>
-            <em>Open page ↗</em>
-          </a>
-          <a
-            class="package-card"
-            data-package="playground"
-            href="/examples/notification-playground/"
-          >
-            <strong>Playground</strong>
-            <span
-              >Tune a configuration against a live preview, then submit it once.</span
-            >
-            <em>Open page ↗</em>
-          </a>
-          <a
-            class="package-card"
-            data-package="monitoring"
-            href="/examples/live-progress/"
-          >
-            <strong>Monitoring</strong>
-            <span
-              >Keep current release state, named checks, and the changing run log in
-              view together.</span
-            >
-            <em>Open page ↗</em>
-          </a>
-          <a
-            class="package-card"
-            data-package="visual-review"
-            href="/examples/visual-review-gallery/"
-          >
-            <strong>Visual review</strong>
-            <span
-              >Compare screenshots from a website journey, with capture conditions and
-              results for each step.</span
-            >
-            <em>Open page ↗</em>
-          </a>
-          <a
-            class="package-card"
-            data-package="playwright"
-            href="/examples/playwright-trace-gallery/"
-          >
-            <strong>Playwright</strong>
-            <span
-              >Review recorded actions, images and saved elements with anchored
-              comments.</span
-            >
-            <em>Open page ↗</em>
-          </a>
-          <a
-            class="package-card"
-            data-package="file-editor"
-            href="https://github.com/max-sixty/leaf/blob/main/packages/file-editor/instructions/author.md"
-          >
-            <strong>File editor</strong>
-            <span
-              >Edit an explicitly bound local text file with quiet automatic
-              saving.</span
-            >
-            <em>Read instructions</em>
-          </a>
-          <a
-            class="package-card"
-            data-package="file-tree"
-            href="https://github.com/max-sixty/leaf/blob/main/packages/file-tree/instructions/author.md"
-          >
-            <strong>File tree</strong>
-            <span
-              >Navigate a file hierarchy from a file list or a diff's inventory.</span
-            >
-            <em>Read instructions</em>
-          </a>
-          <a
-            class="package-card"
-            data-package="motion"
-            href="https://github.com/max-sixty/leaf/blob/main/packages/motion/instructions/author.md"
-          >
-            <strong>Motion</strong>
-            <span>Play and scrub authored animation studies on one shared clock.</span>
-            <em>Read instructions</em>
-          </a>
-          <a class="package-card" data-package="timeline" href="/examples/lost-update/">
-            <strong>Timeline</strong>
-            <span
-              >Step through events in lanes, such as two jobs racing on one row.</span
-            >
-            <em>Open page ↗</em>
-          </a>
-        </div>
-        <p>
-          Playground also powers the
-          <a href="/examples/data-explorer/">structured data explorer</a> and the
-          <a href="/examples/code-comparison/">built-output A/B comparison</a>. Those
-          pages keep their task-specific state, schema, and behavior while reusing the
-          same package mechanics.
-        </p>
-      </section>
-
-      <section id="start">
-        <h2>Build a package with two files</h2>
-        <p>Create a package in the project, then check the empty composition:</p>
-        <pre
-          id="package-init-command"
-        ><code class="language-bash">$ leaf package init packages/callout
+      <lf-tabs id="extensions">
+        <lf-tab id="contracts" label="Contracts"
+          ><details class="topic-outline" id="contracts-outline">
+            <summary>In this topic</summary>
+            <nav aria-label="Contracts sections">
+              <ul>
+                <li><a href="#responsibilities">Who owns what</a></li>
+                <li><a href="#boundaries">Choose the extension boundary</a></li>
+                <li><a href="#layer">Package interfaces</a></li>
+              </ul>
+            </nav>
+          </details>
+          <section id="responsibilities">
+            <h2>Who is responsible for what</h2>
+            <p id="responsibilities-lede">
+              The user sets the goal and preferences. The author composes the page;
+              packages supply its visual language and widget behavior. Leaf core keeps
+              the shared record of what the user does.
+            </p>
+            <figure id="ownership-anatomy" class="diagram-figure">
+              <lf-diagram id="ownership-architecture" data-height="719" parts="all">
+                <pre>
+flowchart TD
+  accTitle: Ownership boundaries in a Leaf page
+  accDescr: The user gives the author a goal and selects a theme. Within the authored page, the author owns content and layout, and the widget package owns controls and action meaning. Theme inputs style both. Widgets send actions to Leaf core, which owns the record, current state and Undo.
+  User([User])
+  Theme["Theme package&lt;br/&gt;Color, type and spacing"]
+  subgraph Page["Authored page"]
+    Content["Page author&lt;br/&gt;Content and layout"]
+    Widget["Widget package&lt;br/&gt;Controls&lt;br/&gt;Action meaning"]
+    Content -->|places and configures| Widget
+  end
+  Core["Leaf core&lt;br/&gt;Record, state and Undo"]
+  User -->|goal| Page
+  User -->|theme preference| Theme
+  Theme -.->|visual inputs| Page
+  Widget -->|actions| Core
+  Core -->|current state| Widget
+</pre>
+              </lf-diagram>
+              <figcaption id="responsibilities-example">
+                Ownership architecture. The author places widgets inside the page; each
+                package owns its widget’s behavior. Theme inputs style the page and its
+                controls. Leaf core owns the record behind them.
+              </figcaption>
+            </figure>
+            <p id="ownership-example-link">
+              <a href="/ui/#options-demo"
+                >Try the separate example: a release review.</a
+              >
+              Choose an audience and undo a choice to see these responsibilities at
+              work.
+            </p>
+            <details id="responsibilities-interfaces">
+              <summary>Each owner’s authoring interface</summary>
+              <table id="responsibilities-table">
+                <thead>
+                  <tr>
+                    <th>Owner</th>
+                    <th>Responsibility</th>
+                    <th>Interface</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>User</td>
+                    <td>Goals, preferences, decisions, and edits.</td>
+                    <td>
+                      Instructions to the agent, actions on the page, and named personal
+                      themes with a default. Theme colors can follow the browser's
+                      color-scheme preference.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Page author</td>
+                    <td>
+                      Content, initial values, package selection, and composition.
+                    </td>
+                    <td>
+                      Semantic HTML, declared widget attributes, data bindings, page
+                      CSS, and optional page modules.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Widget package</td>
+                    <td>
+                      Domain meaning, controls, and rendering within the allotted box.
+                    </td>
+                    <td>
+                      Registry declarations, browser modules, scoped styles, and author
+                      instructions. The package connects its controls to Leaf's state,
+                      commands, and annotation APIs.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Theme package</td>
+                    <td>Reusable visual choices and presentation idioms.</td>
+                    <td>
+                      Theme inputs and explicit page-wide styles, independently of
+                      whether the package declares widgets. It may include
+                      <code>controls.css</code> for generated controls.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Leaf kernel</td>
+                    <td>
+                      Shared state, event admission, Undo, and interaction services.
+                    </td>
+                    <td>
+                      The registry contract and public module APIs. Core interprets
+                      declarations; packages supply each widget's domain behavior.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </details>
+            <p id="responsibilities-limits">
+              These are contribution boundaries, not a sandbox: package and page scripts
+              run in the same document. Each package's selectors decide where its rules
+              match, and inheritance connects nested content's presentation. The
+              <a href="#styles-contract">CSS contract</a> describes selector reach and
+              cascade precedence. The <a href="#check">package checks</a> validate
+              declarations and rendered behavior.
+            </p>
+          </section>
+          <section id="boundaries">
+            <h2>Choose the extension boundary</h2>
+            <ol class="steps">
+              <li id="extend-page">
+                <strong>One page.</strong> Semantic HTML, existing Leaf elements, a
+                page-local <code>&lt;style&gt;</code>, and inline SVG shape one
+                document. Keep presentation here when no other page needs it.
+              </li>
+              <li id="extend-package">
+                <strong>A package.</strong> A reusable element, theme, browser behavior,
+                or author instructions belong in a package. A project-local package, an
+                installed package, and a package bundled with Leaf all use the same
+                composition format.
+              </li>
+              <li id="extend-kernel">
+                <strong>Leaf's kernel.</strong> Runtime, chrome, and protocol behavior
+                shared by every page belongs in Leaf itself. A package consumes those
+                capabilities; it does not add a parallel runtime path.
+              </li>
+            </ol>
+          </section>
+          <section id="layer">
+            <h2>Package interfaces</h2>
+            <p>
+              Packages connect through declared inputs, outputs and actions. A release
+              review can use one package to read a patch and another to navigate its
+              files, without either package knowing the other’s implementation.
+            </p>
+            <h3 id="package-data-flow">Data connects widgets</h3>
+            <figure id="package-data-diagram" class="diagram-figure">
+              <lf-diagram id="package-data-contract" data-height="285" parts="all">
+                <pre>
+flowchart TD
+  accTitle: A typed output connects independent widgets
+  accDescr: The author supplies a patch. The Diff widget publishes its changed files using the file-list contract. The page binds a File tree widget to that output, without either widget knowing the other's implementation.
+  Patch["Author supplies a patch"] --> Diff["Diff widget"]
+  Diff -->|files: file-list| Tree["File tree widget"]
+</pre>
+              </lf-diagram>
+              <figcaption id="package-shared-contract">
+                The page connects these widgets with <code>for="release-patch"</code>.
+                The producer and consumer agree on the <code>file-list</code> value’s
+                shape. The file tree can also read a stored source with that contract. A
+                published output is a browser-local derivation, not a decision in the
+                page’s log.
+              </figcaption>
+            </figure>
+            <h3 id="package-action-flow">Widgets delegate recorded state to Leaf</h3>
+            <figure id="package-action-diagram" class="diagram-figure">
+              <lf-diagram id="package-action-contract" data-height="398" parts="all">
+                <pre>
+flowchart TD
+  accTitle: A choice is drawn immediately and recorded by Leaf
+  accDescr: The user's choice starts two paths. The browser draws it before the next frame, while Leaf validates the action and appends it to the log. Shared state then reconciles the browser's selection.
+  Choose["Choose Canary clients"]
+  Choose --&gt; Draw["Browser&lt;br/&gt;Draw now"]
+  Choose --&gt; Admit["Leaf&lt;br/&gt;Admit action"]
+  Admit --&gt; State["Shared state"]
+  Draw --&gt; Reconcile["Browser&lt;br/&gt;Reconcile choice"]
+  State --&gt; Reconcile
+</pre>
+              </lf-diagram>
+              <figcaption id="package-action-widget">
+                The package declares <code>choose</code> and the schema for its selected
+                IDs. The browser shows what the gesture decides while admission
+                completes; a refused action restores the server’s state. Undo withdraws
+                the admitted action, and the widget draws the resulting selection.
+                Packages share these guarantees.
+                <a href="/how-it-works/#state">How it works</a> explains how Leaf
+                derives state from the record.
+              </figcaption>
+            </figure>
+            <details id="package-contract-details">
+              <summary>
+                Independent capabilities, validation and captured packages
+              </summary>
+              <p id="what-is-customizable">
+                Leaf's core, called the kernel, supplies the browser runtime, shared
+                controls, and collaboration protocol. Packages supply reusable elements,
+                JavaScript modules, styles, and authoring instructions. The default
+                package provides common widgets and structural elements; optional
+                packages add capabilities such as diagrams and diffs. Project packages
+                use the same format and can replace or extend the page's selected layer.
+                The
+                <a href="#bundled">package catalog</a> shows the bundled packages; the
+                <a href="#start">tutorial</a> builds a small custom package.
+              </p>
+              <p id="package-contract-boundaries">
+                A package declares capabilities independently: what an action records,
+                whether it decides a proposed change, which typed data it consumes or
+                publishes, and where its styles apply. Ordinary data fields do not
+                acquire decision meaning from their names. Two occurrences of the same
+                widget can select different input contracts without replacing the
+                widget's declaration. Leaf validates lasting input where it enters the
+                event log; the render check validates the outputs a widget actually
+                publishes during the check. The
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md"
+                  >state and data contract</a
+                >
+                defines those interfaces.
+              </p>
+              <p id="package-captured-layer">
+                Each page directory contains a validated composition of its selected
+                packages: its <em>layer</em>. <code>page init</code> builds the
+                registry, theme and package modules, and each revision captures the
+                layer it uses. The Leaf serving, checking or exporting the page supplies
+                the browser runtime. Updating that runtime leaves captured content and
+                decisions intact; the public package interface must still use a
+                compatible page protocol. The
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#package-contract"
+                  >package contract</a
+                >
+                defines how packages are combined and replaced.
+              </p>
+            </details>
+          </section></lf-tab
+        >
+        <lf-tab id="build-package" label="Build a package"
+          ><details class="topic-outline" id="build-outline">
+            <summary>In this topic</summary>
+            <nav aria-label="Build a package sections">
+              <ul>
+                <li><a href="#start">Create a package</a></li>
+                <li><a href="#theme">Style the element</a></li>
+                <li><a href="#widget">Declare the element</a></li>
+                <li><a href="#check">Compose and check</a></li>
+              </ul>
+            </nav>
+          </details>
+          <section id="start">
+            <h2>Build a package with two files</h2>
+            <p>Create a package in the project, then check the empty composition:</p>
+            <pre
+              id="package-init-command"
+            ><code class="language-bash">$ leaf package init packages/callout
 $ leaf package check packages/callout</code></pre>
-        <p>The widget in this tutorial needs only these files:</p>
+            <p>The widget in this tutorial needs only these files:</p>
 
-        <pre id="callout-files">
+            <pre id="callout-files">
 packages/callout/
   registry.json
-  theme.css
+  widgets.css
 </pre>
 
-        <p>
-          Every package beyond the bundled default joins a page with
-          <code>--package</code>. In the commands below, <code>PAGE</code> is the page
-          directory to create or update:
-        </p>
-        <pre
-          id="page-init-command"
-        ><code class="language-bash">$ leaf page init --package packages/callout PAGE</code></pre>
-        <p>
-          The
-          <a
-            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md"
-            >complete package contract</a
-          >
-          covers installed and bundled packages, contribution directories, composition
-          order, and replacement rules.
-        </p>
-        <p>
-          <code>package init</code> also creates empty contribution directories for
-          instructions, browser modules, widgets, and vendor files. The CSS-only widget
-          here leaves them untouched.
-        </p>
-        <p>
-          To start with behavior instead, name the first element while creating the
-          package:
-        </p>
-        <pre
-          id="widget-init-command"
-        ><code class="language-bash">$ leaf package init packages/risk-notes --widget lf-risk-note</code></pre>
-        <p>
-          Leaf writes a valid markup-widget element declaration and its one-shot browser
-          module, then checks the complete candidate before changing the package. The
-          tutorial below stays with the smaller CSS-only form so each contract remains
-          visible. A behavior module imports Leaf's package API from
-          <code>/runtime/widget-api.js</code>; it registers each interactive capability
-          once with <code>commands()</code>. The same live command rows feed keyboard
-          dispatch, help, accessibility shortcuts, and—when <code>decision</code> names
-          the action—the controls shown inline for an obligation.
-        </p>
-      </section>
-
-      <section id="theme">
-        <h2>Style the element</h2>
-        <p>
-          A package's <code>theme.css</code> joins Leaf's existing cascade. Leaf scopes
-          a package's rules to the elements it declares, so <code>:scope</code> names
-          the <code>lf-callout</code> element itself and any other selector names
-          something inside it:
-        </p>
-        <pre id="callout-theme"><code class="language-css">:scope {
+            <p>
+              Every package beyond the bundled default joins a page with
+              <code>--package</code>. In the commands below, <code>PAGE</code> is the
+              page directory to create or update:
+            </p>
+            <pre
+              id="page-init-command"
+            ><code class="language-bash">$ leaf page init --package packages/callout PAGE</code></pre>
+            <p>
+              The
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md"
+                >complete package contract</a
+              >
+              covers installed and bundled packages, contribution directories,
+              composition order, and replacement rules.
+            </p>
+            <p>
+              <code>package init</code> also creates empty contribution directories for
+              instructions, browser modules, widgets, and vendor files. The CSS-only
+              widget here leaves them untouched.
+            </p>
+            <p>
+              To start with behavior instead, name the first element while creating the
+              package:
+            </p>
+            <pre
+              id="widget-init-command"
+            ><code class="language-bash">$ leaf package init packages/risk-notes --widget lf-risk-note</code></pre>
+            <p>
+              Leaf writes a valid markup-widget element declaration and its one-shot
+              browser module, then checks the complete candidate before changing the
+              package. The tutorial below stays with the smaller CSS-only form so each
+              contract remains visible. A behavior module imports Leaf's package API
+              from
+              <code>/runtime/widget-api.js</code>; it registers each interactive
+              capability once with <code>commands()</code>. The same live command rows
+              feed keyboard dispatch, help, accessibility shortcuts, and—when
+              <code>decision</code> names the action—the controls shown inline for an
+              obligation.
+            </p>
+          </section>
+          <section id="theme">
+            <h2>Style the element</h2>
+            <p>
+              A package's <code>widgets.css</code> joins Leaf's existing cascade as
+              written, so its rules name the elements they style, starting with
+              <code>lf-callout</code> itself:
+            </p>
+            <pre id="callout-theme"><code class="language-css">lf-callout {
   display: block;
   padding: var(--sp-3);
   border: 1px solid var(--rule);
@@ -299,33 +507,34 @@ packages/callout/
   background: var(--field);
   --lf-block-frame: 1;
 }</code></pre>
-        <p>
-          <code>--lf-block-frame: 1</code> tells the shared layout that this rule draws
-          the widget's inset. The opening
-          <a href="https://github.com/max-sixty/leaf/blob/main/browser/theme.css"
-            >theme token block</a
-          >
-          lists values such as <code>--accent</code> that a package may override for the
-          whole page. Presentation used by only one page stays in that version's own
-          <code>&lt;style&gt;</code>.
-        </p>
-      </section>
-
-      <section id="widget">
-        <h2>Declare the element</h2>
-        <p>The page will author the callout as ordinary readable markup:</p>
-        <pre
-          id="callout-markup"
-        ><code class="language-html">&lt;lf-callout id="migration-warning"&gt;
+            <p>
+              <code>--lf-block-frame: 1</code> tells the shared layout that this rule
+              draws the widget's inset. The
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#styles-and-composition"
+                >style contract</a
+              >
+              distinguishes theme inputs such as <code>--accent</code> from layout
+              declarations, runtime outputs, and vendor bridges. The
+              <a href="#styles-contract">CSS contract</a> explains how widget, theme and
+              control sheets compose.
+            </p>
+          </section>
+          <section id="widget">
+            <h2>Declare the element</h2>
+            <p>The page will author the callout as ordinary readable markup:</p>
+            <pre
+              id="callout-markup"
+            ><code class="language-html">&lt;lf-callout id="migration-warning"&gt;
   &lt;strong&gt;Migration window&lt;/strong&gt;
   Writes pause for about two minutes.
 &lt;/lf-callout&gt;</code></pre>
-        <p>
-          Its complete <code>registry.json</code> entry validates the attributes and
-          tells Leaf that the body is prose. <code>x-example</code> is the sample an
-          author queries with the entry:
-        </p>
-        <pre id="callout-registry"><code class="language-json">{
+            <p>
+              Its complete <code>registry.json</code> entry validates the attributes and
+              tells Leaf that the body is prose. <code>x-example</code> is the sample an
+              author queries with the entry:
+            </p>
+            <pre id="callout-registry"><code class="language-json">{
   "lf-callout": {
     "description": "A short warning or constraint that belongs in the reading flow.",
     "type": "object",
@@ -342,70 +551,477 @@ packages/callout/
     "x-example": "&lt;lf-callout id=\"migration-warning\"&gt;&lt;strong&gt;Migration window&lt;/strong&gt; Writes pause for about two minutes.&lt;/lf-callout&gt;"
   }
 }</code></pre>
-        <p>
-          <code>x-content</code> and <code>x-upgrade</code> are the two Leaf
-          declarations every widget requires. The ordinary JSON Schema fields validate
-          its attributes; <code>description</code> and <code>x-example</code> make the
-          merged registry useful to an author.
-        </p>
-        <p>
-          The <a href="/registry/">registry-key reference</a> lists every
-          <code>x-*</code> declaration. A CSS-only widget stops here.
-        </p>
-      </section>
-
-      <section id="check">
-        <h2>Compose and check the page</h2>
-        <pre
-          id="package-check-command"
-        ><code class="language-bash">$ leaf package check packages/callout
+            <p>
+              <code>x-content</code> and <code>x-upgrade</code> are the two Leaf
+              declarations every widget requires. The ordinary JSON Schema fields
+              validate its attributes; <code>description</code> and
+              <code>x-example</code> make the merged registry useful to an author.
+            </p>
+            <p>
+              The <a href="/registry/">registry-key reference</a> lists every
+              <code>x-*</code> declaration. A CSS-only widget stops here.
+            </p>
+          </section>
+          <section id="check">
+            <h2>Compose and check the page</h2>
+            <pre
+              id="package-check-command"
+            ><code class="language-bash">$ leaf package check packages/callout
 $ leaf page init --package packages/callout PAGE
 $ jq '.["lf-callout"], .["$keys"]' PAGE/registry.json
 $ leaf page check PAGE --render</code></pre>
-        <p>
-          Re-running <code>page init</code> is the explicit update for an existing page.
-          Pages that are not re-initialized keep their vendored layer unchanged.
-        </p>
-        <p>
-          <code>leaf package install packages/callout</code> copies the checked package
-          into <code>~/.local/state/leaf/packages/</code>, after which
-          <code>--package callout</code> reaches it by name from any project on this
-          machine.
-        </p>
-        <dl class="package-next">
-          <dt><a href="/registry/">Registry keys</a></dt>
-          <dd>
-            The generated reference for declarations such as <code>x-data</code> and
-            <code>x-state</code>.
-          </dd>
-          <dt><a href="/event-log/">Event log</a></dt>
-          <dd>
-            How a widget's <code>x-state</code> verbs become logged events and folded
-            state.
-          </dd>
-          <dt>
-            <a
-              href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md"
-              >Package contract</a
-            >
-          </dt>
-          <dd>
-            Composition, instructions, browser modules, external data, and validation.
-          </dd>
-          <dt>
-            <a href="https://github.com/max-sixty/leaf/tree/main/packages/default"
-              >Bundled default package</a
-            >
-          </dt>
-          <dd>A complete package containing the widgets used across Leaf pages.</dd>
-        </dl>
-      </section>
+            <p>
+              Re-running <code>page init</code> is the explicit update for an existing
+              page. Pages that are not re-initialized keep their vendored layer
+              unchanged.
+            </p>
+            <p>
+              <code>leaf package install packages/callout</code> copies the checked
+              package into <code>~/.local/state/leaf/packages/</code>, after which
+              <code>--package callout</code> reaches it by name from any project on this
+              machine.
+            </p>
+            <dl class="package-next">
+              <dt><a href="/registry/">Registry keys</a></dt>
+              <dd>
+                The generated reference for declarations such as <code>x-data</code> and
+                <code>x-state</code>.
+              </dd>
+              <dt><a href="/event-log/">Event log</a></dt>
+              <dd>
+                How a widget's <code>x-state</code> verbs become logged events and
+                folded state.
+              </dd>
+              <dt>
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md"
+                  >Package contract</a
+                >
+              </dt>
+              <dd>
+                Composition, instructions, browser modules, external data, and
+                validation.
+              </dd>
+              <dt>
+                <a href="https://github.com/max-sixty/leaf/tree/main/packages/default"
+                  >Bundled default package</a
+                >
+              </dt>
+              <dd>A complete package containing the widgets used across Leaf pages.</dd>
+            </dl>
+          </section></lf-tab
+        >
+        <lf-tab id="css" label="CSS"
+          ><details class="topic-outline" id="css-outline">
+            <summary>In this topic</summary>
+            <nav aria-label="CSS sections">
+              <ul>
+                <li><a href="#styles-try-title">Which rule wins</a></li>
+                <li><a href="#styles-tiers">Cascade layers</a></li>
+                <li><a href="#styles-packages">Nested widget boundaries</a></li>
+                <li><a href="#styles-stylesheet-roles">Stylesheet roles</a></li>
+              </ul>
+            </nav>
+          </details>
+          <section id="styles-contract">
+            <h2>CSS contracts</h2>
+            <p id="styles-contract-lede">
+              Widget packages style their own elements; theme packages supply
+              presentation across the page. Stylesheet roles set where rules reach, and
+              the cascade sets which rule wins.
+              <a href="/ui/#styles">Themes in the UI guide</a> covers selecting a theme
+              and making local page adjustments.
+            </p>
+            <h3 id="styles-try-title">Which rule wins</h3>
+            <p id="styles-try-lede">
+              Leaf sorts CSS into tiers by who wrote it. The tiers are CSS cascade
+              layers (<code>@layer</code>), and a rule in a higher tier wins. Each
+              switch below puts the rule beside it into the tier its page or package
+              writes into, for the same card, so the card shows what the browser
+              decides.
+            </p>
+            <figure id="styles-try">
+              <div class="try">
+                <div class="try-rules" role="group" aria-labelledby="styles-try-title">
+                  <label class="page" id="try-page-rule"
+                    ><input type="checkbox" id="try-page" /><span class="try-where"
+                      >The page's <code>&lt;style&gt;</code></span
+                    ><code class="try-decl">lf-card { padding: 32px }</code></label
+                  >
+                  <label class="pkg" id="try-theme-rule"
+                    ><input type="checkbox" id="try-theme" checked /><span
+                      class="try-where"
+                      >A theme package</span
+                    ><code class="try-decl">lf-card { padding: 18px }</code></label
+                  >
+                  <label class="pkg" id="try-widget-rule"
+                    ><input type="checkbox" id="try-widget" checked /><span
+                      class="try-where"
+                      >The widget's package, with a more specific selector</span
+                    ><code class="try-decl"
+                      >lf-card.featured { padding: 8px }</code
+                    ></label
+                  >
+                </div>
+                <div class="try-stage">
+                  <div class="try-card card featured" id="try-card">
+                    <p class="try-says" id="try-says"></p>
+                  </div>
+                </div>
+              </div>
+              <figcaption>
+                <strong>Rules in tier order, highest first.</strong> The card takes its
+                padding from the highest rule that is on, which is outlined.
+              </figcaption>
+            </figure>
+            <p id="styles-ranking">
+              A lower tier's rule loses however specific its selector is, as the widget
+              package's <code>lf-card.featured</code> shows. Within a tier, the more
+              specific selector wins, and between equally specific selectors the later
+              rule wins. <code>!important</code> reverses the order of the tiers, so a
+              page's <code>!important</code> loses to Leaf's own; an ordinary rule is
+              all an override needs.
+            </p>
 
+            <h3 id="styles-tiers">The tiers</h3>
+            <figure id="cascade-figure" class="diagram-figure">
+              <h4 id="cascade-document">The page’s document</h4>
+              <lf-diagram id="cascade-document-order" data-height="728" parts="all">
+                <pre>
+flowchart TD
+  accTitle: CSS precedence in the page document
+  accDescr: For normal declarations, unlayered page rules have the highest precedence, then the page's own layers, lf-state, lf-controls, lf-theme, lf-layouts, lf-base and lf-reset. Each arrow points from a higher tier to a lower tier.
+  Page["Page rules · unlayered"] --> Layers["Page's own layers"]
+  Layers --> State["lf-state · Leaf"]
+  State --> Controls["lf-controls · packages"]
+  Controls --> Theme["lf-theme · packages"]
+  Theme --> Layout["lf-layouts · Leaf"]
+  Layout --> Base["lf-base · Leaf and widgets"]
+  Base --> Reset["lf-reset · Leaf"]
+</pre>
+              </lf-diagram>
+              <h4 id="cascade-shadow">A widget’s shadow tree</h4>
+              <lf-diagram id="cascade-shadow-order" data-height="449" parts="all">
+                <pre>
+flowchart TD
+  accTitle: CSS precedence inside a widget's shadow tree
+  accDescr: For normal declarations, Leaf's marks have the highest precedence, then lf-state, lf-theme, lf-shadow and lf-base. Page rules and Layouts do not enter the shadow tree.
+  Marks["Marks · Leaf"] --> State["lf-state · Leaf"]
+  State --> Theme["lf-theme · theme packages"]
+  Theme --> Shadow["lf-shadow · Leaf and widgets"]
+  Shadow --> Base["lf-base · widget defaults"]
+</pre>
+              </lf-diagram>
+              <figcaption>
+                <strong>Normal declarations, highest precedence first.</strong>
+                Leaf’s <code>lf-state</code> hides what a decision removed;
+                <code>lf-reset</code> clears the browser’s form-control styles; marks
+                are the highlights Leaf draws. <code>!important</code> reverses the
+                layer order.
+              </figcaption>
+            </figure>
+            <details id="cascade-sheets">
+              <summary>Which styles contribute to each tier?</summary>
+              <p>
+                A page’s unlayered rules come first. Leaf’s panel, cards and marks are
+                also unlayered and appear later, winning a tie. The page’s own
+                <code>@layer</code> blocks follow Leaf’s layers, so they outrank them.
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tier</th>
+                    <th>Contributions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>lf-controls</code></td>
+                    <td>
+                      Each package’s <code>controls.css</code> explicitly styles
+                      generated controls.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>lf-theme</code></td>
+                    <td>Each package's <code>theme.css</code>, in package order.</td>
+                  </tr>
+                  <tr>
+                    <td><code>lf-layouts</code></td>
+                    <td>Leaf’s Layout classes, such as <code>layout-column</code>.</td>
+                  </tr>
+                  <tr>
+                    <td><code>lf-shadow</code></td>
+                    <td>
+                      Leaf’s shared shadow rules and each package’s
+                      <code>widget-shadow.css</code>.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>lf-base</code></td>
+                    <td>
+                      In the document: Leaf’s theme, then packages’
+                      <code>widgets.css</code> and <code>widget-shadow.css</code>. In a
+                      shadow tree: defaults the widget adopts with
+                      <code>inBaseLayer()</code>.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p>
+                Page rules and Layouts stop at the shadow root. Inherited inputs such as
+                <code>--accent</code> cross it. A widget can also expose a part for
+                styling with <code>::part</code>.
+              </p>
+            </details>
+
+            <h3 id="styles-packages">A nested widget owns its interior</h3>
+            <p id="styles-widget-package">
+              Put a choice inside a release review: the review package arranges the
+              choice's box, and the default package styles its Options widget inside.
+              Leaf adds no boundary between them, so the review package keeps its rules
+              off the choice's interior by naming its own structure: a child combinator
+              such as <code>lf-release-review &gt; p</code>, or its own classes. Shared
+              theme inputs, such as color and type, flow through both.
+            </p>
+            <figure id="styles-scope" class="diagram-figure">
+              <lf-diagram id="styles-nested-boundary" data-height="484" parts="all">
+                <pre>
+flowchart TD
+  accTitle: A nested widget keeps its own styling when the outer package names its own structure
+  accDescr: Shared theme inputs inherit through the review widget and its nested Options widget. The review package styles its own heading and evidence with selectors that name them, and arranges the nested widget's host box. The default package styles the Options interior.
+  Theme["Shared theme inputs&lt;br/&gt;Color, type and spacing"]
+  subgraph Review["Review widget"]
+    Content["Review package&lt;br/&gt;Heading and evidence"]
+    subgraph Host["Nested widget host"]
+      Options["Default package&lt;br/&gt;Options interior"]
+    end
+    Content -->|arranges| Host
+  end
+  Theme -.->|inherit through both| Review
+</pre>
+              </lf-diagram>
+              <figcaption>
+                <strong>Each package names what it styles.</strong>
+                The review package's rules reach the nested host and stop short of its
+                interior because they name the review's own children and classes; a bare
+                descendant rule such as <code>lf-release-review p</code> would reach
+                inside. The theme's colors and type reach both widgets.
+              </figcaption>
+            </figure>
+            <p id="styles-scope-limit">
+              These are styling conventions, not a security sandbox. Page and theme
+              rules deliberately have wider reach; packages run in the same document. A
+              widget's presentation depends on its allotted box and supported theme
+              inputs, so it can move between page layouts.
+            </p>
+            <details id="styles-stylesheet-roles">
+              <summary>Choose a stylesheet by where its rules should reach</summary>
+              <p id="styles-independent-contributions">
+                A package can contribute widget, theme and control styles independently.
+                Declaring a widget does not change the reach of its other sheets.
+              </p>
+              <table id="styles-reach-table">
+                <thead>
+                  <tr>
+                    <th>Stylesheet</th>
+                    <th>Reaches</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>widgets.css</code></td>
+                    <td>The page document, below Leaf's Layouts.</td>
+                  </tr>
+                  <tr>
+                    <td><code>widget-shadow.css</code></td>
+                    <td>
+                      The page document and every declared shadow tree;
+                      <code>:host(lf-tag)</code> keeps a rule to its widget's own tree.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>theme.css</code></td>
+                    <td>The page document, above Leaf's Layouts.</td>
+                  </tr>
+                  <tr>
+                    <td><code>controls.css</code></td>
+                    <td>Explicit styling of generated controls in the document.</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p id="styles-scope-details">
+                Leaf adds no scope to a sheet, so each rule names the widget it styles:
+                <code>lf-callout .title</code> in the document, and
+                <code>:host(lf-callout) .title</code> in a widget's shadow tree. Shadow
+                trees form a browser boundary: document selectors do not enter them, but
+                inherited inputs and public <code>::part</code> selectors can.
+              </p>
+              <p id="styles-package-reference">
+                The
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#styles-and-composition"
+                  >package reference</a
+                >
+                defines the stylesheet roles and supported inputs.
+              </p>
+            </details>
+          </section></lf-tab
+        >
+        <lf-tab id="packages" label="Packages"
+          ><section id="bundled">
+            <h2>Choose a bundled package</h2>
+            <p>
+              The <a href="/examples/feature-gallery/">core product gallery</a> shows
+              Leaf’s default widgets and controls. The pages below demonstrate optional
+              packages; the Code review package provides authoring instructions.
+            </p>
+            <div class="package-catalog">
+              <a
+                class="package-card"
+                data-package="code-review"
+                href="https://github.com/max-sixty/leaf/blob/main/packages/code-review/instructions/author.md"
+              >
+                <strong>Code review</strong>
+                <span>Instructions for writing code reviews.</span>
+                <em>Read instructions</em>
+              </a>
+              <a
+                class="package-card"
+                data-package="diagram"
+                href="/examples/security-boundary/"
+              >
+                <strong>Diagram</strong>
+                <span>Render Mermaid diagrams with comments anchored to nodes.</span>
+                <em>Open page ↗</em>
+              </a>
+              <a
+                class="package-card"
+                data-package="diff"
+                href="/examples/pr-walkthrough/"
+              >
+                <strong>Diff</strong>
+                <span>Review unified diffs with file and line threads.</span>
+                <em>Open page ↗</em>
+              </a>
+              <a
+                class="package-card"
+                data-package="playground"
+                href="/examples/notification-playground/"
+              >
+                <strong>Playground</strong>
+                <span
+                  >Tune a configuration against a live preview, then submit it
+                  once.</span
+                >
+                <em>Open page ↗</em>
+              </a>
+              <a
+                class="package-card"
+                data-package="monitoring"
+                href="/examples/live-progress/"
+              >
+                <strong>Monitoring</strong>
+                <span
+                  >Keep current release state, named checks, and the changing run log in
+                  view together.</span
+                >
+                <em>Open page ↗</em>
+              </a>
+              <a
+                class="package-card"
+                data-package="visual-review"
+                href="/examples/visual-review-gallery/"
+              >
+                <strong>Visual review</strong>
+                <span
+                  >Compare screenshots from a website journey, with capture conditions
+                  and results for each step.</span
+                >
+                <em>Open page ↗</em>
+              </a>
+              <a
+                class="package-card"
+                data-package="playwright"
+                href="/examples/playwright-trace-gallery/"
+              >
+                <strong>Playwright</strong>
+                <span
+                  >Review recorded actions, images and saved elements with anchored
+                  comments.</span
+                >
+                <em>Open page ↗</em>
+              </a>
+              <a
+                class="package-card"
+                data-package="file-editor"
+                href="https://github.com/max-sixty/leaf/blob/main/packages/file-editor/instructions/author.md"
+              >
+                <strong>File editor</strong>
+                <span
+                  >Edit an explicitly bound local text file with automatic saving.</span
+                >
+                <em>Read instructions</em>
+              </a>
+              <a
+                class="package-card"
+                data-package="file-tree"
+                href="https://github.com/max-sixty/leaf/blob/main/packages/file-tree/instructions/author.md"
+              >
+                <strong>File tree</strong>
+                <span
+                  >Navigate a file hierarchy from a file list or a diff's
+                  inventory.</span
+                >
+                <em>Read instructions</em>
+              </a>
+              <a
+                class="package-card"
+                data-package="motion"
+                href="https://github.com/max-sixty/leaf/blob/main/packages/motion/instructions/author.md"
+              >
+                <strong>Motion</strong>
+                <span
+                  >Play and scrub authored animation studies on one shared clock.</span
+                >
+                <em>Read instructions</em>
+              </a>
+              <a
+                class="package-card"
+                data-package="deck"
+                href="https://github.com/max-sixty/leaf/blob/main/packages/deck/instructions/author.md"
+              >
+                <strong>Deck</strong>
+                <span>Work through a pile of decisions one card at a time.</span>
+                <em>Read instructions</em>
+              </a>
+              <a
+                class="package-card"
+                data-package="timeline"
+                href="/examples/lost-update/"
+              >
+                <strong>Timeline</strong>
+                <span
+                  >Step through events in lanes, such as two jobs racing on one
+                  row.</span
+                >
+                <em>Open page ↗</em>
+              </a>
+            </div>
+            <p>
+              Playground also powers the
+              <a href="/examples/data-explorer/">structured data explorer</a> and the
+              <a href="/examples/code-comparison/">built-output A/B comparison</a>.
+              Those pages keep their task-specific state, schema, and behavior while
+              reusing the same package mechanics.
+            </p>
+          </section></lf-tab
+        >
+      </lf-tabs>
       <footer class="site-footer" id="colophon">
         <p id="links">
           <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
-          <a href="/how-it-works/">How it works</a> ·
-          <a href="/extending/">Extending</a> ·
+          <a href="/how-it-works/">How it works</a> · <a href="/ui/">UI</a> ·
           <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>

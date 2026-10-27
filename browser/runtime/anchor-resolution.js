@@ -15,7 +15,7 @@ import {
   targetElement,
   passageGeometry,
 } from "./resolved-target.js";
-import { CONTEXT } from "./passage-facts.js";
+import { CONTEXT } from "./kernel-facts.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
 import { inUi, shadowHost, under, upFrom } from "./shadow.js";

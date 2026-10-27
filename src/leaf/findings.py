@@ -289,7 +289,7 @@ def _empty_question(at: str, v: dict) -> str:
         f"since {widgets}"
         if widgets
         else "since it holds no widget that asks (one declaring x-awaits); add one,"
-        " or drop the heading to ask in words alone"
+        " or ask a question answered in words in a thread message with --obligation"
     )
 
 
@@ -436,6 +436,24 @@ def _listed(findings: list[dict]) -> str:
 # words are what the console said; read by the gate in a color scheme, beside findings
 # of its own, it says "console: " first.
 _TEXT = {
+    "invalid-output": lambda at, v: (
+        f"{at} ("
+        + "; ".join(
+            f"{owner} {part}"
+            for part, owner in (
+                ("implementation", v["owner"]),
+                ("output declaration", v.get("declaration_owner")),
+                ("contract", v.get("contract_owner")),
+            )
+            if owner is not None
+        )
+        + f"): {v['error']}"
+        if any(
+            v.get(key) not in (None, v["owner"])
+            for key in ("declaration_owner", "contract_owner")
+        )
+        else f"{at} ({v['owner']} producer): {v['error']}"
+    ),
     # What the browser's console and the page's window reported.
     "console-error": lambda at, v: (
         f"{v['text']} — {v['url']}" if v.get("url") else v["text"]
@@ -683,13 +701,15 @@ _TEXT = {
         " (authoring-evidence.md, Interactive and visual evidence)"
     ),
     "unreserved-height": lambda at, v: (
-        f"{at} draws {v['drawn']}px tall where its first paint "
+        f"{at} first paints {v['first']}px tall, "
         + (
-            "reserves no height"
+            "reserving no height"
             if v["reserved"] is None
-            else f"reserves {v['reserved']}px"
+            else f"reserving {v['reserved']}px"
         )
-        + f', so what follows it moves when it is drawn: state data-height="{v["drawn"]}"'
+        + f", and draws {v['drawn']}px tall, so what follows it moves"
+        f" {abs(v['drawn'] - v['first'])}px when it is drawn:"
+        f' state data-height="{v["drawn"]}"'
     ),
     # The page's own code, run once in the browser.
     "page-report": lambda at, v: v["text"],
@@ -1069,18 +1089,8 @@ _TEXT = {
     "idiom-selector": _declared(
         lambda v: f"idiom {v['selector']!r} selector cannot be matched: {v['error']}"
     ),
-    "idiom-fields": _declared(
-        lambda v: (
-            f"idiom {v['selector']!r} must carry a non-empty description and"
-            " x-example, with optional x-instructions"
-        )
-    ),
-    "idiom-value": _declared(
-        lambda v: (
-            f"idiom {v['selector']!r} declares"
-            f" {v['key']}={_json(v['value'])}; the value must satisfy its $keys"
-            " declaration"
-        )
+    "idiom-schema": _declared(
+        lambda v: f"idiom {v['selector']!r} {_json_path(v['path'])}: {v['reason']}"
     ),
     "undeclared-language": _declared(
         lambda v: (
@@ -1184,9 +1194,9 @@ _TEXT = {
             " must declare a string `id` attribute"
         )
     ),
-    "enclosing-id": _declared(lambda v: "x-awaits.encloses must require an id"),
+    "enclosing-id": _declared(lambda v: "x-encloses must require an id"),
     "enclosing-prose": _declared(
-        lambda v: "x-awaits.encloses must admit prose around the obligations it frames"
+        lambda v: "x-encloses must admit prose around the obligations it frames"
     ),
     "data-contract": _declared(
         lambda v: (
@@ -1376,24 +1386,6 @@ _TEXT = {
             f"x-state verb `{v['verb']}` has an invalid detail schema: {v['reason']}"
         )
     ),
-    "verb-detail-type": _declared(
-        lambda v: f"x-state verb `{v['verb']}` detail schema must declare an object"
-    ),
-    "verb-detail-open": _declared(
-        lambda v: (
-            f"x-state verb `{v['verb']}` detail schema must state"
-            " additionalProperties: false — a verb carries only the detail keys it"
-            " declares"
-        )
-    ),
-    "verb-detail-keys": _declared(
-        lambda v: (
-            f"x-state verb `{v['verb']}` detail schema declares"
-            f" {_json(v['keys'])}; a detail states its type, properties, required"
-            " and additionalProperties and nothing else, so the keys a verb can carry"
-            " are the ones it names"
-        )
-    ),
     "creates-unit": _declared(
         lambda v: (
             f"x-state verb `{v['verb']}` creates a child, so its fold unit must"
@@ -1494,16 +1486,27 @@ _TEXT = {
     ),
     "deciding-verbs": _declared(
         lambda v: (
-            f"x-state verbs {_json(v['verbs'])} all declare detail field"
-            " `outcome`, a reserved name only one deciding verb may carry"
+            f"x-state verbs {_json(v['verbs'])} all declare `decides: true`;"
+            " only one verb may decide which members retire"
         )
     ),
     "deciding-verb": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` declares detail field `outcome`, a"
-            " reserved name: the deciding verb folds by widget, is written by the user,"
+            f"x-state verb `{v['verb']}` declares `decides: true`:"
+            " the deciding verb folds by widget, is written by the user,"
             " and requires `outcome` as a string enum"
         )
+    ),
+    "verb-contract": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` binds detail field `{v['field']}` to"
+            f" attribute `{v['attribute']}`: the field must be declared and the"
+            " attribute must be a string matching the data contract name pattern"
+        )
+    ),
+    "instance-contract": lambda at, v: (
+        f"{at} attribute `{v['attribute']}` names unknown data contract"
+        f" {v['contract']!r} for `{v['verb']}` detail field `{v['field']}`"
     ),
     "withdrawn-as": _declared(
         lambda v: f"x-withdrawn-as `{v['outcome']}` is not a deciding outcome"
@@ -1580,7 +1583,7 @@ _TEXT = {
         lambda v: "a module import must name a relative or absolute local URL"
     ),
     "module-type": _captured(
-        lambda v: "a module dependency must have JavaScript MIME type"
+        lambda v: "a module dependency must be JavaScript or JSON"
     ),
     "module-outside-page": _captured(
         lambda v: "module imports may use /page/ or a public layer entry point"

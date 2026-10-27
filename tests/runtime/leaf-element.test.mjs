@@ -5,7 +5,7 @@
    holds, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 import { html, LeafElement, nothing, noChange } from "/runtime/widget-api.js";
 import { focused, focusDestination } from "/runtime/focus.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";

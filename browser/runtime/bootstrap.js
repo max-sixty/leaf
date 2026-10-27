@@ -24,6 +24,17 @@
     Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
       byte.toString(16).padStart(2, "0"),
     ).join("");
+  // A framed document places focus only while it holds input (focus.js,
+  // `canPlaceFocus`). Aim cancels native mousedown focus and places its editor after
+  // layout, so a trusted input enters the browsing context before those handlers run.
+  if (window !== window.top) {
+    const nativeWindowFocus = window.focus;
+    const enterFrame = (event) => {
+      if (event.isTrusted && !document.hasFocus()) nativeWindowFocus.call(window);
+    };
+    for (const type of ["pointerdown", "keydown"])
+      window.addEventListener(type, enterFrame, true);
+  }
   // The sample URL grants this document its own server operations. An opaque
   // origin keeps it out of its parent's DOM and storage; native network APIs keep
   // their ordinary browser behavior. Only presentation values use the private port.
@@ -63,12 +74,6 @@
         root.lfInitial.wear(root, next);
         worn = next;
       };
-      // Aim cancels native mousedown focus and places its editor after layout. A
-      // trusted input enters the browsing context before those handlers run.
-      const nativeWindowFocus = window.focus;
-      const enterSample = (event) => {
-        if (event.isTrusted && !document.hasFocus()) nativeWindowFocus.call(window);
-      };
       bridge.install = () => {
         const root = document.documentElement;
         root.lfInitial.setRuntimeRootAttribute(
@@ -77,8 +82,6 @@
           settings.window ? null : "",
         );
         dress(worn);
-        for (const type of ["pointerdown", "keydown"])
-          window.addEventListener(type, enterSample, true);
       };
       const sample = new URL(`${script.dataset.lfPageRoot}/`, location.origin).pathname;
       const nonce = randomId();
@@ -412,7 +415,7 @@
     status.setAttribute("role", "status");
     status.textContent = page
       ? "Leaf couldn't start: this page has a problem its author needs to fix."
-      : "Leaf couldn't start. Waiting for the server to update.";
+      : "Leaf couldn't start. Waiting for Leaf to update.";
     const show = () => {
       if (!started) document.body.prepend(status);
     };

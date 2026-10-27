@@ -165,7 +165,8 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     collapsed = group.evaluate(height)
     assert page.locator("#transport lf-option:visible").count() == 0
     row = page.locator("#transport .lf-settled")
-    assert row.inner_text().startswith("Settled: Lax cookie")
+    # The outcome alone: the disclosure marker says the alternatives are inside.
+    expect(row).to_have_text("Settled: Lax cookie")
     assert row.get_attribute("aria-expanded") == "false"
     assert collapsed == row.evaluate(height), (
         "hidden cards or controls keep empty space"
@@ -266,7 +267,7 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
 ):
     """A replayed option stays inside the settled disclosure it belongs to.
 
-    The disclosure's count and controls describe the complete current option set,
+    The disclosure's controls describe the complete current option set,
     including options reconstructed from their `add` in force, and follow the undo
     that takes that `add` back.
     """
@@ -291,7 +292,7 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
     row = group.locator(":scope > .lf-settled")
     expect(row).to_have_attribute("aria-expanded", "false")
     expect(group.locator(":scope > lf-option:visible")).to_have_count(0)
-    expect(row.locator(".lf-settled-count")).to_have_text("4 options")
+    expect(group.locator(":scope > lf-option")).to_have_count(4)
     assert row.get_attribute("aria-controls").split() == [
         "job-mounts",
         "job-heater",
@@ -299,13 +300,18 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
         added_id,
     ]
 
+    expect(row).to_have_text("Settled: Insulate the camera battery")
+    row.click()
+    expect(added).to_be_visible()
+    row.click()
+
     # The first undo takes back the pick; the option stays in the disclosure.
     undo(page)
     expect(group.locator(":scope > lf-option[data-lf-added]")).to_have_count(1)
-    expect(row.locator(".lf-settled-count")).to_have_text("4 options")
+    expect(group.locator(":scope > lf-option")).to_have_count(4)
     undo(page)
     expect(group.locator(":scope > lf-option[data-lf-added]")).to_have_count(0)
-    expect(row.locator(".lf-settled-count")).to_have_text("3 options")
+    expect(group.locator(":scope > lf-option")).to_have_count(3)
     assert row.get_attribute("aria-controls").split() == [
         "job-mounts",
         "job-heater",

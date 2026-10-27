@@ -187,11 +187,6 @@ const publicRuntimeBoundary = {
           regex: "^\\.{1,2}/(?:.*/)?(?:leaf|widget-api)\\.js$",
           message: "Do not create a relative edge to the entry or public facade.",
         },
-        {
-          regex: "^(?:/|\\.{1,2}/(?:.*/)?)vendor/browser-runtime(?:\\.js$|/)",
-          message:
-            "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
-        },
       ],
     },
   ],
@@ -214,12 +209,6 @@ const publicRuntimeBoundary = {
       selector:
         "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?(?:leaf|widget-api)\\.js$/]",
       message: "Do not create a relative edge to the entry or public facade.",
-    },
-    {
-      selector:
-        "ImportExpression[source.value=/^(?:\\/|\\.{1,2}\\/(?:.*\\/)?)vendor\\/browser-runtime(?:\\.js$|\\/)/]",
-      message:
-        "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
     },
     {
       selector: 'ImportExpression:not([source.type="Literal"])',
@@ -268,6 +257,12 @@ const ownerBoundary = {
       selector:
         "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?(?:leaf|widget-api)\\.js$/]",
       message: "Private runtime owners never import the entry or public facade.",
+    },
+    {
+      selector:
+        'AssignmentExpression[operator="+="][left.type="MemberExpression"][left.property.name="value"]',
+      message:
+        "`x.value += 1` reads the signal before writing it, and inside a paint subscribes that paint to its own write; advance a version signal with tick() from version-signal.js.",
     },
   ],
 };
@@ -337,28 +332,25 @@ export const semanticStoreOwnershipRule = {
   create(context) {
     const file = runtimeName(context.filename ?? context.getFilename());
     // A module behind the facade is reached only through it, so the facade's
-    // exports are every framework capability a runtime module can name.
+    // exports are every framework capability a runtime module can name. The facade
+    // and the modules behind it reach one another directly.
+    const inFramework = file === "framework.js" || file.startsWith("framework/");
     const browserFrameworkSource = (source) => {
       if (typeof source?.value !== "string") return false;
-      if (/(?:^|\/)vendor\/browser-runtime\//u.test(source.value)) {
-        context.report({
-          node: source,
-          message:
-            "Import browser framework capabilities from its facade, vendor/browser-runtime.js.",
-        });
+      if (
+        /(?:^|\/)runtime\/framework\/|^\.{1,2}\/(?:.*\/)?framework\//u.test(
+          source.value,
+        )
+      ) {
+        if (!inFramework)
+          context.report({
+            node: source,
+            message:
+              "Import browser framework capabilities from its facade, runtime/framework.js.",
+          });
         return false;
       }
-      if (!/(?:^|\/)vendor\/browser-runtime\.js$/u.test(source.value)) return false;
-      // The type check maps the facade's served path to the framework's source; a
-      // relative path reaches the compiled facade, whose types are blanked, so what a
-      // module imports through it goes unchecked (`build/browser/build.mjs`, `typecheck`).
-      if (source.value.startsWith("."))
-        context.report({
-          node: source,
-          message:
-            "Import the browser framework's facade by its served path, /vendor/browser-runtime.js.",
-        });
-      return true;
+      return /(?:^\/runtime\/|^\.{1,2}\/(?:.*\/)?)framework\.js$/u.test(source.value);
     };
     const report = (node) =>
       context.report({
@@ -1340,7 +1332,7 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
-    // Initial sources are compiled to self-contained scripts. Sharing these pure SVG paths
+    // Initial sources are compiled to self-contained scripts. Sharing the icon table
     // and the time axis's geometry adds no private runtime dependency to the package
     // shipped to a page.
     files: ["packages/*/initial/*.js"],
@@ -1355,7 +1347,7 @@ export default [
                 ? {
                     ...pattern,
                     regex:
-                      "^\\.{1,2}/(?:.*/)?runtime/(?!(?:motion-icon-paths|time-axis)\\.js$)",
+                      "^\\.{1,2}/(?:.*/)?runtime/(?!(?:icon-paths|time-axis)\\.js$)",
                   }
                 : pattern,
           ),
@@ -1388,11 +1380,7 @@ export default [
     // The browser framework's and runtime's own fold tests exercise private owners,
     // which the facade rule would forbid; the entry stays out of reach, because a
     // test is not a page and booting one would import the whole layer to read one fold.
-    files: [
-      "tests/runtime/**/*.mjs",
-      "build/browser/**/*.test.mjs",
-      "browser/framework/**/*.test.mjs",
-    ],
+    files: ["tests/runtime/**/*.mjs", "build/browser/**/*.test.mjs"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -1643,6 +1631,11 @@ export default [
     },
   },
   {
+    // Kernel widgets use their private owners; package widgets use the public API.
+    files: ["browser/widgets/**/*.js"],
+    rules: entryBoundary,
+  },
+  {
     files: ["browser/runtime/**/*.js"],
     plugins: { architecture: architecturePlugin },
     rules: {
@@ -1719,7 +1712,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./(?:anchor-coordinate|collapse|event-kinds|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./(?:anchor-coordinate|kernel-facts|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
               message: "Thread readings depend only on pure record operations.",
             },
           ],

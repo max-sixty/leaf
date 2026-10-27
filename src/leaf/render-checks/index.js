@@ -1,8 +1,9 @@
 /* Browser programs used by the render gate.
  *
  * This module is served by Leaf itself rather than vendored into a page. Its static
- * import is deliberate: the browser module loader verifies the public widget API
- * before any probe runs, and ESLint holds this file to that one runtime boundary. */
+ * imports are deliberate: the browser module loader verifies the public widget API
+ * and check-only observations before any probe runs. Both entries share the running
+ * kernel rather than constructing another runtime. */
 export * from "./framing.js";
 export * from "./layout.js";
 export * from "./reachability.js";
@@ -12,3 +13,4 @@ export * from "./widgets.js";
 export * from "./words.js";
 export * from "./view.js";
 export * from "./scrollbars.js";
+export * from "./outputs.js";

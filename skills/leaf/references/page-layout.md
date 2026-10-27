@@ -57,8 +57,8 @@ child carrying that part's Layout:
 </main>
 ```
 
-The page's `header`, the one element to write before the parts, heads a column down the
-window's left edge, and the list of parts stands under it, with each part's `summary`
+The page's `header` is the only element written before the parts. It appears at the
+top of a column along the window's left edge, followed by the list of parts, with each part's `summary`
 under its label. Each part takes the rest of the width from the top of the window, so
 a workspace part fills the window. Keep the header to the page's title, since it shares
 the column's width. Give each part its own heading, and a column part its own contents
@@ -89,9 +89,9 @@ verdict and file list stay beside the code. The region kept in view is the `asid
 The body and `aside` sit side by side, two thirds and one third, while the page has
 room for both, and stack in source order when it hasn't or when the body's content needs
 the whole width. To give the `aside` another width, set `--aside` on the `main` to a
-length or a share of the row, such as `main { --aside: 20rem; }`: the `aside` stands
-that wide beside the body, the body takes the rest, and the two stack where the body
-no longer fits beside it.
+length or a share of the row, such as `main { --aside: 20rem; }`. The `aside` uses
+that width, the body takes the rest, and the two stack when the body no longer fits
+beside it.
 Write the `aside` first when the reader of the stacked page reads it first, such as a
 verdict; it then sits on the left. Write it after the body when it follows the work,
 such as a dashboard's log; it then sits on the right. Stack the regions inside the body
@@ -195,9 +195,9 @@ works on column and sidebar pages:
 A `table` with either value is only as wide as its columns need, up to that width. A
 block inside an `lf-ask` or callout breaks out only with its own `data-width`; the
 `lf-ask` keeps the column. A block breaks out only from a box that spans the column,
-such as a section or an `lf-ask`. One inside a box standing in from the column, such as
-a list item, or a box the page lays out itself, such as a grid or flex item, stays in
-that box, and a table there scrolls sideways.
+such as a section or an `lf-ask`. A block inside an indented box, such as a list item,
+or a box the page lays out itself, such as a grid or flex item, stays within that box.
+A table there scrolls sideways.
 
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
@@ -210,7 +210,7 @@ reserved.
 ## The rail and the margin
 
 With page tabs, each tab can start with its own `aside.sidebar` and empty `lf-toc`:
-the tab's outline stands below its strip in flow and becomes its spine when the margin
+the tab's outline appears below its tab strip in flow and becomes its spine when the margin
 has room. A sidebar directly in the column keeps that slot if one is present; nested
 tabbed boxes keep their sidebars in flow. Write short notes in `aside.sidenote`. For
 CSS that depends on what is in the
@@ -237,8 +237,8 @@ rather than rebuilding the event log in page code.
 The page's CSS styles the page's content, not Leaf's panel, thread cards or the controls
 widgets build: a rule for `button` styles only the page's own buttons. To style Leaf's
 controls on purpose, put their rules in a separate `<style data-controls>` or
-`<link rel="stylesheet" data-controls>` element. Its rules and imports stand as
-written; use selectors that reach only the controls you intend to change. Set the marker
+`<link rel="stylesheet" data-controls>` element. Leaf leaves its rules and imports unchanged; use selectors that match only
+the controls you intend to change. Set the marker
 before attaching a dynamic sheet. A token such as `--accent` on `:root` changes every surface that reads it. For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".

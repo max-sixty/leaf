@@ -303,6 +303,13 @@ class Harness:
         telling, or gone along with the session it served."""
         return False
 
+    def input_wakes(self) -> bool:
+        """Whether `nudge` would now start a turn of this session's for the page's
+        next input, so the page reads its agent as taking input while no watch
+        holds the lease (`activity.canonical_activity`). Only a nudge whose
+        recipient takes the message says so; one it may hold or drop doesn't."""
+        return False
+
     def inference_generator(self) -> Callable[..., dict] | None:
         """Tool-free structured inference using this harness's login, if supported."""
         return None
@@ -541,6 +548,21 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return message_claude_code_session(self.session, text) or (
             self.job is not None and resume_claude_code_job(self.session, text)
         )
+
+    def input_wakes(self) -> bool:
+        """A live session takes the nudge through its socket as a turn where its
+        settings accept other sessions' messages (`claude_code_accepts_peers`);
+        otherwise it may hold the message behind a dialog or let it expire
+        (`message_claude_code_session`), so it promises nothing. A background job no
+        worker hosts is resumed with the input as its prompt
+        (`resume_claude_code_job`)."""
+        if claude_code_worker_runs(self.session):
+            return any(
+                pid_alive(record["pid"])
+                and claude_code_accepts_peers(record.get("cwd"))
+                for record, _address, _token in claude_code_peers(self.session)
+            )
+        return self.job is not None
 
 
 # One phrase, because the two remedies below name the same recovery: a `leaf
@@ -1034,10 +1056,71 @@ def claude_code_entered(transcript: Path) -> set[str]:
     return entered
 
 
+def claude_code_config() -> Path:
+    """Claude Code's configuration directory."""
+    return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+
+
 def claude_code_sessions() -> Path:
     """Claude Code's session registry: one `<pid>.json` per running session."""
-    config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-    return config / "sessions"
+    return claude_code_config() / "sessions"
+
+
+def claude_code_accepts_peers(cwd: str | None) -> bool:
+    """Whether Claude Code's settings for a session started in `cwd` deliver another
+    process's message straight into it (`crossSessionInbound: accept`) rather than
+    holding it behind a dialog, as they do in a session that bypasses permissions.
+
+    In 2.1.310 only the user's settings grant `accept`, while a project's settings,
+    which it finds from the session's directory up to its repository's root, can
+    narrow it to `hold` or `refuse`. So the user's file has to say `accept`, and any
+    other value in a project file on that path reads as no. Managed policy and
+    `--settings` aren't read. Each file is another program's, so one caught
+    mid-write reads as no."""
+    if _claude_code_inbound(claude_code_config() / "settings.json") != "accept":
+        return False
+    directory = Path(cwd) if cwd else None
+    while directory is not None and directory != Path.home():
+        for name in ("settings.json", "settings.local.json"):
+            if _claude_code_inbound(directory / ".claude" / name) not in (
+                None,
+                "accept",
+            ):
+                return False
+        repository = (directory / ".git").exists()
+        directory = (
+            None if repository or directory == directory.parent else directory.parent
+        )
+    return True
+
+
+def _claude_code_inbound(path: Path):
+    """The `crossSessionInbound` a settings file sets: None where the file or the
+    key is absent, and `False` where the file can't be read whole."""
+    try:
+        settings = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError):
+        return False
+    return settings.get("crossSessionInbound") if isinstance(settings, dict) else False
+
+
+def claude_code_peers(session_id: str) -> list[tuple[dict, str, str]]:
+    """The session's registry records a message can be addressed to, each with its
+    socket and the `peerToken` its 0600 `<pid>.<hash>.key` holds. Each record and
+    key is another program's live file, so one that vanished, was caught
+    mid-write or lacks a field this reads is left out."""
+    sessions = claude_code_sessions()
+    peers = []
+    for record in claude_code_session_records(session_id):
+        try:
+            key_path = next(sessions.glob(f"{record['pid']}.*.key"))
+            token = json.loads(key_path.read_text(encoding="utf-8"))["peerToken"]
+            peers.append((record, record["messagingSocketPath"], token))
+        except (OSError, ValueError, KeyError, TypeError, StopIteration):
+            continue
+    return peers
 
 
 def claude_code_current_record(records: list[dict]) -> dict:
@@ -1204,10 +1287,7 @@ def resume_claude_code_job(session_id: str, text: str) -> bool:
     runs under the page's lock, and the turn it starts takes that lock in its
     prompt hook. So True means only that it started, as a socket taking the frames
     is all `message_claude_code_session` can say."""
-    if any(
-        isinstance(record.get("pid"), int) and pid_alive(record["pid"])
-        for record in claude_code_session_records(session_id)
-    ):
+    if claude_code_worker_runs(session_id):
         return False
     import subprocess
 
@@ -1224,14 +1304,22 @@ def resume_claude_code_job(session_id: str, text: str) -> bool:
     return True
 
 
+def claude_code_worker_runs(session_id: str) -> bool:
+    """Whether a live process hosts the session: a registry record whose pid runs."""
+    return any(
+        isinstance(record.get("pid"), int) and pid_alive(record["pid"])
+        for record in claude_code_session_records(session_id)
+    )
+
+
 def message_claude_code_session(session_id: str, text: str) -> bool:
     """Put `text` into a Claude Code session as a user message, through the
     messaging socket every session binds, and say whether a socket took it.
 
-    Each registry record for the session (`claude_code_session_records`) names the
-    socket, beside a 0600 `<pid>.<hash>.key` holding the `peerToken` it authenticates.
-    The socket reads newline JSON and answers nothing: an auth line, then a user frame
-    whose `session_id` makes a socket that has since passed to another session drop it.
+    Each of the session's peers (`claude_code_peers`) names a socket and the token
+    it authenticates. The socket reads newline JSON and answers nothing: an auth
+    line, then a user frame whose `session_id` makes a socket that has since passed
+    to another session drop it.
 
     The recipient decides delivery. Measured on Claude Code 2.1.274: a session
     in a prompting permission mode queues the text as a user turn, which wakes
@@ -1242,32 +1330,25 @@ def message_claude_code_session(session_id: str, text: str) -> bool:
     held message expire. The server `leaf server start` spawns runs in a process
     session of its own, so it is outside that tree. Nothing reports the outcome
     to the sender, so True means only that a listening socket took the frames.
-
-    Each record and key is another program's live file, and a session can exit
-    between reading its record and connecting, so a file that vanished, was
-    caught mid-write, lacks a field this reads, or names a socket nobody listens
-    on skips that record."""
+    A session can exit between reading its record and connecting, so a socket
+    nobody listens on is skipped."""
     import socket
 
-    sessions = claude_code_sessions()
-    for record in claude_code_session_records(session_id):
+    for _record, address, token in claude_code_peers(session_id):
+        frames = (
+            {"type": "auth", "token": token},
+            {
+                "type": "user",
+                "session_id": session_id,
+                "message": {"role": "user", "content": text},
+            },
+        )
         try:
-            key_path = next(sessions.glob(f"{record['pid']}.*.key"))
-            token = json.loads(key_path.read_text(encoding="utf-8"))["peerToken"]
-            address = record["messagingSocketPath"]
-            frames = (
-                {"type": "auth", "token": token},
-                {
-                    "type": "user",
-                    "session_id": session_id,
-                    "message": {"role": "user", "content": text},
-                },
-            )
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as peer:
                 peer.settimeout(1)
                 peer.connect(address)
                 peer.sendall("".join(json.dumps(f) + "\n" for f in frames).encode())
-        except (OSError, ValueError, KeyError, TypeError, StopIteration):
+        except (OSError, TypeError):
             continue
         return True
     return False

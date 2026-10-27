@@ -24,7 +24,7 @@
    viewer (layer-stack.js, `showNativeLayer`). A queued close from an earlier opening leaves a reopened viewer's
    image and focus intact. */
 
-import { html, render } from "/vendor/browser-runtime.js";
+import { html, render } from "/runtime/framework.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import {
   handBack,
@@ -33,7 +33,7 @@ import {
   openLayer,
   openerOf,
 } from "./focus.js";
-import { closeControl, offered } from "./widget-elements.js";
+import { closeControl, offerAction, offered } from "./widget-elements.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import {
   nativeLayers,
@@ -82,10 +82,7 @@ const viewerClose = closeControl({
   title: "Close image preview (Esc)",
 });
 
-const viewerZoom = document.createElement("button");
-viewerZoom.type = "button";
-viewerZoom.className = "lf-btn lf-media-viewer-zoom";
-viewerZoom.textContent = "100%";
+const viewerZoom = offerAction("word", "lf-media-viewer-zoom", "100%");
 
 const stage = document.createElement("div");
 stage.className = "lf-media-viewer-stage";

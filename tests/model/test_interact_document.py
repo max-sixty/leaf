@@ -457,6 +457,7 @@ const computed = import(text, { with: { type: './missing.js' } });
 def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_path):
     authored = page_dir / "page"
     (authored / "data.json").write_text('{"value": 1}')
+    (authored / "notes.txt").write_text("notes")
     outside = tmp_path / "outside.js"
     outside.write_text("export const value = 1;")
     (authored / "escape.js").symlink_to(outside)
@@ -481,7 +482,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "./data.json#variant";', "dependency-not-local"),
         ('import "/runtime/events.js";', "module-outside-page"),
         ('import "/vendor/lit.js";', "module-outside-page"),
-        ('import "./data.json";', "module-type"),
+        ('import "./notes.txt";', "module-type"),
         ('import "./escape.js";', "dependency-symlink"),
         ('import "./data\\u002ejson";', "dependency-not-local"),
     ]:
@@ -2478,6 +2479,150 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     assert report["revision"] == 2
 
 
+def test_a_save_goes_live_during_a_stamps_check_and_the_stamp_names_it(
+    monkeypatch, page_dir
+):
+    """The tab's state read activates a save without waiting on a stamp's check of
+    it, and a user's action can land meanwhile (`publishing` header). The stamp
+    then checks again against the log and revisions it publishes onto: it names
+    the revision the read activated rather than publishing the source twice."""
+    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "index.html").write_text(html)
+    publish(page_dir)
+    (page_dir / "index.html").write_text(
+        html.replace("<title>t</title>", "<title>next</title>")
+    )
+    entered = threading.Event()
+    release = threading.Event()
+    original = publishing_model.check_source
+
+    def paused_check(*args, **kwargs):
+        checked = original(*args, **kwargs)
+        if not entered.is_set():
+            entered.set()
+            assert release.wait(STATED_TIMEOUT), "the stamp's check was never released"
+        return checked
+
+    monkeypatch.setattr(publishing_model, "check_source", paused_check)
+    failures = []
+
+    def run_stamp():
+        try:
+            publishing_model.cmd_stamp(page_dir, "next")
+        except (AssertionError, Refused) as error:  # surface thread failures here
+            failures.append(error)
+
+    action = {
+        "kind": "action",
+        "author": "user",
+        "revision": 1,
+        "widget": "choice",
+        "action": "choose",
+        "detail": {"value": ["flag-first"]},
+    }
+
+    def tab():
+        append_command(page_dir, action)
+        assert revisioning_model.activate_source(page_dir).created
+
+    publisher = threading.Thread(target=run_stamp)
+    publisher.start()
+    writer = threading.Thread(target=tab)
+    try:
+        assert entered.wait(STATED_TIMEOUT), "the stamp never reached its check"
+        writer.start()
+        writer.join(STATED_TIMEOUT)
+        assert not writer.is_alive(), "the tab waited on the stamp's check"
+    finally:
+        release.set()
+        publisher.join(STATED_TIMEOUT)
+        writer.join(STATED_TIMEOUT)
+
+    assert not failures
+    assert not publisher.is_alive()
+    assert files_model.list_revisions(page_dir) == [1, 2]
+    ordered = [
+        (event["kind"], event.get("version"), event.get("revision"))
+        for event in events_model.read_events(page_dir)
+        if event["kind"] in {"note", "action"}
+    ]
+    assert ordered == [
+        ("note", 1, 1),
+        ("action", None, 1),
+        ("note", 2, 2),
+    ]
+
+
+def test_stamp_checks_events_that_arrive_as_it_reads_the_log(monkeypatch, page_dir):
+    """The checked source cannot take an id a concurrently admitted message owns."""
+    (page_dir / "index.html").write_text(PAGE)
+    publish(page_dir)
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", '<p id="arriving-message">New paragraph.</p></main>')
+    )
+    original = publishing_model.read_events
+    arrived = False
+
+    def read_then_append(path):
+        nonlocal arrived
+        events = original(path)
+        if not arrived:
+            arrived = True
+            append_command(
+                page_dir,
+                {
+                    "kind": "comment",
+                    "author": "agent",
+                    "revision": 1,
+                    "text": "Keep this message address distinct.",
+                    "markup": '<p id="arriving-message">A concurrent reply.</p>',
+                },
+            )
+        return events
+
+    monkeypatch.setattr(publishing_model, "read_events", read_then_append)
+    with pytest.raises(Refused, match="arriving-message"):
+        publishing_model.cmd_stamp(page_dir, "next")
+    assert len([event for event in original(page_dir) if event["kind"] == "note"]) == 1
+
+
+def test_a_stamp_lands_on_a_page_that_moves_during_every_check(monkeypatch, page_dir):
+    """A page written faster than the stamp checks it outside the transaction
+    still gets its stamp: the last check runs under the transaction."""
+    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "index.html").write_text(html)
+    publish(page_dir)
+    (page_dir / "index.html").write_text(
+        html.replace("<title>t</title>", "<title>next</title>")
+    )
+    original = publishing_model.check_source
+    moved = []
+
+    def moving_check(*args, **kwargs):
+        checked = original(*args, **kwargs)
+        if len(moved) < publishing_model.UNLOCKED_CHECKS:
+            moved.append(
+                append_command(
+                    page_dir,
+                    {
+                        "kind": "action",
+                        "author": "user",
+                        "revision": 1,
+                        "widget": "choice",
+                        "action": "choose",
+                        "detail": {"value": ["flag-first"]},
+                    },
+                )
+            )
+        return checked
+
+    monkeypatch.setattr(publishing_model, "check_source", moving_check)
+    note = publishing_model.cmd_stamp(page_dir, "next")
+
+    assert (note["version"], note["revision"]) == (2, 2)
+    assert note["seq"] > max(action["seq"] for action in moved)
+
+
 def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     """`page state` is /api/state folded for the agent: the On me list,
     the current state replay paints, as one queryable
@@ -4328,7 +4473,18 @@ def test_projected_verbatim_includes_generated_children():
             "x-verbatim": True,
             "x-state": {
                 "add": {
-                    "detail": {"type": "object"},
+                    "detail": {
+                        "type": "object",
+                        "properties": {
+                            "item": {
+                                "type": "string",
+                                "pattern": f"^{schema_model.ELEMENT_ID}$",
+                            },
+                            "text": {"type": "string", "minLength": 1},
+                        },
+                        "required": ["item", "text"],
+                        "additionalProperties": False,
+                    },
                     "unit": "item",
                     "creates": {"child": "lf-item", "words": "text"},
                 }

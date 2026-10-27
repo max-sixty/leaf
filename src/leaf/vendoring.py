@@ -54,11 +54,16 @@ from .state import (
     session_file,
     session_record,
 )
+from .themes import ThemeChoice, selected_theme, with_theme
 from .validation.source import check_source
 
 
 def cmd_init(
-    page_dir: Path, selected: tuple[str, ...] | None = None, *, dry_run: bool = False
+    page_dir: Path,
+    selected: tuple[str, ...] | None = None,
+    *,
+    theme: ThemeChoice = None,
+    dry_run: bool = False,
 ) -> dict:
     """Create a page, or re-vendor one inside a restart of its service.
 
@@ -83,14 +88,21 @@ def cmd_init(
             f"{page_dir} does not exist; initialize it before planning a re-vendor"
         )
     if made:
-        _refuse_package_target(page_dir, layer_inputs(selected or ()))
+        _refuse_package_target(
+            page_dir,
+            layer_inputs(
+                with_theme(selected or (), selected_theme(page_dir, theme, fresh=True))
+            ),
+        )
         page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     if (page_dir / EVENTS_FILE).is_file():
         if dry_run:
             with page_locked(page_dir):
-                plan = _plan_page(page_dir, selected, fresh=False)
+                plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
             return {"page": str(page_dir), "changed": plan.changed}
-        unready = _unready(page_dir, _revendor(page_dir, selected, session_harness()))
+        unready = _unready(
+            page_dir, _revendor(page_dir, selected, session_harness(), theme=theme)
+        )
         if unready:
             note(unready)
         return {"page": str(page_dir)}
@@ -98,7 +110,7 @@ def cmd_init(
         raise Refused(f"{page_dir} is not initialized")
     with restarting_server(page_dir, session_harness()), page_locked(page_dir):
         try:
-            _init_page(page_dir, selected)
+            _init_page(page_dir, selected, theme=theme)
         except BaseException:
             if made and not any(page_dir.iterdir()):
                 page_dir.rmdir()
@@ -168,6 +180,8 @@ def _revendor(
     selected: tuple[str, ...] | None,
     harness: Harness | None,
     still: Callable[[], bool] = lambda: True,
+    *,
+    theme: ThemeChoice = None,
 ) -> list[Finding]:
     """Re-vendor an initialized page inside a restart of its service, returning the
     errors that keep its index.html from activating under the new layer. Everything
@@ -177,11 +191,11 @@ def _revendor(
     with page_locked(page_dir):
         if not still():
             return []
-        plan = _plan_page(page_dir, selected, fresh=False)
+        plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
     if not plan.changed:
         return []
     with restarting_server(page_dir, harness), page_locked(page_dir):
-        return _init_page(page_dir, selected, still)
+        return _init_page(page_dir, selected, still, theme=theme)
 
 
 def _unready(page_dir: Path, errors: list[Finding]) -> Finding | None:
@@ -221,6 +235,8 @@ def _init_page(
     page_dir: Path,
     selected: tuple[str, ...] | None,
     still: Callable[[], bool] = lambda: True,
+    *,
+    theme: ThemeChoice = None,
 ) -> list[Finding]:
     """Start or re-vendor the page under its lock and its service's restart, and
     return what keeps a re-vendored index.html from activating; a re-vendor `still`
@@ -239,7 +255,7 @@ def _init_page(
     # keeps the caller's chosen mode, takes no PageTransaction yet, and a failed
     # validation leaves it untouched.
     if not (page_dir / EVENTS_FILE).is_file():
-        _commit_layer(page_dir, _plan_page(page_dir, selected, fresh=True))
+        _commit_layer(page_dir, _plan_page(page_dir, selected, theme=theme, fresh=True))
         return []
     # The page lock serializes this operation with other inits; an existing
     # page also has its ordinary transaction, which gives the layer commit
@@ -248,7 +264,7 @@ def _init_page(
     with PageTransaction(page_dir) as page:
         if not still():
             return []
-        plan = _plan_page(page_dir, selected, fresh=False)
+        plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
         if not plan.changed:
             return []
         _commit_layer(page_dir, plan)
@@ -269,7 +285,11 @@ class _PagePlan(NamedTuple):
 
 
 def _plan_page(
-    page_dir: Path, selected: tuple[str, ...] | None, *, fresh: bool
+    page_dir: Path,
+    selected: tuple[str, ...] | None,
+    *,
+    fresh: bool,
+    theme: ThemeChoice = None,
 ) -> _PagePlan:
     """Validate incoming declarations and file destinations before writing.
 
@@ -287,7 +307,8 @@ def _plan_page(
         selected = ()
     elif selected is None:
         selected = tuple(layer_packages(page_dir))
-    inputs = layer_inputs(selected)
+    captured_theme = selected_theme(page_dir, theme, fresh=fresh)
+    inputs = layer_inputs(with_theme(selected, captured_theme))
     _refuse_package_target(page_dir, inputs)
     roots = checked_layer_inputs(inputs)
     _refuse_input_destination_overlap(roots, page_dir.resolve())
@@ -303,13 +324,13 @@ def _plan_page(
         except RegistryError:
             # Init repairs damaged installed metadata as well as installed files.
             pass
-    layer = _stamp_layer(composition, selected, previous)
+    layer = _stamp_layer(composition, selected, previous, theme=captured_theme)
     directories = _checked_destinations(page_dir, layer)
     changed = fresh or not _same_installed_layer(page_dir, layer)
     if changed and layer.reused:
         # The source contract agrees, but missing, stale or damaged installed bytes
         # require repair. Invalidate tabs that may already have loaded those bytes.
-        layer = _stamp_layer(composition, selected)
+        layer = _stamp_layer(composition, selected, theme=captured_theme)
     return _PagePlan(fresh, layer, directories, changed)
 
 
@@ -358,6 +379,8 @@ def _stamp_layer(
     composition: LayerComposition,
     selected: tuple[str, ...],
     previous: dict | None = None,
+    *,
+    theme: dict | None = None,
 ) -> _VendoredLayer:
     fingerprint = layer_fingerprint(composition)
     producer = payload_provenance()
@@ -365,13 +388,14 @@ def _stamp_layer(
         "fingerprint": fingerprint,
         "server": payload_server_fingerprint(),
         "packages": list(selected),
+        "theme": theme,
         **({"producer": producer} if producer else {}),
     }
     # A generation names a contract transition, not an invocation. Provenance
     # remains the producer of the installed bytes until the contract changes.
     same = previous is not None and all(
         previous.get(key) == metadata[key]
-        for key in ("fingerprint", "server", "packages")
+        for key in ("fingerprint", "server", "packages", "theme")
     )
     metadata = previous if same else {"generation": secrets.token_hex(16), **metadata}
     incoming = {**composition.registry, "$layer": metadata}

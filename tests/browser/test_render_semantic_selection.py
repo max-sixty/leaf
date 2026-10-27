@@ -1552,3 +1552,39 @@ def test_a_partly_clipped_atomic_element_keeps_its_hint_in_sight(browser, serve)
 
     hint_top = page.locator(".lf-target-picker-hint").bounding_box()["y"]
     assert hint_top >= 0, hint_top
+
+
+def test_page_search_skips_hidden_words_but_reaches_disclosures(browser, serve):
+    """Search counts rendered words and words its travel can reveal, not hidden data."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "searchable words",
+                """<p>needle visible</p>
+<div style="display:none"><pre>needle source data</pre></div>
+<p style="visibility:hidden">needle invisible</p>
+<div style="display:contents"><p>needle contents</p></div>
+<section><lf-tabs id="views"><lf-tab id="shown" label="Shown"><p>Shown panel</p></lf-tab>
+<lf-tab id="fold" label="Folded"><p>needle folded</p></lf-tab></lf-tabs></section>
+<details id="details"><summary>Evidence</summary><p>needle disclosed</p></details>
+<p hidden>copper</p><p>copper copper</p>""",
+            )
+        ),
+    )
+    page.keyboard.press("/")
+    search = page.get_by_role("searchbox", name="Search page text")
+    search.fill("needle")
+    status = page.locator(".lf-page-search-status")
+    expect(status).to_have_text("1/4")
+    search.press("Tab")
+    expect(status).to_have_text("2/4")
+    search.press("Tab")
+    expect(status).to_have_text("3/4")
+    expect(page.locator("#fold")).not_to_have_attribute("hidden")
+    expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
+    search.press("Tab")
+    expect(status).to_have_text("4/4")
+    expect(page.locator("#details")).to_have_attribute("open", "")
+    search.fill("copper copper")
+    expect(status).to_have_text("1/1")

@@ -1,47 +1,29 @@
-/** Build component-owned CSS into ready distribution sheets.
+/** Bundle the third-party stylesheets Leaf's own sheets import into ready files.
  *
- * Source entrypoints use native CSS imports; esbuild resolves them at contributor
- * build time. Runtime delivery, installation and packages consume the committed
- * complete sheets, so introducing an owner never adds a startup request or compiler.
- * Existing layer/scope wrappers remain with composition and their source owners.
- * `build/browser/build.mjs` writes and checks these outputs with its own.
+ * Leaf's sheets need no build: layer composition and the serving runtime place each
+ * `@import` of a file beside them inline (`leaf.layer.stylesheet`). A dependency's
+ * sheet lives in `node_modules`, which an install doesn't have, so esbuild resolves its
+ * imports here at contributor build time and the result is committed beside the sheet
+ * that imports it. `build/browser/build.mjs` writes and checks these outputs with its
+ * own.
  */
-import { readdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const assets = "browser";
-const packages = "packages";
 
 /** Source and output pairs, readable without build dependencies by the trusted
  * dependency publisher as well as the compiler. */
-export async function styleEntries() {
-  const entries = [
-    [`${assets}/styles/theme.css`, `${assets}/theme.css`],
-    [`${assets}/styles/shadow.css`, `${assets}/shadow.css`],
-    [`${assets}/styles/chrome.css`, `${assets}/runtime/chrome.css`],
-  ];
-  for (const entry of await readdir(resolve(root, packages), { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const packageName = entry.name;
-    const source = `${packages}/${packageName}/styles`;
-    let files;
-    try {
-      files = await readdir(resolve(root, source));
-    } catch (error) {
-      if (error.code === "ENOENT") continue;
-      throw error;
-    }
-    for (const file of files.filter((file) => /^(theme|shadow)\.css$/.test(file)))
-      entries.push([`${source}/${file}`, `${packages}/${packageName}/${file}`]);
-  }
-  return entries;
-}
+export const styleEntries = [
+  [
+    "node_modules/@awesome.me/webawesome/dist/styles/themes/default.css",
+    "browser/styles/vendor/webawesome-theme.css",
+  ],
+];
 
 export async function styleOutputs() {
   const outputs = new Map();
-  for (const [source, output] of await styleEntries())
+  for (const [source, output] of styleEntries)
     outputs.set(output, Buffer.from(await sheet(source)));
   return outputs;
 }

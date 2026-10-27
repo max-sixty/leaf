@@ -11,7 +11,12 @@
 // only when the page asks for it, and `core-independent-of-overlay` keeps every other
 // owner from reaching it. Site-absolute `/vendor/` and `/checks/` specifiers, which the
 // browser resolves and Node does not, are excluded by name; every other unresolvable
-// specifier is a missing module and an error.
+// specifier is a missing module and an error. So is the framework's facade by its
+// served path, `/runtime/framework.js`: like Lit beneath it, the framework is a
+// dependency every owner may hold, not one of the owners whose routes these rules
+// read. Its own modules, under `framework/`, are checked as any owner is. JSON, such as
+// the kernel registry `kernel-facts.js` imports, is excluded too: data holds no route
+// between owners.
 
 import fs from "node:fs";
 
@@ -32,22 +37,22 @@ const exactClosures = {
   "queued-work.js": [],
   "control-selectors.js": [],
   "shadow-tree.js": [],
-  "contribution-model.js": ["words.js", "passage-facts.js"],
+  "contribution-model.js": ["words.js", "kernel-facts.js"],
   "margin-model.js": [
     "contribution-model.js",
     "words.js",
-    "passage-facts.js",
+    "kernel-facts.js",
     "thread/workflow.js",
   ],
   "margin-map-model.js": [
     "margin-model.js",
     "contribution-model.js",
     "words.js",
-    "passage-facts.js",
+    "kernel-facts.js",
     "thread/workflow.js",
   ],
-  "projection/model.js": ["passage-facts.js"],
-  "projection/state.js": ["semantic-state.js", "queued-work.js"],
+  "projection/model.js": ["kernel-facts.js"],
+  "projection/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
   "thread/model.js": [
     "anchor-coordinate.js",
     "thread/identity.js",
@@ -55,6 +60,7 @@ const exactClosures = {
   ],
   "thread/state.js": [
     "semantic-state.js",
+    "version-signal.js",
     "queued-work.js",
     "thread/model.js",
     "anchor-coordinate.js",
@@ -62,11 +68,12 @@ const exactClosures = {
     "thread/workflow.js",
   ],
   "thread/workflow.js": [],
-  "pending/model.js": ["thread/identity.js", "event-kinds.js"],
-  "pending/state.js": ["semantic-state.js", "queued-work.js"],
+  "pending/model.js": ["thread/identity.js", "kernel-facts.js"],
+  "pending/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
   "keyboard/dispatch.js": [
     "context.js",
     "semantic-state.js",
+    "version-signal.js",
     "queued-work.js",
     "focus.js",
     "dom-move.js",
@@ -85,8 +92,7 @@ const exactClosures = {
     "user-intent.js",
     "registry.js",
     "registry-contract.js",
-    "event-kinds.js",
-    "names.js",
+    "kernel-facts.js",
     "rendering.js",
     "frame-visibility.js",
     "repaint.js",
@@ -134,7 +140,6 @@ const forbiddenClosures = Object.fromEntries([
     "anchor-travel.js",
     "page-layout.js",
     "annotation-overlay/composing/drawing-paint.js",
-    "indication.js",
     "annotation-overlay/margin-layout.js",
     "page-geometry.js",
     "target-paint.js",
@@ -217,7 +222,15 @@ export default {
   options: {
     moduleSystems: ["es6"],
     // /checks probes are supplied by the Python server, outside the runtime graph.
-    exclude: { path: [`^${assets}(?!runtime/)`, "^/vendor/", "^/checks/"] },
+    exclude: {
+      path: [
+        `^${assets}(?!runtime/)`,
+        "^/vendor/",
+        "^/checks/",
+        "^/runtime/framework\\.js$",
+        "\\.json$",
+      ],
+    },
     // Resolve as the browser does: a specifier names its file exactly. Without this,
     // `./repaint` finds `repaint.js` and passes here while the browser 404s it.
     enhancedResolveOptions: { extensions: [] },

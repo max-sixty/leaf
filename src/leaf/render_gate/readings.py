@@ -2,11 +2,13 @@
 sweep, the advice read from the sweep and from the desktop page, and the finding each
 becomes.
 
-A reading refuses a version only for a fault its author can fix by editing the page.
-A reading about Leaf's own chrome or theme, including one that would have to
-recognize a Leaf control by its markup to judge it, belongs in the suite, which holds
-Leaf's half."""
+Presentation readings here refuse faults the page author can fix by editing the page.
+A broken output contract also refuses the version, with its producing implementation
+identified by data_contracts.output_findings. Qualitative package presentation advice
+belongs in widget_quality; readings of Leaf's own chrome or theme belong in the suite,
+which holds Leaf's half."""
 
+import json
 from dataclasses import dataclass
 from itertools import pairwise
 
@@ -359,7 +361,10 @@ def _keyed(records: list) -> dict[tuple[str, str], Finding]:
     controls, each keyed by its element's place and kind. Covered words name the
     places of both elements as theirs."""
     return {
-        (record["place"], record["code"]): Finding.read(record) for record in records
+        (json.dumps(record["place"], sort_keys=True), record["code"]): Finding.read(
+            record
+        )
+        for record in records
     }
 
 
@@ -549,7 +554,9 @@ def squeezed_table_advice(readings) -> list[Finding]:
     return _swept(
         readings,
         lambda reading: {
-            (table["place"], table["code"]): Finding.read(table, severity="advice")
+            (json.dumps(table["place"], sort_keys=True), table["code"]): Finding.read(
+                table, severity="advice"
+            )
             for table in reading["squeezed"]
         },
     )
@@ -565,7 +572,7 @@ def shrunk_label_advice(readings) -> list[Finding]:
     def drawings(width, reading):
         threshold = reading["labels"]["threshold_px"]
         return {
-            (d["place"], "shrunk-labels"): Finding(
+            (json.dumps(d["place"], sort_keys=True), "shrunk-labels"): Finding(
                 "shrunk-labels",
                 d["at"],
                 {

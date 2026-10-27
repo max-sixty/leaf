@@ -12,6 +12,7 @@ from render_cases_navigation import NOTED_PAGE
 from render_harness import (
     INLINE_PAGE,
     PANEL_THREAD,
+    expect_open_threads,
     open_page,
     page_comment,
     panel_field,
@@ -30,7 +31,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_overlapping_identical_live_announcements_are_fresh_changes(browser, serve):
     """Even overlapping identical words give the polite region two arrivals."""
     page = open_page(browser, serve(NOTED_PAGE))
-    page.locator(".lf-fp-threads").focus()
+    page.locator(".lf-fp-on-user").focus()
     page.evaluate(
         """async () => {
           window.__lfLiveNode = document.querySelector('.lf-live');
@@ -242,11 +243,11 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
 
     page.evaluate(
         """async () => {
-              (await window.__lfWidgetApi()).notice('Saved — sent');
+              (await window.__lfWidgetApi()).notice('Saved');
               dispatchEvent(new Event('resize'));
             }"""
     )
-    expect(panel_field(page)).to_have_attribute("placeholder", "Saved — sent")
+    expect(panel_field(page)).to_have_attribute("placeholder", "Saved")
 
     # And the page is still whole underneath. Everything that asks how far down the
     # page reaches asks it of the chrome's box, and one with no box answers 0 — the top
@@ -446,9 +447,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
             d, {"kind": "comment", "author": "user", "revision": 1, "text": text}
         )
     told(page)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile(r"^Threads, 2 open")
-    )
+    expect_open_threads(page, 2)
     register, reference = surfaces_name_what_runs()
     assert {"thread.next", "thread.previous"} <= register["runs"]
     assert "thread.primary" in reference
@@ -476,8 +475,6 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     for n, thread in enumerate(threads, start=1):
         open_panel_thread(page, thread)
         page.locator(".lf-fp-settle").click()
-        expect(page.locator(".lf-fp-threads")).to_have_attribute(
-            "aria-label", re.compile(rf"^Threads, {2 - n} open")
-        )
+        expect_open_threads(page, 2 - n)
     open_panel_thread(page, threads[0]).focus()
     surfaces_name_what_runs()

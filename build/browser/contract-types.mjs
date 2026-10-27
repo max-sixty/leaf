@@ -1,5 +1,5 @@
 /** Derive structural TypeScript records from the kernel's admission schema for each
- * event record (`$events.kinds` in browser/registry.json), which the page
+ * event record (`$events.kinds` in browser/runtime/kernel-registry.json), which the page
  * protocol holds, and the state the server serves the runtime
  * (src/leaf/served_state/state.schema.json), which it doesn't; and the values of
  * each page-wide declaration an author writes (`$authored`). Value constraints
@@ -149,7 +149,7 @@ function eventTypes(registry) {
       ].filter((key) => !owned.has(key));
       return `${JSON.stringify(kind)}: ${typeOf({ ...record, properties, required })};`;
     });
-  // The kinds each `$events.kinds` classification names (`runtime/event-kinds.js`
+  // The kinds each `$events.kinds` classification names (`runtime/kernel-facts.js`
   // carries the same classifications as values).
   const classified = Object.entries({
     MessageKind: "message",
@@ -214,7 +214,7 @@ print(json.dumps({"references": leaf_resources(), "records": records}))
  * verb, and each `state.Record` with the protocol its shape was set at. */
 export async function protocolSchemas(root) {
   const read = async (file) => JSON.parse(await readFile(new URL(file, root)));
-  const { $events } = await read("browser/registry.json");
+  const { $events } = await read("browser/runtime/kernel-registry.json");
   const { references, records } = pythonSchemas(root);
   return {
     protocol: $events.protocol,
@@ -255,6 +255,8 @@ function written(schema, references) {
 }
 
 export async function contractTypes(root, { events, served, verb }) {
-  const registry = JSON.parse(await readFile(new URL("browser/registry.json", root)));
-  return `/* @noformat Generated from registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes({ $events: events })}${authoredTypes(registry)}${servedTypes(served, verb)}`;
+  const registry = JSON.parse(
+    await readFile(new URL("browser/runtime/kernel-registry.json", root)),
+  );
+  return `/* @noformat Generated from kernel-registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes({ $events: events })}${authoredTypes(registry)}${servedTypes(served, verb)}`;
 }

@@ -389,12 +389,17 @@ def record_labels(contract: str, registry: dict) -> set[str]:
     }
 
 
-def payload_error(source: str, contract: str, value, registry: dict) -> str | None:
+def payload_error(producer: str, contract: str, value, registry: dict) -> str | None:
+    """Validate one produced value; `producer` is its reader-facing identity.
+
+    External sources and exercised widget outputs share the same schema, resource
+    and record invariants. Output withdrawal is not a value and bypasses this check.
+    """
     declaration = registry.get("$data", {}).get("contracts", {}).get(contract)
     if declaration is None:
         declared = sorted(registry.get("$data", {}).get("contracts", {}))
         return (
-            f"source {source!r} uses undeclared contract {contract!r}; "
+            f"{producer} uses undeclared contract {contract!r}; "
             f"available contracts are {json_value(declared)}"
         )
     try:
@@ -405,14 +410,14 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
         )
     except RecursionError:
         return (
-            f"source {source!r} contract {contract!r} could not validate its value: "
+            f"{producer} contract {contract!r} could not validate its value: "
             "a recursive reference did not terminate"
         )
     if error is None:
         try:
             resource_urls(value, declaration)
         except DataError as error:
-            return f"source {source!r} contract {contract!r}: {error}"
+            return f"{producer} contract {contract!r}: {error}"
         records = declaration.get("records")
         items = (
             value.get(records["items"]) if records and isinstance(value, dict) else None
@@ -420,7 +425,7 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
         if items is not None:
             if not isinstance(items, list):
                 return (
-                    f"source {source!r} contract {contract!r} record field "
+                    f"{producer} contract {contract!r} record field "
                     f"{records['items']!r} must be an array"
                 )
             keys = set()
@@ -430,22 +435,75 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
                 key = item.get(records["key"]) if isinstance(item, dict) else None
                 if not isinstance(key, str) or not key:
                     return (
-                        f"source {source!r} contract {contract!r} record "
+                        f"{producer} contract {contract!r} record "
                         f"{index} needs a non-empty string {records['key']!r}"
                     )
                 for label in labels:
                     if not isinstance(item.get(label), str) or not item[label].strip():
-                        return f"source {source!r} contract {contract!r} record {index} needs a non-empty string obligation label {label!r}"
+                        return f"{producer} contract {contract!r} record {index} needs a non-empty string obligation label {label!r}"
                 if key in keys:
                     duplicates.add(key)
                 keys.add(key)
             if duplicates:
                 return (
-                    f"source {source!r} contract {contract!r} record keys must be "
+                    f"{producer} contract {contract!r} record keys must be "
                     f"unique; repeated {json_value(sorted(duplicates))}"
                 )
         return None
     return (
-        f"source {source!r} value is invalid for contract {contract!r} at "
+        f"{producer} value is invalid for contract {contract!r} at "
         f"{error.json_path}: {error.message}"
     )
+
+
+def output_findings(
+    readings: list[dict],
+    registry: dict,
+    implementations: dict | None = None,
+    declaration_sources: dict[str, str] | None = None,
+) -> list[Finding]:
+    """Judge exercised outputs, naming both the code and declaration owners.
+
+    A page can override either the module or its declaration independently. Captured
+    provenance reports both, without choosing which side should change. Direct render
+    probes may lack that artifact; they still report the producer and contract.
+    """
+    found = []
+    for reading in readings:
+        if error := payload_error(
+            f"output {reading['output']!r}",
+            reading["contract"],
+            reading["value"],
+            registry,
+        ):
+            implementation = (implementations or {}).get(reading["tag"], {})
+            finding = Finding(
+                "invalid-output",
+                at=element_at(reading["tag"], reading["id"]),
+                values={
+                    "tag": reading["tag"],
+                    "output": reading["output"],
+                    "contract": reading["contract"],
+                    "owner": {"layer": "package", "page": "page"}.get(
+                        implementation.get("owner"), "widget"
+                    ),
+                    "declaration_owner": {"layer": "package", "page": "page"}.get(
+                        (declaration_sources or {}).get(reading["tag"])
+                    ),
+                    "contract_owner": {"layer": "package", "page": "page"}.get(
+                        (declaration_sources or {}).get(
+                            f"$data.contracts.{reading['contract']}"
+                        )
+                    ),
+                    "module": implementation.get("path"),
+                    **(
+                        {"document": reading["document"]}
+                        if "document" in reading
+                        else {}
+                    ),
+                    "error": error,
+                },
+            )
+            if finding not in found:
+                found.append(finding)
+    return found

@@ -48,6 +48,15 @@
             "fingerprint": { "type": "string" },
             "server": { "type": "string" },
             "packages": { "type": "array", "items": { "type": "string" } },
+            "theme": {
+              "type": ["object", "null"],
+              "properties": {
+                "name": { "type": "string" },
+                "source": { "enum": ["explicit", "default"] }
+              },
+              "required": ["name", "source"],
+              "additionalProperties": false
+            },
             "producer": { "$ref": "#/$defs/Provenance" }
           },
           "required": ["generation", "fingerprint"]
@@ -203,6 +212,10 @@
           "description": "Whether an open turn of the claimant's takes new input before it ends (`Harness.turn_takes_input`).",
           "type": "boolean"
         },
+        "input_wakes": {
+          "description": "Whether the nudge the claimant's next input gets would start a turn of its session's (`Harness.input_wakes`).",
+          "type": "boolean"
+        },
         "session_cwd": {
           "description": "Where the claimant was working when it claimed the page, or null for a page nothing claimed.",
           "type": ["string", "null"]
@@ -298,6 +311,7 @@
         "turn_closed",
         "turn_opened",
         "turn_takes_input",
+        "input_wakes",
         "session_cwd",
         "activity",
         "workflows",
@@ -1211,12 +1225,17 @@
           "description": "The thread it stands in, or null.",
           "type": ["string", "null"]
         },
+        "also": {
+          "description": "The other obligations the user answers at the same place, each a view's `obligations` entry: the further records a thread's reply answers, and on an obligation's row those of a thread about it.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "live": {
           "description": "Whether the agent has it in hand now: an update it is at work on whose work has not gone quiet or stopped.",
           "type": "boolean"
         }
       },
-      "required": ["kind", "id", "owner", "subject", "thread", "live"]
+      "required": ["kind", "id", "owner", "subject", "thread", "also", "live"]
     },
     "TodoRow": {
       "description": "An agent to-do's row in On <agent> (`served_state.queues`).",

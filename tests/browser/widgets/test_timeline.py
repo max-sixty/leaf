@@ -3,7 +3,7 @@ clear of one another at any width, and prints whole. The step is tab-local view
 state."""
 
 from playwright.sync_api import expect
-from render_harness import leaf_page, open_page
+from render_harness import leaf_page, open_page, select
 
 from leaf.render_checks import wait_until_ready
 
@@ -83,6 +83,20 @@ def test_timeline_steps_by_every_route_and_keeps_the_step(browser, serve):
     expect(page.get_by_role("button", name="Next")).to_have_attribute(
         "aria-disabled", "true"
     )
+
+    # Taking a passage from another step keeps the playhead where it was.
+    words = rows.nth(1).locator(".lf-timeline-step-event").first
+    box = words.bounding_box()
+    y = box["y"] + box["height"] / 2
+    select(page, (box["x"] + 1, y), (box["x"] + box["width"] - 1, y))
+    assert "Adds 50" in page.evaluate("getSelection().toString()")
+    expect(position).to_have_text("Step 6 of 6 · 5.2 s")
+    page.keyboard.press("Enter")
+    expect(position).to_have_text("Step 2 of 6 · 0.2 s")
+    # Tab reaches the next row; Space takes the playhead there.
+    page.keyboard.press("Tab")
+    page.keyboard.press("Space")
+    expect(position).to_have_text("Step 3 of 6 · 1 s")
 
     # A row of the step list, and a press on a mark, go to that event's step.
     rows.nth(3).click()

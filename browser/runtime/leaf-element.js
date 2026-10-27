@@ -70,12 +70,7 @@
    primitive values share a revision, a digest of the value. A null value, or an input
    the markup leaves unbound, names words no bound value supplied, stamped without a
    source. Off a Leaf page no one listens, and the marks mean nothing. */
-import {
-  LitElement,
-  SignalWatcher,
-  render,
-  untracked,
-} from "/vendor/browser-runtime.js";
+import { LitElement, SignalWatcher, render, untracked } from "/runtime/framework.js";
 import {
   attachApplicationPresentation,
   attachWidgetPresentation,

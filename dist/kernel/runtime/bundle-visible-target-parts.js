@@ -1,5 +1,5 @@
 import { drawn } from "./bundle-dom-move.js";
-import { shownParts, skipped } from "./bundle-errors.js";
+import { shownParts, skipped } from "./bundle-geometry.js";
 
 //#region runtime/visible-target-parts.js
 function visibleTargetParts(target) {

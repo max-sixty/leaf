@@ -29,6 +29,7 @@ matching build is installed once with `playwright install chromium --only-shell`
 
 import base64
 import difflib
+import hashlib
 import io
 import itertools
 import json
@@ -58,7 +59,8 @@ from interact_support import (
     wait_for,
     write_record,
 )
-from leaf_dev.browser import scroll_settled, slow_cpu
+from leaf_dev import browser as dev_browser
+from leaf_dev.browser import ON_ME_MARK, scroll_settled, slow_cpu, threads_tab
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
     example_media,
@@ -1273,7 +1275,8 @@ def clean_browser(test=None):
     A worker runs one test at a time, so one process-local collector covers pages made
     by `WatchedBrowser`, render helpers, and tests that navigate a page
     themselves. The fixture hands over its `test` node to select shift coverage
-    (`watches_shifts`); every problem a watch reports reaches this collector.
+    (`watches_shifts`); every problem a watch reports reaches this collector. A test
+    that failed or left problems leaves a picture of each page (`_picture_pages`).
     """
     global _BROWSER_PROBLEM_LISTS, _TEST
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
@@ -1290,7 +1293,29 @@ def clean_browser(test=None):
         for page, problem_list in captured
         for problem in problem_list
     ]
+    if test is not None and (problems or getattr(test, "lf_failed", False)):
+        _picture_pages(test, [page for page, _ in captured])
     assert not problems, "\n".join(problems)
+
+
+def _picture_pages(test, pages):
+    """Save what each page of a failing test shows under `.tmp/test-results/screens/`,
+    which CI uploads with the junit results: an assertion names only what it read, and
+    the picture shows the rest, such as a widget drawn without its styles. A page that
+    can't answer leaves no picture, since the test's own failure is the one to report.
+    The node id is cut to fit a file name, and its hash keeps cut names apart."""
+    stem = re.sub(r"[^\w.-]+", "_", test.nodeid)[:150]
+    name = f"{stem}-{hashlib.sha1(test.nodeid.encode()).hexdigest()[:8]}"
+    for n, page in enumerate(pages):
+        if page.is_closed():
+            continue
+        try:
+            page.screenshot(
+                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png",
+                timeout=render_checks_model.SERVED_TIMEOUT_MS,
+            )
+        except PlaywrightError:
+            continue
 
 
 def judge_watches():
@@ -1475,11 +1500,14 @@ def watch_sources(shifts: bool) -> str:
 
 @contextmanager
 def restarting(page):
-    """Enclose a span in which the test stops and replaces the page's own server.
+    """Enclose a span in which the test replaces the page's server or executable layer.
 
-    A stopped server answers no fetch, and the words the failure arrives in depend on
-    which fetch was in flight when it stopped: a bare `Failed to fetch`, a named module,
-    a stack through the icon load, one of several `net::` codes. A reading written over
+    A layer replacement reloads the document. WebKit reports even a caught fetch
+    rejection from the departing document as a native page exception while its
+    replacement is loading. A stopped server answers no fetch, and the words the
+    failure arrives in depend on which fetch was in flight when it stopped: a bare
+    `Failed to fetch`, a named module, a stack through the icon load, one of several
+    `net::` codes. A reading written over
     those words needs a new member every time a fetch moves, and it ends up describing
     the noise this test makes.
 
@@ -1538,14 +1566,29 @@ def said(problem):
 _ABSENT = object()
 
 
+def place_step_matches(actual, expected):
+    """Match a watch's tag/id step and the classes an assertion names.
+
+    Classes describe the node at observation time, not a complete identity: focus,
+    rendering and other state can add classes. Keep the tag/id and every requested
+    class, without depending on additional classes or their order. These are the
+    watch's unescaped diagnostic steps, not arbitrary CSS selectors.
+    """
+    actual_name, *actual_classes = actual.split(".")
+    expected_name, *expected_classes = expected.split(".")
+    return actual_name == expected_name and set(expected_classes) <= set(actual_classes)
+
+
 def is_problem(problem, expected):
     """Whether a browser problem is the one a test expects.
 
     A string is a fragment of what the page said (`said`), so stack locations cannot
     authorize a problem. A dict names the record as a probe returns one,
-    `{code, at, ...values}`: its `code`, and each field the test cares about, equal to
+    `{code, at, ...values}`: its `code`, and each field the test cares about, match
     what was found, such as `{"code": "console-error", "url": "http://page/api/event"}`.
-    A function of the record answers for itself, for a field read other than by equality."""
+    Watch paths (`node`, `field`, `place`) keep every step and match the tag/id and
+    requested classes via `place_step_matches`. Other fields compare by equality.
+    A function of the record answers for itself, for another kind of reading."""
     if callable(expected):
         return expected(problem)
     if isinstance(expected, str):
@@ -1553,10 +1596,16 @@ def is_problem(problem, expected):
     fields = dict(expected)
     if problem.code != fields.pop("code"):
         return False
-    return all(
-        (problem.at if name == "at" else problem.values.get(name, _ABSENT)) == value
-        for name, value in fields.items()
-    )
+    for name, value in fields.items():
+        actual = problem.at if name == "at" else problem.values.get(name, _ABSENT)
+        if name in {"node", "field", "place"} and isinstance(value, list):
+            if not isinstance(actual, list) or len(actual) != len(value):
+                return False
+            if not all(place_step_matches(a, e) for a, e in zip(actual, value)):
+                return False
+        elif actual != value:
+            return False
+    return True
 
 
 def shown(problems):
@@ -1697,8 +1746,6 @@ def panel_view(name: str) -> str:
 
 # A view of one thread, which names the thread it shows by id in `data-thread`.
 PANEL_THREAD = panel_view("thread")
-# Rows the panel's own row holds, rather than its menu.
-PANEL_ROW_CONTROLS = {"threads": ".lf-fp-threads", "queue": ".lf-fp-on-user"}
 
 
 def panel_field(page):
@@ -1736,6 +1783,53 @@ def panel_settled(page, open=True, view=None):
     )
 
 
+def open_threads(page):
+    """Open the panel's Threads view by pointer, as a user reaches it
+    (`leaf_dev.browser.open_threads`), and wait for its motion to end."""
+    dev_browser.open_threads(page)
+    panel_settled(page, view="threads")
+
+
+# How many open threads the page's reading holds, the number the Threads tab says
+# (thread/model.js, `threadCounts`): those not resolved, a bare reaction being no
+# thread; null until the saved inventory has arrived. It leaves the reading as
+# `window.__lfOpenThreads` for a wait to poll.
+OPEN_THREAD_COUNT = """async () => {
+  const { readThreads } = await window.__lfWidgetApi();
+  const { threadCounts } = await window.__lfCheckApi();
+  window.__lfOpenThreads = () => {
+    const reading = readThreads();
+    return reading.phase === "ready" ? threadCounts(reading.threads).open : null;
+  };
+  return window.__lfOpenThreads();
+}"""
+
+
+def expect_open_threads(page, count):
+    """Wait until the page's reading holds `count` open threads (`OPEN_THREAD_COUNT`).
+
+    The count stands on the Threads tab, behind a press on the On me mark, so this
+    reads it without one, leaving focus, the open view and any card as they are; where
+    the tab itself is the subject, read `threads_tab`'s `.lf-fp-count`."""
+    page.evaluate(OPEN_THREAD_COUNT)
+    try:
+        page.wait_for_function(
+            "(want) => window.__lfOpenThreads() === want",
+            arg=count,
+            polling=render_checks_model.PROBE_POLL_MS,
+        )
+    except PlaywrightTimeout as error:
+        held = page.evaluate("() => window.__lfOpenThreads()")
+        raise AssertionError(f"open threads read {held}, not {count}") from error
+
+
+def expect_on_me(page, count):
+    """Wait until the panel counts `count` items waiting on the user. The folded leaf's
+    badge carries the count the On me mark does, whatever view stands open, where the
+    mark gives its seat to the view's ✕, and whatever news its name goes on to say."""
+    expect(page.locator(".lf-fp-badge")).to_have_text(str(count) if count else "")
+
+
 def panel_menu(page, at=None):
     """Open the leaf's menu and return it, open at its root or at the list `at`
     names: a group (`navigate`, `annotate`, `about`) or `versions`.
@@ -1769,16 +1863,19 @@ def panel_control(page, key, at=None):
     """Return the panel's control for the page's control row `key`, opening the leaf's
     menu, and the list `at` names (`panel_menu`), where the row stands there.
 
-    Threads (`threads`) and On me (`queue`) are the row's marks. Every other row is
-    the menu's, by its key:
+    On me (`queue`) is the row's mark, standing while no view or stance does, and
+    Threads (`threads`) the tab at the foot of On, which the mark opens to reach it
+    (`leaf_dev.browser.threads_tab`). Every other row is the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
     `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
     of the current panel view is the `.lf-fp-exit` ✕ named by its `aria-label`,
     and the page comment is `page_comment`'s, offering selected words as
     `selection_field`'s."""
-    if key in PANEL_ROW_CONTROLS:
-        control = page.locator(PANEL_ROW_CONTROLS[key])
+    if key == "queue":
+        control = page.locator(ON_ME_MARK)
+    elif key == "threads":
+        control = threads_tab(page)
     else:
         control = panel_menu(page, at).locator(f'.lf-fp-item[data-row="{key}"]')
     expect(control).to_be_visible()
@@ -2471,6 +2568,18 @@ SHELL_BOX = """(() => {
 # Put the user nowhere, with the next Tab starting at the top of the document: the
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.
+# Each field's closed shadow root, so a test can read inside it.
+EDITOR_ROOTS = """
+  window.editorRoots = new Map();
+  const attach = Element.prototype.attachShadow;
+  Element.prototype.attachShadow = function(options) {
+    const root = attach.call(this, options);
+    if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+    return root;
+  };
+"""
+
+
 RELEASE_FOCUS = """async () =>
   (await window.__lfCheckApi()).releaseFocus()"""
 
@@ -2795,60 +2904,63 @@ def scroll_writes(page, steps, scroller="document.scrollingElement"):
     )
 
 
-_GESTURE = """async ([scroller, by, sample]) => {
+# How many frames a gesture takes, whatever the host's frame rate.
+GESTURE_FRAMES = 24
+
+_GESTURE = """async ([scroller, by, sample, frames]) => {
   const box = eval(scroller);
   const read = sample ? eval(sample) : () => null;
-  let frame = 0;
-  let ended = false;
+  const start = box.scrollTop;
   const samples = [];
-  const end = () => { ended = true; };
-  document.addEventListener('scrollend', end, {capture: true, once: true});
-  window.lfWrites = [];
-  window.lfWriteStep = frame;
-  // A task posted from a frame callback runs once that frame has rendered, before the
-  // next frame's scroll step.
-  const rendered = (then) => {
+  let frame = 0;
+  const {scrollGlides, watchScrollEnds} = await window.__lfCheckApi();
+  scrollGlides(true);
+  // A task posted from a frame callback runs once that frame has rendered.
+  const rendered = () => new Promise((then) => {
     const {port1, port2} = new MessageChannel();
     port1.onmessage = then;
     port2.postMessage(null);
-  };
-  const take = () => {
-    const scrolled = box.scrollTop;
-    if (!samples.length || scrolled !== samples.at(-1).scrolled)
-      samples.push({scrolled, read: read()});
-  };
-  const tick = () => {
+  });
+  window.lfWrites = [];
+  window.lfWriteStep = frame;
+  while (frame < frames) {
+    await new Promise(requestAnimationFrame);
     window.lfWriteStep = ++frame;
-    if (!ended) {
-      rendered(take);
-      requestAnimationFrame(tick);
-    }
-  };
-  box.scrollBy({top: by, behavior: 'smooth'});
-  requestAnimationFrame(tick);
-  while (!ended) await new Promise(requestAnimationFrame);
-  await new Promise(rendered);
-  return {frames: frame, samples};
+    box.scrollTo({top: start + Math.round(by * frame / frames), behavior: 'instant'});
+    await rendered();
+    samples.push({scrolled: box.scrollTop, read: read()});
+  }
+  const settled = new Promise((then) => {
+    const stop = watchScrollEnds(() => { stop(); then(); });
+  });
+  scrollGlides(false);
+  await settled;
+  await new Promise(requestAnimationFrame);
+  await rendered();
+  return samples;
 }"""
 
 
 def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
-    """Scroll `scroller` (a page expression) by `by` in one smooth gesture, as a wheel
-    or a key does, and return each DOM write it caused, numbered by the frame it came
-    in, with what its settle wrote under its last, and how many frames it took. The
-    pointer is moved off the page's controls first, so the scroll brings nothing new
-    under it. With `sample`, a page function, it also returns that function's reading
-    beside how far the scroller had gone, on the first frame and each frame that moves
-    the scroller. Both are read once the frame has rendered: a box anchored to scrolled
-    content takes the frame's scroll at the frame's anchor recalculation, after its
-    frame callbacks, so read in one it stands where the frame before drew it. A frame
-    that moves nothing is left out, since the runtime settles once the scroll has been
-    still a while (arrivals.js, `SETTLE_MS`), which on slow frames comes before
-    `scrollend`, so such a frame can show what the scroll held laid out again at rest."""
+    """Scroll `scroller` (a page expression) by `by` in one gesture of
+    `GESTURE_FRAMES` frames, each moving it an equal share, and return each DOM write it
+    caused, numbered by the frame it came in, with what its settle wrote under its last,
+    and how many frames it took. The pointer is moved off the page's controls first, so
+    the scroll brings nothing new under it. With `sample`, a page function, it also
+    returns that function's reading beside how far the scroller had gone, on each frame.
+    Both are read once the frame has rendered: a box anchored to scrolled content takes
+    the frame's scroll at the frame's anchor recalculation, after its frame callbacks,
+    so read in one it stands where the frame before drew it.
+
+    The test drives the frames, rather than a smooth `scrollBy`, so a slow host draws
+    as many as a fast one. The runtime settles on each write's own `scrollend`, and
+    between frames further apart than `SETTLE_MS`, so the gesture holds it as the
+    runtime's own frame-by-frame scrolls do (arrivals.js, `scrollGlides`) and lets it
+    settle once, after the last frame."""
     page.mouse.move(2, 300)
     rendered(page)
     start = page.evaluate(f"() => {scroller}.scrollTop")
-    gesture = page.evaluate(_GESTURE, [scroller, by, sample])
+    samples = page.evaluate(_GESTURE, [scroller, by, sample, GESTURE_FRAMES])
     rendered(page)
     assert page.evaluate(f"() => {scroller}.scrollTop") == pytest.approx(
         start + by, abs=1
@@ -2857,8 +2969,8 @@ def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
         "() => { const w = window.lfWrites; window.lfWrites = null; return w; }"
     )
     if sample:
-        return writes, gesture["frames"], gesture["samples"]
-    return writes, gesture["frames"]
+        return writes, GESTURE_FRAMES, samples
+    return writes, GESTURE_FRAMES
 
 
 def scroll_followers(writes, frames=None):

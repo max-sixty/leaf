@@ -110,6 +110,8 @@ test("the initial dependency graph follows producer imports", async () => {
   assert.deepEqual(dependencies, {
     "/vendor/lf-toc-initial.js": ["/vendor/lit-initial.js"],
     "/vendor/lf-activity-initial.js": ["/vendor/lit-initial.js"],
+    "/vendor/lf-shot-initial.js": ["/vendor/lit-initial.js"],
+    "/vendor/lf-motion-initial.js": ["/vendor/lit-initial.js"],
     "/vendor/lf-timeline-initial.js": ["/vendor/lit-initial.js"],
   });
 });

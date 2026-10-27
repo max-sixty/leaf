@@ -28,7 +28,8 @@ from urllib.parse import urljoin, urlsplit
 import leaf_website as website_server
 import pytest
 from conftest import LENT_LINKED_DIRS
-from interact_support import declared, running_http_server
+from interact_support import declared, running_http_server, wait_for
+from leaf_dev.browser import panel_tab
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets
@@ -36,19 +37,21 @@ from leaf_dev.page_fixtures import authored_markup, source_packages
 from PIL import Image
 from playwright.sync_api import expect
 from render_harness import (
+    OPEN_THREAD_COUNT,
     PANEL_THREAD,
     compare_with,
     consume_browser_errors,
     displayed,
     expect_obligations_answered,
+    expect_open_threads,
     holding,
     http_error_console,
     is_problem,
     navigate,
     open_page,
+    open_threads,
     page_comment,
     panel_menu,
-    panel_settled,
     root_overflow,
     select,
     sending,
@@ -81,9 +84,13 @@ DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
 
 def open_count(page):
-    """How many open threads the panel's Threads mark counts."""
-    label = page.locator(".lf-fp-threads").get_attribute("aria-label")
-    return int(re.match(r"Threads, (\d+) open", label).group(1))
+    """How many open threads the page's reading holds (`OPEN_THREAD_COUNT`), once its
+    saved inventory has arrived."""
+    return wait_for(
+        lambda: page.evaluate(OPEN_THREAD_COUNT),
+        lambda held: held is not None,
+        failure="the page's saved threads never arrived",
+    )
 
 
 # The theme's paper, light and dark, as the browser reports a background.
@@ -324,7 +331,8 @@ def test_published_product_page_renders(site, browser, name):
 
 def test_published_examples_keep_the_site_theme_out_of_their_layer(site):
     """A website example uses the authored example's layout layer."""
-    context_theme = (DOCS / "package" / "theme.css").read_text().rstrip()
+    package = DOCS / "package"
+    context_theme = layer_model.stylesheet(package / "theme.css", package).rstrip()
     for source in site_build.published_page_sources():
         theme = site / "examples" / source.stem / "theme.css"
         assert context_theme not in theme.read_text(), source
@@ -790,7 +798,7 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     page.route(url, answer)
     page.route(url + "?*", answer)
     page.goto(url, wait_until="load")
-    banner = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    banner = page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     expect(banner).to_be_visible()
     holding(page, rounds, 3, "three probe rounds from the replacement document")
     assert len(documents) == 2, documents
@@ -831,10 +839,10 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     page.on("request", lambda request: probes.append(request.url))
 
     page.goto(url, wait_until="load")
-    notice = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    notice = page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(notice).to_have_count(0)
-    expect(page.locator(".lf-fp-threads")).to_be_visible()
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
     # The probe stops with it: a page that started has nothing left to ask the source.
     before = sum("registry.json" in probe for probe in probes)
@@ -897,7 +905,7 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
 
     assert len(documents) == 1, documents
     expect(
-        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+        page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_have_count(0)
     take_browser_errors(page)
 
@@ -1101,7 +1109,9 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
             "install_url": "/#install",
         }
         if name == "how-it-works.html":
-            diagram = page.locator("#arch")
+            # The package can use the page margins beyond its prose-width figure.
+            # Its own scrollport, rather than that wrapper, bounds the drawing.
+            diagram = page.locator("#agent-browser-architecture")
             expect(diagram).to_be_visible()
             width = diagram.evaluate(
                 "element => ({client: element.clientWidth, scroll: element.scrollWidth})"
@@ -1329,7 +1339,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         newest = len(example_versions(source))
         expect_showing(page, newest)
         expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-            "aria-label", "Page menu · Agent awaits — comment to revise this copy"
+            "aria-label", "Page menu · Ready — comment to revise this copy"
         )
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
@@ -1510,14 +1520,11 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     opened = sum(not thread["resolved"] for thread in threads)
     resolved = len(threads) - opened
     assert opened and resolved, "the shipped seed must cover both thread states"
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile(rf"^Threads, {opened} open")
+    open_threads(page)
+    expect(panel_tab(page, "Threads").locator(".lf-fp-count")).to_have_text(str(opened))
+    expect(page.locator(".lf-fp-ended ~ .lf-fp-thread[data-resolved]")).to_have_count(
+        resolved
     )
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button", has_text="Resolved").click()
-    expect(page.locator(".lf-fp-thread")).to_have_count(resolved)
-    page.locator(".lf-fp-filters button", has_text="Open").click()
     # Named rather than taken first: the assertion follows the shipped objection,
     # independent of where a later seed might place another thread.
     row = page.locator(".lf-fp-thread").filter(
@@ -1596,17 +1603,13 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     # theirs would be first. triage-board ships none today, so `.first` was
     # right by accident and would stop being on the day it does.
     def written():
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
-        page.locator(".lf-fp-filters button", has_text="Open").click()
+        open_threads(page)
         page.locator(".lf-fp-thread").filter(
             has_text="Can the migration fix ship first?"
         ).click()
         return page.locator(PANEL_THREAD)
 
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile(rf"^Threads, {opened_with + 1} open")
-    )
+    expect_open_threads(page, opened_with + 1)
     thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
     expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
@@ -1646,9 +1649,7 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     page.locator(".lf-fp-field .lf-compose-submit").click()
     # One, and typed: this example ships no log, so the count is the comment
     # just written and nothing else.
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile("^Threads, 1 open")
-    )
+    expect_open_threads(page, 1)
     # The page's own scroller (the runtime's `pageScroller`), moved the way a
     # user moves it far enough down that the landmark is worth restoring.
     page.evaluate(
@@ -1668,9 +1669,7 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     )
     _, plain_url = served_example(plain)
     opened(page, plain_url)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile("^Threads, 0 open")
-    )
+    expect_open_threads(page, 0)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
         "the second example opened at the offset left on the first"
     )

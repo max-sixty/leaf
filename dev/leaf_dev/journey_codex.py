@@ -362,8 +362,8 @@ def steps(
         else:
             require(
                 any(
-                    item["thread"] == posted
-                    for item in cmd_page_state(page)["queues"]["on_user"]
+                    item["thread"] == posted and item["next_actor"] == "user"
+                    for item in cmd_page_state(page)["obligations"]
                 ),
                 "the question has no On me obligation in its thread",
             )

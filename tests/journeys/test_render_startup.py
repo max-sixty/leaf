@@ -25,6 +25,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_menu,
     panel_view,
@@ -64,7 +65,7 @@ def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
     expect(frame.locator("#bg-choice-ask h3")).to_have_text(
         "Which map should the sample team carry?"
     )
-    frame.locator(".lf-fp-threads").click()
+    open_threads(frame)
     expect(frame.locator(panel_view("threads"))).to_be_visible()
     frame.goto(frame.url)
     wait_until_ready(frame)
@@ -273,7 +274,7 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     page.wait_for_function("performance.now() > 11_000")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", "Page menu · Loading saved state…"
+        "aria-label", "Page menu · Loading comments and choices…"
     )
     assert len(held) == 1
     if answer == "ready":
@@ -301,7 +302,7 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
         for route in held:
             refuse(route)
         expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-            "aria-label", re.compile("Server offline")
+            "aria-label", re.compile("Lost the connection")
         )
         expect(page.locator(".lf-held-keys")).to_have_count(0)
         expect(first).to_have_attribute("aria-disabled", "true")
@@ -361,7 +362,7 @@ def test_offline_reaction_waits_for_its_saved_state(browser, serve):
     page.route("**/api/state*", refuse)
     page.goto(serve(source, events=[saved]), wait_until="load")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", re.compile("Server offline")
+        "aria-label", re.compile("Lost the connection")
     )
     page.locator("#target").click()
     page.keyboard.press("e")
@@ -717,7 +718,7 @@ customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){
     )
     expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     page.evaluate(
-        """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await window.__lfWidgetApi();[...textNodesUnder(document.body)];}"""
+        """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await window.__lfCheckApi();[...textNodesUnder(document.body)];}"""
     )
     assert page.evaluate("document.documentElement.hasAttribute('data-lf-interactive')")
     expect(

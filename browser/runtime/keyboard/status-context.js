@@ -9,7 +9,7 @@
  * these readings follow focus, the sequence's state and the register. A walk's reading
  * also names the stop it stands on (`target`, its owner's key), so a list that shows
  * the walk's items, as On me does, can mark the one the walk is at. */
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 import { setNoticeContext } from "../notifications.js";
 import { walkPosition } from "../walk-position.js";
 import { word } from "./bindings.js";

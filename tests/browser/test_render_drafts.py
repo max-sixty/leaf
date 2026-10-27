@@ -198,13 +198,13 @@ def test_resume_writing_keeps_editor_identity_caret_and_sent_conversation(
     write(edit, "Rewritten page text")
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
-    # Escape would cancel the edit; stepping out to the page leaves it open.
-    page.locator("h1").click()
+    # Escape discards and a press away saves; Tab leaves the edit open to resume.
+    page.keyboard.press("Tab")
     expect(edit).not_to_be_focused()
     # The desktop More reference invokes the same semantic command as gi.
     page.keyboard.press("?")
     page.get_by_role("combobox", name="Search commands").fill("Resume writing")
-    page.get_by_role("button", name="Resume writing", exact=True).click()
+    page.keyboard.press("Enter")
     expect(edit).to_be_focused()
     expect(edit).to_have_js_property("value", "Rewritten page text")
     assert edit.evaluate("el => el.selectionStart") == 1

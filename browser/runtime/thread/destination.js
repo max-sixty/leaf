@@ -28,6 +28,8 @@
    and returns its actual focus destination. Surface defaults enter the reply and
    compact previews default to the thread.
    `travel: false` keeps the page under the gesture while revealing its destination;
+   `history: false` arrives at an address the browser already navigated to, revealing
+   its passage without adding another return stop.
    `scroll: false` also leaves every scroller where it stands, for a continuation into
    a box the user had scrolled away from.
    A native continuation (`focus: false`) returns its presented route under session
@@ -49,11 +51,12 @@
    placement, independently of whichever view draws a Thread. */
 import { aborted } from "../abort.js";
 import { threadDraft } from "../drafts.js";
-import { focused } from "../focus.js";
+import { focused, onCurrentLocation } from "../focus.js";
+import { presented } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { replyAvailable, replyThreadKey } from "./replies.js";
 import { allThreads, threadIdNamed, threadNamed } from "./state.js";
-import { heldThread } from "./focus.js";
+import { heldThread, threadIn } from "./focus.js";
 import { showHeld, showHeldThread } from "./held-news.js";
 import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
@@ -103,12 +106,12 @@ export function createThreadDestinations({
   // and a widget may seat its threads beside it, as lf-diff does under a line; where
   // several are drawn there, the user is at none of them. Chrome standing at no place
   // is at none. Returning to the page can leave a margin card open with focus on the
-  // body, and its visible conversation remains the current one in that state.
-  const threadHere = () => {
-    const held = heldThread();
+  // body, and its visible conversation remains the current one in that state. A walk
+  // asks the same of the node its origin was read from (current-target.js).
+  const threadHere = (active = focused()) => {
+    const held = threadIn(active);
     if (held) return held;
     const shown = preview?.accompanied() ?? null;
-    const active = focused();
     if (!active || active === document.body) return shown;
     const ids = threadIdsAt(active);
     const drawn = [
@@ -118,21 +121,47 @@ export function createThreadDestinations({
     return drawn.length === 1 ? drawn[0] : null;
   };
   // Discussion identity precedes the view that realizes it: where no thread is shown,
-  // the first thread at the place. Reply availability narrows an editable destination
-  // without erasing the user's current location thread.
-  const threadAtCurrentLocation = () => {
-    const here = drawnThreadId(threadHere());
+  // the thread at the place the user was last in, else the first there, so a walk back
+  // to a place they let go of returns to the thread they left. Reply availability
+  // narrows an editable destination without erasing the user's current location thread.
+  let lastIn = null;
+  onCurrentLocation((node) => {
+    lastIn = drawnThreadId(threadIn(node)) ?? lastIn;
+  });
+  const threadAtCurrentLocation = (active = focused()) => {
+    const here = drawnThreadId(threadHere(active));
     if (here) return here;
-    const active = focused();
-    return (active && threadIdsAt(active)[0]) ?? null;
+    const ids = active ? threadIdsAt(active) : [];
+    return (ids.includes(lastIn) ? lastIn : ids[0]) ?? null;
   };
   const replyThreadAtCurrentLocation = () => {
     const id = threadAtCurrentLocation();
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread && replyAvailable(thread) ? id : null;
   };
-  const threadFocusTarget = (id, { part = null } = {}) =>
-    surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
+  const addressedPart = (thread, id, part) => ({
+    part,
+    message:
+      part === "message"
+        ? (thread.msgs.find((message) => message.id === id)?.key ?? null)
+        : null,
+  });
+  // Prefer a shown destination in the same order opening asks: the primary reader,
+  // then the page's own surfaces. Otherwise return a retained node to reveal; a
+  // hidden primary's retained rows must not mask the page's open card.
+  const threadFocusTarget = (id, { part = null } = {}) => {
+    const thread = threadNamed(id);
+    const primary =
+      thread && presentation?.owner.isConnected
+        ? presentation.reader.destination(thread.key, addressedPart(thread, id, part))
+        : null;
+    const candidates = [
+      primary,
+      surfaceFocusTarget(id, { part }),
+      preview?.focusTarget(id, { part }),
+    ].filter(Boolean);
+    return candidates.find(presented) ?? candidates[0] ?? null;
+  };
 
   // What `inPrimary` returns where the primary declined the thread, or took it and drew
   // no destination for it, so another surface may show it; and what `onPage` returns
@@ -146,6 +175,7 @@ export function createThreadDestinations({
       part = null,
       focus = true,
       travel = true,
+      history = true,
       scroll = true,
       intent = retainUserIntent(),
       origin = null,
@@ -171,11 +201,7 @@ export function createThreadDestinations({
       const cancelled = aborted(abort.signal);
       const whileCurrent = (work) => Promise.race([work, cancelled]);
       const request = {
-        message:
-          part === "message"
-            ? (thread.msgs.find((message) => message.id === id)?.key ?? null)
-            : null,
-        part,
+        ...addressedPart(thread, id, part),
         focus,
         last,
         signal: abort.signal,
@@ -192,7 +218,7 @@ export function createThreadDestinations({
         (focus === false ? intent.available() : intent());
       const arriving = restrictUserIntent(intent, mayPresent);
       const departure =
-        focus !== false && navigationStep
+        focus !== false && navigationStep && history
           ? prepareNavigationStep({
               landing: () => selected.reader.destination(thread.key, request),
               intent: arriving,
@@ -260,7 +286,7 @@ export function createThreadDestinations({
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
         if (navigationStep) {
-          if (!(await scrollToThread(id, { part: localPart, focus, intent })))
+          if (!(await scrollToThread(id, { part: localPart, focus, intent, history })))
             return null;
         } else if (focus === false) {
           await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
@@ -314,6 +340,7 @@ export function createThreadDestinations({
               focus,
               presented: opened.presented,
               intent,
+              history,
             }))
           )
             return null;

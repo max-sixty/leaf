@@ -25,6 +25,7 @@ from render_harness import (
     is_problem,
     leaf_page,
     open_page,
+    open_threads,
     open_versions,
     page_comment,
     panel_field,
@@ -45,7 +46,7 @@ from leaf.render_checks import wait_until_ready
 pytestmark = pytest.mark.shifts_unsurveyed
 
 # The status the panel's empty field says while the first state answer is held.
-LOADING = re.compile("^Loading saved state…")
+LOADING = re.compile("^Loading comments and choices…")
 
 
 VISUAL_ACTION_TIMING = """
@@ -328,10 +329,10 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     # The blanket answer claims no action before the first state answer.
     expect_panel_offers(page, "blanket:accept", offered=False)
 
-    threads = page.locator(".lf-fp-threads")
-    expect(threads).to_be_enabled()
-    threads.click()
-    panel_settled(page, view="threads")
+    on_me = page.locator(".lf-fp-on-user")
+    expect(on_me).to_be_enabled()
+    on_me.click()
+    panel_settled(page, view="queue")
     # The page's field takes words while the first state answer is still held.
     expect(page_comment(page)).to_be_editable()
     page.keyboard.press("Escape")
@@ -367,8 +368,7 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     assert held, "the positive control did not hold the Markdown renderer"
 
     rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(rows).to_have_count(0)
 
     held.pop(0).continue_()
@@ -395,7 +395,7 @@ def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
     )
     expect(page.locator("main")).to_be_visible()
     expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Server offline")
+        "placeholder", re.compile("^Lost the connection")
     )
     assert page.locator("body").get_attribute("data-lf-applied") is None
     assert page.evaluate("() => window.__lfPresentation.releases") == 1
@@ -506,7 +506,7 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
             page.goto(url, wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         expect(panel_field(page)).to_have_attribute(
-            "placeholder", re.compile("^Page couldn't apply current state — reload")
+            "placeholder", re.compile("^Couldn't show the latest — reload")
         )
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
         expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "1")
@@ -617,6 +617,24 @@ def test_the_first_startup_fault_names_the_page(browser, serve):
     reported_browser_errors(
         page, "Error: first fault", "Error: first fault", "Error: later fault"
     )
+
+
+def test_a_boot_that_fails_after_it_waits_names_the_startup_fault(browser, serve):
+    """The entry boots in an async function, which the bundler needs (leaf.js), and a
+    failure after its first wait still reaches the window as an uncaught error, which
+    names the page's startup fault. Its annotation renderer, the module the boot
+    waits for, is refused here."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route(re.compile(r"annotation-overlay(/index)?\.js$"), refuse)
+    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    root = page.locator("html")
+    expect(root).to_have_attribute(
+        "data-lf-startup-error", re.compile("dynamically imported module")
+    )
+    assert "annotation-overlay" in root.evaluate(
+        "root => root.lfStartupException.message"
+    )
+    consume_browser_errors(page, "dynamically imported module")
 
 
 def test_a_page_the_suite_opens_has_read_the_log(browser, serve):

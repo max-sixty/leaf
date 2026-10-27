@@ -11,7 +11,7 @@ absolute launcher; a bare `leaf` may run the installed plugin instead.
 
 Before writing words the user sees, such as a label, status line or placeholder, or
 naming anything they operate or an identifier for one, read `references/glossary.md`,
-Leaf's canonical vocabulary and the voice its visible copy speaks in. A control may
+Leaf's canonical vocabulary and guidance for visible text. A control may
 need no words at all (`<root>/browser/AGENTS.md`, "Visual grammar").
 
 ## Take a backlog item
@@ -46,11 +46,16 @@ Record browser API and rendering support gaps in
 [`notes/browser-support.md`](../../../notes/browser-support.md), as its "Recording and
 assessing a gap" section says.
 
-Before handing over a change to browser controls, navigation, focus, motion, forms or
-layout, run `/ui-sweep` (`../ui-sweep/SKILL.md`) on the changed surface and the
-interactions that depend on it. Its "External review" section says when to use the
-skills below, and its "Review a design system" section covers theme and shared-control
-changes.
+The user judges a UI change by using it, so review it that way before handing it
+over. Whoever reviews it, you or an independent reviewer, first uses the live
+candidate cold for the user's task, before reading its code or the author's account:
+reach each result by every route Leaf gives to it, look at each state those routes
+leave, and judge each control against its neighbours and against Leaf's controls for
+the same role. A reviewer's brief gives the task and the candidate, asks for that pass
+before any code review, and keeps how the change looks in scope. For a theme or
+shared-control change, also run `/ui-sweep` (`../ui-sweep/SKILL.md`), whose "Review a
+design system" section covers it and whose "External review" section says when to use
+the skills below.
 
 ### External UI skills
 
@@ -84,8 +89,8 @@ fixes how many tiles share a row overrides every page that needs another number.
 check may report what it sees, as the render check names where a tile row wraps, and
 leave the decision to the agent.
 
-`page check` and its render checks hold Leaf's contracts on every page: each widget
-upgrades, nothing a user needs is clipped out of reach, every control can be pressed.
+`page check` and its render checks enforce Leaf's page contracts: they report widget
+initialization failures and unintended clipping of content or controls.
 A rare authoring mistake costs one fix, or a clearer line in the instruction the agent
 misread, so prefer widening a general check to adding one for a particular mistake.
 Add a narrow check, or a note a command prints, only where agents get something wrong
@@ -110,12 +115,12 @@ evidence, report the observation without making it a requirement, and say what w
 checked and what was not. When a markup contract changes, update its reader,
 validation, dependent layout rules and instructions together.
 
-Data one Leaf module writes for another over a channel only Leaf writes is not input:
-the browser reading the server's answer, the Worker reading the manifest its build
-wrote. The reader uses it directly, and the producer's tests hold its shape. Data a
-person or agent can write on the way is input, even when Leaf code sent it: a request
-the browser posts, a file an agent edits, the answer of leaf.page's container, whose
-agent a visitor steers.
+Data passed between Leaf modules over a channel only Leaf can write needs no input
+validation. This includes the server's answer to the browser and the build manifest
+the Worker reads. The reader uses that data directly, and the producer's tests verify
+its shape. Data a person or agent can modify is input, even when Leaf code sent it:
+a request the browser posts, a file an agent edits, or the answer from leaf.page's
+container, where a visitor directs the agent.
 
 ## Explore an open design
 
@@ -135,7 +140,7 @@ To change an existing interface, take this checkout's rendered interface as the
 baseline, covering the controls and states the requested property affects. Build
 runtime candidates in the runtime and theme that own the surface. A separate sketch
 copies Leaf's mark from `browser/icon.svg` and each icon's path from
-`browser/runtime/icons.js`. Drive the baseline and every candidate through
+`browser/runtime/icon-paths.js`. Drive the baseline and every candidate through
 the same journey before handoff.
 
 ## Choose what the user reviews
@@ -143,6 +148,11 @@ the same journey before handoff.
 Prefer outputs the user can review quickly. Do the reviews you can do as well as the
 user, and report the results. Choose the decisions the page puts to the user from
 their request, and show visible and interaction changes with the proof below.
+
+A choice about how something looks or moves can't be judged from a description, so
+every UI option you leave to the user carries a picture of its result: a still pair, a
+sketch, a diagram or a live sample. That includes the calls a PR body leaves to the
+user, and the decisions a page relays from it.
 
 ## Prove and hand off a visible change
 
@@ -170,9 +180,10 @@ small misalignment. Re-vendor after a runtime, theme, registry or widget change,
 judge the composed page.
 
 To ask a page where an element sits, what style it computes, or what holds focus after
-a key, run `uv run leaf-dev probe` rather than writing a Playwright script. It builds
-the page from this working tree, runs your input steps, and prints what a JavaScript
-expression returns, with `--base` for the merge base beside it (`leaf-dev probe --help`).
+a key, run `uv run leaf-dev probe` rather than writing a Playwright script or a scratch
+test. It builds the page from this working tree, with `--log` adding threads and
+messages to its log, runs your input steps, and prints what a JavaScript expression
+returns, with `--base` for the merge base beside it (`leaf-dev probe --help`).
 
 When an interaction depends on a sequence of inputs or changes over time, record it
 with `leaf-dev probe --record .tmp/recordings/NAME` (its `--help` covers journeys and
@@ -198,11 +209,15 @@ is about and stays running.
 
 ## Preview a page
 
-`uv run leaf-dev preview <example>` serves a live page that follows source and runtime
+`uv run leaf-dev preview <example>` serves a live page that follows source and browser-runtime
 edits at one URL; `--source <file>` serves any HTML file. Its module header
 (`dev/leaf_dev/commands/preview.py`) covers slots, restarts and which previews detach.
 Start one that stays in the foreground as a long-running command (`run_in_background`
 in Claude Code).
+
+Python, schema and dependency edits require restarting the preview; its log says when.
+For a user preview, stop its page server and rerun the same preview command to keep its
+URL and comments. A plain preview starts fresh on restart.
 
 Drive only plain previews, since every click this session drives on a `--user`
 preview arrives as an unanswered update, and start a `--user` preview only from the
@@ -285,11 +300,11 @@ compatibility refusal rather than falling back to the installed plugin.
 
 A page that explains how a Leaf widget, verb or event flow behaves lets the user try it
 in a live sample (`<root>/skills/leaf/references/live-samples.md`) holding only the
-demonstrated page and an `lf-activity` feed of its own log. The prose above the sample
-lists the gestures to try, in an order that exercises each verb the page explains, undo
-included. Before handoff, drive the sample using only what that prose says, and read
-each line the feed prints; a probe that knows more than the prose proves only that the
-sample works.
+demonstrated page and an `lf-activity` feed of its own log. Make the next gesture and
+its visible result clear as the user tries the sample, including Undo. Guidance beside
+the relevant step lets the user learn by operating the page. Before handoff, operate
+the sample using only its visible guidance and read each line the feed prints, so the
+review checks whether the user can work it without the author's knowledge.
 
 ## Keep authoring a page fast
 
@@ -354,6 +369,33 @@ card (`dev/AGENTS.md`, "Commands with consequences outside `.tmp/`"). Run `wt se
 Worktrunk asks to approve the project commands, ask the user to run
 `wt config approvals add`.
 
+## Weigh what a change adds
+
+Whoever writes or reviews a change asks whether what it adds is worth what later
+changes and users pay for it, by the bar "Regular maintenance" sets for code already
+there. Size says little: a two-line selector can reach every page.
+
+- **What it adds**: a mode, branch or special case; one more member of a set,
+  allowlist or tolerance; a wait, retry or timer; a public option; room reserved for a
+  state that may not come; a second statement of a rule with an owner; a reliance on a
+  dependency's internals.
+- **What it buys**: a behavior a user sees, a request the maintainer made, or a
+  measured cost. A green test buys what the test protects, so name that.
+- **Where its cost lands**: read the change's reach rather than its claim, such as a
+  selector's or guard's scope against the condition it names, what else inherits from
+  or sits in the box it changes, and how often a guard fires on a correct setup. Then
+  compare who pays with who gains: a cost paid in every state or on every page to fix
+  one transition usually outweighs it.
+- **The cheaper change**: a platform or dependency primitive, the fix in the owner
+  rather than a caller, the stale copy deleted, or the gap left open with an issue.
+  When `git log -L` shows earlier changes compensating for the same gap, ask whether
+  the mechanism is the wrong primitive and the cheaper change its general form.
+
+Keep an addition whose benefit is concrete when no cheaper change buys it, as with a
+fix in a primitive every caller gains from; otherwise make the cheaper change, or ask
+for it in review. When the fix for a finding would add another branch, flag or
+condition, first ask whether the finding is about the approach.
+
 ## Regular maintenance
 
 Whenever a survey, a review or the nightly sweep reads a file, look for code that
@@ -364,7 +406,8 @@ makes Leaf harder to develop than it is worth:
   contract costs every nearby change, so it must clear a much higher bar. Signs it
   doesn't: a hold, carry or special case for one widget or gesture spread across
   several owners; a public API whose only callers are tests or a single example; a
-  mechanism `git log` shows patched again and again. Code in its own module, such as a
+  mechanism `git log --follow` shows patched again and again (without `--follow`, a file's
+  history stops at its last move). Code in its own module, such as a
   package, a widget or a `leaf-dev` command, costs little beyond its own files; remove
   it only when it is large and unused. Keep anything users would notice losing,
   including Leaf's interface guarantees. Taking a feature away is the maintainer's

@@ -285,6 +285,11 @@ _DELIVERED_EVENT = {
                 "it was made on wrote them.",
                 {"type": "object", "additionalProperties": STRING},
             ),
+            "names": described(
+                "The name of each element in `says`, by id, in the gesture's own "
+                "document: its declared name or leading title, else its words.",
+                {"type": "object", "additionalProperties": STRING},
+            ),
             "was": described(
                 "On the user's rewrite of their own message, the words it replaced.",
                 STRING,
@@ -294,6 +299,18 @@ _DELIVERED_EVENT = {
                 "rewritten message is a suggestion, so its new text is the exact "
                 "replacement it proposes.",
                 {"type": "boolean"},
+            ),
+            "waiting": described(
+                "On a widget action, the obligations that still waited on the "
+                "user's words at capture in a thread about that widget's "
+                "obligations (`obligations.waiting_about`), which the action may "
+                "have settled: each obligation's `id` and the `text` that asked it.",
+                {
+                    "type": "array",
+                    "items": object_schema(
+                        {"id": STRING, "text": {"type": ["string", "null"]}}
+                    ),
+                },
             ),
             "answer": described(
                 "The response the event owed at capture "
@@ -477,7 +494,9 @@ def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
     return {"kind": "page"}
 
 
-def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
+def current_responses(
+    page_dir: Path, events: list[dict], reading=None
+) -> dict[str, dict]:
     """Map every event that owns an answer to its exact response address.
 
     The address is the owed answer `activity` derives from the input's obligation
@@ -487,10 +506,8 @@ def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     """
     from .served_state.context import read_page
 
-    return {
-        item["input"]: item["answer"]
-        for item in read_page(page_dir, events).work.obligations
-    }
+    reading = reading or read_page(page_dir, events)
+    return {item["input"]: item["answer"] for item in reading.work.obligations}
 
 
 def batch_data(
@@ -501,7 +518,9 @@ def batch_data(
     from it."""
     from .events import build_threads
     from .gesture_words import GestureWords, revisions_on_disk
+    from .obligations import waiting_about
     from .revision_artifact import active_enclosing
+    from .served_state.context import read_page
     from .thread_context import (
         batch_threads,
         thread_memberships,
@@ -520,8 +539,11 @@ def batch_data(
         thread_widgets(thread_structure(events), names),
         within,
     )
+    acted = any(event["kind"] == "action" for event in batch)
+    reading = read_page(page_dir, events) if responses is None or acted else None
     if responses is None:
-        responses = current_responses(page_dir, events)
+        responses = current_responses(page_dir, events, reading)
+    durable = reading.work.durable if acted else None
     revisions = {
         revision["id"]: revision
         for thread in build_threads(events, within).values()
@@ -545,6 +567,9 @@ def batch_data(
         # does not read is not read for its words at all.
         if registry is not None and (says := words.says(event)):
             entry["says"] = says
+            entry["names"] = {
+                identity: words.name(event, identity) for identity in says
+            }
         if revision := revisions.get(event["id"]):
             # The thread's digest already reads the new wording; the agent answering
             # a revision needs to see what it replaced, and whether those words are a
@@ -554,6 +579,19 @@ def batch_data(
                 entry["suggestion"] = True
         if (answer := responses.get(event["id"])) is not None:
             entry["answer"] = answer
+        if (
+            durable is not None
+            and event["kind"] == "action"
+            and (
+                waiting := waiting_about(
+                    event["widget"],
+                    durable.all_obligations["all"],
+                    durable.threads,
+                    durable.within,
+                )
+            )
+        ):
+            entry["waiting"] = waiting
         captured.append(entry)
     return {
         "page": str(page_dir),
@@ -1314,7 +1352,7 @@ def receive_held(
     ended or was replaced, a log this Leaf may not write
     (`layer.incompatible_layer`), or locks still held at `deadline`, for a hook
     that must exit by then for its handover to stand. The other batches are still
-    recorded, and the hook hands only those over (`hook_transport.render`)."""
+    recorded, and the hook hands only those over (`hook_transport.carry_turn`)."""
     recorded = []
     for batch in payload["batches"]:
         try:

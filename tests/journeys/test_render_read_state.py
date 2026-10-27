@@ -1,7 +1,5 @@
 """Durable user acknowledgement through the rendered Thread surfaces."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record, served_thread
 from playwright.sync_api import expect
@@ -35,22 +33,24 @@ def _read_events(page_dir):
     ]
 
 
-# The panel's Threads mark says how many open threads hold news the user has not read,
-# and its dot shows while any do: the page's one standing sign of unread messages.
-def _threads_mark(page):
-    return page.locator(".lf-fp-threads")
+# The panel's control at rest, which a test focuses to stand the user in the panel.
+def _on_me_mark(page):
+    return page.locator(".lf-fp-on-user")
 
 
+# The page's one standing sign of unread messages: a dot on the On me mark, whose name
+# counts the threads holding news, and on the folded leaf. The leaf's dot stands
+# whatever view is open, where the view's ✕ takes the mark's seat, so it is read here.
 def _expect_news(page, news=True):
-    mark = _threads_mark(page)
+    dot = page.locator(".lf-fp-news-dot")
     if news:
-        expect(mark).to_have_attribute("aria-label", re.compile("with news"))
+        expect(dot).to_have_attribute("data-shown", "")
     else:
-        expect(mark).not_to_have_attribute("aria-label", re.compile("with news"))
+        expect(dot).not_to_have_attribute("data-shown", "")
 
 
 def _has_news(page):
-    return "with news" in _threads_mark(page).get_attribute("aria-label")
+    return page.locator(".lf-fp-news-dot").get_attribute("data-shown") is not None
 
 
 def _first_unread(page):
@@ -287,7 +287,7 @@ def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
         '<h1>Practice page</h1><div id="read-clip">{sample}</div>',
         "#read-clip { height: 100px; overflow: auto; }",
     )
-    _threads_mark(child).focus()
+    _on_me_mark(child).focus()
     _open_first_unread(page, child)
     _still_unread(page, child)
 
@@ -309,9 +309,9 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
         '<h1>Practice page</h1><div id="read-gap"></div>{sample}',
         "#read-gap { height: 2000px; }",
     )
-    # Below the first screen it shows nothing: the user focuses its Threads mark and
+    # Below the first screen it shows nothing: the user focuses its On me mark and
     # scrolls the containing page back to the top first.
-    _threads_mark(child).focus()
+    _on_me_mark(child).focus()
     page.evaluate("scrollTo(0, 0)")
     _open_first_unread(page, child)
     assert frame.bounding_box()["y"] > page.viewport_size["height"]
@@ -341,7 +341,7 @@ def test_a_sample_in_a_native_modal_escapes_inherited_inertness(browser, serve):
     page.locator("#owner-modal").evaluate(
         "dialog => { dialog.close(); dialog.showModal(); }"
     )
-    _threads_mark(child).focus()
+    _on_me_mark(child).focus()
     _open_first_unread(page, child)
     _scroll_to_message(page, child, "document.querySelector('#owner-modal')")
     _read_by_the_sample(page, child)

@@ -55,6 +55,7 @@ ACTION_ON_OBLIGATION = {
             "unit": "widget",
             "record": {"kind": "attribute", "attr": "chosen"},
             "creates": None,
+            "decides": False,
             "detail": {
                 "type": "object",
                 "properties": {

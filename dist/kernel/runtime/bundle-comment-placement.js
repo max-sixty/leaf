@@ -1,8 +1,8 @@
 import { TAB_STOP, afterScript, atLayoutPrecision, cancelRender, keeps, layoutPx, move, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
-import { LAYOUT, clamp, clippingAxes, coarsePointer, hoveringPointer, overlaps, overlapsAcross, renderedChildren, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, skipped, union } from "./bundle-errors.js";
-import { afterPresentation, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageScroller, scrollLimit, scrollerFor, shownRegionBounds } from "./bundle-reading-regions.js";
+import { LAYOUT, coarsePointer, hoveringPointer } from "./bundle-layer-client.js";
+import { clamp, clippingAxes, overlaps, overlapsAcross, renderedChildren, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, skipped, union } from "./bundle-geometry.js";
+import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, effectiveScroller, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, shownRegionBounds, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";
-import { anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, railStands, scrollAxes, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
 //#region runtime/annotation-overlay/margin-placement.js
@@ -39,13 +39,55 @@ function arrivals(previous, rows, pass) {
 	return next;
 }
 const inSeatingOrder = (rows) => [...rows].sort((a, b) => Number(Boolean(b.held)) - Number(Boolean(a.held)) || (a.came ?? 0) - (b.came ?? 0) || a.rect.top - b.rect.top);
+function seatsBy(parts, home, inline, passage, { cover, beside }, size, gap) {
+	const height = home.bottom - home.top;
+	const box = union(parts) ?? home;
+	const end = parts.at(-1);
+	const outside = (part) => {
+		const seat = {
+			left: part.right + gap,
+			right: part.right + gap + size,
+			top: part.top,
+			bottom: part.top + height
+		};
+		return beside({
+			...seat,
+			bottom: Math.min(seat.bottom, part.bottom)
+		}) ? null : seat;
+	};
+	const under = {
+		left: Math.min(home.left, box.left),
+		right: home.right,
+		top: box.bottom + gap,
+		bottom: box.bottom + gap + height
+	};
+	const belowClear = !cover.some((box) => overlaps(box, under));
+	return [
+		outside(box),
+		...inline && end ? [outside(end)] : [],
+		{
+			...home,
+			left: home.right - size
+		},
+		{
+			left: passage ? box.right : home.right - size,
+			right: passage ? box.right + size : home.right,
+			top: box.top - gap - height,
+			bottom: box.top - gap
+		},
+		...belowClear ? [{
+			...under,
+			left: home.right - size
+		}] : []
+	];
+}
 function seatRows(pins, { gap, occupied = [] }) {
 	const seats = /* @__PURE__ */ new Map();
 	const seated = [...occupied];
 	for (const pin of inSeatingOrder(pins)) {
 		const fold = pin.folds;
 		let folded = Boolean(fold && pin.folded);
-		const foldWidth = fold && fold.seats[0].right - fold.seats[0].left;
+		const foldWidth = fold && fold.seats[pin.corner].right - fold.seats[pin.corner].left;
 		const foldBounds = fold && {
 			...pin.bounds,
 			left: Math.min(pin.bounds.left + fold.open - foldWidth, pin.bounds.right - foldWidth)
@@ -57,21 +99,25 @@ function seatRows(pins, { gap, occupied = [] }) {
 		const heldBounds = folded ? foldBounds : pin.bounds;
 		let rect = held && inside(held, heldBounds) ? held : null;
 		const avoiding = [...pin.cover, ...seated];
+		const pressed = [...pin.controls, ...seated];
 		const lowered = (list) => [
 			...list.slice(0, pin.corner),
 			slid(list[pin.corner], avoiding, gap, "down", pin.floor),
 			...list.slice(pin.corner + 1)
 		];
+		const asideOf = (list, bounds, past = pressed) => slid(boundedHome(list[pin.corner], bounds), past, gap, "left", bounds.left);
+		const clearAside = (list, bounds) => pinSpot([asideOf(list, bounds, avoiding)], [], bounds);
 		if (!rect) {
+			folded = false;
 			rect = pinSpot(lowered(pin.seats), avoiding, pin.bounds);
-			folded = !rect && Boolean(fold);
-			if (folded) rect = pinSpot(lowered(fold.seats), avoiding, foldBounds);
+			if (!rect && fold) [rect, folded] = [pinSpot(lowered(fold.seats), avoiding, foldBounds), true];
+			if (!rect) [rect, folded] = [clearAside(pin.seats, pin.bounds), false];
+			if (!rect && fold) [rect, folded] = [clearAside(fold.seats, foldBounds), true];
 		}
 		const seatsNow = folded ? fold.seats : pin.seats;
 		const boundsNow = folded ? foldBounds : pin.bounds;
-		const pressed = [...pin.controls, ...seated];
 		const corner = boundedHome(seatsNow[pin.corner], boundsNow);
-		const aside = slid(corner, pressed, gap, "left", boundsNow.left);
+		const aside = asideOf(seatsNow, boundsNow);
 		rect ??= leastCovering(seatsNow, pin.cover, pressed, boundsNow);
 		if (!rect) {
 			const push = packRows([{
@@ -111,7 +157,7 @@ function leastCovering(seats, cover, pressed, bounds) {
 	let best = null;
 	let least = Infinity;
 	for (const seat of seats) {
-		if (!inside(seat, bounds) || pressed.some((box) => overlaps(box, seat))) continue;
+		if (!seat || !inside(seat, bounds) || pressed.some((box) => overlaps(box, seat))) continue;
 		const covered = cover.reduce((sum, box) => sum + shared(box, seat), 0);
 		if (covered < least) [best, least] = [seat, covered];
 	}
@@ -481,6 +527,7 @@ function controlsIn(host) {
 function coverIn(root, band, target, bands, stop) {
 	const cover = [];
 	const controls = [];
+	const boxes = [];
 	const meets = (box) => box.bottom > band.top && box.top < band.bottom;
 	const visit = (el) => {
 		for (const node of renderedChildren(el)) {
@@ -496,10 +543,15 @@ function coverIn(root, band, target, bands, stop) {
 				continue;
 			}
 			if (node.nodeType !== Node.ELEMENT_NODE || node.closest(".lf-chrome")) continue;
+			if (skipped(node)) continue;
 			const box = node.getBoundingClientRect();
 			const boxless = !box.width && !box.height;
 			if (!boxless && !meets(box)) continue;
 			const holds = node !== target && renderedUnder(target, node);
+			if (!boxless && !holds && node !== target) boxes.push({
+				node,
+				box
+			});
 			const control = node.matches(TAB_STOP);
 			if (!boxless && !holds && (node.shadowRoot || node.matches(OPAQUE) || control) && node.checkVisibility()) {
 				const shown = clippedBand(node, box, bands, stop);
@@ -513,6 +565,7 @@ function coverIn(root, band, target, bands, stop) {
 				continue;
 			}
 			if (node instanceof SVGElement) continue;
+			if (getComputedStyle(node).contentVisibility === "hidden") continue;
 			if (node.localName === "details" && !node.open) {
 				const summary = node.querySelector(":scope > summary");
 				if (summary) visit({ childNodes: [summary] });
@@ -522,9 +575,16 @@ function coverIn(root, band, target, bands, stop) {
 		}
 	};
 	visit(root);
+	const beside = (seat) => boxes.some(({ node, box }) => {
+		if (!overlaps(box, seat) || getComputedStyle(node).display === "inline") return false;
+		if (renderedUnder(node, target) || !node.checkVisibility()) return false;
+		const shown = clippedBand(node, box, bands, stop);
+		return Boolean(shown) && overlaps(shown, seat);
+	});
 	return {
 		cover,
-		controls
+		controls,
+		beside
 	};
 }
 function contentBox(scroller) {
@@ -541,51 +601,22 @@ function contentBox(scroller) {
 const seats = /* @__PURE__ */ new WeakMap();
 const folded = /* @__PURE__ */ new WeakSet();
 const standsFolded = (row) => folded.has(row);
+function paintedBox(part, row) {
+	const box = part.getBoundingClientRect();
+	const by = standsBy.get(row);
+	const target = by && isCarrier(row.parentElement) ? rows.get(row)?.anchor() : null;
+	if (!target?.isConnected || skipped(target)) return box;
+	const whole = shownExtent(target);
+	if (!whole) return box;
+	const own = part === row ? box : row.getBoundingClientRect();
+	const across = row.dataset.lfPlace === "pin" ? whole.right + by.right - own.right : 0;
+	return new DOMRect(box.x + across, box.y + whole.top + by.top - own.top, box.width, box.height);
+}
 function standFolded(row, fold, on) {
 	if (folded.has(row) === on) return;
 	if (on) folded.add(row);
 	else folded.delete(row);
 	fold?.changed();
-}
-function seatsBy(parts, home, inline, passage, cover, size) {
-	const height = home.bottom - home.top;
-	const box = union(parts) ?? home;
-	const end = parts.at(-1);
-	const under = {
-		left: Math.min(home.left, box.left),
-		right: home.right,
-		top: box.bottom + GAP,
-		bottom: box.bottom + GAP + height
-	};
-	const belowClear = !cover.some((box) => overlaps(box, under));
-	return [
-		{
-			left: box.right + GAP,
-			right: box.right + GAP + size,
-			top: box.top,
-			bottom: box.top + height
-		},
-		...inline && end ? [{
-			left: end.right + GAP,
-			right: end.right + GAP + size,
-			top: end.top,
-			bottom: end.top + height
-		}] : [],
-		{
-			...home,
-			left: home.right - size
-		},
-		{
-			left: passage ? box.right : home.right - size,
-			right: passage ? box.right + size : home.right,
-			top: box.top - GAP - height,
-			bottom: box.top - GAP
-		},
-		...belowClear ? [{
-			...under,
-			left: home.right - size
-		}] : []
-	];
 }
 function pinSeating(rows, { bands, shell, pinInset }) {
 	const main = marginColumn();
@@ -630,13 +661,14 @@ function pinSeating(rows, { bands, shell, pinInset }) {
 			bottom: Math.max(...spans.map((box) => box.bottom)) + around
 		};
 		const stop = read.scroller;
-		const { cover, controls } = coverIn(stop === pageScroller ? main : stop, band, target, bands, stop);
+		const room = coverIn(stop === pageScroller ? main : stop, band, target, bands, stop);
+		const { cover, controls } = room;
 		const end = parts.at(-1);
 		const inline = Boolean(words) || !point && end && target instanceof HTMLElement && getComputedStyle(target).display.startsWith("inline");
 		const floor = Math.max(home.bottom, ...parts.map((part) => part.bottom));
 		const reach = (stop === pageScroller ? innerHeight : stop.clientHeight) / 2;
 		const near = (seat) => seat.top >= Math.min(...parts.map((part) => part.top)) - reach && seat.bottom <= Math.max(...parts.map((part) => part.bottom)) + reach;
-		const seatsAt = (size) => [...seatsBy(parts, home, inline, Boolean(words), cover, size), ...block ? seatsBy(block.parts, block.home, false, false, cover, size).filter(near) : []];
+		const seatsAt = (size) => [...seatsBy(parts, home, inline, Boolean(words), room, size, GAP), ...block ? seatsBy(block.parts, block.home, false, false, room, size, GAP).filter((seat) => seat && near(seat)) : []];
 		const within = stop === pageScroller ? rootBounds : contentBox(stop);
 		const clipped = clippedBand(target, EVERYWHERE, bands, stop);
 		pins.push({
@@ -1228,6 +1260,13 @@ const INSETS = [
 ];
 const stood = /* @__PURE__ */ new Map();
 const floatingSelections = () => [...stood.values()];
+const heldEdges = (floating) => {
+	const edges = stood.get(floating)?.edges;
+	return edges ? {
+		x: edges.left,
+		y: edges.top
+	} : null;
+};
 const physicalContext = (context) => context instanceof Element ? context : context?.parentElement;
 function floatingGeometry(contexts) {
 	const anchors = /* @__PURE__ */ new Map();
@@ -1820,4 +1859,4 @@ function commentPlacement() {
 }
 
 //#endregion
-export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow };
+export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow };

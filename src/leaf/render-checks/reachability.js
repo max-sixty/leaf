@@ -1,5 +1,5 @@
-import { shownParts, TEXT_BOX } from "/runtime/widget-api.js";
-import { shownBox, userScrollport } from "/runtime/check-api.js";
+import { TEXT_BOX } from "/runtime/widget-api.js";
+import { shownBox, shownParts, userScrollport } from "/runtime/check-api.js";
 import { at, place, unique } from "./locate.js";
 
 // An overlay that takes no presses at rest, such as the contents map's spine, stands

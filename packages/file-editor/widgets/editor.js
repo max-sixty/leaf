@@ -1,7 +1,8 @@
 /** CodeMirror owns editing, selection, history and conflict presentation.
  * The surrounding widget alone owns file revisions and disk writes.
  */
-import { LeafEditorView, langForPath, sizeObserver } from "/runtime/widget-api.js";
+import { langForPath, leafEditorView, sizeObserver } from "/runtime/widget-api.js";
+import * as codemirror from "/vendor/codemirror.esm.js";
 import {
   ChangeSet,
   Compartment,
@@ -39,6 +40,8 @@ import {
   closeBracketsKeymap,
   completionKeymap,
 } from "/vendor/extensions.esm.js";
+
+const LeafEditorView = leafEditorView(codemirror);
 
 const theme = EditorView.theme({
   "&": { color: "var(--ink)", backgroundColor: "var(--card)" },
@@ -100,11 +103,11 @@ const highlighting = HighlightStyle.define([
   { tag: tags.strong, fontWeight: "650" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: [tags.link, tags.url], color: "var(--accent)", textDecoration: "underline" },
-  { tag: [tags.monospace, tags.string], color: "light-dark(#7b4432, #dca68f)" },
-  { tag: [tags.keyword, tags.modifier], color: "light-dark(#76508b, #c7a4dd)" },
-  { tag: [tags.number, tags.bool], color: "light-dark(#7d592a, #d3b77c)" },
-  { tag: tags.comment, color: "var(--muted)" },
-  { tag: [tags.meta, tags.processingInstruction], color: "var(--muted)" },
+  { tag: [tags.monospace, tags.string], color: "var(--syn-string)" },
+  { tag: [tags.keyword, tags.modifier], color: "var(--syn-keyword)" },
+  { tag: [tags.number, tags.bool], color: "var(--syn-number)" },
+  { tag: tags.comment, color: "var(--syn-comment)" },
+  { tag: [tags.meta, tags.processingInstruction], color: "var(--syn-comment)" },
 ]);
 const isMarkdown = (filename) => langForPath(filename) === "markdown";
 

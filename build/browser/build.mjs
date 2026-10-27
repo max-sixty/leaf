@@ -1,41 +1,34 @@
 #!/usr/bin/env node
 /**
- * Build Leaf's committed browser framework from locked contributor dependencies.
+ * Build Leaf's committed browser outputs from locked contributor dependencies.
  * Invoke through pnpm run build:browser or check:browser; pnpm verifies that the
  * installed dependencies match the manifest and lock before either script runs.
  *
  * Run with --check to compare a fresh, typechecked build with committed bytes
- * without writing them. This module owns its source root, outputs, and their layer
- * paths, and writes and checks every other committed Node-built output beside them:
- * the initial renderers (`build/initial.mjs`), the stylesheets (`build/styles.mjs`),
- * the modules generated from the registry (`build/registry.mjs`), the page
- * protocol's types, the event records and the served state (`contract-types.mjs`),
- * and the baseline its schemas are held to (`protocol.mjs`), the third-party bundles
+ * without writing them. This module type-checks the runtime, builds the framework's
+ * third-party packages, and writes and checks every other committed Node-built output
+ * beside them: the initial renderers (`build/initial.mjs`), the third-party
+ * stylesheets (`build/styles.mjs`), the page protocol's types, the event records and
+ * the served state (`contract-types.mjs`), and the baseline its schemas are held to
+ * (`protocol.mjs`), the third-party bundles and the runtime's table of their grammars
  * (`build/vendor.mjs`), and last the kernel compiled from all of them
- * (`build/runtime-bundle.mjs`). The kernel's
- * directory, the layer's `vendor/` and each package's hold nothing else, so a file
- * there that no build writes is stale. Leaf installation, vendoring, activation, and
+ * (`build/runtime-bundle.mjs`). The kernel's directory, the layer's `vendor/` and each
+ * package's hold nothing else, so a file there that no build writes is stale. Leaf
+ * installation, vendoring, activation, and
  * export never invoke this tool.
  * The compiler's layer paths are generated into `tsconfig.paths.json` from the
  * package directories, so its CLI and editors resolve the same installed modules.
  *
- * Each TypeScript module compiles to one JavaScript module, its types blanked to
- * whitespace, so every line keeps its source line number and two branches conflict
- * in the output exactly where they conflict in the source. `index.ts` becomes the
- * facade `vendor/browser-runtime.js`, and the modules it reaches sit in
- * `vendor/browser-runtime/`. Their imports are rewritten to the layer paths a page
- * serves: runtime modules stay native, so a page holds one instance of each, and
- * packages bind to the vendored builds below. The kernel compiles the whole framework
- * in, so its file count costs requests only where a page serves source modules.
- *
- * The framework's third-party packages are minified builds from the lock and the
+ * The framework (`runtime/framework.js` and the modules behind it) is written as
+ * JavaScript the type check reads, so a page serves its source as it does every other
+ * runtime module. Its third-party packages are minified builds from the lock and the
  * adaptations below. Delivery inlines Lit only when an initial producer needs it,
  * mapping `vendor/lit.js` to that instance's facade; otherwise it loads as a normal
  * module (`build/lit.mjs`). Both outputs share the same namespace source, and a page
- * loads one implementation. Signals are the
- * framework's own and sit inside its directory. `shipped.mjs` decides whether each
- * output's imports resolve on every page and writes the notices for the packages
- * that reached them, as it does for every vendored bundle.
+ * loads one implementation. Signals are the framework's own: the kernel compiles
+ * them in with it (`runtime-bundle.mjs`). `shipped.mjs` decides whether each output's
+ * imports resolve on every page and writes the notices for the packages that reached
+ * them, as it does for every vendored bundle.
  */
 import { readFileSync } from "node:fs";
 import { cp, mkdtemp, readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
@@ -43,8 +36,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { parse } from "acorn";
-import { transformSync } from "amaro";
 import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
@@ -57,7 +48,6 @@ import {
   litNamespace,
   litPath,
 } from "../lit.mjs";
-import { registryOutputs } from "../registry.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
 import { adapt, seam, vendorOutputs } from "../vendor.mjs";
@@ -67,16 +57,13 @@ const root = fileURLToPath(new URL("../../", import.meta.url));
 const assets = "browser";
 /** The committed kernel, which installs serve while it matches the tree's modules. */
 const kernelDirectory = "dist/kernel";
-const sourceRoot = "browser/framework";
-const compilerPathsFile = `${sourceRoot}/tsconfig.paths.json`;
+/** The type check's configurations and the declarations of the bundles it reads. */
+const typeRoot = "browser/types";
+const compilerPathsFile = `${typeRoot}/tsconfig.paths.json`;
+const litTypesFile = `${typeRoot}/lit.d.ts`;
 const packageRoot = "packages";
-const facade = "vendor/browser-runtime.js";
-const frameworkDirectory = "vendor/browser-runtime";
-/** The framework's layer paths: its facade and the directory of its modules. */
-export const frameworkPaths = [facade, frameworkDirectory];
-/** Whether a layer path belongs to the framework, which delivery compiles away. */
-export const inFramework = (layerPath) =>
-  layerPath === facade || layerPath.startsWith(`${frameworkDirectory}/`);
+/** The layer path of the framework's signals, which the kernel compiles in. */
+export const signalsPath = "vendor/signals-core.js";
 
 /** Package directories in deterministic order, shared by paths and build ownership. */
 async function packageDirectories(directory) {
@@ -90,87 +77,32 @@ async function packageDirectories(directory) {
     .sort();
 }
 
-/** Compiler paths for the rooted URLs the layer serves, with source facade types. */
+/** Compiler paths for the rooted URLs the layer serves, with the framework's bundles
+ * typed from the packages they bundle. */
 export async function compilerPaths(directory = root) {
   const roots = [assets, ...(await packageDirectories(directory))];
   const paths = {
-    [`/${facade}`]: ["./index.ts"],
+    [`/${litPath}`]: ["./lit.d.ts"],
+    [`/${signalsPath}`]: ["./signals-core.d.ts"],
     ...Object.fromEntries(
       ["vendor", "widgets"].map((kind) => [
         `/${kind}/*`,
-        roots.map((base) => path.posix.relative(sourceRoot, `${base}/${kind}/*`)),
+        roots.map((base) => path.posix.relative(typeRoot, `${base}/${kind}/*`)),
       ]),
     ),
-    "/runtime/*": [path.posix.relative(sourceRoot, `${assets}/runtime/*`)],
+    "/runtime/*": [path.posix.relative(typeRoot, `${assets}/runtime/*`)],
     "/checks/*": ["../../src/leaf/render-checks/*"],
   };
   return Buffer.from(`${JSON.stringify({ compilerOptions: { paths } }, null, 2)}\n`);
 }
-/** The layer path each package the framework imports is vendored at. */
-const packages = {
-  lit: litPath,
-  "@preact/signals-core": `${frameworkDirectory}/signals-core.js`,
-  "@lit-labs/preact-signals": `${frameworkDirectory}/signals-core.js`,
-};
 
-/** Each source module's layer path. */
-const layerPathOf = (source) => {
-  const name = path.posix.basename(source, ".ts");
-  return name === "index" ? facade : `${frameworkDirectory}/${name}.js`;
-};
-
-/** The layer path an import in a framework source module names, and its source. */
-function importTarget(specifier, source) {
-  if (!/^\.{1,2}\//.test(specifier)) {
-    // Its tags go by their lit-all names, which a bare rebinding would not reach.
-    if (specifier === "lit/static-html.js")
-      throw new Error(`${source}: import staticHtml and its kin from lit`);
-    const name = specifier.startsWith("lit/") ? "lit" : specifier;
-    if (!Object.hasOwn(packages, name))
-      throw new Error(`${source}: ${specifier} is not a package the framework vendors`);
-    return { target: packages[name] };
-  }
-  const resolved = path.posix.join(path.posix.dirname(source), specifier);
-  if (path.posix.dirname(resolved) === sourceRoot) {
-    const imported = resolved.replace(/\.js$/, ".ts");
-    return { target: layerPathOf(imported), imported };
-  }
-  if (resolved.startsWith(`${assets}/`))
-    return { target: resolved.slice(assets.length + 1) };
-  throw new Error(`${source}: ${specifier} is outside the layer`);
+/** The types of `/vendor/lit.js`, whose minified build carries none: the namespace
+ * it bundles (`build/lit.mjs`), read from Lit's own declarations. */
+async function litTypes() {
+  return Buffer.from(
+    `/* @noformat Generated from Lit's package exports by build/browser/build.mjs. */\n${await litNamespace()}\n`,
+  );
 }
-
-/**
- * One source module as browser JavaScript, and the framework sources it imports.
- *
- * Types become whitespace; a line whose code ended in a type drops the spaces left
- * behind, and every other byte stays where the source has it.
- */
-function compileModule(text, source) {
-  const lines = text.split("\n");
-  let code = transformSync(text, { mode: "strip-only" })
-    .code.split("\n")
-    .map((line, index) => (/\s$/.test(lines[index]) ? line : line.trimEnd()))
-    .join("\n");
-  const from = path.posix.dirname(layerPathOf(source));
-  const imports = [];
-  const sources = parse(code, { ecmaVersion: "latest", sourceType: "module" })
-    .body.filter((node) => node.source)
-    .map((node) => node.source);
-  for (const node of sources.reverse()) {
-    const { target, imported } = importTarget(node.value, source);
-    if (imported) imports.push(imported);
-    let edge = path.posix.relative(from, target);
-    if (!edge.startsWith(".")) edge = `./${edge}`;
-    code = code.slice(0, node.start) + JSON.stringify(edge) + code.slice(node.end);
-  }
-  const trailer = `// Generated from ${source} by build/browser/build.mjs.\n`;
-  return {
-    code: code.endsWith("\n") ? code + trailer : `${code}\n${trailer}`,
-    imports,
-  };
-}
-
 /**
  * Build the classic Lit implementation, adapting the locked published modules in memory.
  *
@@ -262,7 +194,7 @@ async function protocolOutputs() {
   const refused = protocolBreaks(baseline, held);
   if (refused.length)
     throw new Error(
-      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in browser/registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
+      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in browser/runtime/kernel-registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
     );
   return {
     contract: await contractTypes(new URL("../../", import.meta.url), schemas),
@@ -271,16 +203,16 @@ async function protocolOutputs() {
 }
 
 // Two programs type-check the browser code, and each file has one checker.
-// `tsconfig.json` holds the framework's TypeScript, and the runtime modules that opt
-// in with a leading `// @ts-check`, to strict mode; it includes every runtime module so
-// that each one opting in is checked there. `tsconfig.runtime.json` checks without
-// it the rest of the runtime's modules, `leaf.js`, the kernel's and packages' widget
-// modules, and the render checks pages import from `/checks/`. The `paths` both share
+// `tsconfig.json` holds the runtime modules that opt in with a leading `// @ts-check`
+// to strict mode; it includes every runtime module so that each one opting in is
+// checked there. Every framework module must opt in (`frameworkOptsIn`).
+// `tsconfig.runtime.json` checks without it the rest of the runtime's modules,
+// `leaf.js`, the kernel's and packages' widget modules, and the render checks pages
+// import from `/checks/`. The `paths` both share
 // resolve the rooted paths a page serves, a package's `vendor/` and `widgets/` among
-// them, and map the facade's, `/vendor/browser-runtime.js`, to `index.ts`, so a
-// module importing the facade by that path reads the framework's source types and no
-// declaration file ships in the layer. A relative path to it would reach the compiled
-// facade, whose types are blanked, so ESLint refuses one (`semanticStoreOwnershipRule`).
+// them, and map the framework's bundles, `/vendor/lit.js` and `/vendor/signals-core.js`,
+// to declarations of the packages they bundle, so no declaration file ships in the
+// layer. A relative path to one reaches the minified bundle, which carries no types.
 // `runtime-globals.d.ts` declares what the classic scripts hang on `<html>` and
 // `window`, the events the runtime dispatches with a detail, and the runtime's own
 // elements by tag. tsc checks a JavaScript file wherever an import reaches it,
@@ -288,10 +220,30 @@ async function protocolOutputs() {
 // runtime program also reaches the strict program's files and the vendored
 // third-party bundles. A diagnostic there is not the runtime program's to report, and
 // the build drops it.
+const strict = (file) =>
+  readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check");
 const runtimeChecks = (file) =>
   file.endsWith(".js") &&
   !/^(?:browser|packages\/[^/]+)\/vendor\//.test(file) &&
-  !readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check");
+  !strict(file);
+
+/** Refuse a framework module that doesn't opt into the strict program, since the
+ * framework's types are strict wherever it puts a module. */
+async function frameworkOptsIn() {
+  const modules = [
+    `${assets}/runtime/framework.js`,
+    ...(
+      await readdir(path.join(root, assets, "runtime/framework"), { recursive: true })
+    )
+      .filter((name) => name.endsWith(".js"))
+      .map((name) => `${assets}/runtime/framework/${name}`),
+  ];
+  const lax = modules.filter((file) => !strict(file));
+  if (lax.length)
+    throw new Error(
+      `Start each framework module with \`// @ts-check\`, so the strict program checks it:\n${lax.join("\n")}`,
+    );
+}
 
 function typecheck(config, reports = () => true) {
   const result = spawnSync(
@@ -299,7 +251,7 @@ function typecheck(config, reports = () => true) {
     [
       path.join(root, "node_modules/typescript/bin/tsc"),
       "--project",
-      `${sourceRoot}/${config}`,
+      `${typeRoot}/${config}`,
       "--pretty",
       "false",
     ],
@@ -324,41 +276,27 @@ export async function buildOutputs() {
   const paths = await compilerPaths();
   if (!(await readFile(path.join(root, compilerPathsFile))).equals(paths))
     throw new Error("Stale compiler paths; run pnpm run build:browser");
-  const contractPath = path.join(root, sourceRoot, "contract.d.ts");
+  const lit = await litTypes();
+  if (!(await readFile(path.join(root, litTypesFile))).equals(lit))
+    throw new Error("Stale Lit types; run pnpm run build:browser");
+  const contractPath = path.join(root, typeRoot, "contract.d.ts");
   const protocol = await protocolOutputs();
   if ((await readFile(contractPath, "utf8")) !== protocol.contract)
     throw new Error("Stale protocol types; run pnpm run build:browser");
+  await frameworkOptsIn();
   typecheck("tsconfig.json");
   typecheck("tsconfig.runtime.json", runtimeChecks);
 
   const outputs = new Map([
     [compilerPathsFile, paths],
+    [litTypesFile, lit],
     [baselineName, Buffer.from(protocol.baseline)],
   ]);
-  const pending = [`${sourceRoot}/index.ts`];
-  while (pending.length) {
-    const source = pending.pop();
-    const name = `${assets}/${layerPathOf(source)}`;
-    if (outputs.has(name)) continue;
-    const { code, imports } = compileModule(
-      await readFile(path.join(root, source), "utf8"),
-      source,
-    );
-    checkModule(code, name);
-    outputs.set(name, Buffer.from(code));
-    pending.push(...imports);
-  }
-
   const result = await build({
     absWorkingDir: root,
-    entryPoints: Object.fromEntries(
-      Object.entries(packages)
-        .filter(([name]) => name !== "lit")
-        .map(([, layerPath]) => [
-          layerPath.slice("vendor/".length, -".js".length),
-          "leaf:signals",
-        ]),
-    ),
+    entryPoints: {
+      [signalsPath.slice("vendor/".length, -".js".length)]: "leaf:signals",
+    },
     outdir: `${assets}/vendor`,
     plugins: [
       {
@@ -455,17 +393,16 @@ export async function buildOutputs() {
   checkModule(moduleLitFile.text, litPath);
   outputs.set(`${assets}/${litPath}`, Buffer.from(moduleLitFile.contents));
   outputs.set(`${assets}/${sharedLitPath}`, Buffer.from(await litFacade()));
-  const packageRoots = [
-    ...new Set([
-      ...bundledPackages(result.metafile, root),
-      ...bundledPackages(initialLit.metafile, root),
-    ]),
-  ];
-  outputs.set(
-    `${assets}/vendor/browser-runtime.LICENSES.txt`,
-    Buffer.from(licenseNotices("browser-runtime", packageRoots)),
-  );
-  for (const producer of [initialOutputs, styleOutputs, registryOutputs, vendorOutputs])
+  // Each served bundle's notices, named after it; both builds of Lit hold one Lit.
+  for (const [name, metafile] of [
+    ["signals-core", result.metafile],
+    ["lit", initialLit.metafile],
+  ])
+    outputs.set(
+      `${assets}/vendor/${name}.LICENSES.txt`,
+      Buffer.from(licenseNotices(name, bundledPackages(metafile, root))),
+    );
+  for (const producer of [initialOutputs, styleOutputs, vendorOutputs])
     for (const [name, bytes] of await producer()) outputs.set(name, bytes);
   for (const [name, bytes] of await kernelOf(outputs))
     outputs.set(`${kernelDirectory}/${name}`, bytes);
@@ -557,11 +494,9 @@ async function main(args) {
   if (args.length > 1 || (args.length && args[0] !== "--check")) throw new Error(usage);
   if (args[0] !== "--check") {
     await writeFile(path.join(root, compilerPathsFile), await compilerPaths());
+    await writeFile(path.join(root, litTypesFile), await litTypes());
     const { contract } = await protocolOutputs();
-    await writeFile(path.join(root, sourceRoot, "contract.d.ts"), contract);
-    // The modules generated from the registry are the typecheck's inputs too.
-    for (const [name, bytes] of await registryOutputs())
-      await writeFile(path.join(root, name), bytes);
+    await writeFile(path.join(root, typeRoot, "contract.d.ts"), contract);
   }
   const outputs = await buildOutputs();
   if (args[0] === "--check") await checkOutputs(outputs);

@@ -18,11 +18,13 @@ from render_harness import (
     PANEL_THREAD,
     consume_browser_errors,
     expect_obligations_answered,
+    expect_open_threads,
     holding,
     http_error_console,
     is_problem,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_control,
     panel_menu,
@@ -622,7 +624,7 @@ def test_versions_wait_for_a_reading_of_the_log(browser, serve):
     page.goto(serve(OBLIGATION_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", re.compile("Server offline")
+        "aria-label", re.compile("Lost the connection")
     )
     # Versions waits for a reading of the log too.
     versions = panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
@@ -1383,8 +1385,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             'widget:thread-failing:preparation'
           )""",
     )
-    threads = page.locator(".lf-fp-threads")
-    expect(threads).to_have_attribute("title", re.compile("^Threads, 2 open"))
+    expect_open_threads(page, 2)
     page.evaluate(
         "threadReady = false; "
         "whenLeafRegionsPresented(['thread'], () => true)"
@@ -1393,7 +1394,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     )
     page.wait_for_function("threadReady")
     expect(page.locator(".lf-floating-panel #thread-failing")).to_have_count(1)
-    expect(threads).to_have_attribute("title", re.compile("^Threads, 2 open"))
+    expect_open_threads(page, 2)
     assert [said(error) for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: frozen descendant failure"
     ]
@@ -1471,9 +1472,7 @@ def test_compact_reader_draws_the_native_interactive_message(browser, serve, sur
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     if surface == "margin":
-        page.get_by_role(
-            "button", name=re.compile("Thread, My turn to answer")
-        ).first.click()
+        page.get_by_role("button", name=re.compile("Thread, Your turn")).first.click()
         compact = page.locator(".lf-margin-thread")
     else:
         compact = page.locator('#jobs .lf-page-thread[data-thread="native-thread"]')
@@ -1871,8 +1870,8 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
                 this.editor = document.createElement('input');
                 this.editor.slot = 'editor';
                 this.editor.setAttribute('aria-label', 'Draft');
-                this.append(this.editor);
                 shadowStage(this, [this.scope]);
+                this.append(this.editor);
               }
               replaceEditor() {
                 const restore = holdFocus(this.scope, {key: 'data-row'});
@@ -1954,8 +1953,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     assert reply["body"]["kind"] == "authored"
     assert "North" in reply["body"]["text"]
     assert '"markup"' not in json.dumps(record) and '"html"' not in json.dumps(record)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     # The agent answered without naming the thread, so it reads its opening words.
     expect(page.locator(".lf-fp-thread")).to_contain_text("Decision")
     open_panel_thread(page, "question")
@@ -2210,9 +2208,7 @@ def test_panel_authored_message_button_reaches_primary_reader(browser, serve, wi
     workspace = page.locator("#workspace")
     page.evaluate("window.nativeEmail = document.querySelector('#email')")
     # The thread's row in Threads takes the user to the reader that owns its widget.
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button").filter(has_text="Open").click()
+    open_threads(page)
     page.locator('.lf-fp-thread[data-key="channel-question"]').click()
     panel_settled(page, open=False)
     message = workspace.locator('.lf-msg[data-event="channel-question"]')

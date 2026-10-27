@@ -41,7 +41,7 @@ import { captureDrawingFrame, resolveDrawingFrame } from "./drawing-geometry.js"
 import { elementFrame } from "../element-frame.js";
 import { clippedContents } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
-import { COLLAPSE } from "../passage-facts.js";
+import { COLLAPSE } from "../kernel-facts.js";
 import { excerptWords } from "../words.js";
 import {
   elementFromPointAcross,
@@ -371,8 +371,25 @@ export function createDrawingController({
     event.stopImmediatePropagation();
   }
 
+  // The stroke goes and Draw mode stays. The pointer that drew it keeps its claim
+  // until it lifts, so its last moves draw nothing and its release presses nothing.
+  function dropStroke() {
+    stroke = null;
+    shiftDrawingPaint();
+    announce("Stroke canceled. Draw mode is still on.");
+  }
+
   function begin(event) {
-    if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
+    if (!drawModeOn) return;
+    // A second finger makes the touch a pan or a zoom, the browser's (chrome.css),
+    // which doesn't always cancel the first finger's pointer: one that landed earlier
+    // and kept drawing lifts as an ordinary pointerup. So the second finger takes back
+    // the stroke the first began.
+    if (!event.isPrimary) {
+      if (stroke) dropStroke();
+      return;
+    }
+    if (event.button !== 0) return;
     const origin = event.composedPath()[0];
     if (leafSurface(origin)) return;
     holdCompatibilityClick();
@@ -524,11 +541,9 @@ export function createDrawingController({
       return;
     }
     claim(event);
-    stroke = null;
     claimedPointer = null;
     releaseCompatibilityClickSoon();
-    shiftDrawingPaint();
-    announce("Stroke canceled. Draw mode is still on.");
+    dropStroke();
   }
 
   // The presses a claimed pointer's own sequence still owes the page, swallowed so a

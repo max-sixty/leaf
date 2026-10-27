@@ -57,13 +57,13 @@ vars:
       "queues": {
         "on_user": [
           {"kind": "widget", "id": "widget:deploy-window", "owner": "user",
-           "subject": {"kind": "widget", "id": "deploy-window"}, "thread": null, "live": false},
+           "subject": {"kind": "widget", "id": "deploy-window"}, "thread": null, "also": [], "live": false},
           {"kind": "todo", "id": "9f3a21c0", "owner": "user",
-           "subject": {"kind": "element", "id": "phone-build"}, "thread": null, "live": false}
+           "subject": {"kind": "element", "id": "phone-build"}, "thread": null, "also": [], "live": false}
         ],
         "on_agent": [
           {"kind": "update", "id": "update:a83f0e5d", "owner": "agent",
-           "subject": {"kind": "thread", "id": "5aa04c19"}, "thread": "5aa04c19", "live": false},
+           "subject": {"kind": "thread", "id": "5aa04c19"}, "thread": "5aa04c19", "also": [], "live": false},
           {"kind": "todo", "id": "4be81d02", "owner": "agent",
            "subject": {"kind": "widget", "id": "p95-chart"}, "thread": null, "live": true},
           {"kind": "todo", "id": "0d2c55aa", "owner": "agent",

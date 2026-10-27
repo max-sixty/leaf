@@ -103,6 +103,7 @@ customElements.define(
     #navHeight = 0;
     #focusedLink = null;
     #focusedVisible = false;
+    #flowOpen;
 
     #onInterface = () => {
       this.#reconcile();
@@ -216,33 +217,70 @@ customElements.define(
 
     #measure() {
       if (!this.#main || !this.#scroller || !this.#rows) return;
-      this.#drawing.posture(() => currentLocationIn(this.#rows));
+      const disclosure = this.#nav.querySelector("details");
+      const summary = disclosure.querySelector("summary");
+      // CSS already owns posture. A hidden summary means these links are an
+      // always-exposed outline, which requires native open state in every engine.
+      if (getComputedStyle(summary).display === "none") {
+        this.#flowOpen ??= disclosure.open;
+        if (!disclosure.open) disclosure.open = true;
+      } else if (this.#flowOpen !== undefined) {
+        const open = this.#flowOpen || currentLocationIn(this.#rows);
+        if (disclosure.open !== open) disclosure.open = open;
+        this.#flowOpen = undefined;
+      }
       if (!this.#sections.length) {
         this.#positions = [];
         this.#shown = [];
         this.#paint();
         return;
       }
-      const laid = this.#drawing.measure(this.#sections, this.#scroller.scrollTop);
-      this.#shown = laid.shown;
-      this.#positions = laid.positions;
-      this.#contentStart = laid.contentStart;
-      this.#contentEnd = laid.contentEnd;
-      this.#mapPositions = laid.mapPositions;
-      this.#mapHeight = laid.mapHeight;
-      // Labels taller than the map open it as an outline that scrolls; a link the user
-      // could see before the outline shortened stays in sight.
-      if (
-        laid.outline &&
-        currentLocationIn(this.#nav) &&
-        this.#focusedLink === focused(document) &&
-        this.#focusedVisible &&
-        this.#nav.getBoundingClientRect().height < this.#navHeight - 1
-      )
-        scrollIntoView(this.#focusedLink, { block: "nearest", within: this.#nav });
+      const mainTop = this.#documentTop(this.#main);
+      let previous = this.#documentTop(this.#sections[0].destination);
+      this.#shown = this.#sections.map(
+        ({ destination }) =>
+          destination === this.#main || destination.checkVisibility(),
+      );
+      this.#positions = this.#sections.map(({ destination }, index) => {
+        const position = this.#shown[index]
+          ? Math.max(previous, this.#documentTop(destination))
+          : previous;
+        previous = position;
+        return position;
+      });
+      this.#contentStart = this.#positions[0];
+      this.#contentEnd = Math.max(
+        mainTop +
+          this.#main.clientTop +
+          this.#main.scrollHeight -
+          parseFloat(getComputedStyle(this.#main).paddingBottom),
+        this.#positions.at(-1) + 1,
+      );
+      this.#sections.forEach(({ row }, index) => {
+        row.toggleAttribute("data-lf-toc-hidden", !this.#shown[index]);
+        const nextVisible = this.#shown.findIndex((shown, at) => at > index && shown);
+        const next = nextVisible < 0 ? this.#contentEnd : this.#positions[nextVisible];
+        row.style.setProperty(
+          "--lf-toc-span",
+          this.#shown[index] ? String(Math.max(1, next - this.#positions[index])) : "0",
+        );
+      });
+      this.#fitRows();
       this.#rememberFocus();
       this.#lensInputs = "";
       this.#paint();
+    }
+
+    // A row's shift moves its label and dot (a transform and an inset), never the row, so
+    // the rows are measured where they stand and each shift is written once, as fitted.
+    #fitRows() {
+      this.#mapPositions = [];
+      const shifts = this.#fitLabels();
+      this.#sections.forEach(({ row }, index) => {
+        if (shifts.has(index))
+          row.style.setProperty("--lf-toc-row-shift", `${shifts.get(index)}px`);
+        else row.style.removeProperty("--lf-toc-row-shift");
+      });
     }
 
     #rememberFocus() {
@@ -253,6 +291,116 @@ customElements.define(
       this.#focusedLink = active;
       this.#focusedVisible =
         !!shown && shown.top >= viewport.top - 1 && shown.bottom <= viewport.bottom + 1;
+    }
+
+    // Each fitted row's shift, by section index.
+    #fitLabels() {
+      const shifts = new Map();
+      this.removeAttribute("data-lf-compact");
+      this.removeAttribute("data-lf-outline");
+      if (getComputedStyle(this.#rows).display !== "flex") return shifts;
+      const track = this.#rows.getBoundingClientRect();
+      this.#mapHeight = track.height;
+
+      const readLabels = () => {
+        /** @type {{index: number, ideal: number, height: number, center: number, prefix?: number}[]} */
+        const labels = this.#sections.flatMap(({ row, link }, index) =>
+          this.#shown[index]
+            ? [
+                {
+                  index,
+                  ideal: row.getBoundingClientRect().top - track.top,
+                  height: link.getBoundingClientRect().height,
+                  center: parseFloat(getComputedStyle(link).lineHeight) / 2,
+                },
+              ]
+            : [],
+        );
+        const lineHeight = parseFloat(getComputedStyle(this.#nav).lineHeight);
+        const preferredGap = Number.isFinite(lineHeight) ? lineHeight * 0.5 : 0;
+        const labelHeight = labels.reduce((sum, label) => sum + label.height, 0);
+        const firstCenter = labels[0]?.center ?? 0;
+        const availableHeight = track.height + firstCenter;
+        const availableGap =
+          labels.length > 1 ? (availableHeight - labelHeight) / (labels.length - 1) : 0;
+        return {
+          labels,
+          labelHeight,
+          firstCenter,
+          availableHeight,
+          preferredGap,
+          gap: Math.max(0, Math.min(preferredGap, availableGap)),
+        };
+      };
+
+      let layout = readLabels();
+      if (!layout.labels.length) return shifts;
+      if (
+        layout.labelHeight +
+          layout.preferredGap * Math.max(0, layout.labels.length - 1) >
+        layout.availableHeight + 1
+      ) {
+        this.setAttribute("data-lf-compact", "");
+        layout = readLabels();
+      }
+      if (layout.labelHeight > layout.availableHeight + 1) {
+        this.removeAttribute("data-lf-compact");
+        this.setAttribute("data-lf-outline", "");
+        if (
+          currentLocationIn(this.#nav) &&
+          this.#focusedLink === focused(document) &&
+          this.#focusedVisible &&
+          this.#nav.getBoundingClientRect().height < this.#navHeight - 1
+        )
+          scrollIntoView(this.#focusedLink, { block: "nearest", within: this.#nav });
+        return shifts;
+      }
+
+      let prefix = 0;
+      for (const label of layout.labels) {
+        label.prefix = prefix;
+        prefix += label.height + layout.gap;
+      }
+      const occupiedHeight = Math.max(0, prefix - layout.gap);
+
+      // Fit label boxes around their marker centers. A collision-free label top is its
+      // document coordinate minus its first-line center and every preceding label's
+      // height. Pool adjacent violations and share their correction, so a
+      // crowded group bends one monotone scale around its destinations instead of
+      // accumulating displacement below them.
+      const blocks = [];
+      layout.labels.forEach((label, at) => {
+        blocks.push({
+          start: at,
+          end: at,
+          top: label.ideal - label.center - label.prefix,
+          count: 1,
+        });
+        while (blocks.length > 1 && blocks.at(-2).top > blocks.at(-1).top) {
+          const next = blocks.pop();
+          const previous = blocks.pop();
+          const count = previous.count + next.count;
+          blocks.push({
+            start: previous.start,
+            end: next.end,
+            top: (previous.top * previous.count + next.top * next.count) / count,
+            count,
+          });
+        }
+      });
+
+      const floor = -layout.firstCenter;
+      const ceiling = track.height - occupiedHeight;
+      for (const block of blocks) {
+        const top = Math.max(floor, Math.min(ceiling, block.top));
+        for (let at = block.start; at <= block.end; at += 1) {
+          const label = layout.labels[at];
+          const fitted = top + label.prefix + label.center;
+          this.#mapPositions[label.index] = fitted;
+          shifts.set(label.index, fitted - label.ideal);
+        }
+      }
+      return shifts;
     }
 
     #mapPosition(position) {
@@ -291,6 +439,16 @@ customElements.define(
         Math.min(1, (position - last.documentPosition) / distance),
       );
       return last.mapPosition + progress * (this.#mapHeight - last.mapPosition);
+    }
+
+    #documentTop(element) {
+      for (let candidate = element; candidate; candidate = candidate.parentElement) {
+        const box = candidate.getBoundingClientRect();
+        if (box.width || box.height) return box.top + this.#scroller.scrollTop;
+        if (candidate === this.#main) break;
+      }
+      const mainBox = this.#main.getBoundingClientRect();
+      return mainBox.top + this.#scroller.scrollTop;
     }
 
     #schedulePaint = frameFor(this, () => this.#paint());

@@ -2,24 +2,28 @@
 names, and resolving with `r`."""
 
 import re
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import pytest
 from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
-from render_cases_layout import ring_faults, rings_drawn
-from render_cases_navigation import NOTED_PAGE
+from render_cases_layout import overlapped_words, ring_faults, rings_drawn
+from render_cases_navigation import NOTED_PAGE, compose
 from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     PANEL_THREAD,
     command_reference_rows,
     comment_note,
+    holding,
     leaf_page,
     open_page,
+    opened_tab,
     panel_field,
     panel_settled,
     panel_view,
+    primed,
     resized,
     round_trip,
     scroll_settled,
@@ -31,7 +35,7 @@ from render_harness import (
 from browser.navigation import READING_REGIONS_PAGE
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -704,20 +708,19 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     )
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     preview = page.locator(".lf-margin-preview")
-    # The margin preview carries its thread's ring around the complete floating card.
+    # The preview root owns placement; its face carries the complete card's ring.
+    face = preview.locator(".lf-margin-preview-card")
     paint = """el => {
       const s = getComputedStyle(el);
-      const after = getComputedStyle(el, '::after');
-      const ring = after.content !== 'none' && after.outlineStyle !== 'none' ? after : s;
       return {
-        outline: ring.outlineStyle, offset: ring.outlineOffset,
+        outline: s.outlineStyle, offset: s.outlineOffset,
         background: s.backgroundColor, shadow: s.boxShadow,
       };
     }"""
 
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first.click()
     expect(thread).to_be_focused()
-    pointer = preview.evaluate(paint)
+    pointer = face.evaluate(paint)
     assert pointer["outline"] == "none"
     drawn = rings_drawn(page)
     assert not any(ring["sample"] for ring in drawn), drawn
@@ -726,7 +729,7 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
-    current = preview.evaluate(paint)
+    current = face.evaluate(paint)
     assert current["outline"] == "solid"
     assert current["offset"] == "-2px"
     assert current["background"] == pointer["background"]
@@ -737,7 +740,7 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     page.keyboard.press("Enter")
     reply = thread.locator("leaf-text")
     expect(reply).to_be_focused()
-    writing = preview.evaluate(paint)
+    writing = face.evaluate(paint)
     assert writing["outline"] == "none"
     assert writing["background"] == pointer["background"]
     drawn = rings_drawn(page)
@@ -866,7 +869,7 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
                   controlBottom: control.bottom, controlsTop: controls.top,
                   controlsBottom: controls.bottom, headTop: head.top,
                   headBottom: head.bottom, headRight: head.right,
-                  controlLeft: control.left,
+                  controlLeft: control.left, controlsLeft: controls.left,
                   authorBottom: author.bottom,
                   bodyTop: body.top,
                   bodyMargin: parseFloat(getComputedStyle(bodyNode).marginTop)};
@@ -880,6 +883,11 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     assert placement["controlBottom"] <= placement["controlsBottom"]
     assert placement["headTop"] == pytest.approx(placement["controlsTop"], abs=1)
     assert placement["headRight"] <= placement["controlLeft"], placement
+    # The controls' box stands past the header's words, not over them: axe reads what
+    # covers words by geometry, so a box spanning the line, however transparent, leaves
+    # the author and time with no contrast reading (`overlapped_words`).
+    assert placement["headRight"] <= placement["controlsLeft"], placement
+    assert overlapped_words(page) == []
     assert placement["bodyTop"] - placement["headBottom"] == pytest.approx(
         placement["bodyMargin"], abs=1
     ), f"the first inline message has extra space below its author: {placement}"
@@ -1058,3 +1066,228 @@ def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve)
     with sending(page, "the resolve from its button"):
         page.keyboard.press("r")
     assert resolved() == threads[:3]
+
+
+def thread_url(url, name, fragment=""):
+    parts = urlsplit(url)
+    query = [*parse_qsl(parts.query), ("thread", name)]
+    return urlunsplit(parts._replace(query=urlencode(query), fragment=fragment))
+
+
+def thread_page(serve):
+    filler = "".join(f"<p>Reading context {n}.</p>" for n in range(40))
+    return serve(
+        leaf_page(
+            "Thread links",
+            '<h1 id="start">Thread links</h1>'
+            '<a href="?thread=general1">Open the page discussion</a>'
+            '<input aria-label="Your notes">'
+            f'{filler}<p id="target">The distant passage.</p>'
+            f'<a href="#start">Back to the heading</a>{filler}',
+        ),
+        events=[
+            {
+                "kind": "comment",
+                "id": "anchor01",
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": "target"},
+                "text": "About the distant passage.",
+            },
+            {
+                "kind": "comment",
+                "id": "general1",
+                "author": "user",
+                "revision": 1,
+                "text": "About the whole page.",
+            },
+        ],
+    )
+
+
+def linked_thread(page, name):
+    return page.locator(
+        f':is(.lf-page-thread:not([data-lf-part]), .lf-fp-view)[data-thread="{name}"]'
+    )
+
+
+@pytest.mark.parametrize("name", ["anchor01", "general1"])
+def test_thread_url_opens_its_canonical_surface_on_arrival(browser, serve, name):
+    page = open_page(browser, thread_url(thread_page(serve), name))
+    thread = linked_thread(page, name)
+    expect(thread).to_be_focused()
+    expect(thread).to_be_in_viewport()
+    scroll_settled(page)
+    if name == "anchor01":
+        expect(page.locator("#target")).to_be_in_viewport()
+    entries = page.evaluate("history.length")
+    page.reload()
+    wait_until_ready(page)
+    expect(thread).to_be_focused()
+    assert page.evaluate("history.length") == entries
+    if name == "anchor01":
+        # Leaving the passage puts its card away. Back reveals that thread again.
+        link = page.get_by_role("link", name="Back to the heading")
+        link.click()
+        expect(page.locator("#start")).to_be_in_viewport()
+        expect(thread).not_to_be_visible()
+        page.go_back()
+        expect(thread).to_be_visible()
+        expect(page.locator("#target")).to_be_in_viewport()
+    else:
+        # A primary reader stays shown while the user reads elsewhere on the page.
+        # Returning to its URL must keep that reading position as well.
+        page.locator("#target").scroll_into_view_if_needed()
+        scroll_settled(page)
+        reading_offset = page.evaluate("scrollY")
+        page.evaluate("location.hash = 'start'")
+        expect(page.locator("#start")).to_be_in_viewport()
+        page.go_back()
+        expect(page.locator("#target")).to_be_in_viewport()
+        assert page.evaluate("scrollY") == pytest.approx(reading_offset, abs=1)
+
+
+def test_following_a_thread_url_uses_native_history(browser, serve):
+    page = open_page(browser, thread_page(serve))
+    entries = page.evaluate("history.length")
+    page.get_by_role("link", name="Open the page discussion").click()
+    wait_until_ready(page)
+    expect(linked_thread(page, "general1")).to_be_focused()
+    assert page.evaluate("history.length") == entries + 1
+    page.go_back()
+    wait_until_ready(page)
+    assert "thread=" not in page.url
+    page.go_forward()
+    wait_until_ready(page)
+    expect(linked_thread(page, "general1")).to_be_focused()
+    assert page.evaluate("history.length") == entries + 1
+
+
+def test_authored_fragment_takes_precedence_over_thread_query(browser, serve):
+    page = open_page(browser, thread_url(thread_page(serve), "general1", "target"))
+    expect(page.locator("#target")).to_be_in_viewport()
+    expect(page.locator('.lf-page-thread[data-thread="general1"]')).to_have_count(0)
+
+
+def test_unknown_thread_url_reports_the_missing_destination(browser, serve):
+    page = open_page(browser, thread_url(thread_page(serve), "missing1"))
+    expect(page.locator(".lf-live")).to_contain_text("Thread missing1 is unavailable")
+    expect(page.locator(".lf-page-thread")).to_have_count(0)
+
+
+def test_thread_url_takes_priority_over_automatic_draft_recovery(browser, serve):
+    url = thread_page(serve)
+    page = open_page(browser, url)
+    compose(page, "#target", "Keep this unsent comment")
+    page.goto(thread_url(url, "general1"))
+    wait_until_ready(page)
+    expect(linked_thread(page, "general1")).to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "Keep this unsent comment"
+    )
+
+
+def test_input_during_startup_cancels_thread_url_arrival(browser, serve):
+    held = []
+    page = open_page(
+        primed(
+            browser,
+            lambda page: page.route("**/api/state*", lambda route: held.append(route)),
+        ),
+        thread_url(thread_page(serve), "general1"),
+        upgraded=False,
+    )
+    holding(page, held, 1, "initial state")
+    page.get_by_role("textbox", name="Your notes").fill("Keep my place")
+    page.unroute("**/api/state*")
+    for route in held:
+        route.continue_()
+    wait_until_ready(page)
+    expect(page.get_by_role("textbox", name="Your notes")).to_be_focused()
+    expect(page.locator('.lf-page-thread[data-thread="general1"]')).to_have_count(0)
+
+
+def test_thread_url_reveals_a_tab_despite_its_generated_display_fragment(
+    browser, one_user, serve
+):
+    url = serve(
+        leaf_page(
+            "Tabbed thread",
+            '<h1 id="start">Tabbed thread</h1>'
+            '<lf-tabs id="views"><lf-tab id="first" label="First"><p>First view.</p>'
+            '</lf-tab><lf-tab id="second" label="Second">'
+            '<p id="target">The discussed passage.</p>'
+            '<a href="#start">Return to the heading</a></lf-tab></lf-tabs>',
+        ),
+        events=[
+            {
+                "kind": "comment",
+                "id": "anchor01",
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": "target"},
+                "text": "About the second view.",
+            },
+            {
+                "kind": "reply",
+                "id": "answer01",
+                "parent": "anchor01",
+                "author": "agent",
+                "agent": "Codex",
+                "revision": 1,
+                "text": "The answer.",
+            },
+        ],
+    )
+    page = open_page(browser, thread_url(url, "answer01"), context=one_user)
+    expect(linked_thread(page, "anchor01")).to_be_focused()
+    expect(page.locator("#target")).to_be_in_viewport()
+    assert page.evaluate("history.length") == 2
+    assert urlsplit(page.url).fragment == ""
+    page.reload()
+    wait_until_ready(page)
+    expect(linked_thread(page, "anchor01")).to_be_focused()
+    page.emulate_media(reduced_motion="no-preference")
+    page.evaluate(
+        """() => {
+          const preview = document.querySelector('.lf-margin-preview');
+          preview.addEventListener('transitionrun', function hold(event) {
+            if (event.propertyName !== 'opacity' || !preview.inert) return;
+            for (const animation of preview.getAnimations()) animation.pause();
+            preview.removeEventListener('transitionrun', hold);
+          });
+        }"""
+    )
+    page.get_by_role("tab", name="First", exact=True).click()
+    expect(page.locator("#first")).to_be_visible()
+    assert urlsplit(page.url).fragment == "first"
+    page.wait_for_function(
+        """() => {
+          const preview = document.querySelector('.lf-margin-preview');
+          return preview.inert && preview.getAnimations().some(a => a.playState === 'paused');
+        }"""
+    )
+    page.go_back()
+    wait_until_ready(page)
+    assert page.locator("#second").is_visible()
+    expect(linked_thread(page, "anchor01")).to_be_visible()
+    assert urlsplit(page.url).fragment == ""
+    # Opening an authored fragment link in a new document inherits the query,
+    # just as Copy Link or Open in New Tab does.
+    heading_url = page.get_by_role("link", name="Return to the heading").evaluate(
+        "link => link.href"
+    )
+    assert "t" not in dict(parse_qsl(urlsplit(page.url).query))
+    heading_tab = opened_tab(
+        page,
+        heading_url,
+        lambda: page.get_by_role("link", name="Return to the heading").click(
+            button="middle"
+        ),
+    )
+    wait_until_ready(heading_tab)
+    expect(heading_tab.locator("#start")).to_be_in_viewport()
+    expect(linked_thread(heading_tab, "anchor01")).to_have_count(0)

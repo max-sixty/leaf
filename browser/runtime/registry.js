@@ -40,7 +40,7 @@ function freeze(value) {
 }
 
 let stateIndex;
-/** @param {import("../framework/domain.ts").StateRecord} record */
+/** @param {import("../types/domain.js").StateRecord} record */
 const recordSlot = (record) =>
   JSON.stringify([record.kind, "attr" in record ? record.attr : null]);
 function indexedState() {
@@ -69,7 +69,7 @@ function indexedState() {
 }
 
 export const stateSpecs = () => indexedState().specs;
-/** @param {import("../framework/domain.ts").StateRecord} record */
+/** @param {import("../types/domain.js").StateRecord} record */
 export const recordedWidgetSelector = (record) =>
   indexedState().recordSelectors.get(recordSlot(record)) ?? "";
 

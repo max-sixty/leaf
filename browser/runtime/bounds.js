@@ -63,7 +63,7 @@ import { SCROLL_SLACK, atScrollEnd as atEnd, scrollToEnd } from "./scrolling.js"
 import { watchArrivals } from "./arrivals.js";
 import { authoredScope, pageDocument } from "./passages.js";
 import { compoundReadingRegionId, registerReadingRegion } from "./reading-regions.js";
-import { marks } from "./marks.js";
+import { marks } from "./kernel-facts.js";
 
 // The bound's paint (`$marks`), read from the generated table rather than the registry,
 // since the watch starts at boot, before any registry has loaded.

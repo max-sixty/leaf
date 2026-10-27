@@ -5,8 +5,12 @@
  * this module adopts that drawing and owns the live mechanics: working state,
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
- * The instruction's copy control is the one a code block floats at its corner
- * (`copyBlock`), standing at the instruction pane's.
+ * The instruction opens from its actions in a popover over the page, so reading it
+ * moves nothing the user set or pressed, in any Layout; the log never records it. The
+ * popover's head holds Leaf's copy control (`copyControl`). Rejected: unfolding
+ * the instruction in the pane, which had to grow below the bar in a flowing page and
+ * above it at the foot of a held workspace, and still moved the bar wherever a stage
+ * at its floor, a resize or a short window left it no room (2026-10-25).
  *
  * The playground owns the complete working configuration. Contributors declare a
  * named default and get an immutable slice handle; set replaces that slice. Required
@@ -37,11 +41,13 @@
 import {
   commands,
   compoundReadingRegionId,
-  copyBlock,
-  dressSamples,
+  closeNativeLayer,
+  copyControl,
   focusDestination,
   layoutChanged,
   initialRender,
+  isNativeLayer,
+  keeps,
   keepsText,
   LeafElement,
   nothing,
@@ -64,7 +70,8 @@ const NAME = /^[a-z0-9][a-z0-9-]*$/;
 const ONE_PRESS = [
   ".lf-playground-preset",
   ".lf-playground-reset",
-  ...["choice", "toggle", "range"].map((kind) => `.lf-playground-${kind}`),
+  '.lf-playground-choice:not([appearance="select"])',
+  ...["toggle", "range"].map((kind) => `.lf-playground-${kind}`),
 ].join(", ");
 
 const sameKeys = (left, right) =>
@@ -142,7 +149,7 @@ customElements.define(
     setup() {
       this.#build();
       this.#ready = true;
-      whileConnected(this, () => {
+      whileConnected(this, (signal) => {
         const stops = this.#regions.map((region) => registerReadingRegion(region));
         // The narrow layout places shared controls above the stage. Their actual
         // height is also the landing inset for its content and any sticky toolbar.
@@ -157,6 +164,18 @@ customElements.define(
           );
         });
         if (controls) observer.observe(controls.host);
+        // The instruction is a glance at the window's middle; a window changing width
+        // puts it away rather than reflowing it under the user, which also kept Web
+        // Awesome's copy icon re-measuring through the resize (a ResizeObserver loop).
+        // Height alone changes as a phone's toolbars come and go, which keeps it.
+        let width = innerWidth;
+        const putAway = () => {
+          const instruction = this.#initial.instruction;
+          if (innerWidth !== width && instruction && isNativeLayer(instruction))
+            closeNativeLayer(instruction);
+          width = innerWidth;
+        };
+        window.addEventListener("resize", putAway, { signal });
         this.#paintAvailability();
         return () => {
           observer.disconnect();
@@ -232,7 +251,6 @@ customElements.define(
       this.#initial.renderValues(this.#values);
       const reflection = this.#reflection();
       wear(this, reflection);
-      dressSamples(this, reflection);
       if (this.#interactive) {
         this.addEventListener("click", (event) => {
           const target = /** @type {Element} */ (event.target);
@@ -267,12 +285,27 @@ customElements.define(
             });
             this.#draw();
           });
-        // The pane's header holds the copy, since a pane holds one body between its
-        // header and footer; it floats at the pane's corner, beside the title.
-        const pane = this.#regions.find(({ name }) => name === "instruction").host;
-        pane
-          .querySelector(":scope > header")
-          .append(copyBlock(pane, () => this.#instruction(), "instruction"));
+        const { reveal, instruction } = initial;
+        // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
+        // while its block is away and came back a frame or more after the popover
+        // opened, after a Tab had passed it by.
+        const copy = copyControl("lf-quiet-action lf-playground-copy", {
+          label: "Copy instruction",
+          success: "Instruction copied",
+          error: "Unable to copy instruction",
+        });
+        copy.addEventListener(
+          "click",
+          () => {
+            copy.value = this.#instruction();
+          },
+          { capture: true },
+        );
+        instruction.firstElementChild.append(copy);
+        instruction.addEventListener("toggle", (event) => {
+          keeps(reveal, "aria-expanded", event.newState === "open");
+          paintKeys();
+        });
         this.addEventListener("mousedown", (event) => {
           const target = /** @type {Element} */ (event.target);
           if (target.closest(".lf-playground-control-label")) return;
@@ -343,8 +376,8 @@ customElements.define(
     // they stand at: a sample child's focus treatment, for one. Pressing a control face
     // that changes the candidate in one gesture leaves them there: taking focus
     // to the control would put that state away as the candidate changed.
-    // Readable labels allow the browser's selection gesture. Text and colour controls
-    // take focus to be operated, and a key reaches any control by moving focus onto it
+    // Readable labels allow the browser's selection gesture. Text, colour and select
+    // controls take focus to be operated, and a key reaches any control by moving focus onto it
     // first, so the keyboard still acts where it stands.
     // A control written in the preview is not a candidate: standing on one is standing
     // on a control.
@@ -423,7 +456,6 @@ customElements.define(
         this.#setInput(control, this.#values[name]);
       const reflection = this.#reflection();
       wear(this, reflection);
-      dressSamples(this, reflection);
       this.#renderOutput();
       this.#paintPresets();
       // Keep not-yet-declared tab values without another copy of known working slices.
@@ -454,7 +486,7 @@ customElements.define(
     #instruction() {
       return says(this.#output)
         .replace(/\s+/g, " ")
-        .replace(/\s+([,.;:!?])/g, "$1")
+        .replace(/\s+([,.;:!?])(?=\s|$)/g, "$1")
         .trim();
     }
 

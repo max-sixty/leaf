@@ -7,16 +7,19 @@
  * its own, and a group whose options are bare labels is an obligation *about* the page,
  * drawn as compact rows.
  * The difference this module sees is only what a row adds — `for`, the id of the block
- * the row names, rendered as a reference the user can follow. It points and never
- * speaks: the label stays written in the markup, so the file's reading of the page
- * holds every word the page shows.
+ * the row names, rendered as a reference the user can follow where the group's rows
+ * name different blocks. Rows that all name one block draw none, since that block
+ * usually stands just above the question and its name on every row repeats a place the
+ * reader already has. It points and never speaks: the label stays written in the
+ * markup, so the file's reading of the page holds every word the page shows.
  *
  * `choose` takes the user's pick. Every option carries one injected mark that is both
  * the keyboard path and the state — a toggle reading "choose one" or "choose any" as the
  * group takes one option or several. Once picked, the same mark becomes a check while
- * the option's cell takes a quiet tint. Presentation follows the form: a titled live card
- * exposes "selected" as compact header state, while a row keeps only its check. The
- * checkbox state carries the same fact for a user listening. Outside a `choose` group
+ * the option's cell takes a quiet tint. Cards and rows mark a pick alike, tint plus
+ * check: on 2026-10-26 the user chose this over a "✓ selected" chip in a live titled
+ * card's corner, a word only cards wore, crowding the author's own chips. The checkbox state carries the same fact for a user
+ * listening. Outside a `choose` group
  * the mark renders as an image-like span, so authored state keeps the check and an
  * accessible name without pretending it can be pressed.
  *
@@ -115,6 +118,7 @@ import {
   landInThread,
   markdownWords,
   offer,
+  offerAction,
   pressIsKeyboardActivation,
   quoted,
   reachedForWords,
@@ -131,6 +135,40 @@ import {
 // to the option's name, which is what every caller here wants. A settled title's answer
 // to an option with neither is to say "Settled" rather than name an id nobody wrote.
 const label = (option) => wrote(option.querySelector(":scope > strong") ?? option);
+
+// What choosing an option gives the user: the sentence after a card's title, as the
+// registry's card shape lays it out, written inline or as the paragraph that follows the
+// title, up to any picture or other block below it. A label-only option says nothing
+// beyond its name. On me shows these words under the option's name, where the user
+// answers away from the card. The command row reads them only when a surface shows
+// them: the computed display below forces a layout in Firefox, which taken between the
+// render's own insertions leaves a row of cards off their shared title baseline
+// (`notes/browser-support.md`, "Baseline content-alignment").
+const consequence = (option) => {
+  const title = option.querySelector(":scope > strong");
+  let words = "";
+  for (let node = title?.nextSibling; node; node = node.nextSibling) {
+    if (node.nodeType === Node.TEXT_NODE) words += node.data;
+    else if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    else if (getComputedStyle(node).display === "inline") {
+      // `wrote` trims the element's own edges, which may be the spaces between words,
+      // as where Markdown emphasis splits a sentence.
+      const edges = node.textContent.match(/^(\s*)[\s\S]*?(\s*)$/);
+      words += `${edges[1]}${wrote(node)}${edges[2]}`;
+    } else {
+      if (!words.trim() && node.localName === "p") words = wrote(node);
+      break;
+    }
+  }
+  return words.replace(/\s+/g, " ").trim();
+};
+
+// The option the page advises wears the `recommended` tag the registry's card shape
+// names, and the group says so wherever the option is answered away from its card.
+const recommended = (option) =>
+  [...option.querySelectorAll(":scope > small.tag")].some(
+    (tag) => wrote(tag).trim() === "recommended",
+  );
 
 // The offer, and how many of the group it takes. A group's prose stays deliberately silent,
 // while the control states arity in the two registers it has: corner shape for the eye and
@@ -209,7 +247,10 @@ customElements.define(
         if (!inChrome(this)) this.#contextKeys("write");
         if (this.hasAttribute("multiple")) this.#contextKeys("done");
       }
-      for (const option of this.#options()) this.#reference(option);
+      const named = new Set(
+        [...this.#options()].map((option) => option.getAttribute("for")),
+      );
+      if (named.size > 1) for (const option of this.#options()) this.#reference(option);
       // Without `choose` there is nothing to press: the mark still reports the
       // document's state, as a span.
       for (const option of this.#options())
@@ -307,12 +348,14 @@ customElements.define(
     }
 
     // The one statement a live channel can't derive: the set is whole. Done is a
-    // reversible gesture; its pressed state is the answer action in force. Its digit
+    // reversible gesture; its pressed state is the answer action in force. It records
+    // the user's answer, so it wears the commit face, which the user chose on 26
+    // October over the quiet word face every other worded press wears. Its digit
     // is inside the button, as an option's is inside the option, so a press on it is a
     // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
       this.#done = offer(DONE_TAG, "lf-options-done");
-      const button = offer("button", "lf-btn lf-done", "Done");
+      const button = offerAction("commit", "lf-done", "Done");
       const bindingBadge = offer("span", "lf-key-badge");
       bindingBadge.setAttribute("aria-hidden", "true");
       button.append(bindingBadge);
@@ -412,6 +455,8 @@ customElements.define(
           decision: true,
           bindingBadge,
           title: label(option) || option.id,
+          description: () => consequence(option),
+          recommended: recommended(option),
           when: () => this.#available("choose"),
           run: () => mark.click(),
         });

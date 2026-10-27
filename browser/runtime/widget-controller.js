@@ -8,7 +8,7 @@
    restores. Registered preparation also holds full rendering readiness until
    completion or removal. Local editing holds the widget's drawing (`defer`) until the
    gesture releases it. */
-import { untracked } from "/vendor/browser-runtime.js";
+import { untracked } from "/runtime/framework.js";
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";

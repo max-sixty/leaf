@@ -387,7 +387,9 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(browser, se
     page.mouse.click(point[0], point[1])
     editor = draft.locator("leaf-text")
     expect(editor).to_be_focused()
-    expect(editor).to_have_attribute("aria-label", "Edit source")
+    # Named as the rest of the chrome names it, never by its id: nothing holding this
+    # draft has a name, so by its word.
+    expect(editor).to_have_attribute("aria-label", "Edit the draft")
     caret = editor.evaluate("el=>el.selectionStart")
     at = text.index("literal code")
     assert at <= caret <= at + len("literal code")
@@ -421,6 +423,49 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(browser, se
     page.locator("#exhibit .lf-draft-body").click()
     expect(page.locator("#exhibit leaf-text")).to_have_count(0)
     expect(page.locator("#exhibit .lf-draft-body")).to_have_text("Read-only source.")
+
+
+def test_a_press_away_from_an_open_draft_saves_it(browser, serve):
+    """On a phone the user types into a draft and taps elsewhere, expecting it kept, as
+    a form keeps what was typed. A press away from the open draft saves it as Save does,
+    and the edit names the draft as the chrome does, by its holder's heading here, not
+    by its id. A press on the draft's own Discard stays a discard."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Draft notes",
+                '<h1>Draft notes</h1><section id="landing"><h2>Landing the branches</h2>'
+                '<lf-draft id="q9-note"><pre>\n</pre></lf-draft></section>'
+                '<p id="elsewhere">Something else on the page.</p>',
+            )
+        ),
+    )
+    resized(page, 390, 844)
+    draft = page.locator("#q9-note")
+    draft.click()
+    editor = draft.locator("leaf-text")
+    expect(editor).to_be_focused()
+    write(editor, "Only the pointer one.")
+    draft_control(page, "cancel", "q9-note").click()
+    expect(editor).to_have_count(0)
+    draft.click()
+    write(editor, "Land the pointer branch first.")
+    page.locator("#elsewhere").click()
+    round_trip(page)
+    expect(editor).to_have_count(0)
+    expect(draft.locator(".lf-draft-body")).to_have_text(
+        "Land the pointer branch first.", use_inner_text=True
+    )
+    edits = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("action") == "edit"
+    ]
+    assert [event["detail"]["value"] for event in edits] == [
+        "Land the pointer branch first."
+    ]
+    expect(page.locator(".lf-live")).to_have_text("Edited “Landing the branches”")
 
 
 def test_a_rendered_continuation_click_edits_the_exact_source_position(browser, serve):
@@ -489,7 +534,8 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
 ):
     """A draft lends its obligation no digits, so a digit typed while focused on the obligation
     or in the editor is not a command; the user Tabs to Edit and saves with
-    Mod+Enter."""
+    Mod+Enter. Edit shows before the pointer or a key reaches the box, since it is the
+    way to answer."""
     original = "Keep **this** source editable."
     page = open_page(
         browser,
@@ -505,6 +551,7 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
     question = page.locator("#note-decision")
     editor = page.locator("#note leaf-text")
     edit = draft_control(page, "edit", "note")
+    expect(page.locator("#note .lf-draft-tools")).to_have_css("opacity", "1")
 
     page.keyboard.press("m")
     expect(question).to_be_focused()
@@ -622,6 +669,37 @@ def test_the_draft_box_is_its_own_door(browser, serve):
     expect(pencil).to_be_focused()
     pencil.click()
     expect(draft.locator("leaf-text")).to_be_visible()
+
+
+def test_a_refused_save_from_a_press_away_leaves_the_focus_where_it_went(
+    browser, serve
+):
+    """The user leaves one draft by pressing Edit on the next, which saves the first.
+    When that save is refused, the first reopens with Retry, and the user keeps typing
+    in the second rather than having the focus pulled back."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Two drafts",
+                "<h1>Two drafts</h1>"
+                '<lf-draft id="rn-cli"><pre>CLI notes.</pre></lf-draft>'
+                '<lf-draft id="rn-api"><pre>API notes.</pre></lf-draft>',
+            )
+        ),
+    )
+    first, second = page.locator("#rn-cli"), page.locator("#rn-api")
+    draft_control(page, "edit", "rn-cli").click()
+    write(first.locator("leaf-text"), "Changed CLI notes.")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    draft_control(page, "edit", "rn-api").click()
+    holding(page, held, 1, "the first draft's save on a press away")
+    expect(second.locator("leaf-text")).to_be_focused()
+    held[0].fulfill(status=400, json={"ok": False, "final": True, "error": "refused"})
+    expect(draft_control(page, "retry", "rn-cli")).to_be_visible()
+    expect(second.locator("leaf-text")).to_be_focused()
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, serve):
@@ -858,6 +936,37 @@ def test_a_finger_copies_a_draft_from_anywhere_in_copy_s_reach(browser, serve):
     )
 
 
+def test_a_finger_on_the_last_line_writes_there_rather_than_discarding(browser, serve):
+    """Under a finger the toolbar stands on the box's bottom border, and each mark's
+    reach half a finger's floor above it. The box's padding keeps that reach off the
+    words, so a press at the end of the last line puts the caret there. The padding was
+    10px, so the press 3px above the field's foot under Discard discarded the edit."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Finger draft",
+                '<h1>Release note</h1><lf-draft id="note"><pre>Keep this note.</pre></lf-draft>',
+            )
+        ),
+        context=context,
+    )
+    draft_control(page, "edit", "note").tap()
+    field = page.locator("#note .lf-draft-edit")
+    expect(field).to_be_visible()
+    discard = draft_control(page, "cancel", "note").bounding_box()
+    words = field.bounding_box()
+    # A mouse press, which Chrome's touch adjustment doesn't move.
+    page.mouse.click(
+        discard["x"] + discard["width"] / 2, words["y"] + words["height"] - 3
+    )
+    expect(field).to_be_focused()
+    expect(draft_control(page, "cancel", "note")).to_be_visible()
+
+
 def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, serve):
     """Raw pointer down must not move the button before the matching up arrives. Either
     edge detects a button that moves under the press, so each action, pressed in turn
@@ -885,7 +994,8 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, se
                 draft.locator("leaf-text"),
                 f"Keep `the corrected` note before {action}.",
             )
-        page.get_by_role("heading", name="Release note").click()
+        # The pointer rests off the box; a press there would save the open draft.
+        page.get_by_role("heading", name="Release note").hover()
         rendered(page)
         controls = draft.locator("[data-lf-draft-action]:visible")
         before = controls.evaluate_all(

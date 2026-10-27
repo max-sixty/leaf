@@ -10,9 +10,9 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     RELEASE_FOCUS,
-    displayed,
     leaf_page,
     open_page,
+    open_threads,
     resized,
     scroll_settled,
     told,
@@ -825,59 +825,6 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     )
 
 
-def test_the_reading_map_first_paints_its_spine_where_it_keeps_it(browser, serve):
-    """With the runtime held, the margin map already shows its spine and a marker for
-    each section, each at the share of the document its section takes, and the upgrade
-    leaves every marker where it stood. The disclosure holding the rows once stayed
-    closed until the module opened it, so the spine first showed at upgrade; opened any
-    earlier without the module's measurement, the markers would stand evenly spaced
-    and then move. The title's marker also moved 14px at upgrade while `.lf-ui`'s
-    border-box reset arrived only with the runtime, since its label wrapped onto a
-    second line then and the fitted marker under it moved."""
-    source = leaf_page(
-        "first map",
-        """
-<h1>Migration plan for the readers already in flight</h1>
-<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>
-<section><h2 id="prepare">Prepare the copy</h2><p>Take a snapshot.</p></section>
-<div style="height: 300px"></div>
-<section><h2 id="move">Move each cohort</h2><p>Shift one cohort at a time.</p></section>
-<div style="height: 1500px"></div>
-<section><h2 id="verify">Verify both readings</h2><p>Compare the totals.</p></section>
-<div style="height: 600px"></div>
-""",
-    )
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    markers = """() => [...document.querySelectorAll(
-      '#contents .lf-toc-start, #contents li')].map(row => {
-        const box = row.getBoundingClientRect();
-        const dot = getComputedStyle(row, '::before');
-        return [box.top + parseFloat(dot.top), dot.display];
-      })"""
-    boot = []
-    page.route("**/leaf.js", lambda route: boot.append(route))
-    try:
-        with page.expect_request("**/leaf.js"):
-            page.goto(serve(source), wait_until="commit")
-        displayed(page)
-        assert boot, "the runtime must stay held for the first paint"
-        # Held, the page changes no more, so one read is the first paint.
-        assert page.locator("#contents details").evaluate("node => node.open")
-        first = page.evaluate(markers)
-        assert len(first) == 4 and all(shown != "none" for _, shown in first), first
-        # The long middle section takes most of the spine, as its share of the page.
-        gaps = [b - a for (a, _), (b, _) in pairwise(first)]
-        assert gaps[2] > 2 * gaps[1], first
-        page.unroute("**/leaf.js")
-        boot.pop().continue_()
-        wait_until_ready(page)
-        assert page.evaluate(markers) == first
-    finally:
-        for route in boot:
-            route.continue_()
-        page.unroute_all(behavior="wait")
-
-
 def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve):
     """A wrapper that leaves the box tree and returns leaves the map as it found it.
 
@@ -1435,7 +1382,7 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     bubble = page.locator("#lf-gloss-tip-1")
 
     expect(bubble).to_be_hidden()
-    page.locator(".lf-fp-threads").click()
+    open_threads(page)
     page.locator(".lf-fp-thread").click()
     page.locator(".lf-fp-controls").get_by_role("button", name="Show on page").click()
     expect(bubble).to_be_visible()

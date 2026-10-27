@@ -112,7 +112,7 @@ import {
   textNodesUnder,
   wrote,
 } from "./passages.js";
-import { TEXT_BLOCK } from "./passage-facts.js";
+import { TEXT_BLOCK } from "./kernel-facts.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import {
   inlineMarkdownFragment,
@@ -158,7 +158,7 @@ import { pointerAt, restorePointer } from "./pointer.js";
 
 import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
-import { batch, effect, signal } from "/vendor/browser-runtime.js";
+import { batch, effect, signal } from "/runtime/framework.js";
 
 import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
@@ -192,6 +192,7 @@ import {
   textBlocks,
 } from "./reading-place.js";
 import { holdingError, raiseError } from "./errors.js";
+import { tick } from "./version-signal.js";
 
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
 
@@ -587,7 +588,7 @@ function diffBlocks(root) {
   return pairs;
 }
 /** One revision's browser reading at a log boundary, as `/api/view` answers it.
- * @returns {Promise<import("../framework/contract.js").ServedViewAnswer["browser"]>} */
+ * @returns {Promise<import("../types/contract.js").ServedViewAnswer["browser"]>} */
 async function baseReading(baseRevision, throughSeq) {
   const params = new URLSearchParams({
     revision: String(baseRevision),
@@ -952,7 +953,7 @@ export function toggleInlineComparison(target) {
   const said = inlineOpen.has(target)
     ? closeInlineComparison(target)
     : openInlineComparison(target);
-  comparisonGeneration.value += 1;
+  tick(comparisonGeneration);
   return said;
 }
 
@@ -984,7 +985,7 @@ function setDiff(on, base, pendingBase = null) {
       diffMarked.clear();
     }
     // Native effects run after both the selection and its marked DOM have settled.
-    comparisonGeneration.value += 1;
+    tick(comparisonGeneration);
   });
 }
 // The one way a comparison starts, from a row's press, from the walk through the menu,

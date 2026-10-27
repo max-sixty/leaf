@@ -42,6 +42,7 @@ from render_harness import (
     held_frames,
     leaf_page,
     open_page,
+    open_threads,
     open_versions,
     opened_tab,
     page_comment,
@@ -284,7 +285,7 @@ RING_CASES = (
             RING_CHROME: (
                 (".lf-grip", ".lf-grip"),
                 (".lf-fp-leaf", PANEL_RING),
-                (".lf-fp-threads", PANEL_RING),
+                (".lf-fp-on-user", PANEL_RING),
                 (".lf-fp-field leaf-text", ".lf-fp-field .lf-compose-field"),
             ),
             "feature-gallery": (
@@ -301,10 +302,8 @@ RING_CASES = (
             "notification-playground": (
                 ("lf-playground input[type=radio]", ".choice:has"),
             ),
-            "review-a-plan": (
-                ("main details > summary", ":where([data-lf-focus-visible])"),
-            ),
             "pr-walkthrough": (
+                ("#pr-path-tree > summary", ".lf-visual-mark"),
                 (
                     "#pr-flow-tab",
                     ".lf-rendered:has(> :is(lf-tab, lf-part)",
@@ -315,7 +314,7 @@ RING_CASES = (
                 ("lf-diff code", ".lf-diff-frame"),
             ),
             "release-notes": (
-                ("main p.lf-mark-el", ".lf-mark-el"),
+                ("main p.lf-mark-el", ".lf-visual-mark"),
                 (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
                     "wa-comparison::part(",
@@ -325,7 +324,7 @@ RING_CASES = (
             "wt-merge": (
                 (
                     '[data-lf-reading-role="pane"] > [tabindex="0"]',
-                    "[data-lf-reading-role=pane]",
+                    '[data-lf-reading-role="pane"]',
                 ),
             ),
         },
@@ -378,7 +377,7 @@ RING_CASES = (
     (
         "the response bar",
         ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
-        {RING_CHROME: ((".lf-fab-input", ".lf-response-control"),)},
+        {RING_CHROME: ((".lf-fab-input", ".lf-compose-field"),)},
     ),
     # These controls live behind exact page-owned view states: a settled group's
     # disclosure, and the options it puts away.
@@ -398,7 +397,7 @@ RING_CASES = (
             "current-proposed-comparison": (
                 (
                     "#comparison-policy > lf-option > .lf-pick",
-                    ":is(lf-option) .lf-pick",
+                    "lf-option .lf-pick",
                 ),
             )
         },
@@ -406,7 +405,7 @@ RING_CASES = (
     (
         "a contents link",
         (),
-        {"feature-gallery": (("#bg-contents li a:visible", ":is(lf-toc) a"),)},
+        {"feature-gallery": (("#bg-contents li a:visible", "lf-toc a"),)},
     ),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip
@@ -452,7 +451,7 @@ RING_CASES = (
             "ship-review": (
                 (
                     ".lf-margin-preview .lf-resolve",
-                    ".lf-page-thread :is(.lf-btn, summary)",
+                    ".lf-icon-action",
                 ),
             )
         },
@@ -526,8 +525,8 @@ RING_SCOPE_SURFACE = {
     "All pages": '.lf-floating-panel[data-open="leaves"]',
     "the leaf's menu": ".lf-floating-panel[data-menu]",
     "the versions menu": ".lf-floating-panel[data-menu]",
-    "the command reference": ".lf-command-reference.open",
-    "a reaction palette": ".lf-react-strip.lf-react-open",
+    "the command reference": ".lf-command-reference[open]",
+    "a reaction palette": ".lf-react-strip:has(> .lf-react-palette:popover-open)",
 }
 
 
@@ -568,26 +567,16 @@ RING_SCOPE_THREAD = {
 def open_panel_thread_holding(page, selector):
     """Open the panel's view of the first thread, open or resolved, whose view holds
     `selector`, walking Threads' rows in turn."""
-
-    def threads_on(status):
-        if page.locator(PANEL).get_attribute("data-open") is not None:
-            page.locator(".lf-fp-close").click()
-            panel_settled(page, open=False)
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
-        page.locator(".lf-fp-filters button", has_text=status).click()
-
-    for status in ("Open", "Resolved"):
-        threads_on(status)
-        keys = page.locator(".lf-fp-thread").evaluate_all(
-            "rows => rows.map(row => row.dataset.key)"
-        )
-        for key in keys:
-            threads_on(status)
-            page.locator(f'.lf-fp-thread[data-key="{key}"]').click()
-            panel_settled(page, view="thread")
-            if page.locator(f"{PANEL} {selector}").count():
-                return
+    open_threads(page)
+    keys = page.locator(".lf-fp-thread").evaluate_all(
+        "rows => rows.map(row => row.dataset.key)"
+    )
+    for key in keys:
+        open_threads(page)
+        page.locator(f'.lf-fp-thread[data-key="{key}"]').click()
+        panel_settled(page, view="thread")
+        if page.locator(f"{PANEL} {selector}").count():
+            return
     raise AssertionError(f"no thread's view holds {selector}")
 
 
@@ -862,10 +851,14 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     )
     expect(anchored.locator(".lf-msg")).to_have_count(3)
     expect(anchored.locator("leaf-text")).to_be_visible()
+    expect(views["resolved"].locator(f"{threads} .lf-fp-ended")).to_have_text(
+        "Resolved"
+    )
     expect(
-        views["resolved"].locator(".lf-fp-filters button[aria-pressed=true]")
-    ).to_have_text("Resolved")
-    expect(views["resolved"].locator(f"{threads} .lf-fp-thread")).to_have_count(1)
+        views["resolved"].locator(
+            f"{threads} .lf-fp-ended ~ .lf-fp-thread[data-resolved]"
+        )
+    ).to_have_count(1)
     summary = views["summary"].locator(f'{PANEL_THREAD}[data-thread="c1a39980"]')
     expect(summary).to_be_visible()
     expect(views["summary"].locator(".lf-fp-title")).to_have_text("Afternoon workshop")
@@ -1117,11 +1110,10 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     )
 
 
-def test_a_recorded_move_is_acknowledged_in_the_panel_and_nowhere_else(browser, serve):
-    """The page has one place for brief news. A gesture's acknowledgement used to arrive
-    as both a count and a toast in the opposite corner. The panel's field says it now:
-    "Moved to Done — sent" stands in for its words while it lasts, the live region hears
-    the same sentence, and the field's own words return when it fades."""
+def test_a_recorded_move_is_announced_and_shown_only_where_it_was_made(browser, serve):
+    """A widget's gesture shows where the user made it, and the margin's receipt says
+    it was saved, so no passing notice repeats it: the live region alone hears "Moved
+    to Done", and neither the panel's field nor a toast says it."""
     page = open_page(browser, serve(BOARD_PAGE))
     board = page.locator("#sprint")
     assert "Moved to Done" not in panel_says(page)
@@ -1130,13 +1122,10 @@ def test_a_recorded_move_is_acknowledged_in_the_panel_and_nowhere_else(browser, 
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
-    expect_panel_says(page, "Moved to Done — sent")
-    expect(page.locator(".lf-live")).to_have_text("Moved to Done — sent")
-    assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
+    expect(page.locator(".lf-live")).to_have_text("Moved to Done")
     round_trip(page)
-
-    # The field's own words come back once the notice has had its moment.
-    expect_panel_says(page, "Moved to Done", says=False)
+    assert "Moved to Done" not in panel_says(page), "the panel's field repeats the move"
+    assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
 
 
 def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
@@ -1291,6 +1280,10 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     def sweep(where):
         violations, report = serious_axe_violations(page)
         assert violations == [], f"{where}: {report}"
+        unread = overlapped_words(page)
+        assert unread == [], (
+            f"{where}: no contrast read under a box that paints nothing: {unread}"
+        )
 
     sweep("the page as it arrives")
 
@@ -1414,11 +1407,11 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     for _ in range(60):
         page.keyboard.press("Tab")
         if page.evaluate(
-            "() => Boolean(document.activeElement?.matches('.lf-fp-threads'))"
+            "() => Boolean(document.activeElement?.matches('.lf-fp-on-user'))"
         ):
             break
     else:
-        raise AssertionError("Tab never reached the panel's Threads")
+        raise AssertionError("Tab never reached the panel's On me mark")
     rendered(page)
 
     assert seen_stop(page) is None, (
@@ -1431,13 +1424,13 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         style.id = 'lf-ring-negative-control';
         style.setAttribute('data-controls', '');
         style.textContent =
-          '.lf-fp-threads:focus { outline: none !important;'
+          '.lf-fp-on-user:focus { outline: none !important;'
           + ' box-shadow: none !important; }';
         document.head.append(style);
     }""")
     rendered(page)
     lost = seen_stop(page)
-    assert lost and "lf-fp-threads" in lost, (
+    assert lost and "lf-fp-on-user" in lost, (
         "the ring was taken off a focused control and the reading still called it seen "
         f"({lost}), so the sample floor cannot report a missing indication"
     )

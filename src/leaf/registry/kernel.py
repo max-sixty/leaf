@@ -1,14 +1,13 @@
-"""Leaf's fixed kernel facts, read off the kernel's own registry.
+"""Leaf's fixed kernel facts, read off the kernel registry (`state.KERNEL_REGISTRY`).
 
 Every `$events` member but `handling` and `answering` is the transport contract no
 layer can change (`layer.merge_layer_declarations`), `$passages` is how a page reads
-as text, which the browser's generated copy (`runtime/passage-facts.js`) shares,
-`$marks` the declarations painted for stylesheets, `$names` the widget and attribute
-name grammars, and `$authored` the page-wide declarations `page check` holds an
-author to. A layer that declares any of these differently is refused. All are read
-from the running Leaf's shipped `registry.json`
-rather than from a page's composed vocabulary, which may be another Leaf's at the same
-`protocol` (`kernel_protocol`). Reading them needs no schema validator, and this module
+as text, `$marks` the declarations painted for stylesheets, `$names` the widget and
+attribute name grammars, and `$authored` the page-wide declarations `page check` holds
+an author to. A layer that declares any of these differently is refused. All are read
+from the running Leaf's kernel registry, which the browser reads too
+(`runtime/kernel-facts.js`), rather than from a page's composed vocabulary, which may
+be another Leaf's at the same `protocol` (`kernel_protocol`). Reading them needs no schema validator, and this module
 imports none: the page service sorts every event by these kinds, including in a harness
 hook that validates nothing."""
 

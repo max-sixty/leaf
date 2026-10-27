@@ -45,7 +45,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
 ):
     """A dialog-shaped command reference behaves like a dialog for the native Tab walk."""
     page = open_page(browser, serve(LONG_PAGE))
-    door = page.locator(".lf-fp-threads")
+    door = page.locator(".lf-fp-on-user")
     door.focus()
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
@@ -147,7 +147,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
-    """Putting Threads away hands the user back the page, however they opened it.
+    """Putting On me away hands the user back the page, however they opened it.
 
     Opened with the pointer, the view takes focus; opened from the keyboard, its first
     row does. Either way Escape lands on the page rather than on the mark that opened
@@ -158,9 +158,9 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     focused button still owns Space; focus therefore returns to the page rather than
     merely blurring to nowhere."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))
-    toggle = page.locator(".lf-fp-threads")
-    panel = page.locator(panel_view("threads"))
-    ringed = """() => getComputedStyle(document.querySelector('.lf-fp-threads'))
+    toggle = page.locator(".lf-fp-on-user")
+    panel = page.locator(panel_view("queue"))
+    ringed = """() => getComputedStyle(document.querySelector('.lf-fp-on-user'))
       .outlineStyle !== 'none'"""
     top = "() => document.scrollingElement.scrollTop"
     on_body = "() => document.activeElement === document.body"
@@ -201,7 +201,11 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     assert page.evaluate(ringed), "the control the user is located on says nothing"
     page.keyboard.press("Enter")
     expect(panel).to_be_visible()
-    expect(panel.locator(".lf-fp-thread").first).to_be_focused()
+    # Opened by a key, the user stands in the view, on its first row where it has one.
+    page.wait_for_function(
+        "view => document.querySelector(view)?.contains(document.activeElement)",
+        arg=panel_view("queue"),
+    )
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate(on_body)

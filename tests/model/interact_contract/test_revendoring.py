@@ -574,6 +574,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
     registry = json.loads((page_dir / "registry.json").read_text())
     options = registry["lf-options"]
     options["x-state"]["decide"] = {
+        "decides": True,
         "detail": {
             "type": "object",
             "properties": {"outcome": {"enum": ["keep"]}},

@@ -31,6 +31,7 @@ import {
   registerReadingRegion,
   registerVisualParts,
   scrollIntoReadingBand,
+  shownWindow,
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
@@ -322,7 +323,7 @@ customElements.define(
           offset(10),
           shift({
             boundary: this.stage,
-            rootBoundary: this.hasAttribute("data-phone") ? "viewport" : "document",
+            rootBoundary: this.hasAttribute("data-phone") ? shownWindow() : "document",
             padding: 10,
             crossAxis: true,
           }),
@@ -367,7 +368,7 @@ customElements.define(
       this.#pause();
       if (this.hasAttribute("data-phone")) {
         this.settings.open = false;
-        scrollIntoReadingBand(this.playBtn.parentElement, this, "start", "instant");
+        scrollIntoReadingBand(this.playBtn.parentElement, this, "nearest", "instant");
       }
       const parts = this.painter.parts();
       if (!parts.length) return;

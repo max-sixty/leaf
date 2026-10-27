@@ -15,6 +15,7 @@ from render_harness import (
     scroll_settled,
 )
 
+from browser.test_render_gate import AIM_BOXES, aim_selectors
 from leaf.file_bindings import bind_file
 
 
@@ -104,7 +105,7 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     """Provider defaults yield to package CSS and root inputs in a real bound editor,
     which reads a `.markdown` file as Markdown, as `$languages.paths` says."""
     file = tmp_path / "style.markdown"
-    file.write_text("# A real file\n\nEditable words.\n")
+    file.write_text("# A real file\n\nEditable words and `literal` evidence.\n")
     url = serve(
         leaf_page(
             "Editor theme",
@@ -127,10 +128,13 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
 
     page.evaluate("""() => document.querySelector('#change-theme').addEventListener('click', () => {
       const style = document.createElement('style');
-      style.textContent = ':root { --focus-ring: 7px dashed magenta; --focus-ring-w: 7px; } lf-file-editor { --lf-file-editor-size: 30px; }';
+      style.textContent = ':root { --focus-ring: 7px dashed magenta; --focus-ring-w: 7px; --syn-string: rgb(0, 85, 102); } lf-file-editor { --lf-file-editor-size: 30px; }';
       document.head.append(style);
     })""")
     page.get_by_role("button", name="Change theme", exact=True).click()
+    expect(editor.get_by_text("literal", exact=True)).to_have_css(
+        "color", "rgb(0, 85, 102)"
+    )
     page.keyboard.press("Tab")
     editor.focus()
     assert editor.evaluate("node => node.matches(':focus-visible')")
@@ -320,6 +324,58 @@ def test_file_editor_long_filename_keeps_the_phone_editable(browser, serve, tmp_
     expect(editor).to_be_focused()
     page.keyboard.press("Shift+Tab")
     expect(name).to_be_focused()
+
+
+def test_file_editor_status_controls_take_a_finger_on_a_phone(browser, serve, tmp_path):
+    """Retry and the conflict menu are words in a one-line header, so their press is the
+    header's whole height, and the header has to be tall enough for a finger: at 390px
+    under touch both stood 32px tall. Each is pressed in its own state."""
+    file = tmp_path / "notes.md"
+    file.write_text("Original.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+
+    # A finger from the start: the floor changes the header's height, and a page that
+    # met the finger only when it was measured would shift as the finger arrived.
+    def phone(page):
+        page.clock.install()
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.context.new_cdp_session(page).send(
+            "Emulation.setTouchEmulationEnabled", {"enabled": True}
+        )
+
+    page = open_page(primed(browser, phone), live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+
+    def short_aims(control):
+        expect(widget.locator(control)).to_be_visible()
+        return page.evaluate(AIM_BOXES, aim_selectors())["short"]
+
+    def fail_write(route):
+        route.abort() if route.request.method == "POST" else route.continue_()
+
+    page.route("**/api/files/notes", fail_write)
+    editor.click()
+    page.keyboard.insert_text("Draft.\n")
+    page.clock.run_for(600)
+    assert short_aims(".lf-file-editor-retry") == []
+    page.unroute("**/api/files/notes", fail_write)
+    file.write_text("Changed on disk.\n")
+    widget.get_by_role("button", name="Retry", exact=True).click()
+    page.clock.run_for(100)
+    assert short_aims(".lf-file-editor-conflict") == []
+    consume_browser_errors(
+        page,
+        "Failed to load resource: net::ERR_FAILED",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)",
+    )
 
 
 def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(

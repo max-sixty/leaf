@@ -11,9 +11,10 @@ import {
   createPresentationCoordinator,
   createPresentationSchedule,
   createSemanticApplication,
-} from "/vendor/browser-runtime.js";
+} from "/runtime/framework.js";
 
 import { bindQueuedWork } from "./queued-work.js";
+import { tick } from "./version-signal.js";
 
 const documentToken = Object.freeze({});
 let reportPresentationFailure = (reason) =>
@@ -26,7 +27,7 @@ const presentation = createPresentationCoordinator({
 const schedule = createPresentationSchedule(bindQueuedWork);
 
 /** The compiled factory is generated from this checked source contract. */
-/** @type {ReturnType<typeof import("../framework/application.ts").createSemanticApplication>} */
+/** @type {ReturnType<typeof import("./framework/application.js").createSemanticApplication>} */
 export const applicationState = createSemanticApplication({
   presentation: {
     begin: (semanticEpoch) => presentation.begin(documentToken, semanticEpoch),
@@ -75,6 +76,7 @@ export const attachWidgetPresentation = (widget, kind, renderer) =>
 // and gesture holds belong only to its presentation tickets.
 const widgetCommits = new Map();
 const documentCommits = new Map();
+const ownCommits = new Map();
 const currentWidgetParents = readPart((root) => root.effective.widgetParents);
 export const queueWidgetUpdate = (widget, update, committed) => {
   const { ready, committed: dom } = schedule.enqueue(
@@ -107,13 +109,28 @@ export const queueWidgetUpdate = (widget, update, committed) => {
 // The DOM each document owner reads: projection decorates widget output, threads
 // resolve passages over that decoration, obligations locate controls in threads,
 // and annotations measure those targets. Imperative Lit render commits in its call;
-// later preparation explicitly refreshes consumers when it materializes more DOM.
+// what the thread pass decides later, where it places and seats each thread, reaches
+// the margin as readings its paint follows (anchor-placement.js `placedAt`,
+// thread/surfaces.js `claimed`), not as DOM it waits for. An obligation's control is a
+// widget, so one a seat mounts after this commit presents the whole document as it
+// connects (widget-controller.js, `widgetMounted`), and obligations locate it on the
+// pass that follows. Each entry is transitive: it settles once its region and
+// everything upstream of it have committed.
 export const PRESENTATION_DOM = Object.freeze({
   widgets: () => [...widgetCommits.values()],
   projection: () => documentCommits.get("projection:chrome")?.() ?? [],
   thread: () => documentCommits.get("thread")?.() ?? [],
   obligations: () => documentCommits.get("obligations")?.() ?? [],
+  annotations: () => documentCommits.get("annotations")?.() ?? [],
 });
+
+// A region's own DOM commit, without the upstream DOM its paint waits for: settled
+// unless the region owes a paint. Reply continuity reads the margin's this way
+// (`regionCommitted("annotations")`), since the card it lands in is the margin's and
+// an upstream owner it doesn't read, such as a widget holding its commit through a
+// drag, shouldn't keep a displaced reply editor from its new box.
+export const regionCommitted = (region) =>
+  ownCommits.get(region)?.() ?? Promise.resolve();
 
 // The document-wide presenters, in registration order. `presentDocument` is what a
 // caller reaches for when it has changed something every region may be showing and has
@@ -134,7 +151,7 @@ const documentPresenters = [];
 // that changes a part `paint` read schedules a paint. One that changes only parts
 // `reading` read schedules a paint only if `reading` now returns a different value. One
 // that changes neither carries the region's last paint into the new epoch
-// (presentation.ts, `begin`). Reading the whole root subscribes to every publication,
+// (framework/presentation.js, `begin`). Reading the whole root subscribes to every publication,
 // so renderers select the parts they draw.
 //
 // Recording sees only synchronous code. A paint that awaits wraps each continuation in
@@ -228,6 +245,7 @@ export const applicationPresenter = ({
   // Keep the dependency transitive even then; its last DOM commit cannot certify
   // the new upstream DOM. Each owner still declares only the edges it reads.
   documentCommits.set(region, () => [...(after?.() ?? []), presenter.committed()]);
+  ownCommits.set(region, presenter.committed);
   const claim = (value) => {
     claimed = value;
     if (value === null) return schedule.passed();
@@ -239,7 +257,7 @@ export const applicationPresenter = ({
   const present = () =>
     untracked(() =>
       batch(() => {
-        revision.value += 1;
+        tick(revision);
         return claim(selected.value);
       }),
     );
@@ -274,7 +292,7 @@ export const documentChanged = () => documentChanges.value;
 /** Claim every document-wide region before native signal notifications run. */
 export const presentDocument = () =>
   batch(() => {
-    documentChanges.value += 1;
+    tick(documentChanges);
     for (const present of documentPresenters) void present();
     return schedule.passed();
   });

@@ -117,11 +117,12 @@ import {
   under,
   upFrom,
 } from "./shadow.js";
+import { renderedParent } from "./shadow-tree.js";
 import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
 import { readPart } from "./semantic-state.js";
-import { COLLAPSE, TEXT_BLOCK } from "./passage-facts.js";
+import { COLLAPSE, TEXT_BLOCK } from "./kernel-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
 
@@ -1414,6 +1415,36 @@ export function findQuote(text, quote, anchor, within) {
   return found ? spanOf(text, found.from, found.to) : [];
 }
 
+// Search can travel into native disclosures and hidden-until-found widget panels,
+// but cannot expose source data hidden by CSS. Keep that presentation question out of
+// the shared reading: stored quote resolution and file comparisons do not read styles.
+// display: contents has no box of its own yet still speaks through its children, and
+// visibility may be restored by a descendant, so neither is an ancestor veto.
+function searchableWords() {
+  const styles = new Map();
+  const reachable = new Map();
+  const style = (el) => {
+    if (!styles.has(el)) styles.set(el, getComputedStyle(el));
+    return styles.get(el);
+  };
+  const canReveal = (el) => {
+    if (!el) return true;
+    if (reachable.has(el)) return reachable.get(el);
+    const css = style(el);
+    const result =
+      css.display !== "none" &&
+      (css.contentVisibility !== "hidden" ||
+        el.getAttribute("hidden") === "until-found") &&
+      canReveal(renderedParent(el));
+    reachable.set(el, result);
+    return result;
+  };
+  return ({ node }) => {
+    const parent = renderedParent(node);
+    return parent && style(parent).visibility === "visible" && canReveal(parent);
+  };
+}
+
 // Every occurrence of a user's search, as passages in the page reading. This is not
 // anchor resolution: a search is allowed to find repeated words, while a stored anchor
 // must identify one occurrence or detach. It does keep the passage reader's other rules —
@@ -1427,11 +1458,16 @@ export function findText(text, query) {
     "giu",
   );
   const out = [];
-  for (const match of text.raw.matchAll(pattern)) {
+  const searchable = searchableWords();
+  for (let match; (match = pattern.exec(text.raw));) {
     const from = match.index;
     const to = from + match[0].length;
-    if (!withinCell(text, from, to)) continue;
-    out.push(spanOf(text, from, to));
+    const segments = spanOf(text, from, to);
+    if (withinCell(text, from, to) && segments.every(searchable)) out.push(segments);
+    // A rejected match must not consume the beginning of a reachable one.
+    else
+      pattern.lastIndex =
+        from + String.fromCodePoint(text.raw.codePointAt(from)).length;
   }
   return out;
 }

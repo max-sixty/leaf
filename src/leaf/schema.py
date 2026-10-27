@@ -3,12 +3,12 @@
 Resources belong to the installed plugin; the skill directory holds instructions.
 """
 
-import json
 import re
 
-from .state import EVENTS_FILE, PLUGIN_ROOT
+from .state import EVENTS_FILE, PLUGIN_ROOT, kernel_registry
 
 ASSETS = PLUGIN_ROOT / "browser"
+SKILL_FILE = PLUGIN_ROOT / "skills" / "leaf" / "SKILL.md"
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
@@ -29,9 +29,9 @@ WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "with new input instead, and end."
 )
 
-# The name grammars, declared in the kernel registry's `$names`, which the browser's
-# generated copy shares.
-_NAMES = json.loads((ASSETS / "registry.json").read_text())["$names"]
+# The name grammars, declared in the kernel registry's `$names`, which the browser
+# reads too.
+_NAMES = kernel_registry()["$names"]
 HTML_NAME = _NAMES["html"]
 WIDGET_NAME = _NAMES["widget"]
 # What a refused element name is told, so the author need not read WIDGET_NAME.
@@ -179,6 +179,22 @@ REFERENCE_SCHEMA = {
 }
 
 
+# A custom detail carries exactly the keys its declaration spells. Field meanings
+# such as `resolves` read those declarations, so patternProperties and combinators
+# cannot admit unnamed keys. `registry.schema.check_schema` validates the nested
+# schemas and the standard keywords left unrestricted here.
+_VERB_DETAIL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "type": {"const": "object"},
+        "properties": {},
+        "required": {},
+        "additionalProperties": {"const": False},
+    },
+    "required": ["type", "additionalProperties"],
+    "additionalProperties": False,
+}
+
 # Each verb declares its coordinate and a recorded effect or custom detail schema.
 # `writer: "agent"` makes it a report through `leaf page report`; otherwise the
 # user writes it. The writers differ in what their state may be, not its shape. The
@@ -187,7 +203,7 @@ REFERENCE_SCHEMA = {
 VERB_SCHEMA = {
     "type": "object",
     "properties": {
-        "detail": {"type": "object"},
+        "detail": _VERB_DETAIL_SCHEMA,
         "unit": {"type": "string", "minLength": 1},
         "record": {
             "oneOf": [
@@ -198,7 +214,18 @@ VERB_SCHEMA = {
             ]
         },
         "writer": {"const": "agent"},
+        "attention": {"const": True},
         "creates": ACTION_CREATES,
+        "decides": {"const": True},
+        "contract": {
+            "type": "object",
+            "properties": {
+                "field": {"type": "string", "minLength": 1},
+                "attribute": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            },
+            "required": ["field", "attribute"],
+            "additionalProperties": False,
+        },
         # The effect owns the payload; `text` adds a required non-empty detail.text.
         "text": {"const": True},
     },
@@ -206,7 +233,14 @@ VERB_SCHEMA = {
     "allOf": [
         {
             "if": {"required": ["record"]},
-            "then": {"properties": {"detail": False, "creates": False}},
+            "then": {
+                "properties": {
+                    "detail": False,
+                    "creates": False,
+                    "contract": False,
+                    "decides": False,
+                }
+            },
             "else": {"required": ["detail"]},
         }
     ],
@@ -234,10 +268,7 @@ STATE_SCHEMA = {
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
     "additionalProperties": VERB_SCHEMA,
 }
-# A widget's obligation is answered either by its own state (`value` and `answered`) or, with
-# `reply`, by the user's words about it, which it has no state to hold. `encloses`
-# makes a widget the frame of the obligations inside it, asking nothing itself while it holds
-# another that can ask.
+# A widget's obligation is answered by its own state (`value` and `answered`).
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -256,20 +287,8 @@ AWAITS_SCHEMA = {
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "reply": {"const": True},
-        "encloses": {"const": True},
     },
-    "if": {"required": ["reply"]},
-    "then": {
-        "properties": {
-            "value": False,
-            "answered": False,
-            "all": False,
-            "records": False,
-            "key": False,
-        },
-    },
-    "else": {"required": ["value", "answered"]},
+    "required": ["value", "answered"],
     "additionalProperties": False,
 }
 # Package and data-contract instructions address their declared audiences. Widget
@@ -363,6 +382,7 @@ EXTENSION_SCHEMA = {
         },
         "x-instructions": {"type": "string", "pattern": r"\S"},
         "x-inline": {"type": "boolean"},
+        "x-encloses": {"const": True},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
         "x-margin-content": {"enum": ["map"]},
@@ -487,6 +507,18 @@ EXTENSION_SCHEMA = {
             "x-upgrade": {"const": True},
         }
     },
+    "additionalProperties": False,
+}
+# Selector idioms share author-facing extension fields with widgets, but cannot
+# declare widget behavior or marks (`revision_delivery.mark_declared`).
+IDIOM_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "description": {"type": "string", "pattern": r"\S"},
+        "x-example": {**EXTENSION_SCHEMA["properties"]["x-example"], "pattern": r"\S"},
+        "x-instructions": EXTENSION_SCHEMA["properties"]["x-instructions"],
+    },
+    "required": ["description", "x-example"],
     "additionalProperties": False,
 }
 _NONEMPTY = {"type": "string", "minLength": 1}
@@ -617,6 +649,15 @@ BUNDLED_PACKAGES = PLUGIN_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 # The files `page init` writes at the top of a page directory.
 VENDORED_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
+# A package's source contributions are composed into the page files above. Their
+# roles depend on their filenames, not on whether the package declares widgets.
+PACKAGE_STYLES = (
+    "widget-shadow.css",
+    "widgets.css",
+    "theme.css",
+    "controls.css",
+)
+PACKAGE_FILES = (*PACKAGE_STYLES, "registry.json", "icon.svg")
 # The layer's browser directories, which packages add to.
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 # What the Leaf serving a page supplies rather than its vendored layer: the runtime's

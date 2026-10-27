@@ -17,7 +17,7 @@ from render_cases_interaction import (
     live_url,
     panel_comment,
 )
-from render_cases_layout import token_colour
+from render_cases_layout import page_at_rest, token_colour
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     CHIPS,
@@ -36,11 +36,13 @@ from render_harness import (
     ROOT,
     command_reference_rows,
     expect_obligations_answered,
+    expect_open_threads,
     expect_panel_says,
     leaf_page,
     margins_laid_out,
     navigate,
     open_page,
+    open_threads,
     pane_scroll_behavior,
     panel_control,
     panel_says,
@@ -431,8 +433,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     # `m` from a heading into a thread's obligation, with Threads already open: each Escape
     # leaves one layer, the innermost first, without returning to the heading.
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     heading = page.locator("main h2").first
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
     expect(heading).to_be_focused()
@@ -683,9 +684,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     comment({"quote": "two separate remarks"}, "Second thought.")
     c3 = comment({"section": "p2"}, "The short one too.")
     page = open_page(browser, url)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile("^Threads, 3 open")
-    )
+    expect_open_threads(page, 3)
     resized(page, 1280, 800)
 
     # The complete reference shows each command once, preferring an executable intrinsic
@@ -883,9 +882,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # document at large, `f` must not offer a digit for it.
     append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": c3})
     told(page)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile("^Threads, 2 open")
-    )
+    expect_open_threads(page, 2)
     expect(page.locator("details.lf-details")).to_have_count(0)
     page.keyboard.press("g")
     expect(page.locator(f'{CHIPS}[data-lf-go-to-kind="Fold"]')).to_have_count(0)
@@ -1467,13 +1464,10 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     assert reading["status"] == "open"
 
     gallery_tab("tab", name="Threads").click()
-    panel_control(page, "threads").click()
-    panel_settled(page, view="threads")
-    rows = page.locator(".lf-fp-thread")
-    filters = page.locator(".lf-fp-filters button")
-    filters.filter(has_text="Resolved").click()
-    expect(rows).not_to_have_count(0)
-    filters.filter(has_text="Open").click()
+    open_threads(page)
+    expect(
+        page.locator(".lf-fp-ended ~ .lf-fp-thread[data-resolved]")
+    ).not_to_have_count(0)
     media_thread = open_panel_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
     media_thread.locator(".lf-message-media").click()
     viewer = page.get_by_role("dialog", name="Image preview")
@@ -1529,7 +1523,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
           sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
             {surface: 'panel', waiting: 'user'}),
           sample.showThread('bab3cdfcfb8c02aacbb27da731de947a',
-            {surface: 'panel', status: 'resolved'})
+            {surface: 'panel'})
         ])"""
     )
     assert result == [False, True]
@@ -1793,7 +1787,6 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
     expect(child.get_by_role("button", name="On me", exact=True)).to_be_visible()
-    expect(child.get_by_role("button", name="Threads, 0 open")).to_be_visible()
     for width in (720, 390):
         resized(page, width, 900)
         sample.scroll_into_view_if_needed()
@@ -1891,11 +1884,12 @@ def _stale_keys(page):
     finishes, so the reading waits for both: for the page's readiness, which includes
     every live sample's arrival, and for every send to come back. It waits too for
     every fullscreen request the input made, which moves focus when the browser
-    answers it."""
+    answers it, and for finite motion: a closing card hides its reply box at the
+    fade's end, changing which keys apply."""
     wait_until_ready(page)
     round_trip(page)
     page.wait_for_function("() => window.__lfFullscreenRequests === 0")
-    rendered(page)
+    page_at_rest(page)
     painted = page.evaluate_handle(_PAINTED_KEYS)
     page.evaluate("async () => (await window.__lfWidgetApi()).paintKeys()")
     rendered(page)

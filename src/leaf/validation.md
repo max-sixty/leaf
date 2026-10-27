@@ -97,6 +97,11 @@ that window's height.
 The suite uses Chromium's headless shell; the end-to-end render-check tests cover the
 launches the command uses.
 
+Every widget output published during the check, including one subsequently withdrawn
+or published by a disposed sample, is validated against its data contract. A failure
+identifies the producer and the captured owners of its module, output declaration
+and contract (`data_contracts.output_findings`).
+
 A decision in force may paint over a changed authored baseline. That is the state
 fold's behavior, not a reason to refuse the revision; `restated` retracts a decision
 when the agent needs a fresh answer.

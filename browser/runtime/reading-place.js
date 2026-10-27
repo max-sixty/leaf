@@ -28,7 +28,12 @@
  * the document and nothing is left to anchor, the box that replaces the one that read
  * the offset takes it back. A bounded block
  * following its newest entry has its end as its place (`bounds.js`, `followingItsEnd`),
- * however many entries have arrived since.
+ * however many entries have arrived since. A box standing at its start is read from its
+ * top: its own box returns to its start, across a resize or a revision, so a page read
+ * from its top keeps its title in view, and only a box its words are handed to takes
+ * the landmark. The user chose this on 2026-10-25 over keeping the first line at the
+ * edge, which scrolls the title away where a header fixed beside that line drops into
+ * the flow above it as the window narrows.
  * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
  * returns the user to it: the passage is found again by its words, so a place survives
  * what moved the pixels under it — a new revision, a resize, a view that was hidden
@@ -49,7 +54,7 @@
  * working-place checkpoints separately own an entry's viewport offset (history.js).
  * `readingBlock` is the first block on screen in one region or the page;
  * `pageReadingBlock` is the block the user is reading, where a walk starts, and
- * `landingPlace` is where a let-go puts them. `openingPassage`
+ * `landingPlace` is where a let-go puts them, beside what they let go of where they see it. `openingPassage`
  * gives travel the passage its destination draws first, using the same rendered words
  * as the visible landmarks. It is independent of the viewport, so scrolling through a tall landing
  * does not turn a later passage into the navigation step's original arrival.
@@ -64,6 +69,7 @@ import {
   stuckBox,
 } from "./geometry.js";
 import {
+  blockAt,
   closestAcross,
   inChrome,
   pageBlocks,
@@ -324,7 +330,18 @@ function pageReading({ bodies }) {
   return readingBlock();
 }
 export const pageReadingBlock = () => pageReading({ bodies: false });
-export const landingPlace = () => pageReading({ bodies: true });
+// A let-go lands beside what it let go of while the user sees it: its first block on
+// screen, or, for a node inside a block, that block. Only failing that is it what they
+// are reading.
+export function landingPlace(from = null) {
+  if (from && !inChrome(from)) {
+    const blocks = textBlocks(from);
+    const own = blocks.length ? blocks : [blockAt(from)].filter(Boolean);
+    const shown = blocksOnScreen(readingRegionFor(from), own).next().value?.[0];
+    if (shown) return shown;
+  }
+  return pageReading({ bodies: true });
+}
 
 // Where across the box the reader works: their pointer, where it last named their place
 // over what they see of the box, else the focus they stand on in it, else null, which
@@ -478,6 +495,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     revision: runtime.currentRevision,
     [READ_BOX]: new WeakRef(box),
   };
+  if (box.scrollTop === 0) view.start = true;
   const currentLocation = focusedInView();
   const body = region?.body ?? pageDocument();
   const currentLocationBody = readingRegionFor(currentLocation)?.body ?? body;
@@ -679,6 +697,8 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   if (!currentLocation || !sameScroller(view, box)) {
     if (view.end) {
       scrollToEnd(box);
+    } else if (view.start && sameScroller(view, box)) {
+      box.scrollTo({ top: 0, behavior: "instant" });
     } else {
       const boxTop = landingBand(box).top;
       // Restoration keeps the reader's disclosures and chosen views: a landmark

@@ -2,10 +2,10 @@
  * one line tall in every state, so the filename and the editor stay still through all
  * of them. Normal writes and completion paint no status at all. Only this widget's
  * shadow stage receives these rules; CodeMirror owns its editing presentation. */
-:scope:host(lf-file-editor) .lf-file-editor-view {
+:host(lf-file-editor) .lf-file-editor-view {
   display: contents;
 }
-:scope:host(lf-file-editor) .lf-file-editor-head {
+:host(lf-file-editor) .lf-file-editor-head {
   --lf-file-editor-head-pad: 0.5rem;
   display: flex;
   align-items: center;
@@ -13,14 +13,14 @@
   padding: var(--lf-file-editor-head-pad) 1rem;
   border-bottom: 1px solid var(--border-2);
 }
-:scope:host(lf-file-editor) .lf-file-editor-name {
+:host(lf-file-editor) .lf-file-editor-name {
   flex: 1;
   min-width: 0;
   overflow: auto;
   white-space: nowrap;
   font: 600 0.9rem var(--mono);
 }
-:scope:host(lf-file-editor) .lf-file-editor-status {
+:host(lf-file-editor) .lf-file-editor-status {
   flex: 0 0 10rem;
   align-self: stretch;
   display: flex;
@@ -37,7 +37,7 @@
  * own, which would grow the header as a failure or a conflict arrived. Its press
  * spans the header's whole height instead, through the header's padding, without
  * reaching past it into the editor; the inline floor still holds. */
-:scope:host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict) {
+:host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict) {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -53,42 +53,40 @@
   font: inherit;
   cursor: pointer;
 }
-:scope:host(lf-file-editor)
-  :is(.lf-file-editor-retry, .lf-file-editor-conflict)::before {
+:host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict)::before {
   content: "";
   position: absolute;
   inset-inline: 0;
   inset-block: calc(-1 * var(--lf-file-editor-head-pad));
 }
-:scope:host(lf-file-editor)
-  :is(.lf-file-editor-retry, .lf-file-editor-conflict)[hidden] {
+:host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict)[hidden] {
   display: none;
 }
-:scope:host(lf-file-editor)
+:host(lf-file-editor)
   :is(.lf-file-editor-retry, .lf-file-editor-conflict)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 0;
 }
-:scope:host(lf-file-editor) .lf-file-editor-retry {
+:host(lf-file-editor) .lf-file-editor-retry {
   color: var(--accent);
 }
-:scope:host(lf-file-editor) .lf-file-editor-retry:not([aria-disabled="true"]):hover {
+:host(lf-file-editor) .lf-file-editor-retry:not([aria-disabled="true"]):hover {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 /* The conflict is a state before it is a press, so it wears the warning tone rather
  * than the accent a link would, and a fill under the pointer rather than a rule. */
-:scope:host(lf-file-editor) .lf-file-editor-conflict {
+:host(lf-file-editor) .lf-file-editor-conflict {
   color: var(--warn-ink);
   anchor-name: --lf-file-editor-conflict;
 }
-:scope:host(lf-file-editor) .lf-file-editor-conflict:hover,
-:scope:host(lf-file-editor)
+:host(lf-file-editor) .lf-file-editor-conflict:hover,
+:host(lf-file-editor)
   .lf-file-editor-view:has(.lf-file-editor-choices:popover-open)
   .lf-file-editor-conflict {
   background: var(--warn-tint);
 }
-:scope:host(lf-file-editor) .lf-file-editor-chevron {
+:host(lf-file-editor) .lf-file-editor-chevron {
   inline-size: 1em;
   block-size: 1em;
   fill: none;
@@ -100,7 +98,7 @@
 /* The conflict's choices hang from the control that names them, inward from its edge,
  * and flip above it where the window has no room below. The other two sides are taken
  * back from the popover UA rule, which centres a popover with inset 0 and auto margins. */
-:scope:host(lf-file-editor) .lf-file-editor-choices {
+:host(lf-file-editor) .lf-file-editor-choices {
   position-anchor: --lf-file-editor-conflict;
   top: anchor(bottom);
   right: anchor(right);
@@ -119,26 +117,26 @@
   box-shadow: var(--raise-2);
   font: 0.88rem var(--sans);
 }
-:scope:host(lf-file-editor) .lf-file-editor-choices:popover-open {
+:host(lf-file-editor) .lf-file-editor-choices:popover-open {
   display: flex;
 }
-:scope:host(lf-file-editor) .lf-file-editor-choices .lf-btn {
+:host(lf-file-editor) .lf-file-editor-choices .lf-btn {
   text-align: left;
 }
-:scope:host(lf-file-editor) .lf-file-editor-choices .lf-btn[aria-checked="true"] {
+:host(lf-file-editor) .lf-file-editor-choices .lf-btn[aria-checked="true"] {
   color: var(--accent);
 }
 /* A row is packed against the menu's edge, so its ring is drawn inset. */
-:scope:host(lf-file-editor) .lf-file-editor-choices .lf-btn[data-lf-focus-visible] {
+:host(lf-file-editor) .lf-file-editor-choices .lf-btn[data-lf-focus-visible] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-:scope:host(lf-file-editor) .lf-file-editor-edit {
+:host(lf-file-editor) .lf-file-editor-edit {
   min-width: 0;
   min-height: 0;
 }
 /* The comparison opens only on the reader's Compare, below the editor, and the host's
  * grid gives it half the editing room (theme.css), so it sizes against a definite row. */
-:scope:host(lf-file-editor) .lf-file-editor-compared {
+:host(lf-file-editor) .lf-file-editor-compared {
   display: flex;
   flex-direction: column;
   min-block-size: 0;
@@ -146,20 +144,20 @@
   background: var(--paper);
   border-top: 1px solid var(--border-2);
 }
-:scope:host(lf-file-editor) .lf-file-editor-compared[hidden] {
+:host(lf-file-editor) .lf-file-editor-compared[hidden] {
   display: none;
 }
-:scope:host(lf-file-editor) .lf-file-editor-legend {
+:host(lf-file-editor) .lf-file-editor-legend {
   flex: none;
   margin: 0 0 0.6rem;
   font-size: 0.88rem;
   color: var(--muted);
 }
-:scope:host(lf-file-editor) .lf-file-editor-comparison {
+:host(lf-file-editor) .lf-file-editor-comparison {
   flex: 1;
   min-block-size: 0;
 }
-:scope:host(lf-file-editor) .cm-editor {
+:host(lf-file-editor) .cm-editor {
   height: 100%;
   font-size: var(--lf-file-editor-size);
 }
@@ -167,10 +165,10 @@
  * focus cue inside the editor frame, above the scroller's own stacking context
  * (its positioned gutters otherwise cover the left edge). Editing focus stays
  * on the content and the cue never receives pointer input. */
-:scope:host(lf-file-editor) .cm-content[data-lf-focus-visible] {
+:host(lf-file-editor) .cm-content[data-lf-focus-visible] {
   outline: none;
 }
-:scope:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus-visible])::after {
+:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus-visible])::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -179,23 +177,23 @@
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-:scope:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus-visible]) {
+:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus-visible]) {
   --lf-wears-ring: 1;
 }
 /* The editing region keeps the height the host states while typing grows the file. */
-:scope:host(lf-file-editor) .cm-scroller {
+:host(lf-file-editor) .cm-scroller {
   overflow: auto;
   --lf-holds-height: 1;
 }
 @media (max-width: 36rem) {
-  :scope:host(lf-file-editor) .lf-file-editor-head {
+  :host(lf-file-editor) .lf-file-editor-head {
     padding-inline: 0.7rem;
     gap: 0.35rem 0.6rem;
   }
-  :scope:host(lf-file-editor) .lf-file-editor-status {
+  :host(lf-file-editor) .lf-file-editor-status {
     flex-basis: 9rem;
   }
-  :scope:host(lf-file-editor) .lf-file-editor-compared {
+  :host(lf-file-editor) .lf-file-editor-compared {
     padding-inline: 0.7rem;
   }
 }

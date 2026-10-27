@@ -1343,7 +1343,9 @@
         offer,
         offerElement,
         offerAction,
+        offerActionElement,
         selectableOffer,
+        selectableOfferElement,
         generatedElement,
         keeps: keepsAttribute,
         authoredBody(node) {

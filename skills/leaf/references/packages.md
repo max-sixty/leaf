@@ -62,10 +62,9 @@ Every package uses this layout, and every file is optional:
 ```text
 package/
 ├── registry.json       element declarations and shared $ declarations
-├── widgets.css         defaults scoped to this package's widgets
+├── widgets.css         defaults for this package's widgets
 ├── widget-shadow.css   widget defaults also loaded in their shadow trees
 ├── theme.css           page-wide theme inputs and presentation
-├── theme-shadow.css    theme rules also loaded in every declared shadow tree
 ├── controls.css        deliberate styling of generated controls
 ├── instructions/       Markdown instructions named for their audiences
 ├── runtime/            package-owned browser modules
@@ -89,13 +88,12 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 Choose a stylesheet by the contribution it makes. A package may supply any combination;
 adding a widget does not change its theme or control styling.
 
-| Sheet               | Document                                               | Declared shadow trees                |
-| ------------------- | ------------------------------------------------------ | ------------------------------------ |
-| `widgets.css`       | Scoped to the package's widgets in `lf-base`           | —                                    |
-| `widget-shadow.css` | Scoped to the package's widgets in `lf-base`           | Scoped to their hosts in `lf-shadow` |
-| `theme.css`         | Page-wide in `lf-theme`                                | —                                    |
-| `theme-shadow.css`  | Page-wide in `lf-theme`                                | Unscoped in `lf-theme`               |
-| `controls.css`      | Explicit access to generated controls in `lf-controls` | —                                    |
+| Sheet               | Document                                               | Declared shadow trees |
+| ------------------- | ------------------------------------------------------ | --------------------- |
+| `widgets.css`       | `lf-base`                                              | —                     |
+| `widget-shadow.css` | `lf-base`                                              | `lf-shadow`           |
+| `theme.css`         | Page-wide in `lf-theme`                                | —                     |
+| `controls.css`      | Explicit access to generated controls in `lf-controls` | —                     |
 
 Widget defaults rank below Layouts; theme contributions rank above them. Leaf orders
 the cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-theme`,
@@ -119,29 +117,21 @@ Leaf's own controls and comment marks are unlayered, and a theme contribution's 
 inputs below. Put a dependency's default styles in `lf-base` with `inBaseLayer(text)`
 (`module-authoring.md`, "Shadow stages and styles").
 
-Leaf wraps widget sheets in `@scope`, rooted at the package's widget tags, or at
-`:host` in a shadow root. A rule for `p` styles paragraphs inside those widgets;
-`html`, `body` and the box around a widget are outside the scope. `:scope` is the widget
-itself, and `:scope:is(lf-tag)` picks one of the package's widgets; in
-`widget-shadow.css`, `:scope:host(.state)` reads the host's state.
-In `widgets.css`, write outside conditions as a nested scope, such as
-`@scope (html[data-lf-interactive] :scope)`; a shadow tree's rules can't see the
-document. Widget sheets require a declared widget.
-In the document, their scope ends below a nested foreign widget, whether declared by
-another package or the page: an outer widget can arrange its host, while the nested
-widget styles its own interior, including authored content. The boundary applies
-before modules load and when a revision introduces a new page declaration. In a
-shadow tree, `widget-shadow.css` reaches everything the tree holds, including Leaf's
-views placed there, such as a diff's threads. Widgets from the same package can
-share their compound structure. Replacing a widget's declaration or module does
-not withdraw the selected package's independent stylesheet contribution. Inherited
-values still cross these boundaries. Adjust another widget's internals through its
-inputs or API; theme contributions are deliberately page-wide.
+Leaf places each sheet in its tier and changes none of its rules, so a sheet names
+the widgets it styles: `lf-tag .part` in the document, and `:host(lf-tag) .part` in a
+shadow tree, where `:host(lf-tag.ready)` reads the host's state. A bare `p { … }`
+reaches every paragraph on the page, and in a shadow sheet everything the tree holds,
+including Leaf's views placed there, such as a diff's threads. A rule naming a widget
+also reaches a foreign widget nested inside it, so style structure a nested widget may
+share through a child combinator or the package's own classes. Replacing a widget's
+declaration or module does not withdraw the selected package's stylesheet
+contribution. Inherited values cross every widget boundary. Adjust another widget's
+internals through its inputs or API; theme contributions are deliberately page-wide.
 
 Document selectors don't reach into a shadow root. A declared `x-shadow` root built with
 `shadowStage` gets the composed shared stylesheet. Use theme inputs for changes across
-both trees, `widget-shadow.css` for owned internals, `theme-shadow.css` for a deliberate
-theme-wide change, and `::part` to expose a public control.
+both trees, `widget-shadow.css` for owned internals, and `::part` to expose a public
+control.
 
 Custom properties come in four kinds:
 

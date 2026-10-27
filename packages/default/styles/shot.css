@@ -2,7 +2,7 @@
  * share the frame scale and crop translation; neither package consumers nor the
  * pixel/outline renderers reinterpret that geometry. Shared Leaf controls own
  * button faces, targets, focus, disabled and pressed states. */
-:scope:is(lf-shot) {
+lf-shot {
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
@@ -173,7 +173,7 @@
 }
 /* Each view is the screen's: paper prints every source whole (print, below). */
 @media screen {
-  :scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotstage {
+  lf-shot[data-lf-shot-mode="compare"] .lf-shotstage {
     /* Keep the same content width as the other modes on classic-scrollbar hosts. */
     overflow: hidden;
   }
@@ -194,7 +194,7 @@
   overflow: clip;
 }
 @media screen {
-  :scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotframe {
+  lf-shot[data-lf-shot-mode="compare"] .lf-shotframe {
     inline-size: calc(var(--lf-shot-viewport-width) + 2px);
   }
 }
@@ -205,7 +205,7 @@
 /* Each capture's window keeps the height the fit gave it, and at actual size the reader
    scrolls the capture inside it, so both frames keep one size. */
 @media screen {
-  :scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotviewport {
+  lf-shot[data-lf-shot-mode="compare"] .lf-shotviewport {
     --lf-holds-height: 1;
     inline-size: var(--lf-shot-viewport-width);
     block-size: var(--lf-shot-viewport-height);
@@ -221,12 +221,11 @@
   border-block-end: 1px solid var(--rule);
   font: 600 var(--t-working-label)/1.4 var(--sans);
 }
-:scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
-  .lf-shot-frame-label {
+lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"] .lf-shot-frame-label {
   display: flex;
 }
 /* Stacked frames carry their own labels; the toolbar only holds controls. */
-:scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
+lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
   .lf-shot-toolbar
   > .lf-shotcap {
   display: none;
@@ -286,33 +285,31 @@
   padding: 0;
   margin: 0;
 }
-:scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="side"]
-  .lf-shotcanvas {
+lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="side"] .lf-shotcanvas {
   /* Match the toolbar's source labels even when captures leave spare room. */
   inline-size: 100%;
   justify-content: space-between;
   grid-template-columns: repeat(2, calc(var(--lf-shot-viewport-width) + 2px));
 }
-:scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
-  .lf-shotcanvas {
+lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"] .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-viewport-width) + 2px);
 }
-:scope:is(lf-shot):not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
+lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-frame-width) + 2px);
   gap: 0;
 }
-:scope:is(lf-shot):not([data-lf-shot-mode="compare"]) .lf-shotcanvas > .lf-shotframe {
+lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas > .lf-shotframe {
   grid-area: 1 / 1;
 }
 @media screen {
-  :scope:is(lf-shot)[data-lf-shot-mode="flip"]
+  lf-shot[data-lf-shot-mode="flip"]
     .lf-shotcanvas
     > .lf-shotframe[data-lf-state="before"] {
     /* Match the first slider drawing while its deferred control loads. */
     clip-path: inset(0 50% 0 0);
     z-index: 1;
   }
-  :scope:is(lf-shot)[data-lf-shot-mode="pixels"] .lf-shotframe {
+  lf-shot[data-lf-shot-mode="pixels"] .lf-shotframe {
     display: none;
   }
 }
@@ -377,10 +374,10 @@
 .lf-shotdiff > span[data-lf-shot-mark="moved"] {
   border-color: var(--accent);
 }
-:scope:is(lf-shot):not([data-lf-shot-outlines="true"]) .lf-shotdiff {
+lf-shot:not([data-lf-shot-outlines="true"]) .lf-shotdiff {
   display: none;
 }
-:scope:is(lf-shot)[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
+lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
   .lf-shotframe
   .lf-shotplane::after {
   content: "";
@@ -401,7 +398,7 @@
   border: 1px solid transparent;
 }
 @media screen {
-  :scope:is(lf-shot)[data-lf-shot-mode="pixels"] .lf-shotpixels {
+  lf-shot[data-lf-shot-mode="pixels"] .lf-shotpixels {
     display: block;
   }
 }
@@ -420,7 +417,7 @@
   background: var(--warn);
 }
 @container style(--lf-full-height:1) {
-  :scope:is(lf-shot) {
+  lf-shot {
     --lf-holds-height: 1;
     block-size: 100%;
     overflow: clip;
@@ -429,12 +426,12 @@
 /* A shot that holds its height scrolls its drawing in the stage, which holds that
    height too; the declaration doesn't inherit, so the stage states it. */
 @container style(--lf-holds-height:1) {
-  :scope:is(lf-shot) > .lf-shotstage {
+  lf-shot > .lf-shotstage {
     --lf-holds-height: 1;
   }
 }
 @media print {
-  :scope:is(lf-shot) {
+  lf-shot {
     block-size: auto;
     overflow: visible;
   }

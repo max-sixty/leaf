@@ -719,10 +719,9 @@ watchCurrentLocationAround(deepFocus());
 document.addEventListener(
   "focusout",
   (event) => {
-    if (event.relatedTarget !== null) {
-      departed = true;
-      return;
-    }
+    // A component can forward entry and leave nobody focused, without a focusin.
+    // The related target names an intended arrival; read where focus ended below.
+    if (event.relatedTarget !== null) departed = true;
     const left = event.composedPath()[0];
     lastLocation = new WeakRef(left);
     if (restoring) return;

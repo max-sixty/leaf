@@ -2611,7 +2611,7 @@ def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path)
     package = tmp_path / "contributions"
     package.mkdir()
     (package / "registry.json").write_text("{}")
-    for name in ("theme.css", "theme-shadow.css", "controls.css"):
+    for name in ("theme.css", "controls.css"):
         (package / name).write_text(f"/* {name} */ p {{ color: purple; }}")
     before = layer_model.composed_sheets([schema_model.ASSETS, package])
 
@@ -2620,7 +2620,7 @@ def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path)
     )
     assert layer_model.composed_sheets([schema_model.ASSETS, package]) == before
     for name in ("widgets.css", "widget-shadow.css"):
-        (package / name).write_text(":scope { color: green; }")
+        (package / name).write_text("lf-contribution { color: green; }")
     staged = tmp_path / "installed"
     staged.mkdir()
     packages_model.copy_package_contract(package, staged)
@@ -3079,9 +3079,7 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     conflict.mkdir()
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
-    (layer / "theme.css").write_text(
-        ":scope:is(lf-new-shape) { --accent: rebeccapurple; }\n"
-    )
+    (layer / "theme.css").write_text("lf-new-shape { --accent: rebeccapurple; }\n")
     (layer / "registry.json").write_text(
         json.dumps({"lf-new-shape": element_declaration("lf-new-shape")})
     )
@@ -3592,21 +3590,6 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
         result = runner.invoke(cli_model.cli, args)
         assert result.exit_code != 0
         assert "widgets/lf-unfinished.js" in result.output
-
-
-def test_package_check_leaves_root_matching_to_native_scope(tmp_path, monkeypatch):
-    """Composition preserves CSS; native scope makes outside subjects inert."""
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-    assert created.exit_code == 0, created.output
-    add_test_widget(tmp_path / ".leaf", "lf-toned-note")
-    (tmp_path / ".leaf" / "widgets.css").write_text(
-        ":scope { color: teal; }\n:root { --toned: teal; }\n"
-    )
-
-    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
-    assert result.exit_code == 0, result.output
 
 
 def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
@@ -4326,9 +4309,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "registry.json").write_text(
         json.dumps({"lf-solo": element_declaration("lf-solo", upgrade=True)})
     )
-    (widget_package / "widgets.css").write_text(
-        ":scope:is(lf-solo) { --lf-block-frame: 1; }\n"
-    )
+    (widget_package / "widgets.css").write_text("lf-solo { --lf-block-frame: 1; }\n")
     (widget_package / "widgets" / "lf-solo.js").write_text(
         'import { ready } from "./ready.js";\n'
         'customElements.define("lf-solo", class extends HTMLElement {\n'
@@ -4373,7 +4354,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert (page / "vendor" / "solo.json").is_file()
     theme = (page / "theme.css").read_text()
     # Each contribution keeps its role regardless of the package's widget count.
-    assert theme.index(":scope:is(lf-solo) { --lf-block-frame: 1; }") < theme.index(
+    assert theme.index("lf-solo { --lf-block-frame: 1; }") < theme.index(
         ":root { --solo-night: 1; }"
     )
     instructions = (page / "instructions" / "author.md").read_text()

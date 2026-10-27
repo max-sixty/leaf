@@ -34,7 +34,7 @@
  * page, and one too narrow to share between columns, a phone's, stacks them (below).
  * Screen only: a sheet has no room beside the column to give, so on paper the board is
  * the column's width. */
-:scope:is(lf-board) {
+lf-board {
   --lf-board-columns: 1;
   --lf-grip-room: 0px;
   --lf-grip-block: 0px;
@@ -42,7 +42,7 @@
   --lf-grip-pad-block: 8px;
 }
 @media screen {
-  :scope:is(lf-board) {
+  lf-board {
     min-inline-size: min(
       calc(
         var(--lf-board-columns) * var(--lf-reading-column-floor) +
@@ -53,22 +53,22 @@
     );
   }
 }
-:scope:is(lf-board):has(> lf-column:nth-of-type(2)) {
+lf-board:has(> lf-column:nth-of-type(2)) {
   --lf-board-columns: 2;
 }
-:scope:is(lf-board):has(> lf-column:nth-of-type(3)) {
+lf-board:has(> lf-column:nth-of-type(3)) {
   --lf-board-columns: 3;
 }
-:scope:is(lf-board):has(> lf-column:nth-of-type(4)) {
+lf-board:has(> lf-column:nth-of-type(4)) {
   --lf-board-columns: 4;
 }
-:scope:is(lf-board):has(> lf-column:nth-of-type(5)) {
+lf-board:has(> lf-column:nth-of-type(5)) {
   --lf-board-columns: 5;
 }
-:scope:is(lf-board):has(> lf-column:nth-of-type(6)) {
+lf-board:has(> lf-column:nth-of-type(6)) {
   --lf-board-columns: 6;
 }
-:scope:is(lf-board) {
+lf-board {
   display: grid;
   grid-auto-flow: column;
   container: lf-board / inline-size;
@@ -93,7 +93,7 @@
    and a specified min-width is exactly what that automatic minimum resolves to, so the
    track is the width it was. A track width is a border-box measure, so the column is
    sized as one too, and its min-height restates the outer box it stated before. */
-:scope:is(lf-column) {
+lf-column {
   display: block;
   --lf-ground: var(--field);
   background: var(--lf-ground);
@@ -121,7 +121,7 @@
    next row. */
 @media screen {
   @container lf-board (width <= 640px) {
-    :scope:is(lf-column) {
+    lf-column {
       grid-column: 1;
     }
   }
@@ -156,8 +156,8 @@
    words as its name and the span is aria-hidden, so they reach the tree once;
    where no script runs at all there is no name either, and the generated text
    is the whole rendering, audible as well as visible. */
-:scope:is(lf-column)::before,
-:scope:is(lf-column) > [data-lf-said="label"] {
+lf-column::before,
+lf-column > [data-lf-said="label"] {
   display: block;
   font-size: var(--t-working-label);
   font-weight: 600;
@@ -165,7 +165,7 @@
   color: var(--ink-2);
   padding: 2px var(--lf-card-inset) 10px;
 }
-:scope:is(lf-column)::before {
+lf-column::before {
   content: attr(label);
 }
 /* The column's heading row: a status dot, the name, and its card count at the far
@@ -173,27 +173,27 @@
    only the dot takes it, so a board reads as one surface with its blocking column
    marked rather than as blocks of colour. A column without a tone keeps a quiet dot so
    every heading starts at the same place. */
-:scope:is(lf-column) {
+lf-column {
   position: relative;
   --lf-tone-dot: var(--border-2);
 }
-:scope:is(lf-column)[tone="ok"] {
+lf-column[tone="ok"] {
   --lf-tone-dot: var(--ok);
 }
-:scope:is(lf-column)[tone="warn"] {
+lf-column[tone="warn"] {
   --lf-tone-dot: var(--warn);
 }
-:scope:is(lf-column)[tone="danger"] {
+lf-column[tone="danger"] {
   --lf-tone-dot: var(--danger);
 }
-:scope:is(lf-column)::before,
-:scope:is(lf-column) > [data-lf-said="label"] {
+lf-column::before,
+lf-column > [data-lf-said="label"] {
   padding-left: calc(var(--lf-card-inset) + 14px);
   padding-right: calc(var(--lf-card-inset) + 2.5em);
   background: radial-gradient(circle, var(--lf-tone-dot) 3.5px, transparent 4px)
     no-repeat var(--lf-card-inset) 0.62em / 8px 8px;
 }
-:scope:is(lf-column) > .lf-column-count {
+lf-column > .lf-column-count {
   position: absolute;
   top: calc(var(--lf-reading-column-inset) + 2px);
   right: calc(var(--lf-reading-column-inset) + var(--lf-card-inset));
@@ -201,10 +201,10 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-:scope:is(lf-column):has(> [data-lf-said="label"])::before {
+lf-column:has(> [data-lf-said="label"])::before {
   content: none;
 }
-:scope:is(lf-card) {
+lf-card {
   --lf-card-inset-block: 12px;
   --lf-grip-inset-block: 2px;
   display: block;
@@ -242,7 +242,7 @@
    block after the card's first child clears the grip: it starts under the grip's box
    and takes the card's width. An inline child ignores `clear`. */
 @media screen {
-  html[data-lf-interactive] :scope:is(lf-board):not(:where([data-lf-exhibit]) *) {
+  html[data-lf-interactive] lf-board:not(:where([data-lf-exhibit]) *) {
     --lf-grip-room: max(
       var(--aim-floor),
       calc(var(--t-5) + 2 * var(--lf-grip-pad-inline))
@@ -252,15 +252,14 @@
       calc(var(--t-5) + 2 * var(--lf-grip-pad-block))
     );
   }
-  html[data-lf-interactive]
-    :scope:is(lf-card):not(:where([data-lf-exhibit]) *)::before {
+  html[data-lf-interactive] lf-card:not(:where([data-lf-exhibit]) *)::before {
     content: "";
     float: right;
     inline-size: var(--lf-grip-room);
     block-size: var(--lf-grip-block);
     margin-block-start: calc(var(--lf-grip-inset-block) - var(--lf-card-inset-block));
   }
-  :scope:is(lf-card) > :not(:first-child) {
+  lf-card > :not(:first-child) {
     clear: right;
   }
 }
@@ -268,19 +267,19 @@
    it. A title margin was trimmed only where no element followed it (the frame's trim
    reads a plain sentence's title as the card's last block), and a paragraph's margin
    set its prose 13px lower than a sentence's. */
-:scope:is(lf-card) > strong {
+lf-card > strong {
   display: block;
   font-weight: 600;
   line-height: 1.4;
   margin: 0;
 }
-:scope:is(lf-card) > strong + p {
+lf-card > strong + p {
   margin-block-start: 0;
 }
 /* Enter grabs the grip and arrows move the card. Its type comes from .lf-ui;
    the box and title float read the card's allocation above. A unit line-height
    gives the glyph one font-em of block room. */
-:scope:is(lf-card) .lf-grip {
+lf-card .lf-grip {
   position: absolute;
   top: var(--lf-grip-inset-block);
   right: 0;
@@ -303,13 +302,13 @@
    container, so 100cqi is its content). Without it a board scrolling sideways showed only
    the 30px grip, leaving the card's words and column cut off at the board's edge. The
    reveal is the browser's, so a focus restored without scrolling leaves the board be. */
-:scope:is(lf-card) .lf-grip {
+lf-card .lf-grip {
   scroll-margin-inline-start: calc(100cqi + 2 * var(--lf-card-inset));
 }
-:scope:is(lf-card):hover > .lf-grip {
+lf-card:hover > .lf-grip {
   color: var(--ink-2);
 }
-:scope:is(lf-card) .lf-grip:hover {
+lf-card .lf-grip:hover {
   background: var(--chip);
 }
 /* The ring is inset rather than offset a pixel out, as the layer's other small controls
@@ -318,13 +317,13 @@
    clips a pixel outside the last column's cards, so the ring's right run and both
    corners on that side fell outside the clip while the grip itself stayed whole. An
    inset ring cannot leave the box it names, at any scroll position. */
-:scope:is(lf-card) .lf-grip[data-lf-focus-visible] {
+lf-card .lf-grip[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
   color: var(--ink-2);
 }
 /* SortableJS drag states on the real card: the in-flow slot and pressed card. */
-:scope:is(lf-card).lf-ghost {
+lf-card.lf-ghost {
   opacity: 0.4;
   border-style: dashed;
   border-color: var(--accent);
@@ -332,7 +331,7 @@
 /* A held card says so with its contour. The lift's shadow alone does not show on the
    dark paper, which left a card grabbed by keyboard looking exactly like one whose grip
    is merely focused. */
-:scope:is(lf-card).lf-lift {
+lf-card.lf-lift {
   box-shadow: var(--raise-1);
   border-color: var(--accent);
 }

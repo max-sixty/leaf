@@ -266,8 +266,8 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
 @pytest.mark.watch_shifts
 def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve):
     """A card standing above what it is about holds its foot, so a step would carry
-    its head row and messages up: the step waits behind the thread's notice even with
-    no draft, and shows when the user presses it."""
+    its head row and messages up: the step waits even with no draft, with no notice,
+    since progress is no unread news, and shows when the user opens the card again."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Make the banner quieter", {"section": "m19"})
     address = {"parent": root, "responds": root}
@@ -290,12 +290,15 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
         ephemeral=True,
     )
     told(page)
-    notice = preview.locator(".lf-thread-notice-news")
-    expect(notice).to_have_text("1 new message")
+    working = preview.locator(".lf-thread-working-words")
+    expect(working).to_have_text("Reading the banner's styles")
+    expect(preview.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
     assert preview.bounding_box() == pytest.approx(opened, abs=0.5)
-    notice.click()
-    expect(preview.locator(".lf-thread-working-words")).to_contain_text("the change")
+    preview.get_by_role("button", name="Dismiss thread view", exact=True).click()
+    expect(preview).to_be_hidden()
+    page.locator(".lf-margin-marker").first.click()
+    expect(working).to_contain_text("the change")
 
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):

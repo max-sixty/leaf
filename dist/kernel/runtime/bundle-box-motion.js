@@ -674,7 +674,8 @@ const clipFrame = (sides, radius = 0) => ({
 	"--lf-box-cut": sides.map((side) => `${side}px`).join(" ")
 });
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
-const paints = (style) => !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
+const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
+const paints = (style) => !seeThrough(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
 	"Top",
 	"Right",
 	"Bottom",
@@ -1150,8 +1151,11 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			const offset = Number.parseFloat(style.outlineOffset);
 			const reach = Number.parseFloat(style.outlineWidth) + offset;
 			const radius = radiusOf(style);
+			const colour = seeThrough(style.backgroundColor) ? null : style.backgroundColor;
 			keeps(ringLayer, "style", `background: ${style.outlineColor}`);
+			keeps(ringFill, "style", colour && `background: ${colour}`);
 			hold(element, "outlineColor", "transparent");
+			if (colour) hold(element, "backgroundColor", "transparent");
 			for (const [layer, grown] of [[ringLayer, reach], [ringFill, offset]]) start(layer, contour(from, to, grown, radius, compact));
 		}
 		function streamWithin(part) {

@@ -268,7 +268,10 @@ export {
 } from "./widget-elements.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 
-export { LeafEditorView } from "./editor-view.js";
+// The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
+// the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once
+// the page has presented.
+export { leafEditorView } from "./editor-view.js";
 
 // Optional child runtimes are loaded only by packages that mount a sample.
 export async function mountSample(frame, options) {

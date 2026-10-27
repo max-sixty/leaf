@@ -4335,6 +4335,15 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     last = page.get_by_role("button", name="Last choice")
     expect(last).to_be_focused()
     assert last.evaluate("el => el.matches(':focus-visible')")
+    # Native focus scrolling can finish after focus arrives (notably on macOS).
+    # Read the clearance once the keyboard destination has actually come into view.
+    page.wait_for_function(
+        """() => {
+          const box = document.getElementById('strip');
+          return box.lastElementChild.getBoundingClientRect().right <=
+                 box.getBoundingClientRect().right + 1;
+        }"""
+    )
     reached = last.evaluate(
         """el => {
           const box = el.parentElement, rect = box.getBoundingClientRect();

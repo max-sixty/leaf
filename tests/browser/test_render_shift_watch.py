@@ -3916,9 +3916,10 @@ start.onclick = () => {
     assert names_move(errors, "button#control") == fault, errors
 
 
+@pytest.mark.parametrize("guard", [False, True])
 @pytest.mark.parametrize("fault", [False, True])
 def test_native_anchor_follows_owned_translation_but_not_an_independent_offset(
-    browser, fault
+    browser, fault, guard
 ):
     page = browser.new_page()
     page.goto(
@@ -3935,6 +3936,15 @@ window.motion=source.animate([{translate:'-200px 0px'},{translate:'0px 0px'}],
 motion.pause();motion.currentTime=150;
 }</script></body>""")
     )
+    if guard:
+        # A rollback followed by the surface's own rule retains native anchoring.
+        # The independent margin fault must still report with that reset present.
+        page.add_style_tag(content="""
+          #tip { all: revert-layer }
+          #tip { position:fixed;position-anchor:--source;
+            left:anchor(left);top:anchor(bottom) }
+        """)
+        page.locator("#tip").evaluate("node => node.removeAttribute('style')")
     paint(page)
     page.locator("#start").click()
     paint(page)

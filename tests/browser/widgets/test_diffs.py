@@ -288,18 +288,20 @@ def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, ser
 
 
 # Scrolls the box with the given id 400px down and reads how far below the top of its
-# content the diff's file header inside it stands. A sticky box stops at its scroller's
-# padding edge, so a box that states no start of its own pins it below its padding.
+# content and scrollport the diff's file header inside it stands. Ordinary scrollers
+# pin below their padding; tab panels put the header at the scrollport's edge.
 PINNED_IN_BOX = """async (id) => {
     const box = document.getElementById(id);
     box.scrollTop = 400;
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const head = box.querySelector('lf-diff').shadowRoot
         .querySelector('.lf-diff-file > details > summary');
+    const edge = box.getBoundingClientRect().top + box.clientTop;
     return {
         scrolled: box.scrollTop,
-        gap: head.getBoundingClientRect().top - (box.getBoundingClientRect().top
-            + box.clientTop + parseFloat(getComputedStyle(box).paddingTop)),
+        gap: head.getBoundingClientRect().top - (edge
+            + parseFloat(getComputedStyle(box).paddingTop)),
+        scrollportGap: head.getBoundingClientRect().top - edge,
     };
 }"""
 
@@ -361,9 +363,9 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
 
 
 def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve):
-    """A page tab panel the page makes scroll is the box its diff's header pins to, though
-    the tab strip stacks its height onto what the panel holds: the panel's own scroll
-    restarts `--lf-top`. An undecided option card clips its rounded corners and scrolls
+    """A page tab panel the page makes scroll pins its diff's header to the scrollport
+    edge, leaving no padding band where scrolled rows can show above the header.
+    An undecided option card clips its rounded corners and scrolls
     nothing, so a diff in an option pins at the root's slot as the page scrolls past it."""
     page = open_page(
         browser,
@@ -402,7 +404,7 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
     }}"""
     )
     assert read["tab"]["scrolled"] == 400, read
-    assert read["tab"]["gap"] == pytest.approx(0, abs=1.5), read
+    assert read["tab"]["scrollportGap"] == pytest.approx(0, abs=1.5), read
     assert read["option"] == pytest.approx(read["top"], abs=1), read
 
 

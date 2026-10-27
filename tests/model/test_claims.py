@@ -566,7 +566,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     """The held lease, not a timestamp or pid, is the wait's liveness."""
     # The suite's hook marks (`isolated_session`) are not records this test makes.
     for session in HOOKED_SESSIONS:
-        leases_model.hooks_path(session).unlink()
+        cleanup_model.session_file(session, cleanup_model.HOOKS_SUFFIX).unlink()
     for name in identity_names:
         monkeypatch.delenv(name, raising=False)
     serving(page_dir, 1)

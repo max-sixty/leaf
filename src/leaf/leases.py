@@ -25,7 +25,6 @@ from leaf.schema import WAITER_LOCK
 from leaf.state import (
     HOOKS_SUFFIX,
     session_file,
-    state_home,
     still_named,
 )
 
@@ -230,7 +229,7 @@ def waiter_lease_path(page_dir: Path | None, session_id: str | None) -> Path | N
     watch set and no lease.
     """
     if session_id:
-        return session_state_path(session_id, "wait")
+        return session_file(session_id, "wait")
     return page_dir / WAITER_LOCK if page_dir is not None else None
 
 
@@ -242,31 +241,13 @@ def adapter_lease_path(session_id: str) -> Path:
     events to a later turn after the foreground turn ends, so the adapter holds
     a second lease for exactly that capability.
     """
-    return session_state_path(session_id, "adapter")
-
-
-def session_state_path(session_id: str, suffix: str) -> Path:
-    """`state.session_file`, with its directory created."""
-    sessions_home()
-    return session_file(session_id, suffix)
-
-
-def sessions_home() -> Path:
-    """The state home's directory of per-session files, created on first use."""
-    sessions = state_home() / "sessions"
-    sessions.mkdir(exist_ok=True)
-    return sessions
-
-
-def hooks_path(session_id: str) -> Path:
-    """The mark a Leaf hook leaves each time it runs for this session."""
-    return session_state_path(session_id, HOOKS_SUFFIX)
+    return session_file(session_id, "adapter")
 
 
 def mark_hooks(session_id: str) -> None:
     """Record that the harness ran a Leaf hook for this session. The mark stands for
     the session's life, and its SessionEnd hook removes it."""
-    hooks_path(session_id).touch()
+    session_file(session_id, HOOKS_SUFFIX).touch()
 
 
 def hooks_ran(session_id: str) -> bool:
@@ -274,7 +255,7 @@ def hooks_ran(session_id: str) -> bool:
     can carry input carries it only where they run: a session launched without the
     plugin's hooks, with hooks disabled, or whose hooks read another state home
     never marks this one."""
-    return hooks_path(session_id).exists()
+    return session_file(session_id, HOOKS_SUFFIX).exists()
 
 
 def adapter_is_live(session_id: str) -> bool:

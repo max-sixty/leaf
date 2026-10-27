@@ -105,6 +105,10 @@ rules. Layouts do not reach inside shadow trees. Page authors grant control acce
 stylesheet (`page-layout.md`, "Page CSS and Leaf's controls"). Use public inputs and
 selectors to customise a widget rather than `!important` or inline overrides.
 
+A package's sheet can be split into files: `@import "./styles/tabs.css";`, optionally
+with `layer(name)`, names a file inside the package, and composition puts that file's
+rules where the import stands, so the page receives one sheet and edits need no build.
+
 An element with `hidden` is always `display: none`, in the document and in shadow
 trees, except `hidden="until-found"`. Give a box that must stay laid out while unseen a
 state of its own.

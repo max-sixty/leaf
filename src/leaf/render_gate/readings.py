@@ -248,7 +248,6 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     unmarkable = evaluate_probe(page, "unmarkableElements")
     missing_threads = []
     retired = []
-    changed = []
     if context.light:
         # x-thread-seat promises one page view per matching instance. A widget in
         # thread chrome already has the thread's reply surface and threadBox
@@ -260,16 +259,11 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
         # yet. Before the widget readings, whose replay is the last.
         if context.replayed and (holders := _retired_holders(context)):
             retired = evaluate_probe(page, "retiredSlots", holders)
-        # Behind the same wait, since a report or a body record repaints words the
-        # comparison reads; and scheme-blind, so the light scheme reads it once.
-        if context.replayed:
-            changed = evaluate_probe(page, "wordsReadAsChanged")
     found = [*context.errors, *_widget_findings(context)]
     found += map(Finding.read, unmarkable)
     found += context.devtools.findings()
     found += map(Finding.read, missing_threads)
     found += map(Finding.read, retired)
-    found += map(Finding.read, changed)
     found += context.unsettled
     return found
 

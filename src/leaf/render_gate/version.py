@@ -91,10 +91,8 @@ def _render_version_attempt(
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
     render() is relative, so a read's replay of the sender's own gesture moves the
-    page again (none of the three is CSS), a block a comparison of the version with
-    itself marks, because a module wrote words there without marking them, a settled
-    holder whose mark or still-showing
-    slot words disagree with the log's decision (read once: the palettes carry no
+    page again (none of the three is CSS), a settled holder whose mark or
+    still-showing slot words disagree with the log's decision (read once: the palettes carry no
     geometry between them), and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme,
     it reads, as advice, whether a widget declaring x-height drew at a height its first

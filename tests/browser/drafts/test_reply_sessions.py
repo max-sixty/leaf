@@ -141,6 +141,12 @@ diff --git a/reading.py b/reading.py
  def reading():
 -    return "before"
 +    return "after"
+diff --git a/notes.md b/notes.md
+--- a/notes.md
++++ b/notes.md
+@@ -1 +1 @@
+-before
++after
 </pre></lf-diff>""",
         },
     )

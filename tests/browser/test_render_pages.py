@@ -1951,6 +1951,46 @@ def test_a_tables_rows_span_the_prose_and_its_outer_words_stand_in_alike(
         assert start == pytest.approx(end, abs=0.5), at
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_row_of_metrics_sets_every_figure_on_one_line(request, serve, engine):
+    """A row of metric tiles reads as figures compared across it, so each figure stands
+    on one line whichever labels wrap and whichever figures carry a change beside them.
+    A label wrapping to a second line had set its own figure a line lower."""
+    tile = '<dl id="{}" class="metric"><dt>{}</dt><dd><strong>{}</strong>{}</dd></dl>'
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "metrics",
+                '<h1>This week</h1><div class="layout-tiles">'
+                + tile.format("short", "checks", "12", " <small>change: +3</small>")
+                + tile.format(
+                    "long",
+                    "open failures across every regional cluster since the last release",
+                    "2",
+                    "",
+                )
+                + tile.format("plain", "duration", "4 min", "")
+                + "</div>",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    figures = page.evaluate(
+        """() => ['short', 'long', 'plain'].map((id) => {
+          const tile = document.getElementById(id);
+          const label = document.createRange();
+          label.selectNodeContents(tile.querySelector('dt'));
+          return {
+            lines: new Set([...label.getClientRects()].map((r) => Math.round(r.top))).size,
+            figure: Math.round(tile.querySelector('strong').getBoundingClientRect().top),
+          };
+        })"""
+    )
+    assert figures[1]["lines"] > figures[0]["lines"], f"no label wraps: {figures}"
+    assert len({f["figure"] for f in figures}) == 1, figures
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, engine):
     """A table whose cells hold sentences wraps them inside the box it stands in, and
@@ -4130,7 +4170,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
 
     The first read reaches panel and version rendering before malformed projection data
     rejects it. That candidate does not announce the reply or leave a version behind;
-    a complete retry announces the reply once with the agent recorded on the message.
+    a complete retry announces the reply once, to the live region, with the agent
+    recorded on the message.
     The rejected reply must also leave the visible thread until that retry.
     """
     url = serve(TWIN_V1)
@@ -4218,7 +4259,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     page.unroute("**/api/state*")
     nudge(d)
     told(page)
-    expect(field).to_have_attribute("placeholder", re.compile("this one does"))
+    expect(page.locator(".lf-live")).to_have_text("this one does")
+    expect(field).not_to_have_attribute("placeholder", re.compile("this one does"))
     view = open_panel_thread(page, root["id"])
     expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
 

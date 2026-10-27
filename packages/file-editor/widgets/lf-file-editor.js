@@ -54,6 +54,7 @@ import {
   LeafElement,
   nothing,
   offered,
+  offeredAction,
   rove,
   rowWalk,
   shadowStage,
@@ -340,7 +341,7 @@ customElements.define(
             })}
           >
             <button
-              ${offered("lf-btn")}
+              ${offeredAction("word")}
               role="menuitemcheckbox"
               aria-checked=${String(comparing)}
               aria-controls="lf-file-editor-compared"
@@ -354,7 +355,7 @@ customElements.define(
             ].map(
               ([label, run]) => html`
                 <button
-                  ${offered("lf-btn")}
+                  ${offeredAction("word")}
                   role="menuitem"
                   aria-disabled=${busy ? "true" : nothing}
                   @click=${run}

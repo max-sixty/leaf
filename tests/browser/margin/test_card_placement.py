@@ -209,10 +209,10 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
     assert receipt.evaluate(where) == stands
 
 
-# Each visible message head's time against what could cut it: its own box, the
-# metadata it stands in and the head.
+# Each visible message head's time, where it says one, against what could cut it: its
+# own box, the metadata it stands in and the head.
 TIMES_WHOLE = """card => [...card.querySelectorAll('.lf-msg-head')]
-  .filter((head) => head.checkVisibility())
+  .filter((head) => head.checkVisibility() && head.querySelector('time'))
   .map((head) => {
     const time = head.querySelector('time');
     const right = time.getBoundingClientRect().right;

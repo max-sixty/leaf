@@ -789,6 +789,45 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     twins("phone")
 
 
+@pytest.mark.parametrize(
+    "side", [True, False], ids=["workspace-side-list", "boxed-panel"]
+)
+def test_a_scrolling_tab_panel_keeps_nested_headers_on_its_edge(browser, serve, side):
+    """A padded panel's nested tab strip sticks on the scrollport's edge. Leaving
+    the padding above it lets fragments of the output show through that band."""
+    source = leaf_page(
+        "Inspect output",
+        "<header><h1>Inspect output</h1></header>"
+        + (
+            ""
+            if side
+            else "<style>#output { height: 360px; overflow: auto; }</style><section>"
+        )
+        + f'<lf-tabs id="outputs" {"list=side" if side else ""}>'
+        '<lf-tab id="output" label="Alert configuration">'
+        '<lf-tabs id="arms"><lf-tab id="baseline" label="Leaf baseline">'
+        "<h2>Saved configuration</h2><details><summary>Checks passed</summary>"
+        "<p>Both checks passed.</p></details>"
+        + "".join(f'<p id="row-{n}">Configuration row {n}.</p>' for n in range(40))
+        + '</lf-tab><lf-tab id="control" label="Plain HTML"><p>Control output.</p>'
+        "</lf-tab></lf-tabs></lf-tab></lf-tabs>" + ("" if side else "</section>"),
+        layout="workspace" if side else "column",
+    )
+    page = open_page(browser, serve(source))
+    panel = page.locator("#output")
+    panel.hover()
+    page.mouse.wheel(0, 120)
+    page.wait_for_function("document.querySelector('#output').scrollTop >= 100")
+    scroll_settled(page)
+    geometry = page.evaluate("""() => {
+      const panel = document.querySelector('#output');
+      const strip = document.querySelector('#arms > .lf-tabstrip');
+      return {edge: panel.getBoundingClientRect().top + panel.clientTop,
+              header: strip.getBoundingClientRect().top};
+    }""")
+    assert geometry["header"] == pytest.approx(geometry["edge"], abs=0.5), geometry
+
+
 def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serve):
     """A side list that is a workspace's body fills the window, and its list and its open
     item each scroll on their own, as a mail client's do: the page does not scroll,
@@ -902,8 +941,12 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
     marks = page.locator("#queue .lf-tab-answer")
     expect(marks.nth(0)).to_have_attribute("data-lf-obligations", "open")
     expect(marks.nth(1)).to_have_attribute("data-lf-obligations", "open")
-    # The open mark is said in words beside it, the words a tally counts by.
-    expect(marks.nth(0)).to_have_text("To answer")
+    # The open mark stands alone for the user's turn: the mark and the tally say it,
+    # and the tab's description says it in words.
+    expect(marks.nth(0)).to_have_text("")
+    expect(page.get_by_role("tab").nth(0)).to_have_accessible_description(
+        re.compile("To answer")
+    )
     stamp_page(
         serve.page_dir,
         source.replace('id="only-options" choose', 'id="only-options"').replace(
@@ -981,7 +1024,7 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
 
     undo(page)
     expect(answer).to_have_text("Fix")
-    # The undo is announced by the name the gesture's own acknowledgement used.
+    # The undo is announced by the name the gesture's own announcement used.
     expect(page.locator(".lf-live")).to_have_text(
         "Undid: Chose “Escalate to engineering” · just now"
     )

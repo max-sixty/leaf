@@ -1133,7 +1133,7 @@
     font-weight: 600;
     color: var(--lf-fp-muted);
   }
-  .lf-fp-on-kind,
+  .lf-fp-on-place,
   .lf-fp-on-title {
     margin: 0 0 2px;
     font: inherit;
@@ -1532,7 +1532,6 @@
     color: inherit;
     font: inherit;
   }
-  .lf-btn,
   .lf-ui :is(textarea, leaf-text),
   :is(textarea, leaf-text).lf-ui {
     font: inherit;
@@ -1779,11 +1778,6 @@ html[data-lf-region-capture] main * {
   .lf-dot:where(.blocked) {
     background: var(--danger);
   }
-  @layer lf-reset {
-    .lf-thread-action {
-      font: inherit;
-    }
-  }
   :is(.lf-quote, .lf-msg-body) {
     user-select: text;
     -webkit-user-select: text;
@@ -1826,19 +1820,6 @@ html[data-lf-region-capture] main * {
   .lf-quote-expand::before {
     inline-size: 1em;
     text-align: center;
-  }
-  .lf-thread-action {
-    border: none;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .lf-thread-action:hover {
-    color: var(--ok);
-  }
-  .lf-thread-action[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: 2px;
   }
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-comment-inset: 12px;

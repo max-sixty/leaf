@@ -47,7 +47,7 @@
 
    A widget's gesture leaves, by its attempt, the words the widget named it by
    (`retainGesture`, `says`, pending/dispatch.js), and while this page holds them its
-   undo is said in them, the name its own acknowledgement used: "Chose “Fast”",
+   undo is said in them, the name its own announcement used: "Chose “Fast”",
    then "Undid: Chose “Fast” · just now". Those words and a landing's arm live
    with the page that made the gesture, so after a reload or from another tab a
    gesture out of view is shown before it is taken. */

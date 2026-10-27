@@ -20,7 +20,11 @@ def said(page):
     return expect(panel_field(page))
 
 
-def test_a_reply_asking_the_user_is_one_notice_without_moving_focus(browser, serve):
+def test_a_reply_asking_the_user_is_heard_whole_and_shown_as_the_question(
+    browser, serve
+):
+    """The live region hears the reply, whose question is the same news; the panel's
+    seat shows only the question, since the On me mark's dot already shows the reply."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What should change?")
     page = open_page(browser, url)
@@ -37,13 +41,16 @@ def test_a_reply_asking_the_user_is_one_notice_without_moving_focus(browser, ser
     )
     told(page)
     # One fact: the question is the reply, not a second clause beside it.
-    notice = re.compile(r"^I changed the route\.(?! ·)")
-    said(page).to_have_attribute("placeholder", notice)
-    expect(page.locator(".lf-live")).to_have_text(notice)
+    expect(page.locator(".lf-live")).to_have_text(
+        re.compile(r"^I changed the route\.(?! ·)")
+    )
+    said(page).to_have_attribute("placeholder", re.compile("^New on me"))
+    said(page).not_to_have_attribute("placeholder", re.compile("changed the route"))
     expect(toggle).to_be_focused()
 
 
 def test_a_new_agent_comment_is_announced_without_moving_focus(browser, serve):
+    """An agent's new comment is heard, and the panel's seat keeps the agent's status."""
     page = open_page(browser, serve(PANEL_PAGE))
     toggle = page.locator(".lf-fp-on-user")
     toggle.focus()
@@ -54,9 +61,10 @@ def test_a_new_agent_comment_is_announced_without_moving_focus(browser, serve):
         serve.page_dir, None, None, None, "A new page-wide agent note.", None
     )
     told(page)
-    notice = re.compile(r"^A new page-wide agent note\.")
-    said(page).to_have_attribute("placeholder", notice)
-    expect(page.locator(".lf-live")).to_have_text(notice)
+    expect(page.locator(".lf-live")).to_have_text(
+        re.compile(r"^A new page-wide agent note\.")
+    )
+    said(page).not_to_have_attribute("placeholder", re.compile("page-wide agent note"))
     expect(toggle).to_be_focused()
 
 
@@ -113,7 +121,9 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
     expect(page.locator(".lf-live")).to_have_text("Interrupted mid-answer")
 
 
-def test_deferred_notice_describes_only_the_current_message_version(browser, serve):
+def test_an_edited_agent_message_is_heard_as_an_edit(browser, serve):
+    """An edit the agent makes is heard as an edit, even while a command holds the
+    seat, and the seat never shows it."""
     url = serve(PANEL_PAGE)
     page = open_page(browser, url)
     page.keyboard.press("g")
@@ -125,8 +135,11 @@ def test_deferred_notice_describes_only_the_current_message_version(browser, ser
     thread_model.cmd_edit(serve.page_dir, original["id"], "Current note.")
     told(page)
 
+    expect(page.locator(".lf-live")).to_have_text(
+        re.compile(r"^Edited: Current note\.")
+    )
     page.keyboard.press("Escape")
-    said(page).to_have_attribute("placeholder", re.compile(r"^Edited: Current note\."))
+    said(page).not_to_have_attribute("placeholder", re.compile("Current note"))
 
 
 def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):

@@ -786,10 +786,11 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="About this bit.").click()
     title = page.locator(".lf-fp-head .lf-fp-title")
+    # Untitled, the name repeats the opening message, so only assistive tech hears it.
     expect(title).to_have_text("About this bit.")
+    expect(title).to_have_class(re.compile(r"\blf-quiet\b"))
     settled(page)
-    seats = page.evaluate(SEATS)
-    assert all(seats.values()), seats
+    untitled = page.evaluate(SEATS)
 
     def agent(event):
         append_carried_log_record(
@@ -797,6 +798,7 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
         )
         told(page)
 
+    seats = None
     for name in [
         "Whether the third paragraph's filler should stay in the published draft",
         "Filler",
@@ -804,7 +806,14 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
         agent({"kind": "thread_title", "thread": root, "title": name})
         expect(title).to_have_text(name)
         settled(page)
-        assert page.evaluate(SEATS) == seats
+        now = page.evaluate(SEATS)
+        # A title showing for the first time moves none of the controls.
+        assert {k: v for k, v in now.items() if k != "name"} == {
+            k: v for k, v in untitled.items() if k != "name"
+        }
+        seats = seats or now
+        assert all(seats.values()), seats
+        assert now == seats
 
     # A revision that drops the passage detaches the thread: Show on page has nowhere
     # to go, and its seat stands empty while the view does.
@@ -3375,7 +3384,7 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     """While the agent's plan gives the user a step, On me groups by it until the user
     picks another grouping: under each goal the items its steps name, in step order,
     and those no goal names last; a goal holding one item has no heading, its card
-    saying what the item is and the goal's name. On Claude, which replaced
+    saying the goal's name before the item's place. On Claude, which replaced
     the Plan tab, is headed at its foot by the plan's progress, which discloses the
     goal and its steps over the list; a step waiting on the user turns the view to On
     me, and focus with it."""
@@ -3396,10 +3405,10 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     view = page.locator(panel_view("queue"))
     expect(page.get_by_role("combobox", name="Group On me")).to_have_value("plan")
     # Each goal holds one item, so neither stands under a heading: each card says
-    # its group's name where its place would be.
+    # its group's name before its place, and no kind.
     expect(view.locator(".lf-fp-on-group")).to_have_count(0)
-    expect(view.locator(".lf-fp-on-kind")).to_have_text(
-        ["Options · Ship the migration", "Options · Not in the plan"]
+    expect(view.locator(".lf-fp-on-place")).to_have_text(
+        ["Ship the migration · Ask", "Not in the plan · Ask"]
     )
 
     tabs = page.locator(".lf-fp-filters button")
@@ -3423,9 +3432,9 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
 
 
 def test_only_an_open_thread_says_new_in_threads(browser, serve):
-    """Threads says New, and marks the row with the news dot, only on an open thread
-    the user hasn't read, as the On me mark's dot counts: a resolved thread's unread
-    message, under the Resolved heading, says nothing new."""
+    """Threads marks the row with the news dot, which says New to assistive tech, only
+    on an open thread the user hasn't read, as the On me mark's dot counts: a resolved
+    thread's unread message, under the Resolved heading, says nothing new."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?", author="agent")
     closed = panel_comment(serve.page_dir, "Is the room booked?", author="agent")
@@ -3434,11 +3443,11 @@ def test_only_an_open_thread_says_new_in_threads(browser, serve):
     open_threads(page)
     view = page.locator(panel_view("threads"))
     open_row = view.locator(".lf-fp-thread:not([data-resolved])")
-    expect(open_row.locator(".lf-fp-value")).to_contain_text("New")
+    expect(open_row.locator(".lf-fp-news-mark")).to_have_text("New")
     expect(open_row).to_have_attribute("data-unread", "")
     resolved = view.locator(".lf-fp-thread[data-resolved]")
     expect(resolved).to_contain_text("Is the room booked?")
-    expect(resolved.locator(".lf-fp-value")).not_to_contain_text("New")
+    expect(resolved.locator(".lf-fp-news-mark")).to_have_text("")
     expect(resolved).not_to_have_attribute("data-unread", "")
 
 

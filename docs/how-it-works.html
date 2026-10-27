@@ -1955,7 +1955,7 @@ flowchart TD
                     A <a href="#updates-notices">notice</a>, or a walk's position while
                     the user stays on its stop
                   </td>
-                  <td><em>I shortened the lede.</em>, <em>Thread 2 of 5</em></td>
+                  <td><em>Updated to v4</em>, <em>Thread 2 of 5</em></td>
                 </tr>
                 <tr id="panel-line-stance">
                   <td>The mode the user is in, which the ✕ at the row's end leaves</td>
@@ -2131,9 +2131,13 @@ flowchart TD
             <p id="updates-notices-lede">
               A notice stands in the panel's line for four seconds and is announced to
               screen readers. Simultaneous news shares one notice, such as
-              <em>Does this read better? · New on me</em>. Opening a page announces only
-              unread agent messages, not its existing activity. The agent starting or
-              stopping work is no notice: the status in the same line says it.
+              <em>Couldn't answer · New on me</em>. Some news is only announced, since
+              something on the page already shows it: an agent message the user hasn't
+              read, which the On me mark's dot and its margin marker show, and the
+              user's own gesture, which the widget draws where it was made. Opening a
+              page announces only unread agent messages, not its existing activity. The
+              agent starting or stopping work is no notice: the status in the same line
+              says it.
             </p>
             <table id="updates-notice-kinds">
               <thead>
@@ -2146,16 +2150,16 @@ flowchart TD
                 <tr id="updates-notice-content">
                   <td>I shortened the lede., Edited: …, 3 replies in 2 threads</td>
                   <td>
-                    An agent message the user hasn't read arrives, or one is edited. One
-                    message speaks for itself in its opening words, including anything
-                    it asks of the user.
+                    Announced only: an agent message the user hasn't read arrives, or
+                    one is edited. One message speaks for itself in its opening words,
+                    including anything it asks of the user.
                   </td>
                 </tr>
                 <tr id="updates-notice-input">
                   <td>New on me, 2 new on me</td>
                   <td>
-                    Something new waits on the user that no announced message holds,
-                    such as a decision a revision adds or a to-do the agent gives them.
+                    Something new waits on the user, such as a question a reply asks, a
+                    decision a revision adds or a to-do the agent gives them.
                   </td>
                 </tr>
                 <tr id="updates-notice-failure">
@@ -2170,7 +2174,10 @@ flowchart TD
                 </tr>
                 <tr id="updates-notice-gesture">
                   <td>Moved to Done, Undid: Moved to Done</td>
-                  <td>The log accepted the user's gesture, or its undo.</td>
+                  <td>
+                    The log accepted the user's gesture, which is announced only, or its
+                    undo.
+                  </td>
                 </tr>
               </tbody>
             </table>

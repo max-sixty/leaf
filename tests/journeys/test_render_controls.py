@@ -324,7 +324,7 @@ RING_CASES = (
             "wt-merge": (
                 (
                     '[data-lf-reading-role="pane"] > [tabindex="0"]',
-                    "[data-lf-reading-role=pane]",
+                    '[data-lf-reading-role="pane"]',
                 ),
             ),
         },

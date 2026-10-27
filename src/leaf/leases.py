@@ -24,6 +24,8 @@ from typing import BinaryIO
 from leaf.schema import WAITER_LOCK
 from leaf.state import (
     HOOKS_SUFFIX,
+    TOOLS_SUFFIX,
+    flocked,
     session_file,
     still_named,
 )
@@ -248,6 +250,29 @@ def mark_hooks(session_id: str) -> None:
     """Record that the harness ran a Leaf hook for this session. The mark stands for
     the session's life, and its SessionEnd hook removes it."""
     session_file(session_id, HOOKS_SUFFIX).touch()
+
+
+def first_hook_for_tool(session_id: str, tool_use_id: str | None) -> bool:
+    """Whether this is the first of the session's hooks to run before the tool call
+    `tool_use_id`, which it records if so; a hook that names no call is first.
+
+    Claude Code runs a PreToolUse registration once for each of its `if` rules a
+    command matches, all at once, and a command it cannot read matches all of
+    them (`hooks/hooks.json`, measured at 2.1.310). It starts the call only once
+    every one has exited, so the first does the hook's work for the others. The
+    calls named last are kept, enough for a batch of calls whose hooks
+    interleave. The hook marks that it ran (`mark_hooks`) before asking, which
+    creates the session's directory."""
+    if not tool_use_id:
+        return True
+    with flocked(session_file(session_id, TOOLS_SUFFIX)) as held:
+        held.seek(0)
+        seen = held.read().decode().split()
+        if tool_use_id in seen:
+            return False
+        held.truncate(0)
+        held.write("\n".join([*seen[-15:], tool_use_id]).encode())
+    return True
 
 
 def hooks_ran(session_id: str) -> bool:

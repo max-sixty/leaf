@@ -223,9 +223,9 @@ html[data-lf-draw-mode] main {
   }
 }
 .lf-video-controls:is(
-  :not(.lf-video-playing),
-  .lf-video-hover,
-  .lf-video-keyed,
+  :not([data-playing]),
+  [data-hovered],
+  [data-keyed],
   :hover,
   :has(:focus-visible)
 ) {
@@ -256,8 +256,8 @@ html[data-lf-draw-mode] main {
     grid-area: 1 / 1;
   }
 }
-.lf-video-controls:not(.lf-video-playing) .lf-video-icon[data-lf-icon="pause"],
-.lf-video-playing .lf-video-icon[data-lf-icon="play"] {
+.lf-video-controls:not([data-playing]) .lf-video-icon[data-lf-icon="pause"],
+.lf-video-controls[data-playing] .lf-video-icon[data-lf-icon="play"] {
   visibility: hidden;
 }
 .lf-video-time {

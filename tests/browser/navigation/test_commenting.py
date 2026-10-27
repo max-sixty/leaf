@@ -66,7 +66,9 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     page.keyboard.press("c")
     expect(box).to_be_focused()
     expect(box).to_have_attribute("placeholder", re.compile(r"^Comment… .*⏎$"))
-    send = page.locator(".lf-composer > .lf-compose-field > .lf-compose-submit")
+    send = page.locator(
+        ".lf-composer > leaf-composition-field > .lf-compose-field > .lf-compose-submit"
+    )
     expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
     expect(page.locator(".lf-composer-row")).to_have_count(0)
     field_box = box.bounding_box()

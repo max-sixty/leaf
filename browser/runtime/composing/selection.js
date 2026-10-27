@@ -147,14 +147,13 @@ const composerInput = fabInput;
 // announced on focus — which is more than the visible quote ever said, since nothing
 // pointed a user at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);
-const composerSend = el("button", "lf-btn", "Comment");
 // The field, and the shelf and controls `wireInput` gathers around it, wait outside the
 // page until the composer first opens (`showComposer`), since a connected field builds
 // its editor: a page whose composer never opens builds none. Everything that reads the
 // field before then reads its words and draft, which it holds unconnected.
 const composerField = document.createDocumentFragment();
 composerField.append(composerInput);
-composer.append(composerQuote, composerSend);
+composer.append(composerQuote);
 fabBar.prepend(composer);
 
 export let pendingAnchor = null;
@@ -686,7 +685,6 @@ export function createSelectionComposer({
             ? "About the layer"
             : "Comment…",
       sends: () => (suggestionMode ? "suggest" : "comment"),
-      sendBtn: composerSend,
       allowsMedia: () =>
         suggestionMode ? "Images can be added to comments, not replacement text" : true,
       hasContent: holdsContent,

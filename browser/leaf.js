@@ -652,7 +652,7 @@ const currentLocationPainters = {
   paintTargetPickerHints: targets.paintTargetPickerHints,
   paintCommandHints: commandHints.paint,
   paintCoreControls,
-  paintInputs: inputs.paintInputs,
+  publishInputHint: inputs.publishInputHint,
 };
 
 if (!offlineInteractive) {
@@ -725,7 +725,11 @@ if (!offlineInteractive) {
   document.body.append(chromeRoot);
   // Exports retain image inspection, but no page controls. Their other current location is
   // what a widget's own box shows, such as an options group's addition field.
-  mountRepaint({ paintInputs: inputs.paintInputs, reflectFirstScopes, reflectKeys });
+  mountRepaint({
+    publishInputHint: inputs.publishInputHint,
+    reflectFirstScopes,
+    reflectKeys,
+  });
 }
 
 // Widget commands belong to interactive documents, including offline exports.

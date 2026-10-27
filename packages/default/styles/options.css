@@ -227,7 +227,7 @@
     & > .lf-another:not([hidden]) {
       padding-block: var(--lf-option-pad-block);
     }
-    & > .lf-another > .lf-compose-field {
+    & > .lf-another > leaf-composition-field > .lf-compose-field {
       min-height: var(--lf-card-state-height);
     }
     /* A float reserves the status band, so every chip and title line wraps around the
@@ -656,12 +656,12 @@
   /* The field takes the group's answer face before and after it becomes an lf-option.
    * Its submit action carries the accessible name; the empty state changes paint, not
    * layout. */
-  .lf-another > .lf-compose-field {
+  .lf-another > leaf-composition-field > .lf-compose-field {
     --lf-compose-pad-block: 0px;
     --lf-compose-pad-inline-start: 0px;
     position: static;
   }
-  .lf-another > .lf-compose-field > leaf-text {
+  .lf-another > leaf-composition-field > .lf-compose-field > leaf-text {
     flex: 1;
     min-width: 0;
     min-height: 0;

@@ -13,6 +13,9 @@
 }
 /* How far in from a field's frame the words of a field holding Send stop: Send's hit
    box with the action inset on either side of it. */
+leaf-composition-field {
+  display: contents;
+}
 .lf-compose-field {
   --lf-compose-send-end: calc(
     var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
@@ -238,9 +241,11 @@
    shelf comes first and takes a line of its own, so it stands above the field and
    never takes the field's width; a seated comment box's composer adds no box of its
    own (`display: contents`). */
-:is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])),
+:is(.lf-thread-reply, .lf-say):has(
+  > leaf-composition-field > .lf-composer-media:not([hidden])
+),
 .lf-fab-bar[data-lf-presentation="inline"]:has(
-    > .lf-composer > .lf-composer-media:not([hidden])
+    > .lf-composer > leaf-composition-field > .lf-composer-media:not([hidden])
   ) {
   flex-wrap: wrap;
 }
@@ -384,13 +389,15 @@ button.lf-media-open {
 /* Comment boxes and anchored response controls share their frame and focus paint.
    Other uses of the editor plumbing, such as option entry, supply their own face.
    Containers place comment boxes; they do not supply a second frame. */
-.lf-comment-box > .lf-compose-field,
+.lf-comment-box > leaf-composition-field > .lf-compose-field,
 .lf-response-control {
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--card);
 }
-.lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
+.lf-comment-box
+  > leaf-composition-field
+  > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
 .lf-response-control[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 0;
@@ -402,7 +409,7 @@ button.lf-media-open {
 .lf-response-control {
   filter: drop-shadow(var(--raise-1));
 }
-.lf-comment-box > .lf-compose-field > leaf-text {
+.lf-comment-box > leaf-composition-field > .lf-compose-field > leaf-text {
   padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
   border: 0;
   border-radius: 0;
@@ -412,7 +419,10 @@ button.lf-media-open {
   max-height: 50vh;
   overflow-y: auto;
 }
-.lf-comment-box > .lf-compose-field > leaf-text[data-lf-focus-visible] {
+.lf-comment-box
+  > leaf-composition-field
+  > .lf-compose-field
+  > leaf-text[data-lf-focus-visible] {
   outline: none;
 }
 .lf-thread-reply {
@@ -445,7 +455,7 @@ button.lf-media-open {
 .lf-msg-body:has(> .lf-msg-editor) {
   display: flow-root;
 }
-.lf-msg-editor > .lf-compose-field {
+.lf-msg-editor > leaf-composition-field > .lf-compose-field {
   --lf-compose-pad-block: calc(
     (var(--lf-response-height, var(--lf-line)) - 2px - 1lh) / 2
   );
@@ -454,17 +464,22 @@ button.lf-media-open {
     var(--lf-thread-text-pad-block, 0px) - var(--lf-compose-pad-block) - 1px
   );
 }
-.lf-msg-editor > .lf-compose-field > leaf-text {
+.lf-msg-editor > leaf-composition-field > .lf-compose-field > leaf-text {
   min-height: 0;
   padding-inline-end: calc(var(--lf-msg-text-end) - 1px);
 }
-.lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) {
+.lf-msg-editor
+  > leaf-composition-field
+  > .lf-compose-field:has(> .lf-msg-media:not([hidden])) {
   margin-block-end: calc(-1 * var(--lf-compose-pad-block) - 1px);
 }
-.lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) > leaf-text {
+.lf-msg-editor
+  > leaf-composition-field
+  > .lf-compose-field:has(> .lf-msg-media:not([hidden]))
+  > leaf-text {
   padding-block-end: var(--lf-thread-text-pad-block, 0px);
 }
-.lf-msg-editor > .lf-compose-field > .lf-msg-media {
+.lf-msg-editor > leaf-composition-field > .lf-compose-field > .lf-msg-media {
   margin-inline: calc(var(--lf-thread-text-inset) - 1px) -1px;
   padding-block-end: var(--lf-compose-pad-block);
 }

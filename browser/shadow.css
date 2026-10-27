@@ -1436,6 +1436,9 @@ svg[data-lf-icon] {
   --lf-icon-action-face: 28px;
   --lf-compose-action-inset: 6px;
 }
+leaf-composition-field {
+  display: contents;
+}
 .lf-compose-field {
   --lf-compose-send-end: calc( var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) );
 }
@@ -1616,8 +1619,8 @@ svg[data-lf-icon] {
 .lf-reopen.lf-icon-action:not([aria-disabled=true]):hover::before {
   background: color-mix(in srgb, var(--ok-ink) 18%, var(--ok-tint));
 }
-:is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])),
-.lf-fab-bar[data-lf-presentation=inline]:has(> .lf-composer > .lf-composer-media:not([hidden])) {
+:is(.lf-thread-reply, .lf-say):has(> leaf-composition-field > .lf-composer-media:not([hidden])),
+.lf-fab-bar[data-lf-presentation=inline]:has(> .lf-composer > leaf-composition-field > .lf-composer-media:not([hidden])) {
   flex-wrap: wrap;
 }
 :is(.lf-composer-media, .lf-msg-media) {
@@ -1715,13 +1718,13 @@ button.lf-media-open {
   height: 100%;
   object-fit: contain;
 }
-.lf-comment-box > .lf-compose-field,
+.lf-comment-box > leaf-composition-field > .lf-compose-field,
 .lf-response-control {
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--card);
 }
-.lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
+.lf-comment-box > leaf-composition-field > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
 .lf-response-control[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 0;
@@ -1731,7 +1734,7 @@ button.lf-media-open {
 .lf-response-control {
   filter: drop-shadow(var(--raise-1));
 }
-.lf-comment-box > .lf-compose-field > leaf-text {
+.lf-comment-box > leaf-composition-field > .lf-compose-field > leaf-text {
   padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
   border: 0;
   border-radius: 0;
@@ -1741,7 +1744,7 @@ button.lf-media-open {
   max-height: 50vh;
   overflow-y: auto;
 }
-.lf-comment-box > .lf-compose-field > leaf-text[data-lf-focus-visible] {
+.lf-comment-box > leaf-composition-field > .lf-compose-field > leaf-text[data-lf-focus-visible] {
   outline: none;
 }
 .lf-thread-reply {
@@ -1760,22 +1763,22 @@ button.lf-media-open {
 .lf-msg-body:has(> .lf-msg-editor) {
   display: flow-root;
 }
-.lf-msg-editor > .lf-compose-field {
+.lf-msg-editor > leaf-composition-field > .lf-compose-field {
   --lf-compose-pad-block: calc( (var(--lf-response-height, var(--lf-line)) - 2px - 1lh) / 2 );
   margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   margin-block: calc(var(--lf-thread-text-pad-block, 0px) - var(--lf-compose-pad-block) - 1px);
 }
-.lf-msg-editor > .lf-compose-field > leaf-text {
+.lf-msg-editor > leaf-composition-field > .lf-compose-field > leaf-text {
   min-height: 0;
   padding-inline-end: calc(var(--lf-msg-text-end) - 1px);
 }
-.lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) {
+.lf-msg-editor > leaf-composition-field > .lf-compose-field:has(> .lf-msg-media:not([hidden])) {
   margin-block-end: calc(-1 * var(--lf-compose-pad-block) - 1px);
 }
-.lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) > leaf-text {
+.lf-msg-editor > leaf-composition-field > .lf-compose-field:has(> .lf-msg-media:not([hidden])) > leaf-text {
   padding-block-end: var(--lf-thread-text-pad-block, 0px);
 }
-.lf-msg-editor > .lf-compose-field > .lf-msg-media {
+.lf-msg-editor > leaf-composition-field > .lf-compose-field > .lf-msg-media {
   margin-inline: calc(var(--lf-thread-text-inset) - 1px) -1px;
   padding-block-end: var(--lf-compose-pad-block);
 }
@@ -2140,7 +2143,7 @@ html[data-lf-draw-mode] main {
     padding-inline: 0;
   }
 }
-.lf-video-controls:is(:not(.lf-video-playing), .lf-video-hover, .lf-video-keyed, :hover, :has(:focus-visible)) {
+.lf-video-controls:is(:not([data-playing]), [data-hovered], [data-keyed], :hover, :has(:focus-visible)) {
   opacity: 1;
   pointer-events: auto;
 }
@@ -2168,8 +2171,8 @@ html[data-lf-draw-mode] main {
     grid-area: 1 / 1;
   }
 }
-.lf-video-controls:not(.lf-video-playing) .lf-video-icon[data-lf-icon=pause],
-.lf-video-playing .lf-video-icon[data-lf-icon=play] {
+.lf-video-controls:not([data-playing]) .lf-video-icon[data-lf-icon=pause],
+.lf-video-controls[data-playing] .lf-video-icon[data-lf-icon=play] {
   visibility: hidden;
 }
 .lf-video-time {

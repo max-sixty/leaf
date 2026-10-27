@@ -417,7 +417,7 @@ function requestFrame() {
 		p.paintStatusContext?.();
 		p.syncLayout?.();
 		if (shiftPage) p.pageShifted?.();
-		p.paintInputs?.();
+		p.publishInputHint?.();
 		p.paintGoToHints?.();
 		p.paintTargetPickerHints?.();
 		p.paintCommandHints?.();

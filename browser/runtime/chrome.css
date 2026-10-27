@@ -615,9 +615,6 @@
     box-sizing: border-box;
     background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center / calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
   }
-  .lf-fp-controls:empty {
-    display: none;
-  }
   .lf-fp-crumb {
     flex: 1 1 auto;
     min-width: 0;
@@ -1218,7 +1215,7 @@
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
   }
-  .lf-fp-messages .lf-msg-editor > .lf-compose-field {
+  .lf-fp-messages .lf-msg-editor > leaf-composition-field > .lf-compose-field {
     --lf-response-height: var(--lf-line);
   }
   .lf-fp-plan {

@@ -703,7 +703,7 @@
     & > .lf-another:not([hidden]) {
       padding-block: var(--lf-option-pad-block);
     }
-    & > .lf-another > .lf-compose-field {
+    & > .lf-another > leaf-composition-field > .lf-compose-field {
       min-height: var(--lf-card-state-height);
     }
     & > lf-option::before {
@@ -1000,12 +1000,12 @@
     bottom: 0;
     margin: auto 0;
   }
-  .lf-another > .lf-compose-field {
+  .lf-another > leaf-composition-field > .lf-compose-field {
     --lf-compose-pad-block: 0px;
     --lf-compose-pad-inline-start: 0px;
     position: static;
   }
-  .lf-another > .lf-compose-field > leaf-text {
+  .lf-another > leaf-composition-field > .lf-compose-field > leaf-text {
     flex: 1;
     min-width: 0;
     min-height: 0;

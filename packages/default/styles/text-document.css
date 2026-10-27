@@ -55,7 +55,7 @@ lf-text-document .lf-text-document-listing {
   --diffs-fg: var(--code-ink);
   --diffs-fg-number: var(--code-muted);
 }
-lf-text-document [data-line-number-content]::before {
+lf-text-document [data-number]::before {
   content: attr(data-number);
 }
 /* The listing owns source scroll, including when Preview and Source have separate

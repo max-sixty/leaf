@@ -25,6 +25,7 @@ from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
     PANEL_PAGE,
     SHORT_SUGGESTION,
+    live_url,
     panel_comment,
 )
 from render_cases_layout import (
@@ -67,6 +68,7 @@ from render_harness import (
     _traffic,
     _until,
     at_rest,
+    compare_with,
     consume_browser_errors,
     leaf_page,
     left_alone,
@@ -85,9 +87,11 @@ from render_harness import (
     scroll_followers,
     scroll_settled,
     scroll_writes,
+    stamp_page,
     state_changes,
     still_page,
     take_browser_errors,
+    wait_for_revision,
 )
 
 from browser.threads import open_panel_thread
@@ -1363,6 +1367,53 @@ def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
         "data-lf-reading", held["reading"]
     )
     wait_until_ready(page, held)
+
+
+def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
+    browser, serve
+):
+    source = leaf_page(
+        "Patch reading",
+        '<lf-pane id="files" label="Files"><header>Changed files</header>'
+        '<lf-file-tree id="tree" for="patch"></lf-file-tree></lf-pane>'
+        '<lf-pane id="code" label="Code"><header>Patch</header>'
+        '<div><svg id="drawing" viewBox="0 0 240 40"><text x="0" y="24">'
+        "UNCHANGED DRAWING</text></svg>"
+        '<lf-diff id="patch" view="file"><pre>'
+        "diff --git a/config.txt b/config.txt\n"
+        "--- a/config.txt\n+++ b/config.txt\n@@ -1 +1 @@\n-old\n+new\n"
+        "</pre></lf-diff></div><footer>Tests not run</footer></lf-pane>",
+    )
+    page = open_page(browser, live_url(serve(source, packages=("diff", "file-tree"))))
+    assert render_checks_model.evaluate_probe(page, "wordsReadAsChanged") == []
+    page.locator("#code > header").evaluate("el => el.textContent = 'Approved patch'")
+    changed = render_checks_model.evaluate_probe(page, "wordsReadAsChanged")
+    assert [(row["at"], row["words"]) for row in changed] == [
+        ("<lf-pane id=code>", "Approved patch Tests not run")
+    ]
+
+    # The same prose boundary owns the inline explanation of a real revision.
+    stamp_page(
+        serve.page_dir,
+        source.replace(">Patch</header>", ">xxx  </header>").replace(
+            ">Tests not run</footer>", ">  yyy</footer>"
+        ),
+        "Approve patch",
+    )
+    wait_for_revision(page, 2)
+    compare_with(page, 1)
+    change = page.locator('[data-lf-margin-for="code"] [data-lf-kinds~="change"]')
+    change.click()
+    expect(page.locator("#code .lf-version-inline-deletion del")).to_have_text(
+        "Patch Tests not run"
+    )
+    assert page.evaluate(
+        "() => [...CSS.highlights.get('lf-version-insert') ?? []].map(range => range.toString())"
+    ) == ["xxx  ", "  yyy"]
+    expect(page.locator("#patch .lf-version-inline-deletion")).to_have_count(0)
+    change.click()
+    expect(page.locator("#code > header")).to_have_text("xxx")
+    assert render_checks_model.evaluate_probe(page, "wordsReadAsChanged") == []
 
 
 def test_the_state_wait_follows_a_source_back_to_the_version_the_page_shows(
@@ -2856,7 +2907,6 @@ RELOCATE_ADOPTED = """async () => {
     const order = [...document.styleSheets].map((sheet) => sheet.cssRules[0])
         .find((rule) => rule instanceof CSSLayerStatementRule);
     const style = document.createElement('style');
-    style.setAttribute('data-controls', '');
     style.textContent = [order, ...rules].map((rule) => rule.cssText).join('\\n');
     // A copy: adoptedStyleSheets is a live array, so the assignment below would empty
     // the saved reference along with it.
@@ -2961,7 +3011,9 @@ def adopted_sheet_findings(page):
     Specificity does not change, so every computed value that moves was decided by sheet
     order alone. Zero of them is the contract: what the runtime lays over the page has
     to beat page and widget alike, and it must do that on its selectors rather than on
-    where it is delivered.
+    where it is delivered. The chrome's guard (styles/chrome-guard.css) is the one rule
+    built to win by delivery: it weighs one class and rolls back a page rule of that
+    weight by standing after it.
 
     Layer order is the one other thing the move could reverse. A module sheet adopted
     first names `lf-base` before chrome.css names `lf-reset`, so the copy opens with the
@@ -4147,7 +4199,6 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
         """() => {
              const s = document.createElement('style');
              s.id = 'trap';
-             s.setAttribute('data-controls', '');
              s.textContent =
                '.lf-floating-panel .lf-msg-body { padding-top: 8px !important }'
                + '.lf-floating-panel .lf-msg-body > :first-child'

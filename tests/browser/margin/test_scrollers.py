@@ -242,7 +242,7 @@ def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
     """Every frame Chrome draws while a pane scrolls shows the pin level with its
     target, since the browser carries both through the same scroll."""
     marks = (
-        f"<style data-controls>#pane-top {{ background:{SUBJECT_MARK}; }}"
+        f"<style>#pane-top {{ background:{SUBJECT_MARK}; }}"
         f' [data-lf-margin-for="pane-top"] {{ outline:6px solid {FOLLOWER_MARK}'
         " !important; }</style></head>"
     )

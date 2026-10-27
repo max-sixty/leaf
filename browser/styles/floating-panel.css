@@ -914,6 +914,20 @@
     gap: 6px;
     margin-inline: auto 12px;
   }
+  /* What Threads holds while the user reads it stands over the rows it would have
+     moved, at the inset of the Resolved heading: its line grows the box upward from
+     the row the box stands on, so no row moves (floating-panel.js, `threadsListing`). */
+  .lf-fp-head:has(> .lf-fp-joined) {
+    display: flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 6px 6px 0 calc(14px + var(--lf-fp-inset));
+    box-sizing: border-box;
+  }
+  .lf-fp-joined {
+    display: flex;
+    min-width: 0;
+  }
   .lf-fp-news-outlet {
     display: contents;
   }

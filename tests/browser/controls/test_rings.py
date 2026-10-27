@@ -444,11 +444,10 @@ def test_a_marked_element_draws_nothing_under_the_pointer(browser, serve):
 def test_a_contour_stands_inside_a_target_its_clip_leaves_no_room_around(
     request, serve, engine
 ):
-    """A joined option group clips its cells to its frame, so the contour of the thread
-    the user is in, drawn outside a cell at the ring's gap, lost its sides and left two
-    stray lines across the neighbouring cells. Inside the frame it stands just within
-    the cell's edge; a paragraph with room around it is the control that keeps it
-    outside."""
+    """A joined option group clips its cells to its frame, so the brackets of the thread
+    the user is in, drawn flush outside a cell, lost their sides and left stubs across
+    the neighbouring cells. Inside the frame they stand just within the cell's edge; a
+    paragraph with room around it is the control that keeps them outside."""
     url = serve(
         leaf_page(
             "Contours",
@@ -484,7 +483,7 @@ def test_a_contour_stands_inside_a_target_its_clip_leaves_no_room_around(
         mark = page.locator(f'.lf-visual-mark-here[data-for="{ident}"]')
         expect(mark).to_be_visible()
         room = mark.evaluate(
-            "n => { const s = getComputedStyle(n);"
+            "n => { const s = getComputedStyle(n, '::after');"
             " return parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth); }"
         )
         assert (room <= 0) is inside, (ident, room)

@@ -1747,6 +1747,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     &::before {
       clip-path: inset(calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px) calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w)));
     }
+    &.lf-visual-mark-inset::before,
+    &.lf-visual-mark-inset::after {
+      outline-offset: calc(-1 * var(--focus-ring-w));
+    }
     &.lf-visual-mark-focus::after {
       clip-path: none;
     }

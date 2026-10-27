@@ -357,6 +357,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
           calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w))
       );
     }
+    /* A clip that leaves no room outside the target (visual-mark-paint.js) takes the
+       perimeter just inside its edge, as a control packed into a list does (theme.css). */
+    &.lf-visual-mark-inset::before,
+    &.lf-visual-mark-inset::after {
+      outline-offset: calc(-1 * var(--focus-ring-w));
+    }
     &.lf-visual-mark-focus::after {
       clip-path: none;
     }

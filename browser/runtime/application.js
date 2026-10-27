@@ -286,6 +286,7 @@ export function mountApplication(dependencies) {
   // ages the margin shows are followed with the rest of what this paint reads, so a
   // commit that moves one and the clock repaint them by the same proof.
   const annotationInputs = readPart(annotationSelection);
+  let marginPresentation = null;
   const mountAnnotations = () => {
     const presentation = applicationPresenter({
       region: "annotations",
@@ -293,6 +294,7 @@ export function mountApplication(dependencies) {
       reading: () => annotationInputs(),
       paint: renderAnnotations,
     });
+    marginPresentation = presentation;
     void presentation.present();
     // A paint on paper read no ages, so the return to screen paints through the
     // presenter, which follows them again.
@@ -359,6 +361,9 @@ export function mountApplication(dependencies) {
     // The thread a margin entry stands for, which a user on it goes on with when the
     // thread leaves the margin.
     threadAt: (node) => overlay?.entryThread(node) ?? null,
+    // The margin's own commit, which reply continuity waits for; before the margin
+    // mounts there is nothing to wait for.
+    marginCommitted: () => marginPresentation?.committed() ?? Promise.resolve(),
     read,
   });
   const accountPending = (receipts) => {

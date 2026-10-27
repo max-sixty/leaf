@@ -241,12 +241,13 @@ test("a paint advancing a version it does not read claims no second pass", async
   assert.equal(paints.added, 2, "reading the version first subscribes the paint");
 });
 
-test("the margin's own commit is reachable while a widget holds its paint", async () => {
-  // Reply continuity waits for the margin's paint, not the whole pass nor the DOM
-  // upstream of the margin: a widget that withholds its commit, as one does through a
-  // drag, must not keep a displaced reply editor from its new box
-  // (thread/presentation.js). The regions keep the page's own dependency chain.
-  const { PRESENTATION_DOM, regionCommitted, whenDocumentPresented } =
+test("a region owing no paint has committed while a widget holds the DOM upstream", async () => {
+  // Reply continuity waits for the margin's own commit (thread/presentation.js). A
+  // margin owing no repaint has already committed, so a widget withholding its commit,
+  // as one does through a drag, doesn't delay it, while the pass and the margin's
+  // upstream DOM wait for the widget. A margin that repaints commits only after its
+  // upstream, so this holds only without a repaint. The regions keep the page's chain.
+  const { PRESENTATION_DOM, whenDocumentPresented } =
     await import("/runtime/semantic-state.js");
   const paints = [];
   const chain = [
@@ -272,16 +273,16 @@ test("the margin's own commit is reachable while a widget holds its paint", asyn
     () => held.promise,
   );
   let upstream = false;
-  void Promise.allSettled(PRESENTATION_DOM.annotations()).then(() => {
+  void Promise.allSettled(PRESENTATION_DOM.obligations()).then(() => {
     upstream = true;
   });
   let documentPresented = false;
   void whenDocumentPresented().then(() => {
     documentPresented = true;
   });
-  await regionCommitted("annotations");
+  await chain.at(-1).committed();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(upstream, false, "the margin's transitive DOM waits for the widget");
+  assert.equal(upstream, false, "the margin's upstream DOM waits for the widget");
   assert.equal(documentPresented, false, "the pass still waits for the widget");
   held.resolve();
   await whenDocumentPresented();

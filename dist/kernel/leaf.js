@@ -168,7 +168,7 @@ function drawingThumbnail(drawing, target) {
 //#endregion
 //#region runtime/composing/input.js
 const INPUT_DRAFT = Symbol("composition draft");
-const SEND_DWELL = 250;
+const SEND_DWELL = 150;
 var CompositionField = class extends q(LitElement) {
 	createRenderRoot() {
 		return this;

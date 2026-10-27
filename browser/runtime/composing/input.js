@@ -77,7 +77,7 @@ import { offered, offeredAction } from "../widget-elements.js";
 const INPUT_DRAFT = Symbol("composition draft");
 // How long the pointer rests on Send's corner, once words reach it, before Send shows
 // there and takes presses: longer than a press aimed at the words' end takes to land.
-const SEND_DWELL = 250;
+const SEND_DWELL = 150;
 
 /** @typedef {CompositionField} CompositionFieldElement For its tag. */
 class CompositionField extends SignalWatcher(LitElement) {

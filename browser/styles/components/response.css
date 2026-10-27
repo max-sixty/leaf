@@ -125,7 +125,9 @@ leaf-composition-field {
    its corner while no words reach it (`:state(corner-taken)`, text-field.js). Once
    words reach it, Send waits unseen in the corner, letting presses through to the
    words, and shows over them on an opaque disc when focus comes to it or the pointer
-   has rested on it (`data-send-pointed`, input.js). Rejected: showing it on hovering
+   has rested on it (`data-send-pointed`, input.js), on its hover tint at once, since a
+   browser may not read the still pointer as hovering the newly shown Send until it
+   moves. Rejected: showing it on hovering
    the whole box, since the pointer rests there while typing and Send would cover the
    words at the corner most of the time; and showing it as soon as the pointer
    arrives, which put it under a press meant to place the caret at the words' end. */
@@ -139,9 +141,12 @@ leaf-composition-field {
     opacity: 0;
     pointer-events: none;
   }
-  .lf-compose-field:has(> leaf-text:state(corner-taken))
-    > .lf-compose-submit:not(:hover)::before {
+  .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit::before {
     background: var(--card);
+  }
+  .lf-compose-field[data-send-pointed]:has(> leaf-text:state(corner-taken))
+    > .lf-compose-submit::before {
+    background: var(--accent-tint);
   }
 }
 .lf-action-icon {
@@ -600,15 +605,28 @@ button.lf-media-open {
 }
 /* The comment box and the card its words become share one text column, so Send
      moves no word: both start the words `--lf-thread-text-inset` inside the field's or
-     the transcript's edge, and both end them `--lf-comment-text-end` inside it, on
-     every line, the room Send stands in at the box's foot. The editor spends one pixel
-     of each inset on its frame, which the card does not draw. */
+     the transcript's edge, and end them `--lf-comment-text-end` inside it, on every
+     line: the room Send stands in at the box's foot (`--lf-comment-send-room`), or
+     under a mouse, where Send takes only a free corner, the same inset as at the start,
+     which the card's reply box keeps too. The editor spends one pixel of each inset on
+     its frame, which the card does not draw. */
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
   --lf-comment-send-inset: calc(
     (var(--lf-response-height) - var(--lf-icon-action-face)) / 2
   );
-  --lf-comment-text-end: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset));
+  --lf-comment-send-room: calc(
+    var(--lf-icon-action-hit) + var(--lf-comment-send-inset)
+  );
+  --lf-comment-text-end: var(--lf-comment-send-room);
+}
+@media (hover: hover) and (pointer: fine) {
+  :is(.lf-fab-bar, .lf-margin-preview) {
+    --lf-comment-text-end: var(--lf-thread-text-inset);
+  }
+  leaf-text.lf-fab-input {
+    --lf-field-corner: var(--lf-comment-send-room);
+  }
 }
 .lf-margin-preview .lf-msg {
   --lf-msg-text-end: var(--lf-comment-text-end);
@@ -666,7 +684,7 @@ leaf-text.lf-fab-input {
   .lf-compose-field:not([data-words]):has(> .lf-response-trigger:not([hidden]))
   > leaf-text.lf-fab-input {
   padding-inline-end: calc(
-    var(--lf-comment-text-end) + var(--lf-icon-action-hit) - 1px
+    var(--lf-comment-send-room) + var(--lf-icon-action-hit) - 1px
   );
 }
 .lf-response-action {

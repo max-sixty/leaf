@@ -210,7 +210,8 @@ and its lane's next passing run closes it.
 An issue labelled `backlog` is an item on the maintainer's prioritised backlog
 (`TODO.md` says how it is kept), not a report awaiting triage. When one reaches
 you, whether through triage or an unread notification, take no action, post
-nothing, and acknowledge the notification.
+nothing, and acknowledge the notification. The item **Nightly: one backlog
+item** takes is the one a run acts on.
 
 ## Nightly: model and harness releases
 
@@ -265,6 +266,23 @@ the scan. Include the upstream version or date and source link, the affected Lea
 code or workflow, the concrete benefit or breakage, and a proposed next step, and
 distinguish confirmed behavior from an integration hypothesis. When nothing
 qualifies, keep the result in the run summary; do not post a digest.
+
+## Nightly: one backlog item
+
+Each nightly run works one backlog item: the oldest issue the query in
+`TODO.md`, "Backlog", lists as open to an agent, starting with `now`, whose fix
+you can verify on this runner. An item that needs macOS, Safari or a real phone
+waits for a local campaign. Check that the item is still live, by running it,
+and that no open pull request claims it, as
+`.claude/skills/grinding-backlog/SKILL.md`, "Choose the items", says. Fix it in a
+pull request that closes the issue; whether that lands on review or waits for
+the maintainer follows that skill's "Land as you go". For one that waits, open
+the pull request as a draft whose description states the choice, label the
+issue `waits-on-user`, and link the pull request from the issue's body. When
+running shows the item already fixed or its premise false, or the run can't
+finish it, say so on the issue with the command that shows it and label it
+`waits-on-user`, so the next run moves on. When no item qualifies, say so in the
+run summary.
 
 ## Nightly: regular maintenance
 

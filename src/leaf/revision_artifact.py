@@ -173,6 +173,11 @@ class RevisionArtifact:
         return json.loads(self.manifest)["implementations"]
 
     @cached_property
+    def declaration_sources(self) -> dict[str, str]:
+        """The captured owners of widget and named data contract declarations."""
+        return json.loads(self.manifest)["declarations"]
+
+    @cached_property
     def widget_aliases(self) -> dict[str, str]:
         """The loader's widget module paths, mapped to their captured implementations.
 

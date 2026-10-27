@@ -14,7 +14,12 @@ from leaf.files import stamped_version
 from leaf.leases import contract_writer
 from leaf.projection import folded_value, markup_value, page_reading
 from leaf.refusals import Refused
-from leaf.revisioning import planned_activation, publish_checked_event
+from leaf.revisioning import (
+    hold_published,
+    planned_activation,
+    publish_checked_event,
+)
+from leaf.served_state.reading import source_readings
 from leaf.service import PageTransaction
 from leaf.todos import TodoReading
 from leaf.validation.admission import checked_text
@@ -108,8 +113,21 @@ def _completed_tasks(
     on_widgets = [todo for todo in todos if todo["subject"]["kind"] == "widget"]
     unearned = sorted(set(completes) - {todo["subject"]["id"] for todo in on_widgets})
     if unearned:
+        # An author who has just recorded a user's answer on a widget, such as a
+        # playground's submitted settings, reaches for --completes to finish it; the
+        # version that records an answer takes it in by itself.
+        mine = "; ".join(
+            f"{todo['id']} on {todo['subject'].get('id') or todo['subject']['kind']}"
+            f" ({todo['title']})"
+            for todo in todos
+        )
         raise Refused(
-            "no open to-do on " + ", ".join(repr(widget) for widget in unearned)
+            "no open to-do on "
+            + ", ".join(repr(widget) for widget in unearned)
+            + ": --completes ends the agent's own to-dos opened on a widget, and "
+            + (f"the open ones are {mine}" if todos else "none is open")
+            + ". A user's answer on a widget needs no --completes: the version that"
+            " records it takes it in; end a to-do on the page with `leaf task end`"
         )
     completed = [todo for todo in on_widgets if todo["subject"]["id"] in completes]
     not_later = sorted(
@@ -162,6 +180,7 @@ def _stamp_event(
 
 def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -> dict:
     events = page.events
+    source, _history = source_readings(page_dir)
     checked, activation = _stamp_candidate(page_dir, events)
     revision = activation.revision
     registry, projection, parser, spk = _stamp_reading(events, checked, revision)
@@ -172,7 +191,9 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
     event = _stamp_event(body, version, revision, parser, settled_reports, completed)
     # Stamp-specific refusals precede publication. The publisher admits this
     # note and every anchor move it requires before the revision marker.
-    return publish_checked_event(page, checked, event)
+    accepted = publish_checked_event(page, checked, event)
+    hold_published(page_dir, source, activation)
+    return accepted
 
 
 @contract_writer

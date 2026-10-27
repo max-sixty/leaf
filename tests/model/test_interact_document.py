@@ -457,6 +457,7 @@ const computed = import(text, { with: { type: './missing.js' } });
 def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_path):
     authored = page_dir / "page"
     (authored / "data.json").write_text('{"value": 1}')
+    (authored / "notes.txt").write_text("notes")
     outside = tmp_path / "outside.js"
     outside.write_text("export const value = 1;")
     (authored / "escape.js").symlink_to(outside)
@@ -481,7 +482,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "./data.json#variant";', "dependency-not-local"),
         ('import "/runtime/events.js";', "module-outside-page"),
         ('import "/vendor/lit.js";', "module-outside-page"),
-        ('import "./data.json";', "module-type"),
+        ('import "./notes.txt";', "module-type"),
         ('import "./escape.js";', "dependency-symlink"),
         ('import "./data\\u002ejson";', "dependency-not-local"),
     ]:
@@ -4328,7 +4329,18 @@ def test_projected_verbatim_includes_generated_children():
             "x-verbatim": True,
             "x-state": {
                 "add": {
-                    "detail": {"type": "object"},
+                    "detail": {
+                        "type": "object",
+                        "properties": {
+                            "item": {
+                                "type": "string",
+                                "pattern": f"^{schema_model.ELEMENT_ID}$",
+                            },
+                            "text": {"type": "string", "minLength": 1},
+                        },
+                        "required": ["item", "text"],
+                        "additionalProperties": False,
+                    },
                     "unit": "item",
                     "creates": {"child": "lf-item", "words": "text"},
                 }

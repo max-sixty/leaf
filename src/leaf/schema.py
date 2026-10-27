@@ -459,28 +459,6 @@ EXTENSION_SCHEMA = {
             "type": "string",
             "pattern": r"^/(?:[a-z0-9-]+/)*[a-z0-9.-]+\.js$",
         },
-        # The markup an upgraded widget's first paint shows until its module draws:
-        # one element, the structure the module will draw, with words that size it
-        # as the drawing will. Delivery writes it as each occurrence's first child,
-        # marked `data-lf-prepaint` (`revision_delivery.mark_declared`), so the
-        # browser lays out the widget's real structure before any module runs, and
-        # the module takes it out in the step that draws its replacement. `{"as": tag}`
-        # writes another widget's, for one that first paints as that widget will
-        # stand in it: a command with no seat draws a readings seat at its head.
-        "x-prepaint": {
-            "oneOf": [
-                # Its form is held where it is parsed (`registry/widgets.py`).
-                {"type": "string"},
-                {
-                    "type": "object",
-                    "properties": {
-                        "as": {"type": "string", "pattern": f"^{WIDGET_NAME}$"}
-                    },
-                    "required": ["as"],
-                    "additionalProperties": False,
-                },
-            ]
-        },
         "x-views": {"enum": [True, "parts"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-within": {

@@ -108,9 +108,10 @@ import {
   elementById,
   inChrome,
   pageDocument,
+  quoteFrom,
+  rangeOf,
   readingFrom,
   textNodesUnder,
-  wrote,
 } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { registry, tagsDeclaring } from "./registry.js";
@@ -534,15 +535,23 @@ const inlineOpen = new Map(); // marked element -> its generated nodes and highl
 // dropped rather than painted over the base they are on now. Reachable because the
 // walk asks per row: it is one fetch per press, and the presses come faster than the network.
 let diffRequest = 0;
+// A containing prose block owns its words, not an opaque child's rendered data.
+// Use the same boundary for comparison keys, stored words and inline ranges.
+// The child has its own identity and binding key in diffBlocks below.
+const comparisonTextNodes = (root, opaque = diffOpaqueSel()) =>
+  textNodesUnder(root, "wrote", (child) => child.matches(opaque));
+const comparisonWords = (root, opaque) => quoteFrom(comparisonTextNodes(root, opaque));
+
 // Formatting may render authored words while keeping their source on the formatted
 // island. The keys compare that source; an inline comparison reads the formatted words,
 // which are what the user sees.
-function diffWords(block) {
-  if (!block.querySelector("[data-lf-source-words]")) return wrote(block);
+function diffWords(block, opaque) {
+  const words = (root) => comparisonWords(root, opaque);
+  if (!block.querySelector("[data-lf-source-words]")) return words(block);
   const source = block.cloneNode(true);
   for (const island of source.querySelectorAll("[data-lf-source-words]"))
     island.replaceWith(document.createTextNode(island.dataset.lfSourceWords));
-  return wrote(source);
+  return words(source);
 }
 // The blocks of a painted source (`paintedSource`), each keyed by its authored text
 // (`wrote`), which leaves out what formatting generated, such as Markdown's media button.
@@ -558,8 +567,9 @@ function diffBlocks(root) {
   }
   for (const b of root.querySelectorAll(blocks)) {
     if (b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
-    if (b.querySelector(blocks)) continue; // leaf blocks only, or nesting double-marks
-    let key = diffWords(b);
+    if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque)))
+      continue; // leaf blocks only, excluding opaque children on both sides
+    let key = diffWords(b, opaque);
     // An x-says value is the page's words at the element's edge (renderSaid), so it
     // belongs to what this block says: folded into the key at its declared edge, a
     // version that moves a metric's number or an event's time marks though no prose
@@ -825,7 +835,10 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
   for (const block of diffMarked) {
     if (!block.matches(ADDRESSABLE) || block.closest(opaque)) continue;
     const [was, is] = [base, current].map(({ doc }) => doc.getElementById(block.id));
-    diffWordsOf.set(block, { was: was ? wrote(was) : null, is: is ? wrote(is) : null });
+    diffWordsOf.set(block, {
+      was: was ? comparisonWords(was, opaque) : null,
+      is: is ? comparisonWords(is, opaque) : null,
+    });
   }
   return diffMarked.size;
 }
@@ -838,7 +851,10 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
 // `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
 // current document rather than the temporary historical words on screen.
 const inlineId = (target) => `lf-version-inline-${target.id}`;
-const authoredReading = (target) => readingFrom(textNodesUnder(target, "wrote"));
+const authoredReading = (target) => {
+  const segments = comparisonTextNodes(target);
+  return { ...readingFrom(segments), segments };
+};
 
 function pointAt(target, reading, offset) {
   if (!reading.units.length) return { node: target, offset: 0 };
@@ -860,14 +876,24 @@ function insertAt(target, reading, offset, node) {
   else move(text.parentNode, node, text.splitText(point.offset));
 }
 
-function rangeAt(reading, start, end) {
+function rangesAt(reading, start, end) {
   const first = reading.units[start];
   const last = reading.units[end - 1];
-  if (!first || !last) return null;
-  const range = document.createRange();
-  range.setStart(first.start.node, first.start.offset);
-  range.setEnd(last.end.node, last.end.offset);
-  return range;
+  if (!first || !last) return [];
+  // Normalized characters can span nodes, even a collapsed space on either side
+  // of an excluded widget. Paint only the retained segments, never the DOM gap.
+  return reading.segments
+    .slice(
+      reading.segments.findIndex(({ node }) => node === first.start.node),
+      reading.segments.findIndex(({ node }) => node === last.end.node) + 1,
+    )
+    .map((segment) => ({
+      ...segment,
+      start: segment.node === first.start.node ? first.start.offset : segment.start,
+      end: segment.node === last.end.node ? last.end.offset : segment.end,
+    }))
+    .filter(({ start, end }) => end > start)
+    .map((segment) => rangeOf([segment]));
 }
 
 function paintInlineInsertions() {
@@ -924,9 +950,9 @@ function openInlineComparison(target) {
     .forEach(({ offset, node }) => insertAt(target, reading, offset, node));
 
   const currentReading = authoredReading(target);
-  const ranges = additions
-    .map(([start, end]) => rangeAt(currentReading, start, end))
-    .filter(Boolean);
+  const ranges = additions.flatMap(([start, end]) =>
+    rangesAt(currentReading, start, end),
+  );
   target.classList.toggle("lf-version-inline", hasTextChange);
   inlineOpen.set(target, { nodes, ranges });
   paintInlineInsertions();
@@ -955,7 +981,7 @@ function closeInlineComparison(target) {
 // module writes into, stays marked whole and offers none.
 export const inlineComparison = (target) => {
   const words = diffOn.value ? diffWordsOf.get(target) : undefined;
-  return words && words.was !== words.is && words.is === wrote(target)
+  return words && words.was !== words.is && words.is === comparisonWords(target)
     ? {
         id: inlineId(target),
         open: inlineOpen.has(target),

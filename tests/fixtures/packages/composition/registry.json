@@ -26,7 +26,6 @@
         }
       }
     },
-    "x-prepaint": "<div class=\"review-controls\"><p class=\"review-result\">Not reviewed</p><div class=\"review-buttons\"><button class=\"lf-btn\">Pass review</button><button class=\"lf-btn\">Fail review</button></div></div>",
     "x-example": "<lf-review-summary id=\"review-summary\"><h2>Retry policy review</h2><p>The retry budget permits one retry after the shared refresh completes.</p></lf-review-summary>"
   }
 }

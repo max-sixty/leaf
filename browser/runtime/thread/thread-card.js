@@ -31,7 +31,6 @@
    gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { setChildren } from "../dom-children.js";
 import {
   holdFocus,
   focusDestination,
@@ -42,14 +41,9 @@ import {
 import { html, render, nothing, share, signal } from "/runtime/framework.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
-import {
-  generatedElement,
-  offerAction,
-  offeredAction,
-  measure,
-} from "../widget-elements.js";
+import { generatedElement, offeredAction, measure } from "../widget-elements.js";
 import { keeps, layoutPx } from "../keeps.js";
-import { keys } from "../keyboard/scopes.js";
+import { commandsOn } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import {
   createReplyView,
@@ -320,9 +314,7 @@ export class ThreadView {
   #reply = null;
   #replyShown = false;
   #draftFrame = 0;
-  #settlements = new Map();
   #settlesAt = null;
-  #actions = document.createElement("span");
   #marginControls = null;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
@@ -373,7 +365,6 @@ export class ThreadView {
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
     generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";
-    this.#actions.className = "lf-thread-meta-actions";
   }
 
   setMarginControls(controls) {
@@ -578,18 +569,15 @@ export class ThreadView {
     keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
     const settlement = model.settlement
       ? this.#settlement(model, settlementPlace)
-      : null;
-    const actions = marginControls
-      ? [
-          model.news ? notice.node : null,
-          marginControls.nav,
-          marginControls.expand,
-          settlement,
-          marginControls.close,
-        ].filter(Boolean)
-      : [settlement].filter(Boolean);
-    setChildren(this.#actions, actions);
-    const threadActions = actions.length || model.news ? this.#actions : null;
+      : nothing;
+    const threadActions =
+      marginControls || model.settlement || model.news
+        ? html`<span class="lf-thread-meta-actions">
+            ${marginControls ? news : nothing} ${marginControls?.nav ?? nothing}
+            ${marginControls?.expand ?? nothing}${settlement}
+            ${marginControls?.close ?? nothing}
+          </span>`
+        : nothing;
     const handedOn = this.#transcript.present(model, {
       arrived: Boolean(prior),
       appends: model.surface === "margin",
@@ -600,9 +588,11 @@ export class ThreadView {
     // `.lf-thread-content > .lf-thread-news`); its words change in place.
     keeps(notice.node, "data-lf-reflow", marginControls ? null : "text");
     const body = html`
-      ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${this.#transcript.node}
+      ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${
+        this.#transcript.node
+      }
       ${
-        threadActions
+        threadActions !== nothing
           ? marginControls
             ? html`<div class="lf-margin-thread-controls">${threadActions}</div>`
             : html`${news}
@@ -773,16 +763,15 @@ export class ThreadView {
     const reopen = state.kind === "unresolve";
     // A margin card's controls row draws Resolve as the check and Reopen as the word.
     const icon = place === "head" || (place === "margin" && !model.resolved);
-    const face = `${state.kind} ${place}`;
-    let button = this.#settlements.get(face);
-    if (!button) {
-      button = offerAction(
-        icon ? "symbol" : "word",
-        reopen ? "lf-reopen" : "lf-resolve",
-      );
-      this.#settlements.set(face, button);
-      const word = reopen ? "Reopen" : "Resolve";
-      keys(button, `On a thread's ${word} button`, [
+    const word = reopen ? "Reopen" : "Resolve";
+    const label =
+      reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
+    return html`<button
+      ${offeredAction(icon ? "symbol" : "word", reopen ? "lf-reopen" : "lf-resolve")}
+      aria-busy=${state.pending ? "true" : nothing}
+      aria-label=${icon ? label : nothing}
+      title=${icon ? label : nothing}
+      ${commandsOn(`On a thread's ${word} button`, (button) => [
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
@@ -791,19 +780,10 @@ export class ThreadView {
           when: () => !this.#shown.value.settlement?.pending,
           run: this.#settle,
         },
-      ]);
-    }
-    keeps(button, "aria-busy", state.pending);
-    if (icon) {
-      const label =
-        reopen && model.resolvedBy
-          ? `${model.resolvedBy} · ${state.label}`
-          : state.label;
-      keeps(button, "aria-label", label);
-      keeps(button, "title", label);
-    }
-    render(icon ? iconTemplate("check", "lf-action-icon") : state.label, button);
-    return button;
+      ])}
+    >
+      ${icon ? iconTemplate("check", "lf-action-icon") : state.label}
+    </button>`;
   }
 
   // What the thread holds, shown by a press on one of its controls. Where showing it
@@ -828,20 +808,18 @@ export class ThreadView {
       key: model.key,
       resolved: model.resolved,
       prepareLanding:
-        model.surface === "margin"
-          ? model.resolved
-            ? null
-            : this.#marginControls?.prepareLanding
-          : this.#prepareInlineLanding,
+        model.surface === "margin" && !model.resolved
+          ? this.#marginControls?.prepareLanding
+          : this.#prepareThreadLanding,
       ...this.#commands.settlement,
     }).catch(() => {});
   };
 
-  // A thread on the page moves as it settles: a resolved one into its seat's Resolved
-  // disclosure, and a reopened one out of it, ahead of it (inline.js). Land where the
-  // user went with it, the thread or the summary of the disclosure folding it, around
-  // their focus, which a thread too tall to show leaves where it is.
-  #prepareInlineLanding = () => {
+  // Reopening lands in the reply on every card, even when Lit retains the pressed
+  // button. A page thread also moves into or out of its seat's Resolved disclosure
+  // (inline.js), so keep its destination in view once the departing pixels finish.
+  #prepareThreadLanding = () => {
+    const reopening = this.#model.resolved;
     const mayLand = retainUserIntent({
       source: this.node,
       available: () => this.node.isConnected,
@@ -853,7 +831,9 @@ export class ThreadView {
       await this.#retirement?.catch(() => {});
       const place = this.#fold?.querySelector(":scope > summary") ?? this.node;
       if (!mayLand() || !currentLocationIn(place)) return false;
-      scrollThreadIntoView(place, focused());
+      if (reopening)
+        this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node);
+      if (this.#model.surface !== "margin") scrollThreadIntoView(place, focused());
       return true;
     };
   };

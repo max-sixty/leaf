@@ -46,12 +46,7 @@ import {
   workflowLabel,
   workflowTitle,
 } from "./workflow.js";
-import {
-  markDeclared,
-  renderQuiet,
-  renderSaid,
-  writePrepaint,
-} from "../declared-words.js";
+import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
 import { elementById } from "../passages.js";
@@ -176,7 +171,6 @@ export function prepareAuthoredMessage(message, thread) {
     const authored = stageAuthoredStates(template.content, new Map());
     rememberPassageParts(template.content, ["event", message.id]);
     const text = template.content.textContent;
-    writePrepaint(template.content);
     const nodes = Object.freeze([...template.content.childNodes]);
     authoredMessages.set(key, {
       message: message.id,
@@ -334,7 +328,6 @@ export class MessageView {
   #dressed = false;
   #arrivalMotion = null;
   #stopRead = null;
-  #header = document.createElement("div");
   #editor = null;
   #kept = false;
   #stopKept = null;
@@ -362,7 +355,6 @@ export class MessageView {
       // Which message a node draws, for a presentation handing the user's place in a
       // thread to another, as the floating panel does to a page's own reader.
       this.node.dataset.message = model.key;
-      this.#header.className = "lf-msg-head";
       this.node.classList.add("lf-ui");
       generatedElement(this.node, { says: false });
       this.node.dataset.lfOffer = "";
@@ -411,7 +403,6 @@ export class MessageView {
         if (keptRewrite(this.#model.id) !== this.#kept)
           this.#commands.edit.paint(this.node);
       });
-    keeps(this.#header, "data-lf-reflow", "text");
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
     this.node.classList.toggle(model.author, true);
@@ -459,8 +450,8 @@ export class MessageView {
           >${model.workflowLabel}</span
         >`
       : nothing;
-    render(
-      html`
+    const header = html`
+      <div class="lf-msg-head" data-lf-reflow="text">
         <b>${model.by}</b
         ><span class="lf-msg-meta"
           >${
@@ -504,9 +495,8 @@ export class MessageView {
           }
         </span>
         ${headerControls}
-      `,
-      this.#header,
-    );
+      </div>
+    `;
     // The user's own words offer their rewrite where an agent's reply offers its
     // reactions: the message's one control, at its header's right edge (shadow.css).
     const rewrite =
@@ -523,7 +513,7 @@ export class MessageView {
         : nothing;
     render(
       html`
-        ${this.#header}
+        ${header}
         <div
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
         >

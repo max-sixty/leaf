@@ -1146,35 +1146,6 @@ _TEXT = {
     "needs-upgrade": _declared(
         lambda v: f"declares {', '.join(v['keys'])} but has no upgraded handler"
     ),
-    "initial-and-prepaint": _declared(
-        lambda v: "declares both x-initial and x-prepaint"
-    ),
-    "prepaint-as": _declared(
-        lambda v: (
-            f"x-prepaint names <{v['as']}>, which declares no x-prepaint markup"
-            " of its own"
-        )
-    ),
-    "prepaint-upgrade": _declared(
-        lambda v: (
-            "x-prepaint requires x-upgrade: true, since only the widget's"
-            " module takes it out"
-        )
-    ),
-    "prepaint-shape": _declared(
-        lambda v: (
-            "x-prepaint must be one element written as the parser reads it"
-            " back, every element closed"
-        )
-    ),
-    "prepaint-element": _declared(
-        lambda v: f"x-prepaint may not hold <{v['element']}>"
-    ),
-    "prepaint-marks": _declared(
-        lambda v: (
-            f"x-prepaint may carry no id and no data-lf- attribute (<{v['element']}>)"
-        )
-    ),
     "unknown-declarations": _declared(
         lambda v: f"{v['key']} names unknown element declarations {_json(v['names'])}"
     ),

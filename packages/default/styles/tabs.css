@@ -244,9 +244,7 @@ lf-tabs.lf-rendered > lf-tab {
     --lf-more-fade-to: #000;
   }
   lf-tabs.lf-rendered > lf-tab::before,
-  html[data-lf-interactive]
-    lf-tabs:not(.lf-rendered):has(> lf-tab)
-    > lf-tab::before {
+  html[data-lf-interactive] lf-tabs:not(.lf-rendered):has(> lf-tab) > lf-tab::before {
     content: none;
   } /* the strip carries the label */
   /* Padding belongs only to the panel on screen. An until-found panel keeps a box in
@@ -256,9 +254,7 @@ lf-tabs.lf-rendered > lf-tab {
     padding: 0;
   }
   lf-tabs.lf-rendered > lf-tab:not([hidden]),
-  html[data-lf-interactive]
-    lf-tabs:not(.lf-rendered):has(> lf-tab)
-    > lf-tab {
+  html[data-lf-interactive] lf-tabs:not(.lf-rendered):has(> lf-tab) > lf-tab {
     padding: var(--sp-4) var(--sp-4) var(--lf-tab-end);
     /* A panel made scrollable starts nested headers at the scrollport's edge,
        not below its padding, where fragments of the scrolled output show through. */
@@ -281,8 +277,7 @@ lf-tabs.lf-rendered > lf-tab {
     z-index: 0;
     anchor-name: --lf-tab-panel;
   }
-  :is(lf-tabs, lf-parts).lf-rendered
-    > :is(lf-tab, lf-part)[data-lf-focus-visible] {
+  :is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part)[data-lf-focus-visible] {
     outline: none;
   }
   :is(lf-tabs, lf-parts).lf-rendered:has(
@@ -344,8 +339,7 @@ lf-tabs.lf-rendered > lf-tab {
     --lf-tab-outcome-h: var(--lf-tab-summary-h);
   }
   lf-tabs[list="side"].lf-rendered,
-  html[data-lf-interactive]
-    lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab) {
+  html[data-lf-interactive] lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab) {
     container-type: inline-size;
     display: grid;
     grid-template-columns: minmax(10rem, 18rem) minmax(0, 1fr);
@@ -458,10 +452,7 @@ lf-tabs.lf-rendered > lf-tab {
     display: flex;
     flex-direction: column;
   }
-  lf-tabs[list="side"].lf-rendered
-    > .lf-tabstrip
-    > .lf-tab-run
-    + .lf-tab-run {
+  lf-tabs[list="side"].lf-rendered > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
     margin-block-start: 2px;
     padding-block-start: 2px;
     border-block-start: 1px solid var(--border-2);
@@ -509,10 +500,7 @@ lf-tabs.lf-rendered > lf-tab {
       --lf-tab-run-gap: 2px;
       gap: var(--lf-tab-run-gap);
     }
-    lf-tabs[list="side"].lf-rendered
-      > .lf-tabstrip
-      > .lf-tab-run
-      + .lf-tab-run {
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
       margin-block-start: 0;
       padding-block-start: 0;
       border-block-start: 0;
@@ -539,9 +527,7 @@ lf-tabs.lf-rendered > lf-tab {
       z-index: 1;
       background: var(--lf-tabstrip-bg);
     }
-    lf-tabs[list="side"].lf-rendered
-      > .lf-tabstrip[data-lf-more-before]
-      .lf-tab-group {
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip[data-lf-more-before] .lf-tab-group {
       inset-inline-start: calc(var(--lf-tabstrip-press) - var(--lf-tabstrip-pad));
     }
     lf-tabs[list="side"].lf-rendered
@@ -605,8 +591,7 @@ lf-tabs.lf-rendered > lf-tab {
     /* Only the open panel stretches: a closed one kept for find-in-page
      * (`hidden="until-found"`) still has a box in the same cell, and stretched it would
      * stand over the open one and take its presses. */
-    lf-tabs[list="side"].lf-rendered
-      > :is(.lf-tabstrip, lf-tab:not([hidden])) {
+    lf-tabs[list="side"].lf-rendered > :is(.lf-tabstrip, lf-tab:not([hidden])) {
       align-self: stretch;
       min-block-size: 0;
       overflow: auto;
@@ -771,9 +756,7 @@ lf-tabs.lf-rendered > lf-tab {
     }
     lf-tabs.lf-rendered[data-lf-views-flow="page"] > .lf-tabstrip,
     html[data-lf-interactive]
-      lf-tabs:not(.lf-rendered)[data-lf-views-flow="page"]:has(
-        > lf-tab
-      )::before {
+      lf-tabs:not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab)::before {
       flex: none;
     }
     lf-tabs.lf-rendered[data-lf-views-flow="page"] > lf-tab:not([hidden]),

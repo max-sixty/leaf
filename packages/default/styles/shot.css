@@ -221,8 +221,7 @@ lf-shot {
   border-block-end: 1px solid var(--rule);
   font: 600 var(--t-working-label)/1.4 var(--sans);
 }
-lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
-  .lf-shot-frame-label {
+lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"] .lf-shot-frame-label {
   display: flex;
 }
 /* Stacked frames carry their own labels; the toolbar only holds controls. */
@@ -286,15 +285,13 @@ lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
   padding: 0;
   margin: 0;
 }
-lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="side"]
-  .lf-shotcanvas {
+lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="side"] .lf-shotcanvas {
   /* Match the toolbar's source labels even when captures leave spare room. */
   inline-size: 100%;
   justify-content: space-between;
   grid-template-columns: repeat(2, calc(var(--lf-shot-viewport-width) + 2px));
 }
-lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
-  .lf-shotcanvas {
+lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"] .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-viewport-width) + 2px);
 }
 lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas {

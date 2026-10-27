@@ -252,8 +252,7 @@ lf-card {
       calc(var(--t-5) + 2 * var(--lf-grip-pad-block))
     );
   }
-  html[data-lf-interactive]
-    lf-card:not(:where([data-lf-exhibit]) *)::before {
+  html[data-lf-interactive] lf-card:not(:where([data-lf-exhibit]) *)::before {
     content: "";
     float: right;
     inline-size: var(--lf-grip-room);

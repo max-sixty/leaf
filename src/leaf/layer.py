@@ -28,7 +28,6 @@ from .schema import (
     KERNEL,
     PACKAGE_DIRS,
     PACKAGE_FILES,
-    PACKAGE_STYLES,
     RUNTIME_DIRS,
     RUNTIME_ENTRY,
     VENDORED_FILES,

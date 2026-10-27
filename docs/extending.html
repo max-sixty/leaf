@@ -297,8 +297,8 @@ flowchart TD
             </details>
             <p id="responsibilities-limits">
               These are contribution boundaries, not a sandbox: package and page scripts
-              run in the same document. CSS scope limits where selectors match, but
-              inheritance and nested content still connect their presentation. The
+              run in the same document. Each package's selectors decide where its rules
+              match, and inheritance connects nested content's presentation. The
               <a href="#styles-contract">CSS contract</a> describes selector reach and
               cascade precedence. The <a href="#check">package checks</a> validate
               declarations and rendered behavior.
@@ -678,9 +678,9 @@ $ leaf page check PAGE --render</code></pre>
               A lower tier's rule loses however specific its selector is, as the widget
               package's <code>lf-card.featured</code> shows. Within a tier, the more
               specific selector wins, and between equally specific selectors the later
-              rule wins. <code>!important</code> reverses the order of the
-              tiers, so a page's <code>!important</code> loses to Leaf's own; an
-              ordinary rule is all an override needs.
+              rule wins. <code>!important</code> reverses the order of the tiers, so a
+              page's <code>!important</code> loses to Leaf's own; an ordinary rule is
+              all an override needs.
             </p>
 
             <h3 id="styles-tiers">The tiers</h3>
@@ -744,9 +744,7 @@ flowchart TD
                   </tr>
                   <tr>
                     <td><code>lf-theme</code></td>
-                    <td>
-                      Each package's <code>theme.css</code>, in package order.
-                    </td>
+                    <td>Each package's <code>theme.css</code>, in package order.</td>
                   </tr>
                   <tr>
                     <td><code>lf-layouts</code></td>
@@ -779,16 +777,19 @@ flowchart TD
 
             <h3 id="styles-packages">A nested widget owns its interior</h3>
             <p id="styles-widget-package">
-              Put a choice inside a release review: the review package can arrange the
-              choice's box, while the default package styles its Options widget inside.
-              Shared theme inputs, such as color and type, flow through both.
+              Put a choice inside a release review: the review package arranges the
+              choice's box, and the default package styles its Options widget inside.
+              Leaf adds no boundary between them, so the review package keeps its rules
+              off the choice's interior by naming its own structure: a child combinator
+              such as <code>lf-release-review &gt; p</code>, or its own classes. Shared
+              theme inputs, such as color and type, flow through both.
             </p>
             <figure id="styles-scope" class="diagram-figure">
               <lf-diagram id="styles-nested-boundary" data-height="484" parts="all">
                 <pre>
 flowchart TD
-  accTitle: Nested widgets retain their own styling boundaries
-  accDescr: Shared theme inputs inherit through the review widget and its nested Options widget. The review package styles its own heading and evidence and arranges the nested widget's host box. The default package alone styles the Options interior.
+  accTitle: A nested widget keeps its own styling when the outer package names its own structure
+  accDescr: Shared theme inputs inherit through the review widget and its nested Options widget. The review package styles its own heading and evidence with selectors that name them, and arranges the nested widget's host box. The default package styles the Options interior.
   Theme["Shared theme inputs&lt;br/&gt;Color, type and spacing"]
   subgraph Review["Review widget"]
     Content["Review package&lt;br/&gt;Heading and evidence"]
@@ -801,15 +802,16 @@ flowchart TD
 </pre>
               </lf-diagram>
               <figcaption>
-                <strong>The boundary stops selectors, not inheritance.</strong>
-                Each package’s <code>widgets.css</code> styles its own content.
-                Review-package rules may arrange the nested host, but stop before its
-                interior. The theme’s colors and type reach both widgets.
+                <strong>Each package names what it styles.</strong>
+                The review package's rules reach the nested host and stop short of its
+                interior because they name the review's own children and classes; a bare
+                descendant rule such as <code>lf-release-review p</code> would reach
+                inside. The theme's colors and type reach both widgets.
               </figcaption>
             </figure>
             <p id="styles-scope-limit">
-              These are styling boundaries, not a security sandbox. Page and theme rules
-              deliberately have wider reach; packages run in the same document. A
+              These are styling conventions, not a security sandbox. Page and theme
+              rules deliberately have wider reach; packages run in the same document. A
               widget's presentation depends on its allotted box and supported theme
               inputs, so it can move between page layouts.
             </p>
@@ -852,8 +854,8 @@ flowchart TD
                 Leaf adds no scope to a sheet, so each rule names the widget it styles:
                 <code>lf-callout .title</code> in the document, and
                 <code>:host(lf-callout) .title</code> in a widget's shadow tree. Shadow
-                trees form a browser boundary: document selectors do not enter them,
-                but inherited inputs and public <code>::part</code> selectors can.
+                trees form a browser boundary: document selectors do not enter them, but
+                inherited inputs and public <code>::part</code> selectors can.
               </p>
               <p id="styles-package-reference">
                 The

@@ -223,9 +223,7 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
   bottom: 9px;
 }
 @media screen {
-  lf-options[choose]:not(:where([data-lf-exhibit]) *):has(
-      > lf-option > strong
-    ) {
+  lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
     /* The seat below, past the card's inset, and a gap before the words. */
     --lf-card-state-room: calc(var(--lf-key-badge-size) + var(--sp-2));
     --lf-card-state-height: 22px;
@@ -427,8 +425,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   :where(lf-options[choose]:not(:where([data-lf-exhibit]) *)) > * {
     padding-inline-start: var(--lf-key-badge-col);
   }
-  :where(lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *))
-    > * {
+  :where(lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)) > * {
     padding-block: var(--sp-2);
     padding-inline-end: var(--sp-3);
   }
@@ -610,7 +607,57 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
    * around it is suppressed rather than reading as a second border. The obligation is matched
    * as a widget root as well as a descendant, so an obligation at the page's top level is
    * reached too. */
-  :is(lf-activity, lf-ask, lf-board, lf-card, lf-chart, lf-code, lf-column, lf-draft, lf-gloss, lf-note, lf-num, lf-option, lf-options, lf-pane, lf-part, lf-parts, lf-sample, lf-shot, lf-tab, lf-tabs, lf-tally, lf-text-document, lf-toc, :is(lf-activity, lf-ask, lf-board, lf-card, lf-chart, lf-code, lf-column, lf-draft, lf-gloss, lf-note, lf-num, lf-option, lf-options, lf-pane, lf-part, lf-parts, lf-sample, lf-shot, lf-tab, lf-tabs, lf-tally, lf-text-document, lf-toc) *)[data-lf-obligation]:has(
+  :is(
+      lf-activity,
+      lf-ask,
+      lf-board,
+      lf-card,
+      lf-chart,
+      lf-code,
+      lf-column,
+      lf-draft,
+      lf-gloss,
+      lf-note,
+      lf-num,
+      lf-option,
+      lf-options,
+      lf-pane,
+      lf-part,
+      lf-parts,
+      lf-sample,
+      lf-shot,
+      lf-tab,
+      lf-tabs,
+      lf-tally,
+      lf-text-document,
+      lf-toc,
+      :is(
+          lf-activity,
+          lf-ask,
+          lf-board,
+          lf-card,
+          lf-chart,
+          lf-code,
+          lf-column,
+          lf-draft,
+          lf-gloss,
+          lf-note,
+          lf-num,
+          lf-option,
+          lf-options,
+          lf-pane,
+          lf-part,
+          lf-parts,
+          lf-sample,
+          lf-shot,
+          lf-tab,
+          lf-tabs,
+          lf-tally,
+          lf-text-document,
+          lf-toc
+        )
+        *
+    )[data-lf-obligation]:has(
       lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus-visible]
     ) {
     --lf-obligation-ring: none;
@@ -751,9 +798,7 @@ lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
   --lf-row-gap: var(--sp-2);
   padding-inline-start: var(--lf-pick-col);
 }
-lf-options[choose]:not(:where([data-lf-exhibit]) *):not(
-    :has(> lf-option > strong)
-  )
+lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
   > :is(lf-option, .lf-another) {
   padding-inline-start: calc(var(--lf-key-badge-col) + var(--lf-pick-col));
 }
@@ -793,8 +838,7 @@ lf-options:not(:has(> lf-option > strong)) > .lf-another {
       --lf-ground: var(--chip);
       background: var(--lf-ground);
     }
-    lf-options[choose]:not(:where([data-lf-exhibit]) *)
-      > lf-option[chosen]:hover {
+    lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option[chosen]:hover {
       --lf-ground: color-mix(in srgb, var(--ok-tint) 92%, var(--ink));
     }
   }

@@ -19,12 +19,10 @@ from render_cases_interaction import (
 )
 from render_harness import (
     LONG_PAGE,
-    displayed,
     example_media,
     leaf_page,
     open_page,
     resized,
-    restarting,
     round_trip,
     scroll_settled,
     select_words,
@@ -42,7 +40,7 @@ from browser.threads import (
     paste_image,
 )
 from leaf import thread as thread_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -3013,9 +3013,7 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     conflict.mkdir()
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
-    (layer / "theme.css").write_text(
-        "lf-new-shape { --accent: rebeccapurple; }\n"
-    )
+    (layer / "theme.css").write_text("lf-new-shape { --accent: rebeccapurple; }\n")
     (layer / "registry.json").write_text(
         json.dumps({"lf-new-shape": element_declaration("lf-new-shape")})
     )
@@ -4245,9 +4243,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "registry.json").write_text(
         json.dumps({"lf-solo": element_declaration("lf-solo", upgrade=True)})
     )
-    (widget_package / "widgets.css").write_text(
-        "lf-solo { --lf-block-frame: 1; }\n"
-    )
+    (widget_package / "widgets.css").write_text("lf-solo { --lf-block-frame: 1; }\n")
     (widget_package / "widgets" / "lf-solo.js").write_text(
         'import { ready } from "./ready.js";\n'
         'customElements.define("lf-solo", class extends HTMLElement {\n'

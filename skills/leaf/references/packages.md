@@ -88,12 +88,12 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 Choose a stylesheet by the contribution it makes. A package may supply any combination;
 adding a widget does not change its theme or control styling.
 
-| Sheet               | Document                                               | Declared shadow trees                |
-| ------------------- | ------------------------------------------------------ | ------------------------------------ |
-| `widgets.css`       | `lf-base`                                              | —                                    |
-| `widget-shadow.css` | `lf-base`                                              | `lf-shadow`                          |
-| `theme.css`         | Page-wide in `lf-theme`                                | —                                    |
-| `controls.css`      | Explicit access to generated controls in `lf-controls` | —                                    |
+| Sheet               | Document                                               | Declared shadow trees |
+| ------------------- | ------------------------------------------------------ | --------------------- |
+| `widgets.css`       | `lf-base`                                              | —                     |
+| `widget-shadow.css` | `lf-base`                                              | `lf-shadow`           |
+| `theme.css`         | Page-wide in `lf-theme`                                | —                     |
+| `controls.css`      | Explicit access to generated controls in `lf-controls` | —                     |
 
 Widget defaults rank below Layouts; theme contributions rank above them. Leaf orders
 the cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-theme`,

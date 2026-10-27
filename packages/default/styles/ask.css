@@ -90,9 +90,9 @@ lf-ask[data-lf-obligation]::after {
  * empty, and the reading column was too narrow for it, so every such lf-ask had to ask
  * for the wide measure. */
 lf-ask:has(
-    > :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options,
-    > lf-options > lf-option :is(figure, img, svg, table, [data-lf-visual])
-  ) {
+  > :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options,
+  > lf-options > lf-option :is(figure, img, svg, table, [data-lf-visual])
+) {
   --lf-options-across: 1;
 }
 /* An lf-ask told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
@@ -115,10 +115,10 @@ lf-ask:has(
     flex: none;
   }
   lf-ask:has(
-      > :nth-last-child(1 of :not(script, style, template)):not(
-          :nth-child(1 of :not(script, style, template))
-        )
-    ) {
+    > :nth-last-child(1 of :not(script, style, template)):not(
+        :nth-child(1 of :not(script, style, template))
+      )
+  ) {
     --lf-full-height: inherit;
   }
   lf-ask

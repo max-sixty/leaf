@@ -207,8 +207,7 @@ lf-toc a[data-lf-focus] {
         pointer-events: auto;
       }
       lf-toc:is(:hover, [data-lf-focus-within], [data-lf-outline]),
-      lf-toc:is(:hover, [data-lf-focus-within], [data-lf-outline])
-        .lf-toc-nav {
+      lf-toc:is(:hover, [data-lf-focus-within], [data-lf-outline]) .lf-toc-nav {
         pointer-events: auto;
       }
       @scope (body[data-lf-go-to-active] lf-toc) {
@@ -287,8 +286,7 @@ lf-toc a[data-lf-focus] {
         border: 1px solid var(--muted);
         background: var(--paper);
       }
-      lf-toc
-        :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
+      lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
         background: var(--accent);
         border-color: var(--accent);
       }

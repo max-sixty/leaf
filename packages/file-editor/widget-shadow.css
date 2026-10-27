@@ -53,15 +53,13 @@
   font: inherit;
   cursor: pointer;
 }
-:host(lf-file-editor)
-  :is(.lf-file-editor-retry, .lf-file-editor-conflict)::before {
+:host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict)::before {
   content: "";
   position: absolute;
   inset-inline: 0;
   inset-block: calc(-1 * var(--lf-file-editor-head-pad));
 }
-:host(lf-file-editor)
-  :is(.lf-file-editor-retry, .lf-file-editor-conflict)[hidden] {
+:host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict)[hidden] {
   display: none;
 }
 :host(lf-file-editor)

@@ -1990,8 +1990,10 @@ leaf-text.lf-fab-input {
   display: none;
   font: var(--t-5)/1.5 var(--sans);
 }
-.lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
-  display: var(--lf-response-display, inline-flex);
+@media screen {
+  .lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
+    display: var(--lf-response-display, inline-flex);
+  }
 }
 .lf-fab-bar[data-lf-presentation=inline] {
   position: static;
@@ -2015,11 +2017,6 @@ leaf-text.lf-fab-input {
 }
 .lf-fab-bar[data-lf-presentation=inline] > .lf-surface-grip {
   display: none;
-}
-@media print {
-  .lf-fab-bar[data-lf-presentation=inline] {
-    display: none;
-  }
 }
 
 /* browser/styles/components/integration.css */

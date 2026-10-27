@@ -5217,7 +5217,7 @@ function holdReplyCompositions(threads, realize) {
 				const destination = await realize(current.get(context).id, intent);
 				if (!intent.available()) continue;
 				const replacement = compositionOf(destination) ?? compositionOf(destination?.querySelector(".lf-thread-reply, .lf-say"));
-				if (replacement && replacement.controls.input.checkVisibility()) adopt(context, carry(replacement, owner));
+				if (replacement && drawn$2(replacement.controls.input)) adopt(context, carry(replacement, owner));
 			}
 		} finally {
 			for (const { session } of displaced) session.continuing = false;
@@ -5256,7 +5256,7 @@ function handOver(target, owner) {
 	return owner;
 }
 function carry(target, owner) {
-	if (target === owner || owner.retired || !target.binding || owner.binding && owner.row.checkVisibility()) return target;
+	if (target === owner || owner.retired || !target.binding || owner.binding && drawn$2(owner.row)) return target;
 	const session = compositions.get(owner.context);
 	if (session && session.owner !== owner && session.owner !== target) return target;
 	return handOver(target, owner);
@@ -5273,7 +5273,7 @@ function parkRow(row) {
 function releaseReplies(surface) {
 	for (const { owner } of compositions.values()) {
 		if (!owner?.binding || !surface.contains(owner.row)) continue;
-		const shown = [...views.get(owner.context)].find((view) => view !== owner && view.controls.input.checkVisibility());
+		const shown = [...views.get(owner.context)].find((view) => view !== owner && drawn$2(view.controls.input));
 		if (shown) handOver(shown, owner);
 		else {
 			const redrawGiver = owner.binding.give();

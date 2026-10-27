@@ -34,15 +34,23 @@
   const overlay = (el, over) =>
     !!closestAcross(over, ".lf-chrome") !== !!closestAcross(el, ".lf-chrome") ||
     closestAcross(over, TOP) !== closestAcross(el, TOP);
+  const holds = (outer, el) => {
+    for (let at = el; at; at = at.parentNode || at.host) if (at === outer) return true;
+    return false;
+  };
   const reachedBy = (el, x, y) => {
-    // A press that lands on a box hidden from the accessibility tree is another route
-    // to something a control gives, as a tab strip's paging edge stands over the tab
-    // scrolled beneath it: it stands over a face by design and takes no aim from it.
-    if (closestAcross(pressed(x, y), '[aria-hidden="true"]')) return false;
+    // A box hidden from the accessibility tree inside the control's own container is
+    // that container's other route to what it holds, as a tab strip's paging edge
+    // stands over the tab scrolled beneath it: it stands over a face by design and
+    // takes no aim from it. A hidden child of another control, such as an icon in a
+    // neighbouring button, still lies over this one.
+    let hidden = false;
     for (let at = pressed(x, y); at; at = at.parentNode || at.host) {
       if (at === el) return false;
-      if (at.nodeType !== 1 || !at.matches(PRESS)) continue;
-      return !overlay(el, at);
+      if (at.nodeType !== 1) continue;
+      if (at.matches('[aria-hidden="true"]')) hidden = true;
+      if (!at.matches(PRESS)) continue;
+      return !(hidden && holds(at, el)) && !overlay(el, at);
     }
     return false;
   };

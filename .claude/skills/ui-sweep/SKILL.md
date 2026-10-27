@@ -89,7 +89,7 @@ Generate experiments by perturbing the model: nest or replace an interaction, re
 or cancel it, exhaust its available room, or change external state while it remains
 active. Where several modes take turns in one place, switch through each with no
 content in it and compare the place's box with the token that sizes it
-(`browser/AGENTS.md`, "What takes turns in a place doesn't size it"). Vary one factor at a time across an ownership boundary, exercise both the
+(`browser/AGENTS.md`, "Shared containers determine control dimensions"). Vary one factor at a time across an ownership boundary, exercise both the
 forward and return paths, and include an unrelated change that should preserve the
 active relationship. State what must change and what must survive before driving.
 When a change sends an existing surface into a different layout or fallback, compare

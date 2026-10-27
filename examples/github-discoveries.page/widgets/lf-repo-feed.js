@@ -11,7 +11,7 @@ import {
   whileConnected,
   tabStore,
   HeldReading,
-  projectData,
+  keeps,
   publishOutput,
   threadActions,
   readThreads,
@@ -61,6 +61,33 @@ function sourceMarkdown(item) {
 }
 
 class RepoFeed extends LeafElement {
+  // The captured feed, set by whoever hosts the widget: Leaf from the bound source (the
+  // registry's `x-data.changes.property`), or null while that source has none.
+  static properties = { value: { attribute: false } };
+
+  // The Markdown renderer's load while a draw waits for it, which `updateComplete`
+  // waits for too.
+  #markdown;
+
+  constructor() {
+    super();
+    this.value = null;
+  }
+
+  async getUpdateComplete() {
+    const result = await super.getUpdateComplete();
+    await this.#markdown;
+    return result;
+  }
+
+  // Load the Markdown renderer, and draw again once it has loaded.
+  #loadMarkdown() {
+    this.#markdown ??= loadMarkdown().then(() => {
+      this.#markdown = undefined;
+      this.requestUpdate();
+    });
+  }
+
   setup() {
     this.distance = tabStore.get(`${this.id}:distance`) ?? "all";
     this.topic = tabStore.get(`${this.id}:topic`) ?? "all";
@@ -68,13 +95,11 @@ class RepoFeed extends LeafElement {
     this.workState = { busy: false, exhausted: false, error: "" };
     this.loading = false;
     this.github = new GitHubFeed();
-    this.liveReading = null;
+    // The feed live exploration composed, which replaces the captured one in this tab.
+    this.liveFeed = null;
     this.readAheadPaused = false;
     this.liveEnabled = false;
-    this.markdownLoad = loadMarkdown().then(() => {
-      this.requestUpdate();
-      return this.updateComplete;
-    });
+    this.#loadMarkdown();
     this.filtered = [];
     this.openedSources = new Set();
     this.news = new HeldReading(
@@ -146,7 +171,7 @@ class RepoFeed extends LeafElement {
   }
 
   async collect(action, { reveal = true } = {}) {
-    if (!this.snapshot || this.loading) return;
+    if (!this.shown || this.loading) return;
     this.liveEnabled = true;
     this.loading = true;
     this.workState.error = "";
@@ -159,9 +184,9 @@ class RepoFeed extends LeafElement {
         this.github.exhausted = false;
         await this.github.discover();
       }
-      const current = this.liveReading || this.snapshot;
+      const current = this.liveFeed || this.shown;
       const stories = await this.github.collect(
-        current.value.items,
+        current.items,
         this.distance,
         (stage) => {
           this.workState.stage = stage;
@@ -169,18 +194,14 @@ class RepoFeed extends LeafElement {
         },
       );
       const value = {
-        ...current.value,
+        ...current,
         fetched_at: new Date().toISOString(),
         items:
           action === "refresh"
-            ? [...stories, ...current.value.items]
-            : [...current.value.items, ...stories],
+            ? [...stories, ...current.items]
+            : [...current.items, ...stories],
       };
-      this.liveReading = {
-        contract: current.contract,
-        value,
-        origin: { derived: [{ widget: this.id }] },
-      };
+      this.liveFeed = value;
       publishOutput(this, "stories", value);
       this.workState.exhausted = !this.github.hasMore(this.distance);
       this.readAheadPaused = stories.length === 0;
@@ -200,7 +221,7 @@ class RepoFeed extends LeafElement {
       )
     )
       return;
-    const index = this.snapshot?.value.items.findIndex((item) => item.id === key) ?? -1;
+    const index = this.shown?.items.findIndex((item) => item.id === key) ?? -1;
     if (index < 0) return;
     this.distance = "all";
     this.topic = "all";
@@ -228,37 +249,37 @@ class RepoFeed extends LeafElement {
   }
 
   render() {
-    const incoming = this.liveReading || this.data("changes");
+    const incoming = this.liveFeed || this.value;
     // Let updates through when the existing visible prefix stays in place, in any order.
-    const ordered = incoming?.value.items.filter(
+    const ordered = incoming?.items.filter(
       (item) =>
         (this.distance === "all" || item.distance === this.distance) &&
         (this.topic === "all" || item.topic === this.topic),
     );
     if (
       !incoming ||
-      (this.snapshot &&
+      (this.shown &&
         this.filtered
           .slice(0, this.limit)
           .every((item, index) => ordered[index]?.id === item.id))
     )
       this.news.release();
-    this.snapshot = this.news.hold(incoming);
-    if (!this.snapshot)
+    this.shown = this.news.hold(incoming);
+    if (!this.shown)
       return html`<p class="feed-empty">
         The stream is waiting for its first collection of repository changes.
       </p>`;
-    const value = this.snapshot.value;
+    const value = this.shown;
     this.filtered = value.items.filter(
       (item) =>
         (this.distance === "all" || item.distance === this.distance) &&
         (this.topic === "all" || item.topic === this.topic),
     );
     const shown = this.filtered.slice(0, this.limit);
-    const pending = incoming && incoming !== this.snapshot;
+    const pending = incoming && incoming !== this.shown;
     const freshCount = pending
-      ? incoming.value.items.filter(
-          (item) => !this.snapshot.value.items.some((old) => old.id === item.id),
+      ? incoming.items.filter(
+          (item) => !this.shown.items.some((old) => old.id === item.id),
         ).length
       : 0;
     const mode = DISTANCES.find(([key]) => key === this.distance)[1];
@@ -412,15 +433,8 @@ class RepoFeed extends LeafElement {
   sourceOpened(event, id) {
     if (!event.target.open) return;
     this.openedSources.add(id);
+    if (!markdownReady()) this.#loadMarkdown();
     this.requestUpdate();
-    if (markdownReady()) return;
-    this.drawing(
-      (async () => {
-        await loadMarkdown();
-        this.requestUpdate();
-        await this.updateComplete;
-      })(),
-    );
   }
 
   card(item) {
@@ -529,28 +543,21 @@ class RepoFeed extends LeafElement {
   }
 
   updated() {
-    if (this.markdownLoad) {
-      const work = this.markdownLoad;
-      this.markdownLoad = null;
-      this.drawing(work);
+    if (!this.shown) return;
+    const indices = new Map(this.shown.items.map((item, index) => [item.id, index]));
+    // Each story card is a datum on a Leaf page, following its story by id.
+    for (const node of this.querySelectorAll("[data-change]")) {
+      const index = indices.get(node.dataset.change);
+      keeps(node, "data-lf-datum", node.dataset.change);
+      keeps(node, "data-lf-identity", node.dataset.change);
+      keeps(node, "data-lf-datum-label", this.shown.items[index].headline);
+      keeps(node, "data-lf-origin-path", JSON.stringify(["items", index]));
     }
-    if (!this.snapshot) return;
-    const indices = new Map(
-      this.snapshot.value.items.map((item, index) => [item.id, index]),
-    );
-    projectData(
-      this,
-      [...this.querySelectorAll("[data-change]")].map((node) => ({
-        node,
-        key: node.dataset.change,
-        identity: node.dataset.change,
-        label: this.snapshot.value.items[indices.get(node.dataset.change)].headline,
-        origin: {
-          ...this.snapshot.origin,
-          path: ["items", indices.get(node.dataset.change)],
-        },
-      })),
-      { snapshot: this.snapshot },
+    // A feed live exploration composed came from no source.
+    this.dispatchEvent(
+      new CustomEvent("drawn", {
+        detail: { value: this.shown === this.liveFeed ? null : this.shown },
+      }),
     );
     const more = this.querySelector(".feed-more");
     this.observer.disconnect();

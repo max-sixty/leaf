@@ -29,6 +29,7 @@ from render_cases_navigation import (
     TWICE_PAGE,
 )
 from render_harness import (
+    CARRIED_PAGE,
     EXAMPLE_PACKAGES,
     EXAMPLES,
     REPLAYED_PAGE,
@@ -95,7 +96,7 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         pageAnimation.currentTime = pageAnimation.effect.getTiming().duration / 2;
         const transform = getComputedStyle(document.getElementById("page-pulse")).transform;
 
-        const control = document.querySelector(".lf-fp-threads");
+        const control = document.querySelector(".lf-fp-on-user");
         control.setAttribute("aria-busy", "true");
         const runtimeAnimation = control.getAnimations()[0];
         return {
@@ -209,7 +210,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
             or chip["y"] + chip["height"] <= state_box["y"]
             or state_box["y"] + state_box["height"] <= chip["y"]
         )
-        assert separate, "the selected header state covers an authored chip"
+        assert separate, "the pick's check covers an authored chip"
 
     # More chips than fit on a line wrap along the band rather than over the card's edge.
     # The pair this replaced could not: each was an absolutely-positioned box sized to
@@ -250,15 +251,17 @@ def test_a_row_too_narrow_to_dock_a_rail_stacks_it_instead(browser, serve):
     assert rail["y"] + rail["height"] <= prose["y"], "the case has to clear the rail"
 
 
-def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve):
-    """A completed obligation keeps the same live-card state when reopened for review."""
+def test_a_live_card_pick_shows_the_check_and_remains_pressable(browser, serve):
+    """A picked card wears the check alone, as a row does, and keeps it when a
+    completed obligation is reopened for review; "selected" stays its accessible name."""
     page = open_page(browser, live_url(serve(SETTLED_PAGE)))
     page.locator("#transport .lf-settled").click()
     mark = page.locator("#opt-lax .lf-pick")
     assert mark.get_attribute("aria-checked") == "true"
     assert mark.get_attribute("aria-label") == "selected: Lax cookie — option 1 of 3"
-    assert mark.evaluate("el => getComputedStyle(el).fontSize") != "0px"
-    expect(mark).to_have_text("selected")
+    assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px", (
+        "a picked card draws no word beside its check"
+    )
     assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
 
     strict = page.locator("#opt-strict")
@@ -1780,15 +1783,21 @@ def test_a_row_holds_its_mark_still_under_its_own_press(browser, serve):
 def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, width):
     """A row's § reference rides at the end of the words' last line where it fits, and
     drops under them where it doesn't, so on a phone the words keep the row's width
-    rather than wrapping into a column beside it."""
+    rather than wrapping into a column beside it. Rows that all name one block draw no
+    reference, since each would repeat the same place."""
     source = leaf_page(
         "Block references",
         """<h1>Follow-up</h1>
 <lf-options id="follow" choose>
-  <lf-option id="short" for="stall">Ship it.</lf-option>
+  <lf-option id="short" for="plan">Ship it.</lf-option>
   <lf-option id="long" for="stall">Ship with the resend and keep chasing the upstream
   fix until the vendor names a release.</lf-option>
 </lf-options>
+<lf-options id="same" choose>
+  <lf-option id="same-ship" for="stall">Ship it.</lf-option>
+  <lf-option id="same-hold" for="stall">Hold it.</lf-option>
+</lf-options>
+<section id="plan"><h2>Release plan</h2><p>Monday.</p></section>
 <section id="stall"><h2>iOS reconnect stall</h2><p>One reconnect in about 40.</p>
 </section>""",
     )
@@ -1812,6 +1821,7 @@ def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, wid
         assert reading["withRef"] == reading["without"], (option, reading)
         assert reading["inside"], (option, reading)
     expect(page.locator("#long .lf-ref")).to_have_text("§ iOS reconnect stall")
+    expect(page.locator("#same .lf-ref")).to_have_count(0)
 
 
 def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve):
@@ -2431,12 +2441,12 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     message = page.locator(".lf-msg:has(#rp-live)")
     status = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(page.locator("#rp-live > .lf-msg-sending")).to_have_count(0)
-    expect(status).to_have_text("Sent")
+    expect(status).to_have_text("Saved")
     record_claim(d)
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, actions)
     told(page)
-    expect(status).to_have_text("Delivered")
+    expect(status).to_have_text("Got it")
     assert page.locator("#rp-quoted lf-option[chosen]").count() == 0
 
 
@@ -2533,7 +2543,7 @@ def test_a_thread_obligations_done_press_keeps_its_keys_and_one_workflow(
     )
     statuses = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(statuses).to_have_count(1)
-    expect(statuses).to_have_text("Sent")
+    expect(statuses).to_have_text("Saved")
 
 
 def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
@@ -2553,7 +2563,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     page.keyboard.press("2")
     expect(page.locator("#ar-canary-suppress")).to_have_attribute("chosen", "")
     # The answer's pin stands in the first card's corner, where the seats are.
-    expect(page.locator('.lf-margin-entry[aria-label^="Sent"]')).to_be_visible()
+    expect(page.locator('.lf-margin-entry[aria-label^="Saved"]')).to_be_visible()
     rendered(page)
     seats = page.evaluate(
         """() => [...document.querySelectorAll('#ar-canary-choice > lf-option')].map((o) => {
@@ -2608,3 +2618,111 @@ def test_an_obligation_digit_hangs_off_a_corner_clear_of_its_neighbours(browser,
         }"""
     )
     assert reading == {"covers": 0, "touches": True}, reading
+
+
+def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
+    """An authored pick without a live control is a check with an accessible name.
+
+    The selected state does not introduce a visible status caption or new page words,
+    and the generated fallback remains outside the diff's authored-text reading.
+    """
+    url = serve(CARRIED_PAGE)
+    page = open_page(browser, live_url(url))
+    mark = page.locator("#c-lax .lf-pick")
+    assert mark.get_attribute("role") == "img"
+    assert mark.get_attribute("aria-label") == "selected: Lax cookie"
+    assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px"
+    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
+
+    # The generated check is not authored text, so rewording another option marks only
+    # that option in the version comparison.
+    d = serve.page_dir
+    stamp_page(
+        d,
+        CARRIED_PAGE.replace("Suits the mobile client", "Suits the mobile client best"),
+        "two",
+    )
+    wait_for_revision(page, 2)
+    compare_with(page)
+    page.wait_for_function(
+        "() => document.querySelectorAll('.lf-ins-block').length > 0"
+    )
+    assert page.evaluate(
+        "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
+    ) == ["c-bearer"], "the diff read the mark as text the base version lacked"
+
+
+def test_option_words_render_markdown_without_losing_the_user_draft(browser, serve):
+    source = OBLIGATION_PAGE.replace(
+        "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
+    )
+    url = serve(source)
+    page = open_page(browser, url)
+    authored = page.locator("#job-mounts")
+    expect(authored.locator(":scope > .lf-markdown-words em")).to_have_text("widget")
+    expect(authored.locator(":scope > .lf-pick")).to_have_attribute(
+        "aria-label", re.compile(r"Ask the widget to decide — option 1")
+    )
+
+    group = page.locator("#jobs")
+    write(group.get_by_role("textbox", name="Another option"), "Keep **both** routes")
+    group.get_by_role("button", name="Add and select option").click()
+    added = group.locator(":scope > lf-option[data-lf-added]")
+    expect(added.locator("strong")).to_have_text("both")
+    round_trip(page)
+    page.reload(wait_until="load")
+    expect(added.locator("strong")).to_have_text("both")
+
+    group.locator("#job-heater").click()
+    round_trip(page)
+    adds = [
+        event["detail"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("kind") == "action" and event.get("action") == "add"
+    ]
+    assert adds == [
+        {"option": added.get_attribute("id"), "text": "Keep **both** routes"}
+    ]
+    expect(added.locator("strong")).to_have_text("both")
+
+
+def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
+    browser, serve
+):
+    """Authors write a card's consequence after its title as a plain sentence, as one
+    holding an inline element or Markdown, or as a paragraph, and each reads as one
+    card: the paragraph's own margin had set it three times as far under the title, and
+    the title's margin set the sentence with an element 4px lower than a plain one."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "option shapes",
+                '<lf-options id="shapes" choose>'
+                '<lf-option id="sentence"><strong>Ship it</strong> The cohort gets it now.'
+                "</lf-option>"
+                '<lf-option id="element"><strong>Stage it</strong> The cohort gets '
+                "<em>half</em> now.</lf-option>"
+                '<lf-option id="markdown"><strong>Pause it</strong> The cohort '
+                "waits *a day*.</lf-option>"
+                '<lf-option id="paragraph"><strong>Hold it</strong>'
+                "<p>The cohort waits for the fix.</p></lf-option>"
+                "</lf-options>",
+            )
+        ),
+    )
+    gaps = page.evaluate(
+        """() => Object.fromEntries(['sentence', 'element', 'markdown', 'paragraph'].map((id) => {
+          const option = document.getElementById(id);
+          const title = option.querySelector(':scope > strong');
+          const walk = document.createTreeWalker(option, NodeFilter.SHOW_TEXT);
+          walk.currentNode = title.lastChild;
+          let text = walk.nextNode();
+          while (!text.data.trim()) text = walk.nextNode();
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          return [id, range.getClientRects()[0].top - title.getBoundingClientRect().bottom];
+        }))"""
+    )
+    for shape in ("element", "markdown", "paragraph"):
+        assert gaps[shape] == pytest.approx(gaps["sentence"], abs=1), gaps

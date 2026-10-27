@@ -24,7 +24,8 @@ always preserve the full viewport and its geometry.
 Use repeated `--state` options to compare only the states a change touches.
 
 Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
-module that owns the rule (`runtime/image-difference.js`), loaded into the browser.
+module that owns the rule (the default package's `widgets/image-difference.js`),
+loaded into the browser.
 Each invocation allocates a run directory under `.tmp/stills/`. Each state's
 directory within it holds `base.png` and `head.png`, and for a
 change `base-crop.png` and `head-crop.png` cropped to the union of its regions (or
@@ -37,6 +38,7 @@ directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
 """
 
+import re
 import tempfile
 import traceback
 from collections.abc import Callable
@@ -60,6 +62,7 @@ from leaf_dev.arms import (
 from leaf_dev.browser import (
     BESIDE,
     DESKTOP,
+    go_to_threads,
     headless_shell,
     load,
     scroll_settled,
@@ -69,7 +72,7 @@ from leaf_dev.browser import (
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
-DIFFERENCE = ROOT / "browser" / "runtime" / "image-difference.js"
+DIFFERENCE = ROOT / "packages" / "default" / "widgets" / "image-difference.js"
 # Where `differences` serves the stills and the module that compares them.
 ORIGIN = "http://stills.invalid"
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
@@ -77,6 +80,22 @@ OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
 def at_rest(page: Page) -> None:
     """The page as it loads."""
+
+
+def worktree_summaries(page: Page) -> None:
+    """Close the initially open worktree so the list's summary columns stand together."""
+    page.locator("#worktree-example-worktree-0 > details > summary").click()
+    expect(
+        page.locator("#worktree-example-worktree-0 > details")
+    ).not_to_have_attribute("open")
+
+
+def plan_execution(page: Page) -> None:
+    """The execution step with its security qualification in view."""
+    page.locator("#plan-execute > h3").evaluate(
+        "element => element.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    scroll_settled(page)
 
 
 def captured_source(page: Page) -> None:
@@ -93,6 +112,12 @@ def native_code(page: Page) -> None:
         "tab", name="Page & layout", exact=True
     ).click()
     page.locator("#bg-javascript-code").scroll_into_view_if_needed()
+
+
+def native_code_copy_hover(page: Page) -> None:
+    """A document code block under the pointer, which shows its Copy on its border."""
+    native_code(page)
+    page.locator("#bg-javascript-code").hover()
 
 
 def recorded_video(page: Page) -> None:
@@ -264,6 +289,12 @@ def diff_filter(page: Page) -> None:
     settle(page)
 
 
+def diff_separator(page: Page) -> None:
+    """A hunk separator's label between the source lines around it."""
+    page.locator("#pr-key-hunk [data-separator]").first.scroll_into_view_if_needed()
+    settle(page)
+
+
 def playground_text(page: Page) -> None:
     """A playground's native text control with the shared field face and focus."""
     field = page.get_by_role("textbox", name="Notification title", exact=True)
@@ -271,6 +302,15 @@ def playground_text(page: Page) -> None:
     page.keyboard.press("Tab")
     field.fill("Deployment ready")
     expect(field).to_have_value("Deployment ready")
+
+
+def page_about(page: Page) -> None:
+    """The page's identity and captured diagnostics in the menu's inspection dialog."""
+    page.locator(".lf-fp-leaf").click()
+    page.locator('.lf-fp-item[data-row="inspection"]').click()
+    expect(page.locator(".lf-inspection-dialog")).to_contain_text(
+        re.compile(r"Source captured for r\d+")
+    )
 
 
 def panel_leaf(page: Page) -> None:
@@ -285,15 +325,9 @@ def panel_status_hover(page: Page) -> None:
     page.locator(".lf-fp-leaf").hover()
 
 
-def open_threads(page: Page) -> None:
-    """The floating panel's Threads view, listing every open thread."""
-    page.locator(".lf-fp-threads").click()
-    page.locator(".lf-fp-filters button", has_text="Open").click()
-
-
 def open_thread(page: Page, key: str) -> None:
     """The thread `key`, opened from Threads in the floating panel's view."""
-    open_threads(page)
+    go_to_threads(page)
     page.locator(f'.lf-fp-thread[data-key="{key}"]').click()
     expect(page.locator(".lf-fp-view[data-view=thread] .lf-msg").first).to_be_visible()
 
@@ -301,7 +335,7 @@ def open_thread(page: Page, key: str) -> None:
 def floating_thread(page: Page) -> None:
     """The floating panel with a thread opened from Threads: the thread's title over
     its view, and under it, on the row, the way back, Show on page, Resolve and Close."""
-    open_threads(page)
+    go_to_threads(page)
     page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
 
@@ -330,6 +364,11 @@ def motion_controls(page: Page) -> None:
     select = page.locator(".lf-motion-speed select").first
     select.scroll_into_view_if_needed()
     select.focus()
+
+
+def timeline_steps(page: Page) -> None:
+    """A timeline's Previous and Next beside its position, above its lanes."""
+    page.locator("#race-before .lf-timeline-controls").scroll_into_view_if_needed()
 
 
 def card_by_pointer(page: Page) -> None:
@@ -443,7 +482,7 @@ def seat_held_news(page: Page) -> None:
     drafts a reply in it: the agent's question on a goal, which a reload draws in
     place."""
     as_agent(
-        "thread", "open", "--section", "goal-parser", "--text", "Which worker first?"
+        "thread", "create", "--section", "goal-parser", "--text", "Which worker first?"
     )
     load(page, served_page.get().address)
     thread = page.locator("#goal-parser .lf-page-thread")
@@ -451,10 +490,48 @@ def seat_held_news(page: Page) -> None:
     held_news(page, thread)
 
 
-def threads_panel(page: Page) -> None:
-    """Threads, opened from the floating panel's thread mark."""
-    page.locator(".lf-fp-threads").click()
-    expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
+def option_picked(page: Page) -> None:
+    """The panel's row just after the plan's rollout option is picked and admitted,
+    while a passing notice would still stand in its status seat."""
+    option = page.locator("#plan-admin")
+    option.scroll_into_view_if_needed()
+    option.click()
+    expect(page.locator(".lf-live")).to_contain_text("— sent")
+
+
+def option_references(page: Page) -> None:
+    """The patch decision, whose two options both name the stall block above them."""
+    page.locator("#off-workaround-review").scroll_into_view_if_needed()
+
+
+def on_me(page: Page) -> None:
+    """On me, opened from the floating panel's On me mark."""
+    page.locator(".lf-fp-on-user").click()
+    expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
+
+
+def on_me_choice(page: Page) -> None:
+    """A described choice card in On me, before answering."""
+    on_me(page)
+    card = page.locator('.lf-fp-on-item[data-obligation="widget:decision-dedupe"]')
+    card.scroll_into_view_if_needed()
+
+
+def on_me_choice_answered(page: Page) -> None:
+    """The result and Undo replacing a described choice on its retained card."""
+    on_me_choice(page)
+    card = page.locator('.lf-fp-on-item[data-obligation="widget:decision-dedupe"]')
+    card.locator(".lf-fp-answer").first.click()
+    expect(card.locator(".lf-fp-said")).to_contain_text("Answered:")
+
+
+def on_agent(page: Page) -> None:
+    """The On view turned to the agent's tab."""
+    on_me(page)
+    page.locator(".lf-fp-filters button").filter(
+        has_text=re.compile(r"^\s*On (?!me)")
+    ).first.click()
+    expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
 
 
 def call_tree(page: Page) -> None:
@@ -522,8 +599,7 @@ def retained_quote(page: Page) -> None:
     sample = page.locator("#bg-retained-quote-sample")
     sample.scroll_into_view_if_needed()
     child = sample.frame_locator("iframe")
-    child.locator(".lf-fp-threads").click()
-    child.locator(".lf-fp-filters button", has_text="Open").click()
+    go_to_threads(page, child)
     child.locator('.lf-fp-thread[data-key="bg-retained-quote-thread"]').click()
     expect(child.locator(".lf-fp-view[data-view=thread] .lf-msg").first).to_be_visible()
 
@@ -596,6 +672,14 @@ def image_in_page(page: Page) -> None:
     """An authored image in the reading flow, before its viewer opens."""
     page.get_by_role("tab", name="Threads", exact=True).click()
     page.locator("#bg-image-preview").scroll_into_view_if_needed()
+
+
+def thread_picture(page: Page) -> None:
+    """The gallery's pasted screenshot, a white page, in its message in the panel."""
+    open_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
+    picture = page.locator(".lf-fp-view[data-view=thread] .lf-message-media img").first
+    picture.evaluate("image => image.decode()")
+    picture.scroll_into_view_if_needed()
 
 
 def image_preview(page: Page) -> None:
@@ -733,8 +817,8 @@ def card_reply_long(page: Page) -> None:
 def panel_reply_long(page: Page) -> None:
     """The last open thread, opened from Threads in the floating panel, with a reply
     of two wrapped paragraphs in the panel's field, its reply box."""
-    open_threads(page)
-    page.locator(".lf-fp-thread").last.click()
+    go_to_threads(page)
+    page.locator(".lf-fp-thread:not([data-resolved])").last.click()
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
     page.locator(".lf-fp-field leaf-text").click()
     page.keyboard.insert_text(LONG_DRAFT)
@@ -807,6 +891,11 @@ def activity_feed(page: Page) -> None:
     page.locator("#triage-moves").scroll_into_view_if_needed()
 
 
+def settled_option(page: Page) -> None:
+    """A settled decision collapsed to its one line."""
+    page.locator("#bg-outcome").scroll_into_view_if_needed()
+
+
 def settled_option_hover(page: Page) -> None:
     """An expanded decision answers hover without lifting the card."""
     page.locator("#bg-outcome .lf-settled").click()
@@ -818,6 +907,13 @@ def into_the_body(page: Page) -> None:
     """Two windows down the page, where a sidebar page's track stands beside the body
     it scrolls past."""
     page.evaluate("() => scrollTo(0, 2 * innerHeight)")
+
+
+def plan_caveat(page: Page) -> None:
+    """The plan's network caveat, visible between the prose of two steps."""
+    page.locator("#plan-network").evaluate(
+        "node => node.scrollIntoView({block: 'center'})"
+    )
 
 
 def code_note(page: Page) -> None:
@@ -940,7 +1036,10 @@ def code_copy_by_pointer(page: Page) -> None:
 def code_copy_by_keyboard(page: Page) -> None:
     """Code's corner control focused from the keyboard."""
     code_note(page)
-    page.keyboard.press("Tab")
+    # After `scrollIntoView`, Chromium's Tab continues from the view but Firefox's from
+    # the top of the document, which scrolls the block away; Shift only marks the
+    # keyboard as the latest input.
+    page.keyboard.press("Shift")
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
 
 
@@ -1063,6 +1162,21 @@ def aim_cut_by_pane(page: Page) -> None:
     )
 
 
+def table_scrolled_sideways(page: Page) -> None:
+    """A table whose rows open with their names, scrolled to its far end on a phone."""
+    page.locator("#security-deep-record > summary").click()
+    page.locator("#security-vendor-table").evaluate(
+        """table => {
+          table.scrollIntoView({block: 'center'});
+          table.scrollLeft = table.scrollWidth;
+        }"""
+    )
+    page.wait_for_function(
+        "() => document.getElementById('security-vendor-table')"
+        ".hasAttribute('data-lf-more-before')"
+    )
+
+
 def element_thread(page: Page) -> None:
     """An element holding a thread, in view, with nothing indicating it."""
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
@@ -1084,6 +1198,33 @@ def ship_answered(page: Page) -> None:
     page.locator("#off-release-ship").click()
     page.locator(".lf-fp-on-user").click()
     expect(page.locator(".lf-fp-opened")).to_be_visible()
+
+
+def element_thread_open(page: Page) -> None:
+    """The same element while the user is in its thread, opened from its margin card:
+    the contour that says which element the thread is about, beside the heading's
+    first letters."""
+    open_card(
+        page, page.locator('[data-lf-margin-for="off-t-vendor"] .lf-margin-marker')
+    )
+
+
+def option_thread_open(page: Page) -> None:
+    """A thread on the chosen card of a joined option group, opened from its margin
+    card: the contour standing on a cell its group's frame clips."""
+    as_agent(
+        "thread",
+        "create",
+        "--section",
+        "off-workaround-approve",
+        "--text",
+        "Ship it with the workaround?",
+    )
+    load(page, served_page.get().address)
+    open_card(
+        page,
+        page.locator('[data-lf-margin-for="off-workaround-approve"] .lf-margin-marker'),
+    )
 
 
 def more_menu(page: Page) -> None:
@@ -1191,6 +1332,12 @@ def draft_edit(page: Page) -> None:
     page.locator("#rn-cli .lf-draft-edit").focus()
 
 
+def draft_hover(page: Page) -> None:
+    """A draft under the pointer, which shows its toolbar of marks on its border."""
+    page.locator("#rn-cli .lf-draft-body").hover()
+    expect(page.locator("#rn-cli .lf-draft-tools")).to_have_css("opacity", "1")
+
+
 def playground_controls(page: Page) -> None:
     """The playground's controls and instruction, with keyboard focus on its range."""
     page.keyboard.press("Tab")
@@ -1198,6 +1345,13 @@ def playground_controls(page: Page) -> None:
     control.focus()
     control.press("ArrowRight")
     page.locator(".lf-playground-controls").scroll_into_view_if_needed()
+
+
+def playground_instruction(page: Page) -> None:
+    """The playground's instruction opened over the page, with its copy."""
+    page.get_by_role("button", name="Show instruction").click()
+    expect(page.locator("lf-playground-output")).to_be_visible()
+    page.mouse.move(0, 0)
 
 
 def playground_tall_stage(page: Page) -> None:
@@ -1284,6 +1438,11 @@ def live_sample_embedded(page: Page) -> None:
     sample.scroll_into_view_if_needed()
 
 
+def interactive_sample(page: Page) -> None:
+    """An interactive sample, whose widgets use this page's state, under its note."""
+    page.locator("#bg-inline-sample").scroll_into_view_if_needed()
+
+
 def live_sample_full_view(page: Page) -> None:
     """The same practice frame promoted into its native full-view dialog."""
     live_sample_embedded(page)
@@ -1305,6 +1464,13 @@ def trace_timeline_by_keyboard(page: Page) -> None:
     )
 
 
+def authored_timeline_step(page: Page) -> None:
+    """A step reached by Tab, with the timeline's playhead on it."""
+    page.locator("#race-before .lf-timeline-step").first.click()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Space")
+
+
 @dataclass(frozen=True)
 class State:
     name: str
@@ -1317,10 +1483,54 @@ class State:
 
 
 STATES = (
+    State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
+    State(
+        "page-about-dark",
+        "review-a-plan",
+        page_about,
+        scheme="dark",
+        region=".lf-inspection-dialog",
+    ),
+    State(
+        "page-about-phone",
+        "review-a-plan",
+        page_about,
+        viewport=(390, 844),
+        touch=True,
+        region=".lf-inspection-dialog",
+    ),
+    State("authored-timeline", "lost-update", at_rest, region="#race-before"),
+    State(
+        "authored-timeline-keyboard",
+        "lost-update",
+        authored_timeline_step,
+        region="#race-before",
+    ),
+    State(
+        "authored-timeline-dark",
+        "lost-update",
+        authored_timeline_step,
+        scheme="dark",
+        region="#race-before",
+    ),
+    State(
+        "authored-timeline-phone",
+        "lost-update",
+        at_rest,
+        viewport=(390, 900),
+        touch=True,
+        region="#race-before",
+    ),
     State(
         "native-code",
         "developer/feature-gallery",
         native_code,
+        region="#bg-javascript-code",
+    ),
+    State(
+        "native-code-copy-hover",
+        "developer/feature-gallery",
+        native_code_copy_hover,
         region="#bg-javascript-code",
     ),
     State(
@@ -1385,6 +1595,27 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
+    State("ship-threads", "ship-review", go_to_threads, region=".lf-fp-opened"),
+    State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
+    State(
+        "plan-option-card-picked",
+        "review-a-plan",
+        option_picked,
+        region="lf-options:has(> #plan-admin)",
+    ),
+    State(
+        "ship-option-references",
+        "ship-review",
+        option_references,
+        region="#off-workaround-decision",
+    ),
+    State(
+        "ship-option-references-phone",
+        "ship-review",
+        option_references,
+        viewport=(390, 844),
+        region="#off-workaround-decision",
+    ),
     State(
         "floating-thread-retitled",
         "ship-review",
@@ -1449,6 +1680,12 @@ STATES = (
         region="#bg-live-sample .lf-sample-view",
     ),
     State(
+        "interactive-sample",
+        "developer/feature-gallery",
+        interactive_sample,
+        region="#bg-inline-sample",
+    ),
+    State(
         "trace-comparison-header",
         "review-a-fix",
         trace_comparison,
@@ -1484,6 +1721,12 @@ STATES = (
         "pr-walkthrough",
         diff_filter,
         region="#pr-key-hunk .lf-diff-tools",
+    ),
+    State(
+        "diff-separator",
+        "pr-walkthrough",
+        diff_separator,
+        region="#pr-key-hunk .lf-diff-rows",
     ),
     State(
         "diff-filter-phone-dark",
@@ -1590,6 +1833,12 @@ STATES = (
         image_in_page,
         region="#bg-image-preview",
     ),
+    State(
+        "thread-picture",
+        "developer/feature-gallery",
+        thread_picture,
+        region=".lf-fp-opened",
+    ),
     State("image-preview", "developer/feature-gallery", image_preview),
     State(
         "image-preview-dark", "developer/feature-gallery", image_preview, scheme="dark"
@@ -1606,9 +1855,31 @@ STATES = (
         "developer/visual-review-gallery",
         visual_review_inspection,
     ),
+    State("visual-review", "developer/visual-review-gallery", at_rest),
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-long-lines", "developer/diff-thread-gallery", diff_long_lines),
     State("worktree-diffs", "developer/worktree-diffs", at_rest),
+    State(
+        "worktree-summaries",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        region="#worktree-example-workbench",
+    ),
+    State(
+        "worktree-summaries-dark",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        scheme="dark",
+        region="#worktree-example-workbench",
+    ),
+    State(
+        "worktree-summaries-phone",
+        "developer/worktree-diffs",
+        worktree_summaries,
+        viewport=(390, 844),
+        touch=True,
+        region="#worktree-example-workbench",
+    ),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
     State(
         "diff-file-resolved-closed",
@@ -1632,6 +1903,12 @@ STATES = (
         scheme="dark",
     ),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
+    State(
+        "settled-option",
+        "developer/feature-gallery",
+        settled_option,
+        region="#bg-outcome",
+    ),
     State(
         "settled-option-hover",
         "developer/feature-gallery",
@@ -1657,6 +1934,12 @@ STATES = (
         "developer/motion",
         motion_controls,
         region="#fold-motion .lf-motion-controls",
+    ),
+    State(
+        "timeline-steps",
+        "lost-update",
+        timeline_steps,
+        region="#race-before .lf-timeline-controls",
     ),
     State(
         "trace-timeline-keyboard",
@@ -1726,6 +2009,8 @@ STATES = (
         touch=True,
     ),
     State("playground-controls", "notification-playground", playground_controls),
+    State("playground-instruction", "notification-playground", playground_instruction),
+    State("playground-inline-end", "motion-playground", page_end),
     State("playground-tall-stage", "alert-thresholds", playground_tall_stage),
     State("playground-short-window", "data-explorer", page_end, viewport=(844, 390)),
     State(
@@ -1749,6 +2034,7 @@ STATES = (
         touch=True,
     ),
     State("release-draft", "release-notes", draft_edit),
+    State("release-draft-hover", "release-notes", draft_hover, region="#rn-cli"),
     State(
         "release-draft-phone",
         "release-notes",
@@ -1818,6 +2104,8 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
+    State("plan-execution", "review-a-plan", plan_execution, region="#plan-execute"),
+    State("plan-caveat", "review-a-plan", plan_caveat, region="#plan-network"),
     State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
     State(
         "accepted-page-search",
@@ -1906,13 +2194,13 @@ STATES = (
         "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
     ),
     State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
-    State("plan-panel", "review-a-plan", threads_panel),
-    State("plan-panel-dark", "review-a-plan", threads_panel, scheme="dark"),
+    State("plan-panel", "review-a-plan", go_to_threads),
+    State("plan-panel-dark", "review-a-plan", go_to_threads, scheme="dark"),
     State(
         "plan-panel-keyboard-dark", "review-a-plan", panel_by_keyboard, scheme="dark"
     ),
     State("plan-panel-keyboard", "review-a-plan", panel_by_keyboard),
-    State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
+    State("plan-panel-beside", "review-a-plan", go_to_threads, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
     State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
@@ -1942,7 +2230,7 @@ STATES = (
     State(
         "plan-panel-touch",
         "review-a-plan",
-        threads_panel,
+        go_to_threads,
         viewport=(390, 844),
         touch=True,
     ),
@@ -1986,6 +2274,14 @@ STATES = (
     ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
+    State("triage-metrics", "triage-board", at_rest, region="#triage-counts"),
+    State(
+        "triage-metrics-dark",
+        "triage-board",
+        at_rest,
+        scheme="dark",
+        region="#triage-counts",
+    ),
     State("triage-composer", "triage-board", composer),
     State(
         "triage-composer-empty",
@@ -2075,11 +2371,34 @@ STATES = (
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
     State("progress-callout", "live-progress", at_rest),
+    State("progress-metrics", "live-progress", at_rest, region="#lp-status"),
+    State(
+        "progress-metrics-dark",
+        "live-progress",
+        at_rest,
+        scheme="dark",
+        region="#lp-status",
+    ),
     State(
         "steps",
         "security-boundary",
         steps_in_view,
         region="#security-contract-list",
+    ),
+    State(
+        "table-scrolled-phone",
+        "security-boundary",
+        table_scrolled_sideways,
+        viewport=(390, 844),
+        region="#security-vendor-table",
+    ),
+    State(
+        "table-scrolled-phone-dark",
+        "security-boundary",
+        table_scrolled_sideways,
+        viewport=(390, 844),
+        scheme="dark",
+        region="#security-vendor-table",
     ),
     State(
         "alert-options-in-pane-touch",
@@ -2097,6 +2416,7 @@ STATES = (
     ),
     State("triage-grabbed", "triage-board", card_grabbed),
     State("walkthrough", "pr-walkthrough", at_rest),
+    State("walkthrough-wide", "pr-walkthrough", into_the_body),
     State(
         "walkthrough-body-short",
         "pr-walkthrough",
@@ -2204,6 +2524,29 @@ STATES = (
         touch=True,
     ),
     State("ship-answered", "ship-review", ship_answered, region=".lf-fp-opened"),
+    State(
+        "ship-thread-open", "ship-review", element_thread_open, region="#off-t-vendor"
+    ),
+    State(
+        "ship-thread-open-dark",
+        "ship-review",
+        element_thread_open,
+        scheme="dark",
+        region="#off-t-vendor",
+    ),
+    State(
+        "ship-option-thread-open",
+        "ship-review",
+        option_thread_open,
+        region="#off-workaround-review",
+    ),
+    State(
+        "ship-option-thread-open-dark",
+        "ship-review",
+        option_thread_open,
+        scheme="dark",
+        region="#off-workaround-review",
+    ),
     State("ship-card-more-room", "ship-review", card_more_room, viewport=(1440, 600)),
     State(
         "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)
@@ -2222,6 +2565,23 @@ STATES = (
         viewport=(390, 500),
         touch=True,
     ),
+    State("on-me", "corpus", on_me),
+    State("on-me-dark", "corpus", on_me, scheme="dark"),
+    State("on-agent", "corpus", on_agent),
+    State("hub-on-me", "command-hub", on_me),
+    State("hub-choice", "command-hub", on_me_choice),
+    State("hub-choice-answered", "command-hub", on_me_choice_answered),
+    State(
+        "hub-choice-answered-dark", "command-hub", on_me_choice_answered, scheme="dark"
+    ),
+    State(
+        "hub-choice-answered-touch",
+        "command-hub",
+        on_me_choice_answered,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("hub-on-agent", "command-hub", on_agent),
     State("hub", "command-hub", at_rest),
     State("hub-workers", "command-hub", hub_workers),
     State("sort", "rust-sort", at_rest),
@@ -2280,7 +2640,7 @@ def differences(browser, out: Path):
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
         elif path.startswith("/vendor/"):
-            route.fulfill(path=ROOT / "browser" / path.lstrip("/"))
+            route.fulfill(path=ROOT / "packages" / "default" / path.lstrip("/"))
         elif path.endswith(".png"):
             route.fulfill(path=out / path.lstrip("/"))
         else:

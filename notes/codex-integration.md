@@ -1,9 +1,45 @@
-# Further Codex integration work
+# MCP and further Codex integration work
 
-Leaf's current companion workflow is documented in
-[harness-codex.md](../skills/leaf/references/harness-codex.md).
-[Session lifetime, “Watchers”](../src/leaf/session-lifetime.md#watchers)
-owns the delivery and connection lifecycle. This note holds open design work.
+Leaf reaches a Codex task in the desktop app, an IDE or a plain terminal only through
+hooks and a message it queues between turns, which gives it no more control over a
+turn than it has over a Claude Code session. Only on leaf.page and on an experimental
+terminal route does it connect to the task's App Server. [Session lifetime,
+“Watchers”](../src/leaf/session-lifetime.md#watchers) owns that delivery and
+connection lifecycle, and
+[harness-codex.md](../skills/leaf/references/harness-codex.md) the agent's side of it.
+This note holds open design work.
+
+## MCP and the CLI
+
+Leaf can expose essentially all its agent-facing operations through MCP. The
+useful architectural boundary is shared Python domain functions, with MCP and
+the CLI as transport adapters. State computation, event admission and reply
+settlement keep their existing owners.
+
+There are four separate choices:
+
+| Change                                                         | Benefit                                                                         | Cost                                                                             |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Run CLI commands through MCP, as the Codex plugin already does | Access outside the shell sandbox                                                | Still requires command syntax; subprocess and timeout handling                   |
+| Expose typed operations                                        | Discoverable argument and result schemas; operation-specific permission choices | Schemas and adapters to maintain; host-dependent discovery and approval behavior |
+| Serve the page through MCP Apps                                | Integrated rendering and a standard UI-to-conversation message route            | Iframe restrictions, asset delivery, navigation and host compatibility           |
+| Run a remote MCP service                                       | No local Leaf installation or shared filesystem required                        | Authentication, storage, uploads, isolation and service operations               |
+
+For coding agents already editing local files, typed tools alone offer a modest,
+unmeasured improvement. The CLI already returns structured results and works
+with their file tools. MCP does not inherently improve state guarantees,
+rendering or response speed. Keep the CLI thin for local authoring, debugging
+and automation; avoid maintaining a second implementation of the operations.
+
+Agents without shell access are a larger opportunity, but exposing the current
+commands is insufficient for them. Full authoring also needs source revision,
+asset submission and package creation, preserving Leaf's open package model.
+Local MCP and remote hosting are independent choices.
+
+The recommended first experiment is the complete MCP Apps feedback loop below,
+rather than converting commands one by one. Its main potential saving is removal
+of browser handoff and harness-specific comment delivery. If only rendering
+works, the gain is convenience while most delivery machinery remains.
 
 ## User-opened conversation panel
 
@@ -16,9 +52,24 @@ An MCP App could add a Leaf entry to the conversation's panel picker. Its main
 benefit would be letting the user find and reopen this chat's pages without an
 agent turn or locating their URLs. A single panel could also let the user switch
 among those pages. These are discovery and navigation benefits; the existing tab
-already renders Leaf and carries live revisions and comments. Faster replies,
-less transcript clutter and removal of the HTTP server do not follow from a
-panel registration.
+already renders Leaf and carries live revisions and comments. Panel registration
+alone establishes neither faster replies nor less transcript clutter.
+
+[MCP Apps](https://apps.extensions.modelcontextprotocol.io/api/documents/Overview.html)
+can also deliver the actual interactive page as an HTML UI resource. The host
+renders it in a sandboxed iframe, and the page reads state and submits actions
+through the host's MCP bridge. With assets and requests carried through that
+bridge, this can remove the need for a localhost HTTP listener. Leaf retains
+its renderer, widgets and event log. App-only tools let widget interactions run
+without model calls or tool results in the model's context, as the existing
+browser page already does through HTTP.
+
+The cost is adapting asset loading, navigation, media and nested samples to the
+host's iframe and network policy. A local `codex-mcp-app` prototype explored
+this transport using the canonical Leaf endpoint and renderer. Its 22 October
+2026 reference-host checks reported successful interactions, but full native
+Codex rendering and idle-chat delivery remained unverified. The prototype is
+feasibility evidence, not proof of a better end-to-end experience.
 
 The extension would add a view tool, an HTML MCP resource, and a `thread`
 entrypoint. Codex invokes the entrypoint when the user selects it; the panel can
@@ -30,14 +81,37 @@ See OpenAI's [conversation panel registration](https://developers.openai.com/plu
 and [tool visibility reference](https://developers.openai.com/plugins/reference).
 This is source inspection as of 22 October 2026, not a tested Leaf integration.
 
-Revisit this when user-controlled page discovery warrants another host surface.
-The first experiment would open an existing page from the picker without a model
-turn, then exercise page switching, live revisions, comments and reopening. It
-would establish how the existing Leaf renderer and server fit the host's iframe
-and resource policy before choosing embedding or a transport adaptation. Keep
-the page's event log, admission and delivery owners; adding the panel supplies no
-reason to replace them. Delivering input without user messages remains the
-separate capability below.
+The first experiment should open an existing page, record a comment, start agent
+work through `ui/message`, and show the agent's revision in the same page. Test
+both idle and busy chats, then page switching, reopening and delivery after the
+view closes. Check that the comment is durably recorded and delivered once,
+and that the host preserves turn serialization and interruption behavior.
+Measure which existing integration this replaces before expanding the surface.
+
+## Comments from an MCP App
+
+The [MCP Apps specification](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx#requests-app--host),
+checked on 26 October 2026, distinguishes `ui/message`, which sends a message
+into the conversation and is described as triggering follow-ups, from
+`ui/update-model-context`, which supplies context for future turns. A plain MCP
+server notification does not itself instruct the host to start an agent turn.
+
+An embedded Leaf page could record the user's comment through Leaf's existing
+admission path, then send `ui/message` to have the host run the agent. This could
+replace Codex's queued-message delivery for comments made in that view. It is
+not an inherent MCP limitation; support and idle/busy behavior need testing in
+the actual host. A successful message request alone does not prove the agent
+received and handled the comment.
+
+This UI-to-host route depends on a live view. Background server delivery after
+the view closes still needs a host-supported mechanism. Nor does `ui/message`
+promise delivery without adding a conversation message. Those are separate
+requirements from rendering the page and starting work on a visible comment.
+
+Leaf's current alternatives are described by the watcher contract linked above:
+Claude Code normally uses a background Stop-hook watcher to wake its session;
+an explicit `leaf wait` returns input into an already waiting agent call;
+Codex's adapter queues input or starts a turn through an accessible App Server.
 
 ## Delivery without user messages
 
@@ -46,7 +120,8 @@ An idle desktop chat receives Leaf input through `codex queue` as a
 removes the external queue's polling delay, but checks for queued input before
 resuming and supplies no input itself.
 
-Leaf already starts message-free turns through an accessible App Server:
+Leaf already starts message-free turns where it can reach the App Server, on the
+experimental terminal route and on leaf.page:
 `codex.start_app_server_delivery` sends `turn/start` with a `leaf_delivery` tool
 output. The desktop implements this capability internally, but the 22 October
 2026 inspection found no supported external desktop or MCP interface exposing
@@ -61,13 +136,11 @@ serialization and interruption policy.
 
 ## Typed operations
 
-Provide model tools for reading page state, replying, declaring work, and
-validating authored changes. MCP tools or App Server dynamic tools could call the
-same Python functions as the CLI. Leaf's Codex plugin already declares an MCP server
-whose one generic tool, `run`, runs a `leaf` command outside the sandbox
-(`codex_tool.py`); a typed tool would stand beside it. Keep event admission and reply
-settlement in those existing owners. "Evaluate a typed reply body" below measures
-what Codex would send such a tool.
+Candidate model tools would read page state, reply, declare work and validate
+authored changes. MCP tools or App Server dynamic tools could call the same
+Python functions as the CLI, instead of constructing arguments for the existing
+generic `run` tool (`codex_tool.py`). "Evaluate a typed reply body" below records
+the streaming constraint on such a tool.
 
 First test a complete feedback turn with the smallest useful tool set. Compare
 it with the CLI path for target-selection errors and unnecessary model work.
@@ -99,3 +172,4 @@ These alternatives need a user-facing purpose before implementation:
   coordinated workspace ownership; persistent pages are one possible use.
 - Make Leaf the Codex client. This would add transcript, approval, interruption,
   and reconnect ownership to Leaf's page and feedback responsibilities.
+  [Leaf running the agent session](leaf-run-sessions.md) weighs it across harnesses.

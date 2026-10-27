@@ -1,6 +1,6 @@
 import { closeLayer, focusDestination, handBack, keeps, keepsHidden, keepsText, openLayer, openerOf } from "./bundle-dom-move.js";
 import { closeControl, keys, offerAction, offered, pagePresented, paintKeys, plainPress } from "./bundle-layer-client.js";
-import { closeNativeLayer, html, nativeLayers, offlineInteractive, pageUrl, render, runtimeResource, showNativeLayer } from "./bundle-geometry.js";
+import { closeNativeLayer, html, inBaseLayer, nativeLayers, offlineInteractive, pageUrl, render, runtimeResource, showNativeLayer } from "./bundle-geometry.js";
 import { says } from "./bundle-passages.js";
 
 //#region runtime/motion.js
@@ -127,8 +127,7 @@ let canvasUrl = null;
 function imageTools() {
 	if (!loading) loading = import("/vendor/photoswipe.esm.js").then(({ default: PhotoSwipe, styles }) => {
 		const style = document.createElement("style");
-		style.setAttribute("data-controls", "");
-		style.textContent = styles;
+		style.textContent = inBaseLayer(styles);
 		mediaViewer.append(style);
 		return PhotoSwipe;
 	});

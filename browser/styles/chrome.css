@@ -128,8 +128,10 @@ body:is(.lf-aiming, [data-lf-design-mode]) {
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item {
   cursor: pointer;
 }
-/* The document plane, including page-widget controls, accepts drawing presses.
-   Runtime surfaces keep their controls usable wherever their owner seats them. */
+/* The document plane, including page-widget controls, accepts drawing presses, so the
+   crosshair is important: it covers whatever cursor the page or a widget states for
+   its own controls. Runtime surfaces keep their controls usable wherever their owner
+   seats them, so the crosshair leaves them out and they keep their own cursors. */
 html[data-lf-region-capture],
 html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
@@ -140,12 +142,11 @@ html[data-lf-draw-mode] body {
 html[data-lf-region-capture] main,
 html[data-lf-region-capture] main *,
 html[data-lf-draw-mode] main,
-html[data-lf-draw-mode] main * {
+html[data-lf-draw-mode] main :not([data-lf-runtime], [data-lf-runtime] *) {
   cursor: crosshair !important;
 }
-html[data-lf-draw-mode] main [data-lf-runtime],
-html[data-lf-draw-mode] main [data-lf-runtime] * {
-  cursor: auto !important;
+:where(html[data-lf-draw-mode] main [data-lf-runtime]) {
+  cursor: auto;
 }
 /* The glyphs of the reactions in force on a target — a margin entry per reaction,
    revealing a separately named removal action. */
@@ -327,14 +328,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-shape-ink: var(--target-trace-ink);
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
-  }
-  /* A shaped box's SVG child draws its contour (target-paint.js), so the box's own band,
-     corner and ground give way whoever states them: placement writes the target's radius
-     inline (`standOver`), and the overlay's own mark rule arrives in a later sheet. */
-  .lf-shaped {
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: none !important;
   }
   /* Flush outside: brackets are two 8px end strips of the same 2px outline
      keyboard focus draws whole. Neither state changes bounds, radius or offset.
@@ -534,6 +527,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     height: 100%;
     overflow: hidden;
   }
+  /* A shaped box's SVG child draws its contour and veil (target-paint.js), so the box
+     draws no ground of its own. It follows the aim it shapes, which states its ground at
+     the same specificity, and its placement writes no corner (`standOver` is given 0). */
+  .lf-shaped {
+    background: none;
+  }
   /* Each drawing stands in a paint stand over what it was drawn on (drawing-ink.js),
      anchored to it, so a stroke crosses content boundaries without becoming part of the
      document's scrollable overflow, scrolls with what it marks, and is cut where a pane
@@ -563,9 +562,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
      aside, apart from the drawing the open composer carries. */
   .lf-drawing-mark.lf-drawing-parked path {
     stroke-dasharray: 7 6;
-  }
-  .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
-    display: none !important;
   }
   /* A suggestion renders verbatim — its characters are what the next version
      carries (see msgNode) — so this is where they keep their own line breaks. */
@@ -1321,8 +1317,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
 
   /* A forced palette keeps the chrome's states in platform colours rather than freezing
-     the product palette with forced-color-adjust. The focus ring needs nothing here:
-     --focus-ring is Highlight in a forced palette (theme.css). */
+     the product palette with forced-color-adjust; important, so each colour holds over
+     every state's more specific face. The focus ring needs nothing here: --focus-ring
+     is Highlight in a forced palette (theme.css). */
   @media (forced-colors: active) {
     .lf-dot {
       background: CanvasText !important;

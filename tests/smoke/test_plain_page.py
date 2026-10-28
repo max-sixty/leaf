@@ -2,13 +2,19 @@
 
 The page maps Leaf's rooted module paths to a Leaf install with an import map of its
 own, as a Leaf page does (`layer_import_map`), and gives each widget a block, as any
-page does for an element it lays out. The install is what Leaf serves its own pages:
-this tree's runtime, the compiled kernel where it is current, beside the composed
-layer's widgets and vendor modules. A widget that imports only the portable helpers
+page does for an element it lays out. Nothing there draws a widget before the first
+paint, as Leaf's delivery does, so the page hides each widget until its module defines
+it, as a page may any custom element it upgrades, and reserves the room of one that
+draws later than its upgrade. Its widgets stand two to a row, aligned at their tops, so
+one growing as it draws moves no other: those that draw at upgrade, in the last row,
+grow once their modules define them. It holds the motion study's clock, whose words
+change as it plays, to one width, as the package's stylesheet does. The install is what Leaf
+serves its own pages: this tree's runtime, the compiled kernel where it is current,
+beside the composed layer's widgets and vendor modules. A widget that imports only the portable helpers
 (`runtime/portable-api.js`) defines itself, draws, and shows a body it cannot draw as
 an error box and an `error` event the host may hear, with nothing in the console. What
 Leaf adds to a widget it reads off the widget, so here there is none of it: no key
-bound or advertised, no Copy control, no quiet word.
+bound or advertised, no Copy control, no quiet word. Its own buttons still work.
 
 It is a landing gate because nothing else would see the guarantee break: every other
 test runs a widget on a Leaf page, where an import of a module that reads what Leaf
@@ -17,6 +23,7 @@ composes into a page loads as well as any other.
 
 import http.server
 import json
+import time
 from dataclasses import dataclass
 from typing import Literal
 
@@ -80,6 +87,15 @@ PORTABLE = [
         'svg:has(g.pele-node[data-id="Cart"]):has(g.pele-node[data-id="Pay"])',
         sized="natural",
     ),
+    Portable(
+        "lf-motion",
+        "motion",
+        '<lf-motion id="lf-motion" duration="300" aria-label="Travel study">'
+        '<figure><svg viewBox="0 0 300 60"></svg></figure></lf-motion>',
+        ".lf-motion-controls:has(.lf-motion-play > svg[data-lf-icon])"
+        ":has(input[type=range])",
+        sized="width",
+    ),
 ]
 
 # A body the chart cannot draw: the box and the event are the shared upgrade
@@ -107,12 +123,16 @@ def plain_page() -> str:
     tags = ", ".join(sorted({widget.tag for widget in PORTABLE}))
     sections = "".join(
         f"<section>{markup}</section>"
-        for markup in [*(widget.markup for widget in PORTABLE), REFUSED]
+        for markup in [REFUSED, *(widget.markup for widget in PORTABLE)]
     )
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>Plain page</title>
 <script type="importmap">{json.dumps(layer_import_map(ROOT))}</script>
-<style>{tags} {{ display: flow-root; }}</style>
+<style>main {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start; gap: 16px; }}
+{tags} {{ display: flow-root; }}
+:is({tags}):not(:defined) {{ visibility: hidden; }}
+.lf-motion-clock {{ display: inline-block; inline-size: 9ch; }}</style>
 <script>
   window.heard = [];
   addEventListener("error", (event) => heard.push({{
@@ -130,6 +150,11 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
     class Host(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             path = self.path.split("?")[0]
+            # A drawing module a widget fetches only off Leaf arrives after the page has
+            # painted, as on a slow network, so the widgets that draw at upgrade grow
+            # under the shift watch.
+            if path.endswith("-view.js"):
+                time.sleep(0.5)
             found = (
                 Resource(page_bytes, "text/html")
                 if path == "/"
@@ -181,6 +206,15 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
                         box,
                         room,
                     )
+        # A widget's own buttons work without Leaf: Play runs the study's clock to its
+        # end, drawing each frame.
+        page.evaluate(
+            """() => { window.drawnAt = [];
+            document.querySelector("#lf-motion").renderFrame = (t) => drawnAt.push(t); }"""
+        )
+        page.locator("#lf-motion .lf-motion-play").click()
+        expect(page.locator("#lf-motion .lf-motion-clock")).to_have_text("300 ms")
+        assert page.evaluate("drawnAt.at(-1)") == 300
         # Leaf binds a widget's keys, adds its Copy control and writes its quiet words
         # from declarations only Leaf reads.
         assert (

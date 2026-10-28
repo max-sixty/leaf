@@ -180,11 +180,14 @@
     };
   }
 
-  // packages/motion/initial/lf-motion.js
-  document.documentElement.lfInitial.register("lf-motion", (host, tools) => {
+  // packages/motion/widgets/motion-view.js
+  function drawMotion(host, tools) {
     const { offerElement, tabStore, authoredBody } = tools;
     const { offerActionElement } = actionOffers(tools);
     const saved = JSON.parse(tabStore.get(`motion:${host.id}`) || '{"time":0,"rate":1}');
+    const videos = [...host.querySelectorAll("video")].some(
+      (video) => video.closest("lf-motion") === host
+    );
     const body = document.createElement("div");
     body.className = "lf-motion-body";
     authoredBody(body);
@@ -207,7 +210,12 @@
       time = Math.min(Number(host.getAttribute("duration")), saved.time),
       rate = saved.rate,
       label = "Play",
-      playing = false
+      playing = false,
+      // Whether Play has anything to play: an illustration's renderer or a video.
+      playable = videos,
+      // A word that stands in the clock's place after a press failed, until the next,
+      // short enough for the clock's box.
+      failure = null
     } = {}) => html`
     <div ${ref(controlsRef)} role="group" aria-label=${host.getAttribute("aria-label")}>
       <button
@@ -215,6 +223,7 @@
         ${ref((node) => node && showAction(node, playing ? "pause" : "play"))}
         aria-label=${label}
         title=${label}
+        aria-disabled=${playable ? nothing : "true"}
       ></button>
       <input
         ${ref(timeRef)}
@@ -227,7 +236,7 @@
         aria-valuetext=${`${Math.round(time)} milliseconds`}
         .value=${live(String(time))}
       />
-      <span ${ref(clockRef)}>${Math.round(time)} ms</span>
+      <span ${ref(clockRef)}>${failure ?? `${Math.round(time)} ms`}</span>
       <label ${ref(speedLabelRef)}
         >Speed<select ${ref(speedRef)} name="speed">
           ${[1, 0.5, 0.25].map(
@@ -241,5 +250,8 @@
     ${body}
   `;
     return Object.assign(drawing, { render: template });
-  });
+  }
+
+  // packages/motion/initial/lf-motion.js
+  document.documentElement.lfInitial.register("lf-motion", drawMotion);
 })();

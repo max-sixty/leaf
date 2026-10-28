@@ -36,10 +36,14 @@ function surfaceGrip({ surface, bounds, dropped }) {
 		const boundary = bounds();
 		held.moved ||= Math.hypot(travel.x, travel.y) >= SLOP;
 		const now = surface.getBoundingClientRect();
-		const within = (at, start, end, length) => clamp(at, boundary[start], Math.max(boundary[start], boundary[end] - length));
+		const within = (room, at, start, end, length) => clamp(at, room[start], Math.max(room[start], room[end] - length));
+		const x = within(boundary, box.left + travel.x, "left", "right", now.width);
 		const spot = {
-			x: within(box.left + travel.x, "left", "right", now.width),
-			y: within(box.top + travel.y, "top", "bottom", now.height)
+			x,
+			y: within(boundary.across({
+				left: x,
+				right: x + now.width
+			}), box.top + travel.y, "top", "bottom", now.height)
 		};
 		const scale = {
 			x: now.width / surface.offsetWidth || 1,
@@ -2703,9 +2707,9 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			fabBar.style.setProperty("--lf-float-w", roomPx(Math.max(0, room)));
 			if (Math.ceil(fabBar.offsetWidth) > Math.ceil(room)) fabBar.style.setProperty("--lf-float-w", roomPx(Math.max(0, boundary.width / scale)));
 		};
-		const setHeight = (scale) => {
+		const setHeight = (room, scale) => {
 			if (!response.open) return;
-			fabBar.style.setProperty("--lf-float-h", roomPx(Math.max(0, boundary.height / scale)));
+			fabBar.style.setProperty("--lf-float-h", roomPx(Math.max(0, room.height / scale)));
 		};
 		fabPlacement.choose({
 			clear: place.clear,
@@ -2728,12 +2732,12 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 				column: place.column,
 				margin: place.margin,
 				boundary,
-				fit({ width, scale }) {
+				fit({ width, room, scale }) {
 					if (!stillCurrent()) return;
 					setWidth(width, scale.x);
-					setHeight(scale.y);
+					setHeight(room, scale.y);
 					const frame = fabBar.getBoundingClientRect();
-					if (Math.ceil(frame.width) > Math.ceil(boundary.width) || Math.ceil(frame.height) > Math.ceil(boundary.height) || response.open && nativeRowEnd() > fabBar.clientHeight) withholdFab();
+					if (Math.ceil(frame.width) > Math.ceil(room.width) || Math.ceil(frame.height) > Math.ceil(room.height) || response.open && nativeRowEnd() > fabBar.clientHeight) withholdFab();
 				}
 			});
 			return fabPosition.position(ui.computePosition, commentReference(place, reference), {

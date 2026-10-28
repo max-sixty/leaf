@@ -1574,9 +1574,10 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
     it holds, and the side is resolved rather than string-matched, so `inline-start`
     is the same left edge. A float carried off the window's leading edge is drawn
     outside the root scrollport, which never scrolls before that edge, so only the
-    clipping reading sees it. Fixed placement answers for a box wholly outside the
-    column, not one crossing it; only the desktop leaves an outer gutter wider than
-    the 174px the fixed margin content takes.
+    clipping reading sees it. Fixed placement answers for a box wherever it stands,
+    outside the column or across its edge, since it hangs off the window, though one
+    drawn over the prose is still named for the words it covers; only the desktop
+    leaves an outer gutter wider than the 174px the fixed margin content takes.
 
     Words no mark can be shown on: an element with `display: contents` generates no
     box, and the runtime hangs a mark on the boxes it shows through instead. `#veiled`
@@ -1662,8 +1663,8 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
     assert not naming("fixed-margin"), (
         f"the fixed margin content was reported for standing where it was put: {failures}"
     )
-    assert reported("past-column", "<div id=fixed-half>"), (
-        f"a fixed box crossing the column escaped the gate: {failures}"
+    assert not reported("past-column", "<div id=fixed-half>"), (
+        f"a fixed box crossing the column was read as a spill: {failures}"
     )
     assert reported("unmarkable", "<div id=ghost>"), (
         f"the gate said nothing about words no mark can be shown on: {failures}"

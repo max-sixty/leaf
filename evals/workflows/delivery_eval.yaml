@@ -208,6 +208,8 @@ cases:
         value: The authored Leaf page reports the repaired suite-cost result, with a 37 second executed total and browser as the largest phase at 30 seconds. An unchanged unrelated page fails. Judge the result content, not styling or markup choices.
 workload:
   fixture: parent-keeps-leaf-responsive/suite_lab
+  # Long enough for the 40 s verification and the page update after it.
+  observation_seconds: 160
   prompt: >-
     Repair the suite-cost report in suite_lab. Read its README and code, inspect
     the current measurements using its inspect command, implement the report
@@ -223,3 +225,8 @@ workload:
     - name: followup
       after_seconds: 6
       text: Which phase is the largest in the supplied measurements?
+    # Posted once verification starts; the check `reached-during-verify` passes
+    # when the agent opens it before verification's 40 s wait ends.
+    - name: during-verify
+      during: [verify, waited]
+      text: While that runs, which executed test was the slowest?

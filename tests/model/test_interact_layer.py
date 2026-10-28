@@ -5098,7 +5098,7 @@ def test_widget_instructions_are_nonempty_text_and_reject_the_old_shape():
         malformed = {**entry, key: value}
         refused = registry_refusal(
             lambda malformed=malformed: registry_widgets.validate_widget_schemas(
-                {"lf-instruction-test": malformed}, {"contracts": {}}, "registry.json"
+                {"lf-instruction-test": malformed}, "registry.json"
             )
         )
         assert (refused.code, refused.at) == (
@@ -5107,7 +5107,6 @@ def test_widget_instructions_are_nonempty_text_and_reject_the_old_shape():
         )
     registry_widgets.validate_widget_schemas(
         {"lf-instruction-test": {**entry, "x-instructions": "Use this."}},
-        {"contracts": {}},
         "registry.json",
     )
 

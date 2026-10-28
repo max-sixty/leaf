@@ -11,12 +11,14 @@ from leaf.schema import (
 from .contract import (
     deciding_outcomes,
     deciding_verb,
+    gathering,
     reference_relation_problem,
     registry_error,
     state_specs,
 )
 from .schema import check_schema, json_validator, schema_reading
 from .state import (
+    validate_answered_conditions,
     validate_deciding_verb,
     validate_widget_record_contracts,
     validate_widget_retirement,
@@ -24,63 +26,76 @@ from .state import (
 )
 
 
-def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
-    # First validate every declaration in isolation. Cross-declaration checks run only after this
-    # pass, so their result cannot depend on which widget happened to be written first.
-    for tag, entry in declarations.items():
+def validate_widget_schemas(declarations: dict, path) -> None:
+    """Hold each declaration on its own to its schemas, refusing with the first
+    finding in each. The cross-declaration checks wait for this pass, so their
+    result cannot depend on which widget happened to be written first."""
+    with gathering() as unit:
+        for tag, entry in declarations.items():
+            with unit():
+                _validate_widget_schema(tag, entry, path)
+
+
+def _validate_widget_schema(tag: str, entry: dict, path) -> None:
+    try:
+        check_schema(entry)
+    except SchemaError as error:
+        raise registry_error(
+            "declaration-schema", path, tag, **schema_reading(error)
+        ) from error
+    description = entry.get("description")
+    if not isinstance(description, str) or not description.strip():
+        raise registry_error("no-description", path, tag)
+    extensions = {key: value for key, value in entry.items() if key.startswith("x-")}
+    errors = sorted(json_validator(EXTENSION_SCHEMA).iter_errors(extensions), key=str)
+    if errors:
+        raise registry_error(
+            "invalid-extensions", path, tag, **schema_reading(errors[0])
+        )
+    if entry.get("x-text-format") == "markdown" and entry.get("x-content") != "data":
+        raise registry_error("markdown-needs-data", path, tag)
+    for verb, spec in state_specs(entry):
+        if spec.get("record"):
+            continue
         try:
-            check_schema(entry)
+            check_schema(spec["detail"])
         except SchemaError as error:
             raise registry_error(
-                "declaration-schema", path, tag, **schema_reading(error)
+                "verb-detail-schema", path, tag, verb=verb, **schema_reading(error)
             ) from error
-        description = entry.get("description")
-        if not isinstance(description, str) or not description.strip():
-            raise registry_error("no-description", path, tag)
-        extensions = {
-            key: value for key, value in entry.items() if key.startswith("x-")
-        }
-        errors = sorted(
-            json_validator(EXTENSION_SCHEMA).iter_errors(extensions), key=str
-        )
-        if errors:
-            raise registry_error(
-                "invalid-extensions", path, tag, **schema_reading(errors[0])
-            )
-        if (
-            entry.get("x-text-format") == "markdown"
-            and entry.get("x-content") != "data"
-        ):
-            raise registry_error("markdown-needs-data", path, tag)
-        for verb, spec in state_specs(entry):
-            if spec.get("record"):
-                continue
-            try:
-                check_schema(spec["detail"])
-            except SchemaError as error:
-                raise registry_error(
-                    "verb-detail-schema", path, tag, verb=verb, **schema_reading(error)
-                ) from error
 
 
 def validate_widget_relations(
     registry: dict, declarations: dict, data: dict, path
 ) -> None:
-    for tag, entry in declarations.items():
-        properties, said = _validate_widget_structure(
-            tag, entry, registry, declarations, data, path
-        )
-        awaits = _validate_widget_predicates(tag, entry, properties, path)
-        _validate_widget_interactions(tag, entry, properties, awaits, path)
-        validate_widget_state_relations(tag, entry, declarations, path)
-        validate_widget_record_contracts(
-            tag, entry, properties, said, registry, declarations, path
-        )
-        validate_deciding_verb(tag, entry, path)
-        validate_widget_retirement(tag, entry, declarations, path)
-    # A view relation joins two declarations, each held to its own attributes above.
-    for tag, entry in declarations.items():
-        _validate_shown_answers(tag, entry, declarations, path)
+    """Hold each declaration to the others and to the layer's facts, refusing with
+    the first finding in each. A declaration's checks run in order, each relying on
+    the ones before it, and read the others only as their schemas admit them, so
+    one declaration's fault doesn't stop another's being checked."""
+    with gathering() as unit:
+        for tag, entry in declarations.items():
+            with unit():
+                _validate_widget_relations(
+                    tag, entry, registry, declarations, data, path
+                )
+
+
+def _validate_widget_relations(
+    tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
+) -> None:
+    properties, said = _validate_widget_structure(
+        tag, entry, registry, declarations, data, path
+    )
+    awaits = _validate_widget_predicates(tag, entry, properties, path)
+    _validate_widget_interactions(tag, entry, properties, awaits, path)
+    validate_widget_state_relations(tag, entry, declarations, path)
+    validate_widget_record_contracts(
+        tag, entry, properties, said, registry, declarations, path
+    )
+    validate_deciding_verb(tag, entry, path)
+    validate_widget_retirement(tag, entry, declarations, path)
+    _validate_shown_answers(tag, entry, declarations, path)
+    validate_answered_conditions(tag, entry, data, declarations, path)
 
 
 def _validate_widget_structure(

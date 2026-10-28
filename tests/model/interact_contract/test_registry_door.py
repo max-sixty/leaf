@@ -537,6 +537,22 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
         assert found(findings, "invalid-extensions", "<lf-suggestion>")
 
 
+def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
+    """The parent and the children retiring under it are checked in one run, so each
+    reads the parent's decision before its own check holds it to an outcome."""
+
+    def drop_outcome(registry):
+        detail = registry["lf-suggestion"]["x-state"]["decide"]["detail"]
+        del detail["properties"]["outcome"]
+        detail["required"].remove("outcome")
+
+    status, findings = _mutated_registry_check(page_dir, drop_outcome)
+
+    assert status != 0
+    assert found(findings, "awaits-blanket", "<lf-suggestion>")
+    assert found(findings, "retired-when", "<lf-old>", owner="lf-suggestion")
+
+
 @pytest.mark.parametrize(
     ("tag", "key", "declaration", "code", "values"),
     [

@@ -203,7 +203,64 @@ def test_page_registry_rejects_invalid_authored_contracts(
     assert finding.values["registry"] == str(authored.absolute())
 
 
-def test_page_registry_reads_candidate_changes_without_mutating_the_layer(page_dir):
+def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
+    return {**element_declaration(tag, upgrade=upgrade), **keys}
+
+
+@pytest.mark.parametrize(
+    ("declarations", "expected"),
+    [
+        # Faults each declaration shows alone, beside a data contract's.
+        (
+            {
+                "lf-alpha": _faulty("lf-alpha", description=""),
+                "lf-beta": _faulty("lf-beta", **{"x-says": ["label"]}),
+                "$data": {
+                    "contracts": {"bad": {"description": "x", "schema": {"type": 3}}}
+                },
+            },
+            [
+                ("contract-schema", ""),
+                ("no-description", "<lf-alpha>"),
+                ("invalid-extensions", "<lf-beta>"),
+            ],
+        ),
+        # Faults against the other declarations, once every one holds alone.
+        (
+            {
+                "lf-beta": _faulty("lf-beta", **{"x-name": "label"}),
+                "lf-eps": _faulty("lf-eps", **{"x-initial": "/early.js"}),
+            },
+            [("undeclared-attributes", "<lf-beta>"), ("requires", "<lf-eps>")],
+        ),
+        # An example and a module, once the vocabulary holds.
+        (
+            {
+                "lf-gamma": _faulty(
+                    "lf-gamma",
+                    **{"x-example": '<lf-gamma id="g" tone="x">G</lf-gamma>'},
+                ),
+                "lf-delta": _faulty("lf-delta", upgrade=True),
+            },
+            [("invalid-example", "<lf-gamma>"), ("missing-module", "<lf-delta>")],
+        ),
+    ],
+)
+def test_one_check_reports_the_first_problem_in_each_declaration(
+    page_dir, declarations, expected
+):
+    """An author repairing page declarations reads every independent problem from
+    one `page check`, rather than one per run."""
+    (page_dir / "page" / "registry.json").write_text(json.dumps(declarations))
+
+    status, findings = check_findings(page_dir)
+
+    assert status != 0
+    assert [
+        (finding.code, finding.at)
+        for finding in findings
+        if "registry" in finding.values
+    ] == expected
     authored = page_dir / "page"
     source = authored / "registry.json"
     declaration = element_declaration("lf-local")

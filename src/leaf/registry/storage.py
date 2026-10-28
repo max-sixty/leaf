@@ -65,7 +65,7 @@ def _read_layer(page_dir: Path, path: Path) -> dict | None:
     # The protocol before any check of what the entries hold, whose shape is this
     # Leaf's protocol's.
     if refusal := protocol_refusal(page_dir, parsed):
-        raise IncompatibleLayer(refusal)
+        raise IncompatibleLayer([refusal])
     try:
         registry = read_registry_declarations(path)
         check_layer_facts(registry, path)
@@ -170,7 +170,9 @@ def compose_candidate(
 
 def _revendor(page_dir: Path, error: RegistryError) -> RegistryError:
     """A fault in the vendored layer, which `page init` wrote and re-vendoring fixes."""
-    return RegistryError(error.findings[0].but(values={"revendor": str(page_dir)}))
+    return RegistryError(
+        [finding.but(values={"revendor": str(page_dir)}) for finding in error.findings]
+    )
 
 
 def _layer_packages(layer: dict, path: Path) -> list[str]:

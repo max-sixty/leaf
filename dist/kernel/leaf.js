@@ -4,7 +4,7 @@ import { COLLAPSE, LitElement, PRESENTATION_DOM, SHARE_ROOT, TEXT_BLOCK, WEBSITE
 import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, actionTemplate, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
 import { ADDRESSABLE, JUST_NOW, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentId, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
-import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep, workflowVoice } from "./runtime/bundle-data.js";
+import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep, workflowVoice } from "./runtime/bundle-data.js";
 import { clamp, clippedContents, coveredShare, declareOccluder, declareWindowChrome, intersect, landingBand, layoutWindow, overlaps, overlapsAcross, placeHolder, presented, seenRect, shownBox, shownParts, shownRect, showsContents, stackLevel, startsAt, underOccluder, union, windowChromeBoxes } from "./runtime/bundle-geometry.js";
 import { LEAF_SURFACE, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
 import { copyControl, landedBox, landingRoom, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./runtime/bundle-copy-control.js";
@@ -4791,7 +4791,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const searchControls = search?.controls ?? [];
 		const searchLabel = !initial && pageSearch?.open ? "Search page" : "Search threads";
 		const thread = top ? threadOf(top)?.id ?? null : null;
-		const resting = Boolean(thread) && !replyAvailable(threadOf(top));
 		const input = initial ? null : fieldInput();
 		const reading = initial ? null : fieldReading(top?.thread ?? null, input);
 		const selection = !search && reading?.says === "selection" && Boolean(draftOf(input));
@@ -4806,7 +4805,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const unseen = !initial && errorsReading().some((error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error));
 		const viewControls = top ? controlsTemplate(top) : nothing;
 		const exit = initial ? null : fieldExit(search, top);
-		const quickHidden = initial || (search ? !exit : drafted && !seatHeld);
+		const closeAbove = expanded && exit?.press === close && viewControls !== nothing;
+		const quickHidden = initial || closeAbove || (search ? !exit : drafted && !seatHeld);
 		const notice = initial || search ? null : olderVersion();
 		const peek = initial ? null : peekPresentation();
 		const mode = search ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate("search", "lf-fp-mode-icon")}<span>${pageSearch?.open ? "page" : "threads"}</span>` : selection ? "Selection" : nothing;
@@ -4857,7 +4857,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               data-thread=${thread ?? nothing}
               ?data-lf-thread-view=${thread !== null}
             >
-              ${viewControls}
+              ${viewControls}${closeAbove ? quick : nothing}
             </div>
           </div>
           <div class="lf-fp-row">
@@ -4908,10 +4908,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             </button>
             <div class="lf-fp-field">
               <div class="lf-fp-editors" ?hidden=${Boolean(search)}>
-                ${initial ? nothing : top?.thread ? html`${replyOutlet}
-                          <p class="lf-fp-resolved" ?hidden=${!resting}>
-                            ${reading.says === "notice" ? reading.words : "Resolved"}
-                          </p>` : pageEditor().box}
+                ${initial ? nothing : top?.thread ? replyOutlet : pageEditor().box}
               </div>
               <div
                 class=${`lf-fp-search-surface${searchMode === "page" ? " lf-page-search" : ""}`}
@@ -4949,7 +4946,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             <div class="lf-fp-row-notice" ?hidden=${!notice}>
               ${notice ? rowNoticeTemplate(notice) : nothing}
             </div>
-            <div class="lf-fp-quick" ?hidden=${quickHidden}>${quick}</div>
+            <div class="lf-fp-quick" ?hidden=${quickHidden}>
+              ${closeAbove ? nothing : quick}
+            </div>
           </div>
         </div>
       </div>
@@ -5027,8 +5026,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		long = lines > 3.5;
 		markRoom();
 	});
-	let fieldRests = false;
-	const markRoom = () => keeps(host, "data-long", (long || expanded) && !fieldRests ? "" : null);
+	const markRoom = () => keeps(host, "data-long", (long || expanded) && !activeSearch() ? "" : null);
 	lengthWatch.observe(field);
 	const searchSurface = shell("search-surface");
 	const responseSeat = shell("response");
@@ -5123,11 +5121,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			says: "absent",
 			words: ""
 		};
-		if (input === focused() && !thread?.resolved) return {
+		if (input === focused()) return {
 			says: "destination",
-			words: whereTo(key)
+			words: whereTo(thread)
 		};
-		if (thread && !thread.resolved && !noticeReading().visible && !statusContextReading().goTo) return {
+		if (thread && !noticeReading().visible && !statusContextReading().goTo) return {
 			says: "turn",
 			words: "Reply",
 			offers: true
@@ -5146,10 +5144,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (notice.visible) return {
 			says: "notice",
 			words: stance ? `${stance} · ${notice.message}` : notice.message
-		};
-		if (thread?.resolved) return {
-			says: "turn",
-			words: "Resolved"
 		};
 		if (stance) return {
 			says: "stance",
@@ -5172,11 +5166,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const thread = threadByKey(key);
 		const { walk } = statusContextReading();
 		const position = !walk?.shown ? "" : walk.kind === "thread" && walk.target === thread?.id ? `${walk.position} of ${walk.total}` : walk.text;
-		const attention = Boolean(position) && !currentLocationIn(host) ? null : threadAttention(thread, agentName());
+		const attention = Boolean(position) && !currentLocationIn(host) ? null : thread.resolved ? {
+			label: "Resolved",
+			voice: "leaf"
+		} : threadAttention(thread, agentName());
 		if (!attention) return position;
 		return html`${spoken(attention)}${position ? ` · ${position}` : ""}`;
 	}
-	const whereTo = (key) => key ? "Reply in this thread" : "Comment on the page";
+	const whereTo = (thread) => !thread ? "Comment on the page" : thread.resolved ? "Reply to reopen" : "Reply in this thread";
 	function saying(key, input) {
 		const reading = fieldReading(key, input);
 		if (input) {
@@ -5273,8 +5270,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const fieldInput = () => {
 		if (activeSearch()) return null;
 		const top = trail.value.at(-1);
-		const thread = threadOf(top);
-		return top?.thread ? thread && replyAvailable(thread) ? replyInput() : null : pageEditor().input;
+		return top?.thread ? threadOf(top) ? replyInput() : null : pageEditor().input;
 	};
 	const fieldExit = (search, top) => search === threadSearch ? {
 		label: "Close search",
@@ -6266,8 +6262,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	};
 	const viewParts = Object.freeze({
 		reply: (view) => {
-			const thread = openIn(view);
-			return thread && replyAvailable(thread) ? replyInput() : null;
+			return openIn(view) ? replyInput() : null;
 		},
 		settlement: (view) => openIn(view) ? controls.querySelector(".lf-fp-settle") : null,
 		whole: (view) => openIn(view) ? openView() : null
@@ -7173,8 +7168,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const heading = threadOf(top)?.id ?? null;
 		keeps(replyOutlet, "data-thread", heading);
 		keeps(replyOutlet, "data-lf-thread-view", heading === null ? null : "");
-		const resting = Boolean(threadOf(top)) && !replyAvailable(threadOf(top));
-		keepsHidden(replyOutlet, resting);
 		if (pageSearch) keepsHidden(pageSearch.input, !pageSearch.open);
 		if (searchSurface.hidden !== !search) postureMoved = true;
 		const input = fieldInput();
@@ -7191,7 +7184,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		keeps(host, "data-drafted", drafted ? "" : null);
 		keeps(host, "data-words", words ? "" : null);
 		if (!words) expanded = false;
-		fieldRests = resting || Boolean(search);
 		markRoom();
 		keeps(host, "data-expanded", expanded ? "" : null);
 		const reading = fieldReading(replying ? top.thread : null, input);

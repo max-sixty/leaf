@@ -59,7 +59,7 @@
    A double click on the message or a press on its Edit control opens it. The keyboard
    opens it with ↑: from the thread's empty reply box, the user's latest message, and
    from the start of an open rewrite not yet changed, their message before it, so Edit
-   takes no Tab stop in every thread the user opened. A resolved thread shows no reply
+   takes no Tab stop in every thread the user opened. A resolved card shows no reply
    box; Enter on it reopens it into that box, as replying there starts, since a saved
    rewrite reopens it anyway, and ↑ goes on from there. Every reader that draws a
    message offers its rewrite, a package's primary reader drawing it on its own as Feed

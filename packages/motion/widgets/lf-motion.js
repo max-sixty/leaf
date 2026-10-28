@@ -13,8 +13,8 @@
  */
 import {
   LeafElement,
-  noChange,
   initialRender,
+  render,
   commands,
   whileConnected,
   nextAnimation,
@@ -142,9 +142,13 @@ customElements.define(
       });
     }
 
-    // The initial drawing owns transport templates; authored figures stay native.
     render() {
-      return noChange;
+      return this.#ui.render({
+        time: this.#time,
+        rate: this.#rate,
+        label: this.#playLabel(),
+        playing: this.#playing.value,
+      });
     }
 
     #playLabel() {
@@ -237,12 +241,9 @@ customElements.define(
 
     #paintControls() {
       if (!this.#ui) return;
-      this.#ui.paint({
-        time: this.#time,
-        rate: this.#rate,
-        label: this.#playLabel(),
-        playing: this.#playing.value,
-      });
+      // The media clock changes local inspection, not the page's state. Commit
+      // the shared template without claiming semantic presentation every frame.
+      render(this.render(), this, this.renderOptions);
     }
 
     #paint() {

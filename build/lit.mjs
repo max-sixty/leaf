@@ -1,5 +1,5 @@
 /**
- * The page's one Lit. Pages with an initial producer that imports Lit inline
+ * The page's one Lit. Pages with any initial producer inline
  * `vendor/lit-initial.js` and map `/vendor/lit.js` to the shared namespace facade.
  * Other pages load the ordinary module implementation at `/vendor/lit.js`.
  * `build/browser/build.mjs` builds both from Lit's public exports, shaped like Lit's

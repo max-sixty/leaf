@@ -349,11 +349,6 @@ def test_export_selects_one_lit_implementation_from_the_initial_document(
         "/vendor/lit.js": 'export const render = "module implementation";',
         "/vendor/lit-shared.js": 'export const render = "shared facade";',
         "/vendor/lit-initial.js": "window.classicLit = true;",
-        "/vendor/initial-dependencies.json": json.dumps(
-            {
-                "/vendor/producer.js": ["/vendor/lit-initial.js"],
-            }
-        ),
     }
     files = {
         "vendor/producer.js": "window.producer = true;",

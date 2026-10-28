@@ -8,13 +8,16 @@ from render_harness import leaf_page, open_page, resized, told
 from leaf.render_checks import rendered, wait_until_ready
 
 
-def test_an_open_outline_first_paints_with_its_complete_reading_scope(browser, serve):
-    """Later headings must not grow an open index above text already being read."""
+@pytest.mark.parametrize("initially_open", [False, True])
+def test_an_outline_first_paints_with_its_complete_reading_scope(
+    browser, serve, initially_open
+):
+    """An open index waits for headings; a closed index reserves its final room."""
     source = leaf_page(
-        "initially open contents",
-        """<h1 id="page-title">Field guide</h1>
+        "streamed contents",
+        f"""<h1 id="page-title">Field guide</h1>
 <lf-tabs id="topics"><lf-tab id="topic" label="Preparation">
-  <lf-toc id="contents" open></lf-toc>
+  <lf-toc id="contents"{" open" if initially_open else ""}></lf-toc>
   <h2 id="first">Take inventory</h2><p>Read the current counts.</p>
   <!--pause-parsing-->
   <h2 id="second">Save a snapshot</h2><p>Keep a reference.</p>
@@ -44,7 +47,14 @@ def test_an_open_outline_first_paints_with_its_complete_reading_scope(browser, s
         page.evaluate("() => new Promise(requestAnimationFrame)")
         assert page.evaluate("document.readyState") == "loading"
         expect(page.locator("#page-title")).to_be_visible()
-        expect(page.locator("#first")).to_be_hidden()
+        if initially_open:
+            expect(page.locator("#first")).to_be_hidden()
+        else:
+            expect(page.locator("#first")).to_be_visible()
+            initial_height = page.locator("#contents").evaluate(
+                "node => node.getBoundingClientRect().height"
+            )
+            assert initial_height > 0
         assert page.locator("#contents li").count() == 0
 
         held.pop().fulfill(status=200, content_type="text/javascript", body="")
@@ -54,6 +64,12 @@ def test_an_open_outline_first_paints_with_its_complete_reading_scope(browser, s
         expect(page.locator("#contents li a")).to_have_text(
             ["Take inventory", "Save a snapshot"]
         )
+        if not initially_open:
+            expect(page.locator("#contents summary")).to_be_visible()
+            assert page.locator("#contents").evaluate(
+                "node => node.getBoundingClientRect().height"
+            ) == pytest.approx(initial_height)
+            page.locator("#contents summary").click()
         expect(page.locator("#contents li a").first).to_be_visible()
     finally:
         for route in held:

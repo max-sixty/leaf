@@ -23,12 +23,10 @@ import {
   focused,
   focusDestination,
   keeps,
-  keepsHidden,
-  keepsText,
   navigateToDatum,
-  initialRender,
+  offer,
   LeafElement,
-  nothing,
+  render,
   onCurrentLocation,
   paintKeys,
   plainPress,
@@ -56,9 +54,15 @@ customElements.define(
     #delivered;
     #shown;
     #applied;
+    #emptyRoot;
+    #empty = "No files available.";
+
+    createRenderRoot() {
+      return this.#emptyRoot;
+    }
 
     setup() {
-      const empty = initialRender(this);
+      const empty = (this.#emptyRoot = offer("p", "lf-file-tree-empty"));
       const root = shadowStage(this, [empty]);
       const theme = root.firstChild;
       const label = this.getAttribute("aria-label") || "Files";
@@ -74,15 +78,13 @@ customElements.define(
       const expanded = new Set();
       const paintEmpty = () => {
         const noMatches = files.length > 0 && tree?.getVisibleCount() === 0;
-        keepsText(
-          empty,
-          noMatches
-            ? "No matching files."
-            : available
-              ? "No files."
-              : "No files available.",
-        );
-        keepsHidden(empty, files.length > 0 && !noMatches);
+        this.#empty = noMatches
+          ? "No matching files."
+          : available
+            ? "No files."
+            : "No files available.";
+        keeps(empty, "hidden", files.length > 0 && !noMatches ? "" : null);
+        render(this.#empty, empty, this.renderOptions);
       };
       const rememberExpansion = () => {
         if (!tree) return;
@@ -247,7 +249,7 @@ customElements.define(
 
     render() {
       this.#delivered = this.value;
-      return nothing;
+      return this.#empty;
     }
 
     // The tree loads and draws each list after the update that read it, and that

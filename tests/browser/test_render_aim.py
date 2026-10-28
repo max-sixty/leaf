@@ -799,9 +799,12 @@ def test_a_side_comment_s_words_and_send_ride_its_edges_as_it_grows(browser, ser
     passage.click(modifiers=["Alt"])
     open_compact_comment(page, "Line 0")
     bar = page.locator(".lf-fab-bar")
-    foot = page.evaluate(
-        """async () => (await window.__lfWidgetApi())
-          .shownWindow({gap: 8}).bottom"""
+    foot = bar.evaluate(
+        """async node => {
+          const {left, right} = node.getBoundingClientRect();
+          return (await window.__lfWidgetApi())
+            .shownWindow({gap: 8, across: {left, right}}).bottom;
+        }"""
     )
     # Lines until one more takes the box past the window's foot.
     lines = 1

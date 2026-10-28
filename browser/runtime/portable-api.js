@@ -64,3 +64,5 @@ export { drawsFirst, initialRender } from "./initial-render.js";
 // action, and the drawing of a press's symbol as its action changes.
 export { actionOffers, showAction } from "./icon-paths.js";
 export { onMotionPreferenceChange, reducedMotion } from "./motion.js";
+// The time axis the Playwright timeline and lf-timeline both draw on.
+export { assignRows, axisTicks, textWidth } from "./time-axis.js";

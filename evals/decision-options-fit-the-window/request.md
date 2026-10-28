@@ -20,11 +20,8 @@ You investigated and prototyped. Your notes:
   - reading, "Open in panel at reading size": the same icon, and the view opens
     760px wide and may rise to 24px from the window's top. The whole thread fits.
     You recommend it.
-- Your prototype, on branch thread-expanded-panel, picks its route from the
-  `data-playground-format` attribute a playground sets on a live sample's root
-  (today, panel or reading). So an `lf-sample window` holding a fixture page with
-  this thread lets the user try whichever route is selected. The fixture page can
-  be a placeholder: a heading and a section with id `sample-proto-diff-ask`.
+- The captures below come from a prototype. Its implementation is not included in
+  this workspace.
 - Captures, each a 1640x1010 window with the thread open beside the column:
   - evals/decision-options-fit-the-window/captures/start-card.png: today's margin
     card, where every route starts.

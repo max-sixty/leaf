@@ -1,10 +1,7 @@
 """What `page init` lets a re-vendor change under a logged page, and how it serializes
 with previews, browser actions and worker reports."""
 
-import contextlib
 import json
-import threading
-from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from click.testing import CliRunner
@@ -22,7 +19,6 @@ from interact_support import (
     page_packages,
     publish,
     serving,
-    wait_for,
 )
 from leaf_dev.page_fixtures import package_selection_args
 
@@ -36,6 +32,7 @@ from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import preview as render_gate_model
 from model.interact_contract import _stateful_page_declaration, vocabulary
@@ -430,40 +427,21 @@ def test_revendoring_activates_current_delivery_handling_only_for_valid_source(
     assert (older if valid_source else current) not in clauses
 
 
-def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
-    """The preview holds replacement back; its writer finishes before the test
-    releases the page, including when a preview assertion fails."""
+def test_a_preview_keeps_its_contract_while_revendoring_completes(page_dir):
     before = registry_storage.layer_metadata(page_dir)["generation"]
-    init_waiting = threading.Event()
-    real_page_locked = vendoring_model.page_locked
-
-    @contextlib.contextmanager
-    def observed_page_locked(locked):
-        if locked == page_dir and threading.current_thread().name.startswith(
-            "re-vendor"
-        ):
-            init_waiting.set()
-        with real_page_locked(locked) as held:
-            yield held
-
-    monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
-    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="re-vendor") as workers:
-        with render_gate_model.preview_server(
-            page_dir,
-            structure_model.SourceDocument((page_dir / "index.html").read_text()),
-            1,
-        ):
-            initing = workers.submit(
-                vendoring_model.cmd_init, page_dir, page_packages()[:-1]
-            )
-            wait_for(
-                init_waiting.is_set,
-                bool,
-                failure="Re-vendoring did not attempt the preview lock",
-            )
-            assert registry_storage.layer_metadata(page_dir)["generation"] == before
-        initing.result()
-    assert registry_storage.layer_metadata(page_dir)["generation"] != before
+    snapshot = capture_page_snapshot(
+        page_dir,
+        structure_model.SourceDocument((page_dir / "index.html").read_text()),
+        1,
+        url="/",
+    )
+    with render_gate_model.preview_server(page_dir, snapshot) as url:
+        status, captured = fetch(url, token=None)
+        assert status == 200
+        vendoring_model.cmd_init(page_dir, page_packages()[:-1])
+        assert registry_storage.layer_metadata(page_dir)["generation"] != before
+        assert fetch(url, token=None) == (200, captured)
+    assert snapshot.context.registry["$layer"]["generation"] == before
 
 
 def test_revendoring_serializes_with_a_browser_action_entering_the_log(

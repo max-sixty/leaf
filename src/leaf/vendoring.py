@@ -358,7 +358,7 @@ def _plan_page(
     )
     copied = {root.name: root for root in copies.values()}
     if record == previous and any(
-        _package_files(root) != _package_files(page_dir / PACKAGES_DIR / name)
+        package_files(root) != package_files(page_dir / PACKAGES_DIR / name)
         for name, root in copied.items()
     ):
         # A copy's new bytes change what an open document runs under.
@@ -386,7 +386,7 @@ def _copies(selected: tuple[str, ...]) -> dict[str, Path]:
     return copies
 
 
-def _package_files(root: Path) -> dict[str, bytes]:
+def package_files(root: Path) -> dict[str, bytes]:
     """The files of package `root` a layer composes (`layer.checked_inputs`)."""
     files = {}
     for name in PACKAGE_FILES:
@@ -429,7 +429,7 @@ def _write_record(page_dir: Path, plan: _PagePlan) -> None:
         staged = held / f"{name}.staged"
         shutil.rmtree(staged, ignore_errors=True)
         staged.mkdir(parents=True)
-        for path, data in _package_files(root).items():
+        for path, data in package_files(root).items():
             (staged / path).parent.mkdir(parents=True, exist_ok=True)
             (staged / path).write_bytes(data)
         shutil.rmtree(target, ignore_errors=True)

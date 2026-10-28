@@ -51,6 +51,7 @@ from interact_support import running_http_server
 from render_harness import ROOT
 
 from leaf.event_log import read_events
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.page_code import needs_browser, run_page_code
 from leaf.render_gate.preview import preview_server
@@ -653,13 +654,14 @@ def checked(browser, page_dir: Path):
     if result.errors:
         yield [(e.code, f"{e.code} {e.at}", str(e)) for e in result.errors], None
         return
-    with preview_server(
+    snapshot = capture_page_snapshot(
         page_dir,
         result.document,
         result.revision.candidate,
-        transition_held=True,
+        url="/",
         artifact=result.artifact,
-    ) as url:
+    )
+    with preview_server(page_dir, snapshot) as url:
         found = (
             run_page_code(browser, url)
             if needs_browser(result.document, result.artifact)

@@ -1322,6 +1322,19 @@ def ship_answered(page: Page) -> None:
     expect(page.locator(".lf-fp-opened")).to_be_visible()
 
 
+def card_message_by_keyboard(page: Page) -> None:
+    """The agent's question in a margin card, reached by Next on me (`m`), which
+    focuses the message, so it wears its ring around the card's sticky head."""
+    for _ in range(4):
+        page.keyboard.press("m")
+        settle(page)
+        if page.evaluate(
+            "() => document.activeElement?.matches('.lf-margin-preview .lf-msg')"
+        ):
+            return
+    raise AssertionError("Next on me never reached a card's message")
+
+
 def element_thread_open(page: Page) -> None:
     """The same element while the user is in its thread, opened from its margin card:
     the contour that says which element the thread is about, beside the heading's
@@ -2716,6 +2729,12 @@ STATES = (
         touch=True,
     ),
     State("ship-thread", "ship-review", element_thread),
+    State(
+        "ship-card-message-keyboard",
+        "ship-review",
+        card_message_by_keyboard,
+        region=".lf-margin-preview",
+    ),
     State("ship-tasks", "ship-review", ship_tasks, region="#off-readiness"),
     State(
         "ship-tasks-dark",

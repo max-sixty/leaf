@@ -35,10 +35,11 @@ crops cover both stills' regions.
 
 With `--faces`, each capture then reads every press on screen at rest and under the
 pointer in the same tab (`leaf_dev.faces`, whose header says what a face is and what
-the reading can't see), and the run ends with the faces HEAD draws and those it adds,
-drops or moves a press between, over the states both arms captured, written to the
-run directory too (`faces.txt`, and every reading in `faces.json`). The pointer visits
-each press, about a frame apiece, so pick the states with `--state`.
+the reading can't see), and the run ends with the faces HEAD draws, those it adds,
+drops or moves a press between, and the presses it resizes within a face, over the
+states both arms captured, written to the run directory too (`faces.txt`, and every
+reading in `faces.json`). The pointer visits each press, about a frame apiece, so
+pick the states with `--state`.
 `--fail-on-new-face` exits non-zero when HEAD draws a face the base doesn't, for a
 reviewer gating a design-system change; otherwise the report never fails the run.
 

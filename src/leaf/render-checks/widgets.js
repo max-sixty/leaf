@@ -109,22 +109,6 @@ export const invalidVisualProviders = (declarations) =>
       })),
     )
     .filter((instance) => instance.problems.length);
-export const undeclaredShadowRoots = (registry) => [
-  ...new Set(
-    [
-      .../** @type {NodeListOf<HTMLElement | SVGElement>} */ (
-        document.querySelectorAll("*")
-      ),
-    ]
-      .filter(
-        (el) =>
-          el.shadowRoot &&
-          el.dataset.lfGen !== "1" &&
-          !registry[el.localName]?.["x-shadow"],
-      )
-      .map((el) => `<${el.localName}>`),
-  ),
-];
 export const missingThreads = (declarations) =>
   Object.entries(declarations)
     .filter(([, entry]) => entry["x-thread-seat"])

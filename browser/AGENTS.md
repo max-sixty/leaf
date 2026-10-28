@@ -185,10 +185,12 @@ representative desktop viewport.
   done, ‹ and › for back and next, and the symbols for play, pause, copy and undo, so
   they can tell what the control does before hovering it. The words on Leaf's controls
   compete with the page's own words for the reader's attention, and a symbol is
-  smaller and quieter. Draw it from `runtime/icon-paths.js` and give the control its
-  name as tooltip and accessible name, without the word beside the symbol. An action
-  shows one symbol, or one word, wherever Leaf offers it, so a reader who learns it in
-  one place knows it in every other. One control
+  smaller and quieter. The control names its action from `ACTIONS` in
+  `runtime/icon-paths.js`, which gives it the action's symbol, and says its name as
+  tooltip and accessible name, without the word beside the symbol. An action shows one
+  symbol, or one word, wherever Leaf offers it, so a reader who learns it in one place
+  knows it in every other, and a press names an action, never an icon, so its symbol
+  can't drift. One control
   whose symbol follows its state, such as play turning to pause, replaces a button for
   each state. A symbol that is only related to the action, such as a speech bubble for
   answering a question, leaves the reader guessing, and a tooltip doesn't fix that:
@@ -232,7 +234,9 @@ the reason in `data-lf-startup-error`, and every widget shows its readable fallb
 `runtime/bootstrap.js` runs in a served page only, holds keys pressed before upgrade
 and shows a startup failure.
 
-Content modules import only `runtime/widget-api.js`, the public helper surface. Owners
+Content modules import only `runtime/widget-api.js`, the public helper surface, or a
+widget that also runs off Leaf only its part any document loads,
+`runtime/portable-api.js`, whose header says what its homes owe. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
 `.dependency-cruiser.mjs` enforces these boundaries and rejects cycles, so imports use
@@ -247,10 +251,10 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Undo and withdrawal                                                                                         | `undo.js`                                                                                                                                                |
 | State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `obligations/model.js`, `queues.js`                               |
 | Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                         |
-| Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `widget-elements.js`                                                                                                     |
+| Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `portable-api.js`, `widget-elements.js`, `widget-upgrade.js`                                                             |
 | External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                |
 | Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`                                                    |
-| Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`                           |
+| Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `shown-box.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`           |
 | Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `page-controls.js`                                                                                   |
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                       |
 | Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                     |
@@ -270,7 +274,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                        |
 | Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `leaf-element.js`                                                                               |
 | Child pages                                                                                                 | `sample*.js`                                                                                                                                             |
-| Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`                                                                                                         |
+| Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `base-layer.js`                                                                                        |
 | Paint that belongs to an element while it is in the page, whoever added it                                  | `arrivals.js`                                                                                                                                            |
 | Utilities                                                                                                   | `abort.js`, `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js`                                   |
 

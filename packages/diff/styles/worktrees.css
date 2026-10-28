@@ -90,7 +90,7 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
 
 .lf-worktree-summary::before {
   inline-size: 1rem;
-  text-align: center;
+  margin: 0;
   justify-self: center;
   color: var(--muted);
 }

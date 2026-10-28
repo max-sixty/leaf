@@ -41,7 +41,8 @@ import {
 import { html, render, nothing, share, signal } from "/runtime/framework.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
-import { generatedElement, offeredAction, measure } from "../widget-elements.js";
+import { generatedElement, offeredAction } from "../widget-elements.js";
+import { measure } from "../shown-box.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { commandsOn } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -54,7 +55,6 @@ import {
 } from "./replies.js";
 import { atScrollEnd } from "../scrolling.js";
 import { settleThread } from "./folding.js";
-import { iconTemplate } from "../icons.js";
 import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX } from "./selectors.js";
 import { threadAttention, todoLabel, workflowLabel } from "./workflow.js";
@@ -761,10 +761,10 @@ export class ThreadView {
     const label =
       reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
     return html`<button
-      ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve")}
+      ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve", label, {
+        action: reopen ? "reopen" : "resolve",
+      })}
       aria-busy=${state.pending ? "true" : nothing}
-      aria-label=${label}
-      title=${label}
       ${commandsOn(`On a thread's ${word} button`, (button) => [
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
@@ -775,9 +775,7 @@ export class ThreadView {
           run: this.#settle,
         },
       ])}
-    >
-      ${iconTemplate("check", "lf-action-icon")}
-    </button>`;
+    ></button>`;
   }
 
   // What the thread holds, shown by a press on one of its controls. Where showing it

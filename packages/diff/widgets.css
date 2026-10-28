@@ -123,10 +123,11 @@ lf-call-diff {
 
 .lf-call-group > summary::before {
   align-self: center;
+  justify-self: center;
+  margin: 0;
   grid-column: 1;
   grid-row: 1;
   color: var(--code-muted);
-  text-align: center;
 }
 
 .lf-call-group-body {

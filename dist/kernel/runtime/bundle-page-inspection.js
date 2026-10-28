@@ -1,6 +1,6 @@
 import { closeLayer, currentLocationIn, focusDestination, handBack, openLayer, openerOf } from "./bundle-dom-move.js";
-import { closeControl, el, iconTemplate, offerAction, offeredAction, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
-import { closeNativeLayer, guard, html, nothing, offlineInteractive, pageUrl, render, runtime, showNativeLayer } from "./bundle-geometry.js";
+import { closeNativeLayer, guard, html, nothing, offlineInteractive, pageUrl, render, runtime, showNativeLayer } from "./bundle-layer-stack.js";
+import { closeControl, el, offerAction, offeredAction, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
 import { chromeForeground, pageControls } from "./bundle-content-layout.js";
 import { copyControl, retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
 import { scrollBehavior } from "./bundle-media.js";
@@ -113,11 +113,9 @@ const observations = (label, rows, describe) => html` <dt>${label}</dt>
               ${rows.map((row) => html` <li>
                     <code>${row.at}</code>: ${describe(row)}
                     ${destinations.has(row) ? html`<button
-                            ${offeredAction("symbol", "", "Show on page")}
+                            ${offeredAction("symbol", "", void 0, { action: "show" })}
                             @click=${() => showOnPage(row)}
-                          >
-                            ${iconTemplate("locate", "lf-action-icon")}
-                          </button>` : nothing}
+                          ></button>` : nothing}
                   </li>`)}
             </ul>` : "None observed"}
     </dd>`;
@@ -189,11 +187,9 @@ function present() {
         ${loading ? html`<p role="status">Reading source…</p>` : nothing}
         ${sourceError ? html`<p role="status">${sourceError}</p>
                 ${report.basis ? html`<button
-                        ${offeredAction("symbol", "", "Retry source inspection")}
+                        ${offeredAction("symbol", "", "Retry source inspection", { action: "retry" })}
                         @click=${loadSource}
-                      >
-                        ${iconTemplate("retry", "lf-action-icon")}
-                      </button>` : nothing}` : nothing}
+                      ></button>` : nothing}` : nothing}
         ${report.css ? html`
                 <p>Source captured for r${report.basis.revision}. Static CSS only.</p>
                 ${metrics(report.css.page)}

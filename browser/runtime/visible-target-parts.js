@@ -5,9 +5,10 @@
    Callers choose their own clipping, bounds and seat from these parts; this reading only
    answers whether the target has a drawn representation at all. A target in content the
    browser skips, such as a closed disclosure's, has none, and is answered without a
-   geometry read, which would lay that content out to say so (geometry.js, `skipped`). */
+   geometry read, which would lay that content out to say so (shown-box.js, `skipped`). */
 import { drawn } from "./focus.js";
-import { shownParts, skipped } from "./geometry.js";
+import { shownParts } from "./geometry.js";
+import { skipped } from "./shown-box.js";
 
 export function visibleTargetParts(target) {
   if (skipped(target)) return [];

@@ -1,7 +1,7 @@
-import { PAGE_PAINT_ATTRIBUTE, afterScript, nativeLayerHolding, nextFrame, nextRender, pagePresented, renderedParent, renderedUnder, renderingState, shadowHost, sizeObserver, skipped, under, upFrom, watchArrivals, whileConnected } from "./bundle-portable.js";
+import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, layoutChanged, nativeLayerHolding, nextFrame, nextRender, pagePresented, renderedParent, renderedUnder, renderingState, shadowHost, sizeObserver, skipped, under, upFrom, watchArrivals, watchOwner, whileConnected } from "./bundle-portable.js";
 import { J, LENT_REACH_STOP, PRESSES, TEXT_BOX, WORKS, Z, deepFocus, keeps, layoutPx, move, onCurrentLocation, pressing, tabStops, wearsLentStop } from "./bundle-dom-move.js";
 import { TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, hostIn, inUi, isElementName, marks, registry, shadowRootsIn, tagsDeclaring, tick, uiInside } from "./bundle-layer-stack.js";
-import { LAYOUT, PRESSABLE, layoutChanged, repaintPage, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
+import { PRESSABLE, repaintPage, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { clamp, clippedContents, headerCuts, landingBand, nearObserver, nearWindow, overlaps, scrollContainer, scrollsBy, scrollsContent, shownBox, shownParts, shownRect, userScrollport } from "./bundle-geometry.js";
 import { DATUM, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
@@ -828,6 +828,64 @@ const fragmentTarget = (fragment) => fragment ? targetElement(resolveAnchor({ se
 //#region runtime/scrolling.js
 const pageScroller = document.scrollingElement;
 const moving = /* @__PURE__ */ new WeakMap();
+const ended = /* @__PURE__ */ new WeakMap();
+const scrollSteps = /* @__PURE__ */ new WeakMap();
+const layoutMoved = /* @__PURE__ */ new WeakSet();
+const watchedLayout = /* @__PURE__ */ new WeakSet();
+const extents = /* @__PURE__ */ new WeakMap();
+const extentOf = (box) => [
+	box.scrollHeight,
+	box.clientWidth,
+	box.clientHeight
+];
+const changedExtent = (before, after) => before?.some((value, index) => value !== after[index]);
+function watchLayout(box) {
+	if (watchedLayout.has(box)) return;
+	watchedLayout.add(box);
+	extents.set(box, extentOf(box));
+	const root = box === pageScroller ? document.documentElement : box;
+	const sizes = /* @__PURE__ */ new WeakMap();
+	const measure = (node) => [
+		node.clientWidth,
+		node.clientHeight,
+		node.scrollHeight
+	];
+	const observer = sizeObserver((entries) => {
+		let changed = false;
+		for (const { target } of entries) {
+			const next = measure(target);
+			const before = sizes.get(target);
+			sizes.set(target, next);
+			if (before?.some((value, index) => value !== next[index])) changed = true;
+		}
+		if (changed) {
+			if (ended.has(box) && box.scrollTop !== ended.get(box)) layoutMoved.add(box);
+			else extents.set(box, extentOf(box));
+		}
+	}, { counted: false });
+	const observe = (node) => {
+		sizes.set(node, measure(node));
+		observer.observe(node);
+	};
+	observe(root);
+	if (box !== pageScroller) {
+		for (const child of box.children) observe(child);
+		const mutation = new MutationObserver((entries) => {
+			for (const entry of entries) {
+				for (const node of entry.addedNodes) if (node instanceof Element) observe(node);
+				for (const node of entry.removedNodes) if (node instanceof Element) observer.unobserve(node);
+			}
+		});
+		mutation.observe(box, { childList: true });
+		watchOwner(box, { disconnect() {
+			observer.disconnect();
+			mutation.disconnect();
+			watchedLayout.delete(box);
+		} });
+	}
+}
+watchLayout(pageScroller);
+ended.set(pageScroller, pageScroller.scrollTop);
 function stopScroll(boxes) {
 	const stopped = [...boxes].filter((box) => moving.has(box)).map((box) => [box, moving.get(box)]);
 	if (!stopped.length) return null;
@@ -851,9 +909,18 @@ function startScroll(box) {
 	moving.set(box, { glide: true });
 	chooseScroll(box);
 }
+let travel = null;
+document.addEventListener("beforematch", () => {
+	const mark = travel = {};
+	nextFrame(() => nextFrame(() => {
+		if (travel === mark) travel = null;
+	}));
+}, { capture: true });
 const eventScroller = (target) => target === document ? pageScroller : target;
 document.addEventListener("scroll", ({ target }) => {
 	const box = eventScroller(target);
+	watchLayout(box);
+	scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
 	if (moving.get(box)?.glide) return;
 	const sequence = { glide: false };
 	moving.set(box, sequence);
@@ -869,8 +936,16 @@ function placeKept(...boxes) {
 }
 document.addEventListener("scrollend", ({ target }) => {
 	const box = eventScroller(target);
+	watchLayout(box);
+	const wasMoving = moving.get(box);
 	moving.delete(box);
-	if (kept.get(box) !== box.scrollTop) chooseScroll(box);
+	const extent = extentOf(box);
+	const repeated = (scrollSteps.get(box) ?? 0) > 1;
+	scrollSteps.delete(box);
+	if ((wasMoving?.glide || repeated || travel !== null || ended.get(box) !== box.scrollTop && !layoutMoved.has(box) && !changedExtent(extents.get(box), extent)) && kept.get(box) !== box.scrollTop) chooseScroll(box);
+	ended.set(box, box.scrollTop);
+	layoutMoved.delete(box);
+	extents.set(box, extent);
 	kept.delete(box);
 }, {
 	capture: true,

@@ -5,7 +5,7 @@ import test from "node:test";
 import { render, nothing, html, LeafElement } from "/runtime/widget-api.js";
 import { authoredBody, initialRender, initialOrigin } from "/runtime/initial-render.js";
 import { unmarkedCopy } from "/runtime/initial-render.js";
-import { tabStore } from "/runtime/storage.js";
+import { tabStore } from "/runtime/tab-store.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import {
   rememberAuthoredParents,

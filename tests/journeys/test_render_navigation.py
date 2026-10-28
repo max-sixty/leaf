@@ -101,9 +101,9 @@ QUICK_KEYS_PAGE = leaf_page(
 </div>
 """,
     head="""<script type="module">
-import { commands } from "/runtime/widget-api.js";
+import { commandsChanged } from "/runtime/widget-api.js";
 const note = document.querySelector("#shortcut-note");
-commands(document.querySelector("#local-shortcuts"), "In the note sample", [{
+document.querySelector("#local-shortcuts").lfCommands = { title: "In the note sample", rows: [{
   id: "note.focus",
   contextKeys: ["1"],
   control: document.querySelector("#shortcut-focus-note"),
@@ -111,7 +111,8 @@ commands(document.querySelector("#local-shortcuts"), "In the note sample", [{
   title: "Write note",
   description: "Focus the sample note",
   run: () => note.focus(),
-}]);
+}] };
+commandsChanged(document.querySelector("#local-shortcuts"));
 </script>""",
 )
 
@@ -1906,7 +1907,9 @@ def _stale_keys(page):
     page.wait_for_function("() => window.__lfFullscreenRequests === 0")
     page_at_rest(page)
     painted = page.evaluate_handle(_PAINTED_KEYS)
-    page.evaluate("async () => (await window.__lfWidgetApi()).paintKeys()")
+    page.evaluate(
+        "async () => (await window.__lfWidgetApi()).commandsChanged(document.body)"
+    )
     rendered(page)
     stale = page.evaluate(_REPAINTED_KEYS, painted)
     painted.dispose()

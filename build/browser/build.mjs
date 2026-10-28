@@ -7,9 +7,9 @@
  * Run with --check to compare a fresh, typechecked build with committed bytes
  * without writing them. This module type-checks the runtime, builds the framework's
  * third-party packages, and writes and checks every other committed Node-built output
- * beside them: the initial renderers (`build/initial.mjs`), the stylesheets
- * (`build/styles.mjs`), the page protocol's types, the event records and the served
- * state (`contract-types.mjs`), and the baseline its schemas are held to
+ * beside them: the initial renderers (`build/initial.mjs`), the third-party
+ * stylesheets (`build/styles.mjs`), the page protocol's types, the event records and
+ * the served state (`contract-types.mjs`), and the baseline its schemas are held to
  * (`protocol.mjs`), the third-party bundles and the runtime's table of their grammars
  * (`build/vendor.mjs`), and last the kernel compiled from all of them
  * (`build/runtime-bundle.mjs`). The kernel's directory, the layer's `vendor/` and each
@@ -22,7 +22,7 @@
  * The framework (`runtime/framework.js` and the modules behind it) is written as
  * JavaScript the type check reads, so a page serves its source as it does every other
  * runtime module. Its third-party packages are minified builds from the lock and the
- * adaptations below. Delivery inlines Lit only when an initial producer needs it,
+ * adaptations below. Delivery inlines Lit when a page declares an initial producer,
  * mapping `vendor/lit.js` to that instance's facade; otherwise it loads as a normal
  * module (`build/lit.mjs`). Both outputs share the same namespace source, and a page
  * loads one implementation. Signals are the framework's own: the kernel compiles
@@ -107,8 +107,10 @@ async function litTypes() {
  * Build the classic Lit implementation, adapting the locked published modules in memory.
  *
  * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
- * keyed and child-part insertions through `runtime/dom-move.js`, which keeps the
- * user's place and native state across the move.
+ * keyed and child-part insertions through the mover a Leaf page installs on its root
+ * (`lfInitial.move`: prepaint's plain insertion, then `runtime/dom-move.js`, which keeps
+ * the user's place and native state across the move). A document Leaf did not compose
+ * has no mover, and Lit inserts as it always does, so this Lit loads in any document.
  *
  * `package.json` holds `lit-html` at 3.3.0 for that leak: from 3.3.1 `repeat` leaves a
  * comment behind for each item it removes, so a list the chrome redraws grows for as
@@ -118,7 +120,7 @@ async function litTypes() {
 async function litModule() {
   const contents = await litNamespace();
   const move =
-    "const leafMove = (parent, node, before) => document.documentElement.lfInitial.move(parent, node, before);\n";
+    "const leafMove = (parent, node, before) => { const move = document.documentElement.lfInitial?.move; return move ? move(parent, node, before) : parent.insertBefore(node, before); };\n";
   return [
     {
       name: "leaf-lit",
@@ -169,7 +171,7 @@ async function litModule() {
   ];
 }
 
-// Every schema a page vendored at the current protocol relies on, and every record's,
+// Every schema a page's log at the current protocol relies on, and every record's,
 // as it last stood (`protocol.mjs`). It is an output, so a build that passes moves it
 // forward. A build refuses a change that breaks it.
 const baselineName = "build/browser/protocol-baseline.json";
@@ -194,7 +196,7 @@ async function protocolOutputs() {
   const refused = protocolBreaks(baseline, held);
   if (refused.length)
     throw new Error(
-      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in browser/runtime/kernel-registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
+      `A page's log at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in browser/runtime/kernel-registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
     );
   return {
     contract: await contractTypes(new URL("../../", import.meta.url), schemas),
@@ -326,7 +328,6 @@ export async function buildOutputs() {
         },
       },
     ],
-    external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",
     target: "es2022",
@@ -339,11 +340,7 @@ export async function buildOutputs() {
   });
   for (const file of result.outputFiles) {
     const name = path.relative(root, file.path).split(path.sep).join("/");
-    if (
-      result.metafile.outputs[name].imports.some(
-        ({ path }) => path !== "/runtime/dom-move.js",
-      )
-    )
+    if (result.metafile.outputs[name].imports.length)
       throw new Error(`${name} imports another module`);
     checkModule(file.text, name);
     outputs.set(name, Buffer.from(file.contents));
@@ -373,13 +370,14 @@ export async function buildOutputs() {
   const moduleLit = await build({
     absWorkingDir: root,
     stdin: {
-      contents: `import "/runtime/dom-move.js"; import * as lit from "leaf:lit"; ${litGlobal} = lit; export * from "leaf:lit";`,
+      // A Leaf page's later initial producers bind to this instance; a document Leaf
+      // did not compose has no root coordinator to hold it.
+      contents: `import * as lit from "leaf:lit"; if (document.documentElement.lfInitial) ${litGlobal} = lit; export * from "leaf:lit";`,
       resolveDir: root,
       sourcefile: "leaf-module-lit.js",
     },
     outfile: `${assets}/${litPath}`,
     plugins: await litModule(),
-    external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",
     target: "es2022",

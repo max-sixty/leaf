@@ -143,9 +143,14 @@ def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, se
     assert (
         card.evaluate("e => getComputedStyle(e, '::before').content") == '"Field note"'
     )
+    inputs = page.locator("#card-playground input").element_handles()
+    assert inputs
     held.pop().continue_()
     wait_until_ready(page)
     expect(card).to_have_css("border-radius", "12px")
+    # The live renderer takes the initial template's parts, preserving native fields.
+    assert page.locator("#card-playground input").count() == len(inputs)
+    assert page.evaluate("inputs => inputs.every(input => input.isConnected)", inputs)
 
 
 def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
@@ -307,7 +312,8 @@ def test_plain_choices_wrap_between_whole_labels_until_the_author_sets_columns(
     browser, serve
 ):
     """Plain label choices run in a row that breaks between labels, and
-    `--playground-choice-columns` arranges them in the author's columns instead."""
+    `--playground-choice-columns` arranges them, and rich choices, in the author's
+    columns instead."""
     choices = "".join(
         f'<lf-playground-choice value="{value}" label="{label}"></lf-playground-choice>'
         for value, label in (
@@ -321,6 +327,7 @@ def test_plain_choices_wrap_between_whole_labels_until_the_author_sets_columns(
         f"""<style>
   .card {{ inline-size: 28rem; }}
   #columned {{ --playground-choice-columns: repeat(2, minmax(0, 1fr)); }}
+  #stacked {{ inline-size: 60rem; --playground-choice-columns: minmax(0, 1fr); }}
 </style>
 <h1>Route the alert</h1>
 <lf-playground id="routes">
@@ -329,6 +336,11 @@ def test_plain_choices_wrap_between_whole_labels_until_the_author_sets_columns(
       kind="choice" value="page">{choices}</lf-playground-control></div>
     <div class="card" id="columned"><lf-playground-control name="columns"
       label="Columns" kind="choice" value="page">{choices}</lf-playground-control></div>
+    <div id="stacked"><lf-playground-control name="rich" label="Layout"
+      kind="choice" value="list">
+      <lf-playground-choice value="list" label="List"><p>Rows</p></lf-playground-choice>
+      <lf-playground-choice value="grid" label="Grid"><p>Tiles</p></lf-playground-choice>
+    </lf-playground-control></div>
   </lf-playground-preview>
   <lf-playground-output>Route the alert.</lf-playground-output>
 </lf-playground>""",
@@ -347,6 +359,11 @@ def test_plain_choices_wrap_between_whole_labels_until_the_author_sets_columns(
     columns = page.locator('lf-playground-control[name="columns"]').evaluate(read)
     assert columns[0]["left"] == columns[2]["left"] < columns[1]["left"]
     assert columns[0]["top"] == columns[1]["top"] < columns[2]["top"]
+    # Rich choices take the author's columns over their own responsive grid.
+    rich = page.locator('lf-playground-control[name="rich"] lf-playground-choice')
+    boxes = [rich.nth(index).bounding_box() for index in range(2)]
+    assert boxes[0]["x"] == boxes[1]["x"]
+    assert boxes[0]["y"] < boxes[1]["y"]
 
 
 def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
@@ -399,9 +416,9 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
             "button => button.click()"
         )
     holding(page, held, 1, "the query configuration")
-    expect(playground.get_by_role("button", name="Undo choice")).to_be_disabled()
+    expect(playground.get_by_role("button", name="Undo choice")).to_be_visible()
     field.fill("unsent-region")
-    expect(playground.get_by_role("button", name="Use these settings")).to_be_disabled()
+    expect(playground.get_by_role("button", name="Use these settings")).to_be_visible()
     field.press("ArrowLeft")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -608,13 +625,16 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     a one-row bar of actions, so the notification playground's longer list scrolls."""
 
     def cue(page, body):
-        """How many pixels of the box's bottom band the mark changes."""
+        """How many pixels of the box's bottom band the mark changes. It puts the mark
+        back only where it found one, since a box the runtime already marked as at its
+        end is not marked again until it scrolls."""
         box = body.bounding_box()
         clip = {**box, "y": box["y"] + box["height"] - 12, "height": 12}
         marked = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        had = body.evaluate("el => el.hasAttribute('data-lf-more-below')")
         body.evaluate("el => el.removeAttribute('data-lf-more-below')")
         bare = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-        body.evaluate("el => el.toggleAttribute('data-lf-more-below', true)")
+        body.evaluate("(el, had) => el.toggleAttribute('data-lf-more-below', had)", had)
         delta = ImageChops.difference(marked, bare).get_flattened_data()
         return sum(1 for pixel in delta if max(pixel) > 24)
 
@@ -626,7 +646,9 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     assert cue(page, preview) > 100
 
     page = open_page(browser, serve(ROOT / "examples" / "notification-playground.html"))
-    resized(page, 1100, 700)
+    # Without a Controls label or a Starting points label over them, the list fits
+    # at 700px tall; 600 still runs it past the rail's foot.
+    resized(page, 1100, 600)
     playground = page.locator("#notification-playground")
     controls = playground.locator(".lf-playground-controls")
     assert controls.evaluate("el => el.scrollHeight > el.clientHeight + 1")
@@ -788,7 +810,9 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
       };
     }"""
 
-    resized(page, 1100, 700)
+    # Without a Controls label or a Starting points label over them, the list fits
+    # at 700px tall; 600 still runs it past the rail's foot, so it scrolls.
+    resized(page, 1100, 600)
     expect(actions).to_be_visible()
     bounded = page.evaluate(reading)
     assert bounded == {
@@ -806,6 +830,10 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         "spokenWords": True,
     }
     assert bounded["controlsSize"][1] > bounded["controlsSize"][0], bounded
+    # The band is its buttons alone; "Starting points" only names the group.
+    expect(presets).to_have_text(
+        re.compile(r"^\s*Routine release\s*Needs attention\s*$")
+    )
     # The presets band heading the controls is ruled off from them, over the generic
     # region header's unruled box.
     assert playground.locator(".lf-playground-presets").evaluate(
@@ -914,11 +942,13 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     leaves the user on the reveal. Tab goes on from the reveal to the copy."""
     source = leaf_page(
         "Instruction popover",
+        '<button id="outside">Before playground</button>'
         '<lf-ask id="fold-ask"><h1>Choose a density</h1>'
         '<lf-playground id="fold-playground" data-width="available">'
         '<lf-playground-control name="rows" label="Rows" kind="range" value="4" '
         'min="1" max="8"></lf-playground-control>'
-        "<lf-playground-preview><p>Rows of the report.</p></lf-playground-preview>"
+        "<lf-playground-preview><p>Rows of the report.</p>"
+        '<button id="preview-action">Preview action</button></lf-playground-preview>'
         '<lf-playground-output>Use <lf-playground-value for="rows">'
         "</lf-playground-value> rows in the weekly report and show me its "
         "rendered page.</lf-playground-output>"
@@ -935,6 +965,7 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     rail = playground.locator(".lf-playground-rail").bounding_box()
     pressed = reveal.bounding_box()
 
+    page.locator("#outside").click()
     reveal.click()
     expect(reveal).to_have_attribute("aria-expanded", "true")
     expect(instruction).to_contain_text("Use 4 rows")
@@ -952,6 +983,16 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     page.keyboard.press("Escape")
     expect(instruction).to_be_hidden()
     expect(reveal).to_be_focused()
+
+    preview = playground.get_by_role("button", name="Preview action")
+    preview.click()
+    playground.get_by_role("button", name="Reset", exact=True).click()
+    expect(preview).to_be_focused()
+    reveal.click()
+    expect(instruction).to_be_visible()
+    expect(reveal).to_be_focused()
+    reveal.click()
+    expect(instruction).to_be_hidden()
 
 
 def test_notification_playground_admits_only_its_exact_page_configuration(
@@ -1047,9 +1088,9 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     expect(quote).not_to_have_class(re.compile(r"detached"))
 
 
-def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
-    browser, serve
-):
+def test_a_press_in_flight_does_what_the_playground_button_says(browser, serve):
+    """The press draws its result at once and leaves the button as it was, neither
+    busy nor disabled, so the next press acts on what the button now says."""
     page = open_page(browser, serve(PLAYGROUND_PAGE))
     playground = page.locator("#card-playground")
     choose = playground.locator(".lf-playground-submit")
@@ -1059,21 +1100,27 @@ def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
     with page.expect_request("**/api/event"):
         choose.press("Enter")
     holding(page, held, 1, "the playground choice")
-    expect(choose).to_be_disabled()
     expect(choose).to_have_text("Undo choice")
-    expect(choose).to_have_attribute("aria-busy", "true")
-    expect(choose).to_be_focused()
-    choose.press("Space")
-    choose.dispatch_event("click")
-    rendered(page)
-    assert len(held) == 1
-
-    held[0].continue_()
-    round_trip(page)
     expect(choose).to_be_enabled()
     expect(choose).not_to_have_attribute("aria-busy", "true")
     expect(choose).to_be_focused()
-    assert len(actions(serve.page_dir)) == 1
+    choose.press("Space")
+    expect(choose).to_have_text("Use these settings")
+    expect(choose).to_be_enabled()
+
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    expect(choose).to_have_text("Use these settings")
+    expect(choose).to_be_focused()
+    chosen = actions(serve.page_dir)
+    assert len(chosen) == 1
+    assert [
+        e["undoes"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "undo"
+    ] == [chosen[0]["id"]]
 
 
 def test_a_playground_switch_is_reachable_through_go_to(browser, serve):
@@ -1342,7 +1389,7 @@ def test_a_quoted_playground_draws_no_box_its_preview_wrote_only_for_controls(
     expect(page.locator("#quoted-latency-settings")).to_be_hidden()
     expect(page.locator("#quoted-latency-evidence")).to_be_visible()
     expect(page.locator("#quoted-rate-settings")).to_have_text(
-        "Pages payments on-call."
+        "Pages payments on-call.", use_inner_text=True
     )
     expect(page.locator("#quoted-alerts-instruction")).to_contain_text(
         "payments-p99-latency to page over 800ms"

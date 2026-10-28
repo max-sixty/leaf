@@ -109,22 +109,6 @@ export const invalidVisualProviders = (declarations) =>
       })),
     )
     .filter((instance) => instance.problems.length);
-export const undeclaredShadowRoots = (registry) => [
-  ...new Set(
-    [
-      .../** @type {NodeListOf<HTMLElement | SVGElement>} */ (
-        document.querySelectorAll("*")
-      ),
-    ]
-      .filter(
-        (el) =>
-          el.shadowRoot &&
-          el.dataset.lfGen !== "1" &&
-          !registry[el.localName]?.["x-shadow"],
-      )
-      .map((el) => `<${el.localName}>`),
-  ),
-];
 export const missingThreads = (declarations) =>
   Object.entries(declarations)
     .filter(([, entry]) => entry["x-thread-seat"])
@@ -173,9 +157,19 @@ export function undeclaredAttrs(declarations) {
   // What a module may write without declaring: the platform's own vocabulary for
   // what a control is and how it behaves, and the data-* namespace the runtime and
   // the widgets both paint in. `class` and `style` are the same kind of fact — a
-  // look, not a state a version could carry.
+  // look, not a state a version could carry — and `title`, `lang` and `dir`, which
+  // the page may write on any element (`validation/instances.py`), describe one.
   const painted = /^(?:data-|aria-)/;
-  const platform = new Set(["role", "class", "style", "hidden", "tabindex"]);
+  const platform = new Set([
+    "role",
+    "class",
+    "style",
+    "title",
+    "lang",
+    "dir",
+    "hidden",
+    "tabindex",
+  ]);
   const all = openRoots(document);
   const found = [];
   for (const [tag, entry] of Object.entries(declarations)) {
@@ -407,7 +401,7 @@ const overflowsVertically = (box) => box.scrollHeight > box.clientHeight + ROUND
 // Each box in one of `tags`' widgets that holds its own height and scrolls inside it
 // without saying so. A widget in ordinary flow grows with its content, and a box that
 // needs a scroll of its own declares `--lf-holds-height: 1`, as a bounded block does
-// (assets/AGENTS.md, "Space and scrolling").
+// (browser/AGENTS.md, "Space and scrolling").
 //
 // A box that scrolls vertically now holds its height, whatever it asked for. A box
 // whose CSS asks for vertical scrolling but whose content fits is asked again with more

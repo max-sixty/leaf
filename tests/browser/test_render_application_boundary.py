@@ -567,14 +567,14 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
               return {
                 phase: application.phase,
                 epoch: application.semanticEpoch,
-                presented: presentation.presentedEpoch,
+                sealed: presentation.sealed,
                 pending: presentation.pending,
                 current: runtime.applicationPresented(),
               };
             }"""
     )
     assert waiting["phase"] == "waiting"
-    assert waiting["presented"] == waiting["epoch"]
+    assert waiting["sealed"] is True
     assert waiting["pending"] == []
     assert waiting["current"] is True
 
@@ -589,14 +589,14 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
               return {
                 phase: application.phase,
                 epoch: application.semanticEpoch,
-                presented: presentation.presentedEpoch,
+                sealed: presentation.sealed,
                 pending: presentation.pending,
               };
             }"""
     )
     assert ready["phase"] == "ready"
     assert ready["epoch"] > waiting["epoch"]
-    assert ready["presented"] == ready["epoch"]
+    assert ready["sealed"] is True
     assert ready["pending"] == []
 
 
@@ -624,7 +624,7 @@ def test_versions_wait_for_a_reading_of_the_log(browser, serve):
     page.goto(serve(OBLIGATION_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", re.compile("Server offline")
+        "aria-label", re.compile("Lost the connection")
     )
     # Versions waits for a reading of the log too.
     versions = panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
@@ -1472,9 +1472,7 @@ def test_compact_reader_draws_the_native_interactive_message(browser, serve, sur
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     if surface == "margin":
-        page.get_by_role(
-            "button", name=re.compile("Thread, My turn to answer")
-        ).first.click()
+        page.get_by_role("button", name=re.compile("Thread, Your turn")).first.click()
         compact = page.locator(".lf-margin-thread")
     else:
         compact = page.locator('#jobs .lf-page-thread[data-thread="native-thread"]')
@@ -1872,8 +1870,8 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
                 this.editor = document.createElement('input');
                 this.editor.slot = 'editor';
                 this.editor.setAttribute('aria-label', 'Draft');
-                this.append(this.editor);
                 shadowStage(this, [this.scope]);
+                this.append(this.editor);
               }
               replaceEditor() {
                 const restore = holdFocus(this.scope, {key: 'data-row'});
@@ -2168,7 +2166,7 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
       const thread = node.thread;
       const agent = thread.msgs.find(message => message.author === 'agent');
       const choice = agent.reactions.choices.find(choice => choice.name === 'keep');
-      return thread.offers.reply && thread.offers.resolve && !thread.offers.reopen &&
+      return !thread.resolved &&
         choice.inForce && choice.glyph && choice.label && Object.isFrozen(choice);
     }""")
     assert page.evaluate("""async () => {

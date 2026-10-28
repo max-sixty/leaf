@@ -297,7 +297,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
     stamp_page(serve.page_dir, source, "Refresh the document")
     wait_for_revision(page, 2)
     expect(page.locator('#gate-milestone [data-lf-said="label"]')).to_have_count(1)
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry = registry_storage.read_page_registry(serve.page_dir).registry
     cases = [
         ("#gate-milestone strong", "Build feeders", "gate-milestone"),
         ("#gate-milestone", "Two classic models.", "gate-milestone"),
@@ -451,7 +451,7 @@ def test_browser_and_file_captures_agree_on_a_sidebar_tracks_blocks(browser, ser
     page = open_page(browser, live_url(serve(SIDEBAR_TRACK_PAGE)))
     resized(page, 1440, 900)
     expect(page.locator("#track > [data-lf-track-body] > #owners")).to_have_count(1)
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry = registry_storage.read_page_registry(serve.page_dir).registry
     cases = [
         ("#owners p", "payments on-call", "owners", "#owners p", "payments on-call"),
         ("#verdict p", "two follow-ups.", "track", "#owners h2", "Owners"),
@@ -521,7 +521,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, 
     url = live_url(serve(markup))
     page = open_page(browser, url)
     quote = "Release context. Which plan should lead?"
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry = registry_storage.read_page_registry(serve.page_dir).registry
     expected = anchor_capture_model.capture_anchor(
         structure_model.SourceDocument(markup), registry, quote, "review"
     )
@@ -809,13 +809,28 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     expect(hint).to_be_visible()
     assert len(set(hint.evaluate(hint_ink))) == 1
 
-    family = """el => { const s = getComputedStyle(el);
-        return Object.fromEntries(["font-family", "font-size",
-            "border-top-width", "border-top-style",
-            "background-color"].map(p => [p, s.getPropertyValue(p)])); }"""
+    # The editor's frame is drawn by the moving surface. Compare that paint with
+    # the button's own border and fill, rather than the transparent editor's CSS.
+    family = r"""el => {
+        const s = getComputedStyle(el);
+        const ground = el.closest('.lf-fab-bar').querySelector('.lf-fab-ground');
+        const field = el.matches('.lf-fab-input');
+        const ring = field && getComputedStyle(ground.querySelector('.lf-box-ring'));
+        const fill = field && getComputedStyle(ground.querySelector('.lf-box-fill'));
+        const inset = style => Number.parseFloat(/^inset\(([^ ]+)/.exec(style.clipPath)[1]);
+        return {
+            font: s.fontFamily,
+            size: s.fontSize,
+            border: field ? inset(fill) - inset(ring) : Number.parseFloat(s.borderTopWidth),
+            ink: field ? ring.backgroundColor : s.borderTopColor,
+            face: field ? fill.backgroundColor : s.backgroundColor,
+        };
+    }"""
+    rendered(page)
     raised = page.locator(".lf-fab-input").evaluate(family)
     page.keyboard.press("e")
     expect(page.locator(".lf-fab-bar .lf-fab-suggest")).to_be_visible()
+    rendered(page)
     adjacent = page.locator(".lf-fab-bar .lf-fab-suggest").evaluate(family)
     assert raised == adjacent, (
         "the floating field and its other responses are drawn differently:\n  "
@@ -825,11 +840,11 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
             if raised[k] != adjacent[k]
         )
     )
-    assert "system-ui" in raised["font-family"], (
-        f"the response bar speaks in the document's voice: {raised['font-family']}"
+    assert "system-ui" in raised["font"], (
+        f"the response bar speaks in the document's voice: {raised['font']}"
     )
     assert (
-        page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).filter")
+        page.locator(".lf-fab-ground").evaluate("el => getComputedStyle(el).filter")
         != "none"
     ), "the field that floats over the page says nothing about its elevation"
     page.locator(".lf-fab-input").click()
@@ -1608,6 +1623,44 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
     assert many <= one, {"60 controls": many, "1 control": one}
 
 
+def test_hidden_code_arrivals_do_not_read_skipped_blocks(browser, serve):
+    """Arriving code must leave the browser's skipped subtrees unmeasured."""
+    page = open_page(
+        browser,
+        serve(leaf_page("Hidden arrivals", '<h1>Arrivals</h1><div id="slots"></div>')),
+    )
+    page.evaluate("""() => {
+      window.hiddenCodeReads = [];
+      const rect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = function (...args) {
+        if (this.matches('pre[data-hidden-probe]')) hiddenCodeReads.push('rect');
+        return rect.apply(this, args);
+      };
+      const computed = window.getComputedStyle;
+      window.getComputedStyle = function (node, ...args) {
+        if (node.matches('pre[data-hidden-probe]')) hiddenCodeReads.push('style');
+        return computed.call(this, node, ...args);
+      };
+      document.querySelector('#slots').innerHTML =
+        '<section hidden="until-found"><pre data-hidden-probe><code>tab</code></pre></section>' +
+        '<details><summary>Code</summary><pre data-hidden-probe><code>details</code></pre></details>';
+    }""")
+    rendered(page)
+    assert page.evaluate("hiddenCodeReads") == []
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.locator("#slots section").evaluate("node => node.removeAttribute('hidden')")
+    expect(page.locator(".lf-code-copy")).to_have_count(1)
+    page.locator("#slots summary").click()
+    expect(page.locator(".lf-code-copy")).to_have_count(2)
+    page.keyboard.press("Tab")
+    expect(page.locator("#slots details pre")).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(
+        page.locator(".lf-code-copy").nth(1).get_by_role("button")
+    ).to_have_accessible_name("Code copied")
+    assert page.evaluate("navigator.clipboard.readText()") == "details"
+
+
 @pytest.mark.parametrize("holder", ["disclosure", "tab"])
 def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, holder):
     """Hidden and distant sources take no anchored control layout; Copy still works."""
@@ -1628,10 +1681,8 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     page = open_page(browser, url)
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     controls = page.locator(".lf-chrome .lf-code-copy")
-    expect(controls).to_have_count(100)
     control = controls.first
     expect(page.locator("#source")).to_be_hidden()
-    expect(control).not_to_be_in_viewport()
     assert (
         controls.evaluate_all(
             "nodes => nodes.filter(node => node.getClientRects().length).length"
@@ -1652,6 +1703,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     opener.click()
     rendered(page)
     expect(page.locator("#source")).to_be_visible()
+    expect(controls).to_have_count(100)
     expect(control).to_be_in_viewport()
     assert (
         0
@@ -2169,8 +2221,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         path: path.textContent,
         statGenerated: stat.dataset.lfGen === '1',
         // A flex row draws no native marker, so it wears Leaf's, turned its own way.
-        disclosure: getComputedStyle(d.querySelector('summary'), '::before').content
-          .includes(d.open ? 'disclosure-open' : 'disclosure-closed'),
+        disclosure: (marker => marker.maskImage.includes('svg')
+          && marker.rotate === (d.open ? '90deg' : 'none'))(
+          getComputedStyle(d.querySelector('summary'), '::before')),
         summaryAligned: Math.abs(path.getBoundingClientRect().top
           - stat.getBoundingClientRect().top) < 1,
         lines: [...d.querySelectorAll('[data-line]')].map(l => ({
@@ -2855,15 +2908,15 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_be_visible()
     look = mark.evaluate(
-        """node => { const style = getComputedStyle(node); return {
-          background: style.backgroundImage,
+        """node => { const style = getComputedStyle(node, '::after'); return {
+          background: getComputedStyle(node).backgroundImage,
           outline: [style.outlineStyle, style.outlineWidth],
           offset: parseFloat(style.outlineOffset),
         }; }"""
     )
     assert look["background"] == "none", look
     assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
-    assert look["offset"] > 0, look
+    assert look["offset"] == 0, look
 
 
 FOCUSED_THREAD = "document.activeElement?.closest('.lf-page-thread')"
@@ -3118,7 +3171,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_have_count(0)
 
-    look = """node => { const style = getComputedStyle(node); return {
+    look = """node => { const style = getComputedStyle(node, '::after'); return {
       line: style.outlineStyle,
       drawn: parseFloat(style.outlineWidth) > 0,
     }; }"""
@@ -3413,7 +3466,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     expect(quote).to_have_attribute("title", re.compile("no longer"))
     # With nowhere on the page to go, the view offers no way there.
     expect(
-        page.locator(".lf-fp-aux button:enabled", has_text="Show on page")
+        page.locator(".lf-fp-aux button:enabled[aria-label='Show on page']")
     ).to_have_count(0)
 
 

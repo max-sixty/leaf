@@ -42,7 +42,6 @@ from render_harness import (
     held_frames,
     leaf_page,
     open_page,
-    open_threads,
     open_versions,
     opened_tab,
     page_comment,
@@ -56,6 +55,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     sending,
+    show_resolved,
     stamp_page,
     told,
     write,
@@ -173,7 +173,7 @@ CONTROL_STABILITY_PAGE = leaf_page(
 <lf-ask id="stable-options-decision"><h2>Which control should stay?</h2>
 <lf-options id="stable-options" choose>
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
-  <lf-option id="stable-choice-b" for="control-target">Keep B</lf-option>
+  <lf-option id="stable-choice-b" for="stable-tabs">Keep B</lf-option>
 </lf-options></lf-ask>
 <lf-tabs id="stable-tabs">
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
@@ -226,6 +226,8 @@ CONTROL_ARCHETYPES = (
         "target": '[data-lf-margin-for="stable-suggestion"] > .lf-margin-more',
     },
     {
+        # Different destinations keep the reference beside the pick visible;
+        # a shared destination intentionally has no reference to hold still.
         "name": "option-pick",
         "target": "#stable-choice-a .lf-pick",
     },
@@ -249,12 +251,12 @@ CONTROL_ARCHETYPES = (
     {
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": '.lf-vr-case[aria-hidden="false"] .lf-shot-views button:nth-child(2)',
+        "target": ".lf-vr-case:not([hidden]) .lf-shot-views button:nth-child(2)",
     },
     {
         "name": "visual-review-approval",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": '.lf-vr-case[aria-hidden="false"] .lf-vr-approval',
+        "target": ".lf-vr-case:not([hidden]) .lf-vr-approval",
     },
 )
 
@@ -302,10 +304,8 @@ RING_CASES = (
             "notification-playground": (
                 ("lf-playground input[type=radio]", ".choice:has"),
             ),
-            "review-a-plan": (
-                ("main details > summary", ":where([data-lf-focus-visible])"),
-            ),
             "pr-walkthrough": (
+                ("#pr-path-tree > summary", ".lf-visual-mark"),
                 (
                     "#pr-flow-tab",
                     ".lf-rendered:has(> :is(lf-tab, lf-part)",
@@ -316,7 +316,7 @@ RING_CASES = (
                 ("lf-diff code", ".lf-diff-frame"),
             ),
             "release-notes": (
-                ("main p.lf-mark-el", ".lf-mark-el"),
+                ("main p.lf-mark-el", ".lf-visual-mark"),
                 (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
                     "wa-comparison::part(",
@@ -326,7 +326,7 @@ RING_CASES = (
             "wt-merge": (
                 (
                     '[data-lf-reading-role="pane"] > [tabindex="0"]',
-                    "[data-lf-reading-role=pane]",
+                    '[data-lf-reading-role="pane"]',
                 ),
             ),
         },
@@ -379,7 +379,7 @@ RING_CASES = (
     (
         "the response bar",
         ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
-        {RING_CHROME: ((".lf-fab-input", ".lf-response-control"),)},
+        {RING_CHROME: ((".lf-fab-input", ".lf-compose-field"),)},
     ),
     # These controls live behind exact page-owned view states: a settled group's
     # disclosure, and the options it puts away.
@@ -399,7 +399,7 @@ RING_CASES = (
             "current-proposed-comparison": (
                 (
                     "#comparison-policy > lf-option > .lf-pick",
-                    ":is(lf-option) .lf-pick",
+                    "lf-option .lf-pick",
                 ),
             )
         },
@@ -407,7 +407,7 @@ RING_CASES = (
     (
         "a contents link",
         (),
-        {"feature-gallery": (("#bg-contents li a:visible", ":is(lf-toc) a"),)},
+        {"feature-gallery": (("#bg-contents li a:visible", "lf-toc a"),)},
     ),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip
@@ -453,7 +453,7 @@ RING_CASES = (
             "ship-review": (
                 (
                     ".lf-margin-preview .lf-resolve",
-                    ".lf-page-thread :is(.lf-btn, summary)",
+                    ".lf-icon-action",
                 ),
             )
         },
@@ -527,8 +527,8 @@ RING_SCOPE_SURFACE = {
     "All pages": '.lf-floating-panel[data-open="leaves"]',
     "the leaf's menu": ".lf-floating-panel[data-menu]",
     "the versions menu": ".lf-floating-panel[data-menu]",
-    "the command reference": ".lf-command-reference.open",
-    "a reaction palette": ".lf-react-strip.lf-react-open",
+    "the command reference": ".lf-command-reference[open]",
+    "a reaction palette": ".lf-react-strip:has(> .lf-react-palette:popover-open)",
 }
 
 
@@ -568,13 +568,13 @@ RING_SCOPE_THREAD = {
 
 def open_panel_thread_holding(page, selector):
     """Open the panel's view of the first thread, open or resolved, whose view holds
-    `selector`, walking Threads' rows in turn."""
-    open_threads(page)
+    `selector`, walking Threads' rows in turn, the folded resolved ones unfolded."""
+    show_resolved(page)
     keys = page.locator(".lf-fp-thread").evaluate_all(
         "rows => rows.map(row => row.dataset.key)"
     )
     for key in keys:
-        open_threads(page)
+        show_resolved(page)
         page.locator(f'.lf-fp-thread[data-key="{key}"]').click()
         panel_settled(page, view="thread")
         if page.locator(f"{PANEL} {selector}").count():
@@ -623,6 +623,9 @@ def _tab_walk(page, stem):
     empty = 0
     for _ in range(400):
         page.keyboard.press("Tab")
+        # The stop's reading and the styles `seen_stop` asks for are two reads of
+        # carriers the runtime may still be replacing, so both wait for its render.
+        rendered(page)
         stop, seen = page.evaluate(WALKED_STOP)
         lost = seen_stop(page, seen)
         if stop == "seen":
@@ -843,7 +846,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     threads = panel_view("threads")
     for name in ("overview", "resolved"):
         expect(views[name].locator(PANEL)).to_have_attribute("data-open", "threads")
-        expect(views[name].locator(f"{threads} .lf-fp-thread").first).to_be_visible()
+    expect(views["overview"].locator(f"{threads} .lf-fp-thread").first).to_be_visible()
 
     expect(views["overview"].locator(f"{threads} .lf-fp-thread")).to_have_count(3)
     anchored = views["you"].locator(".lf-margin-preview")
@@ -853,14 +856,12 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     )
     expect(anchored.locator(".lf-msg")).to_have_count(3)
     expect(anchored.locator("leaf-text")).to_be_visible()
-    expect(views["resolved"].locator(f"{threads} .lf-fp-ended")).to_have_text(
-        "Resolved"
+    expect(views["resolved"].locator(f"{threads} .lf-fp-settled")).to_have_text(
+        re.compile(r"^\s*Resolved\s*1\s*$")
     )
-    expect(
-        views["resolved"].locator(
-            f"{threads} .lf-fp-ended ~ .lf-fp-thread[data-resolved]"
-        )
-    ).to_have_count(1)
+    expect(views["resolved"].locator(f"{threads} .lf-fp-settled")).to_have_attribute(
+        "aria-expanded", "false"
+    )
     summary = views["summary"].locator(f'{PANEL_THREAD}[data-thread="c1a39980"]')
     expect(summary).to_be_visible()
     expect(views["summary"].locator(".lf-fp-title")).to_have_text("Afternoon workshop")
@@ -1112,11 +1113,10 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     )
 
 
-def test_a_recorded_move_is_acknowledged_in_the_panel_and_nowhere_else(browser, serve):
-    """The page has one place for brief news. A gesture's acknowledgement used to arrive
-    as both a count and a toast in the opposite corner. The panel's field says it now:
-    "Moved to Done — sent" stands in for its words while it lasts, the live region hears
-    the same sentence, and the field's own words return when it fades."""
+def test_a_recorded_move_is_announced_and_shown_only_where_it_was_made(browser, serve):
+    """A widget's gesture shows where the user made it, and the margin's receipt says
+    it was saved, so no passing notice repeats it: the live region alone hears "Moved
+    to Done", and neither the panel's field nor a toast says it."""
     page = open_page(browser, serve(BOARD_PAGE))
     board = page.locator("#sprint")
     assert "Moved to Done" not in panel_says(page)
@@ -1125,13 +1125,10 @@ def test_a_recorded_move_is_acknowledged_in_the_panel_and_nowhere_else(browser, 
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
-    expect_panel_says(page, "Moved to Done — sent")
-    expect(page.locator(".lf-live")).to_have_text("Moved to Done — sent")
-    assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
+    expect(page.locator(".lf-live")).to_have_text("Moved to Done")
     round_trip(page)
-
-    # The field's own words come back once the notice has had its moment.
-    expect_panel_says(page, "Moved to Done", says=False)
+    assert "Moved to Done" not in panel_says(page), "the panel's field repeats the move"
+    assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
 
 
 def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
@@ -1286,6 +1283,10 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     def sweep(where):
         violations, report = serious_axe_violations(page)
         assert violations == [], f"{where}: {report}"
+        unread = overlapped_words(page)
+        assert unread == [], (
+            f"{where}: no contrast read under a box that paints nothing: {unread}"
+        )
 
     sweep("the page as it arrives")
 
@@ -1424,7 +1425,6 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     page.evaluate("""() => {
         const style = document.createElement('style');
         style.id = 'lf-ring-negative-control';
-        style.setAttribute('data-controls', '');
         style.textContent =
           '.lf-fp-on-user:focus { outline: none !important;'
           + ' box-shadow: none !important; }';
@@ -1460,7 +1460,6 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         )
     page.evaluate("""() => {
         const style = document.createElement('style');
-        style.setAttribute('data-controls', '');
         style.textContent =
           '.lf-tab-btn > .lf-tab-name { outline: none !important; }';
         document.head.append(style);

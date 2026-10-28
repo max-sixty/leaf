@@ -113,29 +113,36 @@ def observe_output_documents(page) -> None:
     page.expose_binding("__leafOutputValue", heard)
 
     def before_entry(route):
-        frame = route.request.frame
-        if not is_runtime_entry(route.request):
-            route.fallback()
-            return
-        # Let the browser order the subscription before this entry's upgrade. A route
-        # callback must not wait for a document: sibling sample routes can nest while
-        # its parser is awaiting another response, stranding both. This imports the
-        # same check API graph as the runtime; no publication can precede the call.
         try:
-            response = route.fetch(timeout=_timeout(page, None))
+            frame = route.request.frame
+            if not is_runtime_entry(route.request):
+                route.fallback()
+                return
+            # Let the browser order the subscription before this entry's upgrade. A route
+            # callback must not wait for a document: sibling sample routes can nest while
+            # its parser is awaiting another response, stranding both. This imports the
+            # same check API graph as the runtime; no publication can precede the call.
+            try:
+                response = route.fetch(timeout=_timeout(page, None))
+            except PlaywrightError:
+                route.abort()
+                return
+            document = frame.url
+            probe = urljoin(route.request.url, f"{RENDER_CHECKS_DIR}/outputs.js")
+            route.fulfill(
+                response=response,
+                body=(
+                    f'import {{ observeOutputValues }} from "{probe}";\n'
+                    "observeOutputValues();\n" + response.text()
+                ),
+            )
+            page._leaf_output_documents[frame] = document
         except PlaywrightError:
-            route.abort()
-            return
-        document = frame.url
-        probe = urljoin(route.request.url, f"{RENDER_CHECKS_DIR}/outputs.js")
-        route.fulfill(
-            response=response,
-            body=(
-                f'import {{ observeOutputValues }} from "{probe}";\n'
-                "observeOutputValues();\n" + response.text()
-            ),
-        )
-        page._leaf_output_documents[frame] = document
+            # Closing a page cancels the entire observer, including a body read
+            # after fetch returned. Let no cancelled route poison the shared
+            # driver's next call; failures on a live page still reach its caller.
+            if not page.is_closed():
+                raise
 
     # The main document's pre-upgrade proof holds its own entry; subsequent child
     # entries reach this route, including samples opened later by the check's sweep.
@@ -280,10 +287,12 @@ _REFUSED = """() => {
     && !root.hasAttribute('data-lf-interactive') ? root.dataset.lfStartupError : null;
 }"""
 _READY_OR_REFUSED = f"asked => ({_READY})(asked) || ({_REFUSED})() !== null"
-_OUTSTANDING = f"asked => ({_READINESS})(asked) ?? 'ready'"
+# The stage the page has yet to state, or 'ready'. A reader without Playwright's waits,
+# such as the iOS probe's WebDriver, polls this itself (`leaf_dev.ios_safari`).
+OUTSTANDING = f"asked => ({_READINESS})(asked) ?? 'ready'"
 # How a failure words each stage `pageReadiness` names. `state` fails only against an
 # answer the caller holds.
-_UNREADY = {
+UNREADY = {
     "answering": "the page stopped answering",
     "started": "the runtime never started",
     "upgraded": "the widget layer never finished upgrading",
@@ -357,13 +366,13 @@ def wait_until_ready(
     # page whose own code holds its main thread answers neither.
     try:
         stage = page.wait_for_function(
-            _OUTSTANDING, arg=asked, timeout=_STAGE_READ_MS
+            OUTSTANDING, arg=asked, timeout=_STAGE_READ_MS
         ).json_value()
     except PlaywrightTimeout:
         stage = "answering"
     if stage == "ready":
         return
-    words = _UNREADY[stage].format_map(asked["held"] or {})
+    words = UNREADY[stage].format_map(asked["held"] or {})
     raise PageNotReady(stage, f"{words} within {timeout_ms}ms")
 
 

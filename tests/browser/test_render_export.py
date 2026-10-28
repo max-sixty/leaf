@@ -139,9 +139,8 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     expect(live.locator("#offline-widget #choice")).to_have_text("chosen")
     live.close()
 
-    # Export resolves the stamped artifact, never the mutable aliases left in the page
-    # directory after activation.
-    (serve.page_dir / "widgets" / "lf-offline-test.js").write_text(
+    # Export resolves the stamped artifact, never the page's mutable source.
+    (serve.page_dir / "page" / "widgets" / "lf-offline-test.js").write_text(
         'throw new Error("mutable widget source escaped its revision");',
         encoding="utf-8",
     )
@@ -319,7 +318,7 @@ def test_an_export_keeps_visual_review_images_and_inspection_offline(
     page.goto(out.as_uri(), wait_until="load")
     wait_until_ready(page)
     widget = page.locator("#review")
-    selected = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    selected = widget.locator(".lf-vr-case:not([hidden])")
     for index, case in enumerate(cases):
         if index:
             widget.locator('.lf-vr-case-button[aria-current="true"]').click()
@@ -500,7 +499,6 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
             "</pre></lf-diagram>",
         },
     )
-    assert (serve.page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
     out = tmp_path / "reachable.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
     html = out.read_text(encoding="utf-8")
@@ -563,16 +561,6 @@ body { --export-tone: rgb(12, 34, 56); }
     files_model.replace_files(
         [
             (
-                serve.page_dir / "theme.css",
-                b":root { --mutable-theme-only: 1; }",
-                False,
-            ),
-            (
-                serve.page_dir / "runtime/chrome.css",
-                b":root { --mutable-chrome-only: 1; }",
-                False,
-            ),
-            (
                 serve.page_dir / "page/styles/nested/palette.css",
                 b"body { --export-tone: red; }",
                 False,
@@ -586,9 +574,6 @@ body { --export-tone: rgb(12, 34, 56); }
     )
     out = tmp_path / "captured.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
-    exported = out.read_text(encoding="utf-8")
-    assert "--mutable-theme-only" not in exported
-    assert "--mutable-chrome-only" not in exported
     page = browser.new_page()
     requests = []
     page.on("request", lambda request: requests.append(request.url))
@@ -700,10 +685,10 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     expect(thread.locator("button")).not_to_have_count(0)
     if not resolved:
         inline_workflow = thread.locator(".lf-msg-sending")
-        expect(inline_workflow).to_have_text("Working")
+        expect(inline_workflow).to_have_text("On it")
         # The same message in the panel's view of the thread says it the same way.
         panel_workflow = open_panel_thread(live, root["id"]).locator(".lf-msg-sending")
-        expect(panel_workflow).to_have_text("Working")
+        expect(panel_workflow).to_have_text("On it")
         workflow_face = """node => {
           const style = getComputedStyle(node);
           const separator = getComputedStyle(node, '::before');

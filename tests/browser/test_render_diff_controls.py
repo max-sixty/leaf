@@ -27,8 +27,9 @@ from leaf.render_checks import one_frame, rendered, wait_until_ready
 def test_worktree_summaries_share_columns_without_cramping_their_evidence(
     request, serve, engine, subtests
 ):
-    """A list aligns unlike counts and statuses; its narrow rows still wrap, and
-    opening a worktree gives its evidence the whole row rather than one column."""
+    """A list aligns unlike counts and statuses, whether or not a row has a status
+    word; its narrow rows still wrap, and opening a worktree gives its evidence the
+    whole row rather than one column."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -43,6 +44,9 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
                 'deletions="1234" binary-files="2"><p>More evidence.</p></lf-worktree>'
                 '<lf-worktree id="unknown" label="Missing checkout" path="/work/missing" '
                 'status="unavailable"><p>No snapshot.</p></lf-worktree>'
+                '<lf-worktree id="clean" label="Clean checkout" path="/work/clean" '
+                'status="clean" files="0" additions="0" deletions="0">'
+                "<p>Nothing changed.</p></lf-worktree>"
                 "</lf-worktree-diffs>",
             ),
             packages=("diff",),
@@ -52,7 +56,7 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
         with subtests.test(width=width):
             resized(page, width, 900)
             reading = page.locator("#trees").evaluate("""node => {
-              const box = n => n.getBoundingClientRect().toJSON();
+              const box = n => n && n.getBoundingClientRect().toJSON();
               return {width: node.clientWidth, viewport: innerWidth,
                 rows: [...node.querySelectorAll('.lf-worktree-summary')].map(summary => ({
                   box: box(summary), label: box(summary.querySelector('.lf-worktree-identity')),
@@ -63,10 +67,19 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
                 }))};
             }""")
             rows = reading["rows"]
-            assert len(rows) == 3
+            assert len(rows) == 4
+            # A changed row's counts say it changed; only Clean and Unavailable
+            # carry a status word.
+            assert [row["status"] is not None for row in rows] == [
+                False,
+                False,
+                True,
+                True,
+            ]
             for row in rows:
                 assert 0 <= row["box"]["left"] < row["box"]["right"] <= width
-                assert row["label"]["right"] <= row["status"]["left"]
+                if row["status"]:
+                    assert row["label"]["right"] <= row["status"]["left"]
                 assert all(
                     stat["right"] <= row["box"]["right"] for stat in row["stats"]
                 )
@@ -80,9 +93,10 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
             if reading["width"] > 608:
                 if width == 1280:
                     assert all(row["label"]["height"] <= row["line"] for row in rows)
-                assert [row["status"]["left"] for row in rows] == pytest.approx(
-                    [rows[0]["status"]["left"]] * 3, abs=0.5
+                assert rows[2]["status"]["left"] == pytest.approx(
+                    rows[3]["status"]["left"], abs=0.5
                 )
+                assert rows[0]["stats"][0]["left"] > rows[2]["status"]["right"]
                 assert [stat["left"] for stat in rows[0]["stats"]] == pytest.approx(
                     [stat["left"] for stat in rows[1]["stats"][:3]], abs=0.5
                 )
@@ -160,6 +174,9 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
     summary = row.locator(":scope > summary")
     expect(row).to_contain_text("/workspace/leaf.retain-drafts")
     expect(summary).to_contain_text(head[:8])
+    # Counts say a row changed; a word names only what counts can't.
+    expect(summary).not_to_contain_text("Changed")
+    expect(page.locator("#clean-0 > details > summary")).to_contain_text("Clean")
     snapshot = row.locator(
         "details", has=page.get_by_text("Snapshot details", exact=True)
     )
@@ -1115,7 +1132,7 @@ def test_a_file_conversation_ends_the_list_past_files_the_filter_hides(browser, 
       const head = file => file.querySelector(':scope > details');
       const outlet = box(files[0].querySelector('.lf-diff-file-thread-outlet'));
       return files.map(file => ({
-        shown: getComputedStyle(file).display !== 'none',
+        shown: !file.hidden,
         top: box(head(file)).top, bottom: box(head(file)).bottom, outlet: outlet.bottom,
         corner: getComputedStyle(head(file)).borderTopLeftRadius,
       }));

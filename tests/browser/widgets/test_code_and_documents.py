@@ -4,9 +4,7 @@ switching a document between its rendered and source readings as its source chan
 import json
 
 import pytest
-from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_navigation import painted
 from render_cases_widgets import LONG_LINE_DIFF_PAGE
 from render_harness import (
     ROOT,
@@ -26,7 +24,6 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -74,7 +71,7 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
         "el => el.getBoundingClientRect().right"
     ) <= content.evaluate("el => el.getBoundingClientRect().left")
     assert (
-        document.locator("[data-line-number-content]").first.evaluate(
+        document.locator("[data-number]").first.evaluate(
             "el => getComputedStyle(el, '::before').content"
         )
         == '"1"'
@@ -631,134 +628,15 @@ def refresh_keeps_selection(page, serve, document, name):
     assert page.evaluate(reading) == before, document
 
 
-# A page-authored driver that points at a code block's lines through its declared `for`,
-# from its first connection, before the block's lazy tokenizer has put any line in.
-POINTER_REGISTRY = {
-    "lf-pointer": {
-        "description": "Points at lines of the code block its `for` names.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "for": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-        },
-        "required": ["id", "for"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-refers": {"for": {}},
-        "x-upgrade": True,
-    }
-}
-
-
-POINTER_MODULE = """import { indicate } from "/runtime/widget-api.js";
-customElements.define("lf-pointer", class extends HTMLElement {
-  connectedCallback() { indicate(this, "for", "3-4"); }
-  disconnectedCallback() { indicate(this, "for", null); }
-  point(key) { return indicate(this, "for", key); }
-});
-"""
-
-
-def test_a_widget_indicates_lines_of_a_code_block_without_moving_the_page(
-    browser, serve
-):
-    """One widget marks part of another through a reference its entry declares: here
-    a driver standing for a film, and the code block whose lines it is executing.
-
-    The mark is the page's own state, like hover, so it is asserted where a user meets
-    it: the lines the key names wear it and nothing else does, the
-    block's authored `hi` line keeps its own face, a comment painted on a marked line
-    still paints, and neither the scroll nor the focus moves as the indication does."""
-    url = serve(
-        leaf_page(
-            "indication",
-            """
-<h1 id="t">Bracket</h1>
-<p id="lede">The function below is the whole rule.</p>
-<div style="height: 1400px"></div>
-<lf-code id="walk" language="python" hi="2"><pre>
-def bracket(temp):
-    if temp &lt; 0:
-        return "steel"
-    return "cedar"
-print(bracket(3))
-</pre></lf-code>
-<lf-pointer id="film" for="walk"></lf-pointer>
-""",
-        ),
-        layer_registry=POINTER_REGISTRY,
-        layer_widgets={"lf-pointer.js": POINTER_MODULE},
-    )
-    page = open_page(browser, url)
-    lines = page.locator("#walk .lf-code-line")
-    expect(lines).to_have_count(5)
-    indicated = page.locator("#walk .lf-code-line[data-lf-indicated]")
-
-    def marked():
-        return lines.evaluate_all(
-            """ls => ls.flatMap((l, i) => l.hasAttribute('data-lf-indicated')
-                   ? [i + 1] : [])"""
-        )
-
-    # Asked for before the block had lines; resolved when the render stated them. No
-    # comment stands yet, so no thread list lays itself out and says so on the way.
-    expect(indicated).to_have_count(2)
-    assert marked() == [3, 4]
-    expect(page.locator("#walk .lf-code-line.hi")).to_have_count(1)
-    assert indicated.evaluate_all(
-        "ls => ls.map(l => getComputedStyle(l).outlineStyle)"
-    ) == ["none", "none"], "code indicates its lines through the gutter and tint"
-
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "c-steel",
-            "author": "user",
-            "revision": 1,
-            "text": "Why steel?",
-            "anchor": {"section": "walk", "quote": 'return "steel"'},
-        },
-    )
-    told(page)
-    page.wait_for_function(
-        """() => [...(CSS.highlights.get('lf-mark') ?? [])]
-                   .some(r => r.toString().includes('steel'))"""
-    )
-    assert marked() == [3, 4]
-
-    faces = lines.evaluate_all(
-        "ls => ls.map(l => getComputedStyle(l, '::before').boxShadow)"
-    )
-    assert faces[2] != "none" and faces[0] == "none" and faces[1] == "none", faces
-
-    before = page.evaluate("[scrollY, document.activeElement.localName]")
-    assert page.evaluate("document.querySelector('#film').point('2,5')") is True
-    assert marked() == [2, 5]
-    expect(page.locator("#walk .lf-code-line.hi")).to_have_count(1)
-    assert page.evaluate("document.querySelector('#film').point('9')") is False
-    assert marked() == []
-    page.evaluate("document.querySelector('#film').point('3')")
-    assert marked() == [3]
-    assert "steel" in painted(page, "lf-mark")
-    assert page.evaluate("[scrollY, document.activeElement.localName]") == before
-
-    page.evaluate("document.querySelector('#film').point(null)")
-    assert marked() == []
-    page.evaluate("document.querySelector('#film').point('1')")
-    page.evaluate("document.querySelector('#film').remove()")
-    assert marked() == [], "a driver that leaves takes its indication with it"
-
-
 def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve):
     """An lf-code body with `lines` is a quotation from a longer file. What the user
     reads is the file's own numbering: the gutter counts from where the quote starts
     and jumps where it skips, each skip stands as an elided row saying how much is
     left out, and the gutter widens so four digits still leave the code in line with
-    its notes. Everything that points into the block — `hi`, a note's `at`, a driver's
-    indication — names lines by those numbers. A left-out number addresses the elided
-    row standing for it, so a note placed there is that row's caption, and a number
-    outside the block addresses nothing. A body longer than its ranges goes on counting,
+    its notes. Everything that points into the block — `hi`, a note's `at`, a key
+    another widget navigates to — names lines by those numbers. A left-out number
+    addresses the elided row standing for it, so a note placed there is that row's
+    caption, and a number outside the block addresses nothing. A body longer than its ranges goes on counting,
     and a note past either end stands at the block's foot rather than leaving the page.
     A range far longer than the body numbers only the body's lines.
     A copied excerpt is the quoted source and the authored notes, never the numbers or
@@ -790,11 +668,8 @@ three
 <lf-code id="vast" lines="1-999999999999"><pre>
 only
 </pre></lf-code>
-<lf-pointer id="film" for="walk"></lf-pointer>
 """,
         ),
-        layer_registry=POINTER_REGISTRY,
-        layer_widgets={"lf-pointer.js": POINTER_MODULE},
     )
     page = open_page(browser, url)
     rows = page.locator("#walk pre > *")
@@ -846,15 +721,12 @@ only
     )
     assert caption[0] > code_x and caption[1] < 2 * gutter[1], (gutter, caption)
 
-    marked = page.locator("#walk pre > [data-lf-indicated]")
-    rows_of = "ls => ls.map(l => l.dataset.line ?? `${l.dataset.from}-${l.dataset.to}`)"
-    assert page.evaluate("document.querySelector('#film').point('1507-1550')") is True
-    assert marked.evaluate_all(rows_of) == ["1507", "1508-1549", "1550"]
-    assert page.evaluate("document.querySelector('#film').point('1520')") is True
-    assert marked.evaluate_all(rows_of) == ["1508-1549"]
-    assert marked.evaluate("l => getComputedStyle(l).outlineStyle") == "none"
-    assert page.evaluate("document.querySelector('#film').point('3')") is False
-    expect(marked).to_have_count(0)
+    # The rows a key addresses, as `navigateToDatum` reads them through lfElementsFor.
+    addressed = """key => [...document.querySelector('#walk').lfElementsFor(key)]
+        .map(l => l.dataset.line ?? `${l.dataset.from}-${l.dataset.to}`)"""
+    assert page.evaluate(addressed, "1507-1550") == ["1507", "1508-1549", "1550"]
+    assert page.evaluate(addressed, "1520") == ["1508-1549"]
+    assert page.evaluate(addressed, "3") == []
 
     # The user drags from the excerpt's first word to its last.
     ends = page.locator("#walk pre").evaluate(
@@ -948,3 +820,34 @@ def ceiling(limit):
     assert digest_rows[0] == 0 and len(digest_rows) > 1, reading
     assert set(digest_rows[1:]) == {2}, reading
     assert reading["gutterSpans"] == [True, True], reading
+
+    pre = page.locator("#walk pre")
+    line = page.locator("#walk .lf-code-line").nth(1)
+    # The page supplies the initial presentation; an explicit reader choice owns
+    # wrapping even when the page declares its preference important.
+    authored = page.add_style_tag(
+        content="#walk .lf-code-line { white-space: pre; overflow-wrap: normal; }"
+    )
+    pre.focus()
+    page.keyboard.press("w")
+    expect(line).to_have_css("white-space", "pre")
+    page.keyboard.press("w")
+    expect(line).to_have_css("white-space", "pre-wrap")
+    authored.evaluate(
+        """node => node.textContent = '#walk .lf-code-line { '
+          + 'white-space: pre-wrap !important; overflow-wrap: anywhere !important; }'"""
+    )
+    page.keyboard.press("w")
+    expect(line).to_have_css("white-space", "pre")
+    expect(line).to_have_css("overflow-wrap", "normal")
+    pre.evaluate("node => node.scrollLeft = 80")
+    horizontal = pre.evaluate("node => node.scrollLeft")
+    assert horizontal > 0
+    page.keyboard.press("w")
+    expect(line).to_have_css("white-space", "pre-wrap")
+    page.keyboard.press("w")
+    rendered(page)
+    assert pre.evaluate("node => node.scrollLeft") == horizontal
+    page.emulate_media(media="print")
+    expect(line).to_have_css("white-space", "pre-wrap")
+    expect(line).to_have_css("overflow-wrap", "anywhere")

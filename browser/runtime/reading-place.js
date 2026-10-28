@@ -54,7 +54,7 @@
  * working-place checkpoints separately own an entry's viewport offset (history.js).
  * `readingBlock` is the first block on screen in one region or the page;
  * `pageReadingBlock` is the block the user is reading, where a walk starts, and
- * `landingPlace` is where a let-go puts them. `openingPassage`
+ * `landingPlace` is where a let-go puts them, beside what they let go of where they see it. `openingPassage`
  * gives travel the passage its destination draws first, using the same rendered words
  * as the visible landmarks. It is independent of the viewport, so scrolling through a tall landing
  * does not turn a later passage into the navigation step's original arrival.
@@ -65,10 +65,11 @@ import {
   shownBox,
   shownWindow,
   userScrollport,
-  skipped,
   stuckBox,
 } from "./geometry.js";
+import { skipped } from "./shown-box.js";
 import {
+  blockAt,
   closestAcross,
   inChrome,
   pageBlocks,
@@ -329,7 +330,18 @@ function pageReading({ bodies }) {
   return readingBlock();
 }
 export const pageReadingBlock = () => pageReading({ bodies: false });
-export const landingPlace = () => pageReading({ bodies: true });
+// A let-go lands beside what it let go of while the user sees it: its first block on
+// screen, or, for a node inside a block, that block. Only failing that is it what they
+// are reading.
+export function landingPlace(from = null) {
+  if (from && !inChrome(from)) {
+    const blocks = textBlocks(from);
+    const own = blocks.length ? blocks : [blockAt(from)].filter(Boolean);
+    const shown = blocksOnScreen(readingRegionFor(from), own).next().value?.[0];
+    if (shown) return shown;
+  }
+  return pageReading({ bodies: true });
+}
 
 // Where across the box the reader works: their pointer, where it last named their place
 // over what they see of the box, else the focus they stand on in it, else null, which

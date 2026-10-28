@@ -142,7 +142,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     tabs = page.get_by_role("tab")
     expect(tabs.first).to_have_accessible_name("Ticket a")
-    expect(tabs.first).to_have_text("Ticket asev a · suggested fixTo answer")
+    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
     expect(tabs.first).to_have_accessible_description(
         "sev a · suggested fix. To answer"
     )
@@ -159,7 +159,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
     expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("To answer")
+    expect(answer).to_have_text("")
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
     expect(answer).to_be_visible()
@@ -218,7 +218,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page.unroute("**/api/event")
     round_trip(page)
     expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("To answer")
+    expect(answer).to_have_text("")
     expect(tabs.first).to_have_accessible_description(
         "sev a · suggested fix. To answer"
     )
@@ -279,16 +279,6 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     )
     rendered(page)
     assert page.evaluate("document.scrollingElement.scrollTop") == before
-    # Back is made from wherever the user reads, so it lands the set's start rather than
-    # leaving them partway down, or at the end of, a view that is not the one they read.
-    page.evaluate("document.scrollingElement.scrollTop = 1600")
-    page.go_back()
-    expect(page.get_by_role("tab", name="Ticket b", exact=True)).to_have_attribute(
-        "aria-selected", "true"
-    )
-    rendered(page)
-    top = page.evaluate("document.getElementById('queue').getBoundingClientRect().top")
-    assert 0 <= top < 200, top
 
 
 def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):

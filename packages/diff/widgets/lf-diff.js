@@ -3,7 +3,9 @@
  * rendered lines support selection anchors. `view="file"` draws one active file
  * for a separate navigator; datum reveal selects it without changing file or line identities. A source revision updates evidence
  * under stable file owners: reader controls, disclosure and code scrollports stay
- * connected. The search reserves its current source's longest count label, so
+ * connected. A source of two files or more draws a search over them; one file draws
+ * none, since there is nothing to filter or open all of, and its count would restate the
+ * file's own header. The search reserves its current source's longest count label, so
  * filtering files leaves its field and controls in place. A quiet press after the count
  * opens every file the filter shows, or closes them once all are open. Changed file
  * evidence replaces only its inner presentation and hands
@@ -44,9 +46,7 @@ import {
   render,
   relabel,
   inChrome,
-  iconElement,
-  iconTemplate,
-  commands,
+  nameAction,
   keeps,
   keepsText,
   langForPath,
@@ -56,8 +56,8 @@ import {
   move,
   nextRender,
   offer,
+  offerAction,
   LeafElement,
-  paintKeys,
   publishOutput,
   projectedDatum,
   threadSurface,
@@ -75,6 +75,7 @@ import {
   layoutPx,
   focused,
   currentLocationIn,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 import {
   diffDatumKey,
@@ -371,13 +372,17 @@ function summaryNode(record, open, verified = true) {
   summary.className = `lf-diff-head lf-disclosure-marker ${HOLDS_WORD}`;
   details.append(summary);
   paintSummary(details, record, verified);
-  commands(summary, "On a diff", [
-    {
-      id: "diff.toggle",
-      keys: () => DISCLOSE(summary),
-      title: () => `${details.open ? "hide" : "show"} this file`,
-    },
-  ]);
+  summary.lfCommands = {
+    title: "On a diff",
+    rows: [
+      {
+        id: "diff.toggle",
+        keys: () => DISCLOSE(summary),
+        title: () => `${details.open ? "hide" : "show"} this file`,
+      },
+    ],
+  };
+  commandsChanged(summary);
   paintFileDetails(details, verified ? record : {});
   return details;
 }
@@ -405,13 +410,14 @@ function fileEntry(row) {
 }
 
 function commentButton(label, opened, className) {
-  const button = offer(
-    "button",
-    `lf-diff-comment ${className} lf-btn lf-icon-action lf-quiet-action`,
+  const button = offerAction(
+    "symbol",
+    `lf-diff-comment ${className}`,
+    `Comment on ${label}`,
+    {
+      action: "comment",
+    },
   );
-  button.type = "button";
-  button.setAttribute("aria-label", `Comment on ${label}`);
-  button.append(iconElement("comment", "lf-action-icon"));
   if (opened) button.addEventListener("click", opened);
   return button;
 }
@@ -533,11 +539,9 @@ function diffTools(host) {
   progress.append(count);
   // Opening every file is rare beside opening one, so it is a quiet icon after the count
   // of the files it opens rather than a labelled button of its own (widget-shadow.css).
-  const foldAll = offer(
-    "button",
-    "lf-btn lf-icon-action lf-quiet-action lf-diff-fold-all",
-  );
-  foldAll.type = "button";
+  const foldAll = offerAction("symbol", "lf-diff-fold-all", undefined, {
+    action: "expand-all",
+  });
   foldAll.slot = "end";
   foldAll.addEventListener("click", () => host.foldAll());
   search.append(progress, foldAll);
@@ -828,9 +832,7 @@ function deferredError(details, error, retry) {
     : `That file's diff cannot be shown: ${message}`;
   let standIn = header;
   if (retry) {
-    standIn = offer("button", "lf-btn");
-    standIn.type = "button";
-    standIn.textContent = "Retry";
+    standIn = offerAction("symbol", "", undefined, { action: "retry" });
     standIn.addEventListener("click", () => {
       if (standIn.getAttribute("aria-disabled") === "true") return;
       standIn.setAttribute("aria-disabled", "true");
@@ -845,14 +847,6 @@ function deferredError(details, error, retry) {
 customElements.define(
   "lf-diff",
   class extends LeafElement {
-    revealPassage = ({ detail }) => {
-      const entry = this.fileEntries?.find(({ node }) => node.contains(detail.target));
-      if (entry?.filtered) {
-        if (this.singleFile) this.selectFile(entry);
-        else this.clearFilter();
-      }
-    };
-
     // The source the last render read, a bound value or an inline patch, and the one
     // whose rendering last started; a departure that cuts a rendering short forgets
     // it, so the return draws it again.
@@ -886,10 +880,10 @@ customElements.define(
 
     setup() {
       this.singleFile = this.getAttribute("view") === "file";
-      commands(
-        this,
-        "In a diff review",
-        [
+      this.lfCommands = {
+        title: "In a diff review",
+        when: () => Boolean(this.fileEntries?.length),
+        rows: [
           // The walk leads the scope, so the command reference lists it first: moving
           // is what a user on a diff row does next, where "filter files" is
           // the press for someone who has not started reading yet.
@@ -935,7 +929,7 @@ customElements.define(
             id: "diff.search",
             keys: ["/"],
             title: "filter files",
-            when: () => !this.singleFile,
+            when: () => Boolean(this.diffTools),
             run: () => {
               const search = this.diffTools?.search;
               if (search) {
@@ -974,15 +968,14 @@ customElements.define(
             },
           },
         ],
-        () => Boolean(this.fileEntries?.length),
-      );
+      };
+      commandsChanged(this);
       if (!this.hasAttribute("source")) {
         // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
         // can be a lone space — so only the closing newline is the <pre>'s layout.
         this.inlineSource = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
       }
       whileConnected(this, (signal) => {
-        this.addEventListener("lf-reveal", this.revealPassage, { signal });
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -1046,7 +1039,6 @@ customElements.define(
           this.publishFiles();
           this.diffTools = null;
           this.filesBody = null;
-          this.replaceChildren();
           shadowStage(this, []);
           this.markFiles(source);
           this.classList.toggle("lf-rendered", false);
@@ -1153,7 +1145,8 @@ customElements.define(
           this.drawnSource = source;
           this.fileEntries = entries;
           this.activePath = activePath;
-          if (!this.singleFile) this.diffTools ??= diffTools(this);
+          if (this.singleFile || entries.length < 2) this.diffTools = null;
+          else this.diffTools ??= diffTools(this);
           for (const entry of fresh) this.attachEntryControls(entry);
           for (const entry of entries) this.attachDisclosure(entry);
           this.filesBody ??= diffBody([]);
@@ -1164,7 +1157,6 @@ customElements.define(
             ...(this.diffTools ? [this.diffTools.search] : []),
             ...entries.map(({ node }) => node),
           ]);
-          this.replaceChildren();
           this.markRuns();
           this.stageFiles();
           this.markFiles(source);
@@ -1516,6 +1508,10 @@ customElements.define(
         const button = event.target.closest(".lf-diff-line-comment");
         if (button) threadSurface(this).open(button.nextElementSibling);
       });
+      entry.node.addEventListener("beforematch", () => {
+        if (this.singleFile) this.selectFile(entry);
+        else this.clearFilter();
+      });
       const label = entry.record.path || "file";
       entry.fileComment = commentButton(
         label,
@@ -1553,7 +1549,9 @@ customElements.define(
         entry.filtered = this.singleFile
           ? entry.record.path !== this.activePath
           : Boolean(needle && !paths.includes(needle));
-        entry.node.classList.toggle("lf-diff-filtered", entry.filtered);
+        // A file the filter leaves out is hidden until found, so the browser's find
+        // and Leaf's travel to a passage in it show it again (`beforematch`).
+        keeps(entry.node, "hidden", entry.filtered ? "until-found" : null);
       }
       this.markRuns();
       this.refreshDiffTools();
@@ -1602,7 +1600,7 @@ customElements.define(
       keeps(this.diffTools.progress, "data-room", `${all}\n${total} of ${total}`);
       keepsText(this.diffTools.count, shown.length === total ? all : matching);
       this.paintFoldAll();
-      paintKeys();
+      commandsChanged(this);
     }
 
     // The files the filter shows: all opened while any is closed, and all closed once
@@ -1622,12 +1620,10 @@ customElements.define(
       // With nothing to open it keeps its room, so the count beside it stays put.
       button.toggleAttribute("inert", !folds.length);
       const open = folds.some((details) => !details.open);
-      const icon = open ? "unfold" : "fold";
-      render(iconTemplate(icon, "lf-action-icon"), button);
       // No number: the count beside it also counts files that have nothing to open.
-      const label = `${open ? "Expand" : "Collapse"} all files`;
-      keeps(button, "aria-label", label);
-      keeps(button, "title", label);
+      nameAction(button, open ? "expand-all" : "collapse-all", {
+        label: `${open ? "Expand" : "Collapse"} all files`,
+      });
     }
 
     shownFolds() {

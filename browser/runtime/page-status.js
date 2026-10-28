@@ -21,14 +21,15 @@ import { holdingError } from "./errors.js";
 // ---------- status ----------
 // Upgrade opens new comments before the buffered saved reading is applied.
 const LOADING_LINE =
-  "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds." +
+  "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments go through once they have." +
   (WEBSITE_DELIVERY
-    ? " Website examples can take longer to load their saved state than a usual Leaf page."
+    ? " Website examples can take longer to load their comments and choices than a usual Leaf page."
     : "");
 const LOADING = Object.freeze({
   kind: "loading",
   tone: "",
-  summary: "Loading saved state…",
+  summary: "Loading comments and choices…",
+  voice: "leaf",
   explanation: LOADING_LINE,
   adds: LOADING_LINE,
 });
@@ -60,7 +61,7 @@ export const statusReading = () => currentStatus()?.model ?? null;
 // to token again: one answer to what a tone looks like, so a project overriding --ok
 // overrides the tab with it. It is a read of the theme, not of the rendering.
 //
-// The mark is the vendored icon.svg, the page's own asset like the theme, so a project
+// The mark is the layer's icon.svg, composed like the theme, so a package
 // can put its own there, and all the runtime does to it is paint the one element it
 // declares. Refused rather than defaulted: a mark with no lf-tone leaves a tab that
 // never changes, which is a status readout that silently isn't one.

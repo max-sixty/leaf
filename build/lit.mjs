@@ -1,5 +1,5 @@
 /**
- * The page's one Lit. Pages with an initial producer that imports Lit inline
+ * The page's one Lit. Pages with any initial producer inline
  * `vendor/lit-initial.js` and map `/vendor/lit.js` to the shared namespace facade.
  * Other pages load the ordinary module implementation at `/vendor/lit.js`.
  * `build/browser/build.mjs` builds both from Lit's public exports, shaped like Lit's
@@ -65,9 +65,9 @@ async function litBindings() {
   return `const { ${names} } = ${litGlobal};\nexport { ${names} };\n`;
 }
 
-/** The later facade also installs the runtime's focus-preserving movement hook. */
+/** The later facade: module bindings to the instance the page initialized. */
 export async function litFacade() {
-  return 'import "/runtime/dom-move.js";\n' + (await litBindings());
+  return await litBindings();
 }
 
 /** Early bundles bind to the initialized namespace without copying any Lit code. */

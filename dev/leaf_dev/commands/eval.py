@@ -38,6 +38,7 @@ from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     HARNESSES,
+    JUDGE_MODELS,
     MODELS,
     TURN_LIMIT,
     WORKFLOW_LIMIT,
@@ -520,7 +521,7 @@ def prepare(
                 "provider": {
                     "id": "anthropic:claude-agent-sdk",
                     "config": {
-                        "model": MODELS["judge"],
+                        "model": JUDGE_MODELS[ClaudeCodeHarness.name],
                         "apiKeyRequired": False,
                         "persist_session": False,
                     },

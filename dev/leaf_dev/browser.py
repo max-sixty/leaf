@@ -11,7 +11,7 @@ from pathlib import Path
 from playwright.sync_api import Browser, FrameLocator, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf.render_checks import wait_for_probe, wait_until_ready
+from leaf.render_checks import rendered, wait_for_probe, wait_until_ready
 from leaf_dev import ROOT
 
 DESKTOP = (1440, 900)
@@ -69,11 +69,11 @@ def headless_shell(**options):
 
 
 @contextmanager
-def headless_firefox():
-    """Playwright's Firefox, for a probe of a Gecko-only difference: some readers use
-    Leaf in Firefox, and the suite and `headless_shell` drive Chromium alone. A host
-    without it gets Playwright's own error, which names the install command."""
-    with sync_playwright() as playwright, playwright.firefox.launch() as browser:
+def headless_engine(name: str):
+    """Playwright's Firefox or WebKit, for a probe of an engine-specific difference:
+    readers use Leaf in both, and the suite and `headless_shell` drive Chromium. A host
+    without the engine gets Playwright's own error, which names the install command."""
+    with sync_playwright() as playwright, getattr(playwright, name).launch() as browser:
         yield browser
 
 
@@ -214,6 +214,11 @@ def threads_tab(page: Page | FrameLocator):
     On me mark opens On, or Threads itself while nothing waits on the user but a reply
     they have not read; another view, stance or search is closed first by its exit.
     `page` may be a live sample's frame."""
+    # A stance's exit becomes the mark in the repaint frame. Read the controls only
+    # after the previous input has rendered, before choosing a pointer route.
+    rendered(
+        page.locator("html").element_handle().owner_frame(), facts=("updatesSettled",)
+    )
     host = page.locator(".lf-floating-panel")
     if host.get_attribute("data-open") not in ("queue", "threads"):
         exit_control = page.locator(".lf-fp-exit")
@@ -227,7 +232,7 @@ def open_threads(page: Page | FrameLocator) -> None:
     """Open the floating panel's Threads view by pointer, as a user reaches it: from a
     thread opened over Threads by its way back, else by the Threads tab (`threads_tab`)
     unless the mark opened Threads itself. The view lists the open threads, then the
-    resolved ones under a Resolved heading (`.lf-fp-ended`)."""
+    resolved ones folded under a Resolved heading (`show_resolved`)."""
     host = page.locator(".lf-floating-panel")
     if host.get_attribute("data-open") == "threads":
         return
@@ -239,6 +244,17 @@ def open_threads(page: Page | FrameLocator) -> None:
         if host.get_attribute("data-open") != "threads":
             tab.click()
     page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])').wait_for()
+
+
+def show_resolved(page: Page | FrameLocator):
+    """Unfold the resolved threads in the open Threads, which stand folded under their
+    Resolved heading (`.lf-fp-settled`) until the user presses it, and return their
+    rows."""
+    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    heading = threads.locator(".lf-fp-settled")
+    if heading.get_attribute("aria-expanded") != "true":
+        heading.click()
+    return threads.locator(".lf-fp-thread[data-resolved]")
 
 
 def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:

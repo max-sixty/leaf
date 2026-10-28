@@ -424,6 +424,50 @@ def test_words_escape_puts_away_are_put_away(browser):
     judge_watches()
 
 
+# A box whose words the page stores as they are typed, and which a close request, such
+# as Android's back gesture, closes: keeping its stored words, or throwing them away.
+CLOSE_BOX = """<!doctype html><body>
+<div id="box"><textarea id="field"></textarea></div>
+<script>
+  const field = document.getElementById("field");
+  field.addEventListener("input", () =>
+    localStorage.setItem("draft", JSON.stringify({ text: field.value })));
+  new CloseWatcher().addEventListener("close", () => {
+    if (document.body.dataset.on === "close-discards") localStorage.removeItem("draft");
+    document.getElementById("box").remove();
+  });
+</script>"""
+
+
+@pytest.mark.parametrize("on", ["close-keeps", "close-discards"])
+def test_words_a_close_request_puts_away_only_words_it_keeps(browser, on):
+    """Escape may throw words away, but back may not (keyboard/close-requests.js), so a
+    close watcher's close puts words away only where the page still stores them. A
+    close that discards them fails, which makes every browser test check that back
+    never loses words; counting every close as the user's put-away hid exactly that."""
+    page = browser.new_page()
+    page.route(
+        "http://words.test/",
+        lambda route: route.fulfill(body=CLOSE_BOX, content_type="text/html"),
+    )
+    page.goto("http://words.test/")
+    page.evaluate("on => { document.body.dataset.on = on; }", on)
+    page.locator("#field").fill("Half a thought")
+    # Nothing cancels this Escape, so the browser makes it a close request.
+    page.keyboard.press("Escape")
+    expect(page.locator("#box")).to_have_count(0)
+    judge_watches()
+    if on == "close-discards":
+        consume_browser_errors(
+            page,
+            {
+                "code": "words-left-screen",
+                "words": "Half a thought",
+                "place": ["textarea#field"],
+            },
+        )
+
+
 @pytest.mark.parametrize(
     "exit_kind",
     [
@@ -752,6 +796,60 @@ def test_words_a_later_listener_can_cancel_native_disclosure_activation(browser)
     )
     page.locator("#field").fill("Keep my words")
     page.locator("summary").click()
+    judge_watches()
+    consume_browser_errors(page, {"code": "words-left-screen"})
+
+
+@pytest.mark.parametrize("route", ["backdrop", "escape", "cancel-handler"])
+def test_words_a_modal_the_browser_dismisses_puts_away_its_fields(browser, route):
+    """Native modal dismissal owns its hidden fields, including a cancel handler
+    that closes the dialog itself instead of accepting the default."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<dialog closedby=any><textarea id=field></textarea></dialog>
+        <script>
+          const dialog = document.querySelector('dialog');
+          dialog.showModal();
+        </script>""")
+    )
+    page.locator("#field").fill("Keep until dismissed")
+    if route == "cancel-handler":
+        page.evaluate("""() => dialog.addEventListener('cancel', event => {
+          event.preventDefault(); dialog.close();
+        })""")
+    if route == "escape":
+        page.keyboard.press("Escape")
+    else:
+        page.mouse.click(1, 1)
+    expect(page.locator("dialog")).not_to_have_attribute("open", "")
+    judge_watches()
+
+
+@pytest.mark.parametrize("press", ["none", "inside", "outside-blocked"])
+def test_words_a_modal_a_timer_closes_still_fail(browser, press):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<dialog closedby=any><textarea id=field></textarea></dialog>
+        <script>document.querySelector('dialog').showModal();</script>""")
+    )
+    page.locator("#field").fill("Keep my words")
+    if press == "outside-blocked":
+        page.locator("dialog").evaluate(
+            "dialog => { dialog.closedBy = 'closerequest'; }"
+        )
+        page.mouse.move(1, 1)
+    if press == "inside":
+        box = page.locator("dialog").bounding_box()
+        page.mouse.move(box["x"] + 2, box["y"] + 2)
+    if press != "none":
+        page.mouse.down()
+    page.evaluate("""() => new Promise(done => setTimeout(() => {
+      document.querySelector('dialog').close(); done();
+    }))""")
+    if press != "none":
+        page.mouse.up()
     judge_watches()
     consume_browser_errors(page, {"code": "words-left-screen"})
 

@@ -2,7 +2,7 @@
 
 A focus ring is drawn outside its box, so a scroller that clips at its padding edge
 cuts the ring of a control standing at that edge. Leaf answers this one box at a time.
-The `browser/styles/chrome.css` header states the rule "every scroll region a ringed
+The `browser/runtime/chrome.css` header states the rule "every scroll region a ringed
 box can land in reserves `--focus-ring-room`", and each scroller declares that room
 itself: the chrome, the parts list, tabs, the annotation chrome, a sidebar page's
 stuck track body (#3939), and Copy's shadow button (#3916, its own `scroll-margin`).

@@ -46,11 +46,17 @@ Record browser API and rendering support gaps in
 [`notes/browser-support.md`](../../../notes/browser-support.md), as its "Recording and
 assessing a gap" section says.
 
-Before handing over a change to browser controls, navigation, focus, motion, forms or
-layout, run `/ui-sweep` (`../ui-sweep/SKILL.md`) on the changed surface and the
-interactions that depend on it. Its "External review" section says when to use the
-skills below, and its "Review a design system" section covers theme and shared-control
-changes.
+The user judges a UI change by using it and by looking at it, so review both before
+handing it over. Whoever reviews it, you or an independent reviewer, first uses the
+live candidate cold for the user's task, before reading its code or the author's
+account, reaching each result by every route Leaf gives to it and capturing each state
+those routes leave. A reviewer's brief gives the task and the candidate and asks for
+that pass before any code review. An agent that has driven, measured or read the
+change sees the screen through that work and misses flaws a first look catches; a
+fresh agent given only the captures and the user's request, and asked what looks
+wrong, is one way to get that look. For a theme or shared-control change, also run
+`/ui-sweep` (`../ui-sweep/SKILL.md`), whose "Review a design system" section covers it
+and whose "External review" section says when to use the skills below.
 
 ### External UI skills
 
@@ -171,13 +177,14 @@ to keep in view or reach next, then check their computed geometry before and aft
 input in the delivered page, embedded views included. Make those relationships hold as content
 and sizes change, through layout constraints or positions derived from one shared
 dimension, and check the constraints in the source too, since a screenshot can hide a
-small misalignment. Re-vendor after a runtime, theme, registry or widget change, then
-judge the composed page.
+small misalignment. A server keeps the runtime and layer it started with, so judge a
+runtime, theme, registry or widget change on a server started after it.
 
 To ask a page where an element sits, what style it computes, or what holds focus after
-a key, run `uv run leaf-dev probe` rather than writing a Playwright script. It builds
-the page from this working tree, runs your input steps, and prints what a JavaScript
-expression returns, with `--base` for the merge base beside it (`leaf-dev probe --help`).
+a key, run `uv run leaf-dev probe` rather than writing a Playwright script or a scratch
+test. It builds the page from this working tree, with `--log` adding threads and
+messages to its log, runs your input steps, and prints what a JavaScript expression
+returns, with `--base` for the merge base beside it (`leaf-dev probe --help`).
 
 When an interaction depends on a sequence of inputs or changes over time, record it
 with `leaf-dev probe --record .tmp/recordings/NAME` (its `--help` covers journeys and
@@ -263,7 +270,8 @@ release reads production.
 
 To benchmark replies, run each harness's journey a few times, with and without
 `--case working`, and tabulate the samples with `leaf-dev journey-chart --replies`;
-`leaf-dev response-times` measures retained pages
+`leaf-dev response-times` measures retained pages and sorts each pickup's wait
+by what ended it, which shows the waits only long real sessions have
 (`dev/leaf_dev/commands/response_times.py`). The benchmark is the whole reply's time,
 which `dev/leaf_dev/reply_phases.py` attributes to Leaf's delivery, commands and hooks,
 the harness, the model's wait and generation, and the agent's other tools. Model time
@@ -288,8 +296,9 @@ page's next revision or handoff. A brief for a subagent that writes the page nam
 content and the decisions to put to the user, and leaves how to pose them to those
 instructions.
 
-To make an existing page use the current checkout, re-vendor it with the checkout
-launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or report a
+To make an existing page use the current checkout, serve it with the checkout
+launcher, and run that launcher's `page init` on a page at another protocol
+(`<root>/skills/leaf/references/serving-pages.md`, "Leaf updates"); fix or report a
 compatibility refusal rather than falling back to the installed plugin.
 
 A page that explains how a Leaf widget, verb or event flow behaves lets the user try it

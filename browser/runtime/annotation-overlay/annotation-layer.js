@@ -16,7 +16,7 @@
    `annotationsHidden()` rather than the root attribute, which is a rendering; a
    renderer that reads it repaints when it changes. */
 import { signal } from "/runtime/framework.js";
-import { tabStore } from "../storage.js";
+import { tabStore } from "../tab-store.js";
 import { setRuntimeRootAttribute } from "../root-state.js";
 import { pageCommand } from "../keyboard/register.js";
 import { notice } from "../notifications.js";
@@ -48,7 +48,7 @@ export function mountAnnotationControls() {
           ? "Annotations shown"
           : coarsePointer.matches
             ? "Annotations hidden"
-            : "Annotations hidden. o shows them",
+            : "Annotations hidden — o shows them",
       );
     },
   });

@@ -347,12 +347,9 @@ flowchart TD
                     <td><code>lf-card { padding: 8px; }</code></td>
                   </tr>
                   <tr id="recipe-controls">
-                    <td>Controls Leaf or a widget builds</td>
+                    <td>Controls a widget builds</td>
                     <td>
-                      <code
-                        >&lt;style data-controls&gt;lf-board .lf-grip { color: teal;
-                        }&lt;/style&gt;</code
-                      >
+                      <code>lf-board .lf-grip { color: teal; }</code>
                     </td>
                   </tr>
                 </tbody>
@@ -363,13 +360,12 @@ flowchart TD
                 rule changes it too, such as <code>main { padding-top: 28px; }</code>.
               </p>
               <p id="styles-controls-leaf">
-                A bare <code>button</code> or <code>input</code> rule styles the page’s
-                own controls. To reach controls Leaf or a widget builds, a page marks
-                its stylesheet <code>data-controls</code>; a package puts those rules in
-                <code>controls.css</code>. Widget packages already style their own
-                controls through <code>widgets.css</code>. Leaf’s panel and thread cards
-                also inherit theme inputs such as <code>--accent</code> and
-                <code>--sans</code> from <code>:root</code>.
+                A bare <code>button</code> or <code>input</code> rule styles every one
+                in the document, the controls a widget builds included, so name the
+                widget to aim a rule at its controls. Leaf’s panel and thread cards keep
+                their own look against a rule as light as one class, and inherit theme
+                inputs such as <code>--accent</code> and <code>--sans</code> from
+                <code>:root</code>.
               </p>
             </details>
 

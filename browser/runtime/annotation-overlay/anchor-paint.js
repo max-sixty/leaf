@@ -5,6 +5,8 @@
  * supply target existence, surface admission, drawing placement or travel.
  */
 
+import { ringBox, visibleFocus } from "../focus.js";
+import { shownParts } from "../geometry.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
   targetElement,
@@ -30,6 +32,7 @@ export function createAnchorPaint({
   targetPaint,
   pointer,
   currentLocationThreadId,
+  currentLocationObligation,
   rowThread,
   threadRow,
   marginThread,
@@ -73,9 +76,22 @@ export function createAnchorPaint({
         .flatMap((states) => [...states])
         .filter((element) => element instanceof Element),
     );
-    const focus = new Set(
-      [...elements].filter((element) => element.matches("[data-lf-focus]")),
-    );
+    // Read focus itself, not attributes a later paint reflects. Escape can return
+    // to an element after its draft (and thus its last annotation) has disappeared.
+    const active = visibleFocus();
+    // Page controls need the same cue whether or not an author gave them an id.
+    // Private controls and a face wearing another control's ring keep that paint, and
+    // so does an obligation the user arrived at: its location ring (chrome.css) is its
+    // focus cue, and a projected contour beside it drew a second line round it.
+    // Read that owner's current location too: its reflected attribute may still
+    // describe the previous location until the mechanical repaint.
+    const obligation = currentLocationObligation();
+    const obligationRing =
+      obligation && (active === obligation || shownParts(obligation).includes(active));
+    const ownsRing = active && ringBox(active) === active && !obligationRing;
+    if (ownsRing && active.getRootNode() === document && pageWords(active))
+      elements.add(active);
+    const focus = new Set(ownsRing && elements.has(active) ? [active] : []);
     /** @type {[string, Set<Element>][]} */
     const sources = [
       ["pending", pending],

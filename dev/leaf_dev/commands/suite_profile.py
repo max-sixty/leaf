@@ -6,7 +6,10 @@ phase took (`setup`, `call`, `teardown`), under `cpu` the CPU seconds the worker
 every process it started used meanwhile, under `cases` the subtests it ran, if any,
 and, under `playwright`, the seconds and
 calls the test spent in Playwright's sync API, keyed `"<method> from <caller>"`, the
-caller being the first frame outside Playwright. That sync API runs its event loop in
+caller being the first frame outside Playwright and outside any helper that hides
+itself from pytest's tracebacks (`__tracebackhide__`), such as the suite's wrapper
+that refuses async predicates, so a wait is filed under the reader that made it,
+such as `wait_until_ready`. That sync API runs its event loop in
 a second greenlet and switches to it for every call, so a sampling profiler, which
 reads only the running stack, sees a wait on the browser as an idle event loop with
 the waiting test off the stack. Timing each call where the test makes it keeps that
@@ -114,7 +117,10 @@ def _method(coro):
 
 def _caller():
     frame = sys._getframe(2)
-    while frame is not None and PLAYWRIGHT_DIR in frame.f_code.co_filename:
+    while frame is not None and (
+        PLAYWRIGHT_DIR in frame.f_code.co_filename
+        or frame.f_locals.get("__tracebackhide__")
+    ):
         frame = frame.f_back
     if frame is None:
         return "?"

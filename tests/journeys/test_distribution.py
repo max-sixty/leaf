@@ -6,24 +6,20 @@ Compiler shims fail every attempted Node/package-manager invocation after prepar
 
 import json
 import os
-import shutil
 import subprocess
 
 from interact_support import PAGE
 from leaf_dev import ROOT
 from leaf_dev.arms import environment
+from leaf_dev.commands.distribution import prepare
 from playwright.sync_api import expect
 
 
 def test_prepared_install_authors_custom_packages_and_exports_without_builds(
-    tmp_path, spawn, request, compiled_installation
+    tmp_path, spawn, request
 ):
     install = tmp_path / "install"
-    shutil.copytree(
-        compiled_installation,
-        install,
-        ignore=shutil.ignore_patterns(".venv", "__pycache__"),
-    )
+    prepare(install)
     assert (install / "LICENSE").read_bytes() == (ROOT / "LICENSE").read_bytes()
     blocked = tmp_path / "blocked"
     blocked.mkdir()

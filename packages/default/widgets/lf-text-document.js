@@ -49,7 +49,11 @@ async function sourceListing(source, language) {
       `@scope { ${style.textContent.replaceAll(":host", ":scope")} }`,
     );
   }
+  // A line number is Leaf's control, drawn from `data-number`; dropping Pierre's
+  // attribute keeps its sheet's rule for that span (a positioned, stacked
+  // inline-block) off it.
   for (const number of rendered.querySelectorAll("span[data-line-number-content]")) {
+    number.removeAttribute("data-line-number-content");
     number.setAttribute("data-number", number.textContent);
     number.textContent = "";
     number.classList.add("lf-ui");

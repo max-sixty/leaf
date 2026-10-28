@@ -3,7 +3,7 @@
    module sets), and never narrower than two digits' worth. Registered as a length so it
    resolves in the code's face on the <pre> and a note inherits that width, not its own
    face's `ch`. The rendered lines own the block's containment. */
-:scope:is(lf-code) {
+lf-code {
   contain: inline-size;
   --lf-code-gap: 8px;
   --lf-code-inset-inline: 14px;
@@ -14,7 +14,7 @@
   inherits: true;
   initial-value: 38px;
 }
-:scope:is(lf-code).lf-rendered pre {
+lf-code.lf-rendered pre {
   padding: var(--lf-code-inset-block) 0;
   --lf-block-frame: 1;
   --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px));
@@ -29,7 +29,7 @@
    structure. The hang stops at 24 characters, so a deep line in a narrow frame keeps
    room to wrap into. A line that fits keeps its columns. `anywhere` because what runs
    long is paths, URLs and hashes, none of which offer the line box a break. */
-:scope:is(lf-code) .lf-code-line {
+lf-code .lf-code-line {
   display: block;
   position: relative;
   --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
@@ -39,7 +39,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)::before {
+lf-code :is(.lf-code-line, .lf-code-elided)::before {
   content: attr(data-line);
   display: inline-block;
   width: var(--lf-code-gutter);
@@ -52,7 +52,7 @@
   color: var(--code-muted);
   font-variant-numeric: tabular-nums;
 }
-:scope:is(lf-code) .lf-code-line::before {
+lf-code .lf-code-line::before {
   position: absolute;
   inset-block: 0;
   inset-inline-start: 0;
@@ -63,71 +63,56 @@
    A note docked in the stretch follows the count as the row's caption, in the same
    face; it stays selectable, since it is authored text a comment can anchor on. The
    row is a flex line so a long caption wraps beside the gutter rather than under it. */
-:scope:is(lf-code) .lf-code-elided {
+lf-code .lf-code-elided {
   display: flex;
   align-items: baseline;
   padding: 0 var(--lf-code-inset-inline) 0 0;
   color: var(--code-muted);
   user-select: none;
 }
-:scope:is(lf-code) .lf-code-elided::before {
+lf-code .lf-code-elided::before {
   content: "⋮";
   flex: none;
   order: -2;
 }
-:scope:is(lf-code) .lf-code-elided::after {
+lf-code .lf-code-elided::after {
   content: attr(data-elided);
   order: -1;
   flex: none;
 }
-:scope:is(lf-code) .lf-code-elided::after,
-:scope:is(lf-code) .lf-code-elided > lf-note {
+lf-code .lf-code-elided::after,
+lf-code .lf-code-elided > lf-note {
   font-family: var(--sans);
   font-size: var(--t-6);
   font-style: italic;
 }
-:scope:is(lf-code) .lf-code-elided > lf-note {
+lf-code .lf-code-elided > lf-note {
   display: block;
   min-width: 0;
   margin-inline-start: 0.5em;
   white-space: normal;
   user-select: text;
 }
-:scope:is(lf-code) .lf-code-elided > lf-note::before {
+lf-code .lf-code-elided > lf-note::before {
   content: "— ";
 }
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided).hi {
+lf-code :is(.lf-code-line, .lf-code-elided).hi {
   background: var(--hi-tint);
 }
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided).hi::before {
+lf-code :is(.lf-code-line, .lf-code-elided).hi::before {
   border-right-color: var(--warn);
-}
-/* The line another widget is indicating (indication.js): an accent bar at the gutter's
-   outer edge and an accent number, so it reads apart from an hi line by shape as well as
-   hue, and an accent wash that an hi line's own tint keeps. The bar is the gutter's, not
-   the line's, because the gutter's own background paints over an inset on the line. */
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated] {
-  outline: none;
-}
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]:not(.hi) {
-  background: var(--accent-tint);
-}
-:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]::before {
-  box-shadow: inset 3px 0 0 var(--accent);
-  color: var(--accent);
-  font-weight: 600;
 }
 /* A note is prose about a source line, not another source line. It follows the
    code-review convention: a sans-serif row spanning the source frame, with its text
    aligned to the code after the gutter. Horizontal rules mark the insertion
    without inventing author metadata the note does not carry. */
-:scope:is(lf-code) lf-note {
+lf-code lf-note {
   display: block;
 }
 /* The note wears this box wherever it stands: docked at its line inside the frame, or
    before the module docks it, after the source (below). */
-:scope:is(lf-code) > lf-note,
-:scope:is(lf-code) > pre > lf-note {
+lf-code > lf-note,
+lf-code > pre > lf-note {
   margin: 5px 0 6px;
   padding: 7px var(--lf-code-inset-inline) 8px
     calc(var(--lf-code-gutter) + var(--lf-code-gap));
@@ -145,7 +130,7 @@
    has its height from the first paint and the module only moves each note up to its
    line. Not reserved: the elided rows an excerpt's `lines` leaves gaps for, and the
    deeper hang a wrapped line takes from its indent. */
-@scope (html[data-lf-interactive] :scope) {
+@scope (html[data-lf-interactive] lf-code) {
   :scope:is(lf-code):not(.lf-rendered) {
     & > pre {
       background: var(--pre-bg);
@@ -167,9 +152,21 @@
   }
 }
 
+/* An explicit reading choice owns wrapping above the page's presentation rules.
+   The host states it once; every source row follows it. */
+@media screen {
+  lf-code[data-lf-reader-wrap="wrap"] .lf-code-line {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+  }
+  lf-code[data-lf-reader-wrap="scroll"] .lf-code-line {
+    white-space: pre !important;
+    overflow-wrap: normal !important;
+  }
+}
 /* Paper includes line endings even when the reader panned the source on screen. */
 @media print {
-  :scope:is(lf-code)[data-lf-reader-wrap] .lf-code-line {
+  lf-code[data-lf-reader-wrap] .lf-code-line {
     white-space: pre-wrap !important;
     overflow-wrap: anywhere !important;
   }

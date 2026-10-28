@@ -56,7 +56,9 @@ class DevtoolsIssues:
     autofill cannot identify. The headless shell the suite runs raises Blink's issues
     but not the autofill layer's.
     Listening starts before navigation; the reading is taken once the page settles,
-    when the probe that locates a node has loaded."""
+    when the probe that locates a node has loaded. Each is advice: an issue's code
+    names Chrome's lint, and a request that actually fails also reaches the console
+    as an error, which refuses the page."""
 
     def __init__(self, page):
         self._cdp = page.context.new_cdp_session(page)
@@ -112,6 +114,7 @@ class DevtoolsIssues:
                     "devtools-issue",
                     node["at"] if node else "",
                     {"issue": issue["code"], "details": details},
+                    severity="advice",
                 )
             )
         return list(dict.fromkeys(found))
@@ -245,7 +248,6 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     unmarkable = evaluate_probe(page, "unmarkableElements")
     missing_threads = []
     retired = []
-    changed = []
     if context.light:
         # x-thread-seat promises one page view per matching instance. A widget in
         # thread chrome already has the thread's reply surface and threadBox
@@ -257,17 +259,28 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
         # yet. Before the widget readings, whose replay is the last.
         if context.replayed and (holders := _retired_holders(context)):
             retired = evaluate_probe(page, "retiredSlots", holders)
-        # Behind the same wait, since a report or a body record repaints words the
-        # comparison reads; and scheme-blind, so the light scheme reads it once.
-        if context.replayed:
-            changed = evaluate_probe(page, "wordsReadAsChanged")
     found = [*context.errors, *_widget_findings(context)]
     found += map(Finding.read, unmarkable)
     found += context.devtools.findings()
     found += map(Finding.read, missing_threads)
     found += map(Finding.read, retired)
-    found += map(Finding.read, changed)
     found += context.unsettled
+    if context.light:
+        found += _unreduced_motion(page)
+    return found
+
+
+def _unreduced_motion(page) -> list[Finding]:
+    """Advice naming page content that keeps animating once the reader asks for less
+    motion, which Leaf leaves to the page (state.css). Read last, since setting the
+    preference stops Leaf's own motion for the readings after it."""
+    page.emulate_media(reduced_motion="reduce")
+    one_frame(page)
+    found = [
+        Finding.read(m, severity="advice")
+        for m in evaluate_probe(page, "unreducedMotion")
+    ]
+    page.emulate_media(reduced_motion="null")
     return found
 
 
@@ -280,11 +293,6 @@ def _widget_findings(context: _SchemeContext) -> list[Finding]:
     invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
-    # Shadow roots the registry doesn't declare: the passage walk, the
-    # capture and the id lookups cross exactly the declared ones, so an
-    # undeclared root's words silently anchor quotes astray. Generated controls
-    # are UI rather than page words, so their implementation roots are exempt.
-    undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", context.registry)
     # Words a widget's own chrome holds with nothing saying whose they are.
     unreachable = evaluate_probe(page, "unreachableWords")
     # x-verbatim promises the words this scheme renders. Source provenance was
@@ -318,8 +326,6 @@ def _widget_findings(context: _SchemeContext) -> list[Finding]:
         found.append(Finding("missing-upgrades", values={"tags": missing_upgrades}))
     if tiny:
         found.append(Finding("tiny-boxes", values={"boxes": tiny}))
-    if undeclared_shadow:
-        found.append(Finding("undeclared-shadow", values={"hosts": undeclared_shadow}))
     found += map(Finding.read, unreachable)
     found += dishonest_verbatim
     found += map(Finding.read, silent)
@@ -356,13 +362,13 @@ def thread_findings(context: _SchemeContext, known: list[Finding]) -> list[Findi
     return [finding for finding in found if finding not in known]
 
 
-def _keyed(records: list) -> dict[tuple[str, str], Finding]:
+def _keyed(records: list, severity: str = "error") -> dict[tuple[str, str], Finding]:
     """Width-dependent readings, such as overlay track collisions and clipped
     controls, each keyed by its element's place and kind. Covered words name the
     places of both elements as theirs."""
     return {
         (json.dumps(record["place"], sort_keys=True), record["code"]): Finding.read(
-            record
+            record, severity=severity
         )
         for record in records
     }
@@ -506,8 +512,11 @@ def margin_changes(page, readings, height: int) -> list[int]:
 def swept_faults(samples) -> list[Finding]:
     """Sideways overflow, misplaced boxes and clipped content, scrollbar collisions,
     clipped controls and covered words across the gate's geometry samples, with the
-    widths each run spans and what it reads at the narrowest. Each refuses the version, since a control cut
-    off at 400px is as far out of reach as one cut off at 540px.
+    widths each run spans and what it reads at the narrowest. Each refuses the version,
+    since a control cut off at 400px is as far out of reach as one cut off at 540px,
+    except a scrollbar collision, which is advice: the overlay bar covers the row's
+    last line only while the pointer is on it, the same page shows it outside Leaf,
+    and how much room to leave is the author's call.
 
     `samples` are (width, `geometryReading`) pairs, several at a width where the gate
     read it more than once (`version._render_version_attempt` says where). A fault any
@@ -517,7 +526,7 @@ def swept_faults(samples) -> list[Finding]:
     def faults(reading):
         return (
             _overflow(reading["overflow"], reading["misplaced"])
-            | _keyed(reading["scrollbars"])
+            | _keyed(reading["scrollbars"], severity="advice")
             | _keyed(reading["clipped"])
             | _keyed(reading["covered"])
         )

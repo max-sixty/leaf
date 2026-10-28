@@ -4,52 +4,6 @@
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of this root's part of
  * /theme.css. A rule belongs here when a declared tree has to see it too. */
-/* Reduced motion: the shared sheet guards CSS animations and transitions in the
- * document and every declared shadow stage (!important outranks inline styles, so
- * JS-driven transitions stop too). JS-driven motion goes through the runtime's
- * motion() and the live motion readings, which answer the same preference themselves.
- *
- * The two halves are not written alike, because a duration is a way of keeping
- * an animation and no way at all of keeping a transition. An animation is
- * declared and named, and `animationend` is how the layer knows one has run —
- * a control takes its agent-arrival mark off that way (contribution-controls.js) —
- * so the near-zero duration
- * keeps that event and spends no time on it. It runs once, since an endless
- * animation at that duration repeats on every frame, showing a different point
- * of its keyframes each time: a pulse becomes a flicker, and the page never
- * rests. A transition is declared by
- * nobody: `transition-property` is `all` until something says otherwise, so a
- * duration on every element makes a transition out of every property that
- * changes, on every element, and none of them is a transition this theme
- * wrote. Nothing listens for `transitionend`, so they were kept for no one and
- * were not free: a running transition's animated value is what the platform
- * reports for the property, so for the frames one of these took, every reading
- * of a box's style — the render gate's included — was told the value the
- * property was leaving rather than the one on screen. */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition: none !important;
-  }
-}
-
-/* Leaf's apparatus lays its boxes out border-box from first paint. A widget's initial
- * drawing wears `.lf-ui` before any module runs, so this reset stands in the
- * render-blocking theme rather than in runtime/chrome.css, which the document adopts
- * only at boot: from there, lf-toc's map measured its title's label content-box at first
- * paint, one line, and border-box after upgrade, two lines, and the fitted marker under
- * it moved 14px. Under the document's root only, as the face below, so a declared tree
- * keeps the box model its widget states. */
-:where(:root) .lf-ui,
-:where(:root) .lf-ui *,
-:where(:root) .lf-ui *::before,
-:where(:root) .lf-ui *::after {
-  box-sizing: border-box;
-}
-
 /* The default face of native widget-injected controls. `offer()` writes `lf-ui-face` on each one it
  * builds, so this is the layer's answer for a control standing in the page's own prose:
  * the chrome's family, size and ink rather than the document's serif. The separate
@@ -60,10 +14,9 @@
  * head, which composes ahead of theme.css and every package sheet, so each component rule
  * that names the same property wins on ordinary cascade order; stated in theme.css, after
  * this sheet, it beat them, and .lf-compose-submit drew near-black on Send and on Add
- * option instead of the accent. It keeps a class's specificity, so the page's own element
- * rules lose to it: a page dressing its `button` and `a` is dressing its prose, and at no
- * specificity those rules took the family and ink of 131 of corpus.html's 264 widget
- * controls. And it matches only under the document's root: a declared tree copies this
+ * option instead of the accent. It keeps a class's specificity, so the element rules of the
+ * layered sheets lose to it; the page's own rules are unlayered and win over it, as they
+ * win over every layer. And it matches only under the document's root: a declared tree copies this
  * sheet, but no element in a shadow tree descends from `:root`, so what a widget draws
  * there keeps its host's face. lf-diff marks its line numbers and hunk separators `lf-ui`,
  * and a plain `.lf-ui` repainted them at the control's size and ink.
@@ -74,9 +27,8 @@
  * asking for mono drew sans. Nothing catches that, because
  * no test and no browser gate reads a rule that never applied.
  *
- * The rest of the face is stated too, at no weight at all. A page's own rules select no
- * control unless they name its widget (runtime/page-sheets.js), and inheritance is the
- * route that leaves open: a page that set its body bold, italic, small-capped, spaced
+ * The rest of the face is stated too, at no weight at all. Inheritance reaches a control
+ * that no page rule selects: a page that set its body bold, italic, small-capped, spaced
  * or in capitals set every control standing in it so too. The `font` shorthand resets
  * every font property it has, weight, slant, variants and stretch among them. Any declared value beats an inherited one,
  * so a rule that weighs nothing is enough to stop that, and it leaves every rule that
@@ -452,7 +404,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-margin-entry,
-.lf-thread-action,
 .lf-command-reference-command,
 .lf-quote {
   min-width: var(--aim-floor);
@@ -478,11 +429,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :where(
   .lf-btn,
   .button,
-  .lf-icon-action,
-  .lf-msg-control,
-  .lf-thread-action,
+  button.lf-icon-action,
+  .lf-compose-submit,
+  .lf-compose-dictate,
   .lf-thread-notice:is(button),
-  button.lf-mark,
+  button.lf-mark-action,
   button.lf-fp-face
 ) {
   --lf-face-floor: auto;
@@ -493,11 +444,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     inset: min(0px, (100% - var(--aim-floor)) / 2);
   }
 }
-/* A mark on a vendor control, Copy, takes its press on its button part, so the reach
-   is the part's: one on the host would take the press from the button and copy
-   nothing. Its own rule, so an engine refusing a pseudo-element after a part keeps
-   the rest. */
-.lf-mark.lf-ui::part(button)::after {
+/* A symbol or mark on a vendor control, Copy, takes its press on its button part, so
+   the reach is the part's: one on the host would take the press from the button and
+   copy nothing. Its own rule, so an engine refusing a pseudo-element after a part
+   keeps the rest. */
+:is(.lf-icon-action, .lf-mark-action).lf-ui::part(button)::after {
   content: "";
   position: absolute;
   inset: min(0px, (100% - var(--aim-floor)) / 2);
@@ -627,17 +578,19 @@ summary {
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;
-  /* A message's control: the head keeps its room (controls.css), and so does the
-     thread's own controls' row beside a first message (below). An open rewrite's
-     Discard and Save stand in that room, covering the head's labels beyond it
-     (response.css), but never a notice of news, a press of its own, which the head
-     keeps clear of the pair's whole width. */
-  --lf-msg-control-size: 26px;
+  /* A message's control, a symbol as tall as the thread's own: the head keeps its
+     room (controls.css), and so does the thread's own controls' row beside a first
+     message (below). An open rewrite's Discard and Save stand in that room, covering
+     the head's labels beyond it (response.css), but never a notice of news, a press of
+     its own, which the head keeps clear of the pair's whole width. */
+  --lf-msg-control-size: var(--lf-icon-action-face);
   --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
   --lf-msg-edit-gap: 4px;
-  --lf-msg-edit-width: calc(
-    2 * var(--lf-msg-control-width) + var(--lf-msg-edit-gap) + var(--sp-2)
+  /* A message's Copy beside its own control. */
+  --lf-msg-controls-width: calc(
+    2 * var(--lf-msg-control-width) + var(--lf-msg-edit-gap)
   );
+  --lf-msg-edit-width: calc(var(--lf-msg-controls-width) + var(--sp-2));
   /* The room a held-news notice keeps at its end for the count of facts it drops
      (`.lf-thread-news > span[data-lf-more]`, below). */
   --lf-news-count-room: 16px;
@@ -767,6 +720,11 @@ summary {
   margin-block: 8px;
   anchor-name: var(--lf-fold-foot);
 }
+/* A closed fold hides its messages until found, which keeps each one's box, empty and
+   so without the gap between messages. */
+.lf-thread-transcript > .lf-msg[hidden="until-found"] {
+  margin-block: 0;
+}
 /* A border groups an open fold's messages without changing their headers or giving
    progress a separate background. It is drawn around them rather than taking room,
    so opening a group moves none of their words: an answer folding the progress a
@@ -882,7 +840,7 @@ summary {
   color: color-mix(in srgb, var(--ink) 50%, transparent);
   animation: lf-sheen 2s ease-in-out infinite alternate;
 }
-/* The one continuous animation, which marks work under way (assets/AGENTS.md,
+/* The one continuous animation, which marks work under way (browser/AGENTS.md,
    "Motion"): a highlight passing across words, which are painted in ink and dimmed by
    a mask to their rest face, ink at `--lf-sheen-rest`, but where the highlight
    passes. A box runs it by naming it, and sets `--lf-sheen-rest` where its own colour
@@ -934,25 +892,24 @@ summary {
 .lf-msg-meta.lf-held-header-item > time {
   flex-shrink: 0;
 }
-/* Independent controls overlay the first header's line outside message folds.
-   The line has a stationary box, and its notice begins at the metadata edge
-   ThreadView retains while news waits. Neither arrival nor changing words sizes
-   a message header, its reaction control, or the full-width body below it. */
+/* Independent controls stand on the first header's line outside message folds, in the
+   room the header's end margin keeps for them (below), and a held-news notice stands
+   on the same line from the metadata edge ThreadView retains while news waits. Each is
+   a box of its own, anchored to the header. A box spanning the whole line stood over
+   the author and time, and axe, which finds what covers words by geometry alone, read
+   no contrast for them. Neither arrival nor changing words sizes a message header, its
+   reaction control, or the full-width body below it. */
 .lf-thread-controls {
   position: absolute;
   position-anchor: --lf-thread-headline;
-  inset-inline-start: anchor(left);
+  inset-inline-start: calc(anchor(right) + var(--sp-2));
   inset-block-start: anchor(center);
   translate: 0 -50%;
-  inline-size: calc(anchor-size(width) + var(--lf-thread-action-room) + var(--sp-2));
+  inline-size: var(--lf-thread-action-room);
   block-size: var(--lf-thread-action-room);
   display: flex;
   align-items: center;
-  pointer-events: none;
   font-size: var(--t-6);
-}
-.lf-thread-controls > * {
-  pointer-events: auto;
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
@@ -982,6 +939,15 @@ summary {
   ) {
   --lf-thread-message-control-room: calc(var(--lf-msg-control-width) + var(--sp-2));
 }
+@media (hover: hover) and (pointer: fine) {
+  .lf-thread-content:has(> .lf-thread-controls):has(
+      > .lf-thread-transcript
+        > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
+        > .lf-msg-copy
+    ) {
+    --lf-thread-message-control-room: calc(var(--lf-msg-controls-width) + var(--sp-2));
+  }
+}
 .lf-thread-content:has(> .lf-thread-controls):has(
     > .lf-thread-transcript
       > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
@@ -1006,20 +972,27 @@ summary {
 .lf-thread-controls > .lf-thread-meta-actions {
   min-height: var(--lf-thread-action-room);
 }
-.lf-thread-controls > .lf-thread-news {
+/* The notice's start and the visible end of the header's line are the runtime's
+   readings, in the header's own coordinates (thread-card.js, `#retainHeaderSlot`). */
+.lf-thread-content > .lf-thread-news {
   position: absolute;
-  inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
+  position-anchor: --lf-thread-headline;
+  inset-inline-start: calc(
+    anchor(left) + var(--lf-thread-news-start, 0px) + var(--sp-2)
+  );
+  inset-block-start: anchor(center);
+  translate: 0 -50%;
   inline-size: max-content;
   max-inline-size: max(
     0px,
     min(
       calc(
-        100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) -
-          var(--lf-thread-action-room) - var(--lf-thread-message-control-room)
+        anchor-size(width) - var(--lf-thread-news-start, 0px) - var(--sp-2) -
+          var(--lf-thread-message-control-room)
       ),
       calc(
-        var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) -
-          var(--sp-2)
+        var(--lf-thread-news-visible-end, anchor-size(width)) -
+          var(--lf-thread-news-start, 0px) - var(--sp-2)
       )
     )
   );
@@ -1076,13 +1049,15 @@ button.lf-thread-notice[data-lf-focus-visible] {
    rather than cutting the one before it mid-word. Only a first fact too wide alone is
    cut. The clip reaches half a line below the words, outside their box, so the hover
    underline shows, and the gap between lines keeps a wrapped fact past it. It clips
-   only below, so the count of dropped facts (below) can stand past the words' end. */
+   only below, so the count of dropped facts (below) can stand past the words' end.
+   The chrome's `border-box` reset (chrome.css) counts that padding in the block size,
+   so the line's 1lh takes 1.5lh. */
 .lf-thread-news > span {
   position: relative;
   display: flex;
   flex-wrap: wrap;
   row-gap: 1lh;
-  block-size: 1lh;
+  block-size: 1.5lh;
   padding-block-end: 0.5lh;
   margin-block-end: -0.5lh;
   overflow: visible clip;
@@ -1112,7 +1087,7 @@ button.lf-thread-notice[data-lf-focus-visible] {
    nothing under the pointer. A placement that draws the notice whole, as a margin
    card's controls row does, drops no fact and reserves no room. The count stays out
    of the accessible name, which already says every fact. */
-.lf-thread-controls > .lf-thread-news,
+.lf-thread-content > .lf-thread-news,
 button.lf-primary-news {
   padding-inline-end: var(--lf-news-count-room);
 }
@@ -1166,7 +1141,7 @@ button.lf-primary-news {
   color: var(--ink-2);
   font-weight: 600;
 }
-.lf-thread-todo > .lf-thread-action {
+.lf-thread-todo > .lf-icon-action {
   flex: none;
   white-space: nowrap;
 }

@@ -1,11 +1,10 @@
 """The current location (the ring, Escape, navigation, the obligation walk) and the presses,
 obligations, controls and drafts they keep across a revision."""
 
-import json
 import re
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, declare_on_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_KEYS_APPARATUS,
@@ -100,9 +99,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     )
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Chose “Two” — sent")
-    )
+    expect(page.locator(".lf-live")).to_have_text("Chose “Two”")
     round_trip(page)
 
 
@@ -911,10 +908,12 @@ def test_the_obligation_walk_follows_registry_declarations(browser, serve):
     """Removing an open-request declaration removes that widget from every obligation
     surface without changing the runtime, panel, or keyboard walk."""
     url = serve(OBLIGATIONS_PAGE)
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
-    del registry["lf-suggestion"]["x-awaits"]
-    del registry["lf-suggestion"]["properties"]["resolves"]
-    (serve.page_dir / "registry.json").write_text(json.dumps(registry))
+
+    def undeclare(registry):
+        del registry["lf-suggestion"]["x-awaits"]
+        del registry["lf-suggestion"]["properties"]["resolves"]
+
+    declare_on_page(serve.page_dir, undeclare)
     stamp_page(
         serve.page_dir,
         (serve.page_dir / "index.html").read_text(),

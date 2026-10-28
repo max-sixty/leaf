@@ -1,6 +1,5 @@
 """Selection, passage, syntax, and version-travel tests."""
 
-import json
 import re
 from html import escape
 
@@ -53,6 +52,7 @@ from leaf import event_log as events_model
 from leaf import passages as passages_model
 from leaf import service as service_model
 from leaf import structure as structure_model
+from leaf.registry.storage import read_page_registry
 from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -250,7 +250,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     # regression that detaches ordinary file-readable prose must fail this sweep.
     passages = passages_model.page_passages(
         structure_model.SourceDocument((serve.page_dir / "index.html").read_text()),
-        json.loads((serve.page_dir / "registry.json").read_text()),
+        read_page_registry(serve.page_dir).registry,
     )
     for anchor in result["nonexact"]:
         located = {key: value for key, value in anchor.items() if key != "detached"}
@@ -704,6 +704,12 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
  def route(request):
 -    return f"legacy:{request.token.id}"
 +    return f"tok:{request.token.id}"
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1 +1 @@
+-Routes by legacy key.
++Routes by token.
 """
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)
@@ -1012,16 +1018,16 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     panel_status = panel_thread.locator(".lf-msg").first.locator(
         ":scope > .lf-msg-head .lf-msg-sending"
     )
-    expect(inline_status).to_have_text("Sent")
-    expect(panel_status).to_have_text("Sent")
+    expect(inline_status).to_have_text(re.compile(r"^Queued for "))
+    expect(panel_status).to_have_text(re.compile(r"^Queued for "))
     inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
     panel_status.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
     record_claim(serve.page_dir)
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, [root])
     told(page)
-    expect(inline_status).to_have_text("Delivered")
-    expect(panel_status).to_have_text("Delivered")
+    expect(inline_status).to_have_text("Got it")
+    expect(panel_status).to_have_text("Got it")
     expect(inline_status).to_have_attribute("data-identity-probe", "inline")
     expect(panel_status).to_have_attribute("data-identity-probe", "panel")
     reply = append_carried_log_record(
@@ -1115,10 +1121,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
             open_panel_thread(page, root["id"])
         expect(
             view.locator(f'.lf-msg[data-event="{question["id"]}"]').locator(line)
-        ).to_have_text("Working")
+        ).to_have_text("On it")
         expect(
             view.locator(f'.lf-msg[data-event="{followup["id"]}"]').locator(line)
-        ).to_have_text("Sent")
+        ).to_have_text(re.compile(r"^Queued for "))
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 

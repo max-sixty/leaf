@@ -1,4 +1,4 @@
-"""Disposable pages built from authored or generated source and a captured layer.
+"""Disposable pages built from authored or generated source and its revision's layer.
 
 A sample owns an ordinary source, revision, data store, and event log. Its parent
 supplies immutable resources and optional selected thread history, never a live
@@ -11,6 +11,7 @@ Nothing reads one after a crash, so revisions are staged without fsync
 (`revision_artifact.Disposable`).
 """
 
+import json
 import secrets
 import shutil
 import weakref
@@ -22,9 +23,12 @@ from threading import Lock
 from .data import write_data
 from .event_log import start_log
 from .page_memory import PageMemory, memory_of
+from .registry.kernel import kernel_protocol
+from .registry.storage import LAYER
 from .revision_artifact import Disposable, RevisionArtifact
 from .revisioning import activate_source
 from .sample_content import initial_sample_events
+from .schema import LAYER_FILE, PACKAGES_DIR
 from .structure import SourceDocument
 from .thread_context import thread_structure
 
@@ -73,7 +77,8 @@ class Samples:
     ) -> str:
         """Allocate from a declared template or a complete generated document.
 
-        Both use the captured layer and ordinary source validation. Generated source
+        Both use the layer the parent revision selects and ordinary source validation.
+        Generated source
         starts with an empty log; it cannot import the parent's conversation history.
         """
         if source is None:
@@ -91,6 +96,18 @@ class Samples:
                 target = child / logical.removeprefix("/")
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(resource.data)
+            # The child selects the layer its parent's revision was captured under,
+            # which this Leaf composes for it as for any page.
+            LAYER.write(
+                child / LAYER_FILE,
+                {
+                    **json.loads(artifact.manifest)["layer"],
+                    "protocol": kernel_protocol(),
+                },
+            )
+            # The layer names the parent's copies of the packages it selects by path.
+            if (parent / PACKAGES_DIR).is_dir():
+                shutil.copytree(parent / PACKAGES_DIR, child / PACKAGES_DIR)
             # Message attachments are content-addressed page data, not necessarily
             # dependencies of the authored revision. Preserve those bytes too.
             if (parent / "media").is_dir():

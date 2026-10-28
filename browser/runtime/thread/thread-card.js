@@ -7,9 +7,12 @@
    retained reply space. A margin card instead allocates its own scrolling transcript
    and overlay controls. Thread controls stay outside message and summary folds. MessageView
    owns each complete message, so no container extracts or reparents its header.
-   Independent controls overlay its first header line. That line reserves a notice's
-   minimum hit area from its first paint; the metadata edge measured before news
-   arrives is retained while it waits, including when its workflow receipt goes.
+   Independent controls stand on its first header line, in the room the line keeps at
+   its end, and a held-news notice stands on the same line after the header's words,
+   each a box of its own anchored to the header, so no box stands over the words. That
+   line reserves a notice's minimum hit area from its first paint; the metadata edge
+   measured before news arrives is retained while it waits, including when its
+   workflow receipt goes.
    Each message header text item keeps its allocated width while news waits, so a later
    receipt grows only inside its own clipped box. The first notice may use spare
    room for its new receipt without moving the author or time already shown.
@@ -28,7 +31,6 @@
    gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { setChildren } from "../dom-children.js";
 import {
   holdFocus,
   focusDestination,
@@ -39,9 +41,10 @@ import {
 import { html, render, nothing, share, signal } from "/runtime/framework.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
-import { generatedElement, offer, measure } from "../widget-elements.js";
+import { generatedElement, offeredAction } from "../widget-elements.js";
+import { measure } from "../shown-box.js";
 import { keeps, layoutPx } from "../keeps.js";
-import { keys } from "../keyboard/scopes.js";
+import { commandsOn } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import {
   createReplyView,
@@ -52,10 +55,10 @@ import {
 } from "./replies.js";
 import { atScrollEnd } from "../scrolling.js";
 import { settleThread } from "./folding.js";
-import { iconTemplate } from "../icons.js";
 import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX } from "./selectors.js";
-import { threadAttention, workflowLabel } from "./workflow.js";
+import { threadAttention, todoLabel, workflowLabel } from "./workflow.js";
+import { agentName } from "../semantic-state.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -153,7 +156,7 @@ function workingMessage(thread, attention, messages) {
               stopped.detail,
               stopped.detail_seq,
               false,
-              workflowLabel(stopped),
+              workflowLabel(stopped, agentName()),
               stopped.agent,
             ]
           : [said, saidAt.get(pending.at(-1)?.id), false, null, null];
@@ -192,7 +195,8 @@ function workingMessage(thread, attention, messages) {
 }
 
 // The user's open to-dos on a thread, over the conversation about them: each title
-// with its Done in words, since a thread head's check is Resolve. Done is the user's
+// with its Done, the ticked circle it shows wherever Leaf offers it, which tells it from
+// the thread head's Resolve check. A thread card once worded it. Done is the user's
 // `todo_end`, which takes the line away in the turn it is pressed (queue-api.js,
 // `done`). A card draws them at its head, and so does the floating panel's view of a
 // thread, under its quote.
@@ -204,12 +208,9 @@ export function threadTodos(todos, done) {
         html`<li class="lf-thread-todo">
           <span class="lf-thread-todo-title">To-do · ${todo.title}</span
           ><button
-            type="button"
-            class="lf-btn lf-thread-action"
+            ${offeredAction("symbol", "", undefined, { action: "done" })}
             @click=${() => done(todo.id)}
-          >
-            Done
-          </button>
+          ></button>
         </li>`,
     )}
   </ul>`;
@@ -220,14 +221,13 @@ export function threadReading(thread, surface, commands) {
   const resolved = Boolean(thread.resolved);
   // A settlement in flight has already flipped `resolved`, because what the page can
   // draw of a gesture stands in the turn that sends it. The control the user is left
-  // looking at is therefore the opposite one, offering to take the gesture back, and it
-  // wears the word for that: a delivery status is not the result, so there is no
-  // "Resolving…" state to name.
-  const settling = Boolean(thread.settling);
+  // looking at is therefore the opposite one, live at once: a press sends the opposite
+  // settlement after the first, as the ledger orders them. A delivery status is not the
+  // result, so there is no "Resolving…" state to name.
   const kind = resolved ? "unresolve" : "resolve";
   const word = resolved ? "Reopen" : "Resolve";
   const label = resolved ? word : "Resolve thread";
-  const attention = threadAttention(thread);
+  const attention = threadAttention(thread, agentName());
   // An answer says what it leaves (an lf-ask, `--todo`); its head says so while that
   // stands: a question the user still owes words to, a to-do still open on the
   // thread.
@@ -241,7 +241,7 @@ export function threadReading(thread, surface, commands) {
     asking.has(message.id)
       ? "Waiting on me"
       : message.todo && openTodos.has(message.id)
-        ? "To-do open"
+        ? todoLabel(null)
         : null;
   // Completion comes from the server, including the provisional answer. A held
   // reading keeps progress until its completing reply is among the messages shown.
@@ -282,7 +282,6 @@ export function threadReading(thread, surface, commands) {
       kind,
       word,
       label,
-      pending: settling,
     }),
     reply: replyAvailable(thread),
     // The user's open to-dos on the thread, each named at the thread's head with its
@@ -318,9 +317,7 @@ export class ThreadView {
   #reply = null;
   #replyShown = false;
   #draftFrame = 0;
-  #settlements = new Map();
   #settlesAt = null;
-  #actions = document.createElement("span");
   #marginControls = null;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
@@ -371,7 +368,6 @@ export class ThreadView {
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
     generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";
-    this.#actions.className = "lf-thread-meta-actions";
   }
 
   setMarginControls(controls) {
@@ -550,19 +546,14 @@ export class ThreadView {
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     if (marginControls && prior)
       marginControls.anchor.presented(threadChange(prior, model)?.joined);
-    // Where the settlement stands, decided once: the container it renders in and the
-    // face it wears both follow from it.
-    // - "margin": a margin card's own controls row, which also stands the notice,
-    //   whole, before Previous and Next: its own place with the thread's facts, as the
+    // Where the settlement stands:
+    // - on a margin card, its own controls row, which also stands the notice, whole,
+    //   before Previous and Next: its own place with the thread's facts, as the
     //   floating panel's head holds it (the user's choice, 16 October), rather than
     //   over the end of the message head beside it.
-    // - "head": the head's controls row, which reserves the room of one icon control
+    // - elsewhere, the head's controls row, which reserves the room of one icon control
     //   (shadow.css, `--lf-thread-action-room`) beside the first message's own
-    //   controls, so whatever stands there is the check: Resolve, or Reopen in its place
-    //   on a resolved page or outlet thread, so the two states of one toggle share one
-    //   face and one corner. The word, wider, ran over the message's pencil, and a foot
-    //   row of its own drew resolved threads unlike open ones.
-    const settlementPlace = marginControls ? "margin" : "head";
+    //   controls. A foot row of its own drew resolved threads unlike open ones.
     const notice = this.#news;
     if (model.news) notice.set(model.news);
     const news = model.news ? notice.node : nothing;
@@ -574,34 +565,36 @@ export class ThreadView {
     // thread's name.
     keeps(this.node, "role", "group");
     keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
-    const settlement = model.settlement
-      ? this.#settlement(model, settlementPlace)
-      : null;
-    const actions = marginControls
-      ? [
-          model.news ? notice.node : null,
-          marginControls.nav,
-          marginControls.expand,
-          settlement,
-          marginControls.close,
-        ].filter(Boolean)
-      : [settlement].filter(Boolean);
-    setChildren(this.#actions, actions);
-    const threadActions = actions.length || model.news ? this.#actions : null;
+    const settlement = model.settlement ? this.#settlement(model) : nothing;
+    const threadActions =
+      marginControls || model.settlement || model.news
+        ? html`<span class="lf-thread-meta-actions">
+            ${marginControls ? news : nothing} ${marginControls?.nav ?? nothing}
+            ${marginControls?.expand ?? nothing}${settlement}
+            ${marginControls?.close ?? nothing}
+          </span>`
+        : nothing;
     const handedOn = this.#transcript.present(model, {
       arrived: Boolean(prior),
       appends: model.surface === "margin",
     });
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
+    // In the head place the notice is a box of its own on the first header's line,
+    // anchored to the header beside the controls' box at its end (surfaces.css,
+    // `.lf-thread-content > .lf-thread-news`); its words change in place.
+    keeps(notice.node, "data-lf-reflow", marginControls ? null : "text");
     const body = html`
-      ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${this.#transcript.node}
+      ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${
+        this.#transcript.node
+      }
       ${
-        threadActions
+        threadActions !== nothing
           ? marginControls
             ? html`<div class="lf-margin-thread-controls">${threadActions}</div>`
-            : html`<div class="lf-thread-controls" data-lf-reflow="text">
-                ${news}${threadActions}
-              </div>`
+            : html`${news}
+                <div class="lf-thread-controls" data-lf-reflow="text">
+                  ${threadActions}
+                </div>`
           : nothing
       }
     `;
@@ -640,6 +633,8 @@ export class ThreadView {
     this.#observedHeader = null;
     this.#releaseHeaderItems();
     this.#news.node.removeAttribute("data-room");
+    this.#news.node.style.removeProperty("--lf-thread-news-start");
+    this.#news.node.style.removeProperty("--lf-thread-news-visible-end");
   }
 
   #releaseHeaderItems() {
@@ -656,8 +651,6 @@ export class ThreadView {
       return;
     }
     const content = this.node.querySelector(":scope > .lf-thread-content");
-    /** @type {HTMLElement | null} */
-    const controls = content?.querySelector(":scope > .lf-thread-controls");
     const first = content?.querySelector(
       ":scope > .lf-thread-transcript > :nth-child(1 of .lf-msg, .lf-thread-checkpoint)",
     );
@@ -665,7 +658,7 @@ export class ThreadView {
     const header =
       first?.querySelector(":scope > .lf-summary-checkpoint > .lf-summary-header") ??
       first?.querySelector(":scope > .lf-msg-head");
-    if (!controls || !header) {
+    if (!header) {
       this.#releaseHeaderSlot();
       return;
     }
@@ -731,24 +724,27 @@ export class ThreadView {
       }
       this.#headerSlot.held = true;
     }
+    // The notice's readings are lengths from the header's start: where the words end,
+    // which the notice starts after, and where the header's line stops showing, which
+    // it stops before (surfaces.css, `.lf-thread-content > .lf-thread-news`).
+    const notice = this.#news.node;
     const right = Math.max(
       box.left,
       ...this.#headerSlot.items.map(({ node }) => node.getBoundingClientRect().right),
     );
-    controls.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
+    notice.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
     if (this.#model.news) {
       // While news stands, the notice keeps the width of the words it first showed, so
       // later news never narrows or widens it under the pointer; longer news is cut.
-      if (!this.#news.node.hasAttribute("data-room"))
-        this.#news.node.dataset.room = this.#model.news.label;
-      const line = controls.getBoundingClientRect();
-      const shown = shownRect(controls, new Map());
+      if (!notice.hasAttribute("data-room"))
+        notice.dataset.room = this.#model.news.label;
+      const shown = shownRect(header, new Map());
       if (shown)
-        controls.style.setProperty(
+        notice.style.setProperty(
           "--lf-thread-news-visible-end",
-          layoutPx(Math.max(0, shown.right - line.left)),
+          layoutPx(Math.max(0, shown.right - box.left)),
         );
-    } else this.#news.node.removeAttribute("data-room");
+    } else notice.removeAttribute("data-room");
   }
 
   // Whether the progress behind the working message stood open when last drawn
@@ -757,44 +753,29 @@ export class ThreadView {
     return this.#transcript.progressOpen;
   }
 
-  // A thread shows Reopen or the completed check in Resolve's place.
-  #settlement(model, place) {
+  // Resolve and Reopen are one toggle, so every surface draws it as one check, drawn
+  // done on a resolved thread (browser/AGENTS.md, "Visual grammar"), in one corner:
+  // settling moves nothing beside it. A margin card once said Reopen as a word.
+  #settlement(model) {
     const state = model.settlement;
     const reopen = state.kind === "unresolve";
-    // A margin card's controls row draws Resolve as the check and Reopen as the word.
-    const icon = place === "head" || (place === "margin" && !model.resolved);
-    const face = `${state.kind} ${place}`;
-    let button = this.#settlements.get(face);
-    if (!button) {
-      button = offer(
-        "button",
-        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${icon ? "lf-icon-action" : "lf-thread-action"}`,
-      );
-      button.type = "button";
-      this.#settlements.set(face, button);
-      const word = reopen ? "Reopen" : "Resolve";
-      keys(button, `On a thread's ${word} button`, [
+    const word = reopen ? "Reopen" : "Resolve";
+    const label =
+      reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
+    return html`<button
+      ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve", label, {
+        action: reopen ? "reopen" : "resolve",
+      })}
+      ${commandsOn(`On a thread's ${word} button`, (button) => [
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
           title: word.toLowerCase(),
           control: button,
-          when: () => !this.#shown.value.settlement?.pending,
           run: this.#settle,
         },
-      ]);
-    }
-    keeps(button, "aria-busy", state.pending);
-    if (icon) {
-      const label =
-        reopen && model.resolvedBy
-          ? `${model.resolvedBy} · ${state.label}`
-          : state.label;
-      keeps(button, "aria-label", label);
-      keeps(button, "title", label);
-    }
-    render(icon ? iconTemplate("check", "lf-action-icon") : state.label, button);
-    return button;
+      ])}
+    ></button>`;
   }
 
   // What the thread holds, shown by a press on one of its controls. Where showing it
@@ -819,49 +800,45 @@ export class ThreadView {
       key: model.key,
       resolved: model.resolved,
       prepareLanding:
-        model.surface === "margin"
-          ? model.resolved
-            ? null
-            : this.#marginControls?.prepareLanding
-          : this.#prepareInlineLanding,
+        model.surface === "margin" && !model.resolved
+          ? this.#marginControls?.prepareLanding
+          : this.#prepareThreadLanding,
       ...this.#commands.settlement,
     }).catch(() => {});
   };
 
-  // A thread on the page moves as it settles: a resolved one into its seat's Resolved
-  // disclosure, and a reopened one out of it, ahead of it (inline.js). Land where the
-  // user went with it, the thread or the summary of the disclosure folding it, around
-  // their focus, which a thread too tall to show leaves where it is.
-  #prepareInlineLanding = () => {
+  // Reopening lands in the reply on every card, even when Lit retains the pressed
+  // button. A page thread also moves into or out of its seat's Resolved disclosure
+  // (inline.js), so keep its destination in view once the departing pixels finish.
+  #prepareThreadLanding = () => {
+    const reopening = this.#model.resolved;
     const mayLand = retainUserIntent({
       source: this.node,
       available: () => this.node.isConnected,
     });
-    const land = async (may = mayLand, reverse = false) => {
+    return async () => {
       // The summary is semantically available at once, but a long departing card
       // still puts it below the viewport. Keep this gesture's original authority
       // while its pixels leave; a later user move still vetoes the landing.
       await this.#retirement?.catch(() => {});
       const place = this.#fold?.querySelector(":scope > summary") ?? this.node;
-      if (!may()) return false;
-      // An existing resolved group survives when this card returns. Its summary
-      // cannot hand focus back by disappearing, so the reversal owns that handoff.
-      if (reverse) may.handoff(() => focusDestination(place, "return"));
-      if (!currentLocationIn(place)) return false;
-      scrollThreadIntoView(place, focused());
+      if (!mayLand() || !currentLocationIn(place)) return false;
+      if (reopening)
+        this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node);
+      if (this.#model.surface !== "margin") scrollThreadIntoView(place, focused());
       return true;
     };
-    return { optimistic: () => land(), reverse: (may) => land(may, true) };
   };
 
   #createReply(model) {
+    // A settled thread keeps its box while a session stands, which every pass and the
+    // margin follow (`replyIsEditing`), so a keystroke repaints this card alone.
     const replyChanged = () => {
       if (!this.#reply) return;
       this.#draftFrame ||= nextRender(() => {
         this.#draftFrame = 0;
         if (!this.#reply) return;
         if (this.#model.resolved) this.repaint();
-        if (this.#model.resolved) this.#commands.reply.changed();
       });
     };
     const commands = this.#commands.reply;

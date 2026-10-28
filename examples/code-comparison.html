@@ -6,7 +6,7 @@
       name="description"
       content="Compare scrolling and wrapping code readers in a narrow panel, adjust their spacing, and choose the treatment to keep."
     />
-    <style data-controls>
+    <style>
       #code-comparison-workspace > header {
         --lf-block-frame: 1;
       }
@@ -22,7 +22,9 @@
       code-reader-comparison :is(.code-comparison-toolbar, .code-candidate-controls) {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--sp-2);
+        /* Wrapped rows keep each button's reach, which stands past its face
+           under a finger, clear of the row above it. */
+        gap: max(var(--sp-2), 2 * var(--lf-reach-room)) var(--sp-2);
         align-items: center;
       }
 
@@ -108,6 +110,7 @@
         keepsText,
         layoutChanged,
         offer,
+        offerAction,
         once,
         sizeObserver,
         whileConnected,
@@ -139,7 +142,7 @@
           }
 
           #button(label, run) {
-            const button = offer("button", "lf-btn small", label);
+            const button = offerAction("word", "small", label);
             button.addEventListener("click", run);
             return button;
           }

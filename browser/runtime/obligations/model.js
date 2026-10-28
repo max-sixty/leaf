@@ -13,7 +13,6 @@ export const readObligations = readPart((root) => root.effective.obligations);
 
 export const obligationEntry = (obligation) =>
   registry[obligation?.source.tag]?.["x-awaits"];
-// Explicit message obligations and widgets declaring `x-awaits.reply` are answered
-// in words: in their thread, they read and are answered as messages.
-export const answeredInWords = (obligation) =>
-  obligation?.source.kind === "message" || Boolean(obligationEntry(obligation)?.reply);
+// An agent message's obligation is answered in words: in its thread, it reads and is
+// answered as a message.
+export const answeredInWords = (obligation) => obligation?.source.kind === "message";

@@ -5,15 +5,40 @@
   // packages/default/widgets/toc-view.js
   var HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
   var outlineDocument = (host) => host.closest("[data-lf-views] > *, main");
-  function drawToc(host, generatedElement) {
+  function drawToc(host, { generatedElement, keeps }, initialReading) {
     const open = host.hasAttribute("open");
+    let outline = { start: { label: "Top" }, items: [] };
     const href = (destination) => destination?.id ? `#${destination.id}` : nothing;
-    const paint = (start, items) => render(
-      html`
-        <nav class="lf-toc-nav lf-ui scroll" aria-label="On this page">
-          <p class="lf-toc-heading lf-label">On this page</p>
+    const generated = (says) => ref((node) => node && generatedElement(node, { says }));
+    host.replaceChildren();
+    return {
+      scope: () => outlineDocument(host),
+      get nav() {
+        return host.querySelector("nav");
+      },
+      get track() {
+        return host.querySelector(".lf-toc-rows");
+      },
+      get lens() {
+        return host.querySelector(".lf-toc-window");
+      },
+      render(reading2 = initialReading) {
+        if (reading2 && host.ownerDocument.readyState !== "loading") {
+          outline = readOutline(host, reading2);
+          keeps(host, "data-lf-toc-empty", outline.items.length ? null : "");
+        }
+        const { start, items } = outline;
+        return html`
+        <nav
+          class="lf-toc-nav lf-ui scroll"
+          aria-label="On this page"
+          ${generated(false)}
+        >
+          <p class="lf-toc-heading lf-label" ${generated(true)}>On this page</p>
           <details class="lf-toc-disclosure" ?open=${open}>
-            <summary class="lf-toc-toggle lf-label">On this page</summary>
+            <summary class="lf-toc-toggle lf-label" ${generated(true)}>
+              On this page
+            </summary>
             <div class="lf-toc-rows">
               <span class="lf-toc-window" aria-hidden="true"></span>
               <div class="lf-toc-start" data-lf-depth="0">
@@ -21,106 +46,24 @@
               </div>
               <ol>
                 ${repeat(
-        items,
-        ({ key }) => key,
-        (item) => html`
+          items,
+          ({ key }) => key,
+          (item) => html`
                     <li data-lf-depth=${item.depth}>
                       <a href=${href(item.destination)}>${item.label}</a>
                     </li>
                   `
-      )}
+        )}
               </ol>
             </div>
           </details>
         </nav>
-      `,
-      host
-    );
-    host.replaceChildren();
-    paint({ label: "Top" }, []);
-    const nav = host.querySelector("nav");
-    generatedElement(nav, { says: false });
-    for (const label of nav.querySelectorAll(".lf-toc-heading, .lf-toc-toggle"))
-      generatedElement(label, { says: true });
-    const track = nav.querySelector(".lf-toc-rows");
-    const startRow = track.querySelector(".lf-toc-start");
-    const list = track.querySelector("ol");
-    const disclosure = nav.querySelector("details");
-    const summary = disclosure.querySelector("summary");
-    let flowOpen;
-    return {
-      scope: () => outlineDocument(host),
-      nav,
-      track,
-      lens: track.querySelector(".lf-toc-window"),
-      // CSS owns the posture. A hidden summary means the links are an always-exposed
-      // outline, which needs the disclosure natively open in every engine, so it opens
-      // and holds the in-flow choice; returning to flow restores that choice, or keeps
-      // it open where `inRows()` says the user stands in a link.
-      posture(inRows = () => false) {
-        if (getComputedStyle(summary).display === "none") {
-          flowOpen ??= disclosure.open;
-          if (!disclosure.open) disclosure.open = true;
-        } else if (flowOpen !== void 0) {
-          const open2 = flowOpen || inRows();
-          if (disclosure.open !== open2) disclosure.open = open2;
-          flowOpen = void 0;
-        }
+      `;
       },
-      // Lays the margin map out for `sections` (`update`'s rows): each shown row takes the
-      // length of the section it leads as its flex share (`--lf-toc-span`), and crowded
-      // labels are fitted around their markers (`fitLabels`). Returns where each section
-      // starts in the coordinates of a scroller scrolled `scrollTop`, which of them the
-      // document shows, where its content starts and ends, each marker's fitted place on
-      // the map and the map's height, and whether the labels overflow it (`outline`).
-      // The initial renderer lays the map out once the document has parsed, so the
-      // spine first paints with its markers in place; the module lays it out again
-      // whenever the document moves (`lf-toc.js`).
-      measure(sections, scrollTop) {
-        const main = outlineDocument(host);
-        const top = (element) => viewportTop(element, main) + scrollTop;
-        let previous = top(sections[0].destination);
-        const shown = sections.map(
-          ({ destination }) => destination === main || destination.checkVisibility()
-        );
-        const positions = sections.map(({ destination }, index) => {
-          const position = shown[index] ? Math.max(previous, top(destination)) : previous;
-          previous = position;
-          return position;
-        });
-        const contentEnd = Math.max(
-          top(main) + main.clientTop + main.scrollHeight - parseFloat(getComputedStyle(main).paddingBottom),
-          positions.at(-1) + 1
-        );
-        sections.forEach(({ row }, index) => {
-          row.toggleAttribute("data-lf-toc-hidden", !shown[index]);
-          const nextVisible = shown.findIndex((seen, at) => at > index && seen);
-          const next = nextVisible < 0 ? contentEnd : positions[nextVisible];
-          row.style.setProperty(
-            "--lf-toc-span",
-            shown[index] ? String(Math.max(1, next - positions[index])) : "0"
-          );
-        });
-        const fitted = fitLabels(host, track, nav, sections, shown);
-        sections.forEach(({ row }, index) => {
-          if (fitted.shifts.has(index))
-            row.style.setProperty("--lf-toc-row-shift", `${fitted.shifts.get(index)}px`);
-          else row.style.removeProperty("--lf-toc-row-shift");
-        });
-        return {
-          shown,
-          positions,
-          contentStart: positions[0],
-          contentEnd,
-          mapPositions: fitted.mapPositions,
-          mapHeight: fitted.mapHeight,
-          outline: fitted.outline
-        };
-      },
-      update(reading2) {
-        const { start, items } = readOutline(host, reading2);
-        paint(start, items);
-        const rows = [...list.children];
+      sections() {
+        const { start, items } = outline;
+        const startRow = host.querySelector(".lf-toc-start");
+        const rows = [...host.querySelector("ol").children];
         return items.length ? [
           { ...start, row: startRow, link: startRow.firstElementChild },
           ...items.map((item, index) => ({
@@ -147,104 +90,6 @@
     while (doc.getElementById(id)) id = `${stem}-${suffix++}`;
     destination.id = id;
     return destination;
-  }
-  function fitLabels(host, track, nav, sections, shown) {
-    const shifts = /* @__PURE__ */ new Map();
-    const mapPositions = [];
-    host.removeAttribute("data-lf-compact");
-    host.removeAttribute("data-lf-outline");
-    if (getComputedStyle(track).display !== "flex")
-      return { shifts, mapPositions, mapHeight: 1, outline: false };
-    const box = track.getBoundingClientRect();
-    const fitted = (outline = false) => ({
-      shifts,
-      mapPositions,
-      mapHeight: box.height,
-      outline
-    });
-    const readLabels = () => {
-      const labels = sections.flatMap(
-        ({ row, link }, index) => shown[index] ? [
-          {
-            index,
-            ideal: row.getBoundingClientRect().top - box.top,
-            height: link.getBoundingClientRect().height,
-            center: parseFloat(getComputedStyle(link).lineHeight) / 2
-          }
-        ] : []
-      );
-      const lineHeight = parseFloat(getComputedStyle(nav).lineHeight);
-      const preferredGap = Number.isFinite(lineHeight) ? lineHeight * 0.5 : 0;
-      const labelHeight = labels.reduce((sum, label) => sum + label.height, 0);
-      const firstCenter = labels[0]?.center ?? 0;
-      const availableHeight = box.height + firstCenter;
-      const availableGap = labels.length > 1 ? (availableHeight - labelHeight) / (labels.length - 1) : 0;
-      return {
-        labels,
-        labelHeight,
-        firstCenter,
-        availableHeight,
-        preferredGap,
-        gap: Math.max(0, Math.min(preferredGap, availableGap))
-      };
-    };
-    let layout = readLabels();
-    if (!layout.labels.length) return fitted();
-    if (layout.labelHeight + layout.preferredGap * Math.max(0, layout.labels.length - 1) > layout.availableHeight + 1) {
-      host.setAttribute("data-lf-compact", "");
-      layout = readLabels();
-    }
-    if (layout.labelHeight > layout.availableHeight + 1) {
-      host.removeAttribute("data-lf-compact");
-      host.setAttribute("data-lf-outline", "");
-      return fitted(true);
-    }
-    let prefix = 0;
-    for (const label of layout.labels) {
-      label.prefix = prefix;
-      prefix += label.height + layout.gap;
-    }
-    const occupiedHeight = Math.max(0, prefix - layout.gap);
-    const blocks = [];
-    layout.labels.forEach((label, at) => {
-      blocks.push({
-        start: at,
-        end: at,
-        top: label.ideal - label.center - label.prefix,
-        count: 1
-      });
-      while (blocks.length > 1 && blocks.at(-2).top > blocks.at(-1).top) {
-        const next = blocks.pop();
-        const previous = blocks.pop();
-        const count = previous.count + next.count;
-        blocks.push({
-          start: previous.start,
-          end: next.end,
-          top: (previous.top * previous.count + next.top * next.count) / count,
-          count
-        });
-      }
-    });
-    const floor = -layout.firstCenter;
-    const ceiling = box.height - occupiedHeight;
-    for (const block of blocks) {
-      const top = Math.max(floor, Math.min(ceiling, block.top));
-      for (let at = block.start; at <= block.end; at += 1) {
-        const label = layout.labels[at];
-        const center = top + label.prefix + label.center;
-        mapPositions[label.index] = center;
-        shifts.set(label.index, center - label.ideal);
-      }
-    }
-    return fitted();
-  }
-  function viewportTop(element, main) {
-    for (let candidate = element; candidate; candidate = candidate.parentElement) {
-      const box = candidate.getBoundingClientRect();
-      if (box.width || box.height) return box.top;
-      if (candidate === main) break;
-    }
-    return main.getBoundingClientRect().top;
   }
   var level = (heading) => Number(heading.localName.slice(1));
   function readOutline(host, { label, chrome, lends }) {
@@ -278,13 +123,8 @@
     lends: false
   };
   document.documentElement.lfInitial.register("lf-toc", (host, tools) => {
-    const drawing = drawToc(host, tools.generatedElement);
-    const outline = () => {
-      const sections = drawing.update(reading);
-      tools.keeps(host, "data-lf-toc-empty", sections.length ? null : "");
-      drawing.posture();
-      if (sections.length) drawing.measure(sections, 0);
-    };
+    const drawing = drawToc(host, tools, reading);
+    const outline = () => render(drawing.render(), host, { host });
     const doc = host.ownerDocument;
     if (doc.readyState === "loading") {
       const pending = host.hasAttribute("open") && outlineDocument(host);
@@ -297,7 +137,7 @@
         },
         { once: true }
       );
-    } else outline();
+    }
     return drawing;
   });
 })();

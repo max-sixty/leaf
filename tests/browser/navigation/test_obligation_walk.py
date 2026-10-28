@@ -40,7 +40,7 @@ from render_harness import (
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -174,24 +174,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
     for key, target, tab in [("m", "second", "Second"), ("Shift+m", "first", "First")]:
         before = page.evaluate("scrollY")
         start_trace()
-        if target == "second":
-            # A revealed view may finish presentation later than its new geometry.
-            # Record its first painted frame while that completion is held.
-            page.evaluate("""() => {
-              const held = new Promise(resolve => { window.releaseObligationTabLayout = resolve; });
-              document.querySelector('#views').addEventListener('lf-layout', event => {
-                event.detail.present(held);
-                window.obligationTabLayoutStarted = true;
-              }, {once: true});
-            }""")
-            try:
-                page.keyboard.press(key)
-                page.wait_for_function("window.obligationTabLayoutStarted === true")
-                one_frame(page)
-            finally:
-                page.evaluate("releaseObligationTabLayout()")
-        else:
-            page.keyboard.press(key)
+        page.keyboard.press(key)
         expect(page.locator(f"#ask-{target}")).to_be_focused()
         selected = page.locator("#views > .lf-tabstrip").get_by_role(
             "tab", name=tab, exact=True
@@ -321,7 +304,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     page.evaluate(
         """async () => {
           const {notice} = await window.__lfWidgetApi();
-          notice('Saved — sent');
+          notice('Saved');
           dispatchEvent(new Event('resize'));
         }"""
     )
@@ -395,12 +378,15 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
         """async () => {
           const {widgetController} = await window.__lfWidgetApi();
           const source = document.querySelector('#sug-refill');
-          source.addEventListener('lf-reveal', event => {
+          // Revealing the suggestion waits for its update, which the test holds.
+          source.hidden = 'until-found';
+          source.addEventListener('beforematch', () => {
             const {promise: ready, reject} = Promise.withResolvers();
             window.rejectObligationReveal = reject;
             ready.then(() => {}, () => { window.obligationRevealRejected = true; });
             widgetController(source).present(ready);
-            event.detail.present(ready);
+            Object.defineProperty(source, 'updateComplete', {value: ready, configurable: true});
+            queueMicrotask(() => delete source.updateComplete);
             window.obligationRevealStarted = true;
           }, {once: true});
         }"""
@@ -431,8 +417,12 @@ def test_a_delayed_obligation_reveal_yields_to_programmatic_user_focus(browser, 
         """() => {
           const held = new Promise(resolve => { window.releaseObligationReveal = resolve; });
           held.then(() => { window.obligationRevealSettled = true; });
-          document.querySelector('#sug-refill').addEventListener('lf-reveal', event => {
-            event.detail.present(held);
+          const source = document.querySelector('#sug-refill');
+          // Revealing the suggestion waits for its update, which the test holds.
+          source.hidden = 'until-found';
+          source.addEventListener('beforematch', () => {
+            Object.defineProperty(source, 'updateComplete', {value: held, configurable: true});
+            queueMicrotask(() => delete source.updateComplete);
             window.obligationRevealStarted = true;
           }, {once: true});
         }"""
@@ -710,7 +700,9 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
     browser, serve
 ):
-    """Letting go and scrolling starts a new walk where the user is now reading."""
+    """Letting go leaves the user at the obligation they left, so the walk returns to
+    it, either way; scrolling it away starts the walk where they now read, at the
+    obligation there rather than past it."""
     items = "".join(
         f"""
 <lf-ask id="question-{index}"><h2>Question {index}: which route should we take?</h2>
@@ -727,6 +719,21 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
     )
     page.emulate_media(reduced_motion="reduce")
     page.keyboard.press("m")
+    expect(page.locator("#question-1")).to_be_focused()
+    page.keyboard.press("m")
+    expect(page.locator("#question-2")).to_be_focused()
+    for back in ("m", "Shift+m"):
+        page.keyboard.press("Escape")
+        page.keyboard.press(back)
+        expect(page.locator("#question-2")).to_be_focused()
+    # Opening On me from there holds no other place, so the walk still returns.
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    page.keyboard.press("m")
+    expect(page.locator("#question-2")).to_be_focused()
+    page.keyboard.press("Shift+m")
     expect(page.locator("#question-1")).to_be_focused()
     page.keyboard.press("Escape")
     rendered(page)
@@ -748,7 +755,37 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
     expect(third).to_be_in_viewport()
 
     page.keyboard.press("m")
-    expect(page.locator("#question-4")).to_be_focused()
+    expect(page.locator("#question-3")).to_be_focused()
+
+
+def test_letting_go_of_an_obligation_on_screen_leaves_the_user_beside_it(
+    browser, serve
+):
+    """With several obligations in view, letting go of the second leaves the user beside
+    it rather than at the top of the view: `m` returns to it, and Tab carries on into
+    it."""
+    asks = "".join(
+        f"""<lf-ask id="ask-{index}"><h2>Question {index}</h2>
+<lf-options id="pick-{index}" choose>
+  <lf-option id="pick-{index}-yes">Yes</lf-option>
+  <lf-option id="pick-{index}-no">No</lf-option>
+</lf-options></lf-ask>"""
+        for index in range(1, 4)
+    )
+    page = open_page(
+        browser,
+        serve(leaf_page("asks in view", f"<h1>Asks</h1><p>Three asks.</p>{asks}")),
+    )
+    page.keyboard.press("m")
+    expect(page.locator("#ask-1")).to_be_focused()
+    page.keyboard.press("m")
+    expect(page.locator("#ask-2")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("m")
+    expect(page.locator("#ask-2")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Tab")
+    expect(page.locator("#pick-2 lf-option-control").first).to_be_focused()
 
 
 def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an_obligation(
@@ -784,7 +821,7 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
         ),
         comments=2,
     )
-    append_carried_log_record(
+    reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -817,7 +854,11 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
     page.keyboard.press("Shift+m")
     expect(page.locator("#first-decision")).to_be_focused()
 
-    # Located in that obligation is located in the space, so the step measures from it.
+    # Travel put away the view covering the page obligations. Reopen the reply
+    # before locating its control; the next step still measures from that obligation.
+    panel_settled(page, open=False)
+    expect(page.locator("#reply-decision")).to_have_count(0)
+    open_panel_thread(page, reply["id"])
     pick = page.locator("#reply-decision .lf-pick").first
     pick.focus()
     expect(pick).to_be_focused()
@@ -943,8 +984,8 @@ def test_walking_to_an_obligation_opens_its_discussion(browser, serve, family):
 
 def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     """An obligation and the thread its card shows are one place held from two sides
-    (glossary, Current target). From the obligation, `c` continues that thread and `t` steps
-    on past it; from its thread in the card, the obligation keeps its ring and its digits.
+    (glossary, Current target). From the obligation, `c` continues that thread; from its
+    thread in the card, the obligation keeps its ring and its digits.
     A thread about an enclosing block holds the decision inside it with the agent, so
     On me skips that decision. From an element with no thread, `t` measures from its
     place in the document, as `m` does."""
@@ -1024,6 +1065,64 @@ def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser,
     expect(thread).to_be_visible()
     page.keyboard.press("c")
     expect(thread.locator("leaf-text")).to_be_focused()
+
+
+def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, serve):
+    """A question's frame holds what it asks about, so a press on a control there is the
+    user reading the question. After `m`, a click that flips the shot or drags its divider
+    once moved `c` onto the shot, because it put focus on the shot's own controls, while
+    a press on its Pixels button left `c` on the question, and once the question was
+    answered every press named the shot. The control is the same press on a shot
+    outside any question, where `c` names the shot."""
+    shot = (
+        f'alt="the board before and after" before="{SHOT_SRC["before"]}" '
+        f'after="{SHOT_SRC["after"]}"></lf-shot>'
+    )
+    url = serve(
+        leaf_page(
+            "calls",
+            f"""<h1>Review</h1>
+<section id="calls"><h2>Judgment calls</h2>
+<lf-ask id="count-ask"><h3>Show the card count?</h3>
+<lf-shot id="count-shot" {shot}
+<lf-options id="count" choose>
+  <lf-option id="count-keep">Keep it</lf-option>
+  <lf-option id="count-cut">Remove it</lf-option>
+</lf-options></lf-ask></section>
+<section id="loose"><h2>Loose</h2><lf-shot id="loose-shot" {shot}</section>""",
+        ),
+        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    )
+    page = open_page(browser, url)
+    composer = page.locator(".lf-composer")
+
+    def comment_after_flipping(shot_id):
+        comparison = page.locator(f"#{shot_id} wa-comparison")
+        comparison.scroll_into_view_if_needed()
+        box = comparison.bounding_box()
+        page.mouse.click(box["x"] + box["width"] * 0.3, box["y"] + box["height"] / 2)
+        page.keyboard.press("c")
+        expect(composer).to_be_visible()
+
+    page.keyboard.press("m")
+    expect(page.locator("#count-ask")).to_be_focused()
+    comment_after_flipping("count-shot")
+    expect(composer).to_contain_text("question · Show the card count?")
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+
+    # Answered, the frame still holds what the question is about.
+    option = page.locator("#count-keep")
+    option.click()
+    expect(option).to_have_attribute("chosen", "")
+    comment_after_flipping("count-shot")
+    expect(composer).to_contain_text("question · Show the card count?")
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+
+    comment_after_flipping("loose-shot")
+    expect(composer).to_contain_text("shot")
+    expect(composer).not_to_contain_text("question")
 
 
 def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(

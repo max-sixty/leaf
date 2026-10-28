@@ -55,8 +55,8 @@
     }
   },
   "lf-ask": {
-    "description": "A question for the user. Around other widgets that ask for input it gives their heading and context, each widget answered separately; with no other widget inside, it is itself a question the user answers in words.",
-    "x-instructions": "Around widgets that ask for input, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Each widget inside that asks for input stays its own obligation with its own answer, and the frame asks nothing itself. With no other widget inside, it is itself a question answered in words: in a reply's markup, by the user's next message in that thread; on the page, by their comment on it. Write the question itself as its content, with no heading needed. Wrap the context in a `section` when the document needs a section landmark.",
+    "description": "A question for the user that widgets inside it answer: it gives their heading and context, and each widget is answered separately.",
+    "x-instructions": "Around widgets that ask for input, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Each widget inside that asks for input stays its own obligation with its own answer, and the frame asks nothing itself. Wrap the context in a `section` when the document needs a section landmark. A question the user answers in words needs no `lf-ask`: ask it in a thread message with `--obligation` (`authoring-on-me.md`).",
     "type": "object",
     "properties": {
       "id": {
@@ -70,10 +70,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-awaits": {
-      "reply": true,
-      "encloses": true
-    },
+    "x-encloses": true,
     "x-word": "question",
     "x-upgrade": false,
     "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees; each option draws its document list once the store fills. I recommend dropping the oldest documents, because editing continues and the server keeps a copy of each one.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><small class=\"tag\">editing: continues</small><small class=\"tag ok\">recommended</small><strong>Drop the oldest documents</strong> Editing continues; the server keeps a copy.\n        <figure id=\"store-evict-fig\">\n          <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"store-evict-t\">\n            <title id=\"store-evict-t\">The oldest document leaves the device; the rest stay editable</title>\n            <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n            <rect class=\"line\" x=\"12\" y=\"12\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"25\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"ghost\" x=\"12\" y=\"38\" width=\"130\" height=\"6\" rx=\"3\"/>\n            <text class=\"small\" x=\"228\" y=\"44\" text-anchor=\"end\">server only</text>\n          </svg>\n        </figure>\n      </lf-option>\n      <lf-option id=\"store-stop\"><small class=\"tag\">editing: paused</small><strong>Pause offline editing</strong> Nothing leaves.\n        <figure id=\"store-stop-fig\">\n          <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"store-stop-t\">\n            <title id=\"store-stop-t\">Every document stays on the device, read-only until it reconnects</title>\n            <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n            <rect class=\"line\" x=\"12\" y=\"12\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"25\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"38\" width=\"130\" height=\"6\" rx=\"3\"/>\n            <circle class=\"warn\" cx=\"224\" cy=\"28\" r=\"5\"/><text class=\"small\" x=\"212\" y=\"31\" text-anchor=\"end\">read-only</text>\n          </svg>\n        </figure>\n      </lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
@@ -246,7 +243,7 @@
   },
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
-    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case and picture inside its lf-option. `multiple` lets the user pick several options as one answer (references/authoring-on-me.md says when). The built-in Another option field takes unlisted answers, so add no catch-all option. Use `for` only to point at sections or work items that exist apart from the question. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case and picture inside its lf-option. `multiple` lets the user pick several options as one answer (references/authoring-on-me.md says when). The built-in Another option field takes unlisted answers, so add no catch-all option; `closed` leaves it out where only the listed options can answer, such as a page that draws its own choice, and the user can still say more in a comment. Use `for` only to point at sections or work items that exist apart from the question. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
     "type": "object",
     "properties": {
       "id": {
@@ -257,6 +254,9 @@
         "type": "boolean"
       },
       "multiple": {
+        "type": "boolean"
+      },
+      "closed": {
         "type": "boolean"
       },
       "settled": {
@@ -598,7 +598,7 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-inline": true,
-    "x-prepaint": "<span class=\"lf-tally-face\"><span class=\"lf-tally-count\"><span class=\"lf-tally-room\">00 of 00 to answer · 00 on the agent</span><span class=\"lf-tally-room\">00 of 00 to answer · 00 on the agent</span><span class=\"lf-tally-words\"></span></span><button class=\"lf-btn lf-tally-next lf-ui lf-ui-face\" type=\"button\">Next on me</button></span>",
+    "x-initial": "/vendor/lf-tally-initial.js",
     "x-refers": {
       "for": {}
     },

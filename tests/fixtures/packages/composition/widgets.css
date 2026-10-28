@@ -1,4 +1,4 @@
-:scope {
+lf-review-summary {
   display: block;
   --lf-block-frame: 1;
   padding: var(--sp-4);
@@ -6,8 +6,9 @@
   border-radius: var(--r);
 }
 
-/* Package scope must end at the nested package's widget boundary. */
-p {
+/* The package names its own structure, so a nested widget's paragraphs keep their own
+   presentation. */
+lf-review-summary > p {
   border-inline-start: 0.2rem solid var(--accent);
   padding-inline-start: var(--sp-3);
 }

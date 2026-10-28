@@ -14,9 +14,7 @@
  */
 import {
   LeafElement,
-  noChange,
   initialRender,
-  commands,
   whileConnected,
   sizeObserver,
   registerVisualParts,
@@ -24,13 +22,10 @@ import {
   focusDestination,
   focused,
   announce,
-  motion,
   tabStore,
   quoted,
-  paintKeys,
+  commandsChanged,
 } from "/runtime/widget-api.js";
-
-const GLIDE = 160;
 
 customElements.define(
   "lf-timeline",
@@ -41,7 +36,11 @@ customElements.define(
     // frame: a timeline first shown in a closed tab places them before it paints.
     // The ruler's own size doesn't change with the layout, so this never loops.
     #relayout = () => {
-      if (this.#drawing.layout()) this.#parts?.update();
+      if (this.#drawing.layout()) {
+        this.requestUpdate();
+        this.performUpdate();
+        this.#parts?.update();
+      }
     };
 
     setup() {
@@ -49,49 +48,58 @@ customElements.define(
       const { model } = drawing;
       for (const problem of model.problems) reportFailure(this, new Error(problem));
       const steps = model.steps.length;
-      commands(this, "On a timeline", [
-        {
-          id: "timeline.previous",
-          title: "Previous step",
-          keys: ["ArrowLeft"],
-          repeat: true,
-          control: drawing.previous,
-          when: () => drawing.current > 0,
-          run: () => this.#go(drawing.current - 1, true),
-        },
-        {
-          id: "timeline.next",
-          title: "Next step",
-          keys: ["ArrowRight"],
-          repeat: true,
-          control: drawing.next,
-          when: () => drawing.current < steps - 1,
-          run: () => this.#go(drawing.current + 1, true),
-        },
-        {
-          id: "timeline.first",
-          title: "First step",
-          keys: ["Home"],
-          when: () => drawing.current > 0,
-          run: () => this.#go(0, true),
-        },
-        {
-          id: "timeline.last",
-          title: "Last step",
-          keys: ["End"],
-          when: () => drawing.current < steps - 1,
-          run: () => this.#go(steps - 1, true),
-        },
-      ]);
-      for (const row of drawing.rows)
-        commands(row, "On a timeline step", [
+      this.lfCommands = {
+        title: "On a timeline",
+        rows: [
           {
-            id: "timeline.step",
-            title: "Go to step",
-            keys: ["Enter", " "],
-            run: () => row.click(),
+            id: "timeline.previous",
+            title: "Previous step",
+            keys: ["ArrowLeft"],
+            repeat: true,
+            control: drawing.previous,
+            when: () => drawing.current > 0,
+            run: () => this.#go(drawing.current - 1, true),
           },
-        ]);
+          {
+            id: "timeline.next",
+            title: "Next step",
+            keys: ["ArrowRight"],
+            repeat: true,
+            control: drawing.next,
+            when: () => drawing.current < steps - 1,
+            run: () => this.#go(drawing.current + 1, true),
+          },
+          {
+            id: "timeline.first",
+            title: "First step",
+            keys: ["Home"],
+            when: () => drawing.current > 0,
+            run: () => this.#go(0, true),
+          },
+          {
+            id: "timeline.last",
+            title: "Last step",
+            keys: ["End"],
+            when: () => drawing.current < steps - 1,
+            run: () => this.#go(steps - 1, true),
+          },
+        ],
+      };
+      commandsChanged(this);
+      for (const row of drawing.rows) {
+        row.lfCommands = {
+          title: "On a timeline step",
+          rows: [
+            {
+              id: "timeline.step",
+              title: "Go to step",
+              keys: ["Enter", " "],
+              run: () => row.click(),
+            },
+          ],
+        };
+        commandsChanged(row);
+      }
       const events = new Map(model.events.map((event) => [event.id, event]));
       const describe = (event) => `${model.lanes[event.lane].label}: ${event.label}`;
       this.#parts = registerVisualParts(
@@ -138,27 +146,22 @@ customElements.define(
       });
     }
 
-    // The drawing is retained from first paint, not template-owned.
     render() {
-      return noChange;
+      return this.#drawing.render();
     }
 
     #go(index, keyed) {
       const drawing = this.#drawing;
-      const line = drawing.chart.querySelector(".lf-timeline-playhead-line");
-      const from = line?.getBoundingClientRect().left;
       const before = drawing.current;
-      const step = drawing.show(index);
+      drawing.current = index;
+      const step = drawing.current;
       if (step === before) return;
+      this.requestUpdate();
+      this.performUpdate();
       if (!quoted(this))
         tabStore.set(`timeline:${this.id}`, String(drawing.model.steps[step].time));
-      if (line && from !== undefined) {
-        const shift = from - line.getBoundingClientRect().left;
-        if (shift)
-          motion(line, [{ translate: `${shift}px 0` }, { translate: "0 0" }], GLIDE);
-      }
       this.#parts.update();
-      paintKeys();
+      commandsChanged(this);
       const row = drawing.rows[step];
       if (keyed && drawing.rows.includes(focused())) focusDestination(row, "move");
       if (keyed) {

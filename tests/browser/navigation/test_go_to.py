@@ -170,13 +170,20 @@ def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):
             )
         ),
     )
+    # Revealing the holder waits for its update, which the test holds.
     page.evaluate(
-        """() => document.getElementById('holder').addEventListener('lf-reveal',
-             (event) => event.detail.present(new Promise((r) => (window.__release = r))))"""
+        """() => {
+          const holder = document.getElementById('holder');
+          holder.hidden = 'until-found';
+          holder.addEventListener('beforematch', () => {
+            holder.updateComplete = new Promise((r) => (window.__release = r));
+          });
+        }"""
     )
     go_to_address(page, "Link", "internal")
     page.wait_for_url(re.compile(r"#arrival$"))
     page.wait_for_function("() => typeof window.__release === 'function'")
+    expect(page.locator("#arrival")).not_to_be_in_viewport()
     page.locator("#elsewhere").click()
     page.evaluate("() => window.__release()")
     one_frame(page)
@@ -342,9 +349,7 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
 
     # The paint that can read a notice is the one taken while it shows, and only a
     # notice wide enough to reach under the hint could move it.
-    page.evaluate(
-        "async () => (await window.__lfWidgetApi()).notice('Moved to Done — sent.')"
-    )
+    page.evaluate("async () => (await window.__lfWidgetApi()).notice('Moved to Done.')")
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "data-says", "notice"
     )

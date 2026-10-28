@@ -20,6 +20,7 @@ from render_cases_interaction import (
     answered_comment,
     live_url,
 )
+from render_cases_layout import SHOT_SRC, SHOTS
 from render_cases_navigation import BINDING_BADGE_PAGE, actions
 from render_harness import (
     ROOT,
@@ -127,6 +128,12 @@ PLATED_OPTION = """
       </lf-option>"""
 
 
+CAPTURED_OPTION = """
+      <lf-option id="captured-{side}"><strong>{title}</strong>
+        <a href="{src}"><img id="captured-{side}-picture" src="{src}" alt="{title}"></a>
+      </lf-option>"""
+
+
 PICTURED_OBLIGATION_PAGE = leaf_page(
     "options holding their pictures",
     "<h1>Plan context</h1>"
@@ -135,36 +142,44 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
     + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice" choose>'
     + PLATED_OPTION.format(side="yes", title="Backend")
     + PLATED_OPTION.format(side="no", title="Frontend")
+    + "</lf-options></lf-ask>"
+    + '<lf-ask id="captured"><h3>Which panel?</h3><lf-options id="captured-choice" choose>'
+    + CAPTURED_OPTION.format(side="yes", title="Both lines", src=SHOT_SRC["before"])
+    + CAPTURED_OPTION.format(side="no", title="One line", src=SHOT_SRC["after"])
     + "</lf-options></lf-ask>",
 )
 
 
-def test_options_holding_pictures_lay_across(browser, serve):
-    """An obligation whose options each hold a picture of what choosing it gives, with
-    no figure before them, sets the cards side by side, so each picture stands over its
-    own pick and the two compare in one row, though each is wrapped in a link. A widget
-    whose entry declares it draws a picture (`x-visual`), such as a chart, counts as one.
-    A group given `data-width` lays them across its own width, with each picture
-    growing toward its authored size as the group gains room."""
+def test_options_holding_pictures_read_down(browser, serve):
+    """An obligation whose options each hold a picture of what choosing it gives keeps
+    its cards reading down, so each picture stands at the size its author gave it,
+    rather than shrunk to a card's share of a row: a drawing, a capture, and a widget
+    whose entry declares it draws a picture (`x-visual`), each wrapped in the link that
+    opens it or not, in the reading column or a group given `data-width`."""
+    media = {SHOT_SRC[name]: data for name, data in SHOTS.items()}
     page = open_page(
-        browser, serve(PICTURED_OBLIGATION_PAGE, layer_registry=PLATE_PACKAGE)
+        browser,
+        serve(PICTURED_OBLIGATION_PAGE, layer_registry=PLATE_PACKAGE, media=media),
     )
     resized(page, 1440, 900)
+    page.wait_for_function("[...document.images].every((i) => i.complete)")
     at = page.evaluate(
-        """() => Object.fromEntries(['pictured', 'widened', 'plated'].map((id) => {
-          const box = (s) => document.getElementById(`${id}-${s}`).getBoundingClientRect();
-          return [id, {
-            tops: ['yes', 'no'].map((s) => Math.round(box(s).top)),
-            lefts: ['yes', 'no'].map((s) => Math.round(box(s).left)),
-            pictures: ['yes', 'no'].map((s) => Math.round(box(`${s}-picture`).width)),
-          }];
-        }))"""
+        """() => Object.fromEntries(
+          ['pictured', 'widened', 'plated', 'captured'].map((id) => {
+            const box = (s) => document.getElementById(`${id}-${s}`).getBoundingClientRect();
+            return [id, {
+              tops: ['yes', 'no'].map((s) => Math.round(box(s).top)),
+              lefts: ['yes', 'no'].map((s) => Math.round(box(s).left)),
+              pictures: ['yes', 'no'].map((s) => Math.round(box(`${s}-picture`).width)),
+            }];
+          }))"""
     )
-    for id in ("pictured", "widened", "plated"):
-        assert at[id]["tops"][0] == at[id]["tops"][1], at
-        assert at[id]["lefts"][0] < at[id]["lefts"][1], at
-    assert at["widened"]["pictures"][0] == at["widened"]["pictures"][1], at
-    assert at["pictured"]["pictures"][0] < at["widened"]["pictures"][0] < 480, at
+    for id in ("pictured", "widened", "plated", "captured"):
+        assert at[id]["tops"][0] < at[id]["tops"][1], at
+        assert at[id]["lefts"][0] == at[id]["lefts"][1], at
+    for id in ("pictured", "widened"):
+        assert at[id]["pictures"] == [480, 480], at
+    assert at["captured"]["pictures"] == [600, 600], at
 
 
 ACROSS_GEOMETRY = """(id) => {
@@ -204,6 +219,84 @@ def test_an_obligation_framing_a_figure_lays_its_options_across(browser, serve):
     assert len(set(middle["lefts"])) == 1, middle
 
 
+def chipped_obligation(id, cards):
+    """An obligation framing a drawing, so its titled cards lay across; each card is
+    (chips, title, attributes)."""
+    options = "".join(
+        f'<lf-option id="{id}-{n}"{attributes}>'
+        + "".join(f'<small class="tag">{chip}</small>' for chip in chips)
+        + f"<strong>{title}</strong><p>Its consequence.</p></lf-option>"
+        for n, (chips, title, attributes) in enumerate(cards)
+    )
+    return (
+        f'<lf-ask id="{id}"><h3>Which fix first?</h3>'
+        '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
+        '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
+        f'<lf-options id="{id}-choice" choose>{options}</lf-options></lf-ask>'
+    )
+
+
+CHIPPED_CARDS_PAGE = leaf_page(
+    "cards laid across opening with chips",
+    "<h1>Heat loss</h1>"
+    + chipped_obligation(
+        "some",
+        [
+            (["recommended"], "Seal the hatch", ""),
+            ([], "Glaze the bay", ""),
+            (["risky"], "Insulate the floor", " chosen"),
+        ],
+    )
+    + chipped_obligation(
+        "all",
+        [
+            (
+                ["recommended", "£180", "one afternoon", "needs the installer"],
+                "Seal the hatch",
+                "",
+            ),
+            (["£1,180"], "Glaze the bay", ""),
+            (["risky"], "Insulate the floor", ""),
+        ],
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("engine", "rows"),
+    [("browser", ("some",)), ("firefox_browser", ("some", "all"))],
+)
+def test_cards_laid_across_align_their_titles_whatever_chips_open_them(
+    request, serve, engine, rows
+):
+    """Cards side by side read as one comparison, so each title, and the sentence under
+    it, stands on one line across the row whether its card opens with chips, with
+    none, or with the "selected" state beside them. A card whose chips wrap to several
+    lines moves its neighbours' contents down with it, which needs baseline
+    content-alignment: Chromium lacks it, so there only chips that fit beside the
+    state seat keep the row aligned (`notes/browser-support.md`)."""
+    page = open_page(request.getfixturevalue(engine), serve(CHIPPED_CARDS_PAGE))
+    resized(page, 1440, 900)
+    at = page.evaluate(
+        """(rows) => Object.fromEntries(rows.map((id) => {
+          const cards = [...document.querySelectorAll(`#${id}-choice > lf-option`)];
+          const top = (card, part) =>
+            Math.round(card.querySelector(`:scope > ${part}`).getBoundingClientRect().top);
+          return [id, {
+            cards: cards.map((card) => Math.round(card.getBoundingClientRect().top)),
+            titles: cards.map((card) => top(card, 'strong')),
+            sentences: cards.map((card) => top(card, 'p')),
+          }];
+        }))""",
+        list(rows),
+    )
+    for id in rows:
+        row = at[id]
+        assert len(set(row["cards"])) == 1, f"{id}: the cards share a row: {row}"
+        assert len(set(row["titles"])) == 1, f"{id}: titles misaligned: {row}"
+        assert len(set(row["sentences"])) == 1, f"{id}: sentences misaligned: {row}"
+
+
 def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
     """The column bounds a line of text, and no card's line is wider than its column, so
     an obligation granted the wide measure for its figure lays its cards under all of it rather
@@ -215,8 +308,9 @@ def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
     assert at["obligation"] > 720, at
     assert abs(at["list"] - at["obligation"]) <= 1, at
     assert len(set(at["tops"])) == 1, at
-    # The group's frame takes 2px of its width.
-    assert abs(sum(at["widths"]) - (at["list"] - 2)) <= 2, at
+    # The group's frame takes 2px of its width, and each hairline between cards 1px.
+    hairlines = len(at["widths"]) - 1
+    assert abs(sum(at["widths"]) - (at["list"] - 2 - hairlines)) <= 2, at
 
 
 def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):
@@ -611,7 +705,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
 
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const source = document.createElement('span');
           const inspect = document.createElement('button');
@@ -619,7 +713,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
           inspect.textContent = 'Inspect';
           source.append(inspect);
           suggestion.append(source);
-          commands(source, 'Suggestion action', [
+          source.lfCommands = { title: 'Suggestion action', rows: [
             {
               id: 'test.inspect',
               keys: ['x', 'y'], contextKeys: ['3'],
@@ -630,7 +724,8 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
               line: 'Inspect',
               run: () => { inspect.dataset.activated = '1'; },
             },
-          ]);
+          ] };
+          commandsChanged(source);
         }"""
     )
 
@@ -682,14 +777,15 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     # collapsing the command's equivalent bindings into whichever one came first.
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           const inspect = document.getElementById('inspect-action');
-          commands(inspect, 'Inspect control', [{
+          inspect.lfCommands = { title: 'Inspect control', rows: [{
             id: 'test.dead-local-x', keys: ['x'],
             title: 'Run an unavailable local command',
             line: 'unavailable local command', when: () => false,
             run: () => { inspect.dataset.deadLocalX = '1'; },
-          }]);
+          }] };
+          commandsChanged(inspect);
         }"""
     )
     rendered(page)
@@ -721,12 +817,12 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
           suggestion.append(inspect);
-          commands(inspect, 'Inspect control', [
+          inspect.lfCommands = { title: 'Inspect control', rows: [
             {
               id: 'test.inspect', keys: ['1'], contextKeys: ['3'], control: inspect, label: 'I',
               decision: true, title: 'Inspect', line: 'Inspect',
@@ -737,7 +833,8 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
               title: 'Run the local third command', line: 'local three',
               run: () => { inspect.dataset.localThree = '1'; },
             },
-          ]);
+          ] };
+          commandsChanged(inspect);
         }"""
     )
 
@@ -771,7 +868,7 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
 
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const control = document.createElement('button');
           control.textContent = 'Configure';
@@ -782,16 +879,18 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
           inside.textContent = 'Inside configuration';
           layer.append(inside);
           suggestion.append(control, layer);
-          commands(control, 'Configuration action', [{
+          control.lfCommands = { title: 'Configuration action', rows: [{
             id: 'test.configure', keys: [], contextKeys: ['3'], control,
             decision: true, title: 'Configure', line: 'configure',
             run: () => { layer.hidden = false; inside.focus(); },
-          }]);
-          commands(inside, 'In the configuration layer', [{
+          }] };
+          commandsChanged(control);
+          inside.lfCommands = { title: 'In the configuration layer', rows: [{
             id: 'test.configure.close', keys: ['Escape'],
             title: 'Close configuration', line: 'close configuration',
             run: () => { layer.hidden = true; control.focus(); },
-          }]);
+          }] };
+          commandsChanged(inside);
         }"""
     )
 
@@ -851,15 +950,20 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
         assert obligation_point["x"] == pytest.approx(focused_point["x"], abs=0.5)
         assert obligation_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
 
-    # The Add press must enter the tab order in the input event itself. A paint on
-    # the next frame can come after the next Tab and send focus to the next obligation.
-    page.evaluate("""() => document.addEventListener('input', () => {
-      window.__addEmptyAtInput = document.querySelector(
-        '#live-question .lf-compose-submit').hasAttribute('data-lf-empty');
-    }, {once: true})""")
+    # Add must be ready before the next frame and the next keyboard gesture.
+    # Lit may commit in a microtask after the input event has finished bubbling.
+    page.evaluate("""() => {
+      window.__addEmptyBeforeFrame = new Promise(resolve => {
+        document.addEventListener('input', () => requestAnimationFrame(() => {
+          resolve(document.querySelector(
+            '#live-question .lf-compose-submit').hasAttribute('data-lf-empty'));
+        }), {once: true});
+      });
+    }""")
     write(addition.get_by_role("textbox", name="Another option"), "A fourth option")
-    assert page.evaluate("window.__addEmptyAtInput") is False
     page.keyboard.press("Tab")
+    expect(submit).to_be_focused()
+    assert page.evaluate("window.__addEmptyBeforeFrame") is False
     binding_badge = addition.locator("> .lf-key-badge[data-lf-binding-badge]")
     expect(binding_badge).to_be_visible()
     expect(submit).to_be_visible()
@@ -892,7 +996,7 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
 
     page.evaluate(
         """async () => {
-           const {commands} = await window.__lfWidgetApi();
+           const {commandsChanged} = await window.__lfWidgetApi();
            const source = document.getElementById('sug');
            const face = (id, top) => {
              const bindingBadge = document.createElement('span');
@@ -908,11 +1012,12 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
             control.textContent = id;
             control.style.cssText = `position: fixed; left: 560px; top: ${top}px;`;
             source.append(control);
-            commands(control, id, [{
+            control.lfCommands = { title: id, rows: [{
                id: `test.${id}`, keys: [], contextKeys: [String(nextKey++)], control, bindingBadge,
               decision: true, title: `Activate ${id}`, line: id,
               run: () => { control.dataset.activated = '1'; },
-            }]);
+            }] };
+            commandsChanged(control);
           };
 
            add('disconnected-face', 220, face('detached-binding-badge', 100));
@@ -970,6 +1075,18 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
                 has_text=binding,
             )
         ).to_have_count(1)
+    # A covered or clipped face's chip takes the face's place, which the widget chose,
+    # rather than its control's corner, where a field's chip covered its first words.
+    for face, binding in (
+        ("#covered-binding-badge", "6"),
+        ("#clipped-binding-badge", "7"),
+    ):
+        seat = page.locator(face).bounding_box()
+        chip = page.locator(
+            ".lf-command-binding-badges .lf-command-binding-badge", has_text=binding
+        ).bounding_box()
+        assert abs(chip["x"] + chip["width"] / 2 - seat["x"] - seat["width"] / 2) <= 1
+        assert abs(chip["y"] + chip["height"] / 2 - seat["y"] - seat["height"] / 2) <= 1
 
 
 def test_obligation_binding_badges_do_not_cover_their_key_line(browser, serve):
@@ -1046,7 +1163,7 @@ def test_an_obligation_that_cannot_name_itself_arrives_on_the_words_that_explain
 ):
     """A change to a phrase has no region to declare, so the document supplies one.
 
-    An enclosing widget (`x-awaits.encloses`) states its own arrival region: a heading, the
+    An enclosing widget (`x-encloses`) states its own arrival region: a heading, the
     context, then the control. A suggestion can stand mid-sentence, so it can never satisfy "an obligation must
     name itself without context outside the obligation" and no region can be written round it.
     Arriving on the change alone put its own top edge at the window's head and took the
@@ -1311,36 +1428,30 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     halfway down and press `d` and you were taken back past everything you had read,
     and so was anyone who had just selected a paragraph to comment on.
 
-    With focus in the chrome, the walk measures from what they are reading, which the
-    last walk's landing scroll put in front of them. The panel's On me mark is no place:
-    pressing it opens On me and leaves the focus in the panel, so a walk measured from
-    the focus after it would restart on every press, and the ring is gone from the page
-    by then, the user being in the panel. A selected passage now enters its comment field immediately;
-    while that field stands, letters are text rather than page-navigation keys."""
+    Reading an obligation is being at it without being on it, so the walk arrives
+    there. The panel's On me mark is no place: pressing it opens On me and leaves the
+    focus in the panel, which holds the user's place on the page, so the walk after it
+    steps on from the obligation they stood on rather than restarting. A selected
+    passage now enters its comment field immediately; while that field stands, letters
+    are text rather than page-navigation keys."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
 
     # A window short enough that reading down the page leaves the top of it behind,
     # which is the whole of what the user has to do to be somewhere.
     resized(page, 900, 400)
 
-    # Scrolled to the change with nothing selected and nothing focused: the decision after
-    # it, not the question above it. They are located *in* that suggestion, which is
-    # why it is the decision they step off rather than the one they step to.
-    page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
+    # Scrolled to the change with nothing selected and nothing focused: the change
+    # itself, not the question above it nor the decision after it.
+    page.locator("#refill-was").evaluate("el => el.scrollIntoView({block: 'start'})")
     page.keyboard.press("m")
-    expect(page.locator("#t-baffles-decision")).to_have_attribute(
-        "data-lf-obligation", "1"
-    )
-    # The walk scrolls to the obligation it arrived at, and the next walk measures from what
-    # that scroll leaves in front of the user, so the scroll has to have landed.
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page)
 
-    # The mark's press opens On me and takes the focus into the panel, so the walk
-    # after it measures from the current location in the page and steps on rather
-    # than restarting — the panel being no place to measure from.
+    # The mark's press opens On me and takes the focus into the panel, which holds the
+    # suggestion as the user's place, so the walk steps on rather than restarting.
     panel_control(page, "queue").click()
     page.keyboard.press("m")
-    expect(page.locator("#t-bath-decision")).to_have_attribute(
+    expect(page.locator("#t-baffles-decision")).to_have_attribute(
         "data-lf-obligation", "1"
     )
 

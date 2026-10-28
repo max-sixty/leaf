@@ -53,7 +53,7 @@ dependencies = [
   "linkify-it-py>=2",
   "markdown-it-py>=4",
   "mdit-py-plugins>=0.4",
-  "playwright>=1.63",
+  "playwright>=1.64",
   "psutil>=6",
   "pywhatwgurl>=0.1.2",
   "regress>=2026.9",
@@ -81,7 +81,7 @@ module-name = "leaf"
 [dependency-groups]
 dev = [
   # Accessible snapshots with rendered boxes for corpus round-trip checks.
-  "playwright>=1.63",
+  "playwright>=1.64",
   "pytest>=9.1",
   "pytest-xdist>=3",
   "axe-playwright-python>=0.1.4",
@@ -193,6 +193,8 @@ ignore_names = [
   "do_*",
   "list_directory",
   "log_message",
+  "protocol_version",
+  "close_connection",
   "daemon_threads",
   "handlers",
   # urllib.request calls this HTTPRedirectHandler override by name.
@@ -203,6 +205,7 @@ ignore_names = [
   "get_command",
   "format_commands",
   "command_class",
+  "group_class",
   "main_loop",
   "validateLink",
 ]

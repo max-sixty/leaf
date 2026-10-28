@@ -14,9 +14,11 @@ its row. A visible control names an existing command rather than copying its cal
 
 Core owns commands on the page, the chrome, navigation, comments and shared thread
 state. A widget owns commands that read or change its content, and its scopes join the
-register only while the widget exists. Element scopes are declared with
-`keys(element, …)`, a template's `commandsOn(…)` or `commandScope(…)` in
-`scopes.js`, and core scopes with `pageScope`, `pageCommand` and `pageRung` in
+register only while the widget exists. A package widget declares an element scope as
+data, the element's `lfCommands`, which `scopes.js` reads when the widget calls
+`commandsChanged`; core declares one with `keys(element, …)`, and both take a
+`commandScope(…)` value, as a template's `commandsOn(…)` does. Core scopes over the
+page use `pageScope`, `pageCommand` and `pageRung` in
 `register.js`. A new scope, page command or Escape step also needs its place in
 `register.js`'s `STACK`, `PAGE_COMMANDS` or `RUNG_LADDER`.
 
@@ -35,7 +37,9 @@ parent. Both depend only on what is open now, so a surface opened by pointer or 
 closes the same way as one opened by its key. The focused control's own step comes
 first, then steps inside the focused surface, then the surface itself, then steps
 outside it; `STACK` and `RUNG_LADDER` order siblings, and native modals and popovers
-keep the browser's order.
+keep the browser's order. A close request, such as Android's back gesture, takes the
+same step, through its row's `keep` where `run` would throw away unsent words
+(`close-requests.js`).
 
 - The document is the base. In a live sample, one more Escape returns focus to the
   containing page.
@@ -50,8 +54,11 @@ keep the browser's order.
   title, never on the page. The panel's field, and a box that stays open for more
   messages such as a widget's thread box (`x-thread-seat`), keep focus.
 - A selected destination (a thread, an obligation, a heading) steps back to the document
-  through `letGo` (`focus.js`), landing on the visible block rather than on the control
-  that opened it. Page Map returns focus to whatever opened it.
+  through `letGo` (`focus.js`), landing beside it while it is in view, else on the
+  visible block, rather than on the control that opened it, so Tab carries on from it.
+  Page Map returns focus to whatever opened it. Leaving a walk's stop leaves the user
+  at it rather than on it, so the walk's next press returns there
+  (`current-target.js`).
 
 Go-to, target hints, page search, reactions and the command reference own the keyboard
 while active and handle their own exit. Escape closes a surface even if it was open
@@ -82,7 +89,7 @@ comment on selected words. Page scope rows therefore have no touch labels: each 
 that runs a press declares `touch: false` or is the `exit` of a stance accessible by
 touch. Examples include page search, the target picker, Draw mode and the user's
 current to-do, whose exit is Done. The panel shows the innermost active stance's exit
-as one ✕, or the icon the row names (the to-do's check). It leaves the stance even
+as one ✕, or the symbol of the action the row names (the to-do's check). It leaves the stance even
 where Escape would first close something inside it. The picker's ✕ is the exception:
 while typed hint letters remain, it removes one (`target-picker.js`). The register
 refuses a page command without `touch` and a scope row whose `run` is neither `exit`

@@ -34,8 +34,10 @@
 /* Inline code keeps the line's flow and can fragment with its words. Declared
    widget trees may carry a source renderer's bare code reset (Pierre's base layer
    sets block display, content containment and isolation); this reading face owns
-   those properties too. */
-:where(:root, .lf-thread-transcript) code {
+   those properties too. A program's output and a key are runs of the same kind, and
+   the browser's own face for them, a bare monospace at the serif's size, set a quoted
+   status line into prose with nothing to say where it ended. */
+:where(:root, .lf-thread-transcript) :is(code, samp, kbd:where(:not(.lf-key-badge))) {
   background: var(--code-bg);
   border-radius: var(--code-inline-r);
   padding: var(--code-inline-pad);
@@ -46,6 +48,12 @@
   display: inline;
   contain: none;
   isolation: auto;
+}
+/* A key wears the hairline and ground the runtime's own keys do (`.lf-key-badge`,
+   surfaces.css), so a shortcut the page names looks like the one Leaf shows. */
+:where(:root, .lf-thread-transcript) kbd:where(:not(.lf-key-badge)) {
+  border: 1px solid var(--border-2);
+  background: var(--chip);
 }
 /* A code block is sized by how many characters it takes across, which is why its size
  * is off the serif ladder above. At --code-size, the column keeps a few more than the
@@ -73,7 +81,8 @@
        * long line is every flex item's and grid track's minimum up the tree. */
   contain: inline-size;
 }
-:where(:root, .lf-thread-transcript) pre > code {
+:where(:root, .lf-thread-transcript) pre > :is(code, samp, kbd) {
+  border: 0;
   background: none;
   padding: 0;
   font-size: 100%;
@@ -101,15 +110,20 @@
  * float, it takes a row of its own across every track. */
 @media screen {
   .lf-text-scroller::after,
-  :where(:root, .lf-thread-transcript) :is(pre, table)::after {
+  :where(:root, .lf-thread-transcript) pre::after {
     content: "";
     float: inline-start;
     inline-size: 100%;
     block-size: var(--lf-text-scroll-track);
     grid-column: 1 / -1;
   }
-  :where(:root, .lf-thread-transcript) :is(pre, table)::after {
+  :where(:root, .lf-thread-transcript) pre::after {
     block-size: var(--lf-text-scroll-clearance);
+  }
+  /* A pseudo-element in an authored native table becomes an anonymous extra row.
+     Block tables need clearance; collapsed native tables ignore this padding. */
+  :where(:root, .lf-thread-transcript) table {
+    padding-block-end: var(--lf-text-scroll-clearance);
   }
 }
 /* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
@@ -202,7 +216,7 @@
 /* A cell already supplies the identifier's frame and spacing. The size is relative to
    the cell's own, so a name reads as a word of the row: at the chip size it stood
    11.5px beside 14px values. */
-:where(:root, .lf-thread-transcript) :is(th, td) code:not(pre code) {
+:where(:root, .lf-thread-transcript) :is(th, td) :is(code, samp):not(pre *) {
   padding: 0;
   background: none;
   font-size: 0.9em;
@@ -406,13 +420,16 @@ leaf-text.lf-fab-input,
   font: var(--msg-font);
   color: var(--ink);
 }
-/* A message keeps the column's measure on any page, as a Layout's text does
-     (`--lf-measure`, theme.css), however wide its panel is dragged. */
+/* A message runs to the width of the box that holds it, a card, a seat or the
+     floating panel, which sets the limit: a thread is all messages, so its box is
+     already sized for reading them. It once kept the column's measure, which in the
+     panel widened for a long draft stopped messages two thirds of the way across (the
+     user's call, 28 October). */
 .lf-msg-body {
   min-width: 0;
   margin: var(--lf-msg-body-gap) 0 0;
   overflow-wrap: anywhere;
-  --lf-measure: var(--col);
+  --lf-measure: none;
 }
 /* The user's own words and pictures end as far inside the thread's column as they
    start, the room their rewrite's frame stands in (response.css, `.lf-msg-editor`);

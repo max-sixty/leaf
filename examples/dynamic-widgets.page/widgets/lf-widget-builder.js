@@ -108,8 +108,12 @@ customElements.define(
               empty.hidden = false;
               errorBox.hidden = true;
               publishOutput(request, "document", input);
-              code.textContent = "No output yet.";
-              delete code.dataset.lfSyntax;
+              for (const part of ["code", "css", "js"]) {
+                const listing = get(part);
+                if (!listing) continue;
+                listing.textContent = "No output yet.";
+                delete listing.dataset.lfSyntax;
+              }
               if (get("compiled")) get("compiled").textContent = "No source yet.";
               get("metrics").textContent = "";
               const started = performance.now();
@@ -135,7 +139,12 @@ customElements.define(
                     totalMs: 0,
                   },
                 };
-                code.textContent = JSON.stringify(result.value, null, 2);
+                code.textContent =
+                  name === "html"
+                    ? result.value.html
+                    : JSON.stringify(result.value, null, 2);
+                for (const part of ["css", "js"])
+                  if (get(part)) get(part).textContent = result.value[part];
                 if (get("compiled")) {
                   get("compiled").textContent = catalog.compile(result.value);
                   delete get("compiled").dataset.lfSyntax;

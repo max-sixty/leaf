@@ -1,6 +1,14 @@
-/* @noformat Generated from packages/visual-review/styles/widgets.css by build/styles.mjs. */
-/* packages/visual-review/styles/widgets.css */
-:scope:is(lf-visual-review) {
+/* A stable review desk: all case headers share grid tracks, and the capture
+   pane uses the remaining workspace. Native reading regions retain each view.
+
+   The remaining workspace has a floor. A desk that fills the window gives its shot's
+   track at least room for the toolbar and a frame to read, and each track between the
+   dashboard and the capture takes its content's minimum (`minmax(min-content, 1fr)`),
+   so a window too short for that floor grows the desk past the workspace body, which
+   scrolls, rather than squeezing the screenshots away: at 720px tall a stacked case list
+   left the shots 5px. The shot is size-contained there, so that minimum is the floor
+   and not the screenshots' natural height, which the shot fits to its room. */
+lf-visual-review {
   display: block;
   min-inline-size: 0;
   container-type: inline-size;
@@ -58,6 +66,11 @@
   border-radius: 0;
   min-inline-size: 0;
 }
+/* The queue's body is no container, as a pane's body otherwise is (theme.css): the
+   case buttons follow the review's own width (`visual-review`), and Chromium left
+   them in the wide layout's padding the first time that width crossed a query
+   after the review upgraded, while a container stood between them and it. Nothing
+   in the list measures against it. */
 .lf-vr-case-list {
   display: grid;
   gap: 0;
@@ -86,7 +99,7 @@
   font: inherit;
   cursor: pointer;
 }
-.lf-vr-case-button[aria-current=true] {
+.lf-vr-case-button[aria-current="true"] {
   color: var(--ink);
   background: color-mix(in srgb, var(--ink) 4%, transparent);
   border-block-end-color: var(--ink);
@@ -109,8 +122,13 @@
   font-size: var(--t-working-label);
   font-weight: 400;
 }
-.lf-vr-case-status[data-approved=true] {
+.lf-vr-case-status[data-approved="true"] {
   color: var(--ok-ink);
+}
+/* A case not yet checked says nothing: the header's count and the case's own Looks
+   right box say so. Its words keep their line, so checking a case moves no row. */
+.lf-vr-case-status[data-approved="false"] {
+  visibility: hidden;
 }
 .lf-vr-detail {
   display: grid;
@@ -128,7 +146,12 @@
   min-block-size: 0;
   --lf-full-height: inherit;
 }
-.lf-vr-case[aria-hidden=true] {
+/* Every case stands in the same cell, so the tracks hold the tallest and choosing
+   another case moves no control. A case not chosen is hidden until found, so travel to
+   a comment in it chooses it (`beforematch`), but until-found's containment would drop
+   its size from those tracks, so it stays laid out and is hidden by visibility. */
+.lf-vr-case[hidden="until-found"] {
+  content-visibility: visible;
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
@@ -251,6 +274,9 @@
   color: var(--muted);
   font: 12px/1.4 var(--sans);
 }
+/* The capture takes the desk's spare height, but never less than its toolbar and a
+   frame worth reading: in a short window, where the desk's other regions leave it
+   little, this pane scrolls rather than shrinking the capture away. */
 .lf-vr-capture {
   display: grid;
   grid-template-rows: minmax(12rem, 1fr) auto;
@@ -358,7 +384,8 @@
   .lf-vr-queue,
   .lf-vr-inspect,
   .lf-vr-decision {
-    display: none !important;
+    /* Paper omits this navigation. */
+    display: none;
   }
   .lf-vr-dashboard,
   .lf-vr-workspace,
@@ -366,11 +393,12 @@
   .lf-vr-case {
     display: block;
   }
-  .lf-vr-case[aria-hidden=true] {
+  .lf-vr-case[hidden="until-found"] {
     visibility: visible;
     opacity: 1;
   }
 }
+
 .lf-vr-inspection-heading {
   display: flex;
   justify-content: space-between;
@@ -381,6 +409,7 @@
   margin: 0;
   font: 600 15px/1.4 var(--sans);
 }
+
 .lf-vr-open-threads {
   anchor-name: --review-threads;
 }
@@ -393,11 +422,14 @@
   text-align: start;
   margin-block-start: var(--sp-2);
 }
+
 .lf-vr-claim {
   padding: var(--sp-3);
   background: var(--paper);
 }
+
 @container visual-review (max-width:58rem) {
+  /* Hold the native scrollbar clearance before the strip is measured or scrolls. */
   .lf-vr-case-list {
     padding-block-end: 16px;
   }

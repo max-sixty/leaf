@@ -7,6 +7,7 @@ import {
   keeps,
   keepsText,
   offer,
+  offerAction,
   LeafElement,
   noChange,
   queueActions,
@@ -106,7 +107,7 @@ customElements.define(
       toolbar.setAttribute("role", "group");
       toolbar.setAttribute("aria-label", "Reader layout");
       this.modes = ["Conversation", "Shelf", "Feed"].map((mode) => {
-        const button = offer("button", "lf-btn", mode);
+        const button = offerAction("word", "", mode);
         button.addEventListener("click", () => {
           this.mode = mode;
           void this.presentation.update({ release: true });
@@ -151,7 +152,7 @@ customElements.define(
       this.input.addEventListener("input", () => this.creationEdit++);
       this.input.autocomplete = "off";
       this.input.setAttribute("aria-label", "New conversation");
-      const create = offer("button", "lf-btn", "Start conversation");
+      const create = offerAction("word", "", "Start conversation");
       create.type = "submit";
       compose.append(this.input, create);
       compose.addEventListener("submit", (event) => event.preventDefault());
@@ -178,7 +179,7 @@ customElements.define(
           void this.presentation.update();
         },
       );
-      this.updateLists = offer("button", "lf-btn", "Lists current");
+      this.updateLists = offerAction("word", "", "Lists current");
       this.updateLists.addEventListener("click", () => this.indexOrder.show());
       toolbar.append(this.updateLists);
       this.layout.append(toolbar, body, compose);
@@ -202,7 +203,7 @@ customElements.define(
         let row = this.rows.get(key);
         if (!row) {
           const node = offer("li");
-          const button = offer("button", "lf-btn");
+          const button = offerAction("word", "");
           button.addEventListener("click", () => {
             void threadActions.open(key, { part: "thread" });
           });
@@ -306,9 +307,9 @@ customElements.define(
           let row = this.queueRows.get(identity);
           if (!row) {
             const node = offer("li");
-            const open = offer("button", "lf-btn");
+            const open = offerAction("word", "");
             open.addEventListener("click", () => void queueActions.open(key));
-            const done = offer("button", "lf-btn", "Done");
+            const done = offerAction("word", "", "Done");
             done.addEventListener("click", () => {
               this.indexOrder.release();
               void queueActions.done(key);

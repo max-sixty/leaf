@@ -242,7 +242,7 @@ def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
     """Every frame Chrome draws while a pane scrolls shows the pin level with its
     target, since the browser carries both through the same scroll."""
     marks = (
-        f"<style data-controls>#pane-top {{ background:{SUBJECT_MARK}; }}"
+        f"<style>#pane-top {{ background:{SUBJECT_MARK}; }}"
         f' [data-lf-margin-for="pane-top"] {{ outline:6px solid {FOLLOWER_MARK}'
         " !important; }</style></head>"
     )
@@ -775,7 +775,10 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
     expect(stuck).to_be_visible()
 
 
-def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, subtests):
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_a_constrained_target_carries_its_row_through_scroll(
+    request, serve, subtests, engine
+):
     """A sticky or fixed box between a target and its scroller moves the target as no
     scroll alone does, so its row's carrier is anchored to the target itself, which
     carries the row in the first frame after every scroll with no pass to reseat it.
@@ -784,9 +787,10 @@ def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, sub
     stays put through the document's scroll. Firefox draws a stuck target's row where
     the target would stand unstuck, and WebKit moves a fixed target's row with the
     document's scroll (notes/browser-support.md, "A stuck sticky anchor in Firefox",
-    "An anchor under a fixed box in WebKit").
+    "An anchor under a fixed box in WebKit"). Chromium also reads the compositor's frames,
+    which only it traces; WebKit checks the rectangles after each scroll.
     """
-    page = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(request.getfixturevalue(engine), serve(PANEL_PAGE))
     resized(page, 1280, 900)
     # Each case adds its own scroller and row, replacing the case before; the fixed
     # target, which also lengthens the document, goes last.
@@ -860,7 +864,7 @@ def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, sub
                 after = page.evaluate(reading)
                 assert after["offset"] == pytest.approx(before["offset"], abs=1), after
                 assert after["hit"] and not after["withheld"], after
-            if position == "fixed":
+            if position == "fixed" or engine != "browser":
                 continue
             # A rectangle read in the frame after a scroll shows where the last frame drew an
             # anchored box, so the compositor's own frames are what show it carried.

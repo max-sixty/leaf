@@ -30,12 +30,12 @@ from render_harness import (
 )
 
 from leaf import render_checks as render_checks_model
-from leaf.leases import release_lease, take_lease, waiter_lease_path
+from leaf.leases import release_lease, take_wait_lease, waiter_lease_path
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 # The status the panel's empty field says while the server does not answer.
-OFFLINE = re.compile(r"^Server offline")
+OFFLINE = re.compile(r"^Lost the connection")
 
 
 def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
@@ -52,6 +52,9 @@ def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
     )
     told(page)
     assert _traffic(page).asked == asked + 1
+    notice = page.locator(".lf-fp-joined .lf-thread-news")
+    expect(notice).to_have_attribute("title", "1 new thread")
+    notice.click()
     expect(page.locator(".lf-fp-thread", has_text="News.")).to_have_count(1)
 
 
@@ -152,7 +155,7 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
     """
     url = live_url(serve(LONG_PAGE))
     lease_path = waiter_lease_path(serve.page_dir, None)
-    with take_lease(lease_path) as lease:
+    with take_wait_lease(lease_path) as lease:
         page = open_page(browser, url)
         runtime = page.evaluate_handle("""async () =>
           (await window.__lfCheckApi()).readApplication""")
@@ -165,7 +168,7 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
             if urlparse(route.request.url).path != "/api/state" or crossed:
                 route.continue_()
                 return
-            with take_lease(lease_path):
+            with take_wait_lease(lease_path):
                 response = route.fetch()
                 assert response.json()["listening"] is True
             crossed.append(response.json()["reading"])
@@ -239,7 +242,7 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
         return {
           ok: response.ok,
           headers: response.headers,
-          json: async () => { throw new DOMException('timed out', 'TimeoutError'); },
+          text: async () => { throw new DOMException('timed out', 'TimeoutError'); },
         };
       };
     """
@@ -442,6 +445,9 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     assert _traffic(page).asked <= asked + 1
     page.unroute("**/api/state*")
     told(page)
+    notice = page.locator(".lf-fp-joined .lf-thread-news")
+    expect(notice).to_have_attribute("title", "1 new thread")
+    notice.click()
     expect(page.locator(".lf-fp-thread", has_text="Missed.")).to_have_count(1)
     expect(panel_field(page)).not_to_have_attribute("placeholder", OFFLINE)
 
@@ -510,7 +516,7 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
             if index == 0:
                 expect(panel_field(page)).to_have_attribute(
                     "placeholder",
-                    re.compile("^Waiting for the server to finish updating."),
+                    re.compile("^Waiting for Leaf to finish updating."),
                 )
         assert page.evaluate("() => window.lfSameDocument === true"), (
             "the page reloaded onto the document it was already being served"

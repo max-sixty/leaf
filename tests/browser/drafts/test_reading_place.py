@@ -1,5 +1,6 @@
-"""Where the reader's place stays as the window changes width, a script scrolls, content
-settles or grows, and the reader pages through a landed section."""
+"""Where the reader's place stays as the window changes width, a script scrolls,
+find-in-page opens a fold, content settles or grows, and the reader pages through a
+landed section."""
 
 import pytest
 from playwright.sync_api import expect
@@ -638,6 +639,38 @@ def edge_word(blocks):
   return {below: top(blocks[block].childNodes[node], at, length).top - band};
 }"""
     ).replace("BLOCKS", repr(blocks))
+
+
+def test_words_found_in_a_closed_fold_become_the_readers_place(firefox_browser, serve):
+    """Find-in-page opens the fold holding the words it finds and scrolls to them in one
+    frame. Layout changed as the page moved, but the move is the reader's, so a width
+    change keeps the found words in view rather than returning the page to where it
+    stood before the find. Firefox's `window.find` opens folds as its find bar does."""
+    filler = "".join(
+        f"<p>Paragraph {n} has words enough to rewrap as the window changes.</p>"
+        for n in range(40)
+    )
+    page = open_page(
+        firefox_browser,
+        serve(
+            leaf_page(
+                "Found in a fold",
+                f'{filler}<div hidden="until-found"><h2 id="found">Needle words</h2>'
+                f"{filler}</div>{filler}",
+            )
+        ),
+    )
+    resized(page, 1200, 800)
+    rendered(page)
+    found = """() => document.getElementById('found').getBoundingClientRect().top"""
+    assert page.evaluate("window.find('Needle words')")
+    scroll_settled(page)
+    rendered(page)
+    read = page.evaluate(found)
+    assert 0 <= read < 800, "the find should bring the found words into view"
+    resized(page, 600, 800)
+    rendered(page)
+    assert page.evaluate(found) == pytest.approx(read, abs=40)
 
 
 def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serve):

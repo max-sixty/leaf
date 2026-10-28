@@ -235,8 +235,8 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
                 "author": "agent",
                 "revision": 1,
                 "parent": "opening",
-                "text": "One question:",
-                "markup": f'<lf-ask id="{question_id}-q">{text}</lf-ask>',
+                "text": text,
+                "obligation": True,
             },
         )
     page = open_page(browser, url, context=context)

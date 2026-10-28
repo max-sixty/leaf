@@ -62,7 +62,7 @@ SERVICE = Record(
             {
                 "restart": described(
                     "The mark `page init` leaves while it holds a served page down "
-                    "to re-vendor it (`hosting.restarting_server`).",
+                    "to rewrite its layer record (`hosting.restarting_server`).",
                     STRING,
                 )
             },

@@ -1,552 +1,6 @@
-import { canPlaceFocus, cancelRender, closeLayer, excludedByInert, focused, handBack, isNativeLayer, move, nativeLayerHolding, nativeLayerKind, nextRender, releaseFocus, renderedParent, renderedUnder, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
-import { isElementName, runtime } from "./bundle-context.js";
+import { cancelRender, elementBox, excludedByInert, isNativeLayer, nextRender, renderedParent, sizeObserver, under, upFrom, watchScrolls } from "./bundle-portable.js";
+import { nativeModalAdmits, uiInside, watchLayerChanges } from "./bundle-layer-stack.js";
 
-//#region runtime/arrivals.js
-const watches$1 = /* @__PURE__ */ new Set();
-const stages = /* @__PURE__ */ new WeakSet();
-const stageRefs = /* @__PURE__ */ new Set();
-const owners = /* @__PURE__ */ new WeakMap();
-let offerOwner;
-function watchOwner(owner, lifecycle) {
-	let connected = false;
-	const subscription = {
-		connect() {
-			if (connected || !owner.isConnected) return;
-			connected = true;
-			try {
-				lifecycle.connect?.();
-			} catch (error) {
-				subscriptions.delete(subscription);
-				subscription.disconnect();
-				throw error;
-			}
-		},
-		disconnect() {
-			if (!connected) return;
-			connected = false;
-			lifecycle.disconnect?.();
-		}
-	};
-	let subscriptions = owners.get(owner);
-	if (!subscriptions) owners.set(owner, subscriptions = /* @__PURE__ */ new Set());
-	if (!offerOwner) {
-		const notify = (element, method) => {
-			for (const subscription of owners.get(element) ?? []) try {
-				subscription[method]();
-			} catch (error) {
-				queueMicrotask(() => {
-					throw error;
-				});
-			}
-		};
-		offerOwner = watchArrivals("*", [], {
-			arrive: (element) => notify(element, "connect"),
-			leave: (element) => notify(element, "disconnect")
-		});
-	}
-	if (owner.isConnected) offerOwner(owner);
-	subscriptions.add(subscription);
-	const stop = () => {
-		subscriptions.delete(subscription);
-		subscription.disconnect();
-	};
-	subscription.connect();
-	return stop;
-}
-function whileConnected(owner, start) {
-	let held;
-	return watchOwner(owner, {
-		connect() {
-			const controller = new AbortController();
-			held = {
-				controller,
-				cleanup: null
-			};
-			held.cleanup = start(controller.signal);
-		},
-		disconnect() {
-			const current = held;
-			held = null;
-			current.controller.abort();
-			current.cleanup?.();
-		}
-	});
-}
-function frameFor(owner, run) {
-	let frame = 0;
-	watchOwner(owner, { disconnect() {
-		cancelRender(frame);
-		frame = 0;
-	} });
-	return () => {
-		if (frame || !owner.isConnected) return;
-		frame = nextRender(() => {
-			frame = 0;
-			if (owner.isConnected) run();
-		});
-	};
-}
-function liveStages() {
-	const live = [];
-	for (const ref of stageRefs) {
-		const root = ref.deref();
-		if (root) live.push(root);
-		else stageRefs.delete(ref);
-	}
-	return live;
-}
-const isStage = (root) => stages.has(root);
-const stands = (el) => {
-	const root = el.getRootNode();
-	return root === document ? document.body.contains(el) : stages.has(root) && root.host.isConnected;
-};
-function* matching(node, selector) {
-	if (node?.nodeType !== Node.ELEMENT_NODE) return;
-	if (node.matches(selector)) yield node;
-	yield* node.querySelectorAll(selector);
-	for (const stage of liveStages()) if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
-}
-function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
-	const arrived = /* @__PURE__ */ new WeakSet();
-	const offerMany = (elements) => {
-		const present = [];
-		for (const el of elements) if (stands(el) && el.matches(selector)) present.push(el);
-		else if (arrived.delete(el)) leave(el);
-		if (!arriveBatch) for (const el of present) offer(el);
-		else if (present.length) {
-			for (const el of present) arrived.add(el);
-			arriveBatch(present);
-		}
-	};
-	const offer = (el) => {
-		if (stands(el) && el.matches(selector)) {
-			arrived.add(el);
-			if (arriveBatch) arriveBatch([el]);
-			else arrive(el);
-		} else if (arrived.delete(el)) leave(el);
-	};
-	const beside = (node) => node?.nodeType === Node.ELEMENT_NODE && (arrived.has(node) || node.matches(selector)) ? [node] : [];
-	const read = (records) => {
-		const offered = /* @__PURE__ */ new Set();
-		for (const record of records) {
-			if (record.type === "attributes") {
-				offered.add(record.target);
-				continue;
-			}
-			for (const el of [
-				...beside(record.target),
-				...beside(record.previousSibling),
-				...beside(record.nextSibling)
-			]) offered.add(el);
-			for (const node of record.addedNodes) for (const el of matching(node, selector)) offered.add(el);
-			for (const node of record.removedNodes) for (const el of matching(node, selector)) if (arrived.has(el)) offered.add(el);
-		}
-		offerMany(offered);
-	};
-	const observer = new MutationObserver(read);
-	const watch = {
-		selector,
-		attributes,
-		observer,
-		offerMany
-	};
-	watches$1.add(watch);
-	for (const root of [document.body, ...liveStages()]) enroll(watch, root);
-	return (el) => {
-		read(observer.takeRecords());
-		offer(el);
-	};
-}
-function enroll({ selector, attributes, observer, offerMany }, root) {
-	observer.observe(root, {
-		childList: true,
-		subtree: true,
-		attributes: true,
-		attributeFilter: attributes
-	});
-	offerMany(root.querySelectorAll(selector));
-}
-function watchArrivalsIn(stage) {
-	if (stages.has(stage)) return;
-	stages.add(stage);
-	stageRefs.add(new WeakRef(stage));
-	for (const watch of watches$1) enroll(watch, stage);
-	stage.addEventListener("scroll", heardIn(stage), SCROLL);
-}
-const scrollListeners = /* @__PURE__ */ new Set();
-const SCROLL = {
-	capture: true,
-	passive: true
-};
-const heardIn = (stage) => (event) => {
-	if (event.target.getRootNode() !== stage) return;
-	for (const listener of scrollListeners) listener(event);
-};
-function watchScrolls(listener) {
-	scrollListeners.add(listener);
-	document.addEventListener("scroll", listener, SCROLL);
-	return () => {
-		scrollListeners.delete(listener);
-		document.removeEventListener("scroll", listener, SCROLL);
-	};
-}
-const SETTLE_MS = 80;
-const settleListeners = /* @__PURE__ */ new Set();
-let inFlight = false;
-let gliding = false;
-let settleTimer = 0;
-let trackingScrolls = false;
-function settle() {
-	if (!inFlight || gliding) return;
-	inFlight = false;
-	clearTimeout(settleTimer);
-	for (const listener of settleListeners) listener();
-}
-function trackScrolls() {
-	if (trackingScrolls) return;
-	trackingScrolls = true;
-	watchScrolls(() => {
-		inFlight = true;
-		clearTimeout(settleTimer);
-		settleTimer = setTimeout(settle, SETTLE_MS);
-	});
-	document.addEventListener("scrollend", settle, SCROLL);
-}
-function scrollGlides(on) {
-	trackScrolls();
-	gliding = on;
-	if (on) inFlight = true;
-	else if (inFlight) {
-		clearTimeout(settleTimer);
-		settleTimer = setTimeout(settle, SETTLE_MS);
-	}
-}
-function scrolling() {
-	trackScrolls();
-	return inFlight;
-}
-function watchScrollEnds(listener) {
-	trackScrolls();
-	settleListeners.add(listener);
-	return () => settleListeners.delete(listener);
-}
-
-//#endregion
-//#region runtime/registry.js
-const registry = runtime.registry;
-const tokenEntry = (name) => registry.$reactions.tokens[name];
-const elementDeclarations = () => Object.entries(registry).filter(([tag]) => isElementName(tag));
-function adoptRegistry(declarations) {
-	for (const [name, value] of Object.entries(declarations)) if (name.startsWith("$")) freeze(value);
-	Object.assign(registry, declarations);
-}
-function freeze(value) {
-	if (value === null || typeof value !== "object" || Object.isFrozen(value)) return;
-	for (const child of Object.values(value)) freeze(child);
-	Object.freeze(value);
-}
-let stateIndex;
-const recordSlot = (record) => JSON.stringify([record.kind, "attr" in record ? record.attr : null]);
-function indexedState() {
-	const generation = registry.$layer?.generation;
-	if (typeof generation !== "string" || !generation) throw new Error("leaf: state vocabulary requested before registry loaded");
-	if (stateIndex?.generation === generation) return stateIndex;
-	const specs = [];
-	for (const [tag, entry] of elementDeclarations()) for (const [verb, spec] of Object.entries(entry["x-state"] ?? {})) specs.push({
-		tag,
-		verb,
-		spec
-	});
-	const recordTags = /* @__PURE__ */ new Map();
-	for (const { tag, spec } of specs) {
-		if (!spec.record) continue;
-		const slot = recordSlot(spec.record);
-		const tags = recordTags.get(slot) ?? /* @__PURE__ */ new Set();
-		tags.add(tag);
-		recordTags.set(slot, tags);
-	}
-	stateIndex = {
-		generation,
-		recordSelectors: new Map([...recordTags].map(([slot, tags]) => [slot, [...tags].join(",")])),
-		specs
-	};
-	return stateIndex;
-}
-const stateSpecs = () => indexedState().specs;
-const recordedWidgetSelector = (record) => indexedState().recordSelectors.get(recordSlot(record)) ?? "";
-const layerFact = (name) => registry[name];
-const declarationFor = (el, key) => registry[el?.localName]?.[key];
-const decisionFor = (tag) => registry.$decisions[tag] ?? null;
-const elementsDeclaring = (root, key, { direct = false } = {}) => {
-	return (direct ? [...root.children] : [...root.querySelectorAll("*")]).filter((el) => declarationFor(el, key) !== void 0);
-};
-const tagsDeclaring = (holds) => elementDeclarations().filter(([, entry]) => holds(entry)).map(([tag]) => tag);
-const matchesWhen = (el, when) => Object.entries(when ?? {}).every(([attr, values]) => values.some((value) => typeof value === "boolean" ? el.hasAttribute(attr) === value : el.getAttribute(attr) === value));
-const exhibits = (el, entry) => {
-	const rule = entry?.["x-exhibit"];
-	return typeof rule === "object" && rule !== null ? matchesWhen(el, rule.when) : !!rule;
-};
-
-//#endregion
-//#region runtime/shadow.js
-const refusedRoots = /* @__PURE__ */ new WeakSet();
-const refuseShadowRoot = (root) => refusedRoots.add(root);
-const declaredRoot = (host) => host.shadowRoot && registry[host.localName]?.["x-shadow"] && isStage(host.shadowRoot) && !refusedRoots.has(host.shadowRoot) ? host.shadowRoot : null;
-const shadowRootsIn = (root) => liveStages().filter((stage) => root.contains(stage.host) && declaredRoot(stage.host) === stage);
-const pageShadowRoots = () => shadowRootsIn(document);
-const renderedChildren = (node) => node.localName === "slot" ? node.assignedNodes({ flatten: true }) : (node.shadowRoot ?? node).childNodes;
-const hostIn = (node, root) => {
-	let at = node;
-	while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
-	return at;
-};
-const overIn = (el, selector, frame) => {
-	const near = el.closest(selector);
-	return near && (!frame || under(near, frame)) ? near : null;
-};
-const SAID = "[data-lf-said]";
-const UI_MARKS = `.lf-ui, ${SAID}`;
-const uiInside = (el, within) => {
-	const near = el && overIn(el, ".lf-ui, [data-lf-said]", within);
-	return Boolean(near) && !near.matches("[data-lf-said]");
-};
-const inUi = (node) => uiInside(node?.nodeType === 1 ? node : node?.parentElement, null);
-let shadowRules = "";
-const SHADOW_LEADING_CSS = `
-@layer {
-  [hidden]:not([hidden="until-found"]),
-  :host([hidden]:not([hidden="until-found"])) {
-    display: none !important;
-  }
-  @media screen {
-    @container style(--lf-before-presentation: 1) {
-      *,
-      *::before,
-      *::after {
-        transition: none !important;
-      }
-    }
-    @container style(--lf-before-upgrade: 1) {
-      .lf-ui {
-        visibility: hidden !important;
-      }
-    }
-  }
-}`;
-let loading = null;
-function loadShadowRules() {
-	loading ??= readShadowRules();
-	return loading;
-}
-async function readShadowRules() {
-	const { runtimeResource } = await import("./bundle-context2.js");
-	const response = await fetch(runtimeResource("/shadow.css"));
-	if (!response.ok) throw new Error(`leaf: shadow.css failed to load (${response.status})`);
-	shadowRules = await response.text();
-}
-
-//#endregion
-//#region runtime/stylesheets.js
-const sheets = JSON.parse(document.querySelector("script[type=\"application/json\"][data-lf-runtime][data-lf-sheets]").textContent);
-const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
-function constructSheet(text) {
-	const sheet = new CSSStyleSheet();
-	sheet.replaceSync(text);
-	return sheet;
-}
-const chromeSheet = constructSheet(sheets.chrome);
-const chromeSharedClasses = Object.freeze([
-	"lf-aiming",
-	"lf-btn",
-	"lf-ins-block",
-	"lf-over-item",
-	"lf-react-mark",
-	"lf-mark-note",
-	"lf-ui",
-	"lf-version-inline",
-	"lf-version-inline-deletion",
-	"lf-visual-action"
-]);
-const marksSheet = constructSheet(sheets.marks);
-const annotationMarkSheets = sheets.annotations ? [constructSheet(sheets.annotations.marks)] : [];
-const annotationSheets = sheets.annotations ? [constructSheet(sheets.annotations.chrome), ...annotationMarkSheets] : [];
-
-//#endregion
-//#region runtime/keyboard/layer-stack.js
-const entries = [];
-const watchedRoots = /* @__PURE__ */ new WeakSet();
-const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
-const nativePopoverShow = HTMLElement.prototype.showPopover;
-function prune() {
-	for (let index = entries.length - 1; index >= 0; index -= 1) if (!entries[index].active()) entries.splice(index, 1);
-}
-function pushNativeLayer(node, source = null) {
-	const at = entries.findIndex((entry) => entry.root === node);
-	const existing = at < 0 ? null : entries[at];
-	if (existing?.active()) return existing;
-	prune();
-	const holding = focused();
-	const entry = {
-		root: node,
-		opening: !isNativeLayer(node),
-		get kind() {
-			return nativeLayerKind(node);
-		},
-		active() {
-			return this.opening || isNativeLayer(node);
-		},
-		fromNowhere: !holding || holding === document.body,
-		opener: holding && holding !== document.body ? holding : null,
-		source
-	};
-	if (entry.opening) queueMicrotask(() => {
-		entry.opening = false;
-	});
-	entries.push(entry);
-	return entry;
-}
-function closing(event) {
-	if (event.newState !== "closed") return;
-	const entry = entries.find((candidate) => candidate.root === event.target);
-	if (entry) entry.opening = false;
-	if (entry?.kind === "popover") {
-		for (const layer of nativeLayers().toReversed()) if (layer.kind === "modal" && renderedUnder(layer.root, event.target)) closeNativeLayer(layer.root);
-	}
-	if (entry?.kind === "popover" && entry.fromNowhere && !document.documentElement.inert && canPlaceFocus() && renderedUnder(focused(), event.target)) releaseFocus();
-}
-HTMLDialogElement.prototype.showModal = function() {
-	const entry = nativeLayerKind(this) !== "modal" ? pushNativeLayer(this) : null;
-	try {
-		return nativeDialogShowModal.call(this);
-	} finally {
-		if (entry) entry.opening = false;
-	}
-};
-HTMLElement.prototype.showPopover = function(options) {
-	const entry = nativeLayerKind(this) !== "popover" ? pushNativeLayer(this) : null;
-	try {
-		nativePopoverShow.call(this, options);
-	} finally {
-		if (entry) entry.opening = false;
-	}
-	if (entry && options?.source) entry.source = options.source;
-};
-function showNativeLayer(layer, { source, modal = true } = {}) {
-	const withholdFocus = Boolean(document.documentElement.lfSample) && !layer.inert;
-	if (withholdFocus) layer.inert = true;
-	try {
-		if (layer instanceof HTMLDialogElement) {
-			if (modal) {
-				if (source) seatModal(layer, source);
-				layer.showModal();
-			} else layer.show();
-		} else layer.showPopover(source ? { source } : void 0);
-	} finally {
-		if (withholdFocus) layer.inert = false;
-	}
-}
-const modalHomes = /* @__PURE__ */ new WeakMap();
-function seatModal(dialog, source) {
-	let place = modalHomes.get(dialog);
-	if (!place) {
-		place = {
-			home: dialog.parentNode,
-			chrome: Boolean(dialog.closest(".lf-chrome")),
-			scope: null
-		};
-		modalHomes.set(dialog, place);
-		const restore = () => {
-			if (dialog.parentNode !== place.home) move(place.home, dialog);
-			place.scope?.remove();
-		};
-		dialog.addEventListener("close", () => {
-			if (!dialog.open) restore();
-		});
-		watchOwner(dialog, { disconnect() {
-			if (dialog.parentNode === place.home) return;
-			closeNativeLayer(dialog);
-			restore();
-		} });
-	}
-	const holder = nativeLayerHolding(source);
-	let seat = place.home;
-	if (nativeLayerKind(holder) === "popover") {
-		if (renderedUnder(holder, place.home)) seat = holder;
-		else if (place.chrome) {
-			if (!place.scope) {
-				place.scope = document.createElement("div");
-				place.scope.className = "lf-chrome";
-			}
-			const root = holder.getRootNode();
-			if (root instanceof ShadowRoot && !root.adoptedStyleSheets.includes(chromeSheet)) root.adoptedStyleSheets = [...root.adoptedStyleSheets, chromeSheet];
-			if (place.scope.parentNode !== holder) move(holder, place.scope);
-			seat = place.scope;
-		}
-	}
-	if (dialog.parentNode !== seat) move(seat, dialog);
-}
-function closeNativeLayer(layer) {
-	const dialog = layer instanceof HTMLDialogElement;
-	if (dialog ? !layer.open : !isNativeLayer(layer)) return;
-	const currentLocation = focused();
-	const returnTo = entries.find((entry) => entry.root === layer)?.opener;
-	const returnLocally = document.documentElement.lfSample && currentLocation && renderedUnder(currentLocation, layer);
-	const inhibited = document.documentElement.lfSample ? [document.documentElement, ...nativeLayers().filter((entry) => entry.kind === "modal").map((entry) => entry.root)].filter((node) => !node.inert) : [];
-	closeLayer(() => {
-		for (const node of inhibited) node.inert = true;
-		try {
-			if (dialog) layer.close();
-			else layer.hidePopover();
-		} finally {
-			for (const node of inhibited) node.inert = false;
-		}
-	}, returnLocally && (() => {
-		if (!canPlaceFocus()) return;
-		if (returnTo) handBack(returnTo);
-		else releaseFocus();
-	}));
-}
-const changeListeners = /* @__PURE__ */ new Set();
-function watchLayerChanges(listener) {
-	changeListeners.add(listener);
-	return () => changeListeners.delete(listener);
-}
-const changed = (event) => {
-	if (!event.target?.matches?.("[popover], dialog")) return;
-	for (const listener of changeListeners) listener(event);
-};
-function watchLayers(root) {
-	if (watchedRoots.has(root)) return;
-	watchedRoots.add(root);
-	const opened = (event) => {
-		if (event.newState === "open" && event.target?.matches?.("[popover], dialog")) pushNativeLayer(event.target, event.source);
-	};
-	root.addEventListener("beforetoggle", opened, true);
-	root.addEventListener("beforetoggle", closing, true);
-	root.addEventListener("toggle", opened, true);
-	root.addEventListener("toggle", changed, true);
-}
-watchLayers(document);
-function nativeLayers() {
-	prune();
-	return entries.filter((entry) => entry.active());
-}
-const NATIVE_LAYERS = Symbol.for("leaf.nativeLayers");
-Object.defineProperty(document, NATIVE_LAYERS, { value: nativeLayers });
-function nativeModalAdmits(node) {
-	const owner = node.ownerDocument;
-	const reading = owner[NATIVE_LAYERS];
-	if (reading) {
-		const modal = reading().findLast((layer) => layer.kind === "modal")?.root;
-		return !modal || renderedUnder(node, modal);
-	}
-	return [...owner.querySelectorAll("dialog")].filter((dialog) => nativeLayerKind(dialog) === "modal").every((modal) => renderedUnder(node, modal));
-}
-function dismissPopoversOutside(root) {
-	for (const entry of nativeLayers().toReversed()) if (entry.kind === "popover" && entry.root.popover !== "manual" && !renderedUnder(entry.root, root)) closeNativeLayer(entry.root);
-}
-
-//#endregion
 //#region runtime/rect.js
 const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 const overlapsAcross = (a, b) => a.left < b.right && b.left < a.right;
@@ -612,7 +66,7 @@ const layoutWindow = (doc = document) => ({
 	right: doc.documentElement.clientWidth,
 	bottom: doc.documentElement.clientHeight
 });
-function shownWindow({ within = null, gap = 0, viewport = "visual", item = null } = {}) {
+function shownWindow({ within = null, gap = 0, viewport = "visual", item = null, across = null } = {}) {
 	const layout = layoutWindow();
 	const { offsetLeft, offsetTop, width, height } = viewport === "visual" ? window.visualViewport : {
 		offsetLeft: 0,
@@ -626,7 +80,7 @@ function shownWindow({ within = null, gap = 0, viewport = "visual", item = null 
 	let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
 	const middle = offsetTop + height / 2;
 	for (const box of windowChromeBoxes(item)) {
-		if (!overlapsAcross(box, {
+		if (!overlapsAcross(box, across ?? {
 			left,
 			right
 		})) continue;
@@ -760,17 +214,12 @@ function landingInsets(scroller) {
 		left: inset("Left")
 	};
 }
-const skipped = (el) => document.documentElement.lfInitial.skipped(el, renderedParent);
 function shownBox(el) {
 	if (el === document.scrollingElement) {
 		const { left, top, right, bottom } = shownBand(el);
 		return new DOMRect(left, top, right - left, bottom - top);
 	}
-	const r = el.getBoundingClientRect();
-	if (r.width || r.height) return r;
-	const contents = document.createRange();
-	contents.selectNodeContents(el);
-	return contents.getBoundingClientRect();
+	return elementBox(el);
 }
 function shownParts(el) {
 	const r = el.getBoundingClientRect();
@@ -795,8 +244,9 @@ function seenRect(item, clips, box = shownBox(item)) {
 		bottom: room.bottom
 	} : null;
 }
+const showsContents = (node, options) => node.getAttribute("hidden") !== "until-found" && node.checkVisibility(options);
 function presented(node) {
-	if (!node.checkVisibility({ visibilityProperty: true }) || excludedByInert(node) || !nativeModalAdmits(node)) return false;
+	if (!showsContents(node, { visibilityProperty: true }) || excludedByInert(node) || !nativeModalAdmits(node)) return false;
 	for (let at = node; at; at = renderedParent(at)) if (at.getAttribute?.("aria-hidden") === "true") return false;
 	return true;
 }
@@ -1082,19 +532,20 @@ function rightCover() {
 const PAST = Symbol("past");
 const clipsPast = (surfaces) => /* @__PURE__ */ new Map([[PAST, new Set(surfaces)]]);
 const clipsPastSurfaces = () => clipsPast(occluders);
-function hides(surface, where) {
+function coveredShare(surface, where, landed = null) {
 	const holder = placeHolder(where);
-	if (!holder || !occluders.has(surface) || !standsNow(surface)) return false;
-	if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;
-	const box = placeBox(where);
-	const { left, top, right, bottom } = clippedPlace(where, clipsPast([surface]), box) ?? box;
+	if (!holder || !occluders.has(surface) || !standsNow(surface)) return 0;
+	if (under(holder, surface) || under(surface, holder)) return 0;
+	if (stackLevel(holder) >= stackLevel(surface)) return 0;
+	const box = landed ?? placeBox(where);
+	const { left, top, right, bottom } = landed ?? clippedPlace(where, clipsPast([surface]), box) ?? box;
 	const over = restingBox(surface);
-	const across = Math.min(right, over.right) - Math.max(left, over.left);
+	const across = Math.max(0, Math.min(right, over.right) - Math.max(left, over.left));
 	const room = shownWindow({ viewport: "layout" });
-	if (over.top <= room.top + 1 && over.bottom >= room.bottom - 1) return across > (right - left) / 2;
-	const down = Math.min(bottom, over.bottom) - Math.max(top, over.top);
-	return across > 0 && down > 0 && across * down > (right - left) * (bottom - top) / 2;
+	if (over.top <= room.top + 1 && over.bottom >= room.bottom - 1) return across / (right - left || 1);
+	return across * Math.max(0, Math.min(bottom, over.bottom) - Math.max(top, over.top)) / ((right - left) * (bottom - top) || 1);
 }
+const hides = (surface, where) => coveredShare(surface, where) > .5;
 const underOccluder = (where) => [...occluders].some((surface) => hides(surface, where));
 const placeHolder = (where) => where instanceof Range ? where.startContainer instanceof Element ? where.startContainer : where.startContainer.parentElement : where;
 const placeBox = (where) => where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
@@ -1154,4 +605,4 @@ function uncovered(rect, box) {
 }
 
 //#endregion
-export { SAID, SHADOW_LEADING_CSS, UI_MARKS, adoptRegistry, annotationMarkSheets, annotationSheets, chromeSharedClasses, chromeSheet, clamp, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, closeNativeLayer, decisionFor, declarationFor, declareOccluder, declareWindowChrome, declaredRoot, dismissPopoversOutside, elementDeclarations, elementsDeclaring, exhibits, frameFor, frameView, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, hostIn, inBaseLayer, inUi, inWindowChrome, intersect, landingBand, landingInsets, layerFact, layoutWindow, loadShadowRules, marksSheet, matchesWhen, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nearestScrollBy, overIn, overlaps, overlapsAcross, pageShadowRoots, paintClips, placeBox, placeHolder, presented, recordedWidgetSelector, refuseShadowRoot, registry, renderedChildren, rightCover, scrollContainer, scrollGlides, scrolling, scrollsBy, scrollsContent, seenRect, shadowRootsIn, shadowRules, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, skipped, slotTop, stackLevel, startsAt, stateSpecs, stuckBox, tagsDeclaring, tokenEntry, uiInside, underOccluder, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchRoom, watchScrollEnds, watchScrolls, whenNone, whileConnected, windowChromeBoxes };
+export { clamp, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, coveredShare, declareOccluder, declareWindowChrome, frameView, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, inWindowChrome, intersect, landingBand, landingInsets, layoutWindow, nearObserver, nearWindow, nearestScrollBy, overlaps, overlapsAcross, paintClips, placeBox, placeHolder, presented, rightCover, scrollContainer, scrollsBy, scrollsContent, seenRect, shellRight, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, slotTop, stackLevel, startsAt, stuckBox, underOccluder, union, userScrollport, visibleBand, watchRoom, whenNone, windowChromeBoxes };

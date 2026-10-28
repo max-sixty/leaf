@@ -96,6 +96,19 @@ uv run leaf-dev journey website-worker
 journey that `publish-site` runs against <https://leaf.page/> after it deploys. Neither
 builds the site, so rerun `leaf-dev site` after a change.
 
+When the agent's environment cannot access Docker, `verify-website` can run this
+build and local verifier on its GitHub runner, without deploying or running the
+product suites. Replace `YOUR_BRANCH` with the branch to verify:
+
+```sh
+gh workflow run verify-website --ref YOUR_BRANCH
+```
+
+Read the run's `website` job and confirm its head SHA matches the intended revision.
+The `website-verification-<run>-<attempt>` artifact retains the Worker/container log
+and any completed startup profile. The ordinary PR gate still runs the verifier;
+this dispatch supplies the same check when a reproduction needs its own runner.
+
 For a quicker check of the agent alone, `uv run leaf-dev journey website-adapter` runs
 one real agent turn against the adapter on this machine, without the Worker, container
 limits, credential proxy or Docker. It uses a temporary `CODEX_HOME` with the

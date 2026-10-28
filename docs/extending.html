@@ -278,8 +278,7 @@ flowchart TD
                     <td>Reusable visual choices and presentation idioms.</td>
                     <td>
                       Theme inputs and explicit page-wide styles, independently of
-                      whether the package declares widgets. It may include
-                      <code>controls.css</code> for generated controls.
+                      whether the package declares widgets.
                     </td>
                   </tr>
                   <tr>
@@ -297,8 +296,8 @@ flowchart TD
             </details>
             <p id="responsibilities-limits">
               These are contribution boundaries, not a sandbox: package and page scripts
-              run in the same document. CSS scope limits where selectors match, but
-              inheritance and nested content still connect their presentation. The
+              run in the same document. Each package's selectors decide where its rules
+              match, and inheritance connects nested content's presentation. The
               <a href="#styles-contract">CSS contract</a> describes selector reach and
               cascade precedence. The <a href="#check">package checks</a> validate
               declarations and rendered behavior.
@@ -485,22 +484,21 @@ packages/callout/
               package. The tutorial below stays with the smaller CSS-only form so each
               contract remains visible. A behavior module imports Leaf's package API
               from
-              <code>/runtime/widget-api.js</code>; it registers each interactive
-              capability once with <code>commands()</code>. The same live command rows
-              feed keyboard dispatch, help, accessibility shortcuts, and—when
-              <code>decision</code> names the action—the controls shown inline for an
-              obligation.
+              <code>/runtime/widget-api.js</code>; it declares each interactive
+              capability once, as the <code>lfCommands</code> of the element it applies
+              in. The same live command rows feed keyboard dispatch, help, accessibility
+              shortcuts, and—when <code>decision</code> names the action—the controls
+              shown inline for an obligation.
             </p>
           </section>
           <section id="theme">
             <h2>Style the element</h2>
             <p>
-              A package's <code>widgets.css</code> joins Leaf's existing cascade. Leaf
-              scopes a package's rules to the elements it declares, so
-              <code>:scope</code> names the <code>lf-callout</code> element itself and
-              any other selector names something inside it:
+              A package's <code>widgets.css</code> joins Leaf's existing cascade as
+              written, so its rules name the elements they style, starting with
+              <code>lf-callout</code> itself:
             </p>
-            <pre id="callout-theme"><code class="language-css">:scope {
+            <pre id="callout-theme"><code class="language-css">lf-callout {
   display: block;
   padding: var(--sp-3);
   border: 1px solid var(--rule);
@@ -569,12 +567,12 @@ packages/callout/
               id="package-check-command"
             ><code class="language-bash">$ leaf package check packages/callout
 $ leaf page init --package packages/callout PAGE
-$ jq '.["lf-callout"], .["$keys"]' PAGE/registry.json
+$ leaf page vocabulary PAGE | jq '.["lf-callout"], .["$keys"]'
 $ leaf page check PAGE --render</code></pre>
             <p>
-              Re-running <code>page init</code> is the explicit update for an existing
-              page. Pages that are not re-initialized keep their vendored layer
-              unchanged.
+              A page keeps its own copy of a package it selects by path, so re-running
+              <code>page init --package</code> is the explicit update for an existing
+              page.
             </p>
             <p>
               <code>leaf package install packages/callout</code> copies the checked
@@ -660,7 +658,7 @@ $ leaf page check PAGE --render</code></pre>
                       class="try-where"
                       >The widget's package, with a more specific selector</span
                     ><code class="try-decl"
-                      >:scope.featured { padding: 8px }</code
+                      >lf-card.featured { padding: 8px }</code
                     ></label
                   >
                 </div>
@@ -677,26 +675,24 @@ $ leaf page check PAGE --render</code></pre>
             </figure>
             <p id="styles-ranking">
               A lower tier's rule loses however specific its selector is, as the widget
-              package's <code>:scope.featured</code> shows. Within a tier, the more
-              specific selector wins; between equally specific selectors, a widget
-              package's rule, scoped to its widget, beats an unscoped one; after that,
-              the later rule wins. <code>!important</code> reverses the order of the
-              tiers, so a page's <code>!important</code> loses to Leaf's own; an
-              ordinary rule is all an override needs.
+              package's <code>lf-card.featured</code> shows. Within a tier, the more
+              specific selector wins, and between equally specific selectors the later
+              rule wins. <code>!important</code> reverses the order of the tiers, so a
+              page's <code>!important</code> loses to Leaf's own; an ordinary rule is
+              all an override needs.
             </p>
 
             <h3 id="styles-tiers">The tiers</h3>
             <figure id="cascade-figure" class="diagram-figure">
               <h4 id="cascade-document">The page’s document</h4>
-              <lf-diagram id="cascade-document-order" data-height="728" parts="all">
+              <lf-diagram id="cascade-document-order" data-height="635" parts="all">
                 <pre>
 flowchart TD
   accTitle: CSS precedence in the page document
-  accDescr: For normal declarations, unlayered page rules have the highest precedence, then the page's own layers, lf-state, lf-controls, lf-theme, lf-layouts, lf-base and lf-reset. Each arrow points from a higher tier to a lower tier.
+  accDescr: For normal declarations, unlayered page rules have the highest precedence, then the page's own layers, lf-state, lf-theme, lf-layouts, lf-base and lf-reset. Each arrow points from a higher tier to a lower tier.
   Page["Page rules · unlayered"] --> Layers["Page's own layers"]
   Layers --> State["lf-state · Leaf"]
-  State --> Controls["lf-controls · packages"]
-  Controls --> Theme["lf-theme · packages"]
+  State --> Theme["lf-theme · packages"]
   Theme --> Layout["lf-layouts · Leaf"]
   Layout --> Base["lf-base · Leaf and widgets"]
   Base --> Reset["lf-reset · Leaf"]
@@ -738,18 +734,8 @@ flowchart TD
                 </thead>
                 <tbody>
                   <tr>
-                    <td><code>lf-controls</code></td>
-                    <td>
-                      Each package’s <code>controls.css</code> explicitly styles
-                      generated controls.
-                    </td>
-                  </tr>
-                  <tr>
                     <td><code>lf-theme</code></td>
-                    <td>
-                      <code>theme.css</code> and <code>theme-shadow.css</code>, in
-                      package order. Only the latter enters shadow trees.
-                    </td>
+                    <td>Each package's <code>theme.css</code>, in package order.</td>
                   </tr>
                   <tr>
                     <td><code>lf-layouts</code></td>
@@ -782,16 +768,19 @@ flowchart TD
 
             <h3 id="styles-packages">A nested widget owns its interior</h3>
             <p id="styles-widget-package">
-              Put a choice inside a release review: the review package can arrange the
-              choice's box, while the default package styles its Options widget inside.
-              Shared theme inputs, such as color and type, flow through both.
+              Put a choice inside a release review: the review package arranges the
+              choice's box, and the default package styles its Options widget inside.
+              Leaf adds no boundary between them, so the review package keeps its rules
+              off the choice's interior by naming its own structure: a child combinator
+              such as <code>lf-release-review &gt; p</code>, or its own classes. Shared
+              theme inputs, such as color and type, flow through both.
             </p>
             <figure id="styles-scope" class="diagram-figure">
               <lf-diagram id="styles-nested-boundary" data-height="484" parts="all">
                 <pre>
 flowchart TD
-  accTitle: Nested widgets retain their own styling boundaries
-  accDescr: Shared theme inputs inherit through the review widget and its nested Options widget. The review package styles its own heading and evidence and arranges the nested widget's host box. The default package alone styles the Options interior.
+  accTitle: A nested widget keeps its own styling when the outer package names its own structure
+  accDescr: Shared theme inputs inherit through the review widget and its nested Options widget. The review package styles its own heading and evidence with selectors that name them, and arranges the nested widget's host box. The default package styles the Options interior.
   Theme["Shared theme inputs&lt;br/&gt;Color, type and spacing"]
   subgraph Review["Review widget"]
     Content["Review package&lt;br/&gt;Heading and evidence"]
@@ -804,15 +793,16 @@ flowchart TD
 </pre>
               </lf-diagram>
               <figcaption>
-                <strong>The boundary stops selectors, not inheritance.</strong>
-                Each package’s <code>widgets.css</code> styles its own content.
-                Review-package rules may arrange the nested host, but stop before its
-                interior. The theme’s colors and type reach both widgets.
+                <strong>Each package names what it styles.</strong>
+                The review package's rules reach the nested host and stop short of its
+                interior because they name the review's own children and classes; a bare
+                descendant rule such as <code>lf-release-review p</code> would reach
+                inside. The theme's colors and type reach both widgets.
               </figcaption>
             </figure>
             <p id="styles-scope-limit">
-              These are styling boundaries, not a security sandbox. Page and theme rules
-              deliberately have wider reach; packages run in the same document. A
+              These are styling conventions, not a security sandbox. Page and theme
+              rules deliberately have wider reach; packages run in the same document. A
               widget's presentation depends on its allotted box and supported theme
               inputs, so it can move between page layouts.
             </p>
@@ -832,33 +822,27 @@ flowchart TD
                 <tbody>
                   <tr>
                     <td><code>widgets.css</code></td>
-                    <td>The package's widgets in the page document.</td>
+                    <td>The page document, below Leaf's Layouts.</td>
                   </tr>
                   <tr>
                     <td><code>widget-shadow.css</code></td>
-                    <td>The same scope, plus its widgets' declared shadow trees.</td>
+                    <td>
+                      The page document and every declared shadow tree;
+                      <code>:host(lf-tag)</code> keeps a rule to its widget's own tree.
+                    </td>
                   </tr>
                   <tr>
                     <td><code>theme.css</code></td>
-                    <td>The page document, across package boundaries.</td>
-                  </tr>
-                  <tr>
-                    <td><code>theme-shadow.css</code></td>
-                    <td>The page document and every declared shadow tree.</td>
-                  </tr>
-                  <tr>
-                    <td><code>controls.css</code></td>
-                    <td>Explicit styling of generated controls in the document.</td>
+                    <td>The page document, above Leaf's Layouts.</td>
                   </tr>
                 </tbody>
               </table>
               <p id="styles-scope-details">
-                In a widget sheet, <code>:scope</code> names the widget and ordinary
-                selectors name what it contains. The boundary applies to foreign widgets
-                declared by another package or by the page. Widgets from the same
-                package can share their compound structure. Shadow trees form a further
-                browser boundary: document selectors do not enter them, but inherited
-                inputs and public <code>::part</code> selectors can.
+                Leaf adds no scope to a sheet, so each rule names the widget it styles:
+                <code>lf-callout .title</code> in the document, and
+                <code>:host(lf-callout) .title</code> in a widget's shadow tree. Shadow
+                trees form a browser boundary: document selectors do not enter them, but
+                inherited inputs and public <code>::part</code> selectors can.
               </p>
               <p id="styles-package-reference">
                 The
@@ -986,6 +970,26 @@ flowchart TD
                 <strong>Motion</strong>
                 <span
                   >Play and scrub authored animation studies on one shared clock.</span
+                >
+                <em>Read instructions</em>
+              </a>
+              <a
+                class="package-card"
+                data-package="deck"
+                href="https://github.com/max-sixty/leaf/blob/main/packages/deck/instructions/author.md"
+              >
+                <strong>Deck</strong>
+                <span>Work through a pile of decisions one card at a time.</span>
+                <em>Read instructions</em>
+              </a>
+              <a
+                class="package-card"
+                data-package="detail"
+                href="https://github.com/max-sixty/leaf/blob/main/packages/detail/instructions/author.md"
+              >
+                <strong>Detail</strong>
+                <span
+                  >Turn a page from each section's gist to every closed detail.</span
                 >
                 <em>Read instructions</em>
               </a>

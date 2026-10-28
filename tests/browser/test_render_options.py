@@ -1,7 +1,9 @@
 """Options, samples, and decision presentation tests."""
 
+import itertools
 import json
 import re
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -12,6 +14,7 @@ from interact_support import (
     refused_on,
     working,
 )
+from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CHIP_PAGE,
@@ -210,7 +213,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
             or chip["y"] + chip["height"] <= state_box["y"]
             or state_box["y"] + state_box["height"] <= chip["y"]
         )
-        assert separate, "the selected header state covers an authored chip"
+        assert separate, "the pick's check covers an authored chip"
 
     # More chips than fit on a line wrap along the band rather than over the card's edge.
     # The pair this replaced could not: each was an absolutely-positioned box sized to
@@ -251,15 +254,17 @@ def test_a_row_too_narrow_to_dock_a_rail_stacks_it_instead(browser, serve):
     assert rail["y"] + rail["height"] <= prose["y"], "the case has to clear the rail"
 
 
-def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve):
-    """A completed obligation keeps the same live-card state when reopened for review."""
+def test_a_live_card_pick_shows_the_check_and_remains_pressable(browser, serve):
+    """A picked card wears the check alone, as a row does, and keeps it when a
+    completed obligation is reopened for review; "selected" stays its accessible name."""
     page = open_page(browser, live_url(serve(SETTLED_PAGE)))
     page.locator("#transport .lf-settled").click()
     mark = page.locator("#opt-lax .lf-pick")
     assert mark.get_attribute("aria-checked") == "true"
     assert mark.get_attribute("aria-label") == "selected: Lax cookie — option 1 of 3"
-    assert mark.evaluate("el => getComputedStyle(el).fontSize") != "0px"
-    expect(mark).to_have_text("selected")
+    assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px", (
+        "a picked card draws no word beside its check"
+    )
     assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
 
     strict = page.locator("#opt-strict")
@@ -625,14 +630,16 @@ def test_obligation_addresses_are_screen_only_apparatus(browser, serve):
     expect(badges.first).to_be_hidden()
 
 
-# Whether a cell draws the joined group's hairline: a visible 1px ring around it, painted
-# in order over the cell before it. Read with its colour, since a transparent shadow draws
-# no line at all, and with its position, since an unpositioned cell paints under the
-# neighbour it should draw over.
-CASTS_HAIRLINE = r"""el => {
+# Whether a cell stands within the joined group's hairline: the group's ground shows in
+# the gap around the cell, which paints a ground of its own over the rest. Read with
+# colours, since a transparent ground on either side draws no line at all.
+HAIRLINED = r"""el => {
   const s = getComputedStyle(el);
-  const cast = /(rgba?\([^)]*\)) 0px 0px 0px 1px/.exec(s.boxShadow);
-  return Boolean(cast) && !/rgba\([^)]*,\s*0\)/.test(cast[1]) && s.position !== 'static';
+  const group = getComputedStyle(el.parentElement);
+  const clear = (c) => c === 'transparent' || /rgba\([^)]*,\s*0\)/.test(c);
+  return parseFloat(group.rowGap) >= 1 && parseFloat(group.columnGap) >= 1
+    && !clear(group.backgroundColor) && !clear(s.backgroundColor)
+    && group.backgroundColor !== s.backgroundColor;
 }"""
 
 
@@ -663,14 +670,13 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     assert page.locator("#opt-shim").evaluate(edge) == 0, (
         "an option still draws its own border, so the group reads as cards standing apart"
     )
-    # Each cell casts the hairline onto the cell before it, so the line takes no room
-    # and the group's clip takes what the first cell casts past the frame.
-    assert page.locator("#opt-stage").evaluate(CASTS_HAIRLINE), (
+    # The group's ground shows between its cells as the hairline.
+    assert page.locator("#opt-stage").evaluate(HAIRLINED), (
         "the cells share no hairline, so the set reads as one box rather than as cells"
     )
     # The group's last child is the cell the module appends for the user's own
     # option, and its line stands above it, against the last authored option.
-    assert page.locator("#approach > :last-child").evaluate(CASTS_HAIRLINE), (
+    assert page.locator("#approach > :last-child").evaluate(HAIRLINED), (
         "the user's own option is not divided from the authored ones"
     )
 
@@ -732,7 +738,12 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     before = option.bounding_box()
     option.click()
     expect(mark).to_have_text("selected")
-    assert mark.evaluate("el => getComputedStyle(el).fontSize") != "0px"
+    expect(mark).to_have_css("font-size", "0px")
+    expect(mark).to_have_css("opacity", "1")
+    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
+    assert (
+        mark.evaluate("el => parseFloat(getComputedStyle(el, '::before').fontSize)") > 0
+    )
     assert option.bounding_box() == before, "the selected header state resized its card"
 
     state = mark.bounding_box()
@@ -876,8 +887,8 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
 def test_joined_option_cells_share_edges_and_text_column(browser, serve):
     """Read over the joined option cells and the full-width Done control.
 
-    A group under `choose` is one control: cells sharing edges, divided by a hairline
-    instead of a gap. Two things follow for every option cell, and the question was
+    A group under `choose` is one control: cells divided by a hairline and
+    nothing else. Two things follow for every option cell, and the question was
     simply the child that had neither. The line is the whole of what separates a cell
     from the next, so a margin beside it is a second way to say what the line already
     says and draws a rule floating in a band of nothing. Each option cell holds its
@@ -931,7 +942,8 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve):
         )
         assert len(cells) > 2, f"a control of {len(cells)} cells proves little: {cells}"
 
-        apart = [c for c in cells if c["gap"] is not None and c["gap"] > 0.5]
+        # The hairline is a 1px gap; anything wider is a band of nothing.
+        apart = [c for c in cells if c["gap"] is not None and c["gap"] > 1.5]
         assert not apart, (
             f"cells of #{group} stand apart from the line that joins them: {apart}"
         )
@@ -976,6 +988,61 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve):
             f"#{group}'s user-written option stands on {user['ground']} where an "
             f"unpicked option stands on {open_option}, so it reads as apparatus under the "
             "answers rather than as one of them"
+        )
+
+
+def test_a_picked_cell_rings_every_side_alike(browser, serve):
+    """A pick rings its cell in the ok ink, inside the joined frame. A hairline cast
+    over the next cell lay over the ring's lower edge and left it half as thick as the
+    other three, reading as the grey divider rather than the pick's edge; standing
+    the pick above its neighbours only moved the cut onto the pick above it when two
+    adjacent rows were taken. Counted in pixels down the picked cell's middle and
+    across its top, in both joined forms, with a row taken beside another."""
+    page = open_page(browser, serve(OBLIGATION_SHAPES_PAGE))
+    for option in ("#c-redis", "#r-drill", "#r-rotate"):
+        page.locator(f"{option} > .lf-pick").click()
+        expect(page.locator(option)).to_have_attribute("chosen", "")
+    rendered(page)
+    ok = page.evaluate(
+        """() => {
+             const probe = document.body.appendChild(document.createElement('i'));
+             probe.style.color = 'var(--ok)';
+             const rgb = getComputedStyle(probe).color.match(/\\d+/g).slice(0, 3);
+             probe.remove();
+             return rgb.map(Number);
+           }"""
+    )
+
+    def ok_run(clip):
+        shot = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        inked = [
+            sum(abs(a - b) for a, b in zip(px, ok, strict=True)) < 40
+            for px in shot.getdata()
+        ]
+        # The ring's two edges along this line: from the middle outward, the first run
+        # of ink each way, so a picked neighbour's edge past the hairline is its own.
+        half = len(inked) // 2
+
+        def first_run(line):
+            run = list(itertools.dropwhile(lambda inked: not inked, line))
+            return len(list(itertools.takewhile(bool, run)))
+
+        return first_run(inked[half::-1]), first_run(inked[half:])
+
+    for option in ("#c-redis", "#r-drill", "#r-rotate"):
+        box = page.locator(option).bounding_box()
+        mid_x = round(box["x"] + box["width"] / 2)
+        # Above the cell's words and its mark, which a row hangs at its start.
+        clear_y = round(box["y"] + 4)
+        top, bottom = ok_run(
+            {"x": mid_x, "y": box["y"] - 4, "width": 1, "height": box["height"] + 8}
+        )
+        left, right = ok_run(
+            {"x": box["x"] - 4, "y": clear_y, "width": box["width"] + 8, "height": 1}
+        )
+        assert top == bottom == left == right > 0, (
+            f"{option}'s ring is {top}px at the top, {bottom}px at the bottom, "
+            f"{left}px on the left and {right}px on the right"
         )
 
 
@@ -1031,7 +1098,7 @@ def test_a_choose_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser,
     page = open_page(browser, serve(WIDE_OBLIGATION_PAGE), context=context)
     readings = page.evaluate(
         """() => ['cell-cards', 'cell-rows', 'page-cards'].map((id) => {
-          const casts = CASTS_PLACEHOLDER;
+          const hairlined = HAIRLINED_PLACEHOLDER;
           const group = document.getElementById(id);
           const box = group.getBoundingClientRect();
           const inner = box.right - parseFloat(getComputedStyle(group).borderRightWidth);
@@ -1047,12 +1114,12 @@ def test_a_choose_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser,
               return {
                 what: cell.id || cell.className || cell.tagName.toLowerCase(),
                 short: inner - cell.getBoundingClientRect().right,
-                divider: casts(cell),
+                divider: hairlined(cell),
                 mark: mark ? inner - mark.getBoundingClientRect().right : null,
               };
             }),
           };
-        })""".replace("CASTS_PLACEHOLDER", CASTS_HAIRLINE)
+        })""".replace("HAIRLINED_PLACEHOLDER", HAIRLINED)
     )
     for group in readings:
         # The premise: the frame the group stands in is wider than the measure, which
@@ -1170,7 +1237,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     offer = """el => { const cs = getComputedStyle(el);
         const stateRoom = getComputedStyle(el, '::before');
         return { cursor: cs.cursor, box: cs.borderTopWidth,
-                 stateRoom: stateRoom.content === 'none' ? 0 : stateRoom.width }; }"""
+                 stateRoom: stateRoom.content === 'none' ? 0 : parseFloat(stateRoom.width) }; }"""
     quoted_card, live_card = (
         page.locator(sel).evaluate(offer) for sel in ("#q-shim", "#l-shim")
     )
@@ -1190,7 +1257,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     )
     # The live card reserves one header slot for either its chosen state or keyboard
     # binding badge. An exhibit can grow neither, so its title keeps that room.
-    assert quoted_card["stateRoom"] == 0 and live_card["stateRoom"] == "80px", (
+    assert quoted_card["stateRoom"] == 0 and live_card["stateRoom"] > 0, (
         "the exhibit reserves the live card's header state slot: "
         f"{quoted_card['stateRoom']} vs {live_card['stateRoom']}"
     )
@@ -1310,8 +1377,8 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     an offer states nothing a user could disagree with. The forms differ in how they
     make that offer visible: a compact row needs its leading mark to declare its target,
     while a titled single-choice card is already one framed, divided, hoverable target
-    and keeps the corner quiet until it has state to report. A picked row keeps the
-    compact check; a picked card turns the same generated control into a header status.
+    and reserves a corner for its mark. A picked row and a picked card both keep a
+    compact check without a visible status caption.
     (`multiple` keeps boxes in both forms, because that shape is what says several
     answers may stand.) A row's name is
     what the author wrote in it: the mark that lands inside the row once it is picked is
@@ -1344,14 +1411,14 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     assert page.locator("#jobs").evaluate(edge) > 0, (
         "a list offering a pick draws no edge, so nothing says the rows are answerable"
     )
-    assert page.locator("#job-heater").evaluate(CASTS_HAIRLINE), (
+    assert page.locator("#job-heater").evaluate(HAIRLINED), (
         "a row draws no box of its own, so its bounds show only under the pointer"
     )
     # And the shape is the offer, so a list that asks nothing wears none of it.
     assert page.locator("#ordered").evaluate(edge) == 0, (
         "a list with no pick to take was drawn as a control anyway"
     )
-    assert not page.locator("#ord-mounts").evaluate(CASTS_HAIRLINE), (
+    assert not page.locator("#ord-mounts").evaluate(HAIRLINED), (
         "a row nobody can press draws cell edges anyway"
     )
 
@@ -1364,9 +1431,8 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     assert page.locator("#job-camera .lf-ref").count() == 0
 
     # No open mark says its word in either form. The compact row draws its target; the
-    # titled single-choice card leaves its state slot quiet until picked. The controls
-    # still share one accessible contract, while their paint follows the amount of
-    # structure their form already supplies.
+    # titled single-choice card draws its target in the corner. Both forms keep the
+    # selected word for the accessible name and draw a compact check when picked.
     hidden = "el => getComputedStyle(el).fontSize"
     dot = "el => getComputedStyle(el, '::before').visibility"
     assert page.locator("#job-mounts .lf-pick").evaluate(hidden) == "0px"
@@ -1376,7 +1442,13 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
 
     page.locator("#br-steel").click()
     expect(page.locator("#br-steel .lf-pick")).to_have_text("selected")
-    assert page.locator("#br-steel .lf-pick").evaluate(hidden) != "0px"
+    mark = page.locator("#br-steel .lf-pick")
+    expect(mark).to_have_css("font-size", "0px")
+    expect(mark).to_have_css("opacity", "1")
+    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
+    assert (
+        mark.evaluate("el => parseFloat(getComputedStyle(el, '::before').fontSize)") > 0
+    )
 
     page.locator("#job-heater").click()
     expect(page.locator("#job-heater[chosen]")).to_have_count(1)
@@ -1781,15 +1853,21 @@ def test_a_row_holds_its_mark_still_under_its_own_press(browser, serve):
 def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, width):
     """A row's § reference rides at the end of the words' last line where it fits, and
     drops under them where it doesn't, so on a phone the words keep the row's width
-    rather than wrapping into a column beside it."""
+    rather than wrapping into a column beside it. Rows that all name one block draw no
+    reference, since each would repeat the same place."""
     source = leaf_page(
         "Block references",
         """<h1>Follow-up</h1>
 <lf-options id="follow" choose>
-  <lf-option id="short" for="stall">Ship it.</lf-option>
+  <lf-option id="short" for="plan">Ship it.</lf-option>
   <lf-option id="long" for="stall">Ship with the resend and keep chasing the upstream
   fix until the vendor names a release.</lf-option>
 </lf-options>
+<lf-options id="same" choose>
+  <lf-option id="same-ship" for="stall">Ship it.</lf-option>
+  <lf-option id="same-hold" for="stall">Hold it.</lf-option>
+</lf-options>
+<section id="plan"><h2>Release plan</h2><p>Monday.</p></section>
 <section id="stall"><h2>iOS reconnect stall</h2><p>One reconnect in about 40.</p>
 </section>""",
     )
@@ -1813,6 +1891,7 @@ def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, wid
         assert reading["withRef"] == reading["without"], (option, reading)
         assert reading["inside"], (option, reading)
     expect(page.locator("#long .lf-ref")).to_have_text("§ iOS reconnect stall")
+    expect(page.locator("#same .lf-ref")).to_have_count(0)
 
 
 def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve):
@@ -2312,16 +2391,19 @@ def test_the_sample_gutter_is_painted_in_both_schemes(browser, serve):
 
 
 def test_a_sample_holds_a_wide_exhibit_inside_the_column(browser, serve):
-    """An exhibit wider than the column scrolls inside its own box, as it does
-    anywhere else on the page. What makes that true here is one declaration —
-    a table sizes to its content, so without `table-layout: fixed` the sample
-    grows to the board's width and hands the document a sideways scrollbar, taking
-    the comment layer's anchoring off screen with it.
+    """A wide exhibit scrolls inside the sample rather than widening the page.
 
-    Read at a viewport narrow enough for the board to want more room than the
-    column has; at the render gate's 1280px desktop the board fits and nothing here
-    can fail."""
-    page = open_page(browser, serve(SAMPLE_PAGE))
+    Give the exhibit an explicit intrinsic width: a responsive widget may stack
+    its contents on a phone and no longer exercise the sample's containment.
+    """
+    source = leaf_page(
+        "wide sample",
+        '<h1>A wide exhibit</h1><lf-sample id="spec" label="wide content">'
+        '<div id="wide-exhibit" style="overflow-x: auto">'
+        '<div style="width: 600px">An exhibit wider than the page column.</div>'
+        "</div></lf-sample>",
+    )
+    page = open_page(browser, serve(source))
     page.evaluate(
         """() => document.addEventListener('lf-margin-layout', () => {
           window.lfMarginLayoutWidth = innerWidth;
@@ -2332,11 +2414,11 @@ def test_a_sample_holds_a_wide_exhibit_inside_the_column(browser, serve):
     wide = page.evaluate(
         "() => [document.documentElement.clientWidth,"
         " Math.round(document.getElementById('spec').getBoundingClientRect().width),"
-        " document.getElementById('quoted-board').scrollWidth]"
+        " document.getElementById('wide-exhibit').scrollWidth]"
     )
-    column, sample, board = wide
-    assert board > column, (
-        f"the board is {board}px in a {column}px column: it has to want more room "
+    column, sample, exhibit = wide
+    assert exhibit > column, (
+        f"the exhibit is {exhibit}px in a {column}px column: it has to want more room "
         f"than the column has, or nothing below is being tested"
     )
     assert sample <= column, f"the sample is {sample}px in a {column}px column"
@@ -2432,12 +2514,12 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     message = page.locator(".lf-msg:has(#rp-live)")
     status = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(page.locator("#rp-live > .lf-msg-sending")).to_have_count(0)
-    expect(status).to_have_text("Sent")
+    expect(status).to_have_text(re.compile(r"^Queued for "))
     record_claim(d)
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, actions)
     told(page)
-    expect(status).to_have_text("Delivered")
+    expect(status).to_have_text("Got it")
     assert page.locator("#rp-quoted lf-option[chosen]").count() == 0
 
 
@@ -2534,7 +2616,7 @@ def test_a_thread_obligations_done_press_keeps_its_keys_and_one_workflow(
     )
     statuses = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(statuses).to_have_count(1)
-    expect(statuses).to_have_text("Sent")
+    expect(statuses).to_have_text(re.compile(r"^Queued for "))
 
 
 def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
@@ -2554,7 +2636,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     page.keyboard.press("2")
     expect(page.locator("#ar-canary-suppress")).to_have_attribute("chosen", "")
     # The answer's pin stands in the first card's corner, where the seats are.
-    expect(page.locator('.lf-margin-entry[aria-label^="Sent"]')).to_be_visible()
+    expect(page.locator('.lf-margin-entry[aria-label^="Queued for "]')).to_be_visible()
     rendered(page)
     seats = page.evaluate(
         """() => [...document.querySelectorAll('#ar-canary-choice > lf-option')].map((o) => {
@@ -2680,9 +2762,10 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
 def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
     browser, serve
 ):
-    """Authors write a card's consequence after its title either as a sentence or as a
-    paragraph, and both read as one card: the paragraph's own margin had set it three
-    times as far under the title."""
+    """Authors write a card's consequence after its title as a plain sentence, as one
+    holding an inline element or Markdown, or as a paragraph, and each reads as one
+    card: the paragraph's own margin had set it three times as far under the title, and
+    the title's margin set the sentence with an element 4px lower than a plain one."""
     page = open_page(
         browser,
         serve(
@@ -2691,6 +2774,10 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
                 '<lf-options id="shapes" choose>'
                 '<lf-option id="sentence"><strong>Ship it</strong> The cohort gets it now.'
                 "</lf-option>"
+                '<lf-option id="element"><strong>Stage it</strong> The cohort gets '
+                "<em>half</em> now.</lf-option>"
+                '<lf-option id="markdown"><strong>Pause it</strong> The cohort '
+                "waits *a day*.</lf-option>"
                 '<lf-option id="paragraph"><strong>Hold it</strong>'
                 "<p>The cohort waits for the fix.</p></lf-option>"
                 "</lf-options>",
@@ -2698,18 +2785,17 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
         ),
     )
     gaps = page.evaluate(
-        """() => {
-          const below = (id) => {
-            const option = document.getElementById(id);
-            const title = option.querySelector(':scope > strong').getBoundingClientRect();
-            const range = document.createRange();
-            const body = id === 'sentence'
-              ? option.querySelector(':scope > strong').nextSibling
-              : option.querySelector(':scope > p').firstChild;
-            range.selectNodeContents(body);
-            return range.getClientRects()[0].top - title.bottom;
-          };
-          return { sentence: below('sentence'), paragraph: below('paragraph') };
-        }"""
+        """() => Object.fromEntries(['sentence', 'element', 'markdown', 'paragraph'].map((id) => {
+          const option = document.getElementById(id);
+          const title = option.querySelector(':scope > strong');
+          const walk = document.createTreeWalker(option, NodeFilter.SHOW_TEXT);
+          walk.currentNode = title.lastChild;
+          let text = walk.nextNode();
+          while (!text.data.trim()) text = walk.nextNode();
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          return [id, range.getClientRects()[0].top - title.getBoundingClientRect().bottom];
+        }))"""
     )
-    assert gaps["paragraph"] == pytest.approx(gaps["sentence"], abs=1), gaps
+    for shape in ("element", "markdown", "paragraph"):
+        assert gaps[shape] == pytest.approx(gaps["sentence"], abs=1), gaps

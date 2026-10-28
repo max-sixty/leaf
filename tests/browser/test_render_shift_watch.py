@@ -1,6 +1,7 @@
 """The browser fixture fails the layout shifts the "Stability" rule forbids
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
+import re
 from datetime import UTC, datetime, timedelta
 from html import escape
 from urllib.parse import quote
@@ -18,6 +19,7 @@ from render_harness import (
     judge_watches,
     leaf_page,
     open_page,
+    place_step_matches,
     refuse,
     resized,
     take_browser_errors,
@@ -77,7 +79,7 @@ def within(node, place):
     """Whether a node the watch placed, by its steps innermost first, is the element
     `place` or inside it, as a text node in it (`["#text", "button#control"]`) or a
     node in its shadow tree (`["div.cm-line", "#shadow-root", "leaf-text#field.scroll"]`)."""
-    return place in node
+    return any(place_step_matches(step, place) for step in node)
 
 
 def moved_within(place, by=None):
@@ -2494,6 +2496,65 @@ def test_press_owned_size_flow_crosses_a_shadow_boundary(browser, seated):
         consume_browser_errors(page, moved_within("button#seated"))
 
 
+@pytest.mark.parametrize("placement", ["carried", "preceding", "absolute"])
+@pytest.mark.parametrize("boxless", [False, True], ids=["direct", "boxless-parent"])
+def test_fold_reparenting_keeps_only_its_original_flow_credit(
+    browser, placement, boxless
+):
+    """A fold can reach its endpoint and join closed history in one task. Its old
+    following control is carried; a preceding or newly out-of-flow control's move
+    is independent even when it matches the fold's travel."""
+    follows = placement != "preceding"
+    control = (
+        '<button id="control" style="position:relative;display:block">Control</button>'
+    )
+    fold = '<div id="fold" style="height:100px"></div>'
+    if boxless:
+        fold = '<div style="display:contents">' + fold + "</div>"
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;padding-top:200px"><button id="start">Start</button>'
+            + (fold + control if follows else control + fold)
+            + '<details id="stash"><summary>History</summary></details>'
+            + """<script>
+            start.addEventListener('pointerdown', () => {
+              window.effect = fold.animate([{height:'100px'}, {height:'0px'}],
+                {duration:400, fill:'forwards'});
+              effect.playbackRate = 0;
+              effect.currentTime = 0;
+            });
+            </script>"""
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate(
+        """placement => {
+          if (placement === 'preceding') control.style.top = '-100px';
+          if (placement === 'absolute') {
+            const {top, height} = control.getBoundingClientRect();
+            const room = document.createElement('div');
+            room.style.height = `${height}px`;
+            control.before(room);
+            control.style.position = 'absolute';
+            control.style.top = `${top - 100}px`;
+          }
+          effect.currentTime = 400;
+          stash.append(fold);
+        }""",
+        placement,
+    )
+    judge_watches()
+    if placement == "carried":
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, moved_within("button#control"))
+
+
 def test_absolute_size_animation_cannot_credit_an_independent_control_move(browser):
     """Matching travel does not join an out-of-flow effect to a later control."""
     page = browser.new_page()
@@ -3734,6 +3795,29 @@ motion.pause();motion.currentTime=150;
     errors = take_browser_errors(page)
     assert names_move(errors, "p#trigger"), errors
     assert names_move(errors, "button#control") == bool(fault), errors
+    if fault == "child":
+        finding = next(
+            error
+            for error in errors
+            if is_problem(error, moved_within("button#control"))
+        )
+        comparisons = shift_evidence(finding)["comparisons"]
+        motions = [
+            animation
+            for comparison in comparisons
+            for animation in comparison["animations"]
+            if within(animation["target"], "div#panel")
+        ]
+        assert motions, comparisons
+        assert any(
+            motion["selected"]
+            and "translate" in motion["properties"]
+            and motion["before"]
+            and motion["after"]
+            and "translate" in motion["before"]["values"]
+            and "translate" in motion["after"]["values"]
+            for motion in motions
+        ), motions
 
 
 @pytest.mark.parametrize(
@@ -3800,6 +3884,60 @@ motion.pause();motion.currentTime=150;
     errors = take_browser_errors(page)
     assert names_move(errors, "p#trigger"), errors
     assert names_move(errors, "button#control") == bool(fault), errors
+
+
+@pytest.mark.parametrize("fault", [False, True])
+def test_a_sticky_inset_moves_its_box_only_within_its_block(browser, fault):
+    """A ride carries a scroller's messages while their sticky heads' insets travel
+    against the carry (box-motion.js), so a stuck head holds its line and one short of
+    it rides with its message. The inset is credited by the head's move within its
+    message, not read as an offset that cancels the carry; a head moving the other
+    way within its message still fails."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@property --carry { syntax: '<length>+'; inherits: false; initial-value: 0px 0px; }
+.msg { height:150px }
+header { position:sticky; top:6px; height:28px; background:white }
+</style><body style="margin:0"><button id="start">Start</button>
+<div id="scroller" style="height:200px;overflow:auto;width:300px">
+<div class="msg" style="translate:var(--carry)"><header>First message</header></div>
+<div class="msg" style="translate:var(--carry)"><header id="second">
+<button id="control">Second message</button></header></div>
+<div style="height:600px"></div></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>
+scroller.scrollTop = 100;
+start.onclick = () => {
+  window.motions = [...document.querySelectorAll('.msg')].flatMap((msg) => [
+    msg.animate([{'--carry':'0px 80px'},{'--carry':'0px 0px'}], {duration:1000}),
+    msg.querySelector('header').animate([{top:'-74px'},{top:'6px'}], {duration:1000}),
+  ]);
+  for (const motion of motions) { motion.pause(); motion.currentTime = 150; }
+};
+</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    first = page.locator("header").first.bounding_box()
+    page.evaluate(
+        """fault => {
+      for (const motion of motions) motion.currentTime = 400;
+      if (fault) second.style.marginTop = '-15px';
+      trigger.style.left = '40px';
+    }""",
+        fault,
+    )
+    paint(page)
+    assert page.locator("header").first.bounding_box() == first
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") == fault, errors
 
 
 @pytest.mark.parametrize("fault", [False, True])
@@ -4758,7 +4896,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     header = surface_root.locator(".lf-msg-head").first
     receipt = header.locator(".lf-msg-sending")
     timestamp = header.locator("time")
-    expect(receipt).to_have_text("Sent")
+    expect(receipt).to_have_text(re.compile(r"^Queued for "))
     expect(timestamp).to_have_text("just now")
     # Age changes are news after Chrome's recent-input grace, even when opening the
     # surface and resizing it happened immediately before this clock transition.
@@ -4785,7 +4923,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
         page.clock.set_fixed_time(now + delta)
         ticked(page)
         expect(timestamp).to_have_text(age)
-        expect(receipt).to_have_text("Sent")
+        expect(receipt).to_have_text(re.compile(r"^Queued for "))
         judge_watches()
         assert surface_root.bounding_box() == thread_before
         assert owner.bounding_box() == owner_before

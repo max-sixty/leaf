@@ -123,14 +123,13 @@ function reactionChip({ name, glyph, label }, pressed) {
 }
 
 // The bar's chips wear the reactions in force on its anchor, as a reply's strip does:
-// pressed where one stands, busy while it is still being sent. A press on a pressed chip
+// pressed where one stands, from the press on. A press on a pressed chip
 // takes that reaction back (reactHere).
 export function paintBarReactions(anchor) {
   const by = new Map(anchorChoices(anchor).map((choice) => [choice.name, choice]));
   for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
     const inForce = by.get(chip.dataset.token)?.inForce;
     keeps(chip, "aria-pressed", String(Boolean(inForce)));
-    keeps(chip, "aria-busy", String(Boolean(inForce?.pending)));
   }
 }
 
@@ -308,7 +307,6 @@ export function createReactionController({
 
   function closeSurface(surface) {
     if (surface === marginSurface) return;
-    surface?.classList.remove("lf-react-open");
     reactDeparture?.();
     reactDeparture = null;
     const picker = pickerFor(surface);
@@ -389,7 +387,6 @@ export function createReactionController({
       }
       reactArmed = true;
       if (reactSurface !== marginSurface) {
-        reactSurface.classList.add("lf-react-open");
         const picker = pickerFor(reactSurface);
         // `e` opens the latest reply of the thread the user is in, which may be
         // scrolled out of the list: it comes into view to be answered, since a list

@@ -1,28 +1,11 @@
-import { TEXT_FIELD, afterSettling, atLayoutPrecision, cancelRender, keeps, layoutPx, move, nextRender, onUserInput } from "./bundle-dom-move.js";
+import { __exportAll } from "./bundle-rolldown-runtime.js";
+import { afterSettling, cancelRender, motionEasing, motionPlays, motionTime, nextRender, playMotion } from "./bundle-portable.js";
+import { TEXT_FIELD, atLayoutPrecision, keeps, layoutPx, move, onUserInput } from "./bundle-layer-stack.js";
+import { el } from "./bundle-layer-client.js";
+import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, contentRides, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";
 import { hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-geometry.js";
-import { el } from "./bundle-errors.js";
-import { contentRides } from "./bundle-reading-regions.js";
 import { inChrome } from "./bundle-passages.js";
-import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";
-import { motionPlays, playMotion } from "./bundle-motion.js";
 
-//#region \0rolldown/runtime.js
-var __defProp = Object.defineProperty;
-var __exportAll = (all, no_symbols) => {
-	let target = {};
-	for (var name in all) {
-		__defProp(target, name, {
-			get: all[name],
-			enumerable: true
-		});
-	}
-	if (!no_symbols) {
-		__defProp(target, Symbol.toStringTag, { value: "Module" });
-	}
-	return target;
-};
-
-//#endregion
 //#region runtime/target-paint-geometry.js
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SHAPE_STROKE_ROOM = 2;
@@ -116,6 +99,7 @@ function paintStand(box = null) {
 	root.className = "lf-ui lf-target-paint lf-paint-stand";
 	root.setAttribute("aria-hidden", "true");
 	root.style.position = "fixed";
+	if (box) root.style.setProperty("--lf-paint-outset", "var(--focus-ring-w)");
 	const carrier = document.createElement("div");
 	carrier.className = "lf-paint-carrier";
 	if (box) carrier.append(box);
@@ -506,7 +490,7 @@ function paintAim(element, surface = null) {
 	if (!shaped) aimShape.replaceChildren();
 	keeps(aimBox, "data-for", element.id);
 	keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	aimStood = standOver(aimStand, placed, getComputedStyle(surface ?? element).borderRadius);
+	aimStood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface ?? element).borderRadius);
 	aimPlaced = placed;
 	return placed.shown;
 }
@@ -642,7 +626,8 @@ function listen() {
 }
 const liftReach = (element, level) => {
 	const lift = getComputedStyle(element);
-	return ["drop", "blur"].map((part) => Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`))).reduce((reach, part) => reach + part);
+	const [drop, blur] = ["drop", "blur"].map((part) => Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`)));
+	return drop + 2 * blur;
 };
 const near = (a, b) => Math.abs(a - b) < .5;
 const boxOf = (rect) => ({
@@ -672,15 +657,48 @@ const clipFrame = (sides, radius = 0) => ({
 	"--lf-box-cut": sides.map((side) => `${side}px`).join(" ")
 });
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
-const paints = (style) => !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
+const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
+const paints = (style) => !seeThrough(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
 	"Top",
 	"Right",
 	"Bottom",
 	"Left"
 ].some((side) => Number.parseFloat(style[`border${side}Width`]) > 0);
 const rings = (style) => style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
-function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], observer, held = () => null }) {
+function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, held = () => null }) {
 	listen();
+	const layer = (name) => {
+		const node = document.createElement("div");
+		node.className = name;
+		return node;
+	};
+	const room = layer(`lf-box-ground ${surfaceClass}`);
+	room.setAttribute("aria-hidden", "true");
+	const [ring, fill, ringLayer, ringFill] = [
+		"lf-box-ring",
+		"lf-box-fill",
+		"lf-box-moving-ring",
+		"lf-box-fill"
+	].map(layer);
+	room.append(ring, fill, ringLayer, ringFill);
+	const shadowReach = () => liftReach(room, lift);
+	const surface = () => [
+		[
+			room,
+			shadowReach(),
+			`filter: drop-shadow(var(--raise-${lift})); `
+		],
+		[
+			ring,
+			outset,
+			""
+		],
+		[
+			fill,
+			outset - 1,
+			""
+		]
+	];
 	let sent = -1;
 	const theirs = () => gesture !== null && sent === gestures ? "send" : gesture;
 	let rests = null;
@@ -693,6 +711,18 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 	let streamFrom = /* @__PURE__ */ new Map();
 	let streams = /* @__PURE__ */ new Map();
 	let stopStreaming = new AbortController();
+	let fieldScrolls = /* @__PURE__ */ new Map();
+	const noteFieldScrolls = () => {
+		for (const field of fieldScrolls.keys()) fieldScrolls.set(field, field.scrollTop);
+	};
+	onUserInput((event) => {
+		if (event.type !== "input") noteFieldScrolls();
+	});
+	root.addEventListener("lf-before-edit", noteFieldScrolls, { passive: true });
+	const forget = () => {
+		rests = null;
+	};
+	addEventListener("resize", forget);
 	function rebase() {
 		const at = boxOf(root.getBoundingClientRect());
 		const edges = held();
@@ -807,7 +837,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		childList: true,
 		attributeFilter: ["hidden"]
 	});
-	function follow({ duration, easing }, compact = false) {
+	function follow({ duration = motionTime("--lf-motion-box-resize", box), easing = motionEasing("--lf-motion-box-ease", box) } = {}, compact = false) {
 		timing = {
 			duration,
 			easing
@@ -846,8 +876,11 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 			top: from + (to - from) * progress
 		});
 		streams = /* @__PURE__ */ new Map();
+		const moved = motions;
 		motions = /* @__PURE__ */ new Map();
 		rests = next;
+		const scrolledFrom = fieldScrolls;
+		fieldScrolls = new Map([...rests.keys()].filter((element) => element.matches(TEXT_FIELD)).map((element) => [element, element.scrollTop]));
 		const space = boxOf(room.getBoundingClientRect());
 		const outline = (at, grow, radius) => [[
 			at.top - space.top - grow,
@@ -858,7 +891,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		const boxAt = rests.get(box);
 		const boxStyle = getComputedStyle(box);
 		const boxRadius = radiusOf(boxStyle);
-		for (const [layer, reach] of surface()) keeps(layer, "style", `clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`);
+		for (const [layer, reach, paint] of surface()) keeps(layer, "style", `${paint}clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`);
 		if (!was?.has(box)) {
 			restoreTranslations();
 			return;
@@ -918,11 +951,12 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 				if (gesture === "send") streamContent(part);
 				return;
 			}
-			const edgeBy = (start, end, length) => length(to) < length(from) - .5 && near(from[end], to[end]) && !near(from[start], to[start]) ? end : start;
+			const emptied = gesture === "send" || part.element.matches(":state(placeholder-shown)");
+			const edgeBy = (start, end, length) => emptied && length(to) < length(from) - .5 && near(from[end], to[end]) && !near(from[start], to[start]) ? end : start;
 			const carries = [rtl ? edgeBy("right", "left", width) : edgeBy("left", "right", width), edgeBy("top", "bottom", height)];
-			let dx = from[carries[0]] - to[carries[0]];
+			const dx = from[carries[0]] - to[carries[0]];
 			let dy = from[carries[1]] - to[carries[1]];
-			const cut = [
+			const cut = () => [
 				from.top - (to.top + dy),
 				to.right + dx - from.right,
 				to.bottom + dy - from.bottom,
@@ -935,35 +969,43 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 					carries
 				});
 				move(part.element, dx, dy);
-				cutFrom(part.element, cut, radiusOf(part.style));
+				cutFrom(part.element, cut(), radiusOf(part.style));
 				return;
 			}
+			const gaveUp = part.element.scrollHeight <= part.element.clientHeight && !emptied ? scrolledFrom.get(part.element) ?? 0 : 0;
+			const left = (moved.get(part.element)?.gaveUp ?? 0) * (1 - progress);
+			dy -= gaveUp + left;
 			motions.set(part.element, {
 				from,
-				to
+				to,
+				gaveUp: gaveUp + left
 			});
-			dx = rtl ? Math.min(0, dx) : Math.max(0, dx);
-			dy = Math.max(0, dy);
+			const reach = Math.max(0, rtl ? dx : -dx, -dy);
+			if (reach > 0) hold(part.element, "overflow", "visible");
+			const caretRoom = 2;
+			const fieldCut = cut().map((side, index) => side - (index % 2 ? caretRoom : 0));
 			start(part.element, [{
 				"--lf-field-carry": `${dx}px ${dy}px`,
-				"--lf-field-cut": cut.map((side) => `${side}px`).join(" ")
+				"--lf-field-cut": fieldCut.map((side) => `${side}px`).join(" "),
+				"--lf-field-reach": `${Math.max(caretRoom, reach)}px`
 			}, {
 				"--lf-field-carry": "0px 0px",
-				"--lf-field-cut": "0px 0px 0px 0px"
+				"--lf-field-cut": `0px -${caretRoom}px 0px -${caretRoom}px`,
+				"--lf-field-reach": `${Math.max(caretRoom, reach)}px`
 			}]);
 		}
 		function grow(part, from) {
 			const to = part.box;
 			motions.set(part.element, {
-				from,
+				from: to,
 				to
 			});
-			const drawnTo = shifted(to, ...carriedBy(0)(part.element.parentElement));
+			carry(part, to);
 			cutFrom(part.element, [
-				from.top - drawnTo.top,
-				drawnTo.right - from.right,
-				drawnTo.bottom - from.bottom,
-				from.left - drawnTo.left
+				from.top - to.top,
+				to.right - from.right,
+				to.bottom - from.bottom,
+				from.left - to.left
 			].map((inset) => Math.max(0, inset)), radiusOf(part.style));
 		}
 		function reveal(part, frame, siblings) {
@@ -1033,7 +1075,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		function rise(part, frame, siblings) {
 			const to = part.box;
 			const dy = boxFrom.top - boxAt.top;
-			if (dy < .5) return reveal(part, frame, siblings);
+			if (dy < .5 || to.top >= boxFrom.top - .5) return reveal(part, frame, siblings);
 			motions.set(part.element, {
 				from: shifted(to, 0, dy),
 				to,
@@ -1094,8 +1136,11 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 			const offset = Number.parseFloat(style.outlineOffset);
 			const reach = Number.parseFloat(style.outlineWidth) + offset;
 			const radius = radiusOf(style);
+			const colour = seeThrough(style.backgroundColor) ? null : style.backgroundColor;
 			keeps(ringLayer, "style", `background: ${style.outlineColor}`);
+			keeps(ringFill, "style", colour && `background: ${colour}`);
 			hold(element, "outlineColor", "transparent");
+			if (colour) hold(element, "backgroundColor", "transparent");
 			for (const [layer, grown] of [[ringLayer, reach], [ringFill, offset]]) start(layer, contour(from, to, grown, radius, compact));
 		}
 		function streamWithin(part) {
@@ -1125,9 +1170,9 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 				if (!sized && rings(style)) drawRing(element, style, from, to);
 				else if (!sized && paints(style) && !part.holdsWindow) carries ? carryContent(part, from) : grow(part, from);
 				if (!same(from, to)) motions.set(element, {
-					...motions.get(element),
 					from,
 					to,
+					...motions.get(element),
 					frames: true
 				});
 			}
@@ -1147,6 +1192,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		});
 		for (const [layer, reach] of surface()) start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
 		if (rings(boxStyle)) drawRing(box, boxStyle, boxFrom, boxAt, compact);
+		else hold(box, "outlineColor", "transparent");
 		hold(box, "backgroundColor", "transparent");
 		hold(box, "overflow", "visible");
 		const animations = running;
@@ -1157,6 +1203,8 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		};
 	}
 	return {
+		ground: room,
+		shadowReach,
 		follow,
 		theirs,
 		stream() {
@@ -1188,11 +1236,25 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 				});
 			}
 		},
-		forget() {
-			rests = null;
-		}
+		placed(place) {
+			rebase();
+			place();
+			frame = boxOf(root.getBoundingClientRect());
+		},
+		outline() {
+			const moving = motions.get(box);
+			const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
+			if (moving && progress < 1) return interpolate(moving.from, moving.to, progress);
+			return boxOf(box.getBoundingClientRect());
+		},
+		drawnAt(rect) {
+			frame = boxOf(root.getBoundingClientRect());
+			motions = /* @__PURE__ */ new Map();
+			rests = /* @__PURE__ */ new Map([[box, boxOf(rect)]]);
+		},
+		forget
 	};
 }
 
 //#endregion
-export { SVG_NS, aimLayer, boxMotion, dropStand, liftReach, mountTargetPaint, paintGeometry, paintSet, paintShape, paintStand, paintTrace, placement, standOver, targetTraceLayer, target_paint_exports };
+export { SVG_NS, aimLayer, boxMotion, dropStand, mountTargetPaint, paintGeometry, paintSet, paintShape, paintStand, paintTrace, placement, standOver, targetTraceLayer, target_paint_exports };

@@ -143,14 +143,15 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     # Observe the instant after the immutable rejection publishes and seals, before
     # its queued imperative application. A later settled read cannot see an overclaim.
     page.evaluate("""async () => {
-      const {watchSemantic, readApplication, readApplicationPresentation} =
+      const {watchSemantic, readApplication, readApplicationPresentation, applicationPresented} =
         await window.__lfCheckApi();
       let previous = readApplication().effective.thread.all.length;
       watchSemantic(root => {
           const count = root.effective.thread.all.length;
           if (previous > 0 && count === 0) queueMicrotask(() => {
-            const {semanticEpoch, presentedEpoch, pending} = readApplicationPresentation();
-            window.rejectionPresentation = {semanticEpoch, presentedEpoch, pending};
+            window.rejectionPresentation = {
+              ...readApplicationPresentation(), presented: applicationPresented(),
+            };
           });
           previous = count;
         });
@@ -161,7 +162,8 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     round_trip(page)
     page.wait_for_function("window.rejectionPresentation !== undefined")
     reading = page.evaluate("window.rejectionPresentation")
-    assert reading["presentedEpoch"] < reading["semanticEpoch"], reading
+    assert reading["sealed"] is True, reading
+    assert reading["presented"] is False, reading
     assert "thread" in reading["pending"], reading
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
@@ -318,7 +320,7 @@ def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(f"Press again to undo: {resolved}")
     with sending(page, "the withdrawal"):
         panel_control(page, "command:history.undo").click()
-    expect(page.locator(".lf-live")).to_have_text(f"Undid: {resolved} — sent")
+    expect(page.locator(".lf-live")).to_have_text(f"Undid: {resolved}")
 
     append_command(
         serve.page_dir,
@@ -416,9 +418,7 @@ def test_z_shows_an_old_resolve_out_of_view_before_taking_it(browser, serve):
     with sending(page, "the withdrawal"):
         page.keyboard.press("z")
     assert _undos(serve.page_dir) == [resolve]
-    expect(page.locator(".lf-live")).to_have_text(
-        "Undid: resolved “Feeder” · 21d ago — sent"
-    )
+    expect(page.locator(".lf-live")).to_have_text("Undid: resolved “Feeder” · 21d ago")
 
 
 def test_a_quick_second_z_waits_for_the_first_to_show_its_gesture(browser, serve):
@@ -1928,7 +1928,7 @@ def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, s
     for key in ["Enter", "ArrowRight", "Enter"]:
         page.keyboard.press(key)
     holding(page, refused, 2, "the move the rollout would not take")
-    expect_panel_says(page, "isn't ready yet")
+    expect_panel_says(page, "Not through yet")
     # The same gesture throughout: a refusal that admits nothing cannot mint a second.
     assert len(set(refused)) == 1
 

@@ -50,6 +50,8 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
 
     page.keyboard.press("Shift+t")
     page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
+    # Focus reaches the card before its passage starts scrolling into view.
+    expect(page.locator("#also p")).to_be_in_viewport()
     scroll_settled(page)
     landed = page.evaluate("document.scrollingElement.scrollTop")
     assert landed < reading - 1000
@@ -64,6 +66,7 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
         " !== first",
         arg=first,
     )
+    expect(page.locator("#near p")).to_be_in_viewport()
     scroll_settled(page)
     walked = page.evaluate("document.scrollingElement.scrollTop")
     assert walked < landed - 1000

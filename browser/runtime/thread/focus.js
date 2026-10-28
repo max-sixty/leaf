@@ -9,10 +9,9 @@ import {
 import { shownBox } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { closestAcross } from "../passages.js";
-import { upFrom } from "../shadow.js";
 import { nextRender } from "../rendering.js";
 import { repaint } from "../repaint.js";
-import { drawnThreadId, SAY_BOX, THREAD } from "./selectors.js";
+import { drawnThreadId, threadPart, THREAD } from "./selectors.js";
 import { allThreads } from "./state.js";
 import { replyAvailable, replyControlDestination, replyThreadKey } from "./replies.js";
 import { threadKey } from "./model.js";
@@ -20,55 +19,6 @@ import { threadKey } from "./model.js";
 // A drawn thread's root is where the user is on it.
 export function focusThread(thread, cause) {
   focusDestination(thread, cause);
-}
-
-// A drawn thread's own parts: the box its reply is written in, and the control that
-// settles it, whose `lf-resolve` or `lf-reopen` says which way. A card draws both inside
-// itself. A presentation that draws one elsewhere, as the floating panel draws the reply
-// as its field and Resolve among its view's controls, declares on the thread element
-// where each stands (`declareThreadParts`): `reply` and `settlement`, each a function of
-// that element answering the part, or null while the thread has none there. Every reading
-// of a thread's reply or settlement goes through here (`threadPart`), so Enter, `r` and
-// `c` answer alike whichever chrome draws the thread. A thread drawn in pieces within
-// one that declares, as a reader's message parts in the panel's view, has the
-// enclosing drawing's parts where it holds none (`drawingsOf`).
-//
-// Such a presentation also declares `whole`, the element standing for the thread as a
-// whole where its pieces stand apart, as the panel's view does for its head and its
-// field (`wholeThread`).
-const declaredParts = new WeakMap();
-export const declareThreadParts = (thread, parts) => declaredParts.set(thread, parts);
-const ownParts = {
-  reply: (thread) => thread.querySelector(SAY_BOX),
-  settlement: (thread) =>
-    [...thread.querySelectorAll(".lf-resolve, .lf-reopen")].find(
-      (control) => control.closest(THREAD) === thread,
-    ) ?? null,
-};
-// The drawings of one thread from `thread` outward: itself, then each drawing of the
-// same thread around it.
-function* drawingsOf(thread) {
-  const id = drawnThreadId(thread);
-  for (
-    let at = thread;
-    at === thread || (at && id && drawnThreadId(at) === id);
-    at = closestAcross(upFrom(at), THREAD)
-  )
-    yield at;
-}
-// The whole of the thread drawn at `thread`: its outermost drawing, or the element that
-// drawing declares as the whole. It holds the thread's messages, so a reading of them
-// searches it, and it is the thread a keyboard stands on, as a reply box's way back.
-export function wholeThread(thread) {
-  const outer = [...drawingsOf(thread)].at(-1);
-  return declaredParts.get(outer)?.whole(outer) ?? outer;
-}
-export function threadPart(thread, name) {
-  for (const at of drawingsOf(thread)) {
-    const part = (declaredParts.get(at) ?? ownParts)[name](at);
-    if (part) return part;
-  }
-  return null;
 }
 
 export const threadReplyInput = (thread) => {
@@ -96,8 +46,10 @@ export function focusedThreadTarget() {
 // The thread the user is in, wherever it is drawn — the Threads list, the margin card, a
 // seat on the page — with a control inside one standing in it too. Climbing from the
 // inner focus reaches a seat a widget stages in its shadow tree. The box's way out climbs
-// further, to a seat holding no thread yet (landing.js, `heldThreadOrSeat`).
-export const heldThread = () => closestAcross(focused(), THREAD);
+// further, to a seat holding no thread yet (landing.js, `heldThreadOrSeat`). A walk asks
+// the same of the node its origin was read from (`threadIn`).
+export const threadIn = (node) => closestAcross(node, THREAD);
+export const heldThread = () => threadIn(focused());
 
 // Its logged id.
 export const heldThreadId = () => drawnThreadId(heldThread());

@@ -25,12 +25,13 @@
  * or the paper's width when printing, lays them out again; the lane count and the
  * label rows that width allows set the height.
  */
-import { html, nothing, render, repeat } from "/vendor/lit.js";
+import { html, nothing, ref, render, repeat } from "/vendor/lit.js";
 import {
   assignRows,
   axisTicks,
   textWidth,
 } from "../../../browser/runtime/time-axis.js";
+import { actionOffers } from "../../../browser/runtime/icon-paths.js";
 
 // The track's inset at each end, so a mark at 0 or at the end isn't cut in half. The
 // theme reads it as --lf-timeline-edge.
@@ -126,9 +127,9 @@ function layoutLabels(model, width, font) {
 const fraction = (value) => Math.round(value * 1e5) / 1e5;
 
 /**
- * Draw the timeline into `host` with the initial renderer's `tools`. Returns the
- * retained controls and `show(index)`, which paints a step, and `layout()`, which
- * measures the track and lays the labels out again.
+ * The timeline's one template and its mechanical inputs. `current` selects a
+ * step; `layout()` measures the generated ruler and computes label geometry.
+ * Neither changes the DOM: parser delivery and the live element render the template.
  */
 export function drawTimeline(host, tools) {
   const model = readTimeline(host);
@@ -139,187 +140,215 @@ export function drawTimeline(host, tools) {
   );
   let layout = null;
 
-  // The view holds evidence as well as controls, so it isn't an offer: paper drops
-  // offers, and would drop the chart and the step list with them.
-  const view = document.createElement("div");
-  view.className = "lf-timeline-view";
-  tools.generatedElement(view, { says: false });
-  const controls = tools.offer("div", "lf-timeline-controls");
-  controls.setAttribute("role", "group");
-  controls.setAttribute("aria-label", host.getAttribute("aria-label") ?? "Timeline");
-  const previous = tools.offer("button", "lf-btn lf-timeline-previous", "Previous");
-  const position = tools.offer("span", "lf-timeline-position");
-  tools.generatedElement(position, { says: false });
-  const next = tools.offer("button", "lf-btn lf-timeline-next", "Next");
-  controls.append(previous, next, position);
-
-  // The chart repeats the step list's words, which assistive technology reads there.
-  const chart = document.createElement("div");
-  chart.className = "lf-timeline-chart";
-  chart.setAttribute("aria-hidden", "true");
-  tools.generatedElement(chart, { says: "echo" });
-  chart.style.setProperty("--lf-timeline-lanes", String(model.lanes.length));
-  chart.style.setProperty("--lf-timeline-edge", `${EDGE}px`);
-
-  const list = document.createElement("ol");
-  list.className = "lf-timeline-steps";
-  tools.generatedElement(list, { says: true });
-  const rows = model.steps.map((step, index) => {
-    const item = document.createElement("li");
-    // The step is selectable page text as well as a press; paper keeps its words.
-    const button = tools.generatedElement(
-      tools.selectableOffer("button", "lf-timeline-step"),
-      {
-        says: true,
-      },
-    );
-    button.dataset.step = String(index);
-    const at = document.createElement("span");
-    at.className = "lf-timeline-step-time";
-    at.textContent = clock(step.time);
-    button.append(at);
-    for (const event of step.events) {
-      const line = document.createElement("span");
-      line.className = "lf-timeline-step-event";
-      const lane = document.createElement("span");
-      lane.className = "lf-timeline-step-lane";
-      lane.textContent = `${model.lanes[event.lane].label}: `;
-      line.append(lane, event.label);
-      button.append(line);
-    }
-    item.append(button);
-    list.append(item);
-    return button;
+  const drawing = {
+    render: template,
+    model,
+    rows: [],
+    get current() {
+      return current;
+    },
+    set current(index) {
+      current = Math.max(0, Math.min(model.steps.length - 1, index));
+    },
+    /** Measure the track and lay labels out again; false while it has no width. */
+    layout() {
+      const ruler = drawing.chart.querySelector(".lf-timeline-ruler");
+      const width = ruler?.clientWidth ?? 0;
+      if (!width) return false;
+      const style = getComputedStyle(drawing.chart);
+      const font = `${style.getPropertyValue("--lf-timeline-label-weight").trim() || 500} ${style.fontSize} ${style.fontFamily}`;
+      layout = layoutLabels(model, width, font);
+      return true;
+    },
+    /** The event's drawn group and its mark, for comment targets. */
+    eventElement(id) {
+      return drawing.chart.querySelector(
+        `.lf-timeline-event[data-event="${CSS.escape(id)}"]`,
+      );
+    },
+  };
+  const generated = (says) => (node) => node && tools.generatedElement(node, { says });
+  const offered = (key, cls) => (node) => {
+    if (node) drawing[key] = tools.offerElement(node, cls);
+  };
+  const viewRef = generated(false);
+  const positionRef = (node) => {
+    if (node)
+      tools.generatedElement(tools.offerElement(node, "lf-timeline-position"), {
+        says: false,
+      });
+  };
+  const controlsRef = offered("controls", "lf-timeline-controls");
+  const { offerActionElement } = actionOffers(tools);
+  const previousRef = (node) => {
+    if (node)
+      drawing.previous = offerActionElement(
+        node,
+        "symbol",
+        "lf-timeline-previous",
+        undefined,
+        { action: "previous" },
+      );
+  };
+  const nextRef = (node) => {
+    if (node)
+      drawing.next = offerActionElement(node, "symbol", "lf-timeline-next", undefined, {
+        action: "next",
+      });
+  };
+  const chartRef = (node) => {
+    if (node) drawing.chart = tools.generatedElement(node, { says: "echo" });
+  };
+  const listRef = generated(true);
+  const rowRefs = model.steps.map((_, index) => (node) => {
+    if (!node) return;
+    // A span keeps the words selectable while the shared command routes activate it.
+    tools.selectableOfferElement(node, "button", "lf-timeline-step");
+    drawing.rows[index] = tools.generatedElement(node, { says: true });
   });
 
-  view.append(controls, chart, list);
-  host.append(view);
-
-  const paintChart = () => {
+  const chartTemplate = () => {
     const now = model.steps[current]?.time ?? 0;
     const along = (ms) => fraction(ms / model.duration);
     const ticks = layout
       ? axisTicks(0, model.duration, model.duration, layout.pxPerMs)
       : [];
-    render(
-      html`${model.lanes.map(
-          (lane) =>
+    return html`${model.lanes.map(
+        (lane) =>
+          html`<span
+            class="lf-timeline-name"
+            style="grid-row: ${lane.index + 2}; --lf-timeline-rows: ${
+              layout?.rows[lane.index] ?? 1
+            }"
+            >${lane.label}</span
+          >`,
+      )}
+      <div class="lf-timeline-ruler">
+        ${repeat(
+          ticks,
+          (tick) => `${tick.step}:${tick.time}`,
+          (tick) =>
             html`<span
-              class="lf-timeline-name"
-              style="grid-row: ${lane.index + 2}; --lf-timeline-rows: ${layout?.rows[lane.index] ?? 1}"
-              >${lane.label}</span
+              class="lf-timeline-tick"
+              ?data-major=${tick.major}
+              ?data-flip=${tick.major && tick.time * layout.pxPerMs > layout.span - 36}
+              style="--lf-timeline-at: ${along(tick.time)}"
+              >${tick.label ?? nothing}</span
             >`,
         )}
-        <div class="lf-timeline-ruler">
-          ${repeat(
-            ticks,
-            (tick) => `${tick.step}:${tick.time}`,
-            (tick) =>
-              html`<span
-                class="lf-timeline-tick"
-                ?data-major=${tick.major}
-                ?data-flip=${tick.major && tick.time * layout.pxPerMs > layout.span - 36}
-                style="--lf-timeline-at: ${along(tick.time)}"
-                >${tick.label ?? nothing}</span
-              >`,
-          )}
-        </div>
-        ${model.lanes.map(
-          (lane) =>
-            html`<div
-              class="lf-timeline-lane"
-              style="grid-row: ${lane.index + 2}; --lf-timeline-rows: ${layout?.rows[lane.index] ?? 1}"
-            >
-              ${repeat(
-                lane.events,
-                (event) => event.id,
-                (event) => {
-                  const label = layout?.placed.get(event.id);
-                  const { state, done } = stateAt(event, now);
-                  return html`<div
-                    class="lf-timeline-event"
-                    data-event=${event.id}
-                    data-step=${event.step}
-                    data-state=${state}
+      </div>
+      ${model.lanes.map(
+        (lane) =>
+          html`<div
+            class="lf-timeline-lane"
+            style="grid-row: ${lane.index + 2}; --lf-timeline-rows: ${
+              layout?.rows[lane.index] ?? 1
+            }"
+          >
+            ${repeat(
+              lane.events,
+              (event) => event.id,
+              (event) => {
+                const label = layout?.placed.get(event.id);
+                const { state, done } = stateAt(event, now);
+                return html`<div
+                  class="lf-timeline-event"
+                  data-event=${event.id}
+                  data-step=${event.step}
+                  data-state=${state}
+                >
+                  <span
+                    class="lf-timeline-label"
+                    data-place=${label?.place ?? "start"}
+                    style="--lf-timeline-row-index: ${
+                      label?.row ?? 0
+                    }; --lf-timeline-at: ${along(event.at)}"
+                    >${event.label}</span
                   >
-                    <span
-                      class="lf-timeline-label"
-                      data-place=${label?.place ?? "start"}
-                      style="--lf-timeline-row-index: ${label?.row ?? 0}; --lf-timeline-at: ${along(event.at)}"
-                      >${event.label}</span
-                    >
-                    <span
-                      class="lf-timeline-mark"
-                      data-kind=${event.end === null ? "instant" : "span"}
-                      style="--lf-timeline-at: ${along(event.at)}; --lf-timeline-span: ${along((event.end ?? event.at) - event.at)}; --lf-timeline-done: ${done}"
-                    ></span>
-                  </div>`;
-                },
-              )}
-            </div>`,
-        )}
-        <div class="lf-timeline-playhead">
-          <span
-            class="lf-timeline-playhead-line"
-            style="--lf-timeline-at: ${along(now)}"
-          ></span>
-        </div>`,
-      chart,
-    );
+                  <span
+                    class="lf-timeline-mark"
+                    data-kind=${event.end === null ? "instant" : "span"}
+                    style="--lf-timeline-at: ${along(
+                      event.at,
+                    )}; --lf-timeline-span: ${along(
+                      (event.end ?? event.at) - event.at,
+                    )}; --lf-timeline-done: ${done}"
+                  ></span>
+                </div>`;
+              },
+            )}
+          </div>`,
+      )}
+      <div class="lf-timeline-playhead">
+        <span
+          class="lf-timeline-playhead-line"
+          style="--lf-timeline-at: ${along(now)}"
+        ></span>
+      </div>`;
   };
 
-  const paintTransport = () => {
-    tools.keeps(previous, "aria-disabled", current > 0 ? null : "true");
-    tools.keeps(
-      next,
-      "aria-disabled",
-      current < model.steps.length - 1 ? null : "true",
-    );
-    const text = model.steps.length
+  function template() {
+    const position = model.steps.length
       ? `Step ${current + 1} of ${model.steps.length} · ${clock(model.steps[current].time)}`
       : "No events";
-    if (position.textContent !== text) position.textContent = text;
-    rows.forEach((row, index) => {
-      tools.keeps(row, "aria-current", index === current ? "step" : null);
-      tools.keeps(row, "data-past", index < current ? "" : null);
-    });
-  };
-
-  const drawing = {
-    model,
-    controls,
-    previous,
-    next,
-    chart,
-    rows,
-    get current() {
-      return current;
-    },
-    /** Paint step `index`, clamped to the steps there are. */
-    show(index) {
-      current = Math.max(0, Math.min(model.steps.length - 1, index));
-      paintTransport();
-      paintChart();
-      return current;
-    },
-    /** Measure the track and lay labels out again; false while it has no width. */
-    layout() {
-      const ruler = chart.querySelector(".lf-timeline-ruler");
-      const width = ruler?.clientWidth ?? 0;
-      if (!width) return false;
-      const style = getComputedStyle(chart);
-      const font = `${style.getPropertyValue("--lf-timeline-label-weight").trim() || 500} ${style.fontSize} ${style.fontFamily}`;
-      layout = layoutLabels(model, width, font);
-      paintChart();
-      return true;
-    },
-    /** The event's drawn group and its mark, for comment targets. */
-    eventElement(id) {
-      return chart.querySelector(`.lf-timeline-event[data-event="${CSS.escape(id)}"]`);
-    },
-  };
-  paintTransport();
-  paintChart();
+    // Lit owns the complete generated view from first paint through each step. The
+    // authored lanes remain beside it as the source, rather than becoming template DOM.
+    return html` <div class="lf-timeline-view" ${ref(viewRef)}>
+      <div
+        ${ref(controlsRef)}
+        role="group"
+        aria-label=${host.getAttribute("aria-label") ?? "Timeline"}
+      >
+        <button
+          ${ref(previousRef)}
+          aria-disabled=${current > 0 ? nothing : "true"}
+        ></button>
+        <button
+          ${ref(nextRef)}
+          aria-disabled=${current < model.steps.length - 1 ? nothing : "true"}
+        ></button>
+        <span ${ref(positionRef)}>${position}</span>
+      </div>
+      <div
+        class="lf-timeline-chart"
+        aria-hidden="true"
+        ${ref(chartRef)}
+        style="--lf-timeline-lanes: ${
+          model.lanes.length
+        }; --lf-timeline-edge: ${EDGE}px"
+      >
+        ${chartTemplate()}
+      </div>
+      <ol class="lf-timeline-steps" ${ref(listRef)}>
+        ${model.steps.map(
+          (step, index) =>
+            html`<li>
+              <span
+                ${ref(rowRefs[index])}
+                tabindex="0"
+                data-step=${index}
+                aria-current=${index === current ? "step" : nothing}
+                ?data-past=${index < current}
+              >
+                <span class="lf-timeline-step-time">${clock(step.time)}</span>
+                ${step.events.map(
+                  (event) =>
+                    html`<span class="lf-timeline-step-event"
+                      ><span class="lf-timeline-step-lane"
+                        >${model.lanes[event.lane].label}: </span
+                      >${event.label}</span
+                    >`,
+                )}
+              </span>
+            </li>`,
+        )}
+      </ol>
+    </div>`;
+  }
+  // The ruler's generated grid column is the measurement, not the host width:
+  // its first column sizes itself to the authored lane names. Mount the same
+  // template once to read that column; delivery commits the measured template.
+  render(drawing.render(), host, { host });
   drawing.layout();
   return drawing;
 }

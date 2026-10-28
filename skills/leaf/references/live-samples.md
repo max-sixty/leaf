@@ -131,7 +131,7 @@ host.on("height", fit);
 fit(await host.ready);
 ```
 
-The source uses the parent's captured layer and files. Leaf checks it as an ordinary
+The source uses the layer the parent's revision selects and its captured files. Leaf checks it as an ordinary
 page before serving it, and its native controls use an independent, temporary event
 log. The iframe has an opaque origin: it cannot read the surrounding page's DOM or
 credentials. Generation happens in the parent; a sample cannot call `generate()`.

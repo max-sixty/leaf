@@ -197,17 +197,19 @@ const outcomeOf = (state) => state?.decide.detail.outcome ?? null;
 const decision = (app) => outcomeOf(app.read().effective.widgets.get("choice").state);
 
 test("semantic publication opens before subscribers and seals the newest nested epoch", async () => {
-  const document = {};
   const coordinator = createPresentationCoordinator({ reportFailure: assert.fail });
   const lifecycle = [];
+  const publications = [];
   const app = createSemanticApplication({
     presentation: {
-      begin(epoch) {
-        lifecycle.push(["begin", epoch]);
-        return coordinator.begin(document, epoch);
+      begin() {
+        const publication = coordinator.begin();
+        publications.push(publication);
+        lifecycle.push(["begin", publications.indexOf(publication)]);
+        return publication;
       },
       seal(publication) {
-        lifecycle.push(["seal", publication.semanticEpoch]);
+        lifecycle.push(["seal", publications.indexOf(publication)]);
         return coordinator.seal(publication);
       },
     },
@@ -224,9 +226,9 @@ test("semantic publication opens before subscribers and seals the newest nested 
     .subscribe((phase) => {
       if (phase !== "offline" || nested) return;
       nested = true;
-      assert.equal(coordinator.read().semanticEpoch, 1);
-      const renderer = coordinator.attach("widget", {});
-      presentation = renderer.present("offline");
+      assert.equal(coordinator.read().sealed, false);
+      const renderer = coordinator.attach("widget");
+      presentation = renderer.present();
       app.acceptData({ version: "empty", sources: {} }, 1);
     });
 
@@ -239,15 +241,27 @@ test("semantic publication opens before subscribers and seals the newest nested 
   ]);
   assert.deepEqual(coordinator.read().pending, ["widget"]);
   let ready = false;
-  const readiness = coordinator.whenPresented(document, 2).then((outcome) => {
+  const readiness = coordinator.whenCurrentPresented().then((outcome) => {
     ready = true;
     return outcome;
   });
   await Promise.resolve();
   assert.equal(ready, false);
-  presentation.resolve("proof");
+  presentation.resolve();
   await presentation.ready;
   assert.equal(await readiness, "presented");
+
+  // Transport-only adoption still opens and seals a fresh presentation boundary;
+  // coordinator readiness needs no second copy of the application's semantic epoch.
+  const epoch = app.read().semanticEpoch;
+  lifecycle.length = 0;
+  app.setReach("offline", "Disconnected");
+  assert.equal(app.read().semanticEpoch, epoch);
+  assert.deepEqual(lifecycle, [
+    ["begin", 3],
+    ["seal", 3],
+  ]);
+  assert.equal(coordinator.currentPresented(), true);
 });
 
 test("one synchronous immutable reading combines authored, accepted, and later pending gestures", () => {
@@ -1361,18 +1375,21 @@ test("a pending gesture leaves obligations and On me as served until the log ans
   const app = setup();
   const accepted = state(2, [kept]);
   const answered = {
-    id: "widget:keep-chart",
-    source: { kind: "widget", id: "keep-chart", tag: "lf-ask" },
+    id: `message:${item.id}`,
+    source: { kind: "message", id: item.id },
     thread: item.id,
     message: item.id,
-    prompt: { text: item.text, target: "keep-chart" },
+    prompt: { text: item.text, target: null },
     answer: { value: { token: "keep" }, event: kept },
     status: "answered",
     next_actor: null,
   };
   accepted.browser.views[1].obligations = [answered];
   const done = {
-    ...servedObligationRow(answered, { subject: { kind: "thread", id: item.id } }),
+    ...servedObligationRow(answered, {
+      kind: "message",
+      subject: { kind: "thread", id: item.id },
+    }),
     state: "done",
     ended: null,
     detail: null,
@@ -1387,14 +1404,22 @@ test("a pending gesture leaves obligations and On me as served until the log ans
   assert.deepEqual(pending.queues.on_user, []);
   assert.deepEqual(
     pending.queues.done.map(({ kind, id }) => [kind, id]),
-    [["widget", answered.id]],
+    [["message", answered.id]],
   );
 
   const reopened = { ...answered, answer: null, status: "open", next_actor: "user" };
   const undo = { kind: "undo", id: "e-undo", undoes: kept.id, attempt: "take-back" };
   const answeredUndo = state(3, [kept, undo]);
   answeredUndo.browser.views[1].obligations = [reopened];
-  answeredUndo.browser.views[1].queues = obligationQueues([reopened]);
+  answeredUndo.browser.views[1].queues = {
+    ...obligationQueues([]),
+    on_user: [
+      servedObligationRow(reopened, {
+        kind: "message",
+        subject: { kind: "thread", id: item.id },
+      }),
+    ],
+  };
   answeredUndo.browser.views[1].thread.threads = [
     servedThread([item], {
       attention: { kind: "needs_user", reason: "obligation", workflow: null },
@@ -1405,7 +1430,7 @@ test("a pending gesture leaves obligations and On me as served until the log ans
   assert.equal(thread.all[0].attention.kind, "needs_user");
   assert.deepEqual(
     queues.on_user.map(({ kind, id }) => [kind, id]),
-    [["widget", answered.id]],
+    [["message", answered.id]],
   );
 });
 

@@ -1,297 +1,52 @@
-/* @noformat Generated from packages/diff/styles/widgets.css by build/styles.mjs. */
-/* packages/diff/styles/palette.css */
-:where(:scope, :scope:host) {
-  --lf-code-add-fill: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
-  --lf-code-del-fill: color-mix(in srgb, var(--danger) 16%, var(--pre-bg));
-}
+@import "./styles/palette.css";
+@import "./styles/geometry.css";
+@import "./styles/disclosure.css";
+@import "./styles/worktrees.css";
 
-/* packages/diff/styles/geometry.css */
-:where(:scope, :scope:host) {
-  --lf-diff-gap: 8px;
-  --lf-diff-action-h: 26px;
-  --lf-diff-action-top: max(6px, (var(--aim-floor) - var(--lf-diff-action-h)) / 2);
-  --lf-diff-head-line: 35px;
-  --lf-diff-head-pressed: max( var(--lf-diff-head-line), calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)), var(--aim-floor) );
-}
+/* The diff package's presentation. Everything here was in the default package's theme
+ * until Pierre's 1.7MB left every page carrying a diff renderer most of them never
+ * draw with. The rules for the diff's own shadow tree are in widget-shadow.css. */
 
-/* packages/diff/styles/disclosure.css */
-@media screen and (prefers-reduced-motion: no-preference) {
-  @supports (block-size: calc-size(auto, size)) and (interactivity: inert) {
-    :is(.lf-diff-fold, .lf-call-group) {
-      interpolate-size: allow-keywords;
-    }
-    :is(.lf-diff-fold, .lf-call-group)::details-content {
-      block-size: auto;
-      overflow: clip;
-      transition: block-size var(--lf-motion-fold) ease, content-visibility var(--lf-motion-fold) allow-discrete;
-    }
-    :is(.lf-diff-fold, .lf-call-group):not([open])::details-content {
-      block-size: 0;
-    }
-    :is(.lf-diff-fold, .lf-call-group):not([open]) > :not(summary) {
-      interactivity: inert;
-    }
-    :is(.lf-diff-fold, .lf-call-group)[open]::details-content,
-    :is(.lf-diff-fold, .lf-call-group):has(> summary:focus-visible)::details-content {
-      transition-duration: 0s;
-    }
-  }
-}
-
-/* packages/diff/styles/worktrees.css */
-:scope:is(lf-worktree-diffs) {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) repeat(5, auto);
-  column-gap: var(--sp-3);
-  min-width: 0;
-  max-width: 100%;
-  margin-block: var(--sp-4);
-  font-family: var(--sans);
-  font-size: var(--t-5);
-  line-height: 1.5;
-  container-type: inline-size;
-}
-:scope:is(lf-worktree),
-.lf-worktree-disclosure,
-.lf-worktree-summary,
-.lf-worktree-summary > .lf-worktree-stats {
-  column-gap: inherit;
-}
-:scope:is(lf-worktree) {
-  display: grid;
-  grid-template-columns: subgrid;
-  grid-column: 1 / -1;
-  min-width: 0;
-  max-width: 100%;
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--sans);
-  font-size: var(--t-5);
-  line-height: 1.5;
-}
-:scope:is(lf-worktree-diffs) > lf-worktree + lf-worktree {
-  margin-block-start: var(--sp-2);
-}
-.lf-worktree-overview {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-4);
-  padding-block-end: var(--sp-3);
-  color: var(--muted);
-  font-size: var(--t-6);
-}
-.lf-worktree-total {
-  color: var(--ink);
-  font-size: var(--t-5);
-}
-.lf-worktree-disclosure {
-  display: grid;
-  grid-template-columns: subgrid;
-  grid-column: 1 / -1;
-  margin: 0;
-  padding: 0 var(--sp-4);
-  border: 0;
-}
-.lf-worktree-disclosure[open] {
-  padding-block-end: var(--sp-4);
-}
-.lf-worktree-disclosure[open] > .lf-worktree-summary {
-  border-block-end: 1px solid var(--rule);
-  border-radius: 0;
-}
-.lf-worktree-summary {
-  box-sizing: border-box;
-  margin-inline: calc(-1 * var(--sp-4));
-  display: grid;
-  grid-template-columns: subgrid;
-  grid-column: 1 / -1;
-  align-items: center;
-  min-block-size: max(4rem, var(--aim-floor));
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r);
-  font-weight: 400;
-}
-.lf-worktree-summary::before {
-  inline-size: 1rem;
-  text-align: center;
-  justify-self: center;
-  color: var(--muted);
-}
-.lf-worktree-summary:hover {
-  background: color-mix(in srgb, var(--ink) 3%, var(--paper));
-}
-.lf-worktree-identity {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-.lf-worktree-label {
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-.lf-worktree-ref {
-  font-family: var(--mono);
-  font-size: var(--t-6);
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
-.lf-worktree-ref:empty {
-  display: none;
-}
-.lf-worktree-status,
-.lf-worktree-stats {
-  color: var(--muted);
-  font-size: var(--t-6);
-  font-variant-numeric: tabular-nums;
-}
-.lf-worktree-stats {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: var(--sp-2);
-  row-gap: 0;
-}
-.lf-worktree-stats > span {
-  min-inline-size: max-content;
-}
-.lf-worktree-summary > .lf-worktree-stats {
-  display: grid;
-  grid-template-columns: subgrid;
-  grid-column: 4 / -1;
-}
-.lf-worktree-additions {
-  color: var(--ok-ink);
-}
-.lf-worktree-deletions {
-  color: var(--danger-ink);
-}
-.lf-worktree-body > :last-child {
-  margin-block-end: 0;
-}
-.lf-worktree-path {
-  margin-block-start: var(--sp-3);
-  display: grid;
-  grid-template-columns: 5rem minmax(0, 1fr);
-  gap: var(--sp-2);
-  color: var(--muted);
-  font-size: var(--t-6);
-}
-.lf-worktree-disclosure code {
-  overflow-wrap: anywhere;
-}
-.lf-worktree-path code {
-  min-width: 0;
-  padding: 0;
-  color: var(--ink);
-  background: none;
-  font-size: inherit;
-}
-.lf-worktree-body > p {
-  margin-block: var(--sp-2) var(--sp-3);
-}
-.lf-worktree-body > aside {
-  margin-block: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
-  border-inline-start: 1px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 5%, var(--paper));
-}
-.lf-worktree-body > aside > :first-child {
-  margin-block-start: 0;
-}
-.lf-worktree-body > aside > :last-child {
-  margin-block-end: 0;
-}
-.lf-worktree-body > details {
-  margin-block: var(--sp-2) var(--sp-3);
-  padding: 0;
-  color: var(--muted);
-  font-size: var(--t-6);
-}
-.lf-worktree-body > details > summary {
-  font-size: inherit;
-  font-weight: 500;
-}
-.lf-worktree-disclosure dl {
-  display: grid;
-  grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
-  gap: var(--sp-2) var(--sp-4);
-  margin-block: var(--sp-3);
-  font-size: var(--t-6);
-}
-.lf-worktree-disclosure dt,
-.lf-worktree-disclosure dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.lf-worktree-disclosure dt {
-  color: var(--muted);
-  font-weight: 400;
-}
-.lf-worktree-disclosure dd {
-  color: var(--ink);
-}
-@container (max-width: 38rem) {
-  :scope:is(lf-worktree),
-  .lf-worktree-disclosure {
-    display: block;
-  }
-  .lf-worktree-summary {
-    grid-template-columns: 1rem minmax(0, 1fr) auto;
-    gap: var(--sp-1) var(--sp-2);
-    padding-inline: var(--sp-3);
-    margin-inline: calc(-1 * var(--sp-3));
-  }
-  .lf-worktree-summary::before {
-    grid-row: 1 / 3;
-  }
-  .lf-worktree-status {
-    align-self: start;
-  }
-  .lf-worktree-summary > .lf-worktree-stats {
-    display: inline-flex;
-    grid-column: 2 / -1;
-  }
-  .lf-worktree-disclosure {
-    padding-inline: var(--sp-3);
-  }
-  .lf-worktree-path {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-  .lf-worktree-disclosure dl {
-    grid-template-columns: 1fr;
-    row-gap: var(--sp-1);
-  }
-  .lf-worktree-disclosure dd + dt {
-    margin-block-start: var(--sp-2);
-  }
-}
-@media print {
-  .lf-worktree-disclosure::details-content {
-    content-visibility: visible;
-  }
-}
-
-/* packages/diff/styles/widgets.css */
-:scope:is(lf-diff) {
+/* The shared source primitive owns pre-upgrade appearance. The rendered diff
+ * keeps code typography while its own shadow tree scrolls the evidence. */
+lf-diff {
   contain: inline-size;
 }
-:scope:is(lf-diff).lf-rendered {
+lf-diff.lf-rendered {
   font-family: var(--mono);
   font-size: var(--code-size);
   line-height: var(--code-line);
   font-variant-ligatures: none;
 }
-html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)) {
+
+/* First paint. An inline patch first paints as its source, while the drawing stands
+ * on other parts: a filter row where it has two files or more, a framed name row per
+ * file, and a row per source line and hunk separator, where its header lines take none. The initial renderer
+ * (initial/lf-diff.js) counts the files, whether they open, and the rows, with the
+ * prose rows its width wraps, and the box takes the drawn height from those counts
+ * and the anatomy here and in geometry.css, so the drawing lands without moving what
+ * follows. Each file is two hairlines around its name row, the next file's top drawn
+ * on the hairline above it, and an open file adds a hairline above its rows and the
+ * scroll track below them. Where nothing was counted (a `source`, a patch the counter
+ * declines) the declaration is invalid at computed time and the box is its source's. */
+html[data-lf-interactive] lf-diff:not(.lf-rendered, :has(> .lf-error)) {
   box-sizing: border-box;
-  block-size: calc(var(--lf-line) + var(--lf-diff-gap) + 1px + var(--lf-diff-files) * (var(--lf-diff-head-pressed) + 1px + var(--lf-diff-open) * (var(--lf-text-scroll-track) + 1px)) + var(--lf-diff-rows) * var(--code-line));
+  block-size: calc(
+    min(1, var(--lf-diff-files) - 1) * (var(--lf-line) + var(--lf-diff-gap)) + 1px +
+      var(--lf-diff-files) *
+      (
+        var(--lf-diff-head-pressed) + 1px + var(--lf-diff-open) *
+          (var(--lf-text-scroll-track) + 1px)
+      ) +
+      var(--lf-diff-rows) * var(--code-line)
+  );
   overflow: clip;
 }
-:scope:is(lf-call-diff) {
+
+/* CallDiff is literal review evidence rather than a second diagram language. Its
+ * unchanged rows hold the mental map still while additions and removals carry the
+ * same semantic washes as the source diff. */
+lf-call-diff {
   --lf-block-frame: 1;
   display: block;
   max-width: 100%;
@@ -308,6 +63,7 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
   line-height: var(--code-line);
   container-type: inline-size;
 }
+
 .lf-call-tools {
   display: flex;
   align-items: center;
@@ -319,23 +75,31 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
   color: var(--code-muted);
   font-family: var(--sans);
 }
+
 .lf-call-summary {
   margin: 0;
   font-size: var(--t-6);
 }
+
 .lf-call-toggle {
   flex: none;
 }
+
 .lf-call-group,
 .lf-call-root-location {
   background: var(--pre-bg);
 }
+
 .lf-call-group {
   margin: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
 }
+
+/* The root source link is a sibling control before its native disclosure. Both use
+ * the disclosure and status columns, so the link aligns with the root's call text
+ * without being nested in the summary or positioned over another control. */
 .lf-call-root-location {
   display: grid;
   grid-template-columns: 1.25rem 2rem minmax(0, 1fr);
@@ -343,6 +107,7 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
   padding-inline-end: var(--sp-3);
   border-top: 1px solid var(--code-border);
 }
+
 .lf-call-root-location > .lf-call-location {
   grid-column: 3;
   min-width: 0;
@@ -351,20 +116,25 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
   font-size: var(--t-6);
   text-overflow: ellipsis;
 }
+
 .lf-call-group > summary {
   cursor: pointer;
 }
+
 .lf-call-group > summary::before {
   align-self: center;
+  justify-self: center;
+  margin: 0;
   grid-column: 1;
   grid-row: 1;
   color: var(--code-muted);
-  text-align: center;
 }
+
 .lf-call-group-body {
   overflow-x: auto;
   border-top: 1px solid color-mix(in srgb, var(--code-border) 60%, transparent);
 }
+
 .lf-call-line {
   display: grid;
   grid-template-columns: 2rem max-content max-content;
@@ -372,6 +142,7 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
   padding-inline-end: var(--sp-3);
   white-space: pre;
 }
+
 .lf-call-group-summary {
   box-sizing: border-box;
   grid-template-columns: 1.25rem 2rem minmax(0, 1fr) max-content;
@@ -380,6 +151,7 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
   min-width: 0;
   padding-block: var(--sp-1);
 }
+
 .lf-call-group-summary .lf-call-body {
   grid-column: 3;
   grid-row: 1;
@@ -387,6 +159,7 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .lf-call-group-count {
   align-self: center;
   grid-column: 4;
@@ -398,21 +171,27 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
   text-align: end;
   white-space: nowrap;
 }
+
 .lf-call-line + .lf-call-line {
   border-top: 1px solid color-mix(in srgb, var(--code-border) 45%, transparent);
 }
+
 .lf-call-group-body .lf-call-line:first-child {
   border-top: 0;
 }
-:is(.lf-call-line, .lf-call-root-location)[data-status=added] {
+
+:is(.lf-call-line, .lf-call-root-location)[data-status="added"] {
   background: var(--lf-code-add-fill);
 }
-:is(.lf-call-line, .lf-call-root-location)[data-status=removed] {
+
+:is(.lf-call-line, .lf-call-root-location)[data-status="removed"] {
   background: var(--lf-code-del-fill);
 }
+
 .lf-call-line[data-root] .lf-call-body {
   font-weight: 700;
 }
+
 .lf-call-line[data-meta] {
   grid-template-columns: 2rem minmax(0, 1fr);
   min-width: 0;
@@ -421,22 +200,27 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
   color: var(--code-muted);
   white-space: normal;
 }
+
 .lf-call-line[data-meta] .lf-call-body {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
 .lf-call-marker {
   padding-inline: var(--sp-2);
   color: var(--code-muted);
   text-align: center;
   user-select: none;
 }
-.lf-call-line[data-status=added] .lf-call-marker {
+
+.lf-call-line[data-status="added"] .lf-call-marker {
   color: var(--ok-ink);
 }
-.lf-call-line[data-status=removed] .lf-call-marker {
+
+.lf-call-line[data-status="removed"] .lf-call-marker {
   color: var(--danger-ink);
 }
+
 .lf-call-location {
   white-space: pre;
   margin-inline-start: var(--sp-4);
@@ -444,9 +228,13 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
   text-decoration-color: var(--rule);
   text-underline-offset: 2px;
 }
+
+/* Only where there is somewhere to go: a row that names its location without linking it
+ * must not answer the pointer as though it did. */
 .lf-call-location[href]:hover {
   color: var(--accent);
 }
+
 .lf-call-missing {
   display: block;
   min-width: 0;
@@ -455,33 +243,41 @@ html[data-lf-interactive] :scope:is(lf-diff):not(.lf-rendered, :has(> .lf-error)
   font-family: var(--sans);
   white-space: normal;
 }
+
 @media print {
-  :scope:is(lf-call-diff),
+  lf-call-diff,
   .lf-call-line[data-meta],
   .lf-call-root-location,
-  .lf-call-line[data-status=added],
-  .lf-call-line[data-status=removed] {
+  .lf-call-line[data-status="added"],
+  .lf-call-line[data-status="removed"] {
     background: transparent;
   }
+
   .lf-call-tools {
     background: transparent;
   }
+
   .lf-call-group:not([open]) > .lf-call-group-body {
     display: block;
   }
+
+  /* A group's call is cut to its line on screen; paper wraps it whole. */
   .lf-call-group-summary .lf-call-body {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
 }
+
 @container (max-width: 34rem) {
   .lf-call-tools {
     align-items: flex-start;
     flex-direction: column;
   }
+
   .lf-call-group-count {
     display: none;
   }
+
   .lf-call-group-summary {
     grid-template-columns: 1.25rem 2rem minmax(0, 1fr);
   }

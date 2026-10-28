@@ -13,15 +13,6 @@ const sheets = JSON.parse(
   ).textContent,
 );
 
-// A widget module's own rules join the theme's cascade layer (layer.py, CASCADE_LAYERS), so
-// specificity, scope proximity, then order rank their rules, below Layouts, theme
-// packages, semantic state and the page's own stylesheet. Shared shadow rules use
-// `lf-shadow` above these adopted defaults and below theme packages and semantic state.
-// Chrome and apparatus marks stay unlayered so their paint beats page and widget
-// alike. The marks sheet's indication default uses lf-base so widgets can choose
-// their own indication face (marks.css).
-export const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
-
 function constructSheet(text) {
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(text);
@@ -38,7 +29,6 @@ export const chromeSheet = constructSheet(sheets.chrome);
 // (test_a_coined_class_cannot_reach_the_chromes_rules) holds the sheet to it both ways.
 export const chromeSharedClasses = Object.freeze([
   "lf-aiming",
-  "lf-btn",
   "lf-ins-block",
   "lf-over-item",
   "lf-react-mark",

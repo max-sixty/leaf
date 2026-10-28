@@ -42,6 +42,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
+from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as browser_served_model
 from leaf.served_state import work as work_served_model
 
@@ -294,8 +295,8 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir)
             "author": "agent",
             "parent": root["id"],
             "responds": root["id"],
-            "text": "One question:",
-            "markup": '<lf-ask id="option">Which option?</lf-ask>',
+            "text": "Which option?",
+            "obligation": True,
             "revision": 1,
         },
     )
@@ -324,7 +325,7 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir)
 def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     publish(page_dir)
     question = thread_model.cmd_comment(
-        page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
+        page_dir, "", "", "", "Forty?", "", obligation=True
     )
     browser = page_state(page_dir)["browser"]
     [before] = served_thread(browser)["threads"]
@@ -451,7 +452,7 @@ def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
     thread the agent's, and the agent's next turn in the thread takes it in."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = registry_storage.active_registry(page_dir)
     asked = append_carried_log_record(
         page_dir,
         {
@@ -890,7 +891,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     page_dir = claimed
     session_model.cmd_waiting(page_dir)
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, session["id"])
     )
     assert lease

@@ -57,6 +57,9 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     words = "  Keep the middle of this unsent thought.  "
     write(editor, words)
     editor.evaluate("box => box.setSelectionRange(7, 17, 'backward')")
+    # Read past the page's start: a page still at zero deliberately stays at its
+    # start across revisions, showing any new context inserted before its title.
+    page.evaluate("scrollTo({top: 20, behavior: 'instant'})")
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     reading = page.locator("#reading")
     expect(reading).to_be_in_viewport()
@@ -91,10 +94,8 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     expect(panel_field(page)).to_have_attribute(
         "placeholder", re.compile("Checking the order")
     )
-    expect(
-        thread.get_by_role("button", name="Work in progress", exact=True)
-    ).to_be_visible()
     expect(thread.locator(".lf-thread-working")).to_have_count(0)
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
     kept()
 

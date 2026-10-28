@@ -10,11 +10,11 @@
  * the chip the number is set in, and moves whatever stands after it. The integrated
  * theme's copy of this rule carries the measurement and the norm it answers. */
 .lf-shotcap,
-:scope:is(lf-sample)::before,
-:scope:is(lf-sample) > [data-lf-said="label"],
-:scope:is(lf-column)::before,
-:scope:is(lf-column) > [data-lf-said="label"],
-:scope:is(lf-tab)::before {
+lf-sample::before,
+lf-sample > [data-lf-said="label"],
+lf-column::before,
+lf-column > [data-lf-said="label"],
+lf-tab::before {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }

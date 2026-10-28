@@ -1,7 +1,7 @@
 /* The page sets scope; the timeline places every mark on one time scale. One
  * flexible viewport holds empty and captured states; short stages grow in flow.
  * Parents own spacing: theme steps separate groups; smaller steps join their parts. */
-:scope:is(lf-trace) {
+lf-trace {
   --lf-trace-control-size: 44px;
   --lf-trace-small-type: max(12px, var(--t-6));
   /* Aim for the reading band; the stage's intrinsic minimum preserves detail. */
@@ -24,13 +24,20 @@
   font: var(--t-5) / 1.45 var(--sans);
   overflow-wrap: anywhere;
 }
+/* Before its module connects, reserve the waiting line without generating copy.
+ * The live template owns the actual waiting message. */
+lf-trace:not(:defined)::before {
+  content: "";
+  display: block;
+  block-size: 1lh;
+}
 .lf-trace-view {
   display: contents;
 }
 .lf-trace-body {
   min-inline-size: 0;
 }
-:scope:is(lf-trace)[hidden="until-found"] {
+lf-trace[hidden="until-found"] {
   margin: 0;
   padding: 0;
   border: 0;
@@ -481,15 +488,6 @@
   translate: -1px 0;
   background: var(--accent);
 }
-.lf-trace-legend {
-  grid-column: 1 / -1;
-  margin: 0;
-  padding: var(--sp-1) var(--sp-2);
-  border-block-start: 1px solid var(--border-2);
-  color: var(--muted);
-  font: var(--lf-trace-small-type) / 1.4 var(--sans);
-  max-inline-size: none;
-}
 .lf-trace-timeline [data-lf-trace-tip-anchor] {
   anchor-name: --lf-trace-tip;
 }
@@ -701,7 +699,7 @@
   color: var(--muted);
   font-size: var(--lf-trace-small-type);
 }
-:scope:is(lf-trace-bookmark) {
+lf-trace-bookmark {
   display: none;
 }
 @media print {
@@ -793,15 +791,9 @@
   font: inherit;
 }
 .lf-trace-transport-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-2);
   flex: 0 0 auto;
   min-inline-size: var(--lf-trace-control-size);
   block-size: var(--lf-trace-control-size);
-  padding: 0 var(--sp-2);
-  font: 500 var(--lf-trace-small-type)/1 var(--sans);
 }
 /* These adjacent targets keep the shared ring inside their own allocation. */
 .lf-trace-transport-button[data-lf-focus-visible],
@@ -978,7 +970,7 @@
  * leaves no blank band under the shown one for the sticky chooser to hang over.
  * A recording is replaced in place, so its outgoing descendants cannot anchor
  * document scrolling. The stable surrounding page remains the reader's anchor. */
-:scope:is(lf-trace-compare) {
+lf-trace-compare {
   overflow-anchor: none;
   display: flex;
   flex-direction: column;
@@ -995,7 +987,7 @@
   padding-block: var(--sp-2);
   border-block-end: 1px solid var(--border-2);
 }
-:scope:is(lf-trace-compare) .lf-trace-heading {
+lf-trace-compare .lf-trace-heading {
   position: static;
 }
 @media (max-width: 600px) {
@@ -1005,14 +997,14 @@
     padding-block: var(--sp-1);
   }
 }
-:scope:is(lf-trace-compare) > *,
-:scope:is(lf-trace-compare) lf-trace {
+lf-trace-compare > *,
+lf-trace-compare lf-trace {
   margin-block: 0;
 }
 
 /* Prepaint chooses the same recording as the upgraded workspace. Without an
  * interactive runtime, every labeled recording remains available in page flow. */
-@scope (html[data-lf-interactive] :scope) {
+@scope (html[data-lf-interactive] lf-trace-compare) {
   :scope:is(lf-trace-compare):not(:defined) {
     &::before {
       content: "";

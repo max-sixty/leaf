@@ -53,12 +53,13 @@ import {
 } from "./block-controls.js";
 import { headerLevels, nameable } from "./css-anchors.js";
 import { focusDestination, focused } from "./focus.js";
-import { iconElement } from "./icons.js";
+import { actionTemplate } from "./icons.js";
 import { keeps } from "./keeps.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { plainPress } from "./pointer.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
-import { offer } from "./widget-elements.js";
+import { offer, offered, offeredAction } from "./widget-elements.js";
+import { html, live, nothing, render } from "/runtime/framework.js";
 
 const PLAYER = PAGE_PAINT_ATTRIBUTE.player;
 // The key this module projects its scope under, beside the video's other owners.
@@ -88,80 +89,87 @@ function toggle(video) {
   });
 }
 
-function paintTime({ video, time }) {
-  const at = String(video.currentTime);
-  if (time.value !== at) time.value = at;
-  keeps(
-    time,
-    "aria-valuetext",
-    `${clock(video.currentTime)} of ${clock(duration(video))}`,
+// Native media events own the clock; synchronous Lit rendering reads it directly
+// and retains the controls, including the range the reader may be scrubbing.
+export function paintRecordingControls(video, bar, enterFullScreen) {
+  keeps(bar, "data-playing", video.paused ? null : "");
+  keeps(bar, "role", "group");
+  keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
+  render(
+    html`<button
+        ${offeredAction(
+          "symbol",
+          "lf-video-play",
+          !video.paused ? "Pause recording" : "Play recording",
+          { action: "play" },
+        )}
+        tabindex="-1"
+      >
+        ${actionTemplate("pause", "lf-action-icon")}
+      </button>
+      <input
+        ${offered("lf-video-time")}
+        type="range"
+        tabindex="-1"
+        min="0"
+        step="any"
+        max=${String(duration(video))}
+        ?disabled=${!duration(video)}
+        .value=${live(String(video.currentTime))}
+        aria-label="Recording position"
+        aria-valuetext=${`${clock(video.currentTime)} of ${clock(duration(video))}`}
+        @input=${(event) => {
+          video.currentTime = Number(event.currentTarget.value);
+        }}
+      />
+      ${
+        enterFullScreen
+          ? html`<button
+              ${offeredAction("symbol", "lf-video-full-screen", "Full screen", {
+                action: "expand",
+              })}
+              tabindex="-1"
+            ></button>`
+          : nothing
+      }`,
+    bar,
   );
-}
-
-function paint(player) {
-  const { video, bar, play, time } = player;
-  const playing = !video.paused;
-  bar.classList.toggle("lf-video-playing", playing);
-  keeps(play, "aria-label", playing ? "Pause recording" : "Play recording");
-  keeps(time, "max", String(duration(video)));
-  // A recording that loads nothing until it plays has no length to scrub yet.
-  keeps(time, "disabled", duration(video) ? null : "");
-  paintTime(player);
 }
 
 // A player for `video`, its bar built and its listeners wired; `trade` writes it into
 // the page.
 function prepare(video) {
   const bar = offer("div", "lf-video-controls");
-  const play = offer("button", "lf-video-play");
-  play.tabIndex = -1;
-  play.append(
-    iconElement("play", "lf-video-icon"),
-    iconElement("pause", "lf-video-icon"),
-  );
-  const time = offer("input", "lf-video-time", undefined, "range");
-  time.tabIndex = -1;
-  time.min = "0";
-  time.step = "any";
-  keeps(time, "aria-label", "Recording position");
-  bar.append(play, time);
   const enterFullScreen = fillScreen(video);
-  const fullScreen = enterFullScreen && offer("button", "lf-video-full-screen");
-  if (fullScreen) {
-    fullScreen.tabIndex = -1;
-    fullScreen.append(iconElement("expand", "lf-video-icon"));
-    keeps(fullScreen, "aria-label", "Full screen");
-    bar.append(fullScreen);
-  }
-  // The bar stands in chrome, far from its video in the document, so it carries the
-  // video's name for whoever reaches it by reading rather than by the picture.
-  keeps(bar, "role", "group");
-  keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
+  const paint = () => paintRecordingControls(video, bar, enterFullScreen);
+  paint();
+  const play = bar.querySelector(".lf-video-play");
+  const fullScreen = bar.querySelector(".lf-video-full-screen");
   const player = {
     video,
     bar,
     play,
-    time,
     authoredTabindex: video.getAttribute("tabindex"),
     filling: false,
     events: new AbortController(),
     /** @type {ReturnType<typeof commandScope> | null} */
     scope: null,
+    paint,
   };
   const { signal } = player.events;
   const on = (target, type, listener) =>
     target.addEventListener(type, listener, { signal });
 
   for (const type of ["play", "pause", "ended", "loadedmetadata", "durationchange"])
-    on(video, type, () => paint(player));
-  on(video, "seeked", () => paintTime(player));
-  on(video, "timeupdate", () => paintTime(player));
+    on(video, type, paint);
+  on(video, "seeked", paint);
+  on(video, "timeupdate", paint);
   // The timeline follows each frame the browser presents rather than the few times a
   // second `timeupdate` fires, so its thumb glides instead of stepping.
   // One request stands at a time, however quickly playback stops and starts again.
   let frame = 0;
   const followFrames = () => {
-    paintTime(player);
+    paint();
     frame =
       video.paused || signal.aborted
         ? 0
@@ -174,19 +182,18 @@ function prepare(video) {
   on(video, "click", (event) => {
     if (plainPress(event) && !player.filling) toggle(video);
   });
-  on(time, "input", () => (video.currentTime = Number(time.value)));
 
   // The bar shows for a pointer over the recording, and for the current keyboard location on
   // it: focus a key brought, or a command a key ran there. A press that focused the
   // picture leaves a playing recording whole.
   const show = (flag, force) => {
     if (force) revealControl(bar, video);
-    bar.classList.toggle(flag, force);
+    keeps(bar, `data-${flag}`, force ? "" : null);
   };
-  on(video, "pointerenter", () => show("lf-video-hover", true));
-  on(video, "pointerleave", () => show("lf-video-hover", false));
-  on(video, "focus", () => show("lf-video-keyed", video.matches(":focus-visible")));
-  on(video, "blur", () => show("lf-video-keyed", false));
+  on(video, "pointerenter", () => show("hovered", true));
+  on(video, "pointerleave", () => show("hovered", false));
+  on(video, "focus", () => show("keyed", video.matches(":focus-visible")));
+  on(video, "blur", () => show("keyed", false));
   tabFromBlock(bar, video, signal);
   player.scope = commandScope("On a recording", [
     {
@@ -197,7 +204,7 @@ function prepare(video) {
       control: play,
       run: () => {
         // Its control runs it too, and a pointer's press there leaves the bar to hide.
-        if (focused() === video) show("lf-video-keyed", true);
+        if (focused() === video) show("keyed", true);
         toggle(video);
       },
     },
@@ -219,7 +226,7 @@ function prepare(video) {
       title: `back / forward ${STEP_SECONDS} seconds`,
       repeat: true,
       run: (binding) => {
-        show("lf-video-keyed", true);
+        show("keyed", true);
         const step = binding === "ArrowLeft" ? -STEP_SECONDS : STEP_SECONDS;
         video.currentTime = Math.min(
           duration(video),
@@ -250,7 +257,7 @@ function prepare(video) {
     player.filling = !player.filling;
     keeps(video, "controls", player.filling ? "" : null);
     projectCommandScope(video, SCOPE, player.filling ? null : player.scope);
-    show("lf-video-hover", false);
+    show("hovered", false);
   });
   players.set(video, player);
   return player;
@@ -262,7 +269,7 @@ function trade(player) {
   keeps(video, PLAYER, "");
   keeps(video, "controls", null);
   if (player.authoredTabindex === null) keeps(video, "tabindex", "0");
-  paint(player);
+  player.paint();
 }
 
 function giveBack(video) {

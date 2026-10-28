@@ -755,8 +755,9 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
 @pytest.mark.watch_shifts
 def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     """A step's words wrap, so a new step can change the working message's height. In a
-    seat where that would move the reply being typed, the step waits behind the
-    thread's notice, as a reply would, and the draft keeps its place."""
+    seat where that would move the reply being typed, the step waits and the draft
+    keeps its place. The notice says nothing of it, since progress is no unread news,
+    and sending the draft shows it."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
     thread_model.post_reply(
@@ -783,15 +784,14 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
         ephemeral=True,
     )
     told(page)
-    notice = thread.get_by_role("button", name="1 new message", exact=True)
-    expect(notice).to_be_visible()
     expect(words).to_have_text("Reading the jobs")
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
     assert editor.bounding_box() == pytest.approx(box, abs=0.5)
 
-    notice.click()
+    with sending(page, "the draft"):
+        editor.press("Enter")
     expect(words).to_contain_text("what each one needs before it can start")
-    assert editor.evaluate("box => box.value") == "Start with the mounts."
 
 
 def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, serve):
@@ -801,7 +801,10 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     mid-word ("1 new re…"). The count says "+1" in the room the notice kept, so a
     reader with no tooltip knows more waits; the name doesn't repeat it."""
     url = serve(SEATED_OBLIGATION_PAGE)
-    root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
+    # An agent's opening message has no delivery receipt competing with the news.
+    root = panel_comment(
+        serve.page_dir, "Which job comes first?", {"section": "jobs"}, author="agent"
+    )
     page = open_page(browser, url)
     resized(page, 390, 900)
     thread = page.locator("#jobs .lf-page-thread")
@@ -809,13 +812,15 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     write(thread.locator("leaf-text"), "Start with the mounts.")
     rendered(page)
 
-    thread_model.post_reply(
-        serve.page_dir, {"responds": root}, "The mounts come first."
-    )
+    thread_model.post_reply(serve.page_dir, {"parent": root}, "The mounts come first.")
     told(page)
     notice = thread.get_by_role("button", name="1 new reply", exact=True)
     expect(notice).to_be_visible()
     rendered(page)
+    # Dropping a later fact must not cut a first fact that already fit.
+    assert notice.locator(":scope > span > span").evaluate(
+        "fact => fact.scrollWidth <= fact.clientWidth"
+    )
     width = notice.bounding_box()["width"]
     expect(notice.locator(":scope > span")).not_to_have_attribute(
         "data-lf-more", re.compile(".*")
@@ -933,7 +938,7 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(
         thread.locator(f'.lf-msg[data-event="{failure["id"]}"] .lf-msg-failure')
-    ).to_have_text("Not answered")
+    ).to_have_text("Couldn't answer")
     expect(thread.locator(".lf-thread-working")).to_contain_text("Checking the board")
 
 
@@ -948,8 +953,8 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     question = thread_model.post_reply(
         serve.page_dir,
         {"responds": asked},
-        "One question:",
-        markup='<lf-ask id="store-choice">The session store or the page store?</lf-ask>',
+        "The session store or the page store?",
+        obligation=True,
         identity=codex,
     )
     promise = thread_model.post_reply(
@@ -962,7 +967,7 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     page = open_page(browser, url)
     for root, reply, words, section in (
         (asked, question, "Waiting on me", "h-how"),
-        (promised, promise, "To-do open", "lede"),
+        (promised, promise, "Still to do", "lede"),
     ):
         open_margin_card(page, section)
         thread = page.locator(card_of(root))
@@ -1002,9 +1007,9 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         },
     )
     page = open_page(browser, url)
-    # The unread reply is news, with no turn owed by either participant.
+    # The unread reply is the row's mark, with no turn owed by either participant.
     status = thread_row(page, root).locator(".lf-fp-value")
-    expect(status).to_have_text("New")
+    expect(status).to_have_text("")
     card = open_panel_thread(page, root)
     receipt = page.locator(
         f'.lf-fp-view .lf-msg[data-event="{board["id"]}"] .lf-msg-sending'
@@ -1016,7 +1021,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     with sending(page, "the card move"):
         page.keyboard.press("Enter")
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
-    expect(receipt).to_have_text("Sent")
+    expect(receipt).to_have_text(re.compile(r"^Queued for "))
     status = thread_row(page, root).locator(".lf-fp-value")
     expect(status).to_have_text("")
     card = open_panel_thread(page, root)
@@ -1098,7 +1103,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(page.locator("#cd-q .lf-thread-working")).to_contain_text(
         "Checking the south pair"
     )
-    expect(inline.locator(".lf-msg-failure")).to_have_text("Not answered")
+    expect(inline.locator(".lf-msg-failure")).to_have_text("Couldn't answer")
     assert inline.get_attribute("data-failure") == "turn_failed"
     # The real answer above it wears nothing, so the mark is a difference the user
     # can see rather than a decoration every agent message carries.
@@ -1109,11 +1114,11 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     # `needs_user` for recovery: the margin and panel name the action owed.
     margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
     expect(margin).to_have_attribute("data-lf-turn", "user")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("My turn to resend")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
 
     # Threads names the action owed on the thread's row, whole.
     status = thread_row(page, unanswered["id"]).locator(".lf-fp-value")
-    expect(status).to_have_text("My turn to resend")
+    expect(status).to_have_text("Send it again")
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the row clips its failure status"
     )
@@ -1134,7 +1139,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("My turn to resend")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
 
     # The failed answer remains distinct from the muted clock without a chip face.
     head = page.evaluate(

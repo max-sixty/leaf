@@ -54,7 +54,7 @@ def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
     url = url.rsplit("/versions/", 1)[0] + "/?" + url.partition("?")[2]
     page = open_page(browser, url)
     resized(page, 1000, 700)
-    case = page.locator('.lf-vr-case[aria-hidden="false"]')
+    case = page.locator(".lf-vr-case:not([hidden])")
     case.get_by_role("button", name="Image options").click()
     case.get_by_role("checkbox", name="Full frame").check()
     page.keyboard.press("Escape")
@@ -235,7 +235,7 @@ def test_visual_review_allocates_focused_evidence_before_images_decode(browser, 
     page.goto(url, wait_until="domcontentloaded")
     widget = page.locator("#visual-review-run")
     expect(widget.locator(".lf-vr-title").first).to_be_visible()
-    host = widget.locator('.lf-vr-case[aria-hidden="false"] .lf-vr-capture')
+    host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-capture")
     geometry = """node => ({
       host: node.getBoundingClientRect().toJSON(),
       frames: [...node.querySelectorAll('.lf-shotframe')]
@@ -274,7 +274,7 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     context.route(f"**{failed_source}", lambda route: held.append(route))
     page = context.new_page()
     page.goto(url, wait_until="domcontentloaded")
-    host = page.locator('.lf-vr-case[aria-hidden="false"] .lf-vr-capture')
+    host = page.locator(".lf-vr-case:not([hidden]) .lf-vr-capture")
     images = host.locator("img")
     holding(page, held, 1, "the second selected capture")
     # One loaded image cannot publish half a comparison. Both visible images stay
@@ -322,7 +322,7 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
         serve(VISUAL_REVIEW_GALLERY, media=dict(zip(sources, captures, strict=True))),
     )
     widget = page.locator("#visual-review-run")
-    case = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    case = widget.locator(".lf-vr-case:not([hidden])")
     shot = case.locator("lf-shot")
     control = case.get_by_role("button", name="Slider", exact=True)
     control.click()
@@ -394,7 +394,7 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     pixels.click()
     page.wait_for_function(
         """() => document.querySelector(
-          '.lf-vr-case[aria-hidden="false"] .lf-shotpixels .lf-shot-pixel-mask'
+          '.lf-vr-case:not([hidden]) .lf-shotpixels .lf-shot-pixel-mask'
         )?.style.getPropertyValue('--lf-shot-pixels')"""
     )
     painted_pixels = """node => ({
@@ -481,7 +481,7 @@ def test_visual_review_refresh_keeps_the_focused_verdict_in_place(
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, *viewport)
     widget = page.locator("#visual-review-run")
-    case = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    case = widget.locator(".lf-vr-case:not([hidden])")
     verdict = case.get_by_role("checkbox", name="Looks right")
     verdict.scroll_into_view_if_needed()
     verdict.focus()
@@ -509,7 +509,7 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     """An accessible description change does not replace the aligned image pair."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
-    case = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    case = widget.locator(".lf-vr-case:not([hidden])")
     control = case.get_by_role("button", name="Slider", exact=True)
     control.click()
     expect(control).to_have_attribute("aria-pressed", "true")
@@ -543,7 +543,7 @@ def test_visual_review_source_reorder_keeps_the_focused_case_draft(browser, serv
     """Moving a keyed case retains its comment editor, text selection and focus."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
-    case = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    case = widget.locator(".lf-vr-case:not([hidden])")
     comment_on_target(page, case)
     field = case.locator(".lf-fab-input")
     expect(field).to_be_focused()
@@ -586,9 +586,13 @@ def test_a_comment_being_written_on_a_visual_case_stays_in_hand_as_the_case_goes
     resized(page, 1366, 768)
     datum = page.locator("#visual-review-run [data-lf-datum]").first
     case = datum.get_attribute("data-lf-datum")
+    # A case with no threads draws no discussion; the box seated there opens it.
+    discussion = page.locator(f'.lf-vr-case[data-lf-datum="{case}"] .lf-vr-discussion')
+    expect(discussion).to_be_hidden()
     comment_on_target(page, datum)
     box = page.locator(".lf-fab-input")
     expect(page.locator(".lf-vr-threads .lf-fab-input")).to_be_focused()
+    expect(discussion).to_be_visible()
     page.keyboard.type("Half")
     box.evaluate(
         "box => { window.blurs = 0; box.addEventListener('blur', () => window.blurs++); }"
@@ -614,7 +618,7 @@ def test_visual_review_returns_to_case_feedback_on_phone(browser, serve):
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 390, 844)
     widget = page.locator("#visual-review-run")
-    case = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    case = widget.locator(".lf-vr-case:not([hidden])")
     case.get_by_role("button", name="Add feedback").click()
     field = case.locator(".lf-fab-input")
     expect(field).to_be_focused()
@@ -645,17 +649,25 @@ def test_visual_review_returns_to_case_feedback_on_phone(browser, serve):
 
 
 def test_visual_review_approvals_survive_reload_and_undo(browser, serve):
-    """Approval is reversible and independent of case navigation."""
+    """Approval is reversible and independent of case navigation. A case's row says
+    Looks right once checked and nothing before, in a line it holds either way."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 702, 898)
     widget = page.locator("#visual-review-run")
-    case = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    row = widget.locator('.lf-vr-case-button[aria-current="true"]')
     ids = []
     for _ in range(3):
         ids.append(case.get_attribute("data-lf-datum"))
+        status = row.locator(".lf-vr-case-status")
+        expect(status).to_be_hidden()
+        height = row.bounding_box()["height"]
         with sending(page, "approve selected case"):
             case.get_by_role("checkbox", name="Looks right").check()
         expect(case).to_have_attribute("data-lf-datum", ids[-1])
+        expect(status).to_be_visible()
+        expect(status).to_have_text("Looks right")
+        assert row.bounding_box()["height"] == height
         if len(ids) < 3:
             case.get_by_role("button", name="Next unchecked").click()
     assert len(set(ids)) == 3

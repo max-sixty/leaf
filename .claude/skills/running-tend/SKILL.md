@@ -55,11 +55,10 @@ intent without the issue **Reading a red suite** requires, is a regression.
 
 ## Review test selection
 
-Before approving a product change, run the few tests that exercise the failures
-the diff most plausibly introduces, chosen from the product paths and contracts
-it touches rather than the test files it edits, within the local limit in
-`tests/AGENTS.md` ("Run what the change needs"). A docs-only or generated-workflow
-change may need none. A failing selected test or PR check withholds approval only
+Before approving a product change, select and run focused checks through
+`tests/AGENTS.md`, **Selecting checks**, covering the changed behavior and its
+consumers. A docs-only or generated-workflow change may need none.
+A failing selected test or PR check withholds approval only
 when the change causes it: confirm an inherited failure against current `main` per
 `/tend-ci-runner:monitor-ci`, record that evidence in the review, and approve when the
 change has no other findings; "Run what the change needs" governs landing despite that
@@ -74,6 +73,15 @@ verdict, its review captures each of them on the base and the head with
 `uv run leaf-dev stills --state NAME`, adding a state to its `STATES` where none
 reaches the surface, looks at the crops, and weighs what changed against every
 state that pays for it. Without captures it can read, the review withholds approval.
+
+## Explaining UI changes and questions
+
+Include screenshots when explaining a UI change or asking the maintainer to judge
+an interface. Put the visual evidence in the PR description or reply where the
+change or question is presented, so the reader can inspect the affected state
+before answering. Show before and after for a change, and the relevant alternatives
+for a design question. Follow `/developing-leaf`, **Prove and hand off a visible
+change**, for capture and delivery.
 
 ## Reading a red suite
 
@@ -133,16 +141,16 @@ Two test-owned failures recur:
 A cause issue (`tend-ci-cause`) records the first `ci` run on main its tests
 failed in, with its commit, since that brackets the change that broke it; a
 `journeys` test, like the whole `test-macos` job, runs only nightly, so the pull
-request that broke it usually passed its own CI. Its session works until the
-cause has a merged fix, or a pull request it is still driving when GitHub's
-six-hour job limit ends it. Before fixing, check current main: the complete
-suite takes hours, and later changes may have removed the cause. A passing rerun
+request that broke it usually passed its own CI. Before fixing, check current main:
+the complete suite takes hours, and later changes may have removed the cause. A passing rerun
 alone does not clear a failure that comes and goes.
 
-No cause waits on a maintainer's decision. Where no repair keeps both the
-change's intent and the interface, **Reading a red suite** says to revert and
-file the issue that asks for that decision; this replaces escalating the cause
-issue itself.
+Establish the conflict before applying **Reading a red suite**'s revert-and-decision
+route. An unresolved diagnosis or a missing verification environment remains
+engineering work, owned by the cause's session through `/tend-ci-runner:triage`'s
+**A cause issue** route.
+For a local website gate the sandbox cannot run, `worker/README.md`, **Local
+development**, gives its non-deploying CI route.
 
 For each durable failure, look for the pull request that introduced it, first
 among those merged since the last run where the failing check passed and then

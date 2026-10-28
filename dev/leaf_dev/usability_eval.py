@@ -39,6 +39,7 @@ from leaf_dev.arms import (
     inputs_received,
     now,
     observed_sum,
+    pages,
     read_page_state,
     read_trace,
     resumed,
@@ -560,8 +561,14 @@ def execute(run: Run, work: Path) -> None:
         else:
             execute_phases(run, case, work, page)
     finally:
-        for found in pages(work, run.state):
-            shutil.copytree(found, run.dir / "pages" / found.name, ignore=ignore)
+        # A copied or nested page can share another page's basename. Archive each
+        # source separately and retain its address, not just its display name.
+        archives = {}
+        for index, found in enumerate(pages(work, run.state)):
+            destination = Path("pages") / f"{index}-{found.name}"
+            shutil.copytree(found, run.dir / destination, ignore=ignore)
+            archives[str(found)] = str(destination)
+            (run.dir / "pages.json").write_text(json.dumps(archives, indent=2) + "\n")
             run.leaf("server", "stop", str(found))
 
 
@@ -821,11 +828,6 @@ def ignore(directory, names):
         if n in ("runtime", "vendor", "widgets", "instructions", "service.json")
         or n.endswith((".lock", ".js", ".css"))
     }
-
-
-def pages(*roots: Path) -> list[Path]:
-    """Every page directory under `roots`."""
-    return sorted(p.parent for root in roots for p in root.rglob("events.jsonl"))
 
 
 # Canonical evidence

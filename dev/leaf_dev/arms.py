@@ -124,6 +124,8 @@ def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
     one the session's harness added for its own Leaf plugin: the `leaf` in either
     would shadow the launcher a child harness puts on PATH for the arm's plugin.
     When supplied, `payload` puts that arm's bin directory first on the clean PATH.
+    The dependency cache stays in the host's home when a child changes HOME,
+    so isolated plugin installations can reuse the downloaded dependencies.
 
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
@@ -149,6 +151,7 @@ def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
     if browser_model.VARIABLE not in env:
         env[browser_model.VARIABLE] = shell_executable()
     env.setdefault(render_command_model.PIN_VARIABLE, "fixed")
+    env.setdefault("UV_CACHE_DIR", str(Path.home() / ".cache/uv"))
     venv = os.environ.get("VIRTUAL_ENV")
     env["PATH"] = os.pathsep.join(
         entry
@@ -184,6 +187,11 @@ def run_leaf(
             f"leaf {' '.join(args)} exited {proc.returncode}:\n{proc.stdout}{proc.stderr}"
         )
     return proc
+
+
+def pages(*roots: Path) -> list[Path]:
+    """Initialized page directories under the private workspace or state homes."""
+    return sorted({p.parent for root in roots for p in root.rglob("events.jsonl")})
 
 
 @contextmanager
@@ -484,11 +492,9 @@ def claude_home(path: Path) -> Path:
 
 def claude_environment(home: Path, **extra: str) -> dict[str, str]:
     """The environment of a Claude Code child under `home` (`claude_home`): its
-    config is the home's, never one `CLAUDE_CONFIG_DIR` names, and it shares the
-    host's uv cache and keeps no memory."""
+    config is the home's, never one `CLAUDE_CONFIG_DIR` names, and it keeps no memory."""
     env = environment(
         HOME=str(home),
-        UV_CACHE_DIR=os.environ.get("UV_CACHE_DIR", str(Path.home() / ".cache/uv")),
         CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
         **extra,
     )
@@ -883,9 +889,10 @@ class LiveSession:
 
     The child's native records go to the file `stream`, each written before the
     driver sees it, with the driver's own records (`note`) between them where it
-    makes them. A thread reads the child in lockstep with the driver: it reads the
-    next record only once the driver asks for it, so whatever the driver does on a
-    record happens before anything the child does after it. Reading with `idle`
+    makes them. A thread drains the child's records into a queue while the driver
+    acts or observes the page. The child continues working independently; pausing
+    its reader can fill the transport buffer and prevent heartbeat replies from
+    being read. The driver consumes queued records in order. Reading with `idle`
     yields None each time that long passes without a record, so a driver can tell
     a quiet session from one still working (`settle`).
 
@@ -903,7 +910,6 @@ class LiveSession:
         self.child, self.path, self.watch = child, stream, watch
         self.url: str | None = None
         self.handed = queue.Queue()
-        self.taken = threading.Event()
         self.stopping = False
         # The turns ended so far, whether one is running, and when the last record
         # arrived.
@@ -924,8 +930,6 @@ class LiveSession:
         try:
             for record in self.child.records():
                 self.handed.put(record)
-                self.taken.wait()
-                self.taken.clear()
                 if self.stopping:
                     return
         # The driver's thread raises what the child's records raised.
@@ -954,22 +958,19 @@ class LiveSession:
                 return
             if isinstance(item, BaseException):
                 raise item
-            try:
-                if before is not None:
-                    before(item)
-                self.note(item)
-                self._observe(item)
-                self.heard = time.monotonic()
-                if item.get("type") == "result":
-                    self.answered, self.running = self.answered + 1, False
-                elif item.get("type") == "turn_started" or (
-                    item.get("harness") != CodexHarness.name
-                    and item.get("type") in ("assistant", "user")
-                ):
-                    self.running = True
-                yield item
-            finally:
-                self.taken.set()
+            if before is not None:
+                before(item)
+            self.note(item)
+            self._observe(item)
+            self.heard = time.monotonic()
+            if item.get("type") == "result":
+                self.answered, self.running = self.answered + 1, False
+            elif item.get("type") == "turn_started" or (
+                item.get("harness") != CodexHarness.name
+                and item.get("type") in ("assistant", "user")
+            ):
+                self.running = True
+            yield item
 
     def _observe(self, record: dict) -> None:
         # An agent authoring the page has not made it yet.
@@ -1025,8 +1026,8 @@ class LiveSession:
         return self.answered > since
 
     def during(self, action, before=None):
-        """Run `action` while the session's records keep being read, so the child
-        never waits on its output, and return what it returns."""
+        """Run `action` while the driver records and observes the child's output,
+        and return what it returns."""
         done: queue.Queue = queue.Queue()
 
         def run():
@@ -1057,7 +1058,6 @@ class LiveSession:
 
     def __exit__(self, *exc) -> None:
         self.stopping = True
-        self.taken.set()
         try:
             self.child.close()
             # A closed Claude Code child's output ends at once. A Codex child's

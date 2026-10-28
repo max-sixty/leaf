@@ -77,15 +77,14 @@ put on the user is work for them to do, such as trying a build, not a question.
 
 ## On the page
 
-Make each question on the document answerable where On me takes the user, without
-reading earlier content. Pressing `m` brings that question to the top of the window,
-leaving preceding prose out of view. So the question opens with a heading that asks
-its question, and holds its explanation, its evidence, the current state and the
-answering control, inside the answering widget or an enclosing `lf-ask`. Build that
-self-contained question around the material the user judges; backing detail goes after
-it.
+Make each question answerable where On me takes the user: pressing `m` brings its
+heading to the top of the window, leaving earlier content out of view. Inside the
+answering widget or an enclosing `lf-ask`, build the question around the material the
+user judges: a heading that asks it, why it arises, the current state and its evidence.
+Shared evidence and its limits come before the answering control; optional detail
+follows it.
 
-On a quick-answer page, open with the question and put its backing in a disclosure after
+On a quick-answer page, open with the question and put optional detail in a disclosure after
 it; the first screen shows the goal, the current state and what the user can do next. On
 a record or system page, put each question in the part of the page it decides: a
 question about one entry goes with that entry, and one that turns on a claim contains

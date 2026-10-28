@@ -9,13 +9,110 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
-from leaf_dev.arms import private_program
+from leaf_dev import arms
+from leaf_dev.arms import LiveSession, private_program
 from leaf_dev.commands import eval as module
 from leaf_dev.eval_codex import records_for
+
+
+def test_live_session_drains_output_while_observing_the_page(tmp_path, monkeypatch):
+    # A provider keeps producing notifications while canonical page state is read.
+    # Blocking its reader there can fill the transport buffer and starve PONGs.
+    drained = threading.Event()
+    messages = [
+        {"type": "user"},
+        *({"type": "assistant", "sequence": n} for n in range(32)),
+        {"type": "result"},
+    ]
+
+    def records():
+        yield from messages
+        drained.set()
+
+    child = SimpleNamespace(
+        __enter__=lambda: child,
+        __exit__=lambda *args: None,
+        records=records,
+        close=lambda: None,
+        native_sessions=tmp_path / "no-native-sessions",
+    )
+    page = tmp_path / "page"
+    page.mkdir()
+    (page / "events.jsonl").touch()
+
+    def state(*args):
+        assert drained.wait(5), "page observation blocked the provider's reader"
+        return {
+            "server": {"url": "http://127.0.0.1:1234/?t=test"},
+            "active": {"revision": 1},
+            "event_seq": 0,
+            "status": "ready",
+            "listening": True,
+        }
+
+    monkeypatch.setattr(arms, "read_page_state", state)
+    stream = tmp_path / "stream.jsonl"
+    with LiveSession(child, stream, watch=(tmp_path, tmp_path, page)) as live:
+        assert list(live.records()) == messages
+        assert live.answered == 1
+        live.close()
+    written = [json.loads(line) for line in stream.read_text().splitlines()]
+    assert [r for r in written if not r["type"].startswith("eval_")] == messages
+    assert written[1]["type"] == "eval_served"
+    assert written[-1]["type"] == "eval_status"
+    assert not live.reader.is_alive()
+
+
+@pytest.mark.parametrize("author_fails", [False, True])
+def test_workflow_archives_distinct_pages_with_the_same_name(
+    tmp_path, monkeypatch, author_fails
+):
+    from leaf_dev import usability_eval as workflow
+
+    work = tmp_path / "work"
+    work.mkdir()
+    output = tmp_path / "sample"
+    output.mkdir()
+    run = workflow.Run("archive-smoke", tmp_path / "payload", output)
+    monkeypatch.setitem(workflow.CASES, run.case, workflow.Case(run.case, ("task",)))
+    sources = {
+        work / "page": "final updated page",
+        work / "tmp" / "inspection" / "page": "earlier inspection copy",
+        work / "page" / "nested" / "page": "nested page",
+        run.state / "leaf" / "pages" / "page": "page in state home",
+    }
+
+    def author(*args):
+        # Model boundary: an author may inspect copies and create other pages.
+        for page, content in sources.items():
+            page.mkdir(parents=True)
+            (page / "events.jsonl").touch()
+            (page / "index.html").write_text(content)
+        if author_fails:
+            raise RuntimeError("author interrupted")
+
+    stopped = []
+    monkeypatch.setattr(workflow, "execute_phases", author)
+    monkeypatch.setattr(workflow.Run, "leaf", lambda self, *args: stopped.append(args))
+    if author_fails:
+        with pytest.raises(RuntimeError, match="author interrupted"):
+            workflow.execute(run, work)
+    else:
+        workflow.execute(run, work)
+    archives = json.loads((output / "pages.json").read_text())
+    assert set(archives) == {str(page) for page in sources}
+    assert len(set(archives.values())) == len(sources)
+    assert {
+        source: (output / archive / "index.html").read_text()
+        for source, archive in archives.items()
+    } == {str(page): content for page, content in sources.items()}
+    assert set(stopped) == {("server", "stop", str(page)) for page in sources}
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="macOS sandbox profile")
@@ -118,6 +215,11 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
     skill.write_text("Maintainer instructions.")
     cases = module.catalog()
     assert cases
+    # The same live-page assertion can grade a complete workflow or a short task.
+    cases["page-reads-at-every-width/queue"]["assert"].append(
+        cases["configuration"]["assert"][0]
+    )
+    monkeypatch.setattr(module, "catalog", lambda: cases)
     config = module.prepare(
         [
             # Its provider takes instructions; the next case's provider takes none.
@@ -156,6 +258,17 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
         if test["metadata"]["case"] == "page-reads-at-every-width/queue"
     )
     assert "ESC-4107" in queue["vars"]["prompt"]
+    for test in config["tests"]:
+        if test["metadata"]["case"] in {
+            "configuration",
+            "page-reads-at-every-width/queue",
+        }:
+            live = next(
+                a
+                for a in test["assert"]
+                if a["value"].endswith("/authoring_assertion.mjs")
+            )
+            assert live["config"]["judge"]["id"].endswith("/arrangement_eval.py")
 
 
 def test_eval_command_delegates_configuration_and_status_to_promptfoo(
@@ -197,3 +310,119 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
     assert len(config["providers"]) == 1
     assert config["providers"][0]["config"]["viewports"] == ["phone", "desktop"]
     assert "--viewport" not in calls.read_text()
+
+
+def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
+    from contextlib import ExitStack, contextmanager
+
+    from leaf_dev import ROOT
+    from leaf_dev import arrangement_eval as workflow
+    from leaf_dev.browser import headless_shell, load, tab
+    from playwright.sync_api import expect
+
+    work = tmp_path / "originals"
+    directory = tmp_path / "sample"
+    directory.mkdir()
+    (directory / "work-dir").write_text(str(work))
+    run = workflow.Run("queue-hand-off", ROOT, directory, tmp_path / "shots")
+    main, handoff = run.authored_page, work / "handoff"
+    main.mkdir(parents=True)
+    incomplete = "<h1>Author stopped before initialization"
+    (main / "index.html").write_text(incomplete)
+    workflow.snapshot_phase(run, 0)
+    assert (run.page(0) / "index.html").read_text() == incomplete
+    assert (
+        json.loads((directory / "page-phase0-pages.json").read_text())[0]["url"] is None
+    )
+    for page in (main, handoff):
+        run.leaf("page", "init", str(page), check=True)
+        (page / "index.html").write_text(
+            "<!doctype html><html><head><title>Saved page</title></head>"
+            '<body><main><h1 id="title">Initial page</h1></main></body></html>'
+        )
+    with ExitStack() as servers:
+        urls = {}
+        for page in (main, handoff):
+            run.leaf("server", "start", str(page), check=True)
+            servers.callback(run.leaf, "server", "stop", str(page))
+            urls[page] = arms.read_page_state(ROOT, run.state, page)["server"]["url"]
+        (main / "index.html").write_text(
+            "<!doctype html><html><head><title>Queue</title></head><body><main>"
+            '<h1 id="title">Queue</h1>'
+            f'<a id="handoff" href="{urls[handoff]}#result">Open handoff</a>'
+            '<a id="external" href="https://example.com/">External</a>'
+            f'<p id="quoted">The original address was {urls[handoff]}</p>'
+            '<lf-ask id="question"><h2>Keep this decision?</h2>'
+            '<lf-options id="answer" choose><lf-option id="keep">Keep</lf-option>'
+            "</lf-options></lf-ask></main></body></html>"
+        )
+        with headless_shell() as browser, tab(browser) as view:
+            load(view, urls[main])
+            view.locator("#keep .lf-pick").click()
+            expect(view.locator("#keep .lf-pick")).to_have_attribute(
+                "aria-checked", "true"
+            )
+        for phase in (1, 2):
+            (handoff / "index.html").write_text(
+                "<!doctype html><html><head><title>Handoff</title></head><body><main>"
+                f'<h1 id="result">Handoff phase {phase}</h1>'
+                f'<a href="{urls[main]}">Back to queue</a></main></body></html>'
+            )
+            workflow.snapshot_phase(run, phase)
+    shutil.rmtree(work)
+    originals = {p: p.read_bytes() for p in directory.rglob("*") if p.is_file()}
+    with headless_shell() as browser:
+        for phase in (1, 2):
+            saved = {"page": run.page(phase), "payload": ROOT, "condition": "leaf"}
+            with workflow.restored_page(saved) as (url, restored), tab(browser) as view:
+                assert set(restored) == set(urls.values())
+                load(view, url)
+                expect(view.locator("#keep .lf-pick")).to_have_attribute(
+                    "aria-checked", "true"
+                )
+                expect(view.locator("#quoted")).to_contain_text(urls[handoff])
+                expect(view.locator("#external")).to_have_attribute(
+                    "href", "https://example.com/"
+                )
+                with view.expect_popup() as opened:
+                    view.get_by_role("link", name="Open handoff").click()
+                linked = opened.value
+                expect(
+                    linked.get_by_role("heading", name=f"Handoff phase {phase}")
+                ).to_be_visible()
+                with linked.expect_popup() as returned:
+                    linked.get_by_role("link", name="Back to queue").click()
+                expect(returned.value.locator("#keep .lf-pick")).to_have_attribute(
+                    "aria-checked", "true"
+                )
+    assert {p: p.read_bytes() for p in originals} == originals
+
+    # Model boundary only: the author created both servers before it settled.
+    cleanup = workflow.Run(
+        "queue-hand-off", ROOT, tmp_path / "cleanup-sample", tmp_path / "shots"
+    )
+    cleanup.directory.mkdir()
+    cleanup_work = tmp_path / "cleanup-originals"
+    monkeypatch.setattr(workflow, "LiveChild", lambda *args, **kwargs: None)
+    monkeypatch.setattr(workflow, "pinned_copy", lambda *args: None)
+
+    @contextmanager
+    def authored(*args, **kwargs):
+        for page in (
+            cleanup.authored_page,
+            cleanup_work / "handoff",
+            cleanup.state / "leaf" / "pages" / "note",
+        ):
+            cleanup.leaf("page", "init", str(page), check=True)
+            cleanup.leaf("server", "start", str(page), check=True)
+        yield SimpleNamespace(
+            answered=0, note=lambda *args: None, settle=lambda *args, **kwargs: False
+        )
+
+    monkeypatch.setattr(workflow, "LiveSession", authored)
+    workflow.author(cleanup, cleanup_work)
+    retained = json.loads((cleanup.directory / "page-phase1-pages.json").read_text())
+    assert len(retained) == 3
+    for page in arms.pages(cleanup_work):
+        assert arms.read_page_state(ROOT, cleanup.state, page)["server"] is None
+    shutil.rmtree(cleanup_work)

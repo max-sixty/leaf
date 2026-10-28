@@ -182,7 +182,7 @@ representative desktop viewport.
 - **Leaf's controls are few, and each shows a symbol where a standard symbol for its
   action exists, and its word where none does.** A standard symbol is one readers
   already know for that action from the software they use, such as ✕ for close, ✓ for
-  done, ‹ and › for back and next, and the symbols for play, pause, copy and undo, so
+  resolve, ‹ and › for back and next, and the symbols for play, pause, copy and undo, so
   they can tell what the control does before hovering it. The words on Leaf's controls
   compete with the page's own words for the reader's attention, and a symbol is
   smaller and quieter. The control names its action from `ACTIONS` in

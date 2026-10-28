@@ -142,6 +142,62 @@ def test_a_reply_folded_in_one_view_keeps_its_widget_in_view_in_another(browser,
     expect(message.locator("#folded-note")).to_be_attached()
 
 
+def test_the_browser_s_search_and_leaf_s_travel_open_a_closed_fold(browser, serve):
+    """A closed fold's messages are hidden until found, so the browser's own search
+    reaches their words and opens the whole fold, which its toggle closes again; Leaf's
+    travel to an element inside one opens it the same way. A link to a passage of text
+    drives the browser's search here: it reveals a match by the same algorithm as
+    find-in-page, which a test cannot press. Before, folded messages were plain
+    `hidden`, which the browser's search skips."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
+    asked = append_agent_reply(
+        serve.page_dir,
+        root,
+        "Here is what each job takes.",
+        '<p id="folded-note">The mounts take an hour.</p>',
+    )
+    middle = append_user_reply(serve.page_dir, root, "The mounts, then.")
+    last = append_agent_reply(serve.page_dir, root, "Mounts first.")
+    append_user_reply(serve.page_dir, root, "Keep the latest visible.")
+    summarize_thread(serve.page_dir, asked["id"], last["id"], "The mounts go first.")
+
+    page = open_page(browser, url)
+    seat = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    toggle = seat.locator(".lf-summary-expand")
+    covered = [
+        seat.locator(f'.lf-msg[data-event="{message["id"]}"]')
+        for message in (asked, middle, last)
+    ]
+    note = covered[0].locator("#folded-note")
+
+    def closed():
+        expect(toggle).to_have_attribute("aria-expanded", "false")
+        for message in covered:
+            expect(message).to_be_hidden()
+
+    def opened():
+        expect(toggle).to_have_attribute("aria-expanded", "true")
+        expect(toggle).to_have_accessible_name("Hide 3 earlier messages")
+        for message in covered:
+            expect(message).to_be_visible()
+        expect(note).to_be_in_viewport()
+
+    # The page drops the key `url` carries, so the address it stands at is the one a
+    # same-document navigation keeps; `url` would reload it.
+    here = page.url
+    page.evaluate("() => { window.stayed = true; }")
+    closed()
+    page.goto(f"{here}#:~:text=The%20mounts%20take%20an%20hour")
+    opened()
+    toggle.click()
+    closed()
+
+    page.goto(f"{here}#folded-note")
+    opened()
+    assert page.evaluate("() => window.stayed")
+
+
 def test_a_summary_folds_originals_and_reveals_them(browser, serve):
     """A checkpoint shortens only its admitted range and remains a route to originals.
 

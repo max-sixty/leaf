@@ -303,6 +303,7 @@ async function boot() {
     focusForNavigation,
     threadFocusTarget: (id, options) =>
       app.threadDestinations.threadFocusTarget(id, options),
+    clearFor: (destination, landed) => floatingPanel?.clearFor(destination, landed),
     announce,
   });
   const landing = createThreadLanding();

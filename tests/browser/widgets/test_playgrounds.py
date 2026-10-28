@@ -411,9 +411,9 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
             "button => button.click()"
         )
     holding(page, held, 1, "the query configuration")
-    expect(playground.get_by_role("button", name="Undo choice")).to_be_disabled()
+    expect(playground.get_by_role("button", name="Undo choice")).to_be_visible()
     field.fill("unsent-region")
-    expect(playground.get_by_role("button", name="Use these settings")).to_be_disabled()
+    expect(playground.get_by_role("button", name="Use these settings")).to_be_visible()
     field.press("ArrowLeft")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -1083,9 +1083,9 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     expect(quote).not_to_have_class(re.compile(r"detached"))
 
 
-def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
-    browser, serve
-):
+def test_a_press_in_flight_does_what_the_playground_button_says(browser, serve):
+    """The press draws its result at once and leaves the button as it was, neither
+    busy nor disabled, so the next press acts on what the button now says."""
     page = open_page(browser, serve(PLAYGROUND_PAGE))
     playground = page.locator("#card-playground")
     choose = playground.locator(".lf-playground-submit")
@@ -1095,21 +1095,27 @@ def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
     with page.expect_request("**/api/event"):
         choose.press("Enter")
     holding(page, held, 1, "the playground choice")
-    expect(choose).to_be_disabled()
     expect(choose).to_have_text("Undo choice")
-    expect(choose).to_have_attribute("aria-busy", "true")
-    expect(choose).to_be_focused()
-    choose.press("Space")
-    choose.dispatch_event("click")
-    rendered(page)
-    assert len(held) == 1
-
-    held[0].continue_()
-    round_trip(page)
     expect(choose).to_be_enabled()
     expect(choose).not_to_have_attribute("aria-busy", "true")
     expect(choose).to_be_focused()
-    assert len(actions(serve.page_dir)) == 1
+    choose.press("Space")
+    expect(choose).to_have_text("Use these settings")
+    expect(choose).to_be_enabled()
+
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    expect(choose).to_have_text("Use these settings")
+    expect(choose).to_be_focused()
+    chosen = actions(serve.page_dir)
+    assert len(chosen) == 1
+    assert [
+        e["undoes"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "undo"
+    ] == [chosen[0]["id"]]
 
 
 def test_a_playground_switch_is_reachable_through_go_to(browser, serve):

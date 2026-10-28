@@ -33,7 +33,7 @@ import {
   tabFromBlock,
 } from "./block-controls.js";
 import { headerLevels } from "./css-anchors.js";
-import { skipped } from "./geometry.js";
+import { skipped } from "./shown-box.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { focusDestination, onCurrentLocation } from "./focus.js";
 import { upFrom } from "./shadow.js";

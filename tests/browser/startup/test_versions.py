@@ -29,6 +29,7 @@ from render_harness import (
     panel_settled,
     panel_view,
     round_trip,
+    show_resolved,
     stamp_page,
     told,
     undo,
@@ -48,13 +49,15 @@ DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 
 
 def expect_resolved(page, thread_id, resolved=True):
-    """Read whether the panel's Threads lists the thread `thread_id` under Resolved."""
+    """Read whether the panel's Threads lists the thread `thread_id` under Resolved,
+    rather than among the open threads."""
     open_threads(page)
-    expect(
-        page.locator(
-            f"{panel_view('threads')} .lf-fp-ended ~ .lf-fp-thread[data-key='{thread_id}']"
-        )
-    ).to_have_count(1 if resolved else 0)
+    row = f"{panel_view('threads')} .lf-fp-thread[data-key='{thread_id}']"
+    if resolved:
+        show_resolved(page)
+        expect(page.locator(f"{row}[data-resolved]")).to_have_count(1)
+    else:
+        expect(page.locator(f"{row}:not([data-resolved])")).to_have_count(1)
 
 
 def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):

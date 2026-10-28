@@ -1,8 +1,9 @@
 # Page behavior
 
 Write page behavior as you would on any web page: in a `<script>`, inline or a file
-under `page/` referenced as `/page/…`, or one from another server. A script that
-imports is a module (`type="module"`), and its relative imports stay within `page/`. A
+under `page/` referenced as `/page/…`, or one from another server. Leaf runs every
+script once the page has parsed, as `defer` does, so `document.write` does nothing. A
+script that imports is a module (`type="module"`), and its relative imports stay within `page/`. A
 module imports Leaf's helpers from `/runtime/widget-api.js`. For floating placement
 that native layout cannot express, import the bundled Floating UI library from
 `/vendor/floating-ui.esm.js`.

@@ -1,3 +1,3 @@
-import { LayerRefused, admitReading, admitResponse, completeData, dataHeaders, exceptionText, layerHeaders, postEvent, reportCarried, reportEarlyFaults, reportPageError, requestJson, revealLayer, sameLayer, sessionIsActive, uploadMedia } from "./bundle-layer-client.js";
+import { LayerRefused, admitReading, admitResponse, completeData, dataHeaders, exceptionText, layerHeaders, postEvent, reportCarried, reportPageError, requestJson, revealLayer, sameLayer, sessionIsActive, uploadMedia } from "./bundle-layer-client.js";
 
-export { LayerRefused, admitReading, admitResponse, completeData, dataHeaders, exceptionText, layerHeaders, postEvent, reportCarried, reportEarlyFaults, reportPageError, requestJson, revealLayer, sameLayer, sessionIsActive, uploadMedia };
+export { LayerRefused, admitReading, admitResponse, completeData, dataHeaders, exceptionText, layerHeaders, postEvent, reportCarried, reportPageError, requestJson, revealLayer, sameLayer, sessionIsActive, uploadMedia };

@@ -2,7 +2,7 @@
 
 import json
 import struct
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
 
 import pytest
 import tinycss2
@@ -26,7 +26,6 @@ from leaf.revision_delivery import (
     DeliveryAddress,
     compose_document,
     deliver_resource,
-    early_scripts,
     json_script,
     mark_declared,
     rebase_document,
@@ -656,25 +655,42 @@ def test_inert_json_cannot_end_or_reshape_its_script_element():
 
 
 @pytest.mark.parametrize(
-    "script, early",
+    "script, deferred",
     [
-        ("<script>window.x = 1;</script>", True),
         ('<script src="/page/a.js"></script>', True),
-        ('<script defer src="/page/a.js"></script>', False),
-        ('<script defer async src="/page/a.js"></script>', True),
-        ("<script defer>window.x = 1;</script>", True),
-        ('<script type="module">window.x = 1;</script>', False),
-        ('<script type="module" async src="/page/a.js"></script>', True),
-        ('<script type="application/json">{}</script>', False),
+        ('<script async src="/page/a.js"></script>', True),
+        ('<script defer src="/page/a.js"></script>', True),
+        ('<script type="module" async src="/page/a.js"></script>', False),
+        ('<script type="module" src="/page/a.js"></script>', False),
     ],
 )
-def test_a_document_says_when_a_script_can_run_before_the_runtime(script, early):
-    """The runtime's module runs once the document has parsed, ahead of later modules
-    and deferred files, so only a script the parser runs or one marked async can
-    change the page before the runtime reads it, and only then does it read the
-    delivered source (`runtime/version.js`, `servedReading`)."""
-    document = SourceDocument(f"<html><head></head><body><main>{script}</main></body>")
-    assert bool(early_scripts(document)) is early
+def test_delivery_holds_every_script_until_the_runtime_has_read_the_page(
+    script, deferred
+):
+    """The runtime's module runs once the document has parsed, and every deferred
+    script after it, so delivery defers a classic script and drops `async`: none can
+    change the page before the runtime reads it, or throw before it listens. A module
+    is deferred already."""
+    source = f"<html><head></head><body><main>{script}</main></body></html>"
+    delivered = SourceDocument(rebase_document(source, ADDRESS))
+    [attrs] = [s["attrs"] for s in delivered.authoring.external_scripts]
+    assert "async" not in attrs
+    assert ("defer" in attrs) is deferred
+
+
+def test_an_inline_classic_script_runs_deferred_from_its_own_text():
+    """An inline classic script moves to a deferred `data:` file holding its text,
+    padded to its line and named index.html, so its errors name where it stands."""
+    source = (
+        "<html><head></head><body><main>\n<p>a</p>\n"
+        "<script>var x = 1 % 2; // & </script></main></body></html>"
+    )
+    delivered = SourceDocument(rebase_document(source, ADDRESS))
+    [script] = delivered.authoring.external_scripts
+    assert "defer" in script["attrs"]
+    prefix, text = script["attrs"]["src"].split(",", 1)
+    assert prefix == "data:text/javascript;charset=utf-8"
+    assert unquote(text) == "\n\nvar x = 1 % 2; // & \n//# sourceURL=index.html"
 
 
 @pytest.mark.parametrize("explicit_html", [True, False])

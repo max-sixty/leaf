@@ -189,22 +189,6 @@
     },
     true,
   );
-  // Every uncaught error and unhandled rejection from here, the document's first script,
-  // until the runtime's report takes them (layer-client.js, `reportEarlyFaults`): a page
-  // script the parser runs, or one marked async, can throw before any module listens.
-  // Only the window's own errors bubble to a listener that doesn't capture, so a
-  // resource that failed to load is left to the startup fault above.
-  const earlyFaults = [];
-  const keepFault = (event) => earlyFaults.push(event);
-  window.addEventListener("error", keepFault);
-  window.addEventListener("unhandledrejection", keepFault);
-  root.lfEarlyFaults = {
-    take() {
-      window.removeEventListener("error", keepFault);
-      window.removeEventListener("unhandledrejection", keepFault);
-      return earlyFaults.splice(0);
-    },
-  };
   window.addEventListener("lf-startup-failed", (event) =>
     fault(
       event.detail?.reason || "the page reported it could not start",

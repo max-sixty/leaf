@@ -308,8 +308,8 @@ def test_the_diff_marks_what_the_author_changed_and_no_word_a_script_wrote(
     them is in either version's source, so the arriving version tints only the blocks
     the author changed and leaves the script's words standing, and comparing versions
     marks only those, on the version that arrived live and on a fresh load of it. A
-    classic script has written them before the runtime runs, which then reads the
-    authored page from its source, so its words are treated as a module's are.
+    classic script writes them after the runtime has read the page, as a module does,
+    since delivery defers it.
 
     The author rewrote the readout's placeholder too, so it is marked. On the fresh
     load the words it shows are the script's, so it offers no inline diff, which would

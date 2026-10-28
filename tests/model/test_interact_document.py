@@ -706,9 +706,8 @@ def test_an_image_loads_from_any_server(page_dir):
     ids=["inline-classic", "blocking-classic", "async-module", "after-main"],
 )
 def test_a_page_runs_a_script_of_any_kind(page_dir, authored, at):
-    """A page's scripts are its author's, classic or module, from any server and run
-    whenever the browser runs them; Leaf reads the page from its source where one can
-    run first (`revision_delivery.early_scripts`)."""
+    """A page's scripts are its author's, classic or module, from any server; delivery
+    holds each until the runtime has read the page (`revision_delivery._deferred`)."""
     (page_dir / "index.html").write_text(PAGE.replace(at, f"{authored}{at}"))
     assert revisioning_model.activate_source(page_dir).error is None
 

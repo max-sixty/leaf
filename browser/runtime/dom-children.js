@@ -397,11 +397,7 @@ const atomic = (before, after, live, rules) =>
 const kept = (before, after, rules) =>
   rules.declared(before) ? rules.unchanged(before, after) : rules.same(before, after);
 
-// Which of `held` each of `wanted` stands for, as a Map from the one to the other: the
-// matching a patch makes between two revisions' children, in the passes the header
-// above describes. The served reading asks it too, of a page's source and the copy of
-// a page a script may have changed (version.js, `servedReading`).
-export function matchNodes(held, wanted) {
+function matchNodes(held, wanted) {
   const matches = new Map();
   const matched = new Set();
   const byId = new Map();

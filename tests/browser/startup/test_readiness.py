@@ -638,12 +638,11 @@ def test_a_boot_that_fails_after_it_waits_names_the_startup_fault(browser, serve
     consume_browser_errors(page, "dynamically imported module")
 
 
-def test_what_page_code_throws_while_the_page_parses_reaches_the_check(browser, serve):
-    """A classic script the parser runs throws, and rejects, before any of the
-    runtime's modules listens. The prepaint keeps both from the document's first
-    script and the runtime reports them once it starts (`layer-client.js`,
-    `reportEarlyFaults`), so plain `page check`, which hears what the runtime reports,
-    names each with its throw site as it would a module's."""
+def test_what_an_inline_classic_script_throws_reaches_the_check(browser, serve):
+    """An inline classic script throws, and rejects, at once. Delivery holds it until
+    the runtime has read the page and listens (`revision_delivery._deferred`), so
+    plain `page check`, which hears what the runtime reports, names each with its
+    throw site as it would a module's."""
     url = serve(
         leaf_page("Early fault", '<p id="words">Words.</p>').replace(
             "</main>",

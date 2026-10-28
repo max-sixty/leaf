@@ -828,14 +828,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     max-inline-size: max(40%, 5em);
   }
   /* A name left less than an em beside a notice of news shows none of itself
-     (thread-card.js, `#fitMarginNews`): its letters would otherwise run on into the
-     gap its ground spans (below) and stand as a sliver against the time, reading
-     "M51d ago". */
+     (thread-card.js, `#fitMarginNews`), rather than a sliver of its first letter. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-head > b[data-lf-nameless] {
     flex-basis: 0;
     min-inline-size: 0;
     max-inline-size: 0;
-    color: transparent;
   }
   /* Only the writer's name and the time stick. The head's annotations (a progress
      disclosure, a delivery receipt, a failure, a suggestion or edited label) belong
@@ -866,9 +863,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       z-index: 1;
       background-color: var(--lf-msg-ground);
     }
-    /* The name's ground spans the gap to the time, which a rising one would show. */
+    /* The name's ground spans the gap to the time, which a rising one would show. It
+       spans it as a transparent border, which the name's clip stops short of, so a
+       cut name's words never reach the time: the browser keeps a cut name's first
+       letter and draws the ellipsis after it, past the words' room, and with the gap
+       as padding that ellipsis stood flush against the time, "M…just now". */
     .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
-      padding-inline-end: var(--sp-2);
+      border-inline-end: var(--sp-2) solid transparent;
       margin-inline-end: calc(-1 * var(--sp-2));
     }
     :is(

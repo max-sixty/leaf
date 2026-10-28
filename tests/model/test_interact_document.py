@@ -630,6 +630,7 @@ def test_one_check_reports_every_capture_problem(page_dir, tmp_path):
     save names the same ones: capture goes on past each refused reference, in the
     same file, in other files, and in files nothing names."""
     authored = page_dir / "page"
+    authored.mkdir(exist_ok=True)
     (authored / "data.json").write_text('{"value": 1}')
     (authored / "app.js").write_text(
         'import "lodash";\nimport "../../outside.js";\nimport "./missing.js";\n'

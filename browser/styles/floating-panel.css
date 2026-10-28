@@ -906,6 +906,9 @@
     margin: 0;
     font: inherit;
     font-weight: 600;
+    /* A heading's tracking, which the panel states itself rather than taking it from
+       the page's look. */
+    letter-spacing: -0.008em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

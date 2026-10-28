@@ -1,6 +1,6 @@
 # Layer composition and registry contract
 
-A page records the packages and personal theme it selects in `layer.json`
+A page records the packages and theme it selects in `layer.json`
 (`registry.storage.LAYER`), never the layer itself. Every Leaf that serves, checks or
 exports the page composes the layer from that selection, its own core and bundled
 packages and the user's installed ones, in the order and at the merge grains of
@@ -26,10 +26,13 @@ one outside it, or whose sender is gone, stays in history only.
 The layer record holds the selection and two identities:
 
 - `packages` records content-package selections. `theme` is the separately selected
-  personal theme, `{name, source}` with `source` explicit or default, or null.
+  theme, the page's look, `{name, source}` with `source` explicit or default. A new
+  page takes the user's default or else Leaf's bundled `reading`; null, a record that
+  names no choice, reads as `reading` too, and taking none is recorded explicitly as
+  the reserved name `none` (`themes.theme_package`).
   The theme composes after the content packages. Re-running `page init` preserves
-  the recorded choice until `--theme` replaces it or `--no-theme` / `--no-packages`
-  clears it. User catalogue changes affect new pages; `themes.py` owns selection and
+  the recorded choice until `--theme` replaces it or `--no-theme` clears it. User
+  catalogue changes affect new pages; `themes.py` owns selection and
   `package-themes.md` documents its authoring interface.
 - `generation`, a fresh epoch whenever the selection or the page protocol changes.
   The served registry names it under `$layer`, a served document names the

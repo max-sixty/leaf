@@ -1,5 +1,4 @@
-"""Personal theme choices become recorded selections, independent of later
-preferences."""
+"""Theme choices become recorded selections, independent of later preferences."""
 
 import os
 from pathlib import Path
@@ -11,10 +10,12 @@ from leaf.cli import cli
 from leaf.machine import package_store
 from leaf.packages import cmd_package_install
 from leaf.refusals import Refused
-from leaf.registry.storage import layer_metadata, layer_record, selected
+from leaf.registry.storage import LAYER, layer_metadata, layer_record, selected
 from leaf.schema import LAYER_FILE
 from leaf.themes import cmd_list
 from leaf.vendoring import cmd_init
+
+NONE = {"name": "none", "source": "explicit"}
 
 
 def catalogue(tmp_path, *, default="editorial"):
@@ -67,10 +68,11 @@ def test_theme_selection_is_independent_of_content_packages_and_later_defaults(
     config = catalogue(tmp_path)
     choices = cmd_list()["themes"]
     assert [(item["name"], item["default"]) for item in choices] == [
+        ("reading", False),
         ("editorial", True),
         ("dense", False),
     ]
-    assert choices[1]["instructions"] == "Use dense for its distinctive presentation."
+    assert choices[2]["instructions"] == "Use dense for its distinctive presentation."
     page = tmp_path / "page"
     cmd_init(page)
     captured = layer_metadata(page)
@@ -89,12 +91,54 @@ def test_theme_selection_is_independent_of_content_packages_and_later_defaults(
     assert without_theme.exit_code == 0, without_theme.output
     cmd_init(page)
     assert layer_metadata(page)["packages"] == ["diagram"]
-    assert layer_metadata(page)["theme"] is None
+    assert layer_metadata(page)["theme"] == NONE
+    cmd_init(page, theme="dense")
     cleared = CliRunner().invoke(cli, ["page", "init", str(page), "--no-packages"])
     assert cleared.exit_code == 0, cleared.output
     cmd_init(page)
     assert layer_metadata(page)["packages"] == []
-    assert layer_metadata(page)["theme"] is None
+    assert layer_metadata(page)["theme"] == {"name": "dense", "source": "explicit"}
+
+
+def test_a_new_page_reads_in_leaf_s_look_unless_it_takes_none(tmp_path):
+    """With no default of the user's, a new page takes the bundled reading theme, its
+    idioms and element rules; a page that takes none composes neither, while the
+    markup face Leaf's own surfaces wear stays in the core sheet, off until a theme or
+    the page turns it on."""
+    page = tmp_path / "page"
+    cmd_init(page)
+    assert layer_metadata(page)["theme"] == {"name": "reading", "source": "default"}
+    assert ".callout" in selected(layer_record(page), page).registry
+    assert "color-scheme: light dark;\n  --lf-reading-face: 1;" in served_theme(page)
+    cmd_init(page, theme=False)
+    assert layer_metadata(page)["theme"] == NONE
+    assert ".callout" not in selected(layer_record(page), page).registry
+    bare = served_theme(page)
+    assert (
+        ".callout" not in bare
+        and "color-scheme: light dark;\n  --lf-reading" not in bare
+    )
+    assert "style(--lf-reading-face: 1)" in bare
+
+
+def test_a_page_recording_no_theme_choice_reads_in_leaf_s_look(tmp_path):
+    """A record that names no theme, as a page initialized before the reading look
+    was a theme does, composes Leaf's default, and re-initializing keeps it there:
+    only `--no-theme` records taking none."""
+    page = tmp_path / "page"
+    cmd_init(page)
+    LAYER.write(page / LAYER_FILE, {**layer_record(page), "theme": None})
+    assert ".callout" in selected(layer_record(page), page).registry
+    cmd_init(page)
+    assert ".callout" in selected(layer_record(page), page).registry
+
+
+def test_none_names_no_theme_in_the_catalogue(tmp_path):
+    config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
+    config.parent.mkdir(parents=True)
+    config.write_text('themes = ["none"]\n')
+    with pytest.raises(Refused, match="means no theme"):
+        cmd_list()
 
 
 def test_missing_theme_refuses_revendoring_and_keeps_the_selection(tmp_path):

@@ -67,6 +67,7 @@ Every package uses this layout, and every file is optional:
 ```text
 package/
 ├── registry.json       element declarations and shared $ declarations
+├── elements.css        page-wide element and idiom defaults, beneath widgets
 ├── widgets.css         defaults for this package's widgets
 ├── widget-shadow.css   widget defaults also loaded in their shadow trees
 ├── theme.css           page-wide theme inputs and presentation
@@ -92,13 +93,16 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 Choose a stylesheet by the contribution it makes. A package may supply any combination;
 adding a widget does not change its theme styling.
 
-| Sheet               | Document                | Declared shadow trees |
-| ------------------- | ----------------------- | --------------------- |
-| `widgets.css`       | `lf-base`               | —                     |
-| `widget-shadow.css` | `lf-base`               | `lf-shadow`           |
-| `theme.css`         | Page-wide in `lf-theme` | —                     |
+| Sheet               | Document                                        | Declared shadow trees |
+| ------------------- | ----------------------------------------------- | --------------------- |
+| `elements.css`      | `lf-base`, before every package's widget sheets | —                     |
+| `widgets.css`       | `lf-base`                                       | —                     |
+| `widget-shadow.css` | `lf-base`                                       | `lf-shadow`           |
+| `theme.css`         | Page-wide in `lf-theme`                         | —                     |
 
-Widget defaults rank below Layouts; theme contributions rank above them. Leaf orders
+Page-wide defaults that a widget's own rules should outrank, such as element rules and
+idioms, go in `elements.css`; widget defaults rank with them, below Layouts; theme
+contributions rank above them. Leaf orders
 the cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-theme`,
 `lf-state`. A shared shadow sheet precedes its document-only sheet; later selected
 packages win ties. The page's own CSS is unlayered above these normal rules. Layouts
@@ -138,12 +142,12 @@ control.
 
 Custom properties come in four kinds:
 
-| Kind                | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Theme inputs        | Page authors and themes set them on the root, or on a subtree: colours and semantic pairs (`package-themes.md`, "Theme colors"), faces (`--serif`, `--sans`, `--mono`), type scales (`--t-*`, expressed in `rem` by default), radius (`--r`), code and syntax palettes (`--code-*`, `--syn-*`), focus (`--focus-ring` and `--focus-shadow`, set together), and page geometry (`--col`, `--wide`, `--sidebar`, `--page-pad-start`, `--page-pad-end`). A value derived from an input is computed where it is declared, so setting the input on a subtree doesn't change a derived value it inherits. |
-| Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Kind                | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Theme inputs        | Page authors and themes set them on the root, or on a subtree: colours and semantic pairs (`package-themes.md`, "Theme colors"), faces (`--serif`, `--sans`, `--mono`), markup's reading face (`--lf-reading-face: 1`, `package-themes.md`, "Personal themes"), type scales (`--t-*`, expressed in `rem` by default), radius (`--r`), code and syntax palettes (`--code-*`, `--syn-*`), focus (`--focus-ring` and `--focus-shadow`, set together), and page geometry (`--col`, `--wide`, `--sidebar`, `--page-pad-start`, `--page-pad-end`). A value derived from an input is computed where it is declared, so setting the input on a subtree doesn't change a derived value it inherits. |
+| Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 A `--lf-` prefix doesn't make a property an input; most are outputs. A package
 documents any further inputs it supports. No type or colour override may shrink a
@@ -160,13 +164,14 @@ there. `widget-api.js` can change in any update; `leaf package check --render` a
 `leaf page check --render` report a module it breaks.
 
 Registries merge in order: kernel, `default`, then the selected packages in command
-order, and a later package wins a collision. A later package replaces an element or
+order, then the page's theme, and a later package wins a collision. A later package replaces an element or
 idiom entry whole and can't delete one. Shared `$` entries merge by member, and a map
 member merges one level further by key; `null` deletes at either level if the merged
 registry still validates. `page init` records the selected packages in
 `$layer.packages`, and a plain re-init selects them again. Re-initializing with
 `--package` replaces that list, so name every package the page keeps.
-`page init --no-packages PAGE` clears the list and the selected personal theme
+`page init --no-packages PAGE` clears the list and keeps the page's theme, which
+`--theme` and `--no-theme` choose
 ([package-themes.md, "Personal themes"](package-themes.md#personal-themes)).
 
 Name each file directly under `instructions/` `<audience>.md`, matching

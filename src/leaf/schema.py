@@ -633,6 +633,7 @@ LAYER_TOP_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
 # A package's source contributions are composed into the page files above. Their
 # roles depend on their filenames, not on whether the package declares widgets.
 PACKAGE_STYLES = (
+    "elements.css",
     "widget-shadow.css",
     "widgets.css",
     "theme.css",

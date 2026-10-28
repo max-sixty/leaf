@@ -152,11 +152,17 @@ page of parts, whose column parts each take their own outline.
 
 ## Style the page
 
-The theme styles semantic HTML (headings, prose, tables, code) and Leaf's
-widgets in both colour schemes, so a page of ordinary content needs no CSS of its own:
-polish it through clearer content and hierarchy within that treatment. Where the task
-calls for a design of its own, such as an instrument, an arrangement, or a look the
-user asks for, write it in ordinary CSS. Page CSS stands above every theme rule
+A new page takes Leaf's reading theme, which styles semantic HTML (headings, prose,
+tables, code) in both colour schemes and adds the class idioms, such as `.callout`, so
+a page of ordinary content needs no CSS of its own: polish it through clearer content
+and hierarchy within that treatment. Where the task calls for a design of its own,
+such as an instrument, an arrangement, or a look the user asks for, write it in
+ordinary CSS. A page whose design is wholly its own, such as an existing site, a
+mockup or a page the user brings, takes no theme instead (`leaf page init <page>
+--no-theme`), so it starts from the browser's defaults and none of the theme shows
+through its rules; Leaf's widgets, threads and panel keep their own faces either way.
+`leaf theme list` names the themes a page can take (`package-themes.md`, "Personal
+themes"). Page CSS stands above every theme rule
 without `!important` or extra specificity, and an element rule of its own, such as
 `table`, `code` or `blockquote`, replaces only the properties it names, so set the rest
 too wherever the theme's would show through. Wrapping elements the theme already
@@ -174,7 +180,10 @@ scheme's values. `--col` sets the reading column's width, and the spacing steps
 
 `body` is Leaf's: it holds the one `main`, which is the page, and Leaf's own interface,
 and pads its foot by `--lf-foot-room` so the page's end scrolls clear of the panel. Put
-the page's grid and header on or inside `main`, and its ground in `--paper`. A reset that zeroes
+the page's grid and header on or inside `main`, and its ground in `--paper`; a page that
+takes no theme paints its ground on `html` and names it in `--lf-ground`, since `body`
+is a container, which keeps its own background off the window below a short page. A
+reset that zeroes
 `body`'s padding, or an app shell whose own box scrolls, puts
 `padding-bottom: var(--lf-foot-room)` on whatever scrolls. A box page CSS makes opaque,
 such as a sticky bar, uses `background: var(--lf-ground)` to match its containing
@@ -270,9 +279,9 @@ adds keyboard access and continuation cues when content exceeds the box. Its CSS
 change overflow at a breakpoint; Leaf measures the declared surface, never all of its
 descendants. For a box that scrolls vertically, see `page-layout.md`, "Bounds and widths".
 
-The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
-to it, so none needs a width. A table's columns size to their content, so leave its
-cells' widths and wrapping to the theme too. Text that can't break, such as a bare
+Leaf scrolls a `<pre>` or table wider than its container and fits an image or SVG to
+it, whatever theme the page takes, so none needs a width. A table's columns size to
+their content, so leave its cells' widths and wrapping to Leaf too. Text that can't break, such as a bare
 identifier or a cell kept on one line, holds its column at its full length, and once
 the table scrolls sideways, prose in the other columns wraps a word per line. Put
 identifiers in `<code>`, which can break inside a cell, and keep the columns to what

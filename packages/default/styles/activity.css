@@ -57,6 +57,12 @@ lf-activity .lf-activity-row {
   padding: 7px 0;
   border-top: 1px solid var(--rule);
 }
+/* A row's room from its neighbours, the reading face's for a list item, stated here so
+   the feed keeps it on a page that takes no theme; at no weight, so a theme's own list
+   spacing, such as working density's, still answers where it has one. */
+:where(lf-activity .lf-activity-row) {
+  margin-block: 6px;
+}
 lf-activity .lf-activity-row:first-child {
   border-top: 0;
 }

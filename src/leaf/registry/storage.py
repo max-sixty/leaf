@@ -1,6 +1,6 @@
 """A page's layer record, and the vocabulary every reader composes from it.
 
-A page records which packages and personal theme it selects (`LAYER`), never the
+A page records which packages and theme it selects (`LAYER`), never the
 layer itself: every Leaf that serves, checks or exports the page composes its own
 (`layer.selected_layer`), as it supplies its own runtime (`runtime_selection`)."""
 
@@ -26,7 +26,7 @@ LAYER = Record(
     {
         "description": (
             "A page's layer selection, `layer.json` in its directory: the packages"
-            " and personal theme every Leaf that reads the page composes, the"
+            " and theme every Leaf that reads the page composes, the"
             " generation an open document speaks, and the page protocol a Leaf last"
             " initialized it at."
         ),
@@ -79,8 +79,9 @@ def selected(record: dict, page_dir: Path):
     it (`layer.selected_layer`), refused as a registry fault where a selected package
     is gone or invalid."""
     from leaf.layer import selected_layer
+    from leaf.themes import theme_package
 
-    theme = record["theme"]["name"] if record["theme"] else None
+    theme = theme_package(record["theme"])
     try:
         return selected_layer(tuple(record["packages"]), theme, page_dir)
     except Refused as error:

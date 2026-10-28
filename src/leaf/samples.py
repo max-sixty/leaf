@@ -79,15 +79,15 @@ class Samples:
         """Allocate from a declared template or a complete generated document.
 
         Both use the layer the parent revision selects and ordinary source validation.
-        Generated source
-        starts with an empty log; it cannot import the parent's conversation history.
+        Generated source starts with an empty log; it cannot import the parent's
+        conversation history.
         """
         if source is None:
-            content, seeded = self._template_source(
+            document_content, seeded = self._template_source(
                 parent, artifact, document, events, data, template_id, message
             )
         else:
-            content, seeded = source.encode("utf-8"), []
+            document_content, seeded = source.encode("utf-8"), []
         temporary = TemporaryDirectory(prefix="leaf-sample-")
         child = Path(temporary.name)
         memory = memory_of(child)
@@ -130,7 +130,7 @@ class Samples:
                     if "value" in reading
                 },
             )
-            (child / "index.html").write_bytes(content)
+            (child / "index.html").write_bytes(document_content)
             start_log(child, seeded)
             activation = activate_source(child)
             if activation.error:

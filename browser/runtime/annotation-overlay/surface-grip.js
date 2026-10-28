@@ -68,7 +68,9 @@ export function surfaceGrip({ surface, bounds, dropped }) {
       x: (spot.x - placed.x) / scale.x,
       y: (spot.y - placed.y) / scale.y,
     };
-    const translate = `${layoutPx(offset.x)} ${layoutPx(offset.y)}`;
+    const xShift = layoutPx(offset.x);
+    const yShift = layoutPx(offset.y);
+    const translate = xShift === "0px" && yShift === "0px" ? "" : `${xShift} ${yShift}`;
     if (surface.style.translate !== translate) surface.style.translate = translate;
   }
   // Each frame of the carry, since anchoring moves the surface with no event to say so.

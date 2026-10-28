@@ -6,7 +6,9 @@ page does for an element it lays out. The install is what Leaf serves its own pa
 this tree's runtime, the compiled kernel where it is current, beside the composed
 layer's widgets and vendor modules. A widget that imports only the portable helpers
 (`runtime/portable-api.js`) defines itself, draws, and shows a body it cannot draw as
-an error box and an `error` event the host may hear, with nothing in the console.
+an error box and an `error` event the host may hear, with nothing in the console. What
+Leaf adds to a widget it reads off the widget, so here there is none of it: no key
+bound or advertised, no Copy control, no quiet word.
 
 It is a landing gate because nothing else would see the guarantee break: every other
 test runs a widget on a Leaf page, where an import of a module that reads what Leaf
@@ -16,6 +18,7 @@ composes into a page loads as well as any other.
 import http.server
 import json
 from dataclasses import dataclass
+from typing import Literal
 
 import pytest
 from interact_support import running_http_server
@@ -31,12 +34,15 @@ from leaf.schema import BROWSER_DIRS
 @dataclass(frozen=True)
 class Portable:
     """A widget that loads and draws with no Leaf runtime: the bundled package that
-    ships it, one authored occurrence that draws, and what it draws, inside it."""
+    ships it, one authored occurrence that draws, what it draws, inside it, and which of
+    the drawing's sides the host's box sets: both, as a chart's are; its width, as a
+    code block's is; or neither, as a diagram keeps its natural size."""
 
     tag: str
     package: str
     markup: str
     drawn: str
+    sized: Literal["box", "width", "natural"]
 
 
 PORTABLE = [
@@ -44,20 +50,41 @@ PORTABLE = [
         "lf-chart",
         "default",
         # The host holds the chart's box, as Leaf's stylesheet does from the height it
-        # paints, so the drawing arriving moves nothing below it.
-        '<lf-chart id="lf-chart" data-lf-height="240" style="height: 240px"><pre>\n{\n'
+        # states, so the drawing arriving moves nothing below it.
+        '<lf-chart id="lf-chart" style="height: 240px"><pre>\n{\n'
         '  ariaLabel: "Merged by team: backend 12, frontend 19",\n'
         '  marks: [Plot.barY([{team: "backend", n: 12}, {team: "frontend", n: 19}],'
         ' {x: "team", y: "n"})],\n}\n</pre></lf-chart>',
         "svg[role=img]",
+        sized="box",
+    ),
+    Portable(
+        "lf-code",
+        "default",
+        '<lf-code id="lf-code" language="python" hi="2"><pre>\ndef bracket(temp):\n'
+        '    if temp &lt; 0:\n        return "steel"\n</pre></lf-code>',
+        # Its lines, coloured, the highlighted one among them.
+        "pre:has(> .lf-code-line.hi [data-lf-syn])",
+        sized="width",
+    ),
+    Portable(
+        "lf-diagram",
+        "diagram",
+        # The host reserves the diagram's room, as Leaf's stylesheet does from the
+        # height an occurrence states, so the drawing arriving moves nothing below it.
+        '<lf-diagram id="lf-diagram" parts="all" style="height: 240px"><pre>\n'
+        "flowchart TD\n"
+        "  accTitle: Checkout\n  accDescr: A cart reaches payment.\n"
+        "  Cart([Cart]) --&gt; Pay{Paid?}\n</pre></lf-diagram>",
+        # Its named boxes.
+        'svg:has(g.pele-node[data-id="Cart"]):has(g.pele-node[data-id="Pay"])',
+        sized="natural",
     ),
 ]
 
 # A body the chart cannot draw: the box and the event are the shared upgrade
 # lifecycle's (`failSoft`), so one widget answers for every portable one.
-REFUSED = (
-    '<lf-chart id="refused" data-lf-height="120"><pre>\n{ marks: [ }\n</pre></lf-chart>'
-)
+REFUSED = '<lf-chart id="refused"><pre>\n{ marks: [ }\n</pre></lf-chart>'
 ROOT = "/leaf"
 
 
@@ -139,9 +166,26 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
                 expect(drawn).to_be_visible()
                 box = drawn.bounding_box()
                 room = page.locator(f"#{widget.tag}").bounding_box()
-                # Drawn for the room the host gave it, not at a size of its own.
-                assert box["width"] == pytest.approx(room["width"], abs=1), (box, room)
-                assert box["height"] > 0, box
+                assert box["width"] > 0 and box["height"] > 0, box
+                # Drawn for the room the host gave it, or at its own size inside it.
+                if widget.sized == "natural":
+                    assert box["width"] <= room["width"], (box, room)
+                    assert box["height"] <= room["height"], (box, room)
+                else:
+                    assert box["width"] == pytest.approx(room["width"], abs=1), (
+                        box,
+                        room,
+                    )
+                if widget.sized == "box":
+                    assert box["height"] == pytest.approx(room["height"], abs=1), (
+                        box,
+                        room,
+                    )
+        # Leaf binds a widget's keys, adds its Copy control and writes its quiet words
+        # from declarations only Leaf reads.
+        assert (
+            page.locator("[aria-keyshortcuts], .lf-code-copy, .lf-quiet").count() == 0
+        )
 
         refusal = page.locator("#refused .lf-error")
         expect(refusal).to_contain_text("<lf-chart> failed: Unexpected token")

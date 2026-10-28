@@ -18,7 +18,6 @@
  */
 import {
   PRESS,
-  commands,
   commandScope,
   focused,
   focusDestination,
@@ -28,11 +27,11 @@ import {
   LeafElement,
   render,
   onCurrentLocation,
-  paintKeys,
   plainPress,
   scrollIntoView,
   shadowStage,
   whileConnected,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 let library;
@@ -94,7 +93,7 @@ customElements.define(
           else expanded.delete(row.path);
         }
         paintEmpty();
-        paintKeys();
+        commandsChanged(this);
       };
       const mount = () => {
         if (!tree || mounted || !files.length) return;
@@ -154,7 +153,8 @@ customElements.define(
           when: focusedRow,
         },
       ]);
-      commands(this, fileActions);
+      this.lfCommands = fileActions;
+      commandsChanged(this);
       whileConnected(this, (signal) => {
         mount();
         // Trees scrolls its virtualized list and focuses with preventScroll. The
@@ -169,7 +169,8 @@ customElements.define(
           if (row?.getAttribute("role") === "treeitem" && root.contains(row)) {
             // Each upstream row is a native button. Its exact scope precedes
             // native activation; an ancestor scope cannot own that press.
-            commands(row, fileActions);
+            row.lfCommands = fileActions;
+            commandsChanged(row);
             scrollIntoView(row, { block: "nearest" });
           }
         });

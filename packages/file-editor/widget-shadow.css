@@ -88,11 +88,6 @@
 :host(lf-file-editor) .lf-file-editor-icon {
   inline-size: 1em;
   block-size: 1em;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 /* The conflict's choices hang from the control that names them, inward from its edge,
  * and flip above it where the window has no room below. The other two sides are taken

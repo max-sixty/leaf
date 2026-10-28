@@ -14,7 +14,7 @@
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
 import { html, keyed, render, nothing } from "/runtime/framework.js";
-import { generatedElement, offered } from "../widget-elements.js";
+import { generatedElement, offeredAction } from "../widget-elements.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -56,11 +56,11 @@ import { addressableWord, sectionLabel } from "../addressable-names.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { importWidgets, rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
-import { actionTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
 import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
+import { copyControl } from "../copy-control.js";
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
@@ -324,6 +324,12 @@ export function messageReading(
       glyph: token?.glyph ?? "",
       authored: message.body.kind === "authored",
     }),
+    // The message as its Copy control copies it: its words as written, then any markup
+    // an agent sent after them, which Markdown carries as HTML. A reaction has none.
+    markdown:
+      kind === "reaction"
+        ? null
+        : [message.text, message.markup].filter(Boolean).join("\n\n"),
     // Where this drawing ranks among those that may hold the message's widgets
     // (`authoredHolders`); 0 for one that never does.
     authoredRank,
@@ -335,6 +341,7 @@ export class MessageView {
   #commands;
   #model = null;
   #reaction = null;
+  #copy = null;
   #authored = null;
   // Bumped each time this view takes the message's widgets back from another drawing.
   #authoredTake = 0;
@@ -476,7 +483,9 @@ export class MessageView {
               : nothing
           }${
             model.unread
-              ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>`
+              ? html`<span class="lf-msg-new lf-unread-dot"
+                  ><span class="lf-quiet">New</span></span
+                >`
               : nothing
           }
           ${receipt}
@@ -518,14 +527,12 @@ export class MessageView {
     const rewrite =
       model.editable && !editing
         ? html`<button
-            ${offered("lf-msg-control lf-msg-edit")}
+            ${offeredAction("symbol", "lf-msg-control lf-msg-edit", "Edit message", {
+              action: "edit",
+            })}
             tabindex="-1"
-            aria-label="Edit message"
-            title="Edit message"
             @click=${() => this.openEdit()}
-          >
-            ${actionTemplate("edit", "lf-msg-control-icon")}
-          </button>`
+          ></button>`
         : nothing;
     render(
       html`
@@ -541,6 +548,7 @@ export class MessageView {
           }
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
+        ${model.markdown && !editing ? this.#copyControl(model.markdown) : nothing}
         ${strip} ${rewrite}
       `,
       this.node,
@@ -609,6 +617,25 @@ export class MessageView {
   // Whether this view draws an open rewrite.
   get editing() {
     return this.#editor !== null;
+  }
+
+  // Copy stands at the head's end, after the message's own control (controls.css), and
+  // copies the message whole as Markdown. Like Edit it is no Tab stop, which would add
+  // one to every message between a thread's controls; the keyboard presses it with the
+  // copy key in the thread (landing.js, `message.copy`).
+  #copyControl(markdown) {
+    if (!this.#copy) {
+      this.#copy = copyControl("lf-msg-control lf-msg-copy", {
+        role: "symbol",
+        label: "Copy as Markdown",
+        success: "Message copied as Markdown",
+        error: "Message not copied · select its words to copy",
+      });
+      this.#copy.tabIndex = -1;
+      this.#copy.title = "Copy as Markdown";
+    }
+    if (this.#copy.value !== markdown) this.#copy.value = markdown;
+    return this.#copy;
   }
 
   #body(body) {

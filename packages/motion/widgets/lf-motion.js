@@ -15,17 +15,16 @@ import {
   LeafElement,
   initialRender,
   render,
-  commands,
   whileConnected,
   nextAnimation,
   cancelAnimation,
   reducedMotion,
   onMotionPreferenceChange,
   onUserInput,
-  paintKeys,
   signal,
   tabStore,
   raiseError,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -72,22 +71,26 @@ customElements.define(
         throw new TypeError("renderFrame must be a function");
       this.#draw = draw;
       this.#paint();
-      paintKeys();
+      commandsChanged(this);
     }
 
     setup() {
       this.#ui = initialRender(this);
       this.#time = Number(this.#ui.time.value);
       this.#rate = Number(this.#ui.speed.value);
-      commands(this, "In a motion study", [
-        {
-          id: "motion.play",
-          title: () => this.#playLabel(),
-          control: this.#ui.play,
-          when: () => this.#playable,
-          run: () => this.#toggle(),
-        },
-      ]);
+      this.lfCommands = {
+        title: "In a motion study",
+        rows: [
+          {
+            id: "motion.play",
+            title: () => this.#playLabel(),
+            control: this.#ui.play,
+            when: () => this.#playable,
+            run: () => this.#toggle(),
+          },
+        ],
+      };
+      commandsChanged(this);
       whileConnected(this, (signal) => {
         this.#ui.time.addEventListener(
           "input",
@@ -124,7 +127,7 @@ customElements.define(
           if (reducedMotion() && this.#playing.value) this.currentTime = this.duration;
           else {
             this.#paintControls();
-            paintKeys();
+            commandsChanged(this);
           }
         });
         for (const video of this.#videos) {

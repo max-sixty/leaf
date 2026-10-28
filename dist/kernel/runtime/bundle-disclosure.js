@@ -3508,7 +3508,6 @@ function paintBarReactions(anchor) {
 	for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
 		const inForce = by.get(chip.dataset.token)?.inForce;
 		keeps(chip, "aria-pressed", String(Boolean(inForce)));
-		keeps(chip, "aria-busy", String(Boolean(inForce?.pending)));
 	}
 }
 function createReactionController({ marginEntryChoices, marginEntryContextContains, openMarginEntryOptions, designModeActive, hideComposer, syncResponseOptions, fabAnchorAt, fabReturnPlaces, fabTargetAt, hasPageSelectionTarget, showFab, showFabOptions, updateFab, currentLocationThread, currentTarget }) {
@@ -4795,7 +4794,7 @@ function createThreadActions({ post, withdraw, sendReaction, currentRevision, op
 	const reply = (key, text, { attempt } = {}) => {
 		if (!text) return null;
 		const thread = find(key);
-		if (!thread?.offers.reply) return null;
+		if (!thread) return null;
 		return post({
 			kind: "reply",
 			revision: currentRevision(),
@@ -4806,7 +4805,7 @@ function createThreadActions({ post, withdraw, sendReaction, currentRevision, op
 	};
 	const edit = (key, messageId, text, { attempt, base } = {}) => {
 		const thread = find(key);
-		if (!thread || thread.settling) return null;
+		if (!thread) return null;
 		const message = thread.msgs.find((item) => item.id === messageId);
 		if (!message || !editable(message) || !text || text === message.text) return null;
 		return post({
@@ -4819,7 +4818,7 @@ function createThreadActions({ post, withdraw, sendReaction, currentRevision, op
 	};
 	const settle = (key, resolved, { attempt } = {}) => {
 		const thread = find(key);
-		if (!thread?.offers[resolved ? "resolve" : "reopen"]) return null;
+		if (!thread || Boolean(thread.resolved) === resolved) return null;
 		return post({
 			kind: resolved ? "resolve" : "unresolve",
 			parent: thread.root.id,
@@ -4842,7 +4841,7 @@ function createThreadActions({ post, withdraw, sendReaction, currentRevision, op
 	return Object.freeze({
 		async open(key, { message = null, ...options } = {}) {
 			const thread = find(key);
-			if (!thread?.offers.open) return null;
+			if (!thread) return null;
 			const target = message === null ? thread : thread.msgs.find((item) => item.key === message);
 			if (!target) return null;
 			return open(target.id, message === null ? options : {
@@ -5203,11 +5202,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 					});
 					view.draw();
 					keeps(view.node, "data-lf-append-tail", message.provisional && message === item.thread.msgs.at(-1) ? "" : null);
-				} else {
-					keepsHidden(view.node, !replyAvailable(item.thread));
-					if (nominated) view.notice.node.remove();
-					else if (view.notice.node.parentNode !== view.node) move(view.node, view.notice.node, null);
-				}
+				} else if (nominated) view.notice.node.remove();
+				else if (view.notice.node.parentNode !== view.node) move(view.node, view.notice.node, null);
 			}
 			const slots = view.slots ??= [];
 			let destination = item.outlet;
@@ -6666,6 +6662,12 @@ function returnToThread(thread) {
 }
 const cardThread = () => focusedThreadTarget();
 const resolutionControl = (thread) => thread ? threadPart(thread, "settlement") : null;
+const messageAt = (node) => (node instanceof Element ? node : node?.parentElement)?.closest(".lf-msg") ?? null;
+function messageCopy(thread) {
+	if (!thread) return null;
+	const caret = getSelection().anchorNode;
+	return (messageAt(focused()) ?? (thread.contains(caret) ? messageAt(caret) : null) ?? [...thread.querySelectorAll(".lf-msg")].at(-1))?.querySelector(":scope > .lf-msg-copy") ?? null;
+}
 function prepareLanding({ held = null, box, route = null }) {
 	if (!box) return false;
 	held ??= closestAcross(box, SAYS_IN);
@@ -6707,29 +6709,40 @@ function declareThreadKeys(landIn, threadHere) {
 		root: focused,
 		when: () => threadList().length > 0,
 		at: () => Boolean(threadHere()),
-		rows: [{
-			id: "thread.primary",
-			touch: false,
-			keys: ["Enter"],
-			title: () => resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
-			when: () => Boolean(threadInput(cardThread())) || resolutionControl(cardThread())?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])"),
-			run: () => {
-				const thread = cardThread();
-				const reopen = resolutionControl(thread)?.matches(".lf-reopen") ? resolutionControl(thread) : null;
-				if (reopen) reopen.click();
-				else landIn({
-					held: thread,
-					box: threadInput(thread)
-				});
+		rows: [
+			{
+				id: "thread.primary",
+				touch: false,
+				keys: ["Enter"],
+				title: () => !threadInput(cardThread()) && resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
+				when: () => Boolean(threadInput(cardThread())) || resolutionControl(cardThread())?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])"),
+				run: () => {
+					const thread = cardThread();
+					const box = threadInput(thread);
+					if (box) landIn({
+						held: thread,
+						box
+					});
+					else resolutionControl(thread).click();
+				}
+			},
+			{
+				id: "thread.resolution.toggle",
+				touch: false,
+				keys: ["r"],
+				title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
+				when: () => resolutionControl(threadHere())?.matches(":not(:disabled, [aria-disabled=\"true\"])"),
+				run: () => resolutionControl(threadHere()).click()
+			},
+			{
+				id: "message.copy",
+				touch: false,
+				keys: ["Mod+c"],
+				title: "copy message as Markdown",
+				when: () => Boolean(messageCopy(threadHere())) && getSelection().isCollapsed,
+				run: () => messageCopy(threadHere()).shadowRoot.querySelector("button").click()
 			}
-		}, {
-			id: "thread.resolution.toggle",
-			touch: false,
-			keys: ["r"],
-			title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-			when: () => resolutionControl(threadHere())?.matches(":not(:disabled, [aria-disabled=\"true\"])"),
-			run: () => resolutionControl(threadHere()).click()
-		}]
+		]
 	});
 }
 
@@ -6784,7 +6797,7 @@ function createWidgetController(owner) {
 	let preparationBatch = null;
 	const read = () => descriptorStillMatches(owner, descriptor) ? selected.read() : unavailable(selected.read());
 	const prepared = () => {
-		if (!preparationHandle && owner.isConnected) preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner);
+		if (!preparationHandle && owner.isConnected) preparationHandle = attachWidgetPresentation(descriptor.id, "preparation");
 		return preparationHandle;
 	};
 	const holdPreparation = (promise) => {
@@ -6799,7 +6812,7 @@ function createWidgetController(owner) {
 		};
 		Promise.resolve(promise).then(settled, settled);
 	};
-	const presentPreparation = (handle, { value, completion }) => handle.present(value, (reason) => failSoftUnreported(owner, reason)).resolve(completion);
+	const presentPreparation = (handle, { completion }) => handle.present((reason) => failSoftUnreported(owner, reason)).resolve(completion);
 	const connect = () => d(() => {
 		if (!owner.isConnected) return;
 		for (const promise of pendingPreparations.keys()) holdPreparation(promise);
@@ -6857,10 +6870,7 @@ function createWidgetController(owner) {
 			const batch = preparationBatch;
 			const completion = Promise.all(batch.promises);
 			batch.completion = completion;
-			preparation = {
-				value,
-				completion
-			};
+			preparation = { completion };
 			holdPreparation(promise);
 			const handle = prepared();
 			if (handle) presentPreparation(handle, preparation);
@@ -7126,7 +7136,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 		ticket.reject(error);
 	}
 	#claim() {
-		return this.#region.present(d(() => this.#controller?.read() ?? {}), (reason) => failSoftUnreported(this, reason));
+		return this.#region.present((reason) => failSoftUnreported(this, reason));
 	}
 	#stage() {
 		if (!this.#connected || this.#ticket || !this.#region) return;
@@ -7147,7 +7157,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 	}
 	#connect() {
 		this.#connected = true;
-		this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render", this) : attachApplicationPresentation(this.#regionName, this);
+		this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render") : attachApplicationPresentation(this.#regionName);
 		const parentChanged = this.#connectedParent !== this.parentElement;
 		this.#connectedParent = this.parentElement;
 		if (registry[this.localName]?.["x-data"]) this.#leaveData = joinDataDelivery(this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName);

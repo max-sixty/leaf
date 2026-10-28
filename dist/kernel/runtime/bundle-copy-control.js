@@ -1,4 +1,4 @@
-import { actionElement, iconElement, nativeLayerHolding, nextRender, renderedParent, renderedUnder } from "./bundle-portable.js";
+import { actionElement, iconElement, nativeLayerHolding, nextRender, renderedParent, renderedUnder, setScroll } from "./bundle-portable.js";
 import { carriedFrom, deepFocus, focusDestination, focused, inputCount, onCurrentLocation, ringBox } from "./bundle-layer-stack.js";
 import { notice, offer, offerActionElement, raiseError } from "./bundle-layer-client.js";
 import { localScrollBy, pageScroller, reachable, scrollAxes, scrollersOf, startScroll } from "./bundle-content-layout.js";
@@ -47,8 +47,9 @@ function restrictUserIntent(retained, available) {
 //#region runtime/landing-scroll.js
 const land = (box, by, behavior) => {
 	if (behavior !== "instant") startScroll(box);
-	box.scrollBy({
-		...by,
+	setScroll(box, {
+		top: box.scrollTop + (by.top ?? 0),
+		left: box.scrollLeft + (by.left ?? 0),
 		behavior
 	});
 };

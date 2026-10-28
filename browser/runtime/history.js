@@ -39,6 +39,7 @@
  * claimed. A browser without the Navigation API keeps its own traversals and fragment
  * landings. */
 
+import { setScroll } from "./arrivals.js";
 import { deepFocus, drawn, focusDestination, readCaret } from "./focus.js";
 import { pageRange, selectEnds, selectionBackward } from "./passages.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -153,9 +154,9 @@ export function prepareEntry() {
     // the outgoing checkpoint; the exposed destination belongs to the new entry.
     if (window.location.href !== sourceUrl || history.state !== sourceState)
       replaceEntry(sourceUrl, sourceState);
-    window.scrollTo({ left: offset[0], top: offset[1], behavior: "instant" });
+    setScroll(pageScroller, { left: offset[0], top: offset[1], behavior: "instant" });
     pushEntry(url, state);
-    window.scrollTo({ left: arrival[0], top: arrival[1], behavior: "instant" });
+    setScroll(pageScroller, { left: arrival[0], top: arrival[1], behavior: "instant" });
     if (key) places.set(key, place);
   };
 }
@@ -209,7 +210,7 @@ export function mountHistory({ followFragment, returnToFragment }) {
           if (!mayReturn()) return;
           if (!handler || placed === false) {
             if (place)
-              window.scrollTo({
+              setScroll(pageScroller, {
                 left: place.offset[0],
                 top: place.offset[1],
                 behavior: "instant",

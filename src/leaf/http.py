@@ -5,6 +5,11 @@ owns what a page means at that boundary: where a page and its revisions answer
 (`revision_delivery` addresses what they name), the key, the layer gate, the `Leaf-*`
 headers, and the finite freshness reading a visible tab asks for.
 
+Blocking requests run in AnyIO workers without a shared concurrency limit, so a
+slow external operation cannot hold a fixed set of slots away from page gestures.
+Each request owns its work; inference releases its page transaction before waiting
+for the harness.
+
 A document runs this process's browser runtime (`runtime_selection`), whose identity
 addresses the resources a document loads and is named on every answer (`Leaf-Runtime`)
 and on every write a tab sends, so a tab running another runtime reads and writes
@@ -369,7 +374,9 @@ class PageEndpoint:
     async def __call__(self, scope, receive, send) -> None:
         """Serve through Starlette, decorating its final headers and status once."""
         started = time.monotonic()
-        response = await run_in_threadpool(self._response)
+        response = await anyio.to_thread.run_sync(
+            self._response, limiter=anyio.CapacityLimiter(math.inf)
+        )
 
         async def deliver(message):
             if message["type"] == "http.response.start":
@@ -1279,9 +1286,18 @@ class PageEndpoint:
 
     def _create_sample(self) -> Response:
         template = self.posted.get("template")
-        if not isinstance(template, str) or not template:
-            return self._refuse("sample requires a template id")
+        source = self.posted.get("source")
+        if (template is None) == (source is None):
+            return self._refuse(
+                "sample requires either a template id or source document"
+            )
+        if template is not None and (not isinstance(template, str) or not template):
+            return self._refuse("a sample's template must be a template id")
+        if source is not None and (not isinstance(source, str) or not source):
+            return self._refuse("a sample's source must be a nonempty HTML document")
         message = self.posted.get("message")
+        if source is not None and message is not None:
+            return self._refuse("a generated sample cannot name a parent message")
         if message is not None and (not isinstance(message, str) or not message):
             return self._refuse("a sample's message must be a message id")
         revision = self.layer_revision
@@ -1301,6 +1317,7 @@ class PageEndpoint:
                 template,
                 message,
                 asset_root,
+                source=source,
             )
         except (ValueError, Rejected) as error:
             return self._refuse(str(error))

@@ -48,15 +48,15 @@ const request = (url, body, headers = {}) => requestJson(url, {
 	body: JSON.stringify(body),
 	keepalive: true
 }, "sample");
-function mountSample(frame, { template, window: asWindow = false }) {
-	if (!template) throw new Error("a sample needs an authored template id");
+function mountSample(frame, { template, source, window: asWindow = false }) {
+	if (template == null === (source == null)) throw new Error("a sample needs either an authored template id or source document");
 	let revision = runtime.currentRevision;
 	let message;
 	for (let owner = frame.parentElement; owner; owner = owner.parentElement) {
 		const descriptor = widgetDescriptor(owner);
 		if (!descriptor) continue;
 		if (descriptor.document.kind === "page") revision = descriptor.document.revision;
-		else message = descriptor.document.message;
+		else if (source == null) message = descriptor.document.message;
 		break;
 	}
 	let current = null;
@@ -333,6 +333,7 @@ function mountSample(frame, { template, window: asWindow = false }) {
 			record("allocating");
 			const { url, page } = await request(pageUrl("api/samples"), {
 				template,
+				source,
 				message
 			}, revision ? { "Leaf-View-Revision": String(revision) } : {});
 			current = new URL(url, location.href).href;

@@ -29,7 +29,7 @@ import stat
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 # Installation paths start at the plugin, independent of its instruction skills.
@@ -91,8 +91,27 @@ def hold_mode(path: Path, mode: int) -> None:
 HOOKS_SUFFIX = "hooks"
 # The tool calls its hooks last ran before (`leases.first_hook_for_tool`).
 TOOLS_SUFFIX = "tools"
+# When its tool boundaries last checked its pages' status lines
+# (`hook_transport.status_reminders`), by the file's mtime.
+STATUS_CHECKED_SUFFIX = "status-checked"
+# How long the status line may stand unrenewed while the agent works before a tool
+# boundary reminds it, and how often a tool boundary checks.
+STATUS_RENEWAL = timedelta(minutes=2)
 # Its lifecycle outlives its instance while a claim reads it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
+
+
+def status_check_due(session_id: str) -> bool:
+    """Whether a tool boundary of the session checks its pages' status lines now
+    (`hook_transport.status_reminders`): at most once each `STATUS_RENEWAL`, by the
+    `status-checked` mark, so a tool hook that runs after every call reads the pages
+    only that often. Here rather than beside the check, so a hook with nothing due
+    imports no page model."""
+    try:
+        checked = session_file(session_id, STATUS_CHECKED_SUFFIX).stat().st_mtime
+    except FileNotFoundError:
+        return True
+    return time.time() - checked >= STATUS_RENEWAL.total_seconds()
 
 
 def sessions_home() -> Path:

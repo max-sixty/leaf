@@ -356,6 +356,8 @@ def test_same_passage_and_controls_keep_a_mixed_travel_group(
     entries = page.evaluate("history.length")
     page.keyboard.press("t")
     expect(page.locator(f'.lf-margin-preview [data-thread="{root}"]')).to_be_focused()
+    # Card focus precedes the passage's smooth scroll; observe its arrival first.
+    expect(page.locator("#first-reading span")).to_be_in_viewport()
     scroll_settled(page)
     expect(page.locator("#first-reading span")).to_be_visible()
     assert page.locator("#first-reading span").evaluate(

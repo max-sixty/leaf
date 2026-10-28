@@ -77,6 +77,7 @@
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
+  actionTemplate,
   agentName,
   PRESS,
   obligationsIn,
@@ -458,7 +459,8 @@ export class TabSet extends LeafElement {
               ><span class="lf-tab-answer-words">${answer}</span></span
             >`
           : nothing
-      }<span class="lf-tabdiff" aria-hidden="true">${changed ? `Δ${changed}` : ""}</span
+      }<span class="lf-tabdiff tag lf-change-count" aria-hidden="true"
+        >${changed ? `Δ${changed}` : ""}</span
       >${this.#down ? mark : nothing}</span
     >`;
   }
@@ -626,8 +628,9 @@ export class TabSet extends LeafElement {
             behavior: scrollBehavior(),
           });
         }}
+        >${actionTemplate(to === "start" ? "previous" : "next", "lf-tabstrip-scroll-icon")}</span
       ></span
-    ></span>`;
+    >`;
   }
 
   // A tab the row runs past is scrolled into the strip, and only the strip: a page

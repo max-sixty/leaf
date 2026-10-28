@@ -29,7 +29,7 @@ interface LeafReading {
 }
 
 /** The closed set of control roles, each with one face (`prepaint.js`, `ACTION_FACES`). */
-type LeafActionRole = "symbol" | "word" | "commit" | "mark" | "inline";
+type LeafActionRole = "symbol" | "word" | "commit" | "mark" | "inline" | "row";
 
 /** A package's retained template and optional rendering root. Node references and
  * mechanical inputs remain package-owned; the same render is used after upgrade. */
@@ -101,8 +101,18 @@ interface LeafInitial {
     inputType?: string,
     pressable?: boolean,
   ): K extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[K] : HTMLElement;
-  selectableOffer(role: string, cls?: string, label?: string): HTMLSpanElement;
-  selectableOfferElement(node: Element, role: string, cls?: string): void;
+  selectableOffer(
+    role: string,
+    cls?: string,
+    label?: string,
+    face?: LeafActionRole,
+  ): HTMLSpanElement;
+  selectableOfferElement(
+    node: Element,
+    role: string,
+    cls?: string,
+    face?: LeafActionRole,
+  ): void;
   offerElement<T extends Element>(node: T, cls?: string, pressable?: boolean): T;
   offerAction(
     role: LeafActionRole,

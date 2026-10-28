@@ -2034,7 +2034,7 @@ export function createFloatingPanel({
       role=${role ?? nothing}
       data-row=${row ?? nothing}
       title=${title ?? nothing}
-      class="lf-fp-face lf-fp-item"
+      ${offeredAction("row", "lf-fp-face lf-fp-item")}
       aria-current=${current ? "true" : nothing}
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
@@ -2128,11 +2128,11 @@ export function createFloatingPanel({
       <button
         type="button"
         role="menuitem"
-        class="lf-fp-face lf-fp-item lf-fp-menu-back"
+        ${offeredAction("row", "lf-fp-face lf-fp-menu-back")}
         aria-label=${`Back to the page menu from ${titleOf(menuAt.value)}`}
         @click=${() => showMenuAt(null)}
       >
-        <span class="lf-fp-label">${iconTemplate("next", "lf-fp-chevron")}Menu</span>
+        ${iconTemplate("next", "lf-fp-chevron")}Menu
       </button>
     </div>`;
   }
@@ -2560,7 +2560,7 @@ export function createFloatingPanel({
     const row = (thread) =>
       html`<button
         type="button"
-        class="lf-fp-face lf-fp-thread"
+        ${offeredAction("row", "lf-fp-face lf-fp-thread")}
         data-key=${thread.key}
         ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
@@ -3430,7 +3430,7 @@ export function createFloatingPanel({
     >
       <button
         type="button"
-        class="lf-fp-face lf-fp-item lf-fp-on-line"
+        ${offeredAction("row", "lf-fp-face lf-fp-item lf-fp-on-line")}
         aria-expanded=${String(opened)}
         ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
         @click=${() => toggleItem(key)}
@@ -3706,7 +3706,7 @@ export function createFloatingPanel({
           return row.self
             ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
             : html`<a
-                class="lf-fp-face lf-fp-page"
+                ${offeredAction("row", "lf-fp-face lf-fp-page")}
                 data-key=${row.key}
                 href=${row.href}
                 target="_blank"
@@ -3779,7 +3779,7 @@ export function createFloatingPanel({
           parent
             ? html`<button
                 type="button"
-                class="lf-fp-face lf-fp-back"
+                ${offeredAction("row", "lf-fp-face lf-fp-back")}
                 aria-label=${`Back to ${titleOf(parent)}`}
                 @click=${back}
               >

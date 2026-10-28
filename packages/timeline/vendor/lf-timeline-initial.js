@@ -370,7 +370,7 @@
     const listRef = generated(true);
     const rowRefs = model.steps.map((_, index) => (node) => {
       if (!node) return;
-      tools.selectableOfferElement(node, "button", "lf-timeline-step");
+      tools.selectableOfferElement(node, "button", "lf-timeline-step", "row");
       drawing.rows[index] = tools.generatedElement(node, { says: true });
     });
     const chartTemplate = () => {

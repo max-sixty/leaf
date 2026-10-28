@@ -424,8 +424,8 @@ The roles are:
   are the action's name, or `label` where that says more, such as "Retry loading the
   file"; `title` replaces the tooltip where it says more still, such as the key that
   does the same.
-- `"word"`, a press that says what it does, a row of a list or menu included; `label`
-  is its words. A toggle is a word with `aria-pressed`, which draws as selected.
+- `"word"`, a press that says what it does; `label` is its words. A toggle is a word
+  with `aria-pressed`, which draws as selected.
 - `"commit"`, the one press on a surface that commits the user's work.
 - `"mark"`, a small symbol seated on the thing it acts on, at its corner, which names
   its `action` as a symbol does.
@@ -433,6 +433,9 @@ The roles are:
   "Show activity" or a quote's "Full quote"; `label` is its words, drawn in the accent
   at the line's size. Give one that announces news waiting `data-lf-news`, which draws
   it in the danger ink.
+- `"row"`, one row of a list or menu, its words in the ink; the row under the pointer
+  or the keys is washed. Give the row the list stands on, such as the step a timeline
+  shows, `aria-current`, which draws it with the accent's stripe and tint.
 
 `className` places the control; don't restyle its face. Use a symbol where a standard
 symbol for the action exists, one readers know from other software, and words where
@@ -443,7 +446,10 @@ generated controls too.
 A control whose label is the page's own words, such as a tab's name, must stay
 selectable, so build it with `selectableOffer(role, className, label)`, a focusable span
 whose keyboard behavior the widget supplies. In a template, use
-`<span ${selectableOffered(role, className)}>${label}</span>`. Printing drops every
+`<span ${selectableOffered(role, className)}>${label}</span>`. To give it a role's
+face, such as `"row"` for a list whose rows are the page's words, name the role last:
+`selectableOffer(role, className, label, "row")` or `selectableOffered(role,
+className, "row")`. Printing drops every
 offer, so build structure that isn't injected UI, such as an editor's file, with
 `el(tag, className, text)`.
 

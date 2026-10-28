@@ -613,9 +613,9 @@ summary,
  * place a role's classes are spelled and says what each role is for. Each face holds
  * across document and shadow trees; a package places a control and may set its
  * density (`--lf-icon-action-face`), but restates none of its face, so a surface's
- * own symbols, the floating panel's included, stand beside its neighbours' alike. Margin entries, reaction chips, the response bar and
- * the floating panel's rows, answers and row end keep their own families, each drawn
- * by its one owner.
+ * own symbols and rows, the floating panel's included, stand beside its neighbours'
+ * alike. Margin entries, reaction chips, the response bar and the floating panel's
+ * answers and row end keep their own families, each drawn by its one owner.
  *
  * The word face: words in the muted ink with no frame, until a hovering pointer or
  * visible focus lays the chip under them and inks them. A press leaves focus on the
@@ -922,4 +922,52 @@ wa-copy-button.lf-icon-action {
 :where(button).lf-inline-action[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;
+}
+/* The row face: one row of a list or menu, such as the floating panel's Threads, menu
+   and Versions, the command reference, the Page Map, a timeline's steps, a recording's
+   moments and a visual review's cases. Its words are what the reader scans, so they
+   stand in the ink at the list's own type. Under a hovering pointer or the keys, the
+   offer's wash (`--offer-hover`) lies over whatever ground the row has, as an image,
+   so a list's own tint shows through it; a listbox's selected option is the keys'
+   target, as in the command reference. The row the list stands on, `aria-current`,
+   wears the accent's tint and a stripe at its start. Every row keeps the stripe's
+   room as a transparent border, so marking the current row moves no words, and the
+   wash, an image under the border, never hides the stripe. A row is square in every
+   state, as the striped box must be, so a washed row meets the current row beside it
+   edge to edge; rounded washes left a notch where they met it. Rows were
+   drawn six ways, two hovers and four current rows (weight in Versions, an ink wash
+   and underline in a visual review, accent words on the tint for a recording's
+   moments), until the user chose this one on 28 October. A list adds only what is
+   its own: Threads lights a thread's passage under the pointer, a timeline mutes the
+   steps still ahead, and the Page Map tints a thread on the user's turn. */
+.lf-row {
+  border: 0;
+  border-inline-start: 2px solid transparent;
+  border-radius: 0;
+  background-color: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+}
+/* It declines the shadow every generated press takes under the pointer (surfaces.css),
+   which, inset, would leave the stripe's room unwashed. */
+.lf-row:hover {
+  box-shadow: none;
+}
+.lf-row:where(:not(:disabled, [aria-disabled="true"])):is(
+    [data-lf-focus-visible],
+    [aria-selected="true"]
+  ) {
+  background-image: linear-gradient(var(--offer-hover), var(--offer-hover));
+}
+@media (hover: hover) {
+  .lf-row:where(:not(:disabled, [aria-disabled="true"])):hover {
+    background-image: linear-gradient(var(--offer-hover), var(--offer-hover));
+  }
+}
+.lf-row[aria-current]:not([aria-current="false"]) {
+  border-inline-start-color: var(--accent);
+  background-color: var(--accent-tint);
+  color: var(--ink);
 }

@@ -1400,15 +1400,16 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serve):
     """The stop reading distinguishes a real ring from a missing one.
 
-    Reach a control by Tab, verify its real indication, then remove that indication. A
-    tab's label supplies the distinct case where a box inside the focused stop carries its
-    ring.
+    Reach a control by Shift+Tab, verify its real indication, then remove that
+    indication. A tab's label supplies the distinct case where a box inside the focused
+    stop carries its ring. The walk runs backward because the mark steps aside while
+    the caret is in the panel's field, which a forward walk passes first.
     """
     url = serve(LONG_PAGE, comments=2)
     page = open_page(browser, url)
     page.evaluate(RING_FOCUS_START)
     for _ in range(60):
-        page.keyboard.press("Tab")
+        page.keyboard.press("Shift+Tab")
         if page.evaluate(
             "() => Boolean(document.activeElement?.matches('.lf-fp-on-user'))"
         ):

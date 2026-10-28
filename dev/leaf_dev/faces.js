@@ -2,10 +2,11 @@
  * faces.py says what a face is and how two versions' faces compare.
  *
  * Evaluated in a tab once its state is driven and captured. `collect` finds the
- * presses and reads each at rest, `point` and `hovered` read one under the pointer
- * Python has moved onto it, and `finish` resolves every colour to sRGB and returns
- * the faces. It resolves colours through one probe element it adds only then, after
- * every reading, so the page's own observers never act on it before a reading.
+ * presses the state shows, `rest` reads them with the pointer where Python has put
+ * it, `point` and `hovered` read one under the pointer Python has moved onto it, and
+ * `finish` resolves every colour to sRGB and returns the faces, as `tokens` returns
+ * the root's colour tokens. Colours resolve through one probe element added only
+ * then, after every reading, so the page's own observers never act on it first.
  */
 (() => {
   // What a reader presses to act: buttons in every spelling, a tab, a menu's row, a
@@ -23,8 +24,11 @@
     "summary",
     "a[href]",
   ].join(", ");
+  // A button written as an input shows its value, not a text node.
+  const INPUT_PRESS = "input[type=button], input[type=submit], input[type=reset]";
   const SIDES = ["Top", "Right", "Bottom", "Left"];
   const SIDE_NAMES = ["top", "right", "bottom", "left"];
+  const CORNERS = ["TopLeft", "TopRight", "BottomRight", "BottomLeft"];
   // How far two boxes' edges may part and still be one box: a part filling its host.
   const EDGE = 0.5;
   const SENTINEL = "rgb(1, 2, 3)";
@@ -148,7 +152,7 @@
       style[`border${side}Style`],
       style[`border${side}Color`],
     ]),
-    radius: style.borderTopLeftRadius,
+    radius: CORNERS.map((corner) => style[`border${corner}Radius`]),
     shadow: style.boxShadow,
   });
   // An element's paint, and its `::before` where that is drawn: a press that keeps a
@@ -186,12 +190,14 @@
     let underline = false;
     // The box of what the press shows, its words or its symbol, which a face frames.
     let inked = null;
-    const text = visibleText(press.stack[0]);
-    if (text) {
+    const field = press.stack.find((el) => el.matches(INPUT_PRESS) && el.value.trim());
+    const text = field ? null : visibleText(press.stack[0]);
+    const worded = field ?? text?.parentElement;
+    if (worded) {
       const range = document.createRange();
-      range.selectNodeContents(text);
-      inked = range.getBoundingClientRect();
-      const style = getComputedStyle(text.parentElement);
+      if (text) range.selectNodeContents(text);
+      inked = (field ?? range).getBoundingClientRect();
+      const style = getComputedStyle(worded);
       ink = style.color;
       underline = style.textDecorationLine.includes("underline");
       const family = style.fontFamily
@@ -228,7 +234,7 @@
     for (let at = press.stack.at(-1); at; at = flatParent(at))
       opacity *= Number(getComputedStyle(at).opacity);
     return {
-      words: Boolean(text),
+      words: Boolean(worded),
       size: [Math.round(box.width), Math.round(box.height)],
       inked: inked && [inked.width, inked.height],
       stack: press.stack.map(paint),
@@ -244,10 +250,21 @@
       const named = el.getAttribute("aria-label");
       if (named?.trim()) return named.trim();
     }
+    const field = press.stack.find((el) => el.matches(INPUT_PRESS) && el.value.trim());
+    if (field) return field.value.trim();
     const text = visibleText(press.stack[0]);
     if (text) return text.data.trim().replace(/\s+/g, " ");
     for (const el of press.stack) if (el.title?.trim()) return el.title.trim();
     return "";
+  };
+  // What names a press apart from its label in both versions of a page: an id or a
+  // key the page or the runtime gives it, or the nearest ancestor's (`scope`).
+  const keyOf = (el) =>
+    el.id ? `#${el.id}` : el.dataset?.key ? `[data-key="${el.dataset.key}"]` : null;
+  const scopeOf = (el) => {
+    for (let at = flatParent(el); at; at = flatParent(at))
+      if (keyOf(at)) return keyOf(at);
+    return null;
   };
   const describe = (el) => {
     const classes = [...el.classList].filter((name) => !name.startsWith("lf-ui"));
@@ -268,7 +285,6 @@
       ),
       expanded: any((el) => el.ariaExpanded === "true"),
       focused: any((el) => el.matches(":focus")),
-      hovered: any((el) => el.matches(":hover")),
     })
       .filter(([, holds]) => holds)
       .map(([name]) => name);
@@ -325,23 +341,36 @@
           (member) => member.matches(PRESS) || member.localName.includes("-"),
         ),
       );
-      press.flags = flags(press);
-      press.rest = reading(press);
+      press.key = press.stack.map(keyOf).find(Boolean) ?? null;
+      press.scope = scopeOf(press.stack[0]);
+      press.rest = null;
       press.hover = null;
       presses.push(press);
     }
     return presses.length;
   };
 
-  // A press's centre if the pointer would land on it now: an earlier hover may have
-  // opened something over it, or taken the pointer from what revealed it.
-  const point = (index) => centre(presses[index]);
+  // Read each press not yet read that shows now: at rest, with the pointer off the
+  // page, or, `revealed`, with the pointer back where the state left it, for a press
+  // something it hovers reveals. A press neither shows is left out.
+  const rest = (revealed) => {
+    for (const press of presses) {
+      if (press.rest || !centre(press)) continue;
+      press.flags = [...flags(press), ...(revealed ? ["revealed by hover"] : [])];
+      press.rest = reading(press);
+    }
+  };
+
+  // A read press's centre if the pointer would land on it now: an earlier hover may
+  // have opened something over it, or taken the pointer from what revealed it.
+  const point = (index) => (presses[index].rest ? centre(presses[index]) : null);
   const hovered = (index) => {
     const press = presses[index];
     if (press.stack.some((el) => el.matches(":hover"))) press.hover = reading(press);
   };
 
-  const finish = () => {
+  // sRGB for any CSS colour, read through one probe element, which `close` removes.
+  const colours = () => {
     try {
       CSS.registerProperty({
         name: PROBE,
@@ -374,15 +403,40 @@
       }
       return resolved.get(colour);
     };
-    const hex = (channel) =>
-      Math.round(Math.min(1, Math.max(0, channel)) * 255)
-        .toString(16)
-        .padStart(2, "0");
-    const named = ([r, g, b, a]) => {
-      if (a < 0.005) return null;
-      const colour = `#${hex(r)}${hex(g)}${hex(b)}`;
-      return a > 0.995 ? colour : `${colour} ${Math.round(a * 100)}%`;
-    };
+    return { resolve, close: () => probe.remove() };
+  };
+  const hex = (channel) =>
+    Math.round(Math.min(1, Math.max(0, channel)) * 255)
+      .toString(16)
+      .padStart(2, "0");
+  const named = ([r, g, b, a]) => {
+    if (a < 0.005) return null;
+    const colour = `#${hex(r)}${hex(g)}${hex(b)}`;
+    return a > 0.995 ? colour : `${colour} ${Math.round(a * 100)}%`;
+  };
+  // The root's custom properties that hold a colour, by the colour, in the scheme the
+  // page renders now.
+  const tokensOf = (resolve) => {
+    const tokens = {};
+    for (const name of getComputedStyle(document.documentElement)) {
+      if (!name.startsWith("--") || name === PROBE) continue;
+      const rgba = resolve(`var(${name})`);
+      const colour = rgba && named(rgba);
+      if (colour) (tokens[colour] ??= []).push(name);
+    }
+    return tokens;
+  };
+  const tokens = () => {
+    const { resolve, close } = colours();
+    try {
+      return tokensOf(resolve);
+    } finally {
+      close();
+    }
+  };
+
+  const finish = () => {
+    const { resolve, close } = colours();
     const canonical = (colour) => {
       const rgba = resolve(colour);
       return rgba ? named(rgba) : colour;
@@ -438,13 +492,20 @@
         before && before.size.every(Number.isFinite)
           ? before.size.map(Math.round)
           : raw.size;
+      // The corners of the layer that draws the face: its `::before` where that is
+      // the face, else the outermost layer that paints; one value where all agree.
       let radius = null;
       if (painters.length) {
-        const given = painters[0].radius.split(" ")[0];
-        const px = given.endsWith("%")
-          ? (parseFloat(given) / 100) * Math.min(w, h)
-          : parseFloat(given);
-        radius = px >= Math.min(w, h) / 2 - EDGE ? "round" : Math.round(px);
+        const corners = (before ?? painters[0]).radius.map((given) => {
+          const first = given.split(" ")[0];
+          const px = first.endsWith("%")
+            ? (parseFloat(first) / 100) * Math.min(w, h)
+            : parseFloat(first);
+          return px >= Math.min(w, h) / 2 - EDGE ? "round" : Math.round(px);
+        });
+        radius = corners.every((corner) => corner === corners[0])
+          ? corners[0]
+          : corners.join(" ");
       }
       const shadows = painters
         .map((member) => member.shadow)
@@ -476,30 +537,34 @@
       };
     };
 
-    const faces = presses.map((press) => {
-      const on = faceOn(press);
-      return {
-        label: press.label,
-        element: press.element,
-        at: press.at,
-        flags: press.flags,
-        words: press.rest.words,
-        rest: face(press.rest, on),
-        hover: press.hover && face(press.hover, on),
-      };
-    });
-    // The root's custom properties that hold a colour, by the colour, so a report can
-    // name a face's colours as the theme does.
-    const tokens = {};
-    for (const name of getComputedStyle(document.documentElement)) {
-      if (!name.startsWith("--") || name === PROBE) continue;
-      const rgba = resolve(`var(${name})`);
-      const colour = rgba && named(rgba);
-      if (colour) (tokens[colour] ??= []).push(name);
-    }
-    probe.remove();
-    return { presses: faces, tokens };
+    const faces = presses
+      .filter((press) => press.rest)
+      .map((press) => {
+        const on = faceOn(press);
+        return {
+          label: press.label,
+          element: press.element,
+          at: press.at,
+          key: press.key,
+          scope: press.scope,
+          flags: press.flags,
+          words: press.rest.words,
+          rest: face(press.rest, on),
+          hover: press.hover && face(press.hover, on),
+        };
+      });
+    const found = { presses: faces, tokens: tokensOf(resolve) };
+    close();
+    return found;
   };
 
-  globalThis.leafDevFaces = { collect, point, hovered, finish, resting: () => resting };
+  globalThis.leafDevFaces = {
+    collect,
+    rest,
+    point,
+    hovered,
+    finish,
+    tokens,
+    resting: () => resting,
+  };
 })();

@@ -15,7 +15,7 @@
 import {
   announce,
   html,
-  iconTemplate,
+  showAction,
   render,
   el,
   generated,
@@ -105,8 +105,7 @@ function updateDisclosureControl(owner) {
   const button = owner.querySelector(":scope > .lf-call-tools .lf-call-toggle");
   if (!button) return;
   const expand = groups.some((group) => !group.open);
-  const icon = expand ? "unfold" : "fold";
-  render(iconTemplate(icon, "lf-action-icon"), button);
+  showAction(button, expand ? "expand-all" : "collapse-all");
   const label = `${expand ? "Expand" : "Collapse"} all ${groups.length} call-tree ${groups.length === 1 ? "root" : "roots"}`;
   keeps(button, "aria-label", label);
   keeps(button, "title", label);
@@ -122,7 +121,9 @@ function buildToolbar(owner) {
   generatedElement(summary, { says: false });
   // An offer, not a bare button: the disclosure control is chrome this widget injected,
   // and the offer gives it the press markers the theme and the keyboard read.
-  const button = offerAction("symbol", "lf-call-toggle");
+  const button = offerAction("symbol", "lf-call-toggle", undefined, {
+    action: "expand-all",
+  });
   button.addEventListener("click", () => {
     const groups = [...owner.querySelectorAll(":scope > .lf-call-group")];
     const open = groups.some((group) => !group.open);

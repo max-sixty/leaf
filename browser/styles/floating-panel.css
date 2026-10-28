@@ -509,36 +509,46 @@
      whether the words come with a key drawn beside them or alone. Whose reading the
      words are is the editor's own `data-says`, written in the paint that writes the
      words (floating-panel.js, `saying`), so no face stands over another reading's words
-     for a frame, as the notice's weight once did over the status, carrying it sideways. */
+     for a frame, as the notice's weight once did over the status, carrying it sideways.
+
+     A press the field offers, an open thread's Reply or the words selected on the page,
+     reads instead in ink with the key that makes it, so the next action stands apart
+     from the agent's words; words standing before it keep the dim face (`offers`, and
+     composing/input.js, `hintLead`). No other reading shows a key. The rule is the
+     panel's alone: the user kept a card's reply box dim on 27 October, since in a box
+     that says nothing but its own hint, an ink Reply read as words already typed. */
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
-  /* In an open thread, whose turn it is stands beside the leaf in that dim face, the
-     agent's words as the status is at rest, and Reply stands at the field's end with
-     its key, in ink as the press it offers (floating-panel.js, `turnLead`). */
-  .lf-fp-field leaf-text[data-says="turn"] .lf-compose-placeholder > span:last-of-type {
-    margin-inline-start: auto;
+  .lf-fp-field leaf-text[data-offers]::part(placeholder) {
     color: var(--ink);
   }
-  /* Its key comes only while the panel holds focus (composing/input.js, `enteringHint`),
-     so where keys are shown its room stands without it and Reply never moves as focus
-     comes and goes, standing out of the baseline it has no text for; a coarse pointer
-     is shown no keys (keyboard/bindings.js, `advertisesKeys`). */
+  .lf-fp-field leaf-text[data-offers] .lf-compose-placeholder-lead {
+    color: var(--lf-fp-quiet);
+  }
+  .lf-fp-field leaf-text:not([data-offers]) .lf-compose-placeholder kbd {
+    display: none;
+  }
+  /* An offer's key shows only while c goes to it (composing/surface.js,
+     `commentDestination`), so where keys are shown its room stands without it and the
+     words never move as it comes and goes, standing out of the baseline it has no text
+     for; a coarse pointer is shown no keys (keyboard/bindings.js, `advertisesKeys`). */
   @media not (pointer: coarse) {
-    .lf-fp-field leaf-text[data-says="turn"] .lf-compose-placeholder > kbd:empty {
+    .lf-fp-field leaf-text[data-offers] .lf-compose-placeholder > kbd:empty {
       display: inline-flex;
       align-self: center;
       visibility: hidden;
     }
   }
+  /* In an open thread, whose turn it is stands beside the leaf, the agent's words as
+     the status is at rest, and Reply stands at the field's end (floating-panel.js,
+     `turnLead`). */
+  .lf-fp-field leaf-text[data-says="turn"] .lf-compose-placeholder > span:last-of-type {
+    margin-inline-start: auto;
+  }
   .lf-fp-field leaf-text[data-says="notice"]::part(placeholder) {
     color: var(--lf-fp-muted);
     font-weight: 500;
-  }
-  /* Selected words the field comments on are the press it offers, so they read in ink
-     rather than a report's dim face. */
-  .lf-fp-field leaf-text[data-says="selection"]::part(placeholder) {
-    color: var(--ink);
   }
   /* An error the field says stands in its status's place, in the danger's ink, until
      the user's first edit (errors.js). One about the field's editor covers it as at any
@@ -605,11 +615,6 @@
   .lf-compose-placeholder-lead [data-voice="leaf"],
   .lf-fp-value [data-voice="leaf"] {
     font-style: italic;
-  }
-  /* The panel shows no key hints but the one that enters an open thread's reply, which
-     the empty field says as a margin card's reply box does (`fieldReading`). */
-  .lf-fp-field leaf-text:not([data-says="turn"]) .lf-compose-placeholder kbd {
-    display: none;
   }
   /* The field's presses float in its foot's end corner, as an anchored comment box's
      do (response.css), and every line keeps room for them (text-field.js,

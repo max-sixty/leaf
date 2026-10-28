@@ -97,7 +97,7 @@ import {
 import { TEXT_FIELD } from "../control-selectors.js";
 import { caretAtKey, focusDestination } from "../focus.js";
 import { seenRect } from "../geometry.js";
-import { iconElement } from "../icons.js";
+import { actionElement } from "../icons.js";
 import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
@@ -362,7 +362,7 @@ export class MessageEditor {
     cancel.type = "button";
     cancel.setAttribute("aria-label", "Discard");
     cancel.title = "Discard";
-    cancel.append(iconElement("cross", "lf-msg-control-icon"));
+    cancel.append(actionElement("discard", "lf-msg-control-icon"));
     actions.append(cancel);
     // The box's last line, where the caret stands on opening: the field's own lines are
     // in a closed tree, so a mark of no size after it is what a reveal can aim at.
@@ -436,7 +436,7 @@ export class MessageEditor {
       accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
       sends: "save",
       sendClass: "lf-msg-control lf-msg-edit-save",
-      icon: "save",
+      action: "save",
       submitIn: actions,
       sentMedia: true,
       save: (value) => {

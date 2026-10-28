@@ -441,16 +441,16 @@ export function createFloatingResponsePlacement({
           roomPx(Math.max(0, boundary.width / scale)),
         );
     };
-    // The frame may grow to the whole boundary on any side, past the room its held edge
+    // The frame may grow to its whole room (`fit`'s) on any side, past the room its held edge
     // leaves, since shift slides it inside. Native tracks reserve the furniture and give
     // the editor what remains. Typing never scrolls the page to make room. The box grows
     // from the edge that holds it, then slides inside the window, over its passage if it
     // must, and once it fills the window scrolls its own words.
-    const setHeight = (scale) => {
+    const setHeight = (room, scale) => {
       if (!response.open) return;
       fabBar.style.setProperty(
         "--lf-float-h",
-        roomPx(Math.max(0, boundary.height / scale)),
+        roomPx(Math.max(0, room.height / scale)),
       );
     };
     fabPlacement.choose({
@@ -481,14 +481,14 @@ export function createFloatingResponsePlacement({
           column: place.column,
           margin: place.margin,
           boundary,
-          fit({ width, scale }) {
+          fit({ width, room, scale }) {
             if (!stillCurrent()) return;
             setWidth(width, scale.x);
-            setHeight(scale.y);
+            setHeight(room, scale.y);
             const frame = fabBar.getBoundingClientRect();
             if (
-              Math.ceil(frame.width) > Math.ceil(boundary.width) ||
-              Math.ceil(frame.height) > Math.ceil(boundary.height) ||
+              Math.ceil(frame.width) > Math.ceil(room.width) ||
+              Math.ceil(frame.height) > Math.ceil(room.height) ||
               (response.open && nativeRowEnd() > fabBar.clientHeight)
             )
               withholdFab();

@@ -167,15 +167,10 @@
     return named.icon;
   };
   var SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
-  var NAMED = new Set(Object.values(ACTIONS).map(({ name }) => name));
   function actionFace(role, label, action) {
     if (!SYMBOLIC.has(role)) {
       if (action !== void 0)
         throw new TypeError(`A ${role} says its label and shows no action's symbol`);
-      if (role === "word" && NAMED.has(label))
-        throw new TypeError(
-          `${label} is an action Leaf shows as its symbol: offer it as a symbol of that action`
-        );
       return label;
     }
     if (action === void 0) throw new TypeError(`A ${role} names the action it shows`);

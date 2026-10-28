@@ -13,35 +13,39 @@ test("a symbol shows its action's symbol and says its name unless its label says
   assert.deepEqual(symbolOf(retry), ["retry"]);
   assert.equal(retry.getAttribute("aria-label"), "Retry");
   assert.equal(retry.title, "Retry");
-  const named = offerAction("symbol", "", "Retry loading the file", { action: "retry" });
+  const named = offerAction("symbol", "", "Retry loading the file", {
+    action: "retry",
+  });
   assert.equal(named.getAttribute("aria-label"), "Retry loading the file");
   assert.deepEqual(symbolOf(named), ["retry"]);
   // Close and Discard share ✕; the action, not the icon, is what a press names.
-  assert.deepEqual(symbolOf(offerAction("mark", "", undefined, { action: "discard" })), [
-    "cross",
-  ]);
+  assert.deepEqual(
+    symbolOf(offerAction("mark", "", undefined, { action: "discard" })),
+    ["cross"],
+  );
 });
 
-test("a press can't show a symbol without naming its action, nor say an action's name as a word", () => {
+test("a press can't show a symbol without naming one of Leaf's actions", () => {
   assert.throws(() => offerAction("symbol", "", "Retry"), /names the action/);
   assert.throws(
     () => offerAction("symbol", "", undefined, { action: "spin" }),
     /Unknown Leaf action/,
   );
-  assert.throws(() => offerAction("word", "", "Retry"), /shows as its symbol/);
   assert.throws(
     () => offerAction("word", "", "Go", { action: "next" }),
     /shows no action's symbol/,
   );
-  assert.equal(offerAction("word", "", "Retry loading").textContent, "Retry loading");
-  // The commit is the surface's one worded press, whatever it says.
-  assert.equal(offerAction("commit", "", "Done").textContent, "Done");
+  // Words stay the author's: a page's own Done is a word, as Leaf's to-do's is.
+  assert.equal(offerAction("word", "", "Done").textContent, "Done");
 });
 
 test("a template's symbol is drawn once and swaps only when its action's symbol changes", () => {
   const box = document.createElement("div");
   const draw = (action) =>
-    render(html`<button ${offeredAction("symbol", "", undefined, { action })}></button>`, box);
+    render(
+      html`<button ${offeredAction("symbol", "", undefined, { action })}></button>`,
+      box,
+    );
   draw("resolve");
   const button = box.querySelector("button");
   const check = button.firstElementChild;

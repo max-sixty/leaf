@@ -146,19 +146,14 @@ export const actionElement = (action, className) =>
   iconElement(actionIcon(action), className);
 
 const SYMBOLIC = new Set(["symbol", "mark"]);
-const NAMED = new Set(Object.values(ACTIONS).map(({ name }) => name));
 
-// The name a control of `role` says, and the action whose symbol it shows. A symbol or
-// mark shows its action's symbol and says its name unless `label` says more. A word
-// that is an action's name would give that action a second face, so it is refused.
+// The name a control of `role` says. A symbol or mark shows its action's symbol and
+// says its name unless `label` says more. Whether a press is a word or a symbol stays
+// the author's call: a page's own "Done" is a word as Leaf's to-do's is.
 function actionFace(role, label, action) {
   if (!SYMBOLIC.has(role)) {
     if (action !== undefined)
       throw new TypeError(`A ${role} says its label and shows no action's symbol`);
-    if (role === "word" && NAMED.has(label))
-      throw new TypeError(
-        `${label} is an action Leaf shows as its symbol: offer it as a symbol of that action`,
-      );
     return label;
   }
   if (action === undefined) throw new TypeError(`A ${role} names the action it shows`);

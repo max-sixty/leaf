@@ -362,9 +362,9 @@ The roles are:
 - `"mark"`, a small symbol seated on the thing it acts on, at its corner, which names
   its `action` as a symbol does.
 
-`className` places the control; don't restyle its face. Use a symbol where Leaf has an
-action for what the press does, and words where it has none. A word whose label is an
-action's name, such as "Retry", is refused, since that action already has its symbol.
+`className` places the control; don't restyle its face. Use a symbol where a standard
+symbol for the action exists, one readers know from other software, and words where
+none does.
 Shared control styles (`page-layout.md`, "Page CSS and Leaf's controls") apply to
 generated controls too.
 

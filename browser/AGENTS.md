@@ -189,8 +189,8 @@ representative desktop viewport.
   `runtime/icon-paths.js`, which gives it the action's symbol, and says its name as
   tooltip and accessible name, without the word beside the symbol. An action shows one
   symbol, or one word, wherever Leaf offers it, so a reader who learns it in one place
-  knows it in every other: a press never names an icon, and `offerAction` refuses a
-  word that is an action's name. One control
+  knows it in every other, and a press names an action, never an icon, so its symbol
+  can't drift. One control
   whose symbol follows its state, such as play turning to pause, replaces a button for
   each state. A symbol that is only related to the action, such as a speech bubble for
   answering a question, leaves the reader guessing, and a tooltip doesn't fix that:

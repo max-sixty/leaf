@@ -117,7 +117,6 @@
     if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
     return named.icon;
   };
-  var NAMED = new Set(Object.values(ACTIONS).map(({ name }) => name));
   function showAction(control, action, className = "lf-action-icon") {
     const icon = actionIcon(action);
     const drawn = control.querySelector(":scope > svg[data-lf-icon]");

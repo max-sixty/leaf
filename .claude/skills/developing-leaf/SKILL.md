@@ -173,8 +173,11 @@ fixed overlays in the wrong place.
 
 Derive the required visual relationships from the reader's task, not from the checks
 that pass. For each ordinary input, state which content and controls the reader needs
-to keep in view or reach next, then check their computed geometry before and after the
-input in the delivered page, embedded views included. Make those relationships hold as content
+to keep in view or reach next, then check before and after the input, in the delivered
+page, embedded views included, that each stands where the task needs it and that the
+user can see and reach it. A control's box and opacity can be right while something
+paints over it, so reach it as the user does, with a Playwright hover or click, whose
+actionability check refuses a covered control. Make those relationships hold as content
 and sizes change, through layout constraints or positions derived from one shared
 dimension, and check the constraints in the source too, since a screenshot can hide a
 small misalignment. Re-vendor after a runtime, theme, registry or widget change, then

@@ -3,7 +3,13 @@
     "timeline-defect": "2ae91d03-0f4b-4df5-b7b0-e5d6d0d7b98f",
     "timeline-control": "8c39a62b-f394-4ed6-9e9a-95122ac334d8",
     "shift-defect": "4bd12a2f-1932-4127-b5ab-87517635e931",
-    "shift-control": "fcb9f467-39f5-4f8e-a62c-d3b03aa6cd22"
+    "shift-control": "fcb9f467-39f5-4f8e-a62c-d3b03aa6cd22",
+    "edge-defect": "d19195d2-af93-4d90-aee7-30f50256431f",
+    "edge-control": "a123670c-e286-40b4-971b-0ae531706358",
+    "cover-defect": "a8fc5941-12ad-4aea-9de4-eef056d44288",
+    "cover-control": "fe854b90-2e50-4d26-b03c-d6e40a1f4632",
+    "press-defect": "b246a4b5-8aa5-4096-a203-bc4518d50a95",
+    "press-control": "d07e78e7-b0e2-4160-b3d2-4918e0f72e27"
   },
   "sources": {
     "timeline": {
@@ -63,6 +69,14 @@
       "line": 193,
       "mechanism": "Full historical widget with only imported widget-api adapted. Defective variant reverses the imageHost-first DOM repair. Same synthetic image at checkpoint and intermediate frame isolates image placement from content.",
       "limitation": "Synthetic two-point recording with SVG content; not exact archived recording. API adapter disables anchoring/comment/event integration; timeline selection and drawing are original."
+    },
+    "thread": {
+      "session": "Claude Code 86301ffc-6bc2-4e67-9419-26667affd38d, branch message-copy-markdown",
+      "generator": "Hand-written reconstruction of a Leaf margin card (one user message, an agent reply, a later user reply) with Leaf's icon paths; each defect/control pair differs only in the CSS rule carrying the mechanism.",
+      "edge": "Commit before the user's 2026-10-27 'the copy button is in the middle of the column!': later messages' controls anchored to the head's end, which stops one actions track short of the card's edge. Passed the author's check and one cold review judging consistency with neighbouring controls.",
+      "cover": "Merge 50ac586b4 (main's #4537 gave each head row a z-index 1 card-ground cell in the actions' track; the branch's later-message controls stood there at z-index 0). The author's layout test asserted the controls' box and opacity and passed; fixed in bf49b81e3. The user found it.",
+      "press": "Branch state before 7b693345c: `.lf-msg:is(:hover, [data-lf-focus-within])` revealed the controls, and a press left focus on Copy. Missed by two cold reviews that pressed Copy; the user found it ('the edit & copy buttons remain on the message above').",
+      "limits": "Leaf's runtime, shadow DOM, sticky scrolling and the real theme are omitted; the reconstruction keeps the geometry and paint order that carry each mechanism."
     }
   },
   "candidate_exposure": "Only public/ fixture assets and staged screenshots/manifest; never give private/ provenance or condition mapping to candidate models.",
@@ -74,11 +88,17 @@
     "public/fcb9f467-39f5-4f8e-a62c-d3b03aa6cd22.html": "95b9e72624df7e3f4e54dd567eb4bc8ebb2150b8cb9847f969e38eef95dddf79",
     "public/4bd12a2f-1932-4127-b5ab-87517635e931.js": "59870a3d11792c71fd366cd3d947ed3a00126b260c4e8d9ae8cc180de5f81522",
     "public/assets/widget-api.js": "d165cbb0b56f2c59f8f06f517cba4cfbc7ddfafebf39455570586dfcd4d463f5",
-    "public/assets/scene.svg": "9c53d69b80a275cf737a99744d03a4a7196f34d5caf13c3c04590a5fb4e2c40e"
+    "public/assets/scene.svg": "9c53d69b80a275cf737a99744d03a4a7196f34d5caf13c3c04590a5fb4e2c40e",
+    "public/d19195d2-af93-4d90-aee7-30f50256431f.html": "440de83d9b59b3369a571a221896650d8197d3883f9a05715babb9e3284df9ae",
+    "public/a123670c-e286-40b4-971b-0ae531706358.html": "beaffec35a0cd982e12135a2d8044200415bc6eb4e4d00443552187b063df51b",
+    "public/a8fc5941-12ad-4aea-9de4-eef056d44288.html": "7fc3c29175411a1810fb6f6b1bb199a800362d4e588c1aad335642459b6bbaf5",
+    "public/fe854b90-2e50-4d26-b03c-d6e40a1f4632.html": "3e4a78a48fa27a09d5b235123bcec6e943be16ff33ac8275953f334dfb6d7fc7",
+    "public/b246a4b5-8aa5-4096-a203-bc4518d50a95.html": "8a95cd47c230bfad2a3e2e19d6ff4a412771a96dc58a5b8e29236bf72d9fa71b",
+    "public/d07e78e7-b0e2-4160-b3d2-4918e0f72e27.html": "3e4a78a48fa27a09d5b235123bcec6e943be16ff33ac8275953f334dfb6d7fc7"
   },
   "dependency": {
     "commit": "a8ed7fffe91978a92cb1764e7305e80e59312ea8",
-    "path": "packages/playwright/vendor/timeline.esm.js",
+    "path": "skills/leaf/packages/playwright/vendor/timeline.esm.js",
     "sha256": "68578b4653af1c9f03e100eb9a09a263f5c8015846fc7cf60b51721bf217a546"
   }
 }

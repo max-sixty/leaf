@@ -1618,8 +1618,8 @@ _TEXT = {
         f"{v['page']} was vendored at page protocol {v['vendored']} by a newer Leaf"
         f" ({v['vendored_by']}), and this Leaf ({v['leaf']}) speaks protocol"
         f" {v['protocol']}, so it can neither serve nor re-vendor the page. Use a"
-        f" Leaf at protocol {v['vendored']} or later; in Claude Code,"
-        " `/reload-plugins` loads an installed update."
+        f" Leaf at protocol {v['vendored']} or later, such as the one that vendored"
+        " it."
     ),
     "retired-layer": lambda at, v: _unservable_layer(
         v,

@@ -22,17 +22,16 @@ decoration and not read.
 A face is what makes two presses read as different kinds, at rest and again under
 the pointer: its fill, border and corner radii, its shadow, its ink (the words'
 colour, an input's value's, an icon's stroke or fill), a worded press's font,
-underline, and opacity. Size is not
-part of it, since a symbol is sized to the surface it sits on
-(`--lf-icon-action-face`): a face lists the sizes its presses come in (a symbol's
-width and height; a worded press's height and side padding, since its width is its
-label's), at rest and under the pointer, and a press that changes size but not face
-is reported as resized. Colours compare as sRGB at 8 bits and whole percents of
-alpha; a dark state's colours compare as the light colours of the root tokens that
-hold them (`light`), so a press drawn from the same tokens in both schemes is one
-face. Token names only label a report, one name per colour across both arms
-(`token_name`), so renaming or aliasing a token changes no face. Each face's name is
-a hash of that look, so the same face has the same name in every run.
+underline, and opacity. Size is not part of it, since a symbol is sized to the
+surface it sits on (`--lf-icon-action-face`): a face lists the sizes its presses
+come in (a symbol's width and height; a worded press's height and side padding,
+since its width is its label's), at rest and under the pointer, and a press that
+changes size but not face is reported as resized. Colours compare as rendered, in
+sRGB at 8 bits and whole percents of alpha, so a dark press is a face of its own and
+a colour change in either scheme shows. Token names only label a report, one name
+per colour across both arms (`token_name`), so renaming or aliasing a token changes
+no face. Each face's name is a hash of that look, so the same face has the same name
+in every run.
 
 The reading is per state, in that state's scheme and viewport; a face only dark
 states show is marked as dark. A press reads at rest with the pointer off the page,
@@ -70,10 +69,9 @@ NEARBY = 8
 
 def read_faces(page: Page, *, hover: bool) -> dict:
     """Read every press the state shows at rest and, when `hover`, under the pointer:
-    `{"presses": [...], "tokens": {colour: [root custom properties]}}`, and in a dark
-    page `"light tokens"`, the same properties as the light scheme resolves them.
+    `{"presses": [...], "tokens": {colour: [root custom properties]}}`.
 
-    Moves the pointer and turns the page light, so read once the state is captured."""
+    Moves the pointer, so read once the state is captured."""
     page.evaluate(SCRIPT.read_text())
     count = page.evaluate("() => leafDevFaces.collect()")
     resting = page.evaluate("() => leafDevFaces.resting()")
@@ -94,49 +92,16 @@ def read_faces(page: Page, *, hover: bool) -> dict:
             if point:
                 page.mouse.move(point["x"], point["y"])
                 page.evaluate("i => leafDevFaces.hovered(i)", index)
-    found = page.evaluate("() => leafDevFaces.finish()")
-    if page.evaluate("() => matchMedia('(prefers-color-scheme: dark)').matches"):
-        page.emulate_media(color_scheme="light")
-        found["light tokens"] = page.evaluate("() => leafDevFaces.tokens()")
-    return found
-
-
-def light(reading: dict) -> Callable[[str], str]:
-    """How a colour in `reading`'s state compares: as itself in a light page, and in a
-    dark one as the light colour of the tokens that hold it (a translucent colour no
-    token holds through its opaque colour's), so a press drawn from the same tokens in
-    both schemes is one face whatever the tokens are called. A dark colour whose
-    tokens name no one light colour compares as itself, marked `dark:`."""
-    if "light tokens" not in reading:
-        return lambda colour: colour
-    shades = {
-        name: colour
-        for colour, names in reading["light tokens"].items()
-        for name in names
-    }
-
-    def translate(colour: str) -> str:
-        opaque, _, alpha = colour.partition(" ")
-        names, suffix = reading["tokens"].get(colour), ""
-        if not names and alpha:
-            names, suffix = reading["tokens"].get(opaque), f" {alpha}"
-        found = {shades[name] for name in names or () if name in shades}
-        if len(found) == 1:
-            (shade,) = found
-            if not (suffix and " " in shade):
-                return shade + suffix
-        return f"dark:{colour.removeprefix('#')}"
-
-    return translate
+    return page.evaluate("() => leafDevFaces.finish()")
 
 
 def held(*censuses: dict[str, dict]) -> dict[str, set[str]]:
-    """Every root token by the light colour it holds, across both arms, so a colour
-    has one name throughout a report."""
+    """Every root token by the colour it holds, across both arms, so a colour has one
+    name throughout a report."""
     found = defaultdict(set)
     for census in censuses:
         for reading in census.values():
-            for colour, names in reading.get("light tokens", reading["tokens"]).items():
+            for colour, names in reading["tokens"].items():
                 found[colour].update(names)
     return found
 
@@ -158,23 +123,20 @@ def token_name(colour: str, tokens: dict[str, set[str]]) -> str:
     return colour
 
 
-def look(face: dict | None, translate: Callable[[str], str]) -> dict | None:
-    """A face's reading as a kind of face: its colours as they compare (`light`), and
-    its size left out, since a symbol is sized to its surface."""
+def look(face: dict | None) -> dict | None:
+    """A face's reading as a kind of face: its size left out, since a symbol is sized
+    to its surface."""
     if face is None:
         return None
-    compared = COLOUR.sub(lambda colour: translate(colour.group()), json.dumps(face))
-    return {
-        field: value for field, value in json.loads(compared).items() if field != "size"
-    }
+    return {field: value for field, value in face.items() if field != "size"}
 
 
-def signature(press: dict, translate: Callable[[str], str]) -> str:
+def signature(press: dict) -> str:
     return json.dumps(
         {
             "words": press["words"],
-            "rest": look(press["rest"], translate),
-            "hover": look(press["hover"], translate),
+            "rest": look(press["rest"]),
+            "hover": look(press["hover"]),
         },
         sort_keys=True,
     )
@@ -184,13 +146,21 @@ def name(face: str) -> str:
     return hashlib.sha1(face.encode()).hexdigest()[:6]
 
 
-# What pairs a press across arms, in order: its own id or key, its label within its
-# nearest keyed ancestor, its label. Each pairs only presses it names once on each side.
+# What pairs a press across arms, in order: its own id or key, then its label within
+# its nearest keyed ancestor, if it has one. Each pairs only presses it names once on
+# each side.
 STAGES = (
     lambda press: press.get("key"),
-    lambda press: press.get("scope") and (press["scope"], press["label"]),
-    lambda press: press["label"] or None,
+    lambda press: press["label"] and (press.get("scope"), press["label"]),
 )
+
+
+def compatible(before: dict, after: dict) -> bool:
+    """Whether two presses may be one press: in one scope, and not keyed apart."""
+    keys = before.get("key"), after.get("key")
+    return before.get("scope") == after.get("scope") and (
+        None in keys or keys[0] == keys[1]
+    )
 
 
 def once(presses: list[dict], stage: Callable[[dict], object]) -> dict:
@@ -206,12 +176,17 @@ def pairs(base: dict[str, dict], head: dict[str, dict]):
     """Each press both arms show, as (state, base press, head press): paired by the
     first of `STAGES` that names it once on each side, then a press left over, such
     as one of two that share a label, by where it sits, its centre within `NEARBY`
-    pixels of the other's."""
+    pixels of the other's. Two presses `compatible` refuses stay unpaired, a press
+    gone and a press new."""
     for state, reading in base.items():
         before, after = list(reading["presses"]), list(head[state]["presses"])
         for stage in STAGES:
             mine, theirs = once(before, stage), once(after, stage)
-            matched = mine.keys() & theirs.keys()
+            matched = [
+                value
+                for value in mine.keys() & theirs.keys()
+                if compatible(mine[value], theirs[value])
+            ]
             for value in matched:
                 yield state, mine[value], theirs[value]
             taken = {id(mine[value]) for value in matched}
@@ -222,6 +197,7 @@ def pairs(base: dict[str, dict], head: dict[str, dict]):
             spaced = [
                 (math.dist(other["at"], press["at"]), index)
                 for index, other in enumerate(after)
+                if compatible(press, other)
             ]
             if spaced and (closest := min(spaced))[0] <= NEARBY:
                 yield state, press, after.pop(closest[1])
@@ -304,9 +280,8 @@ def groups(census: dict[str, dict]) -> dict[str, list[tuple[str, dict]]]:
     """Each face's presses as (state, press), largest face first."""
     found = defaultdict(list)
     for state, reading in census.items():
-        translate = light(reading)
         for press in reading["presses"]:
-            found[signature(press, translate)].append((state, press))
+            found[signature(press)].append((state, press))
     return dict(sorted(found.items(), key=lambda item: -len(item[1])))
 
 
@@ -346,7 +321,6 @@ def face_lines(
     tokens: dict[str, set[str]],
 ) -> list[str]:
     state, first = members[0]
-    translate = light(census[state])
     states = {member_state for member_state, _ in members}
     # What every press shares, its state's scheme and pointer included: a face drawn
     # in both schemes from the same tokens is one face, and one only dark says so.
@@ -356,8 +330,8 @@ def face_lines(
     what = [
         COLOUR.sub(lambda colour: token_name(colour.group(), tokens), line)
         for line in describe(
-            look(first["rest"], translate),
-            look(first["hover"], translate),
+            look(first["rest"]),
+            look(first["hover"]),
             first["words"],
             sizes(members),
             touch="touch" in conditions[state],
@@ -397,8 +371,8 @@ def report(
     gone = [face for face in base_faces if face not in head_faces]
     moves, resized = defaultdict(list), defaultdict(list)
     for state, before, after in pairs(base, head):
-        was = signature(before, light(base[state]))
-        now = signature(after, light(head[state]))
+        was = signature(before)
+        now = signature(after)
         label = (
             f'"{before["label"]}" → "{after["label"]}"'
             if before["label"] != after["label"]

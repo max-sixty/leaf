@@ -4,9 +4,9 @@
  * Evaluated in a tab once its state is driven and captured. `collect` finds the
  * presses the state shows, `rest` reads them with the pointer where Python has put
  * it, `point` and `hovered` read one under the pointer Python has moved onto it, and
- * `finish` resolves every colour to sRGB and returns the faces, as `tokens` returns
- * the root's colour tokens. Colours resolve through one probe element added only
- * then, after every reading, so the page's own observers never act on it first.
+ * `finish` resolves every colour to sRGB and returns the faces with the root's colour
+ * tokens. Colours resolve through one probe element added only then, after every
+ * reading, so the page's own observers never act on it first.
  */
 (() => {
   // What a reader presses to act: buttons in every spelling, a tab, a menu's row, a
@@ -24,8 +24,13 @@
     "summary",
     "a[href]",
   ].join(", ");
-  // A button written as an input shows its value, not a text node.
+  // A button written as an input shows its value, not a text node, and a submit or
+  // reset with none shows the browser's own word for it.
   const INPUT_PRESS = "input[type=button], input[type=submit], input[type=reset]";
+  const inputWords = (el) =>
+    el.matches(INPUT_PRESS)
+      ? el.value.trim() || { submit: "Submit", reset: "Reset" }[el.type] || null
+      : null;
   const SIDES = ["Top", "Right", "Bottom", "Left"];
   const SIDE_NAMES = ["top", "right", "bottom", "left"];
   const CORNERS = ["TopLeft", "TopRight", "BottomRight", "BottomLeft"];
@@ -190,7 +195,7 @@
     let underline = false;
     // The box of what the press shows, its words or its symbol, which a face frames.
     let inked = null;
-    const field = press.stack.find((el) => el.matches(INPUT_PRESS) && el.value.trim());
+    const field = press.stack.find(inputWords);
     const text = field ? null : visibleText(press.stack[0]);
     const worded = field ?? text?.parentElement;
     if (worded) {
@@ -250,8 +255,8 @@
       const named = el.getAttribute("aria-label");
       if (named?.trim()) return named.trim();
     }
-    const field = press.stack.find((el) => el.matches(INPUT_PRESS) && el.value.trim());
-    if (field) return field.value.trim();
+    const field = press.stack.find(inputWords);
+    if (field) return inputWords(field);
     const text = visibleText(press.stack[0]);
     if (text) return text.data.trim().replace(/\s+/g, " ");
     for (const el of press.stack) if (el.title?.trim()) return el.title.trim();
@@ -426,15 +431,6 @@
     }
     return tokens;
   };
-  const tokens = () => {
-    const { resolve, close } = colours();
-    try {
-      return tokensOf(resolve);
-    } finally {
-      close();
-    }
-  };
-
   const finish = () => {
     const { resolve, close } = colours();
     const canonical = (colour) => {
@@ -564,7 +560,6 @@
     point,
     hovered,
     finish,
-    tokens,
     resting: () => resting,
   };
 })();

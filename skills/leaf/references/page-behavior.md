@@ -2,7 +2,9 @@
 
 Write page behavior as you would on any web page: in a `<script>`, inline or a file
 under `page/` referenced as `/page/…`, or one from another server. Leaf runs every
-script once the page has parsed, as `defer` does, so `document.write` does nothing. A
+script once the page has parsed, as `defer` does, so `document.write` does nothing,
+a script sees the whole page, and an inline handler such as `onload` can fire before
+the function it calls is defined; attach handlers from the script instead. A
 script that imports is a module (`type="module"`), and its relative imports stay within `page/`. A
 module imports Leaf's helpers from `/runtime/widget-api.js`. For floating placement
 that native layout cannot express, import the bundled Floating UI library from

@@ -154,7 +154,10 @@ function messageCopy(thread) {
     messageAt(focused()) ??
     (thread.contains(caret) ? messageAt(caret) : null) ??
     [...thread.querySelectorAll(".lf-msg")].at(-1);
-  return message?.querySelector(":scope > .lf-msg-head > .lf-msg-controls > .lf-msg-copy") ?? null;
+  return (
+    message?.querySelector(":scope > .lf-msg-head > .lf-msg-controls > .lf-msg-copy") ??
+    null
+  );
 }
 
 // A box a presentation declares as its thread's reply may stand outside the thread

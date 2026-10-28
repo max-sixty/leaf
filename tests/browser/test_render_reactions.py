@@ -2080,8 +2080,9 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
           const box = trigger.getBoundingClientRect();
           const message = trigger.closest('.lf-msg');
           const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
-          const metadata = [...message.querySelectorAll(
-            '.lf-msg-head > :not(.lf-msg-controls)')].map(node => node.getBoundingClientRect());
+          const metadata = [
+            ...message.querySelectorAll('.lf-msg-head > :not(.lf-msg-controls)'),
+          ].map(node => node.getBoundingClientRect());
           const resolve = document.querySelector('.lf-fp-settle');
           const action = resolve.getBoundingClientRect();
           const range = document.createRange();

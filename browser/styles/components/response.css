@@ -504,13 +504,14 @@ button.lf-media-open {
   scroll-margin-block-start: 1lh;
 }
 /* Discard and Save stand among the message's head controls while it is open, in its
-   Edit and Copy controls' place and with their face, as glyphs: Discard's undo, and Save's save.
-   The user chose glyphs on 2026-10-24 over the words, which ran into the head's
-   labels, and on 2026-10-25 a save glyph over the reply box's send and a check,
+   Edit and Copy controls' place and with their face, as glyphs: Discard's undo, and
+   Save's save. The user chose glyphs on 2026-10-24 over the words, which ran into the
+   head's labels, and on 2026-10-25 a save glyph over the reply box's send and a check,
    neither of which reads as saving. A cross would read as the card's Close beside
    them. Where Copy is left out, the pair is one control wider than Edit, and the
-   head's labels give up that room as they do to any of its controls (controls.css). The pair once stood outside
-   the head and covered its end with a fade instead. Save keeps its press's ink. */
+   head's labels give up that room as they do to any of its controls (controls.css).
+   The pair once stood outside the head and covered its end with a fade instead. Save
+   keeps its press's ink. */
 .lf-msg-edit-actions {
   display: flex;
   gap: var(--lf-msg-edit-gap);

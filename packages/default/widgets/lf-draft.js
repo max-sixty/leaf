@@ -66,7 +66,6 @@ import {
   commandScope,
   motion,
   returnDuration,
-  iconTemplate,
   html,
   render,
   offered,
@@ -100,12 +99,11 @@ import {
   PRESSABLE,
 } from "/runtime/widget-api.js";
 
-// Each control's key, name and mark. Save and Discard wear a message rewrite's
-// symbols (thread/message-edit.js): the save mark, since a check is Resolve and Done.
-const ACTIONS = [
-  ["edit", "Edit", "edit"],
-  ["save", "Save", "save"],
-  ["cancel", "Discard", "cross"],
+// Each control's key and the action whose mark it shows.
+const TOOLS = [
+  ["edit", "edit"],
+  ["save", "save"],
+  ["cancel", "discard"],
 ];
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -338,18 +336,17 @@ customElements.define(
         html`<span ${offered("lf-draft-status")} role="status"
             >${this.#failed ? "Save failed. The edit is kept." : ""}</span
           >
-          ${ACTIONS.map(([key, title, icon]) => {
-            const retry = key === "save" && this.#failed;
-            const name = retry ? "Retry" : title;
-            return html`<button
-              ${offeredAction("mark", "", name)}
-              data-lf-draft-action=${key}
-              ?hidden=${key === "edit" ? editing : !editing}
-              aria-expanded=${key === "edit" ? String(editing) : nothing}
-            >
-              ${iconTemplate(retry ? "retry" : icon, "lf-mark-icon")}
-            </button>`;
-          })}
+          ${TOOLS.map(
+            ([key, action]) =>
+              html`<button
+                ${offeredAction("mark", "", undefined, {
+                  action: key === "save" && this.#failed ? "retry" : action,
+                })}
+                data-lf-draft-action=${key}
+                ?hidden=${key === "edit" ? editing : !editing}
+                aria-expanded=${key === "edit" ? String(editing) : nothing}
+              ></button>`,
+          )}
           ${this.#copy}`,
         this.#tools,
       );

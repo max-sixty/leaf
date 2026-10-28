@@ -52,7 +52,7 @@
 import {
   agentName,
   commands,
-  iconElement,
+  showAction,
   rowArrows,
   dragging,
   focusDestination,
@@ -138,9 +138,8 @@ customElements.define(
       this.#bar = offer("div", "lf-deck-bar");
       this.#status = document.createElement("span");
       this.#status.className = "lf-deck-status";
-      const control = (name, icon, label) => {
-        const button = offerAction("symbol", `lf-deck-${name}`, label, { icon });
-        button.dataset.icon = icon;
+      const control = (name, action, label) => {
+        const button = offerAction("symbol", `lf-deck-${name}`, label, { action });
         return button;
       };
       this.#back = control("back", "previous", "Back");
@@ -557,13 +556,7 @@ customElements.define(
       const word = this.#forwardWord();
       keeps(this.#forward, "aria-label", word);
       keeps(this.#forward, "title", word);
-      const icon = this.#open.value ? "next" : "start";
-      if (this.#forward.dataset.icon !== icon) {
-        this.#forward.dataset.icon = icon;
-        this.#forward
-          .querySelector("svg")
-          ?.replaceWith(iconElement(icon, "lf-action-icon"));
-      }
+      showAction(this.#forward, this.#open.value ? "next" : "start");
       // Once the pass is over the end frame's button is the step back in.
       keeps(this.#forward, "hidden", this.#open.value ? null : "");
       const readings = this.#readings();

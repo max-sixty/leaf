@@ -167,7 +167,7 @@ import {
   signal,
 } from "/runtime/framework.js";
 import { el, offeredAction, reveal } from "./widget-elements.js";
-import { iconTemplate } from "./icons.js";
+import { actionTemplate, iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";
 import { keeps, keepsHidden, layoutPx } from "./keeps.js";
 import { setRuntimeRootStyle } from "./root-state.js";
@@ -431,8 +431,8 @@ export function createFloatingPanel({
     >
       ${
         exit
-          ? iconTemplate(exit.icon ?? "cross", "lf-action-icon")
-          : html`${iconTemplate("inbox", "lf-action-icon")}<span class="lf-fp-num"
+          ? actionTemplate(exit.action ?? "close", "lf-action-icon")
+          : html`${actionTemplate("on-me", "lf-action-icon")}<span class="lf-fp-num"
                 >${onUser || ""}</span
               ><span class="lf-fp-news" ?hidden=${!news}></span>`
       }
@@ -497,7 +497,7 @@ export function createFloatingPanel({
                 paint();
               }}
             >
-              ${iconTemplate(expanded ? "fit" : "expand", "lf-action-icon")}
+              ${actionTemplate(expanded ? "fit" : "expand", "lf-action-icon")}
             </button>
             <button
               type="button"
@@ -628,15 +628,15 @@ export function createFloatingPanel({
         ${peek?.content ?? nothing}
       </div>
       <button
-        ${offeredAction("mark", "lf-corner-mark lf-fp-minimize", "Fold to the leaf")}
+        ${offeredAction("mark", "lf-corner-mark lf-fp-minimize", "Fold to the leaf", {
+          action: "minimize",
+        })}
         tabindex="-1"
         @click=${() =>
           rows()
             .find((entry) => entry.key === `command:${FOLD}`)
             .press(null)}
-      >
-        ${iconTemplate("subtract", "lf-mark-icon")}
-      </button>
+      ></button>
     `;
   }
   render(panelTemplate(true), host);
@@ -1089,9 +1089,14 @@ export function createFloatingPanel({
   };
   const fieldExit = (search, top) =>
     search === threadSearch
-      ? { label: "Close search", press: closeThreadSearch, disabled: false, icon: null }
+      ? {
+          label: "Close search",
+          press: closeThreadSearch,
+          disabled: false,
+          action: null,
+        }
       : top && !search
-        ? { label: "Close", press: close, disabled: false, icon: null }
+        ? { label: "Close", press: close, disabled: false, action: null }
         : (rows().find((entry) => entry.exit) ?? null);
   // A draft arriving in an empty field, or the last of it going, re-seats the row.
   function retype() {
@@ -2075,7 +2080,7 @@ export function createFloatingPanel({
     render(
       menuItem(
         `Copy ${entry.label}`,
-        iconTemplate("copy", "lf-fp-copy-icon"),
+        actionTemplate("copy", "lf-fp-copy-icon"),
         () => {},
         {
           disabled: entry.disabled,
@@ -2950,7 +2955,7 @@ export function createFloatingPanel({
   // the select showing its chosen word, bordered or not.
   const chooser = ({ label, values, name, current, choose }) =>
     html`<span class="lf-fp-chooser" title=${`${label}: ${name(current)}`}
-      >${iconTemplate("arrange", "lf-action-icon")}<select
+      >${actionTemplate("arrange", "lf-action-icon")}<select
         aria-label=${label}
         .value=${live(current)}
         @change=${(event) => {
@@ -3223,7 +3228,7 @@ export function createFloatingPanel({
             });
           }}
         >
-          ${iconTemplate("locate", "lf-action-icon")}
+          ${actionTemplate("show", "lf-action-icon")}
         </button>`
       : nothing;
     let answers;
@@ -3253,7 +3258,7 @@ export function createFloatingPanel({
                 title="Undo"
                 @click=${() => withdraw(gesture)}
               >
-                ${iconTemplate("undo", "lf-action-icon")}
+                ${actionTemplate("undo", "lf-action-icon")}
               </button>`
             : nothing
         }${
@@ -3824,7 +3829,7 @@ export function createFloatingPanel({
           closeThreadSearch();
         }}
       >
-        ${iconTemplate("search", "lf-action-icon")}
+        ${actionTemplate("find", "lf-action-icon")}
       </button>`,
     };
   }
@@ -3914,7 +3919,7 @@ export function createFloatingPanel({
                 );
               }}
             >
-              ${iconTemplate("locate", "lf-action-icon")}
+              ${actionTemplate("show", "lf-action-icon")}
             </button>`
           : nothing
       }<button
@@ -3939,7 +3944,7 @@ export function createFloatingPanel({
           }).catch(() => {});
         }}
       >
-        ${iconTemplate("check", "lf-action-icon")}
+        ${actionTemplate(thread.resolved ? "reopen" : "resolve", "lf-action-icon")}
       </button>`;
     return {
       crumb: html`<span class="lf-fp-facts"

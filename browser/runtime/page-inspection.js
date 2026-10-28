@@ -11,7 +11,6 @@ import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { copyControl } from "./copy-control.js";
 import { copyableText } from "./copyable-text.js";
 import { pageControls } from "./page-controls.js";
-import { iconTemplate } from "./icons.js";
 import {
   closeLayer,
   focusDestination,
@@ -146,11 +145,9 @@ const observations = (label, rows, describe) =>
                     ${
                       destinations.has(row)
                         ? html`<button
-                            ${offeredAction("symbol", "", "Show on page")}
+                            ${offeredAction("symbol", "", undefined, { action: "show" })}
                             @click=${() => showOnPage(row)}
-                          >
-                            ${iconTemplate("locate", "lf-action-icon")}
-                          </button>`
+                          ></button>`
                         : nothing
                     }
                   </li>`,
@@ -261,11 +258,11 @@ function present() {
                 ${
                   report.basis
                     ? html`<button
-                        ${offeredAction("symbol", "", "Retry source inspection")}
+                        ${offeredAction("symbol", "", "Retry source inspection", {
+                          action: "retry",
+                        })}
                         @click=${loadSource}
-                      >
-                        ${iconTemplate("retry", "lf-action-icon")}
-                      </button>`
+                      ></button>`
                     : nothing
                 }`
             : nothing

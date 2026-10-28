@@ -14,7 +14,6 @@
  */
 import {
   LeafElement,
-  noChange,
   initialRender,
   commands,
   whileConnected,
@@ -38,7 +37,11 @@ customElements.define(
     // frame: a timeline first shown in a closed tab places them before it paints.
     // The ruler's own size doesn't change with the layout, so this never loops.
     #relayout = () => {
-      if (this.#drawing.layout()) this.#parts?.update();
+      if (this.#drawing.layout()) {
+        this.requestUpdate();
+        this.performUpdate();
+        this.#parts?.update();
+      }
     };
 
     setup() {
@@ -135,16 +138,18 @@ customElements.define(
       });
     }
 
-    // The initial drawing retains and updates its Lit templates from first paint.
     render() {
-      return noChange;
+      return this.#drawing.render();
     }
 
     #go(index, keyed) {
       const drawing = this.#drawing;
       const before = drawing.current;
-      const step = drawing.show(index);
+      drawing.current = index;
+      const step = drawing.current;
       if (step === before) return;
+      this.requestUpdate();
+      this.performUpdate();
       if (!quoted(this))
         tabStore.set(`timeline:${this.id}`, String(drawing.model.steps[step].time));
       this.#parts.update();

@@ -11,7 +11,7 @@ from leaf.schema import (
     AWAITS_SCHEMA,
     EXTENSION_SCHEMA,
     IDIOM_SCHEMA,
-    LAYER_FACTS_SCHEMA,
+    LAYER_FACTS,
     VERB_SCHEMA,
 )
 
@@ -113,24 +113,22 @@ def stamp_composition(registry: dict) -> dict:
 
 
 def check_layer_facts(registry: dict, path) -> None:
-    """Refuse a vocabulary whose shared layer facts depart from `LAYER_FACTS_SCHEMA`,
-    naming where and how the first departure in each fact does."""
-    first = {}
-    for error in sorted(
-        json_validator(LAYER_FACTS_SCHEMA).iter_errors(registry), key=str
-    ):
-        first.setdefault(next(iter(error.absolute_path), None), error)
-    if first:
-        raise RegistryError(
-            [
+    """Refuse a vocabulary whose shared layer facts depart from `LAYER_FACTS`,
+    naming where and how the first departure in each fact does. Each fact is held to
+    its own schema, so one that is missing or malformed is named beside every other."""
+    findings = []
+    for fact, schema in LAYER_FACTS.items():
+        reader = json_validator({"properties": {fact: schema}, "required": [fact]})
+        if error := min(reader.iter_errors(registry), key=str, default=None):
+            findings.append(
                 registry_finding("layer-facts", path, **schema_reading(error))
-                for error in first.values()
-            ]
-        )
+            )
+    if findings:
+        raise RegistryError(findings)
 
 
 def validate_layer_declarations(registry: dict, path) -> None:
-    """What `LAYER_FACTS_SCHEMA` cannot say, in a vocabulary whose facts hold it
+    """What `LAYER_FACTS` cannot say, in a vocabulary whose facts hold it
     (`check_layer_facts`): each name one fact gives another, each `when` and contract
     `schema` a JSON Schema, each `resources` entry JMESPath, the documented keys, and
     the idioms. Each event kind's clauses, documenting fact, idiom, the languages and

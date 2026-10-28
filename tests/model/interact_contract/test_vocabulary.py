@@ -120,6 +120,27 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
     }
 
 
+@pytest.mark.parametrize(("schema", "stamped"), [(True, "words"), (False, False)])
+def test_a_boolean_schema_for_a_toned_attribute_is_stamped_with_its_words(
+    page_dir, schema, stamped
+):
+    """An attribute that takes the layer's tones may have `true` for its schema, which
+    becomes the tones alone, or `false`, which admits none already."""
+    layer = registry_storage.load_registry(page_dir)
+    declaration = element_declaration("lf-local")
+    declaration["properties"]["tone"] = schema
+    declaration["x-tone"] = "tone"
+    widget_paths = {f"widgets/{path.name}" for path in (page_dir / "widgets").glob("*")}
+
+    composed = registry_page.compose_page_registry(
+        layer, {"lf-local": declaration}, widget_paths
+    ).registry
+
+    assert composed["lf-local"]["properties"]["tone"] == (
+        {"enum": layer["$tones"]["names"]} if stamped else False
+    )
+
+
 def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir):
     """`$states` is what the browser reads for a verb's writer and the operation an
     admitted event records, so it derives neither. A page's own declaration is stamped

@@ -98,6 +98,14 @@ def _validate_widget_relations(
     validate_answered_conditions(tag, entry, data, declarations, path)
 
 
+def _typed(properties: dict, attr: str, kind: str) -> bool:
+    """Whether the declaration's schema for `attr` is an object naming `kind` as its
+    type. JSON Schema admits `true` and `false` as an attribute's schema too, and
+    neither names a type."""
+    schema = properties.get(attr)
+    return isinstance(schema, dict) and schema.get("type") == kind
+
+
 def _validate_widget_structure(
     tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
 ) -> tuple[dict, set]:
@@ -127,11 +135,10 @@ def _validate_widget_structure(
                 value="markup",
             )
         required = set(entry.get("required", []))
-        if "id" not in required or properties.get("id", {}).get("type") != "string":
+        if "id" not in required or not _typed(properties, "id", "string"):
             raise registry_error("reading-role-attr", path, tag, role=layout, attr="id")
         if layout == "pane" and (
-            "label" not in required
-            or properties.get("label", {}).get("type") != "string"
+            "label" not in required or not _typed(properties, "label", "string")
         ):
             raise registry_error(
                 "reading-role-attr", path, tag, role="pane", attr="label"
@@ -189,10 +196,7 @@ def _validate_widget_structure(
             raise registry_error("measured-run", path, tag, attr=run_attr)
     said = set(entry.get("x-says", {}))
     for role in ("x-awaits", "x-thread-seat"):
-        if entry.get(role) is not None and (
-            not isinstance(properties.get("id"), dict)
-            or properties["id"].get("type") != "string"
-        ):
+        if entry.get(role) is not None and not _typed(properties, "id", "string"):
             raise registry_error("addressable-id", path, tag, key=role)
     for key in ATTRIBUTE_KEYS:
         declared = entry.get(key) or ()
@@ -207,9 +211,7 @@ def _validate_widget_structure(
             raise registry_error(code, path, tag, attr=attribute, **values)
     if isinstance(entry.get("x-visual"), dict):
         if not (
-            "id" in entry.get("required", [])
-            and isinstance(properties.get("id"), dict)
-            and properties["id"].get("type") == "string"
+            "id" in entry.get("required", []) and _typed(properties, "id", "string")
         ):
             raise registry_error("visual-id", path, tag)
         part_attribute = entry["x-visual"].get("parts")
@@ -377,10 +379,7 @@ def _validate_widget_interactions(
     # so a widget with an agent-written verb that doesn't declare the attribute
     # is one whose every report contradiction is unpublishable.
     agent_verbs = [verb for verb, _spec in state_specs(entry, writer="agent")]
-    if agent_verbs and not (
-        isinstance(properties.get("overruled"), dict)
-        and properties["overruled"].get("type") == "boolean"
-    ):
+    if agent_verbs and not _typed(properties, "overruled", "boolean"):
         raise registry_error("unoverruled", path, tag, verbs=agent_verbs)
     # A user decision folded on the widget needs an explicit withdrawal route:
     # `restated` names that intent; ordinary source edits leave the decision in
@@ -388,8 +387,5 @@ def _validate_widget_interactions(
     folds_whole = any(
         spec["unit"] == "widget" for _verb, spec in state_specs(entry, writer="user")
     )
-    if folds_whole and not (
-        isinstance(properties.get("restated"), dict)
-        and properties["restated"].get("type") == "boolean"
-    ):
+    if folds_whole and not _typed(properties, "restated", "boolean"):
         raise registry_error("unrestated", path, tag)

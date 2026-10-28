@@ -562,11 +562,19 @@ def stamp_words(registry: dict) -> dict:
     validation refuses any other word, and an author reading the entry sees which it
     may write.
 
+    An attribute's schema may be `true`, which then becomes the words alone, or
+    `false`, which admits no word already and is left as it is.
+
     Each composition stamps it (`registry.layer.stamp_composition`)."""
     for key, fact in DECLARED_WORDS:
         for tag, entry in registry.items():
-            if is_element_name(tag) and (attr := entry.get(key)):
-                entry["properties"][attr]["enum"] = list(registry[fact]["names"])
+            if not (is_element_name(tag) and (attr := entry.get(key))):
+                continue
+            properties = entry["properties"]
+            if properties[attr] is True:
+                properties[attr] = {}
+            if isinstance(properties[attr], dict):
+                properties[attr]["enum"] = list(registry[fact]["names"])
     return registry
 
 

@@ -1,10 +1,11 @@
 @import "./styles/vendor/webawesome-theme.css" layer(lf-vendor);
 /* Web Awesome's theme, imported for the tokens its components read, also gives the root
-   a colour and a light colour scheme. Leaf's core gives the root neither, so a page
-   that takes no theme keeps the browser's (the reading theme sets its own). */
+   a colour, a light colour scheme and its sans. Leaf's core gives the root none of them,
+   so a page that takes no theme keeps the browser's (the reading theme sets its own). */
 :where(:root) {
   color: revert;
   color-scheme: revert;
+  font-family: revert;
 }
 
 /* Leaf's core sheet, composed into each page's layer and served at /theme.css with the
@@ -939,8 +940,6 @@ html[data-lf-interactive] [data-lf-arriving] {
  * It stands centred on the band where the floating panel's row will rest, and is styled
  * here because it can appear before the runtime has adopted chrome.css. */
 .lf-held-keys {
-  /* Leaf's own surface, so the reader's scheme, as the chrome's (chrome.css). */
-  color-scheme: light dark;
   position: fixed;
   z-index: var(--lf-z-held-keys);
   pointer-events: none;
@@ -1354,11 +1353,6 @@ video {
  * ratio it maps, which yields to the loaded image. */
 img {
   aspect-ratio: attr(width type(<number>)) / attr(height type(<number>));
-}
-/* Leaf's own icons and pictures stand centred on their line, whatever look the page
- * takes, as the reading theme stands the page's media (packages/reading). */
-:where(.lf-chrome, .lf-ui) :is(img, svg, video, canvas) {
-  vertical-align: middle;
 }
 /* A disclosure arranged in columns gives its evidence the whole row. Keep this
    native pseudo-element rule outside package scopes: Firefox computes scoped

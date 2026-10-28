@@ -1,13 +1,14 @@
 /* Leaf's reading look, the bundled `reading` theme a page takes unless it names
- * another or none (`leaf page init --theme`, `--no-theme`). It holds the element
- * defaults a document reads in, from the body's type and colour to headings, figures
- * and disclosures, and the class idioms its registry declares. As the package's
+ * another or none (`leaf page init --theme`, `--no-theme`). It holds the body's type
+ * and colour, the page's ground, a wide page's and a page of parts' title, working
+ * density's margins, and the class idioms its registry declares. As the package's
  * `elements.css`, its rules stand in `lf-base` after Leaf's core sheet and before every
  * widget's defaults, so a widget's own rule and the page's sheet outrank them as they
  * outrank Leaf's. It sets
  * `--lf-reading-face: 1` on the root, which gives the page's markup the face Leaf's
- * own surfaces read in (links, code, quotes, tables, lists, rules and pictures,
- * browser/styles/components/reading.css), and the root's colour scheme, which lets
+ * own surfaces read in (headings, prose, lists, tables, code, quotes, figures,
+ * disclosures, definitions, rules and pictures, browser/styles/components/reading.css),
+ * and the root's colour scheme, which lets
  * the tokens' light-dark() pairs follow the reader's preference.
  *
  * Three voices, because the page already has three kinds of words and the norms
@@ -64,31 +65,6 @@ html {
     max-inline-size: none;
   }
 }
-/* The headings are the body serif at weight, size and spacing — one voice, four
- * volumes — rather than a display face over a text face. A page whose subject is
- * a decision and whose furniture is diffs and boards has enough going on; the
- * hierarchy it needs is the one that survives being skimmed, which is size and
- * air, not contrast of family. */
-h1 {
-  font-size: var(--t-1);
-  line-height: 1.16;
-  letter-spacing: -0.014em;
-  margin: 0 0 12px;
-  text-wrap: balance;
-}
-h2 {
-  font-size: var(--t-2);
-  line-height: 1.25;
-  letter-spacing: -0.008em;
-  margin: var(--h2-start) 0 12px;
-  text-wrap: balance;
-}
-h3 {
-  font-size: var(--t-3);
-  line-height: 1.3;
-  margin: var(--h3-start) 0 8px;
-  text-wrap: balance;
-}
 /* A page as wide as the window (`--lf-wide-page`, set by the sidebar Layout)
  * sets its title a size up and tighter, to hold its line above panels as wide as the
  * window. The Layout says how wide the page is; the size is answered here. A page at
@@ -111,9 +87,6 @@ h3 {
     line-height: 1.25;
     letter-spacing: normal;
   }
-}
-p {
-  margin: 13px 0;
 }
 /* Working density (`--lf-density: working`, which the `density-working` style sets with
  * its ladder and spacing, theme.css) answered for the flow's small margins, which are
@@ -140,101 +113,10 @@ p {
     padding: 4px 10px;
   }
 }
-figure {
-  margin: var(--figure-margin-block) 0;
-}
-figcaption {
-  font-size: var(--t-6);
-  color: var(--muted);
-  margin-top: 8px;
-}
-/* Media sits in a line box, and on the baseline it leaves the line's descender room
- * under itself, about 7px between a capture or a drawing and its caption or the next
- * figure. Centring it on the line ends its box at its own bottom edge. */
-img,
-svg,
-video,
-canvas {
-  vertical-align: middle;
-}
-/* Supporting detail needs only its native disclosure marker. Padding keeps the
-   summary clear of adjacent prose; it does not turn the content into another card. */
-details {
-  padding-block: 8px;
-  margin: var(--details-margin-block) 0;
-  --lf-block-frame: trim;
-}
-/* Disclosures written one after another read as one list of them, at the distance
-   their insets alone leave: with the margin between them too they stood further apart
-   than a heading from its prose, and a run of them read as separate sections. */
-details:has(+ details) {
-  margin-block-end: 0;
-}
-details + details {
-  margin-block-start: 0;
-}
-summary {
-  cursor: pointer;
-  font-weight: 600;
-  font-size: var(--t-5);
-}
-details pre {
-  margin: 10px 0 6px;
-}
-dl {
-  margin: 10px 0;
-}
-dt {
-  font-weight: 600;
-}
-dd {
-  margin: 0 0 8px 0;
-}
-
-/* The apparatus voice, said once per layer. Every label, caption, chip, badge,
- * disclosure summary and column heading on the page is the page pointing at its own
- * content rather than saying something — so it takes the UI sans at a small size,
- * usually tracked, and
- * the serif is left to carry what there is to read. Listing them in one rule is the
- * point: what counts as apparatus is a judgement, and a judgement made in twenty
- * places is twenty chances to answer it differently. This rule is the theme's own
- * words, its elements and idioms; a widget package (packages/default/widgets.css, or
- * any selected package's) states the same rule for the words its widgets wear.
- *
- * This is a look, not a permission — the anchoring norm's distinction exactly. A
- * chip a widget says (data-lf-said) is still the page's words and still something
- * a user can select and quote; it is set in the sans because it reads as
- * machinery, not because it is the runtime's.
- *
- * Nothing a widget builds through `offer` belongs here, and the first draft had
- * four of them (a row's `for` reference, the settled row's count and Δ, a tab's
- * Δ). Those wear lf-ui, which already answers in the same face — so the rule was
- * inert, and it said the wrong thing where anyone read it: that the runtime's own
- * chrome is the page pointing at its content. This list is the page's words.
- *
- * Figures are part of the voice, because apparatus is where the page's quantities
- * live and a quantity here is one that moves — a task's done fraction, a metric's
- * value, a badge's count, each rewritten in place by a report the user never
- * asked for. The sans sets its digits to their own widths, so a rewrite resizes the
- * box the number is set in — a chip has a filled edge, so that edge is visible on its
- * own — and moves whatever stands after it, which for a metric is the delta riding
- * against its value. Measured in this stack, `1,412` and `1,398` stand 4.6px apart at
- * --t-2 and `11,111` and `41,208` 15.5px, all four identical once the figures are
- * tabular. That is the movement AGENTS.md's "Layout and motion" forbids,
- * in the form the norm calls worst — arriving on a poll, with no gesture behind it to
- * explain where the line went.
- *
- * The serif is left out because it needs nothing: Charter already sets every digit
- * to one width, so the same four strings measure identically with the property and
- * without it, and stating it there would be a declaration that could never be
- * wrong and never do anything. */
+/* The apparatus voice (`reading.css`, beside `summary`) for the theme's idioms. */
 .eyebrow,
 .tag,
-figcaption,
-caption,
-th:not([scope="row"]),
-.facts dt,
-summary {
+.facts dt {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }

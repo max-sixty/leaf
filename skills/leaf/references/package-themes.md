@@ -10,9 +10,10 @@ belong in `theme.css`. Idioms belong in either, declared in the package's regist
 ## Personal themes
 
 Leaf bundles one theme, `reading`: the reading look, which styles the body's type and
-colour, headings, figures, disclosures and the idioms such as `.callout`, and turns on
-the reading face markup wears in Leaf's own surfaces (links, code, quotes, tables,
-lists, rules and pictures) by setting `--lf-reading-face: 1` on the root. A new page
+colour and the idioms such as `.callout`, and turns on the reading face markup wears
+in Leaf's own surfaces (headings, prose, lists, tables, code, quotes, figures,
+disclosures, definitions, rules and pictures) by setting `--lf-reading-face: 1` on the
+root. A new page
 takes it unless the user names another default. A page that takes none
 (`--no-theme`) starts from the browser's defaults and Leaf's tokens: nothing of the
 look reaches it, while Leaf's widgets, threads and panel keep their own faces. A page

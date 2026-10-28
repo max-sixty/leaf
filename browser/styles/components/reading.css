@@ -1,5 +1,5 @@
-/* Markup's reading face: how links, code, quotes, tables, lists, rules and pictures
- * read. Leaf's own surfaces wear it (a thread's transcript wherever it is drawn, the
+/* Markup's reading face: how headings, prose, links, lists, tables, code, quotes,
+ * figures, disclosures, definitions, rules and pictures read. Leaf's own surfaces wear it (a thread's transcript wherever it is drawn, the
  * chrome and the controls Leaf builds, `theme.css`), and so does a page whose theme
  * takes it: the bundled `reading` theme sets `--lf-reading-face: 1` on the root. A
  * page that takes no theme sets nothing, and its markup keeps the browser's faces; a
@@ -61,8 +61,8 @@
  * line sits to its edge. A code
  * block and a table are such boxes wherever they stand, and their own padding already
  * holds part of the track, so they add 8px, enough over the smallest inset either keeps,
- * a thread's code block or a cell's padding (with the reading face, below). This
- * clearance is part of the first layout, including when the content fits: scroll-state
+ * a thread's code block or a cell's padding. It goes with the scrolling it makes
+ * usable, on every page whatever its theme. This clearance is part of the first layout, including when the content fits: scroll-state
  * queries update after layout, so conditioning the room on overflow moves following
  * content a frame later. A classic scrollbar stands below the box instead, leaving air
  * above its track.
@@ -75,12 +75,21 @@
  * full width it can only stand below the last of them. In a grid, which ignores the
  * float, it takes a row of its own across every track. */
 @media screen {
-  .lf-text-scroller::after {
+  .lf-text-scroller::after,
+  :where(:root, .lf-thread-transcript) pre::after {
     content: "";
     float: inline-start;
     inline-size: 100%;
     block-size: var(--lf-text-scroll-track);
     grid-column: 1 / -1;
+  }
+  :where(:root, .lf-thread-transcript) pre::after {
+    block-size: var(--lf-text-scroll-clearance);
+  }
+  /* A pseudo-element in an authored native table becomes an anonymous extra row.
+     Block tables need clearance; collapsed native tables ignore this padding. */
+  :where(:root, .lf-thread-transcript) table {
+    padding-block-end: var(--lf-text-scroll-clearance);
   }
 }
 /* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
@@ -265,21 +274,6 @@
     padding: 0;
     font-size: 100%;
   }
-  /* A code block's and a table's room for an overlay scrollbar (`.lf-text-scroller`,
-     above). A pseudo-element in an authored native table becomes an anonymous extra
-     row, so a table pads instead; collapsed native tables ignore this padding. */
-  @media screen {
-    pre::after {
-      content: "";
-      float: inline-start;
-      inline-size: 100%;
-      block-size: var(--lf-text-scroll-clearance);
-      grid-column: 1 / -1;
-    }
-    table {
-      padding-block-end: var(--lf-text-scroll-clearance);
-    }
-  }
   blockquote {
     margin: 18px 0;
     padding: 2px var(--quote-inset);
@@ -439,6 +433,129 @@
     border: none;
     border-top: 1px solid var(--rule);
     margin: var(--hr-margin-block) 0;
+  }
+  /* The headings are the body serif at weight, size and spacing — one voice, four
+   * volumes — rather than a display face over a text face. A page whose subject is
+   * a decision and whose furniture is diffs and boards has enough going on; the
+   * hierarchy it needs is the one that survives being skimmed, which is size and
+   * air, not contrast of family. */
+  h1 {
+    font-size: var(--t-1);
+    line-height: 1.16;
+    letter-spacing: -0.014em;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  h2 {
+    font-size: var(--t-2);
+    line-height: 1.25;
+    letter-spacing: -0.008em;
+    margin: var(--h2-start) 0 12px;
+    text-wrap: balance;
+  }
+  h3 {
+    font-size: var(--t-3);
+    line-height: 1.3;
+    margin: var(--h3-start) 0 8px;
+    text-wrap: balance;
+  }
+  p {
+    margin: 13px 0;
+  }
+  figure {
+    margin: var(--figure-margin-block) 0;
+  }
+  figcaption {
+    font-size: var(--t-6);
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  /* Media sits in a line box, and on the baseline it leaves the line's descender room
+   * under itself, about 7px between a capture or a drawing and its caption or the next
+   * figure. Centring it on the line ends its box at its own bottom edge. */
+  img,
+  svg,
+  video,
+  canvas {
+    vertical-align: middle;
+  }
+  /* Supporting detail needs only its native disclosure marker. Padding keeps the
+     summary clear of adjacent prose; it does not turn the content into another card. */
+  details {
+    padding-block: 8px;
+    margin: var(--details-margin-block) 0;
+    --lf-block-frame: trim;
+  }
+  /* Disclosures written one after another read as one list of them, at the distance
+     their insets alone leave: with the margin between them too they stood further apart
+     than a heading from its prose, and a run of them read as separate sections. */
+  details:has(+ details) {
+    margin-block-end: 0;
+  }
+  details + details {
+    margin-block-start: 0;
+  }
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: var(--t-5);
+  }
+  details pre {
+    margin: 10px 0 6px;
+  }
+  dl {
+    margin: 10px 0;
+  }
+  dt {
+    font-weight: 600;
+  }
+  dd {
+    margin: 0 0 8px 0;
+  }
+
+  /* The apparatus voice, said once per layer. Every label, caption, chip, badge,
+   * disclosure summary and column heading on the page is the page pointing at its own
+   * content rather than saying something — so it takes the UI sans at a small size,
+   * usually tracked, and
+   * the serif is left to carry what there is to read. Listing them in one rule is the
+   * point: what counts as apparatus is a judgement, and a judgement made in twenty
+   * places is twenty chances to answer it differently. This rule is the theme's own
+   * words, its elements and idioms; a widget package (packages/default/widgets.css, or
+   * any selected package's) states the same rule for the words its widgets wear.
+   *
+   * This is a look, not a permission — the anchoring norm's distinction exactly. A
+   * chip a widget says (data-lf-said) is still the page's words and still something
+   * a user can select and quote; it is set in the sans because it reads as
+   * machinery, not because it is the runtime's.
+   *
+   * Nothing a widget builds through `offer` belongs here, and the first draft had
+   * four of them (a row's `for` reference, the settled row's count and Δ, a tab's
+   * Δ). Those wear lf-ui, which already answers in the same face — so the rule was
+   * inert, and it said the wrong thing where anyone read it: that the runtime's own
+   * chrome is the page pointing at its content. This list is the page's words.
+   *
+   * Figures are part of the voice, because apparatus is where the page's quantities
+   * live and a quantity here is one that moves — a task's done fraction, a metric's
+   * value, a badge's count, each rewritten in place by a report the user never
+   * asked for. The sans sets its digits to their own widths, so a rewrite resizes the
+   * box the number is set in — a chip has a filled edge, so that edge is visible on its
+   * own — and moves whatever stands after it, which for a metric is the delta riding
+   * against its value. Measured in this stack, `1,412` and `1,398` stand 4.6px apart at
+   * --t-2 and `11,111` and `41,208` 15.5px, all four identical once the figures are
+   * tabular. That is the movement AGENTS.md's "Layout and motion" forbids,
+   * in the form the norm calls worst — arriving on a poll, with no gesture behind it to
+   * explain where the line went.
+   *
+   * The serif is left out because it needs nothing: Charter already sets every digit
+   * to one width, so the same four strings measure identically with the property and
+   * without it, and stating it there would be a declaration that could never be
+   * wrong and never do anything. */
+  figcaption,
+  caption,
+  th:not([scope="row"]),
+  summary {
+    font-family: var(--sans);
+    font-variant-numeric: tabular-nums;
   }
 }
 /* One owner for message type and spacing on every surface, including widget shadow

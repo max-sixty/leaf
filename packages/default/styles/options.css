@@ -133,8 +133,42 @@ lf-options:has(> lf-option > strong) > lf-option {
     }
   }
 }
-/* A chip is the author's markup and the shared chip face; the band adds only the
- * margins that space and wrap a row of them. */
+/* A chip is the author's markup (`small.tag`, as lf-option's instructions ask) in the
+ * shared chip face, which the card states for itself so it keeps it on a page that
+ * takes no theme; at a class's weight, as the reading theme's `.tag` is, so the two
+ * agree wherever both apply. The band adds the margins that space and wrap a row. */
+:where(lf-option) > .tag {
+  display: inline-block;
+  font-size: var(--t-6);
+  line-height: var(--chip-lh);
+  padding: var(--chip-pad);
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  border-radius: var(--chip-r);
+  background: var(--chip);
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+  align-self: center;
+}
+:where(lf-option) > .tag.ok {
+  --lf-tone-tint: var(--ok-tint);
+  --lf-tone-ink: var(--ok-ink);
+}
+:where(lf-option) > .tag.warn {
+  --lf-tone-tint: var(--warn-tint);
+  --lf-tone-ink: var(--warn-ink);
+}
+:where(lf-option) > .tag.danger {
+  --lf-tone-tint: var(--danger-tint);
+  --lf-tone-ink: var(--danger-ink);
+}
+:where(lf-option) > .tag:is(.ok, .warn, .danger) {
+  background: var(--lf-tone-tint);
+  color: var(--lf-tone-ink);
+}
 lf-option > .tag {
   margin: 0 6px 2px 0;
 }

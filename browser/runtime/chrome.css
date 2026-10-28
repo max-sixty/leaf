@@ -217,11 +217,6 @@ html[data-lf-region-capture] main * {
   :scope {
     --lf-motion-box-ease: cubic-bezier(0.23, 1, 0.32, 1);
     --lf-motion-box-resize: 300ms;
-    /* The chrome is Leaf's own surface, so it follows the reader's colour scheme and
-       stands on Leaf's paper whatever the page under it takes: a page that never
-       opted into dark keeps its own scheme (the reading theme opts its pages in). */
-    color-scheme: light dark;
-    --lf-ground: var(--paper);
   }
   /* A floating box's surface (runtime/box-motion.js): a layer behind the box, cut to
      its outline grown by its shadow's reach, holding a ring and a fill inside it cut to

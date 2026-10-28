@@ -64,6 +64,11 @@ SOURCES = sorted((ROOT / "tests" / "fixtures" / "plain").glob("*.html"))
 # The obstacles a decision has yet to lift, and below, each page's findings they
 # explain, by pin (`differences`, `checked`).
 OBSTACLES = {
+    "scroll-clearance": (
+        "Leaf makes a table or pre scroll inside itself rather than widen the page"
+        " (reading.css), and keeps 8px under its last row for an overlay scrollbar,"
+        " so a grid row holding a table is that much taller"
+    ),
     "canvas": (
         "body is a size container (theme.css, container: lf-shell), the shell a Layout"
         " and a widget's 100cqi ask, and containment keeps its background off the"
@@ -72,6 +77,12 @@ OBSTACLES = {
     ),
 }
 KNOWN = {
+    "dashboard": {
+        "scroll-clearance": {
+            "dark overridden grid-template-rows on main #0d6e4079",
+            "light overridden grid-template-rows on main #0d6e4079",
+        },
+    },
     "form": {"canvas": {"canvas around body"}},
     "module": {"canvas": {"canvas around body"}},
     "motion": {"canvas": {"canvas around body"}},

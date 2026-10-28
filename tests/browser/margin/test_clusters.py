@@ -277,9 +277,9 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
 ):
     """A suggestion's margin entry goes through each transition to a settled decision.
 
-    A pending user action and an external work claim are different facts, so the
-    journey holds each one long enough to prove that the former only dims until
-    confirmation while the latter keeps its workflow treatment.
+    A pending user action and an external work claim are different facts. The pending
+    action is drawn as its result, with a live Undo in the pressed entry's seat, while
+    the work claim keeps its workflow treatment.
     """
     page = open_page(browser, live_url(serve(MARGIN_ACTIONS_PAGE)))
     resized(page, 1440, 900)
@@ -298,16 +298,9 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
 
     page.route("**/api/event", reject)
     accept.click()
-    retry = workflow.get_by_role("button", name="Retry", exact=True)
-    cancel_failure = workflow.get_by_role("button", name="Cancel", exact=True)
-    expect(retry).to_have_attribute("data-lf-state", "failed")
-    expect(cancel_failure).to_have_attribute("data-lf-state", "failed")
-    expect(retry).to_have_attribute("data-lf-rank", "complete")
-    expect(cancel_failure).to_have_attribute("data-lf-rank", "escape")
-    expect(workflow).to_contain_text("Failed")
-    cancel_failure.click()
-    page.unroute("**/api/event")
+    expect(page.locator("#s-replace lf-old")).to_be_visible()
     expect(accept).to_have_attribute("data-lf-state", "idle")
+    page.unroute("**/api/event")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -316,16 +309,12 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     _until(page, lambda traffic: traffic.sends > sends, "held the acceptance")
     expect(accept).to_have_count(0)
     pending_undo = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(pending_undo).to_have_attribute("data-lf-state", "busy")
-    expect(pending_undo).to_have_attribute("aria-busy", "true")
+    expect(pending_undo).to_have_attribute("data-lf-state", "idle")
+    expect(pending_undo).not_to_have_attribute("aria-busy", "true")
+    expect(pending_undo).to_be_enabled()
     expect(page.locator("#s-replace lf-old")).to_be_hidden()
     expect(page.locator("#s-replace lf-new")).to_be_visible()
-    expect(pending_undo).to_have_css("opacity", "0.5")
-    expect(pending_undo).to_have_css("border-style", "solid")
-    expect(pending_undo).to_have_css("animation-name", "lf-runtime-4f3c2a8d-working")
-    assert pending_undo.evaluate(
-        "button => getComputedStyle(button, '::after').content === 'none'"
-    ), "sending must dim the control without adding a second status badge"
+    expect(pending_undo).to_have_css("opacity", "1")
 
     held[0].continue_()
     page.unroute("**/api/event")

@@ -286,7 +286,7 @@
     "vendor/syntax/yaml.js": "d26d797bdd23183ea23fc5bd145ac49288f4513af32700f080139d1e484e1fcb",
     "vendor/webawesome-chrome.js": "9b815aa69316c8a99c7d798f1df394252cd36481c625b7784d9ae5952a9e3695",
     "vendor/webawesome/chunk-KPIIXIVK.js": "2d9087146189f1515f7985fc1cb0405344d5382291483bf9f848072577bff67d",
-    "widgets/lf-suggestion.js": "3f5089eec4d8937acbf77369c40ab2492711227a69e2965ab3816fbfa72bd95d"
+    "widgets/lf-suggestion.js": "0fa19e7636f8afacc41095ac8ab915d5bf2fc4965dc79f08a2eba7477171ea40"
   },
   "replaces": [
     "leaf.js",

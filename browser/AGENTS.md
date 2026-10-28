@@ -135,11 +135,17 @@ representative desktop viewport.
   "The document starts state; the log changes it"). `standGesture` in `drafts.js`
   handles a send and the refusal that returns the words to their box. The new content
   and its Undo confirm success, so success needs no notice beyond the announcement
-  for a listener. A gesture that moves the
+  for a listener. The pressed control draws from the same reading, the pending
+  gesture included, so it stays live: no busy or disabled face while the gesture
+  travels, and a second press does what the control then says, such as Undo, which
+  names a pending gesture by its attempt. A refusal restores the server's state, and
+  delivery says why in the notice seat. A gesture that moves the
   user, such as resolving a thread, leaves them at its place again when it is refused
-  or undone (`undo.js` owns where undo leaves the user). A result only the log can supply waits with `aria-busy`, shown
-  after a delay so a fast answer shows nothing. Persistent status text is for a
-  state the user must return to, such as a failure.
+  or undone (`undo.js` owns where undo leaves the user). Content whose result only
+  the log can supply, such as a message being sent or an upload, waits with
+  `aria-busy`; a control a package marks busy fades after a delay, so a fast answer
+  shows nothing, and keeps its cursor. Persistent status text is for a state the user
+  must return to, such as a failure.
 
 ### Words stay where they were typed
 

@@ -6784,7 +6784,7 @@ function createWidgetController(owner) {
 	let preparationBatch = null;
 	const read = () => descriptorStillMatches(owner, descriptor) ? selected.read() : unavailable(selected.read());
 	const prepared = () => {
-		if (!preparationHandle && owner.isConnected) preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner);
+		if (!preparationHandle && owner.isConnected) preparationHandle = attachWidgetPresentation(descriptor.id, "preparation");
 		return preparationHandle;
 	};
 	const holdPreparation = (promise) => {
@@ -6799,7 +6799,7 @@ function createWidgetController(owner) {
 		};
 		Promise.resolve(promise).then(settled, settled);
 	};
-	const presentPreparation = (handle, { value, completion }) => handle.present(value, (reason) => failSoftUnreported(owner, reason)).resolve(completion);
+	const presentPreparation = (handle, { completion }) => handle.present((reason) => failSoftUnreported(owner, reason)).resolve(completion);
 	const connect = () => d(() => {
 		if (!owner.isConnected) return;
 		for (const promise of pendingPreparations.keys()) holdPreparation(promise);
@@ -6857,10 +6857,7 @@ function createWidgetController(owner) {
 			const batch = preparationBatch;
 			const completion = Promise.all(batch.promises);
 			batch.completion = completion;
-			preparation = {
-				value,
-				completion
-			};
+			preparation = { completion };
 			holdPreparation(promise);
 			const handle = prepared();
 			if (handle) presentPreparation(handle, preparation);
@@ -7126,7 +7123,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 		ticket.reject(error);
 	}
 	#claim() {
-		return this.#region.present(d(() => this.#controller?.read() ?? {}), (reason) => failSoftUnreported(this, reason));
+		return this.#region.present((reason) => failSoftUnreported(this, reason));
 	}
 	#stage() {
 		if (!this.#connected || this.#ticket || !this.#region) return;
@@ -7147,7 +7144,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 	}
 	#connect() {
 		this.#connected = true;
-		this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render", this) : attachApplicationPresentation(this.#regionName, this);
+		this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render") : attachApplicationPresentation(this.#regionName);
 		const parentChanged = this.#connectedParent !== this.parentElement;
 		this.#connectedParent = this.parentElement;
 		if (registry[this.localName]?.["x-data"]) this.#leaveData = joinDataDelivery(this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName);

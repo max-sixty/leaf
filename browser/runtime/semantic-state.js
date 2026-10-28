@@ -16,7 +16,6 @@ import {
 import { bindQueuedWork } from "./queued-work.js";
 import { tick } from "./version-signal.js";
 
-const documentToken = Object.freeze({});
 let reportPresentationFailure = (reason) =>
   console.error("leaf: presentation failed", reason);
 const presentation = createPresentationCoordinator({
@@ -30,7 +29,7 @@ const schedule = createPresentationSchedule(bindQueuedWork);
 /** @type {ReturnType<typeof import("./framework/application.js").createSemanticApplication>} */
 export const applicationState = createSemanticApplication({
   presentation: {
-    begin: (semanticEpoch) => presentation.begin(documentToken, semanticEpoch),
+    begin: () => presentation.begin(),
     // The application seals each publication as `begin` returned it.
     seal: (publication) =>
       presentation.seal(
@@ -63,15 +62,14 @@ export const pageClaimed = readPart(
 );
 export const projectView = applicationState.projectView;
 export const selectWidgets = applicationState.selectWidgets;
-export const attachApplicationPresentation = (region, renderer) =>
-  presentation.attach(region, renderer);
+export const attachApplicationPresentation = (region) => presentation.attach(region);
 const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
 const widgetRegions = (widget) =>
   ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
-export const attachWidgetPresentation = (widget, kind, renderer) =>
-  presentation.attach(widgetRegion(widget, kind), renderer);
+export const attachWidgetPresentation = (widget, kind) =>
+  presentation.attach(widgetRegion(widget, kind));
 
-// These promises describe committed DOM, never the semantic ledger's proof. A
+// These promises describe committed DOM, never semantic presentation completion. A
 // widget's native updateComplete includes Lit's updated callback; its preparation
 // and gesture holds belong only to its presentation tickets.
 const widgetCommits = new Map();
@@ -158,20 +156,12 @@ const documentPresenters = [];
 // commit waits for everything upstream as well.
 /** @param {{
  *   region: string,
- *   renderer?: object,
  *   after?: () => readonly PromiseLike<unknown>[],
  *   reading: () => unknown,
  *   paint: (value: any, current: () => boolean, resume: <A extends unknown[], R>(run: (...args: A) => R) => (...args: A) => R) => unknown,
  *   failSoft?: (reason: unknown) => unknown,
  * }} presenter */
-export const applicationPresenter = ({
-  region,
-  renderer = document,
-  after,
-  reading,
-  paint,
-  failSoft,
-}) => {
+export const applicationPresenter = ({ region, after, reading, paint, failSoft }) => {
   // Reading identity decides whether a region needs new content. Preact owns its
   // dependencies, including subscriptions to values outside the application state.
   const revision = signal(0);
@@ -193,7 +183,7 @@ export const applicationPresenter = ({
     following = [];
   };
   const presenter = schedule.presenter({
-    attach: () => presentation.attach(region, renderer),
+    attach: () => presentation.attach(region),
     after,
     paint: (value, current) => {
       owed = false;
@@ -296,38 +286,14 @@ export const presentDocument = () =>
 // failure of the pass so an accepted reading that could not be shown stays unrecorded.
 export const whenDocumentPresented = () => schedule.passed();
 
-// The epoch presentation proof compares against. A paint that waits on proof reads it
-// outside its collection, so waiting subscribes the paint to nothing.
-const currentEpoch = () => untracked(() => readApplication().semanticEpoch);
-const currentApplicationPresentation = () => ({
-  document: documentToken,
-  semanticEpoch: currentEpoch(),
-});
-export const whenApplicationPresented = () =>
-  presentation.whenCurrentPresented(currentApplicationPresentation);
-export const applicationPresented = () =>
-  presentation.currentPresented(currentApplicationPresentation);
+export const whenApplicationPresented = () => presentation.whenCurrentPresented();
+export const applicationPresented = () => presentation.currentPresented();
 export const whenWidgetsPresented = (widgets) =>
-  presentation.whenCurrentRegionsPresented(
-    () => ({
-      document: documentToken,
-      semanticEpoch: currentEpoch(),
-    }),
-    widgets.flatMap(widgetRegions),
-  );
+  presentation.whenCurrentRegionsPresented(widgets.flatMap(widgetRegions));
 export const whenApplicationRegionsPresented = (regions, current) =>
-  presentation.whenCurrentRegionsPresented(
-    () =>
-      current()
-        ? {
-            document: documentToken,
-            semanticEpoch: currentEpoch(),
-          }
-        : null,
-    regions,
-  );
+  presentation.whenCurrentRegionsPresented(regions, current);
 export const applicationRegionsPresented = (regions) =>
-  presentation.currentRegionsPresented(currentApplicationPresentation, regions);
+  presentation.currentRegionsPresented(regions);
 export const projectionRegionsPresented = (widgets) =>
   applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
 export const watchPresentation = presentation.subscribe;

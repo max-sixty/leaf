@@ -3,9 +3,8 @@
 import hashlib
 import json
 
-from .contract import element_declarations
-from .layer import validate_layer_declarations
-from .state import validate_answered_conditions
+from .contract import element_declarations, gathering
+from .layer import check_layer_facts, validate_layer_declarations
 from .widgets import (
     validate_widget_relations,
     validate_widget_schemas,
@@ -21,7 +20,8 @@ _VALIDATED_LIMIT = 16
 
 
 def validate_registry(registry: dict, source) -> dict:
-    """Validate one complete vocabulary in its stable rejection order."""
+    """Validate one complete vocabulary, refusing with the first problem in each
+    independent unit (`contract.gathering`)."""
     key = hashlib.blake2b(
         json.dumps(registry, sort_keys=True, separators=(",", ":")).encode(),
         digest_size=16,
@@ -35,11 +35,16 @@ def validate_registry(registry: dict, source) -> dict:
     return registry
 
 
-def _validate(registry: dict, source) -> None:
-    path = source
-    validate_layer_declarations(registry, path)
-    data = registry["$data"]
+def _validate(registry: dict, path) -> None:
+    """The layer facts' shape first, since every later check reads it. Then the
+    layer's other facts beside the element declarations, which read nothing of
+    each other, and only once every declaration holds alone does each meet the
+    others, so a declaration's relations never read another half-validated."""
+    check_layer_facts(registry, path)
     declarations = element_declarations(registry)
-    validate_widget_schemas(declarations, data, path)
-    validate_widget_relations(registry, declarations, data, path)
-    validate_answered_conditions(declarations, data, path)
+    with gathering() as unit:
+        with unit():
+            validate_layer_declarations(registry, path)
+        with unit():
+            validate_widget_schemas(declarations, path)
+            validate_widget_relations(registry, declarations, registry["$data"], path)

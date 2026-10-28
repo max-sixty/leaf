@@ -896,6 +896,11 @@ lf-options[settled] > .lf-settled {
   border: 1px solid transparent;
   border-radius: var(--r);
 }
+/* The row's gap parts its disclosure arrow from its words. */
+lf-options[settled] > .lf-settled::before {
+  align-self: center;
+  margin: 0;
+}
 lf-options[settled] > .lf-settled[aria-expanded="false"] {
   margin-bottom: 0;
 }

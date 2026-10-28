@@ -1493,9 +1493,9 @@
   }
   /* What left a list, folded under its group heading (floating-panel.js,
      `settledHeading`): the heading is the press, a row the height of the list's rows
-     whose columns are a thread row's, so its chevron stands in the column the rows'
-     news mark takes, its name starts where their names do, and its count ends where
-     their status does. The chevron turns down while the section is open. */
+     whose columns are a thread row's, so its disclosure arrow (controls.css) stands in
+     the column the rows' news mark takes, its name starts where their names do, and
+     its count ends where their status does. */
   .lf-fp-settled-group {
     padding: 0;
   }
@@ -1517,13 +1517,9 @@
   .lf-fp-settled > .lf-fp-count {
     text-align: end;
   }
-  .lf-fp-settled > .lf-fp-chevron {
+  .lf-fp-settled::before {
     justify-self: center;
     margin: 0;
-    transition: rotate var(--lf-motion-disclosure);
-  }
-  .lf-fp-settled[aria-expanded="true"] > .lf-fp-chevron {
-    rotate: 90deg;
   }
   .lf-fp-on-place,
   .lf-fp-on-title {
@@ -1951,8 +1947,7 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .lf-fp-peek,
-    .lf-floating-panel[data-menu] .lf-fp-menu,
-    .lf-fp-settled > .lf-fp-chevron {
+    .lf-floating-panel[data-menu] .lf-fp-menu {
       transition: none;
     }
   }

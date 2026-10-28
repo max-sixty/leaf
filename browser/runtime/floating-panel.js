@@ -2474,10 +2474,9 @@ export function createFloatingPanel({
   // user unfolds, so a page whose conversations have all settled takes one row rather
   // than a row for each. The heading is a row of the list, which the arrows walk to and
   // Enter opens, and a section stays unfolded while the panel stays open (`unfolded`).
-  // It takes the list's group heading (`.lf-fp-on-group`), and its chevron, the panel's
-  // symbol for a press that opens more, stands in the rows' first column, so its name
-  // starts where theirs do. The platform's disclosure marker, which Firefox draws a
-  // few pixels wide, read as a dot there (the user, 27 October). The user chose the fold on
+  // It takes the list's group heading (`.lf-fp-on-group`), and its disclosure arrow
+  // stands in the rows' first column, so its name starts where theirs do. The user
+  // chose the fold on
   // 27 October over the newest three resolved with the rest behind a row, which put a
   // second order in a list read in the page's, and over resolved threads only searched
   // for, which left them nothing to browse.
@@ -2486,7 +2485,7 @@ export function createFloatingPanel({
     return html`<h3 class="lf-label lf-fp-on-group lf-fp-settled-group">
       <button
         type="button"
-        class="lf-fp-face lf-fp-settled"
+        class="lf-fp-face lf-fp-settled lf-disclosure-marker"
         aria-expanded=${open ? "true" : "false"}
         @click=${() => {
           if (open) unfolded.delete(key);
@@ -2495,7 +2494,7 @@ export function createFloatingPanel({
           paint();
         }}
       >
-        ${iconTemplate("next", "lf-fp-chevron")}<span class="lf-fp-label">${title}</span
+        <span class="lf-fp-label">${title}</span
         ><span class="lf-fp-count">${count}</span>
       </button>
     </h3>`;

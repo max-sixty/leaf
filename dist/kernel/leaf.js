@@ -6152,7 +6152,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`<h3 class="lf-label lf-fp-on-group lf-fp-settled-group">
       <button
         type="button"
-        class="lf-fp-face lf-fp-settled"
+        class="lf-fp-face lf-fp-settled lf-disclosure-marker"
         aria-expanded=${open ? "true" : "false"}
         @click=${() => {
 			if (open) unfolded.delete(key);
@@ -6161,7 +6161,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			paint();
 		}}
       >
-        ${iconTemplate("next", "lf-fp-chevron")}<span class="lf-fp-label">${title}</span
+        <span class="lf-fp-label">${title}</span
         ><span class="lf-fp-count">${count}</span>
       </button>
     </h3>`;

@@ -2861,7 +2861,6 @@ def test_init_refuses_non_utf8_package_instructions_before_revendoring(
 
     source.write_bytes(b"\xff")
     # The next command is a fresh process, which reads the package again.
-    layer_model._composed.cache_clear()
 
     result = runner.invoke(
         cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
@@ -4021,6 +4020,46 @@ def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatc
     assert "lf-diagram" not in local_registry
     assert "lf-local" in local_registry
     assert local_registry["$layer"]["packages"] == ["./packages/diagram"]
+
+
+def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
+    tmp_path, monkeypatch
+):
+    """A saved version keeps the package it was written with: dropping the package
+    from the selection leaves its copy for the revisions that name it, and an edit to
+    the package reaches them at a new address, never under one a browser cached."""
+    from leaf.revision_artifact import read_artifact
+    from leaf.revisioning import activate_source
+    from leaf.runtime_selection import execution_identity
+
+    monkeypatch.chdir(tmp_path)
+    custom = tmp_path / "custom"
+    (custom / "widgets").mkdir(parents=True)
+    (custom / "widgets" / "helper.js").write_text("export const value = 1;\n")
+    page = tmp_path / "page"
+    init = ["page", "init", "--package", "./custom", str(page)]
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    (page / "index.html").write_text(PLAIN_PAGE)
+    assert activate_source(page).error is None
+    first = execution_identity(read_artifact(page, 1))
+
+    (custom / "widgets" / "helper.js").write_text("export const value = 2;\n")
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    assert execution_identity(read_artifact(page, 1)) != first
+
+    cleared = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--no-packages", str(page)]
+    )
+    assert cleared.exit_code == 0, cleared.output
+    assert registry_storage.layer_packages(page) == []
+    assert "/widgets/helper.js" in layer_files_of_revision(page, 1)
+
+
+def layer_files_of_revision(page: Path, revision: int) -> dict[str, bytes]:
+    from leaf.revision_artifact import read_artifact
+
+    manifest = json.loads(read_artifact(page, revision).manifest)
+    return registry_storage.selected(manifest["layer"], page).files
 
 
 def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):

@@ -11,7 +11,7 @@ from dataclasses import replace
 import leaf_website as website_server
 import pytest
 from interact_support import comment as open_thread
-from interact_support import owed_answers, publish, running_http_server
+from interact_support import owed_answers, publish, revision_root, running_http_server
 from leaf_dev.commands import journey, verify_site
 
 from leaf.event_log import read_events
@@ -396,7 +396,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
 
         document, headers = get(f"{root}/examples/decision/")
         assert b"sitenote.js" not in document
-        artifact = f"{revision_path(published, 1).stem}/{serving_runtime().identity}"
+        artifact = revision_root(published, 1).removeprefix("/revisions/")
         assert (
             f'data-lf-entry="/examples/decision/revisions/{artifact}/leaf.js"'.encode()
             in document
@@ -666,7 +666,7 @@ def test_a_product_route_uses_the_same_real_page_server(
         document, _ = get(f"{root}{page_root}/")
         assert b"data-lf-site" not in document
         assert b"data-lf-share-url" not in document
-        artifact = f"{revision_path(published, 1).stem}/{serving_runtime().identity}"
+        artifact = revision_root(published, 1).removeprefix("/revisions/")
         assert (
             f'data-lf-entry="{page_root}/revisions/{artifact}/leaf.js"'.encode()
             in document

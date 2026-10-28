@@ -632,6 +632,16 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
     )
 
 
+def revision_root(page_dir: Path, revision: int) -> str:
+    """Where a served revision's resources answer (`http.PageEndpoint._named_root`)."""
+    from leaf.files import revision_path
+    from leaf.revision_artifact import read_artifact
+    from leaf.runtime_selection import execution_identity
+
+    identity = execution_identity(read_artifact(page_dir, revision))
+    return f"/revisions/{revision_path(page_dir, revision).stem}/{identity}"
+
+
 def check(d):
     """`page check`, in-process."""
     return CliRunner().invoke(cli_model.cli, ["page", "check", str(d)])

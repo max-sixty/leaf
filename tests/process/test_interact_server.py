@@ -60,6 +60,7 @@ from interact_support import (
     release_codex_command,
     response_reference,
     retire_test_services,
+    revision_root,
     running_http_server,
     said,
     served_state_error,
@@ -106,7 +107,7 @@ from leaf import thread_titles as thread_titles_model
 from leaf import vendoring as vendoring_model
 from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
-from leaf.runtime_selection import executing, serving_runtime
+from leaf.runtime_selection import executing, execution_identity, serving_runtime
 from leaf.schema import USER_VIEWS_FILE
 from leaf.served_state import browser as served_browser
 from leaf.served_state import context as served_context
@@ -945,10 +946,7 @@ def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
         )
     )
     publish(page_dir)
-    captured = (
-        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
-        f"/{serving_runtime().identity}"
-    )
+    captured = revision_root(page_dir, 1)
     reads = []
     original_open = builtins.open
 
@@ -1713,10 +1711,7 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
     assert stamped.exit_code == 0, stamped.output
     revision = files_model.latest_revision(page_dir)
     marker = f'<meta name="lf-revision" content="{revision}" data-lf-runtime>'
-    artifact_root = (
-        f"/revisions/{files_model.revision_path(page_dir, revision).stem}"
-        f"/{serving_runtime().identity}"
-    )
+    artifact_root = revision_root(page_dir, revision)
     for address in (
         "/",
         "/versions/v1.html",
@@ -1741,10 +1736,7 @@ def test_a_page_runs_the_runtime_of_the_leaf_serving_it(server, page_dir):
     publish(page_dir)
     runtime = serving_runtime().resources({}, {})
     executed = executing(artifact_model.read_artifact(page_dir, 1)).resources
-    root = (
-        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
-        f"/{serving_runtime().identity}"
-    )
+    root = revision_root(page_dir, 1)
 
     status, document = fetch(server + "/")
     assert status == 200
@@ -1831,10 +1823,7 @@ def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
     artifact = artifact_model.read_artifact(page_dir, activated.revision)
     assert list(artifact.registry["$reactions"]["tokens"]) == expected_tokens
 
-    artifact_root = (
-        f"/revisions/{files_model.revision_path(page_dir, activated.revision).stem}"
-        f"/{serving_runtime().identity}"
-    )
+    artifact_root = revision_root(page_dir, activated.revision)
     with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as temporary:
         status, served = fetch(temporary.origin + artifact_root + "/registry.json")
     assert status == 200
@@ -1852,7 +1841,7 @@ def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
     does not run."""
     publish(page_dir)
     revision = "/revisions/" + files_model.revision_path(page_dir, 1).stem
-    root = f"{revision}/{serving_runtime().identity}"
+    root = revision_root(page_dir, 1)
 
     def cache_control(path):
         try:
@@ -4297,7 +4286,7 @@ def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
         root = (
             "/revisions/"
             + snapshot.revision_names[revision].removesuffix(".html")
-            + f"/{serving_runtime().identity}"
+            + f"/{execution_identity(snapshot.artifact(revision))}"
         )
         status, document = fetch(preview.origin + "/")
         assert status == 200

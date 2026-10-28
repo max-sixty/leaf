@@ -39,7 +39,7 @@ from leaf.files import latest_revision, revision_path
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
-from leaf.runtime_selection import executing, serving_runtime
+from leaf.runtime_selection import executing, execution_identity
 from leaf.schema import (
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
@@ -255,8 +255,11 @@ def _responses(
         name = snapshot.revision_names[item]
         paths.add(f"revisions/{name}")
         # Where the container serves the revision's resources: beside the runtime it
-        # runs, under that runtime's identity (`http.PageEndpoint._named_root`).
-        served = f"revisions/{name.removesuffix('.html')}/{serving_runtime().identity}"
+        # runs, under the identity of that runtime and the revision's layer
+        # (`http.PageEndpoint._named_root`).
+        served = (
+            f"revisions/{name.removesuffix('.html')}/{execution_identity(artifact)}"
+        )
         for logical in set(executing(artifact).resources) | set(
             artifact.widget_aliases
         ):

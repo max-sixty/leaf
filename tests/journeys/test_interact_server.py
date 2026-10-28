@@ -29,6 +29,7 @@ from interact_support import (
     publish,
     read_record,
     record_claim,
+    revision_root,
     wait_for,
     write_record,
 )
@@ -51,7 +52,6 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
-from leaf.runtime_selection import serving_runtime
 
 
 def test_authored_recordings_are_served_with_seekable_captured_bytes(
@@ -79,10 +79,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
     markup = "".join(f'<audio controls src="{path}"></audio>' for path, _ in paths)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", markup + "</main>"))
     publish(page_dir)
-    captured = (
-        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
-        f"/{serving_runtime().identity}"
-    )
+    captured = revision_root(page_dir, 1)
     for path, mime in paths:
         for route in (path, captured + path):
             conn = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc)
@@ -176,10 +173,7 @@ def test_server_round_trip(server, page_dir):
         f'<meta name="lf-widgets" content="{widgets}" data-lf-runtime>'
         '<meta name="lf-version" content="1" data-lf-runtime>'
     ).encode()
-    artifact_root = (
-        f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
-        f"/{serving_runtime().identity}"
-    )
+    artifact_root = revision_root(page_dir, 2)
     entry = (
         f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
     ).encode()
@@ -594,10 +588,7 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     assert "Backfill plan\u2028Q3" in body
     assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.
-    artifact_root = (
-        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
-        f"/{serving_runtime().identity}"
-    )
+    artifact_root = revision_root(page_dir, 1)
     theme = structure_model.SourceDocument(body).tree.find(
         "link", attrs={"href": f"{artifact_root}/theme.css"}
     )

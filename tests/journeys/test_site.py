@@ -33,7 +33,7 @@ from leaf_dev.browser import panel_tab, show_resolved
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets
-from leaf_dev.page_fixtures import authored_markup, source_packages
+from leaf_dev.page_fixtures import authored_markup, read_event_lines, source_packages
 from PIL import Image
 from playwright.sync_api import expect
 from render_harness import (
@@ -311,7 +311,13 @@ def test_product_pages_select_the_sources_packages(site):
         target = site_build.product_page(site, page.name)
         source_markup = page.read_text()
         assert 'href="/theme.css"' not in source_markup, page.name
-        assert layer_packages(target) == source_packages(page), page.name
+        # The page records its own copy of each package the source selects by path.
+        assert layer_packages(target) == [
+            value
+            if re.fullmatch(schema_model.HTML_NAME, value)
+            else f"./{schema_model.PACKAGES_DIR}/{Path(value).name}"
+            for value in source_packages(page)
+        ], page.name
 
 
 @pytest.mark.parametrize("name", ["index", "event-log", "how-it-works"])
@@ -598,7 +604,14 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
 
         seed = source.with_suffix(".jsonl")
         if seed.exists():
-            assert seed.read_text() in (page_dir / "events.jsonl").read_text()
+            # Each seeded event is in the log in order, as admission wrote it: the
+            # fields the seed states beside those admission derives, after the
+            # stamp of the revision it names.
+            remaining = iter(events)
+            assert all(
+                any(event.items() >= seeded.items() for event in remaining)
+                for seeded in read_event_lines(seed)
+            ), f"{seed.name} is not in the published log"
             # The seed is history, so the page acknowledges all of it.
             receipt = next(event for event in events if event["kind"] == "receipt")
             assert acknowledged(events) == receipt["seq"] - 1

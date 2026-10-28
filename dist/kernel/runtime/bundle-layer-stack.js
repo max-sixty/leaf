@@ -1797,6 +1797,7 @@ function createPresentationCoordinator({ reportFailure }) {
 	const currentPresented = () => currentRegionsPresented();
 	const whenCurrentPresented = () => whenCurrentRegionsPresented();
 	async function whenCurrentRegionsPresented(wanted, current = () => true) {
+		await Promise.resolve();
 		for (;;) {
 			const next = wake.promise;
 			if (!current()) return "superseded";

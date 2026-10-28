@@ -46,12 +46,12 @@ from .files import (
 )
 from .findings import Rejected
 from .interaction_log import admit_batch, append_interactions, client_records
-from .layer import incompatible_layer, incompatible_revision, running_leaf, same_leaf
+from .layer import incompatible_layer, running_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
 from .refusals import Refused
-from .registry.storage import layer_metadata, load_registry
+from .registry.storage import layer_metadata, layer_record
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -66,7 +66,7 @@ from .revision_delivery import (
     rebase_document,
     runtime_settings,
 )
-from .runtime_selection import executing, serving_runtime
+from .runtime_selection import executing, execution_identity, serving_runtime
 from .samples import Samples
 from .schema import (
     BINARY_TYPES,
@@ -300,7 +300,7 @@ class PageEndpoint:
         # the deliberately unattended page for an abandoned ordinary Leaf.
         self.publication = publication
         # A website release spans its document, static layer and container image.
-        # Ordinary page servers have no release boundary beyond their vendored layer.
+        # Ordinary page servers have no release boundary beyond their layer generation.
         self.release = release
         # Empty on the ordinary one-page server. A published site and a sample's child
         # serve beneath a prefix, and only Leaf-owned routes are rewritten under it.
@@ -341,7 +341,7 @@ class PageEndpoint:
 
     @property
     def layer(self) -> str:
-        """The generation the bound page's vendored layer was composed at.
+        """The generation of the bound page's layer record.
 
         Derived rather than stored, so binding a page in `_select_page` cannot leave
         a second copy of it behind. Empty until a multiplexed transport has bound one.
@@ -473,10 +473,6 @@ class PageEndpoint:
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
 
-        Where the Leaf this server runs is another than the one that vendored the
-        page, `leaf` names it, and the leaf's menu shows it beside the page's own
-        (`AGENTS.md`, "Pages across Leaf updates").
-
         A tab names the data version it holds in `Leaf-Data-Version`, and an answer
         whose data is still that version leaves out its sources, which the tab
         restores from the reading it named (`completeData` in `layer-client.js`).
@@ -484,8 +480,6 @@ class PageEndpoint:
         answer would carry back each source value the tab already holds.
         """
         state = self._state_service().page_state(view_revision)
-        if not same_leaf(state["layer"].get("producer", {}), self.server.leaf):
-            state["leaf"] = self.server.leaf
         if self.headers.get("Leaf-Data-Version") == state["data"]["version"]:
             state["data"] = {"version": state["data"]["version"]}
         return state
@@ -875,33 +869,33 @@ class PageEndpoint:
 
     def _revision_layer(self, revision: int | None) -> str:
         """The generation a tab reading `revision` speaks: that revision's layer, or
-        the page's own when there is no revision or this Leaf refuses it.
+        the page's own when there is no revision.
 
-        A tab whose page was re-vendored under it still holds a revision of the older
+        A tab whose page was re-initialized under it still holds a revision of the older
         layer, and can read an answer that carries nothing newer, such as a freshness
         token, in that layer. The newer layer reaches it as a revision whose executable
         changed, which the tab installs once the user is not in the middle of
         something (`version.js`). Named in the page's newer layer, the same answer
-        would be refused and reload the tab at once (`layer-client.js`), which is
-        what a revision this Leaf can no longer admit input against needs
-        (`incompatible_revision`): holding there would strand the user's send."""
+        would be refused and reload the tab at once (`layer-client.js`)."""
         if revision is None:
             return self.layer
         reading = self._reading(revision)
-        if reading.refused:
-            return self.layer
         return reading.registry["$layer"]["generation"]
 
     def _artifact_root(self, revision: int) -> str:
-        return self._named_root(self._revision_name(revision).removesuffix(".html"))
+        return self._named_root(
+            self._revision_name(revision).removesuffix(".html"),
+            self._artifact(revision),
+        )
 
-    def _named_root(self, name: str) -> str:
-        """Where a revision's resources answer as this process runs them: its capture
-        and this runtime, each named by its identity, so the address names the same
-        bytes for as long as a browser may cache it."""
+    def _named_root(self, name: str, artifact: RevisionArtifact) -> str:
+        """Where a revision's resources answer as this process runs them: its capture,
+        and the runtime and layer it executes (`execution_identity`), each named by its
+        identity, so the address names the same bytes for as long as a browser may
+        cache it."""
         return (
             self.page_root.rstrip("/")
-            + f"/revisions/{name}/{serving_runtime().identity}"
+            + f"/revisions/{name}/{execution_identity(artifact)}"
         )
 
     def _document_asset_root(self, revision: int) -> str:
@@ -915,10 +909,7 @@ class PageEndpoint:
     def _serve_document(
         self, artifact: RevisionArtifact, revision: int, version: int | None
     ) -> Response:
-        """Serve one immutable document under the current delivery boundary, unless
-        it was saved at another protocol (`incompatible_revision`)."""
-        if refusal := incompatible_revision(revision, artifact.registry):
-            return self._json({"error": str(refusal)}, 409)
+        """Serve one immutable document under the current delivery boundary."""
         self.response_layer = artifact.registry["$layer"]["generation"]
         artifact = executing(artifact)
         projected = compose_document(
@@ -970,17 +961,17 @@ class PageEndpoint:
         if match is None:
             return None
         revision, name = int(match.group("revision")), match.group("name")
-        if (
-            self.source.revision_names.get(revision) != name + ".html"
-            or match.group("runtime") != serving_runtime().identity
-        ):
+        if self.source.revision_names.get(revision) != name + ".html":
+            return None
+        artifact = self._artifact(revision)
+        if match.group("runtime") != execution_identity(artifact):
             return None
         response = self._revision_resource(
-            revision, "/" + match.group("resource"), self._named_root(name)
+            revision, "/" + match.group("resource"), self._named_root(name, artifact)
         )
         if response is not None:
-            # The revision name carries its manifest digest, the runtime's identity
-            # names the runtime, and the address is in the URL, so these bytes never
+            # The revision name carries its manifest digest, the execution identity
+            # names the runtime and layer, and the address is in the URL, so these bytes never
             # change. Every document of one page shares this namespace: a gallery's
             # live samples are each a whole runtime importing the same modules, and
             # refetching each one per document queued them behind one another on the
@@ -1039,7 +1030,7 @@ class PageEndpoint:
             return self._resource_content(resource)
         file = self.page_dir / path.lstrip("/")
         # The allowlist rejects traversal spellings; containment is the second
-        # boundary for a page directory edited or symlinked after vendoring.
+        # boundary for a page directory edited or symlinked after `page init`.
         if file.is_file() and path_is_within(file, self.page_dir):
             ctype = CONTENT_TYPES.get(Path(path).suffix, "application/octet-stream")
             resource = deliver_resource(
@@ -1447,19 +1438,17 @@ def page_endpoint(
     """Bind one page, publication view, and key to the endpoint each request becomes.
 
     The layer identity and the preview reading are read once here rather than per
-    request: they are facts about the vendored page this server was started over. So
+    request: they are facts about the layer record this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
-    or temporary, passes here before it binds, and refuses naming the re-vendor when
+    or temporary, passes here before it binds, and refuses naming `page init` when
     the page's layer is one this Leaf cannot serve (`incompatible_layer`). A
     snapshot serves the revision it froze, which its capture already judged
     (`page_snapshot.capture_page_snapshot`).
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
-    # The registry first: its reader refuses a layer at another protocol before any
-    # check of a shape that is this Leaf's protocol's, as the identity's reader does.
     if page_snapshot is None and (
-        refusal := incompatible_layer(page_dir, load_registry(page_dir))
+        refusal := incompatible_layer(page_dir, layer_record(page_dir) or {})
     ):
         raise Rejected([refusal])
     identity = (
@@ -1491,7 +1480,7 @@ def page_app(endpoint, server):
     """
 
     server.samples = {}
-    server.leaf = running_leaf()
+    running_leaf()
     serving_runtime()
 
     async def app(scope, receive, send) -> None:

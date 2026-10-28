@@ -11,16 +11,23 @@ from dataclasses import replace
 import leaf_website as website_server
 import pytest
 from interact_support import comment as open_thread
-from interact_support import owed_answers, publish, running_http_server
+from interact_support import (
+    owed_answers,
+    publish,
+    revision_root,
+    running_http_server,
+)
 from leaf_dev.commands import journey, verify_site
 
 from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
+from leaf.registry.storage import LAYER, layer_record, load_registry
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
 from leaf.runtime_selection import executing, serving_runtime
+from leaf.schema import LAYER_FILE
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
 from process.website_server import (
@@ -68,7 +75,7 @@ def test_a_published_document_names_its_page_to_a_crawler(
         capture_artifact(
             page_dir,
             SourceDocument(PAGE_SOURCE),
-            json.loads((page_dir / "registry.json").read_text()),
+            load_registry(page_dir),
         )
     ).resources
     delivery = page_delivery(
@@ -344,20 +351,17 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
         assert harness.attached == []
 
 
-def test_the_website_refuses_a_page_vendored_at_another_protocol(page_dir, tmp_path):
-    """The container serves only pages vendored at its own Leaf's protocol, as every
-    page server does; a site built across a breaking change breaks in the browser
-    otherwise."""
+def test_the_website_refuses_a_page_initialized_at_another_protocol(page_dir, tmp_path):
+    """The container serves only pages initialized at its own Leaf's protocol, as
+    every page server does; a site built across a breaking change breaks in the
+    browser otherwise."""
     site = tmp_path / "site"
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    registry_path = published / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["$events"]["protocol"] = 999
-    # A newer protocol may reshape the layer past this Leaf's schema.
-    registry["$future"] = 1
-    registry_path.write_text(json.dumps(registry))
+    record = layer_record(published)
+    (published / LAYER_FILE).unlink()
+    LAYER.write(published / LAYER_FILE, {**record, "protocol": 999})
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site))
     root = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision"
@@ -396,10 +400,9 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
 
         document, headers = get(f"{root}/examples/decision/")
         assert b"sitenote.js" not in document
-        artifact = f"{revision_path(published, 1).stem}/{serving_runtime().identity}"
+        served = revision_root(published, 1)
         assert (
-            f'data-lf-entry="/examples/decision/revisions/{artifact}/leaf.js"'.encode()
-            in document
+            f'data-lf-entry="/examples/decision{served}/leaf.js"'.encode() in document
         )
         assert headers["Content-Security-Policy"] == "frame-ancestors 'self'"
         assert headers["Leaf-Session"] == "active"
@@ -625,17 +628,14 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
             f'data-lf-entry="/examples/decision/revisions/{private.stem}/'.encode()
             in current
         )
-        runtime = serving_runtime().resources({})
+        runtime = serving_runtime().resources({}, {})
         for logical in ("/leaf.js", "/runtime/widget-api.js"):
             body, headers = get(f"{root}{release}{logical}")
             assert body == runtime[logical].data, logical
             assert headers["Cache-Control"] == "public, max-age=31536000, immutable"
             assert headers["Access-Control-Allow-Origin"] == "*"
         registry, headers = get(f"{root}{release}/registry.json")
-        assert (
-            json.loads(registry)["$layer"]
-            == json.loads((published / "registry.json").read_text())["$layer"]
-        )
+        assert json.loads(registry)["$layer"] == load_registry(published)["$layer"]
         assert headers["Leaf-Release"] == manifest["release"]
         for missing in (
             f"{release}/api/state",
@@ -669,11 +669,8 @@ def test_a_product_route_uses_the_same_real_page_server(
         document, _ = get(f"{root}{page_root}/")
         assert b"data-lf-site" not in document
         assert b"data-lf-share-url" not in document
-        artifact = f"{revision_path(published, 1).stem}/{serving_runtime().identity}"
-        assert (
-            f'data-lf-entry="{page_root}/revisions/{artifact}/leaf.js"'.encode()
-            in document
-        )
+        served = revision_root(published, 1)
+        assert f'data-lf-entry="{page_root}{served}/leaf.js"'.encode() in document
         state = json.loads(get(f"{root}{page_root}/api/state")[0])
         assert state["publication"] == {
             "kind": "product",

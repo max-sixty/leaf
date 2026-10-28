@@ -225,4 +225,4 @@ def test_native_parent_graph_omits_missing_labels_and_refuses_cycles(
     write({**child, "parentId": "child"})
     with pytest.raises(PRODUCER["TraceError"], match="parentId cycle"):
         imported(trace, media_page)
-    assert not list((media_page / "media").iterdir())
+    assert not list((media_page / "media").glob("*"))

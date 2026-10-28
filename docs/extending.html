@@ -567,12 +567,12 @@ packages/callout/
               id="package-check-command"
             ><code class="language-bash">$ leaf package check packages/callout
 $ leaf page init --package packages/callout PAGE
-$ jq '.["lf-callout"], .["$keys"]' PAGE/registry.json
+$ leaf page vocabulary PAGE | jq '.["lf-callout"], .["$keys"]'
 $ leaf page check PAGE --render</code></pre>
             <p>
-              Re-running <code>page init</code> is the explicit update for an existing
-              page. Pages that are not re-initialized keep their vendored layer
-              unchanged.
+              A page keeps its own copy of a package it selects by path, so re-running
+              <code>page init --package</code> is the explicit update for an existing
+              page.
             </p>
             <p>
               <code>leaf package install packages/callout</code> copies the checked

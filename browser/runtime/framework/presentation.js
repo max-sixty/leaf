@@ -140,6 +140,8 @@ export function createPresentationCoordinator({ reportFailure }) {
   const whenCurrentPresented = () => whenCurrentRegionsPresented();
   /** @param {readonly string[]} [wanted] @param {() => boolean} [current] @returns {Promise<PresentationOutcome>} */
   async function whenCurrentRegionsPresented(wanted, current = () => true) {
+    // Connection observers must register already-inserted owners before readiness is read.
+    await Promise.resolve();
     for (;;) {
       const next = wake.promise;
       if (!current()) return "superseded";

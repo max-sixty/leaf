@@ -1,4 +1,4 @@
-"""Personal theme selection, captured when a page's layer is authored.
+"""Personal theme selection, recorded with a page's packages.
 
 Themes are ordinary named packages. The user's TOML catalogue chooses which ones
 agents may select and one optional default; the package's author instructions
@@ -6,9 +6,11 @@ describe its intended uses. A page records its selection separately from content
 packages, so replacing one never silently retains the previous theme. Existing
 pages keep their recorded selection, including none, until explicitly changed.
 
-This deliberately captures live-page appearance as well as exports. Applying the
-current user theme independently to existing live pages can be reconsidered when
-that use appears; it does not require changing the selection interface.
+A page records the theme's name, and whichever Leaf reads the page composes that
+package as it finds it, as it does every package the page selects
+(`layer.selected_layer`). Applying the catalogue's current default to existing
+pages can be reconsidered when that use appears; it does not require changing the
+selection interface.
 """
 
 import os
@@ -18,7 +20,6 @@ from typing import Literal
 
 from jsonschema import Draft202012Validator
 
-from .files import read_json
 from .layer import named_package
 from .refusals import Refused
 from .schema import HTML_NAME
@@ -90,14 +91,14 @@ def selected_theme(page_dir: Path, choice: ThemeChoice, *, fresh: bool) -> dict 
     False is the CLI's `--no-theme` or `--no-packages`: remove the selected theme. None
     means preserve an existing capture, or consult the default for a fresh page.
     A captured selection needs no catalogue entry: removing it from the catalogue
-    affects future authoring, while its package is resolved at re-vendoring.
+    affects future authoring, while its package is resolved wherever the page is read.
     """
     if choice is False:
         return None
     if choice is None and not fresh:
-        return (
-            (read_json(page_dir / "registry.json") or {}).get("$layer", {}).get("theme")
-        )
+        from .registry.storage import layer_record
+
+        return (layer_record(page_dir) or {}).get("theme")
     path, config = catalogue()
     name = choice if choice is not None else config.get("default")
     if name is None:

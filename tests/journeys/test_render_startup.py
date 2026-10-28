@@ -43,6 +43,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import user_views as user_views_model
+from leaf.registry.storage import load_registry, served_layer
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.served_state.reading import page_reading, source_readings
 
@@ -139,7 +140,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     expect(
         panel_menu(ordinary).locator('.lf-fp-item[data-row="preview"]')
     ).to_have_count(0)
-    layer = json.loads((serve.page_dir / "registry.json").read_text())["$layer"]
+    layer = served_layer(load_registry(serve.page_dir)["$layer"], serve.page_dir)
     producer = layer.get("producer", {})
     identity = (
         producer["commit"][:8]

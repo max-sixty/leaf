@@ -180,6 +180,25 @@ interface HTMLElement {
   lfFirstMessage?: HTMLElement;
 }
 
+interface Element {
+  /** The keys a widget binds while the user is in this element, as data Leaf reads when
+   * the widget says they changed (`commandsChanged`; keyboard/scopes.js): a scope's
+   * title, rows and options, or a `commandScope()` value. */
+  lfCommands?:
+    | {
+        title: string | null;
+        rows: any[];
+        when?: () => boolean;
+        ready?: () => boolean;
+        escape?: "inner";
+        claims?: (binding: string) => boolean;
+      }
+    | ReturnType<typeof import("../runtime/keyboard/scopes.js").commandScope>
+    | null;
+  /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
+  lfCopy?: () => string;
+}
+
 interface HTMLScriptElement {
   /** A sample child's private port, owned by the bootstrap element until the entry starts. */
   lfDocumentPort?: MessagePort;

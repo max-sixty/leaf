@@ -661,8 +661,11 @@ summary,
   }
 }
 /* A symbol on a vendor control, Copy, wears the face on its host, which holds no line
-   of words of its own; the button inside fills the face and takes the press. */
+   of words of its own; the button inside fills the face and takes the press. The host
+   stretches the vendor's unparted wrapper, which would otherwise shrink to the icon
+   and take the button with it. */
 wa-copy-button.lf-icon-action {
+  place-items: stretch;
   font-size: 0;
   line-height: 0;
 }

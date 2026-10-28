@@ -463,7 +463,7 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
             )
 
     before = events_model.read_events(serve.page_dir)
-    before_media = sorted((serve.page_dir / "media").iterdir())
+    before_media = sorted((serve.page_dir / "media").glob("*"))
     surface = open_capture_area(page, touch=True)
     selection = surface.locator(".lf-region-selection")
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
@@ -485,7 +485,7 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     assert page.evaluate("!captureTouchStarts.at(-1).defaultPrevented")
     expect(page.locator(".lf-composer-media-item")).to_have_count(0)
     assert events_model.read_events(serve.page_dir) == before
-    assert sorted((serve.page_dir / "media").iterdir()) == before_media
+    assert sorted((serve.page_dir / "media").glob("*")) == before_media
     surface = open_capture_area(page, touch=True)
     page.get_by_role("button", name="Cancel capture", exact=True).press("Enter")
     expect(surface).to_be_hidden()
@@ -511,15 +511,27 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     # Which element each part of the removal tap reached, for the reading below.
     page.evaluate("""() => {
         window.removalTap = [];
+        const original = document.querySelector('.lf-composer-media-remove');
+        const box = node => node?.getBoundingClientRect().toJSON();
         const named = node => node instanceof Element
             ? `${node.localName}.${[...node.classList].join('.')}`
               + (node.isConnected ? '' : ' (removed)')
             : String(node);
-        for (const type of ['touchstart', 'pointerdown', 'click'])
-            window.addEventListener(type, event => removalTap.push(
-                `${type} on ${named(event.composedPath()[0])}`
-                + (event.defaultPrevented ? ' (prevented)' : '')),
-                {capture: true});
+        for (const type of ['pointerdown', 'pointerup', 'touchstart', 'touchend',
+                            'mousedown', 'mouseup', 'click'])
+            window.addEventListener(type, event => {
+                const point = event.changedTouches?.[0] ?? event;
+                removalTap.push({
+                    type, target: named(event.composedPath()[0]),
+                    prevented: event.defaultPrevented,
+                    point: [point.clientX, point.clientY],
+                    hit: named(document.elementFromPoint(point.clientX, point.clientY)),
+                    originalConnected: original.isConnected,
+                    sameButton: original === document.querySelector('.lf-composer-media-remove'),
+                    button: box(original),
+                    grip: box(document.querySelector('.lf-fab-bar > .lf-surface-grip')),
+                });
+            }, {capture: true});
     }""")
     page.get_by_role("button", name="Remove attached image 1", exact=True).tap()
     # Removal is synchronous in the click, so the shelf is empty as the tap returns,

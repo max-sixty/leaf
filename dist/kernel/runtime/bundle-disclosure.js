@@ -5202,11 +5202,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 					});
 					view.draw();
 					keeps(view.node, "data-lf-append-tail", message.provisional && message === item.thread.msgs.at(-1) ? "" : null);
-				} else {
-					keepsHidden(view.node, !replyAvailable(item.thread));
-					if (nominated) view.notice.node.remove();
-					else if (view.notice.node.parentNode !== view.node) move(view.node, view.notice.node, null);
-				}
+				} else if (nominated) view.notice.node.remove();
+				else if (view.notice.node.parentNode !== view.node) move(view.node, view.notice.node, null);
 			}
 			const slots = view.slots ??= [];
 			let destination = item.outlet;
@@ -6710,16 +6707,16 @@ function declareThreadKeys(landIn, threadHere) {
 			id: "thread.primary",
 			touch: false,
 			keys: ["Enter"],
-			title: () => resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
+			title: () => !threadInput(cardThread()) && resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
 			when: () => Boolean(threadInput(cardThread())) || resolutionControl(cardThread())?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])"),
 			run: () => {
 				const thread = cardThread();
-				const reopen = resolutionControl(thread)?.matches(".lf-reopen") ? resolutionControl(thread) : null;
-				if (reopen) reopen.click();
-				else landIn({
+				const box = threadInput(thread);
+				if (box) landIn({
 					held: thread,
-					box: threadInput(thread)
+					box
 				});
+				else resolutionControl(thread).click();
 			}
 		}, {
 			id: "thread.resolution.toggle",

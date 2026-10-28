@@ -14,9 +14,11 @@ its row. A visible control names an existing command rather than copying its cal
 
 Core owns commands on the page, the chrome, navigation, comments and shared thread
 state. A widget owns commands that read or change its content, and its scopes join the
-register only while the widget exists. Element scopes are declared with
-`keys(element, …)`, a template's `commandsOn(…)` or `commandScope(…)` in
-`scopes.js`, and core scopes with `pageScope`, `pageCommand` and `pageRung` in
+register only while the widget exists. A package widget declares an element scope as
+data, the element's `lfCommands`, which `scopes.js` reads when the widget calls
+`commandsChanged`; core declares one with `keys(element, …)`, and both take a
+`commandScope(…)` value, as a template's `commandsOn(…)` does. Core scopes over the
+page use `pageScope`, `pageCommand` and `pageRung` in
 `register.js`. A new scope, page command or Escape step also needs its place in
 `register.js`'s `STACK`, `PAGE_COMMANDS` or `RUNG_LADDER`.
 

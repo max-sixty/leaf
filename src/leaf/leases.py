@@ -21,6 +21,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import BinaryIO
 
+from leaf.registry.kernel import kernel_protocol
 from leaf.schema import WAITER_LOCK
 from leaf.state import (
     HOOKS_SUFFIX,
@@ -116,18 +117,20 @@ def take_lease(path: Path, *, prepare: Callable[[BinaryIO], None] | None = None)
         record.close()
 
 
-def supersede_lease(path: Path):
+def supersede_lease(path: Path, content: bytes = b""):
     """Take the exclusive lease on this file whether or not another process holds
-    it, and return it held, as `take_lease` does.
+    it, and return it held, as `take_lease` does, holding `content`.
 
-    The lease moves to a fresh file that takes the name with its lock already held,
-    so a probe of the name never finds it unheld. A process it displaces still holds
-    a lock, on a file the name no longer reaches, and learns it lost the lease from
-    `still_named`."""
+    The lease moves to a fresh file that takes the name with its lock already held
+    and its content written, so a probe of the name never finds it unheld or empty.
+    A process it displaces still holds a lock, on a file the name no longer
+    reaches, and learns it lost the lease from `still_named`."""
     staged = path.with_name(f"{path.name}.{os.getpid()}")
     record = open(staged, "w+b")  # noqa: SIM115 - returned and held by the caller
     try:
         fcntl.flock(record, fcntl.LOCK_EX)
+        record.write(content)
+        record.flush()
         os.replace(staged, path)
     except BaseException:
         record.close()
@@ -288,7 +291,33 @@ def adapter_is_live(session_id: str) -> bool:
     return lock_is_held(adapter_lease_path(session_id))
 
 
+def take_wait_lease(path: Path, *, supersede: bool = False):
+    """Take a watch's wait lease (`take_lease`, or `supersede_lease` from a live
+    holder where `supersede` says to), holding the page protocol this Leaf speaks,
+    which `wait_is_live` reads."""
+    speaks = str(kernel_protocol()).encode()
+    if supersede:
+        return supersede_lease(path, speaks)
+
+    def prepare(record: BinaryIO) -> None:
+        record.truncate(0)
+        record.write(speaks)
+        record.flush()
+
+    return take_lease(path, prepare=prepare)
+
+
 def wait_is_live(page_dir: Path | None, session_id: str | None) -> bool:
-    """Whether this ownership scope's exact wait lease is held now."""
+    """Whether this ownership scope's exact wait lease is held now by a watch that
+    can read what this Leaf reads. A watch holds the page protocol its Leaf speaks
+    (`take_wait_lease`). One an older Leaf runs, such as a session's plugin
+    loaded before an update, can neither read nor re-vendor a page this Leaf
+    re-vendored, so it carries no input, and admission nudges the session past it
+    as though no watch ran (`presence.nudge_unwatched`)."""
     lease_path = waiter_lease_path(page_dir, session_id)
-    return bool(lease_path and lock_is_held(lease_path))
+    if not (lease_path and lock_is_held(lease_path)):
+        return False
+    try:
+        return int(lease_path.read_bytes()) >= kernel_protocol()
+    except (OSError, ValueError):
+        return False

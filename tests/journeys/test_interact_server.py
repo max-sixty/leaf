@@ -757,7 +757,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     await_row(lambda row: row["activity"]["observed_kind"] == "awaiting_user")
     harness_record.unlink()
     await_row(lambda row: row["activity"]["kind"] == "away")
-    waiter = leases_model.take_lease(
+    waiter = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(neighbor, "invisible")
     )
     try:

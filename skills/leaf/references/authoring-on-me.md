@@ -39,10 +39,13 @@ mechanism in the same frame as the other options', a capture of today's interfac
 beside the change, with a fault marked where it goes wrong, a wording as it would
 appear, or a code change's text or effect before and after. A change they would
 neither see nor picture, such as a refactor, needs only words. Each option holds its
-own picture, so nothing pairs it with another option's; a picture of both answers at
-once, such as an `lf-shot` pair, belongs to the group. Vary only what the choice
-changes, and show today in the option that keeps it, or above the options where none
-does.
+own pictures, so nothing pairs them with another option's; a picture of both answers
+at once, such as an `lf-shot` pair, belongs to the group. Where the result spans
+several captures, such as several surfaces or states, every option sets them out
+alike, in a table of captures with the same columns (`authoring-evidence.md`, "Source
+files and media"), so the reader compares each one down the options. Vary only what
+the choice changes, and show today in the option that keeps it, or above the options
+where none does.
 
 When the page exists to choose among approaches, its title and headings ask the
 question without answering it. Give each alternative the same depth on the same

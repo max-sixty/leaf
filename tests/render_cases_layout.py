@@ -1617,23 +1617,35 @@ RUN_DRAWN = 0.9
 # The fewest unpainted samples, 4px apart, that count: a neighbour's edge blending into
 # a short run's end sample is one.
 RUN_MISSED = 3
+# How far a sample's channels may stray from the ring's, summed: a band on a fractional
+# edge blends a little of the ground into its middle pixel, and ground or text that
+# covers it differs by far more.
+RUN_INK = 90
 
 
 def _read_ring_pixels(page, answers):
     """Add to each ring's `covers` the runs its colour is missing from in a screenshot,
     at the samples `ringsDrawn` (focus_rings.js) found nothing in front of that takes
-    hits, and drop the samples and ink from each answer."""
-    image = None
+    hits, and drop the samples, ink and rectangle from each answer.
+
+    The screenshot is taken a round trip after the reading, so a caller reads a page at
+    rest (`rendered`); one still repainting can read a ring where it no longer is."""
+    sampled = [seen for seen in answers if seen["runs"]]
+    if sampled:
+        points = [p for seen in sampled for run in seen["runs"] for p in run["points"]]
+        # Whole CSS pixels, since Chrome truncates a clip to them before it scales.
+        left = math.floor(min(x for x, _ in points))
+        top = math.floor(min(y for _, y in points))
+        clip = {
+            "x": left,
+            "y": top,
+            "width": math.floor(max(x for x, _ in points)) + 1 - left,
+            "height": math.floor(max(y for _, y in points)) + 1 - top,
+        }
+        image = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        scale = image.width / clip["width"]
     for seen in answers:
         runs, ink, ring = seen.pop("runs"), seen.pop("ink"), seen.pop("ringAt")
-        if not runs:
-            continue
-        if image is None:
-            image = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
-            scale = page.evaluate("() => devicePixelRatio")
-        channels = [float(n) for n in re.findall(r"[\d.]+", ink)[:3]]
-        if ink.startswith("color("):
-            channels = [n * 255 for n in channels]
         for run in runs:
             painted = [
                 sum(
@@ -1641,15 +1653,15 @@ def _read_ring_pixels(page, answers):
                     for a, b in zip(
                         image.getpixel(
                             (
-                                min(int(x * scale), image.width - 1),
-                                min(int(y * scale), image.height - 1),
+                                min(int((x - left) * scale), image.width - 1),
+                                min(int((y - top) * scale), image.height - 1),
                             )
                         ),
-                        channels,
+                        ink,
                         strict=True,
                     )
                 )
-                < 90
+                < RUN_INK
                 for x, y in run["points"]
             ]
             share = sum(painted) / len(painted)

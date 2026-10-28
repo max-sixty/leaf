@@ -222,6 +222,17 @@
     };
     const focused = deepFocus();
     const { accent } = accentSwatch();
+    // A colour as the screenshot holds it, whatever space it was written in: a canvas
+    // paints it into sRGB.
+    const canvas = document.createElement("canvas").getContext("2d", {
+      willReadFrequently: true,
+    });
+    const srgb = (colour) => {
+      canvas.clearRect(0, 0, 1, 1);
+      canvas.fillStyle = colour;
+      canvas.fillRect(0, 0, 1, 1);
+      return [...canvas.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+    };
     const claimed = globalThis.__lfRingClaims;
     delete globalThis.__lfRingClaims;
     const answers = [];
@@ -668,7 +679,7 @@
       }
       answers.push({
         who: named(el),
-        ink: outlined ? cs.outlineColor : accent,
+        ink: srgb(outlined ? cs.outlineColor : accent),
         ringAt: at(ring),
         runs,
         here,

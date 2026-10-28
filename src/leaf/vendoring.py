@@ -46,6 +46,7 @@ from .service import (
     claimant_matches,
     page_claim,
 )
+from .session_runtime import select_checkout
 from .state import (
     EVENTS_FILE,
     SESSION_SUFFIX,
@@ -196,7 +197,11 @@ def _revendor(
     if not plan.changed:
         return []
     with restarting_server(page_dir, harness), page_locked(page_dir):
-        return _init_page(page_dir, selected, still, theme=theme)
+        errors = _init_page(page_dir, selected, still, theme=theme)
+    if harness is not None:
+        # The session's own copy may not read the page at this protocol.
+        select_checkout(harness.session)
+    return errors
 
 
 def _unready(page_dir: Path, errors: list[Finding]) -> Finding | None:

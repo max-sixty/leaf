@@ -120,8 +120,9 @@ Where nothing answers for the declaration, activity reports the page `unheld`. A
 with a persistent service spends most of its life unheld, and picks up again when a
 session takes it.
 
-A developer user preview can select the runtime that delivers for its session
-(`session_runtime.py`); page servers keep their own.
+A session's hooks, watch and bare `leaf` commands run its delivering Leaf: a checkout
+a user preview or a re-vendor selected, or the copy Claude Code installed since the
+session loaded its own (`session_runtime.py`); page servers keep their own.
 
 ## Watchers
 

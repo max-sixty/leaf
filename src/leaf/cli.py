@@ -218,6 +218,9 @@ class LeafGroup(click.Group):
     ):
         if not standalone_mode:
             return super().main(args, prog_name, complete_var, False, **extra)
+        from leaf.session_runtime import hand_off_command
+
+        hand_off_command(sys.argv[1:] if args is None else list(args))
         invocation = extra.setdefault("obj", {})
         try:
             self._run_standalone(args, prog_name, complete_var, **extra)

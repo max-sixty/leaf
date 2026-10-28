@@ -55,6 +55,7 @@ from leaf import schema as schema_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
@@ -1611,6 +1612,24 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
     assert "page protocol" not in context
     assert handed(claimed, comment["id"])
     assert event_contracts_model.write_refusal(claimed) is None
+
+
+def test_a_checkout_that_re_vendors_a_page_delivers_for_its_session(claimed, tmp_path):
+    """A command from a checkout, such as a worktree's `bin/leaf`, that re-vendors
+    a page past the Leaf delivering for its session becomes that session's
+    delivering Leaf, so its hooks and watch can still read the page."""
+    other = tmp_path / "installed" / "bin" / "leaf"
+    other.parent.mkdir(parents=True)
+    other.write_text("#!/bin/sh\n")
+    other.chmod(0o755)
+    session_runtime_model.select_launcher("s1", other)
+    vendored_at_another_protocol(claimed)
+
+    vendoring_model.renew_layer(claimed, harness_model.session_harness())
+
+    assert event_contracts_model.write_refusal(claimed) is None
+    own = session_runtime_model.own_launcher()
+    assert session_runtime_model.delivering_launcher("s1") == own
 
 
 def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(

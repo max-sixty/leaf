@@ -32,7 +32,7 @@ from .schema import (
     RUNTIME_ENTRY,
     VENDORED_FILES,
 )
-from .state import PLUGIN_ROOT
+from .state import PLUGIN_ROOT, plugin_cache_copy
 
 
 def named_package(name: str) -> Path | None:
@@ -659,14 +659,7 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
     # whose final component is the resolved plugin version. Leaf leaves its manifest
     # version unset, so that component is the source commit SHA. The default root
     # follows this module: a newer sibling cannot change the running copy's identity.
-    parents = root.parents
-    if (
-        len(parents) >= 4
-        and root.parent.name == "leaf"
-        and parents[2].name == "cache"
-        and parents[3].name == "plugins"
-        and re.fullmatch(r"[0-9a-f]{7,40}", root.name)
-    ):
+    if plugin_cache_copy(root):
         # The copy stamps every file with the time it was made, and Leaf never
         # rewrites its own modules. A harness copies only the marketplace's newest
         # commit, one update sweep after it lands, so this dates the commit to

@@ -1,17 +1,18 @@
 /* Adopt the native disclosure the initial drawing built around the authored body.
  * Revision patching edits inside that body, retaining nested readers while changing
  * the prose around them. */
-import { LeafElement, initialRender, noChange } from "/runtime/widget-api.js";
+import { LeafElement, initialRender } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-worktree",
   class extends LeafElement {
+    #view;
     setup() {
-      initialRender(this);
+      this.#view = initialRender(this);
     }
 
     render() {
-      return noChange;
+      return this.#view.render();
     }
   },
 );

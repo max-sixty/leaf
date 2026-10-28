@@ -20,10 +20,13 @@ check that way and put anything needing a browser in the browser half. The rules
 in `validation/source.py` and `validation/markup.py`; these are the decisions behind
 them:
 
-- Page code runs after the runtime has read the page: inline modules, deferred classic
-  script files, or their literal local import graphs under `/page/`, never
-  parser-blocking or `async` scripts. Anything on another server is named by its
-  http(s) URL and loaded as written.
+- Page code may be any script, classic or module, inline or a file, with its literal
+  local import graph under `/page/`. One that can run before the runtime reads the
+  page, a classic script the parser runs or an `async` one, makes the runtime read the
+  authored page from the delivered source (`revision_delivery.early_scripts`), and
+  its errors reach the runtime's report from the document's first script
+  (`runtime/prepaint.js`). Anything on another server is named by its http(s) URL and
+  loaded as written.
 - The runtime, theme, page identity and declarations about the whole document (a
   `<base>`, an http-equiv `<meta>`, an import map) belong to delivery, which inserts
   them at the start of `<head>`, so source may not author them. Message markup may not

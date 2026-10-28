@@ -12,7 +12,11 @@ import { landingPlace } from "./runtime/reading-place.js";
 import { claimTraversals, mountHistory, replaceEntry } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
-import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
+import {
+  reportEarlyFaults,
+  reportPageError,
+  uploadMedia,
+} from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
   markPagePresented,
@@ -94,7 +98,7 @@ import {
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
-import { createVersionController } from "./runtime/version.js";
+import { createVersionController, servedRead } from "./runtime/version.js";
 import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
 
@@ -152,6 +156,7 @@ import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
 async function boot() {
   await document.documentElement.lfSample?.ready;
   initializeServedDocument();
+  reportEarlyFaults();
   holdArrivingBounds();
 
   // A published shell may bundle the entry without publishing its source modules beside
@@ -185,9 +190,12 @@ async function boot() {
   // includes it in executable identity, so selecting another presentation retires this
   // module graph through the ordinary document replacement and draft carry owners.
   const overlaySelected = annotationMode === "overlay";
-  const annotationRenderer = overlaySelected
-    ? await import("./runtime/annotation-overlay/index.js")
-    : null;
+  // The version controller below takes the authored baseline, which a page whose code
+  // can run before the runtime reads from its source (version.js, `servedRead`).
+  const [annotationRenderer] = await Promise.all([
+    overlaySelected ? import("./runtime/annotation-overlay/index.js") : null,
+    servedRead,
+  ]);
   if (validationEntry && annotationRenderer)
     validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
   annotationRenderer?.mountAnnotationControls();

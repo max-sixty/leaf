@@ -498,13 +498,11 @@ def mark_declared(
     return _spliced(source, [(offset, offset, text) for offset, text in edits])
 
 
-def initial_script_paths(
-    source: str, registry: Mapping, resources: Mapping[str, Resource]
-) -> list[str]:
-    """The used producers and their build-declared prerequisites, in execution order.
+def initial_script_paths(source: str, registry: Mapping) -> list[str]:
+    """Shared Lit followed by the used classic producers, before parsing their hosts.
 
-    The build records imports that it binds to shared classic globals. Delivery reads
-    that graph instead of making every document pay for every producer's libraries.
+    Every producer can return a Lit view, including a page-owned classic script with
+    no build step. Delivery owns that prerequisite; producer imports are irrelevant.
     A producer inside a template does not run during parsing.
     """
     tree = turbohtml.parse(source, scripting=True)
@@ -514,21 +512,7 @@ def initial_script_paths(
         if element.closest("template") is None
         and (path := registry.get(element.tag, {}).get("x-initial"))
     )
-    if not used:
-        return []
-    dependencies = json.loads(resources["/vendor/initial-dependencies.json"].data)
-    return list(
-        dict.fromkeys(
-            [
-                *(
-                    dependency
-                    for path in used
-                    for dependency in dependencies.get(path, [])
-                ),
-                *used,
-            ]
-        )
-    )
+    return ["/vendor/lit-initial.js", *used] if used else []
 
 
 def initial_scripts(paths: list[str], resources: Mapping[str, Resource]) -> str:
@@ -725,8 +709,33 @@ def delivery_prelude(
     return (
         runtime_element("meta", {"charset": "utf-8"})
         + delivery_identity(revision, version, executable, widgets)
+        + early_scripts(document)
         + viewport
     )
+
+
+def early_scripts(document: SourceDocument) -> str:
+    """Say whether any of the page's scripts can run before the runtime reads it.
+
+    The runtime's module runs once the document has parsed, ahead of every later
+    module and deferred classic file. A classic script the parser runs where it
+    stands, or any script marked `async`, can run first and change `main` before the
+    runtime reads it, so the runtime then reads the authored page from the delivered
+    source rather than from the live document (`runtime/version.js`,
+    `servedReading`). A page without one carries no mark and costs that read nothing.
+    """
+    for script in [
+        *document.authoring.inline_scripts,
+        *document.authoring.external_scripts,
+    ]:
+        attrs = script["attrs"]
+        deferred = "async" not in attrs and ("defer" in attrs and "src" in attrs)
+        kind = script_kind(attrs)
+        if (kind == "classic" and not deferred) or (
+            kind == "module" and "async" in attrs
+        ):
+            return runtime_element("meta", {"name": "lf-early-scripts", "content": ""})
+    return ""
 
 
 @dataclass(frozen=True)
@@ -780,7 +789,7 @@ def compose_document(
     runtime will draw and whether it could not start. It reads the canonical address,
     so that comes first; it names a startup fault before the host's runtime script
     hears of it, so it comes before that. The shared Lit implementation follows the
-    prepaint only when a used `x-initial` producer imports Lit. Used bundles then
+    prepaint whenever the document uses an `x-initial` producer. Used bundles then
     register the package producers that the body's parser invocations run. Later
     modules export this same Lit instance; other pages load Lit as a normal module.
     These scripts stand before the theme, since a
@@ -790,12 +799,10 @@ def compose_document(
     begun to load.
     """
     initial = (
-        initial_script_paths(source, registry, resources)
-        if delivery.runtime is not None
-        else []
+        initial_script_paths(source, registry) if delivery.runtime is not None else []
     )
     import_map = delivery.import_map
-    if "/vendor/lit-initial.js" in initial and import_map is not None:
+    if initial and import_map is not None:
         imports = import_map["imports"]
         # Hosted documents map directories. Export's exact leaf: graph already
         # embeds the selected facade under Lit's canonical module identity. Both

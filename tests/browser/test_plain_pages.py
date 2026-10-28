@@ -79,12 +79,6 @@ OBSTACLES = {
         " shorter than the window ends in Leaf's paper below the body the author"
         " coloured"
     ),
-    "parser-blocking-script": (
-        "page check refuses a classic inline script: it runs before the runtime,"
-        " which reads the authored main from the live DOM when its module runs"
-        " (version.js, initialDocument) and hears errors only from then on"
-        " (validation/source.py)"
-    ),
 }
 KNOWN = {
     "article": {
@@ -167,8 +161,12 @@ KNOWN = {
         },
     },
     "script": {
-        "parser-blocking-script": {
-            "parser-blocking-script <script>",
+        "color-scheme": {
+            "color-scheme on the root",
+        },
+        "inherited": {
+            "dark inherited line-height on main > h1:0 #0199a976",
+            "light inherited line-height on main > h1:0 #0199a976",
         },
     },
 }

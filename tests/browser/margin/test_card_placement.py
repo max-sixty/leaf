@@ -295,7 +295,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     head keeps "Me" and its time whole. On a phone's card, whose three controls, the
     notice and the head's Edit each take a finger's width, the notice says one count,
     "2 new", and the head keeps its time whole and gives up its name, as any narrow
-    head does, to no box at all, so no sliver of it stands against the time. Drawn
+    head does, showing none of it, so no sliver of it stands against the time. Drawn
     whole, the notice stood over the head."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
@@ -342,7 +342,13 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     name = head.locator("b")
     expect(name).to_have_text("Me")
     if phone:
-        assert name.evaluate("node => node.getBoundingClientRect().width") < 0.5
+        assert (
+            name.evaluate(
+                "node => node.hasAttribute('data-lf-nameless')"
+                " && getComputedStyle(node).color"
+            )
+            == "rgba(0, 0, 0, 0)"
+        )
     else:
         assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
 

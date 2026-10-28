@@ -39,7 +39,7 @@ import {
 } from "./focus.js";
 import { html, nothing, render, repeat } from "/runtime/framework.js";
 import { iconTemplate } from "./icons.js";
-import { keys, paintKeys } from "./keyboard/scopes.js";
+import { keys, paintKeys, paintKeysWithin } from "./keyboard/scopes.js";
 import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
 import { closeControl, el, searchField } from "./widget-elements.js";
@@ -295,6 +295,8 @@ export function createPageMapDialog({
     place.around(() => presentSheet());
     // A control the filter hid or the render removed hands the user to the search.
     restoreFocus?.(dialogSearch);
+    // Search bindings read the rendered rows, including those the query hid.
+    paintKeysWithin(dialog);
   }
 
   function presentSheet() {

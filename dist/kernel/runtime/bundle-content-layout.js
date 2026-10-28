@@ -1,4 +1,4 @@
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, layoutChanged, nativeLayerHolding, nextFrame, nextRender, pagePresented, renderedParent, renderedUnder, renderingState, shadowHost, sizeObserver, skipped, under, upFrom, watchArrivals, watchOwner, whileConnected } from "./bundle-portable.js";
+import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, layoutChanged, nativeLayerHolding, nextFrame, nextRender, pagePresented, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, shadowHost, sizeObserver, skipped, under, upFrom, visualPartAdmission, watchArrivals, watchOwner, whileConnected } from "./bundle-portable.js";
 import { J, LENT_REACH_STOP, PRESSES, TEXT_BOX, WORKS, Z, deepFocus, keeps, layoutPx, move, onCurrentLocation, pressing, tabStops, wearsLentStop } from "./bundle-dom-move.js";
 import { TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, hostIn, inUi, isElementName, marks, registry, shadowRootsIn, tagsDeclaring, tick, uiInside } from "./bundle-layer-stack.js";
 import { PRESSABLE, repaintPage, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
@@ -190,88 +190,6 @@ const targetParts = (resolved) => {
 	if (!element) return [];
 	return targetSurface(resolved) ? [element] : shownParts(element);
 };
-
-//#endregion
-//#region runtime/visual-parts.js
-const registrations = /* @__PURE__ */ new WeakMap();
-const words = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
-function registerVisualParts(source, read, { reveal = null, label = null } = {}) {
-	if (registrations.has(source)) throw new TypeError("A visual source may register its parts only once");
-	registrations.set(source, {
-		read,
-		reveal,
-		label
-	});
-	return { update: () => layoutChanged(source) };
-}
-function visualPartAdmission(visual, declaration) {
-	if (!declaration || typeof declaration !== "object") return null;
-	const { prefixes } = declaration;
-	if (prefixes) return (id) => prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
-	return visual.hasAttribute(declaration.parts) ? () => true : null;
-}
-const revealsVisualParts = (source) => Boolean(registrations.get(source)?.reveal);
-function revealRegisteredVisualPart(source, id) {
-	const reveal = registrations.get(source)?.reveal;
-	if (reveal) reveal(id);
-	return registeredVisualPart(source, id);
-}
-function visualPartProblems(source, declaration) {
-	if (!declaration || typeof declaration !== "object") return [];
-	if (!registrations.has(source)) return [{ kind: "unregistered" }];
-	const parts = registeredVisualParts(source);
-	const admission = visualPartAdmission(source, declaration);
-	const outside = declaration.prefixes ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
-	return outside.length ? [{
-		kind: "unadmitted-parts",
-		parts: outside
-	}] : [];
-}
-function registeredVisualParts(source) {
-	const read = registrations.get(source)?.read;
-	if (!read) return [];
-	const seenIds = /* @__PURE__ */ new Set();
-	const seenElements = /* @__PURE__ */ new Set();
-	const seenSurfaces = /* @__PURE__ */ new Set();
-	return [...read()].map((part, index) => {
-		const number = index + 1;
-		const id = part.id;
-		const element = part.element;
-		const label = words(part.label);
-		const surface = part.surface ?? element;
-		if (typeof id !== "string" || !id || /\s/.test(id)) throw new TypeError(`Visual part ${number} has no single-token id`);
-		if (!(element instanceof Element) || element === source || !under(element, source)) throw new TypeError(`Visual part ${id} has no descendant Element`);
-		if (!label) throw new TypeError(`Visual part ${id} has no label`);
-		if (!(surface instanceof Element) || !under(surface, element)) throw new TypeError(`Visual part ${id} has no descendant Element surface`);
-		if (seenIds.has(id)) throw new TypeError(`A visual source registered part ${id} twice`);
-		if (seenElements.has(element)) throw new TypeError("A visual source registered one element as two parts");
-		if (seenSurfaces.has(surface)) throw new TypeError("A visual source registered one surface for two parts");
-		seenIds.add(id);
-		seenElements.add(element);
-		seenSurfaces.add(surface);
-		return {
-			id,
-			element,
-			label,
-			surface
-		};
-	});
-}
-const registeredVisualPart = (source, id) => registeredVisualParts(source).find((part) => part.id === id) ?? null;
-const registeredVisualPartLabel = (source, id) => {
-	const current = registeredVisualPart(source, id)?.label;
-	if (current) return current;
-	const label = registrations.get(source)?.label?.(id);
-	return words(label) || null;
-};
-function registeredVisualPartAt(source, target, admits = () => true) {
-	const byElement = new Map(registeredVisualParts(source).filter(admits).map((part) => [part.element, part]));
-	for (let current = target; current && current !== source; current = upFrom(current)) {
-		const part = byElement.get(current);
-		if (part) return part;
-	}
-	return null;
-}
 
 //#endregion
 //#region runtime/addressable-names.js
@@ -2559,4 +2477,4 @@ function openMarginContentLayout({ onRead }) {
 }
 
 //#endregion
-export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, aimedTop, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, atScrollEnd, authoredBody, boundedBlockOf, carriedAnchor, chosenSince, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, contentRides, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, elementFrame, exactTarget, followingItsEnd, fragmentId, fragmentTarget, headerLevels, holdArrivingBounds, initialOrigin, initialParent, initialRender, initialSource, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, pageScroller, passageBoxes, passageGeometry, placeKept, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, quietSince, railStands, rangeGeometry, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, registerVisualParts, releaseReachStop, resolveAnchor, resolvedInMessage, restoreInitialSource, revealAddressed, saidNow, scheduleMarginContentLayout, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleMarginContentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, syncLayoutRegion, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, unmarkedCopy, userReadingRegion, visualAt, visualPartLabel, visualPartProblems, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whenArriving, whileInterfaceConnected, widgetWord };
+export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, aimedTop, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, atScrollEnd, authoredBody, boundedBlockOf, carriedAnchor, chosenSince, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, contentRides, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, elementFrame, exactTarget, followingItsEnd, fragmentId, fragmentTarget, headerLevels, holdArrivingBounds, initialOrigin, initialParent, initialRender, initialSource, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, pageScroller, passageBoxes, passageGeometry, placeKept, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, quietSince, railStands, rangeGeometry, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, restoreInitialSource, revealAddressed, saidNow, scheduleMarginContentLayout, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleMarginContentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, syncLayoutRegion, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, unmarkedCopy, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whenArriving, whileInterfaceConnected, widgetWord };

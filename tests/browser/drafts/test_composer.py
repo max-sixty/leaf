@@ -34,6 +34,7 @@ from render_harness import (
     write,
 )
 
+from browser.margin import MARGIN_EDITOR_ROOTS
 from browser.threads import clear_of_the_panel
 from leaf import event_log as events_model
 
@@ -95,6 +96,30 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
             if event["kind"] in {"comment", "reply"}
         ][-1]
         assert message["text"] == " ", box
+
+
+def test_words_typed_over_formatted_words_replace_them_in_firefox(
+    firefox_browser, serve
+):
+    """Typing over a selection replaces it when the selection crosses formatting. In a
+    shadow root, Firefox inserted the words beside such a selection and left it in
+    place (field-editor.js, `beforeinput`)."""
+    page = open_page(firefox_browser, serve(LONG_PAGE), init_script=MARGIN_EDITOR_ROOTS)
+    box = page_comment(page)
+    page.keyboard.type("aa **bold** zz")
+    page.wait_for_function(
+        "box => window.marginEditorRoots.get(box)?.querySelector('.cm-content strong')",
+        arg=box.element_handle(),
+    )
+    for select in (["ControlOrMeta+a"], ["End", *["Shift+ArrowLeft"] * 5]):
+        for key in select:
+            page.keyboard.press(key)
+        page.keyboard.type("Q")
+        expect(box).to_have_js_property(
+            "value", "Q" if len(select) == 1 else "aa **boldQ"
+        )
+        page.keyboard.press("ControlOrMeta+z")
+        expect(box).to_have_js_property("value", "aa **bold** zz")
 
 
 def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, serve):

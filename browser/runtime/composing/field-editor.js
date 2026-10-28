@@ -530,6 +530,32 @@ function fieldEditor(
           field.typed(!view.contentDOM.editContext, () => view.dispatch(insert()));
           return true;
         }),
+        // Words typed over a selection replace it here, not in the DOM: in a shadow
+        // root, Firefox inserts them beside a selection that crosses a decoration's
+        // element and leaves the selected words in place (Firefox 157, CodeMirror
+        // 6.43). The beforeinput already opened the edit's bracket.
+        EditorView.domEventHandlers({
+          beforeinput(event, view) {
+            if (
+              event.inputType !== "insertText" ||
+              event.data === null ||
+              view.state.selection.main.empty ||
+              view.state.readOnly ||
+              view.composing
+            )
+              return false;
+            event.preventDefault();
+            field.typed(true, () =>
+              view.dispatch(
+                view.state.update(view.state.replaceSelection(event.data), {
+                  scrollIntoView: true,
+                  userEvent: "input.type",
+                }),
+              ),
+            );
+            return true;
+          },
+        }),
         // An edit's reveal shows the caret's row in the host first; the view's own
         // reveal (editor-view.js) then carries the caret out through the page.
         EditorView.scrollHandler.of((view, range) => {

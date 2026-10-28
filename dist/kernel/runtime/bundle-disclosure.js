@@ -1549,6 +1549,15 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 					field.typed(!view.contentDOM.editContext, () => view.dispatch(insert()));
 					return true;
 				}),
+				EditorView.domEventHandlers({ beforeinput(event, view) {
+					if (event.inputType !== "insertText" || event.data === null || view.state.selection.main.empty || view.state.readOnly || view.composing) return false;
+					event.preventDefault();
+					field.typed(true, () => view.dispatch(view.state.update(view.state.replaceSelection(event.data), {
+						scrollIntoView: true,
+						userEvent: "input.type"
+					})));
+					return true;
+				} }),
 				EditorView.scrollHandler.of((view, range) => {
 					field.revealed(view, range.head);
 					return false;

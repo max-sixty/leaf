@@ -29,7 +29,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 VISUAL_REVIEW_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
 )
-SELECTED = '.lf-vr-case[aria-hidden="false"]'
+SELECTED = ".lf-vr-case:not([hidden])"
 
 
 def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):

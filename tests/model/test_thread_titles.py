@@ -25,9 +25,9 @@ from leaf import codex as codex_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import harness as harness_model
-from leaf import hooks as hooks_model
 from leaf import inference, thread_titles
 from leaf import interaction_log as interaction_model
+from leaf import state as cleanup_model
 
 # What Codex's turn reports when the account cannot use the model it asks for.
 UNAVAILABLE_MODEL = {
@@ -633,9 +633,7 @@ def test_a_title_request_that_outlives_its_session_writes_no_title(claimed):
         return {"title": "Intro"}
 
     thread_titles.name_admitted_thread(generate, claimed, comment["id"], "s1")
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
-    )
+    cleanup_model.end_harness_instance("s1")
     answered.set()
     for worker in threading.enumerate():
         if worker.name == "leaf-thread-title":

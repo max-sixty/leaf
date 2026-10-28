@@ -1,6 +1,5 @@
 """Widget structure and interaction contract validation."""
 
-import turbohtml
 from jsonschema.exceptions import SchemaError
 
 from leaf.schema import (
@@ -62,28 +61,6 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
                 raise registry_error(
                     "verb-detail-schema", path, tag, verb=verb, **schema_reading(error)
                 ) from error
-            if spec["detail"].get("type") != "object":
-                raise registry_error("verb-detail-type", path, tag, verb=verb)
-            # A verb carries only the detail keys its declaration names — the
-            # premise the layer's own field meanings rest on: both runtimes
-            # dispatch thread settlement on `resolves` being present, which
-            # is safe exactly because a closed schema makes carrying it a
-            # declaration.
-            if spec["detail"].get("additionalProperties") is not False:
-                raise registry_error("verb-detail-open", path, tag, verb=verb)
-            # And nothing beside those four keys, because that clause closes an
-            # object only against names `properties` does not match: a
-            # `patternProperties` beside it admits a field no declaration
-            # spells, and `resolves` is a field — so a per-part verb could come
-            # to settle a comment thread with every door that reads the name
-            # seeing nothing to read. Each of those doors reads the declaration
-            # rather than the event, so one unnamed key makes all of them
-            # approximate at once.
-            spelled = {"type", "properties", "required", "additionalProperties"}
-            if beyond := sorted(set(spec["detail"]) - spelled):
-                raise registry_error(
-                    "verb-detail-keys", path, tag, verb=verb, keys=beyond
-                )
 
 
 def validate_widget_relations(
@@ -119,20 +96,10 @@ def _validate_widget_structure(
                 "unknown-declarations", path, tag, key=key, names=unknown
             )
     properties = entry.get("properties", {})
-    if entry.get("x-initial"):
-        if not entry["x-upgrade"]:
-            raise registry_error(
-                "requires", path, tag, key="x-initial", needs="x-upgrade", value=True
-            )
-        if entry.get("x-prepaint") is not None:
-            raise registry_error("initial-and-prepaint", path, tag)
-    if (prepaint := entry.get("x-prepaint")) is not None:
-        if isinstance(prepaint, dict):
-            named = declarations.get(prepaint["as"], {}).get("x-prepaint")
-            if not isinstance(named, str):
-                raise registry_error("prepaint-as", path, tag, **{"as": prepaint["as"]})
-            prepaint = named
-        _validate_prepaint(tag, entry, prepaint, path)
+    if entry.get("x-initial") and not entry["x-upgrade"]:
+        raise registry_error(
+            "requires", path, tag, key="x-initial", needs="x-upgrade", value=True
+        )
     layout = entry.get("x-reading-role")
     if layout:
         if entry.get("x-content") != "markup":
@@ -277,37 +244,12 @@ def _validate_shown_answers(tag: str, entry: dict, declarations: dict, path) -> 
             raise registry_error("awaits-key", path, tag, key=key)
 
 
-def _validate_prepaint(tag: str, entry: dict, prepaint: str, path) -> None:
-    """Hold an x-prepaint to what delivery can write into every occurrence: one plain
-    element that only a module will take out again.
-
-    Delivery and the message path insert its bytes as written, so they must be the
-    element the parser reads back, byte for byte: markup the parser would close,
-    reorder or drop, such as a root left open, would take in the occurrence's own
-    children once inserted, and taking the prepaint out would take those with it. It
-    is copied into each occurrence, so an id would repeat; a custom element would
-    upgrade as a widget of its own, and a script would run. Delivery owns its
-    `data-lf-` marks (`revision_delivery.mark_declared`).
-    """
-    if entry.get("x-upgrade") is not True:
-        raise registry_error("prepaint-upgrade", path, tag)
-    nodes = list(turbohtml.parse(prepaint, scripting=True).find("body").children)
-    if len(nodes) != 1 or getattr(nodes[0], "html", None) != prepaint:
-        raise registry_error("prepaint-shape", path, tag)
-    for element in [nodes[0], *nodes[0].find_all(True)]:
-        attrs = element.attrs
-        if "-" in element.tag or element.tag in ("script", "style", "template", "slot"):
-            raise registry_error("prepaint-element", path, tag, element=element.tag)
-        if "id" in attrs or any(name.startswith("data-lf-") for name in attrs):
-            raise registry_error("prepaint-marks", path, tag, element=element.tag)
-
-
 def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -> dict:
     # A predicate names declared attributes. Booleans test presence or absence;
     # strings must be values the attribute's schema admits, or the widget silently
     # disappears from every consumer.
     awaits = entry.get("x-awaits", {})
-    if awaits.get("encloses"):
+    if entry.get("x-encloses"):
         if "id" not in entry.get("required", []):
             raise registry_error("enclosing-id", path, tag)
         if entry.get("x-content") != "markup":
@@ -382,13 +324,13 @@ def _validate_widget_interactions(
                 "work-content", path, tag, content=entry.get("x-content")
             )
     answered = awaits.get("answered", {})
-    if entry.get("x-awaits") is not None and not answered and not awaits.get("reply"):
+    if entry.get("x-awaits") is not None and not answered:
         raise registry_error("awaits-unanswered", path, tag)
     # The user answers their own obligation, so only a verb the user writes can answer it.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if unknown := sorted(set(answered) - user_verbs):
         raise registry_error("awaits-verbs", path, tag, verbs=unknown)
-    if awaits and not awaits.get("reply") and awaits["value"] not in user_verbs:
+    if awaits and awaits["value"] not in user_verbs:
         raise registry_error("awaits-value", path, tag)
     # A retired obligation was asked and has ended, so the flag that retires it has to be
     # one registration already reads as stopping the widget asking.

@@ -11,8 +11,8 @@ const adopted = (name) => {
   const served = servedReading(name);
   const app = createSemanticApplication();
   app.identify(served.active.revision);
-  // A message with markup, such as one asking with an lf-ask, draws the body the
-  // page captured; this stands in its words.
+  // A message with markup, such as one holding a widget, draws the body the page
+  // captured; this stands in its words.
   const view = served.browser.views[String(served.active.revision)];
   const messageBodies = new Map(
     view.thread.threads.flatMap(({ msgs }) =>
@@ -61,6 +61,7 @@ test("the browser publishes the queues the server selected", () => {
   assert.deepEqual(done.map(listed), served.done);
   // Something of every kind on each list, so each placement below has an item to move.
   assert.deepEqual([...new Set(onUser.map(({ kind }) => kind))].sort(), [
+    "message",
     "todo",
     "update",
     "widget",
@@ -127,9 +128,7 @@ test("a follow-up sent in a thread stands for the answer it was owed", () => {
 
 test("words sent to a question leave it on the user until the log answers", () => {
   const { app } = adopted("queues on both sides");
-  const question = published(app).on_user.find(
-    (item) => item.kind === "widget" && item.obligation.source.tag === "lf-ask",
-  );
+  const question = published(app).on_user.find((item) => item.kind === "message");
   app.enqueue(
     {
       kind: "reply",

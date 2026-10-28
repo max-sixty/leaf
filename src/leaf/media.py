@@ -84,8 +84,8 @@ def cmd_media(page_dir: Path, files: list) -> list[dict]:
 
     Content-addressing is doing two jobs. It keeps the directory's promise —
     a name can only ever mean one set of bytes, so a version the user
-    approved shows them the same media forever, which is the same guarantee
-    vendoring gives the layer. And it de-duplicates for free: a version that
+    approved shows them the same media forever. And it de-duplicates for free: a
+    version that
     re-shows last version's screenshot re-uses the file rather than a second
     copy of it, which is what makes the version history cheap to keep."""
     out = []

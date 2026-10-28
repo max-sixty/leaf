@@ -23,8 +23,9 @@ def said(page):
 def test_a_reply_asking_the_user_is_heard_whole_and_shown_as_the_question(
     browser, serve
 ):
-    """The live region hears the reply, whose question is the same news; the panel's
-    seat shows only the question, since the On me mark's dot already shows the reply."""
+    """The live region hears the reply that asks once, its question being the reply
+    itself; the panel's seat shows only that something is on the user, since the On me
+    mark's dot already shows the reply."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What should change?")
     page = open_page(browser, url)
@@ -36,13 +37,13 @@ def test_a_reply_asking_the_user_is_heard_whole_and_shown_as_the_question(
     thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "I changed the route.",
-        markup='<lf-ask id="route-answers">Does this answer your question?</lf-ask>',
+        "I changed the route. Does this answer your question?",
+        obligation=True,
     )
     told(page)
     # One fact: the question is the reply, not a second clause beside it.
     expect(page.locator(".lf-live")).to_have_text(
-        re.compile(r"^I changed the route\.(?! ·)")
+        re.compile(r"^I changed the route\. Does this answer your question\?(?! ·)")
     )
     said(page).to_have_attribute("placeholder", re.compile("^New on me"))
     said(page).not_to_have_attribute("placeholder", re.compile("changed the route"))
@@ -92,7 +93,7 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
     claim = record_claim(
         serve.page_dir, id="codex-thread", harness="codex", agent="Codex"
     )
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(serve.page_dir, claim["id"])
     )
     assert lease

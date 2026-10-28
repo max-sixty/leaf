@@ -20,7 +20,6 @@ from render_harness import (
     http_error_console,
     leaf_page,
     open_page,
-    panel_field,
     resized,
     round_trip,
     scroll_settled,
@@ -466,9 +465,7 @@ def test_a_press_away_from_an_open_draft_saves_it(browser, serve):
     assert [event["detail"]["value"] for event in edits] == [
         "Land the pointer branch first."
     ]
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Edited “Landing the branches”")
-    )
+    expect(page.locator(".lf-live")).to_have_text("Edited “Landing the branches”")
 
 
 def test_a_rendered_continuation_click_edits_the_exact_source_position(browser, serve):

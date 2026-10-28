@@ -13,6 +13,7 @@ from leaf.render_checks import (
     SERVED_TIMEOUT_MS,
     observe_output_documents,
     rendered,
+    wait_until_ready,
 )
 from leaf.render_gate.scheme import _render_scheme
 from leaf.render_gate.widget_quality import widget_findings
@@ -202,6 +203,36 @@ def test_render_check_preserves_an_authored_classic_script_named_leaf(browser, s
     assert not [f for f in findings if f.severity == "error"]
 
 
+def test_closing_an_output_observer_during_its_body_read_keeps_the_browser_usable(
+    browser, serve, monkeypatch
+):
+    """An abandoned render check must not poison the next page's driver call."""
+    from playwright.sync_api import APIResponse, Error
+
+    page = browser.unwatched.new_page()
+    observe_output_documents(page)
+    text = APIResponse.text
+
+    def held_text(response):
+        # Let the caller close the context at the response-body boundary, rather
+        # than relying on teardown winning a race against the driver's RPC.
+        page.evaluate("globalThis.readingEntryBody = true")
+        with pytest.raises(Error, match="closed"):
+            page.wait_for_function("false")
+        return text(response)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(APIResponse, "text", held_text)
+        page.goto(
+            serve(leaf_page("closing observer", "<h1>Closing</h1>"), packages=()),
+            wait_until="commit",
+        )
+        page.wait_for_function("globalThis.readingEntryBody")
+        page.context.close()
+        next_page = browser.unwatched.new_page()
+        assert next_page.evaluate("1 + 1") == 2
+
+
 def test_output_capture_fetch_failure_reaches_the_browsers_network_boundary(
     browser, serve, monkeypatch
 ):
@@ -329,3 +360,41 @@ def test_page_output_declaration_keeps_its_owner_beside_the_package_implementati
     assert failures[0].values["module"] == "/widgets/lf-output-proof.js"
     assert "package implementation" in str(failures[0])
     assert "page contract" in str(failures[0])
+
+
+def test_a_widget_s_pending_task_holds_the_page_until_its_drawing_is_in(
+    tmp_path, browser, serve
+):
+    """A widget that draws without Leaf's helpers says it has drawing under way with a
+    `pending-task` event, as one that also runs off Leaf does (module-authoring.md, "A
+    widget that also runs off Leaf"). The page holds the widget's presentation on it, as
+    on `present(promise)`, and presents once the drawing is in."""
+    package = tmp_path / "pending-package"
+    tag = "lf-pending-proof"
+    add_test_widget(package, tag, upgrade=True)
+    (package / "widgets" / f"{tag}.js").write_text(
+        'import { PendingTaskEvent, once } from "/runtime/portable-api.js";\n'
+        f'customElements.define("{tag}", class extends HTMLElement {{\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        "    const held = Promise.withResolvers();\n"
+        "    window.releaseDrawing = held.resolve;\n"
+        "    const drawing = held.promise.then(() => { this.textContent = 'Drawn.'; });\n"
+        "    this.dispatchEvent(new PendingTaskEvent(drawing));\n"
+        "  }\n"
+        "});\n"
+    )
+    url = serve(
+        leaf_page("Pending", f'<{tag} id="proof">Drawing.</{tag}>'),
+        packages=(package,),
+    )
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_function("() => typeof window.releaseDrawing === 'function'")
+    pending = """async () => (await window.__lfCheckApi())
+        .readApplicationPresentation().pending.includes('widget:proof:preparation')"""
+    assert page.evaluate(pending), "the page must hold the widget's drawing"
+    page.evaluate("releaseDrawing()")
+    wait_until_ready(page)
+    assert page.locator("#proof").text_content() == "Drawn."
+    assert not page.evaluate(pending)

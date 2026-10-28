@@ -21,11 +21,13 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import BinaryIO
 
+from leaf.registry.kernel import kernel_protocol
 from leaf.schema import WAITER_LOCK
 from leaf.state import (
     HOOKS_SUFFIX,
+    TOOLS_SUFFIX,
+    flocked,
     session_file,
-    state_home,
     still_named,
 )
 
@@ -115,18 +117,20 @@ def take_lease(path: Path, *, prepare: Callable[[BinaryIO], None] | None = None)
         record.close()
 
 
-def supersede_lease(path: Path):
+def supersede_lease(path: Path, content: bytes = b""):
     """Take the exclusive lease on this file whether or not another process holds
-    it, and return it held, as `take_lease` does.
+    it, and return it held, as `take_lease` does, holding `content`.
 
-    The lease moves to a fresh file that takes the name with its lock already held,
-    so a probe of the name never finds it unheld. A process it displaces still holds
-    a lock, on a file the name no longer reaches, and learns it lost the lease from
-    `still_named`."""
+    The lease moves to a fresh file that takes the name with its lock already held
+    and its content written, so a probe of the name never finds it unheld or empty.
+    A process it displaces still holds a lock, on a file the name no longer
+    reaches, and learns it lost the lease from `still_named`."""
     staged = path.with_name(f"{path.name}.{os.getpid()}")
     record = open(staged, "w+b")  # noqa: SIM115 - returned and held by the caller
     try:
         fcntl.flock(record, fcntl.LOCK_EX)
+        record.write(content)
+        record.flush()
         os.replace(staged, path)
     except BaseException:
         record.close()
@@ -183,7 +187,7 @@ def end_if_terminated() -> None:
 
 @contextlib.contextmanager
 def page_locked(page_dir: Path):
-    """Serialize one page's service changes, re-vendoring, and contract-bearing
+    """Serialize one page's service changes, `page init`, and contract-bearing
     writes.
 
     The lock is the page directory itself, flocked through a descriptor on it,
@@ -211,7 +215,7 @@ def page_locked(page_dir: Path):
 
 
 def contract_writer(function):
-    """Keep a CLI event's validation and append on one vendored contract."""
+    """Keep a CLI event's validation and append on one layer record."""
 
     @functools.wraps(function)
     def locked(page_dir: Path, *args, **kwargs):
@@ -230,7 +234,7 @@ def waiter_lease_path(page_dir: Path | None, session_id: str | None) -> Path | N
     watch set and no lease.
     """
     if session_id:
-        return session_state_path(session_id, "wait")
+        return session_file(session_id, "wait")
     return page_dir / WAITER_LOCK if page_dir is not None else None
 
 
@@ -242,31 +246,36 @@ def adapter_lease_path(session_id: str) -> Path:
     events to a later turn after the foreground turn ends, so the adapter holds
     a second lease for exactly that capability.
     """
-    return session_state_path(session_id, "adapter")
-
-
-def session_state_path(session_id: str, suffix: str) -> Path:
-    """`state.session_file`, with its directory created."""
-    sessions_home()
-    return session_file(session_id, suffix)
-
-
-def sessions_home() -> Path:
-    """The state home's directory of per-session files, created on first use."""
-    sessions = state_home() / "sessions"
-    sessions.mkdir(exist_ok=True)
-    return sessions
-
-
-def hooks_path(session_id: str) -> Path:
-    """The mark a Leaf hook leaves each time it runs for this session."""
-    return session_state_path(session_id, HOOKS_SUFFIX)
+    return session_file(session_id, "adapter")
 
 
 def mark_hooks(session_id: str) -> None:
     """Record that the harness ran a Leaf hook for this session. The mark stands for
     the session's life, and its SessionEnd hook removes it."""
-    hooks_path(session_id).touch()
+    session_file(session_id, HOOKS_SUFFIX).touch()
+
+
+def first_hook_for_tool(session_id: str, tool_use_id: str | None) -> bool:
+    """Whether this is the first of the session's hooks to run before the tool call
+    `tool_use_id`, which it records if so; a hook that names no call is first.
+
+    Claude Code runs a PreToolUse registration once for each of its `if` rules a
+    command matches, all at once, and a command it cannot read matches all of
+    them (`hooks/hooks.json`, measured at 2.1.310). It starts the call only once
+    every one has exited, so the first does the hook's work for the others. The
+    calls named last are kept, enough for a batch of calls whose hooks
+    interleave. The hook marks that it ran (`mark_hooks`) before asking, which
+    creates the session's directory."""
+    if not tool_use_id:
+        return True
+    with flocked(session_file(session_id, TOOLS_SUFFIX)) as held:
+        held.seek(0)
+        seen = held.read().decode().split()
+        if tool_use_id in seen:
+            return False
+        held.truncate(0)
+        held.write("\n".join([*seen[-15:], tool_use_id]).encode())
+    return True
 
 
 def hooks_ran(session_id: str) -> bool:
@@ -274,7 +283,7 @@ def hooks_ran(session_id: str) -> bool:
     can carry input carries it only where they run: a session launched without the
     plugin's hooks, with hooks disabled, or whose hooks read another state home
     never marks this one."""
-    return hooks_path(session_id).exists()
+    return session_file(session_id, HOOKS_SUFFIX).exists()
 
 
 def adapter_is_live(session_id: str) -> bool:
@@ -282,7 +291,33 @@ def adapter_is_live(session_id: str) -> bool:
     return lock_is_held(adapter_lease_path(session_id))
 
 
+def take_wait_lease(path: Path, *, supersede: bool = False):
+    """Take a watch's wait lease (`take_lease`, or `supersede_lease` from a live
+    holder where `supersede` says to), holding the page protocol this Leaf speaks,
+    which `wait_is_live` reads."""
+    speaks = str(kernel_protocol()).encode()
+    if supersede:
+        return supersede_lease(path, speaks)
+
+    def prepare(record: BinaryIO) -> None:
+        record.truncate(0)
+        record.write(speaks)
+        record.flush()
+
+    return take_lease(path, prepare=prepare)
+
+
 def wait_is_live(page_dir: Path | None, session_id: str | None) -> bool:
-    """Whether this ownership scope's exact wait lease is held now."""
+    """Whether this ownership scope's exact wait lease is held now by a watch that
+    can read what this Leaf reads. A watch holds the page protocol its Leaf speaks
+    (`take_wait_lease`). One an older Leaf runs, such as a session's plugin
+    loaded before an update, can neither read nor write a page this Leaf
+    initialized, so it carries no input, and admission nudges the session past it
+    as though no watch ran (`presence.nudge_unwatched`)."""
     lease_path = waiter_lease_path(page_dir, session_id)
-    return bool(lease_path and lock_is_held(lease_path))
+    if not (lease_path and lock_is_held(lease_path)):
+        return False
+    try:
+        return int(lease_path.read_bytes()) >= kernel_protocol()
+    except (OSError, ValueError):
+        return False

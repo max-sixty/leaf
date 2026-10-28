@@ -203,8 +203,7 @@ submit action; Undo withdraws the choice and keeps the working values.
 ## Stateful previews
 
 Write a preview's script as an inline `<script type="module">`, and put the candidates
-in ordinary or custom elements (`references/module-authoring.md`, "What a behavior
-module owes").
+in ordinary or custom elements (`references/page-behavior.md`, "A page script").
 
 The playground owns working values. Read its immutable `values` aggregate, or declare
 one named structured slice with `playground.registerContributor(name, defaults)`.

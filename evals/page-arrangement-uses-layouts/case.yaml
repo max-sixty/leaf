@@ -2,11 +2,13 @@
 # `main[data-width]` (0 of 3); the change wrote a sidebar page with tiles (3 of 3). Once a
 # tile row's wrapping became the page's call, setting the tiles' columns counts as adjusting.
 # The contents-default restoration also guards this dashboard against an unnecessary TOC.
+# A page's own grid passes since Leaf stopped preferring its Layouts over a page's CSS;
+# the scar it keeps is the retired elements.
 description: page-arrangement-uses-layouts
 metadata:
   purpose:
-    "Arranging a page: a page wider than the column takes a shipped Layout class on main, and its
-    numbers one on a block, rather than a retired element or its own grid."
+    "Arranging a page: a page wider than the column takes a shipped Layout class on main or
+    its own grid, rather than a retired element."
   tags:
     - layout
 vars:
@@ -27,12 +29,10 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Read the HTML. Pass only if all of these hold. The page is arranged with Leaf's
-      Layout classes: `main` carries `layout-sidebar`, through which the table and the
-      side column stand beside each other, and the five numbers sit in a block arranged
-      by `layout-tiles`. It uses none of `lf-grid`, `lf-workspace`, or a `data-width`
-      attribute on `main`. Any `<style>` adjusts a Layout rather than rebuilding one:
-      setting how many columns the numbers' `layout-tiles` block has adjusts it, and
-      passes. The page has no contents outline (`lf-toc`). Fail if the page's own CSS
-      declares a grid or flex arrangement for the table and side column, or arranges
-      the numbers on a block without `layout-tiles`.
+      Read the HTML. Pass only if all of these hold. The table and the side column
+      stand beside each other on a desktop width, and the five numbers sit together
+      in a row or grid, whether through Leaf's Layout classes (`layout-sidebar`,
+      `layout-tiles`) or the page's own grid or flex CSS on or inside `main`. It uses
+      none of `lf-grid`, `lf-workspace`, or a `data-width` attribute on `main`. The
+      page has no contents outline (`lf-toc`). Fail if the side column falls below the
+      table at a desktop width.

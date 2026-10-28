@@ -218,13 +218,24 @@ class CodexChild:
 
     transport = "app-server"
 
-    def __init__(self, cwd, prompt, *args, stderr, limit, timed_out, dirs=(), env=None):
+    def __init__(
+        self,
+        cwd,
+        prompt,
+        *args,
+        stderr,
+        limit,
+        timed_out,
+        dirs=(),
+        env=None,
+        model=None,
+    ):
         from leaf_dev.arms import MODELS, codex_home, environment, now, private_program
 
         self.cwd, self.prompt = cwd, prompt
         self.stderr, self.timed_out = stderr, timed_out
         self.queue, self.outbox, self.closing = deque(), deque(), False
-        self.final, self.now, self.model = "", now, MODELS["codex"]
+        self.final, self.now, self.model = "", now, model or MODELS["codex"]
         self.usage = None
         self.usage_baseline = None
         self.started_at = time.monotonic()

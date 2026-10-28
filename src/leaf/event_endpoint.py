@@ -93,7 +93,7 @@ def _execute_event(
     """Admit and append as one log transaction, then release it before answering.
 
     `accept_event` checks the payload's declared shape before the page transaction. A
-    re-vendor can replace that declaration before this transaction is acquired, so the
+    `page init` can replace that declaration before this transaction is acquired, so the
     door reads the admitting vocabulary again inside the lease: that reading, not this
     endpoint's, is the one allowed to append beside the page's current vocabulary.
 

@@ -42,6 +42,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
+from leaf.render_gate.page_code import run_page_code
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -616,6 +617,52 @@ def test_the_first_startup_fault_names_the_page(browser, serve):
     expect(root).not_to_have_attribute("data-lf-interactive", "")
     reported_browser_errors(
         page, "Error: first fault", "Error: first fault", "Error: later fault"
+    )
+
+
+def test_a_boot_that_fails_after_it_waits_names_the_startup_fault(browser, serve):
+    """The entry boots in an async function, which the bundler needs (leaf.js), and a
+    failure after its first wait still reaches the window as an uncaught error, which
+    names the page's startup fault. Its annotation renderer, the module the boot
+    waits for, is refused here."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route(re.compile(r"annotation-overlay(/index)?\.js$"), refuse)
+    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    root = page.locator("html")
+    expect(root).to_have_attribute(
+        "data-lf-startup-error", re.compile("dynamically imported module")
+    )
+    assert "annotation-overlay" in root.evaluate(
+        "root => root.lfStartupException.message"
+    )
+    consume_browser_errors(page, "dynamically imported module")
+
+
+def test_what_an_inline_classic_script_throws_reaches_the_check(browser, serve):
+    """An inline classic script throws, and rejects, at once. Delivery holds it until
+    the runtime has read the page and listens (`revision_delivery._deferred`), so
+    plain `page check`, which hears what the runtime reports, names each with its
+    throw site as it would a module's."""
+    url = serve(
+        leaf_page("Early fault", '<p id="words">Words.</p>').replace(
+            "</main>",
+            "</main><script>function parseTimeFault() {"
+            " throw new TypeError('thrown while parsing'); }"
+            " Promise.reject(new RangeError('rejected while parsing'));"
+            " parseTimeFault();</script>",
+        )
+    )
+    reports = [
+        finding.values["text"]
+        for finding in run_page_code(browser.unwatched, url)
+        if finding.code == "page-report"
+    ]
+    assert any(
+        "TypeError: thrown while parsing" in text and "parseTimeFault" in text
+        for text in reports
+    ), reports
+    assert any("RangeError: rejected while parsing" in text for text in reports), (
+        reports
     )
 
 

@@ -58,7 +58,7 @@ def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
     from leaf.harness import session_harness
     from leaf.vendoring import renew_layer
 
-    if unready := renew_layer(page_dir, session_harness()):
+    if unready := renew_layer(page_dir, session_harness(), command=True):
         note(unready)
     return page_dir
 
@@ -85,7 +85,7 @@ class _Page(click.ParamType):
 def page_argument(*, renew: bool, required: bool = True):
     """Declare a command's PAGE, passed as `page_dir`, the page it names. Every
     command says whether naming the page renews its layer: a write may, while a read
-    or a service stop must not re-vendor the page it acts on."""
+    or a service stop must not renew the page it acts on."""
     return click.argument(
         "page_dir", metavar="PAGE", type=_Page(renew=renew), required=required
     )
@@ -128,10 +128,10 @@ def _print_result(result) -> None:
     """Print what a command returned: text as it is, a dict as one JSON line, and
     each item of a list, such as the records a write appended, as a line of its own,
     the way `page events` prints a record."""
-    from leaf.event_log import jsonl_line
-
     if result is None:
         return
+    from leaf.event_log import jsonl_line
+
     if isinstance(result, str):
         click.echo(result)
         return
@@ -184,6 +184,16 @@ class LeafGroup(click.Group):
     prints its help, and any other exception surfaces with its traceback.
     """
 
+    group_class = type
+
+    def resolve_command(self, ctx, args):
+        name, command, remaining = super().resolve_command(ctx, args)
+        # Click has resolved this path, including options before its subcommand.
+        ctx.ensure_object(dict)["leaf_command"] = (
+            f"{ctx.command_path} {name}".removeprefix(f"{ctx.find_root().info_name} ")
+        )
+        return name, command, remaining
+
     def invoke(self, ctx: click.Context):
         from leaf.machine import sandbox_refusal
         from leaf.refusals import Refused
@@ -208,22 +218,16 @@ class LeafGroup(click.Group):
     ):
         if not standalone_mode:
             return super().main(args, prog_name, complete_var, False, **extra)
-        from leaf.interaction_log import record_command
+        from leaf.session_runtime import hand_off_command
 
+        hand_off_command(sys.argv[1:] if args is None else list(args))
+        invocation = extra.setdefault("obj", {})
         try:
             self._run_standalone(args, prog_name, complete_var, **extra)
         finally:
-            record_command(self.command_name(sys.argv[1:] if args is None else args))
+            from leaf.interaction_log import record_command
 
-    def command_name(self, args: list[str]) -> str:
-        """The command words `args` begin with, such as `thread reply`."""
-        words, group = [], self
-        for word in args:
-            if not isinstance(group, click.Group) or word not in group.commands:
-                break
-            words.append(word)
-            group = group.commands[word]
-        return " ".join(words)
+            record_command(invocation.get("leaf_command", ""))
 
     def _run_standalone(self, args, prog_name, complete_var, **extra) -> None:
         try:
@@ -273,6 +277,28 @@ def cli() -> None:
     """Build and run interactive pages a session shares with its user."""
 
 
+@cli.command(hidden=True)
+@click.option("--harness", required=True)
+@click.option("--if-claimed", is_flag=True, expose_value=False)
+@click.option("--watch", is_flag=True)
+@click.option("--pages", is_flag=True)
+def hook(harness: str, watch: bool, pages: bool) -> None:
+    """Answer a native harness hook from its JSON payload on stdin."""
+    if watch and pages:
+        raise click.UsageError("--watch and --pages are mutually exclusive")
+    from leaf.hooks import main
+
+    main(harness, watch=watch, pages=pages)
+
+
+@cli.command(hidden=True)
+def session_end() -> None:
+    """End the harness instance named by the JSON payload on stdin."""
+    from leaf.state import main
+
+    main()
+
+
 @cli.group(short_help="Launch the experimental Codex terminal.")
 def codex() -> None:
     """Launch Codex or run Leaf's delivery adapter."""
@@ -315,7 +341,7 @@ def page() -> None:
     """Create, check, stamp, and read pages."""
 
 
-@page.command(short_help="Create or re-vendor a page directory.")
+@page.command(short_help="Create a page directory or change its packages.")
 @click.argument("dir", metavar="PAGE")
 @click.option(
     "--package",
@@ -341,7 +367,7 @@ def page() -> None:
 @click.option(
     "--dry-run",
     is_flag=True,
-    help="report whether re-vendoring would change an initialized page",
+    help="report whether initialization would change an initialized page",
 )
 def init(
     dir: str,
@@ -351,13 +377,14 @@ def init(
     no_theme: bool,
     dry_run: bool,
 ) -> dict:
-    """Create or re-vendor a page directory.
+    """Create a page directory, recording the packages it selects.
 
-    Creates PAGE/revisions/, then vendors the widget layer.
-    The author writes PAGE/index.html. Re-running preserves the page's explicit packages unless --package or
-    --no-packages replaces them, and validates the current vocabulary and markup.
-    A changed layer restarts its server at the same URL; identical initialization
-    leaves it running. --dry-run reports the planned change without writing it.
+    The author writes PAGE/index.html; every Leaf that serves or checks the page
+    composes its layer from the selection. Re-running preserves the page's explicit
+    packages unless --package or --no-packages replaces them, and validates the
+    current vocabulary and markup. A changed selection restarts its server at the
+    same URL; identical initialization leaves it running. --dry-run reports the
+    planned change without writing it.
     A package may contain any subset of the package layout, including zero, one,
     or many widgets.
     """
@@ -582,6 +609,18 @@ def instructions(
     from leaf.page import page_instructions
 
     return page_instructions(page_dir, entries=entries, contracts=contracts)
+
+
+@page.command(short_help="Print the vocabulary the page is written in as JSON.")
+@page_argument(renew=False)
+def vocabulary(page_dir: Path) -> dict:
+    """Print the vocabulary PAGE/index.html is checked against: the layer this Leaf
+    composes for the page's packages, with the page's own declarations over it.
+    Ordinary keys are element names or CSS selectors; `$` keys are facts shared
+    across the layer."""
+    from leaf.registry.storage import require_candidate
+
+    return require_candidate(page_dir).registry
 
 
 @page.command("list", short_help="List this machine's pages and who holds each.")
@@ -1158,7 +1197,7 @@ def run(page_dir: Path, host: str | None, lifetime: str) -> None:
 
 
 @server.command("_serve", hidden=True)
-# A re-vendor here would restart the server this process is becoming.
+# Renewing the layer here would restart the server this process is becoming.
 @page_argument(renew=False)
 @serve_flags("session", "persistent")
 @click.option("--revive", is_flag=True, hidden=True)

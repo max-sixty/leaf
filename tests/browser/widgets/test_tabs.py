@@ -5,7 +5,7 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import HOLD_MOTION, live_url
+from render_cases_interaction import live_url
 from render_harness import (
     ROOT,
     displayed,
@@ -220,18 +220,37 @@ def test_pointer_tab_underline_moves_without_delaying_the_view(browser, serve):
         "</lf-tabs></section>",
         head="<style>#moving-tabs { max-width:480px }</style>",
     )
-    page = open_page(browser, serve(source), init_script=HOLD_MOTION)
+    page = open_page(
+        browser,
+        serve(source),
+        init_script="""document.addEventListener('transitionrun', event => {
+          if (!event.target.matches('.lf-tab-selection')) return;
+          for (const animation of event.target.getAnimations()) {
+            animation.pause();
+            animation.currentTime = 0;
+          }
+        });""",
+    )
     page.emulate_media(reduced_motion="no-preference")
     tabs = page.locator("#moving-tabs").get_by_role("tab")
-    mark = page.locator('#moving-tabs [aria-selected="true"] .lf-tab-mark')
+    mark = page.locator("#moving-tabs > .lf-tabstrip > .lf-tab-selection")
     animating = "node => node.getAnimations().length"
     at = "node => node.getBoundingClientRect().left"
-    advance = "(node, time) => node.getAnimations()[0].currentTime = time"
+    advance = "(node, time) => node.getAnimations().forEach(a => a.currentTime = time)"
+
+    def travelling():
+        expect(mark).to_be_visible()
+        page.wait_for_function(
+            "s => {const a = document.querySelector(s).getAnimations(); "
+            "return a.length > 0 && a.every(a => a.playState === 'paused')}",
+            arg="#moving-tabs > .lf-tabstrip > .lf-tab-selection",
+        )
+
     initial = mark.evaluate(at)
     tabs.nth(1).click()
     expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
     expect(page.locator("#view-1 p")).to_be_visible()
-    assert mark.evaluate(animating) == 1
+    travelling()
     assert mark.evaluate(at) == pytest.approx(initial, abs=0.5)
     mark.evaluate(advance, 80)
     middle = mark.evaluate(at)
@@ -239,6 +258,7 @@ def test_pointer_tab_underline_moves_without_delaying_the_view(browser, serve):
     assert initial < middle < destination
     # Reverse while its pixels are between names: no snap back to either endpoint.
     tabs.first.click()
+    travelling()
     assert mark.evaluate(at) == pytest.approx(middle, abs=0.5)
     expect(page.locator("#view-0 p")).to_be_visible()
     mark.evaluate(advance, 80)
@@ -253,7 +273,7 @@ def test_pointer_tab_underline_moves_without_delaying_the_view(browser, serve):
     # Vertical strips keep their selected face, with no travelling mark.
     side = page.locator("#side-tabs").get_by_role("tab")
     side.nth(1).click()
-    assert side.nth(1).locator(".lf-tab-mark").evaluate(animating) == 0
+    assert page.locator("#side-tabs .lf-tab-selection").evaluate(animating) == 0
     page.emulate_media(reduced_motion="reduce")
     tabs.nth(2).click()
     assert mark.evaluate(animating) == 0
@@ -261,23 +281,25 @@ def test_pointer_tab_underline_moves_without_delaying_the_view(browser, serve):
     tabs.first.focus()
     page.keyboard.press("Home")
     tabs.nth(1).click()
-    assert mark.evaluate(animating) == 1
+    travelling()
     page.locator("#moving-tabs > .lf-tabstrip").evaluate("node => node.scrollLeft = 30")
     page.wait_for_function(
-        "document.querySelector('#moving-tabs [aria-selected=true] .lf-tab-mark').getAnimations().length === 0"
+        "document.querySelector('#moving-tabs > .lf-tabstrip > .lf-tab-selection').getAnimations().length === 0"
     )
     tabs.first.focus()
     page.keyboard.press("Home")
     tabs.nth(1).click()
-    assert mark.evaluate(animating) == 1
+    travelling()
     resized(page, 390, 844)
     assert mark.evaluate(animating) == 0
     # The side list now runs horizontally; its mark is below the summary, and travels too.
     side.first.click()
-    side_mark = side.first.locator(".lf-tab-mark")
-    assert side_mark.evaluate(animating) == 1
+    side_mark = page.locator("#side-tabs > .lf-tabstrip > .lf-tab-selection")
+    page.wait_for_function(
+        "document.querySelector('#side-tabs > .lf-tabstrip > .lf-tab-selection').getAnimations().length > 0"
+    )
     assert side_mark.bounding_box()["height"] == 2
-    side_mark.evaluate("node => node.getAnimations()[0].finish()")
+    side_mark.evaluate("node => node.getAnimations().forEach(a => a.finish())")
 
 
 def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
@@ -330,10 +352,14 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     reading = """() => {
       const strip = document.querySelector('#root-tabs > .lf-tabstrip');
       const background = getComputedStyle(strip).backgroundColor;
+      const line = strip.querySelector('.lf-tab-selection');
+      const mark = getComputedStyle(line);
+      const ink = line.getBoundingClientRect();
       return [...strip.querySelectorAll('.lf-tab-btn')].map(tab => {
-        const mark = getComputedStyle(tab.querySelector('.lf-tab-mark'));
+        const name = tab.querySelector('.lf-tab-name').getBoundingClientRect();
         return {selected: tab.getAttribute('aria-selected') === 'true',
-          marked: mark.visibility === 'visible' && mark.backgroundColor !== background};
+          marked: mark.display !== 'none' && mark.backgroundColor !== background
+            && ink.left < name.right && name.left < ink.right};
       });
     }"""
     for _ in range(2):
@@ -575,16 +601,20 @@ def test_embedded_tab_selection_preserves_the_document_reading_position(browser,
     assert page.evaluate("scrollY") == pytest.approx(before, abs=2)
 
 
-def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(browser, serve):
+@pytest.mark.parametrize("target_id", ["x", "two"])
+def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(
+    browser, serve, target_id
+):
     """Back restores the offset an entry was left at, unless the element its fragment
     names is no longer shown: the user closed its tab since, so that offset belongs to
     a page that has changed, and landing the fragment, which opens the tab, is the
-    answer. The tab set is embedded, so it keeps no history of its own."""
+    answer. The fragment may name the panel itself or its contents. The tab set is
+    embedded, so it keeps no history of its own."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
             "Back to a hidden fragment",
-            '<h1 id="top">Hidden fragment</h1><p><a href="#x">To x</a></p>'
+            f'<h1 id="top">Hidden fragment</h1><p><a href="#{target_id}">To target</a></p>'
             '<section><lf-tabs id="views">'
             '<lf-tab id="one" label="One"><p>One is short.</p></lf-tab>'
             f'<lf-tab id="two" label="Two">{filler}<p id="x">The target.</p></lf-tab>'
@@ -596,9 +626,9 @@ def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(browser, serve
     tabs = page.locator("#views")
     one = tabs.get_by_role("tab", name="One", exact=True)
     two = tabs.get_by_role("tab", name="Two", exact=True)
-    target = page.locator("#x")
+    target = page.locator(f"#{target_id}")
 
-    page.get_by_role("link", name="To x").click()
+    page.get_by_role("link", name="To target").click()
     expect(two).to_have_attribute("aria-selected", "true")
     expect(target).to_be_in_viewport()
     one.click()
@@ -1572,7 +1602,7 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
     mark = """strip => {
       const tab = strip.querySelector('[aria-selected="true"]');
       const name = getComputedStyle(tab.querySelector('.lf-tab-name'));
-      const foot = getComputedStyle(tab.querySelector('.lf-tab-mark'));
+      const foot = getComputedStyle(strip.querySelector('.lf-tab-selection'));
       const rows = getComputedStyle(tab).gridTemplateRows.split(' ');
       return {flow: getComputedStyle(strip).flexDirection,
         filled: name.backgroundColor !== 'rgba(0, 0, 0, 0)',
@@ -1611,13 +1641,18 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
         ruled = page.locator(f"{strip} > .lf-tabstrip").evaluate(
             """strip => {
               const ground = getComputedStyle(strip).backgroundColor;
-              return [...strip.querySelectorAll('.lf-tab-btn')].map(tab => [
-                tab.getAttribute('aria-selected') === 'true',
-                getComputedStyle(tab.querySelector('.lf-tab-mark')).visibility === 'visible'
-                  && getComputedStyle(tab.querySelector('.lf-tab-mark')).backgroundColor !== ground]);
+              const line = strip.querySelector('.lf-tab-selection');
+              const selected = strip.querySelector('[aria-selected="true"] .lf-tab-mark');
+              const style = getComputedStyle(line);
+              const box = line.getBoundingClientRect();
+              const at = selected.getBoundingClientRect();
+              return {visible: style.display !== 'none' && style.backgroundColor !== ground,
+                line: [box.left, box.top, box.width, box.height],
+                selected: [at.left, at.top, at.width, at.height]};
             }"""
         )
-        assert all(selected == drawn for selected, drawn in ruled), ruled
+        assert ruled["visible"], ruled
+        assert ruled["line"] == pytest.approx(ruled["selected"], abs=0.5), ruled
 
 
 def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):
@@ -1873,7 +1908,7 @@ def test_side_list_history_restores_the_reading_offset_of_each_entry(
         for name in ("A", "B")
     )
     body += "</lf-tabs>"
-    head = """<style data-controls>
+    head = """<style>
     @container (width >= 36rem) {
       #views > .lf-tabstrip {position: sticky; top: var(--lf-top, 0px);
         align-self: start; max-block-size: 100dvh; overflow-y: auto;}

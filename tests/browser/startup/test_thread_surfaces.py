@@ -1,8 +1,6 @@
 """Threads a page or package places itself: page annotation views, thread surfaces and
 their required readers, and the fallback when a surface fails."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -54,6 +52,13 @@ def test_a_failed_thread_surface_returns_its_threads_to_core_fallback(
 def test_a_failed_thread_surface_continues_the_keyboard_opened_reply(browser, serve):
     """Opening sibling reactions with the keyboard retains the active reply session."""
     _exercise_failed_thread_surface(browser, serve, "hidden", activation="keyboard")
+
+
+def test_a_moved_thread_outlet_continues_the_pointer_opened_reply(browser, serve):
+    """A failed outlet must keep the active reply visible after a sibling press."""
+    _exercise_failed_thread_surface(
+        browser, serve, "moved", activation="pointer-continuation"
+    )
 
 
 def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
@@ -208,19 +213,23 @@ customElements.define('lf-test-surface', class extends LeafElement {
     strip = broken.locator(".lf-react-strip")
     trigger = strip.locator(".lf-react-trigger")
     if activation == "pointer":
+        # Exercise retirement of a saved draft separately from active continuations.
+        input.press("Escape")
+        assert not page.evaluate(editing, roots[0])
+    if activation.startswith("pointer"):
         trigger.click()
     else:
         trigger.focus()
         page.keyboard.press("Enter")
-    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
-    assert page.evaluate(editing, roots[0]) == (activation == "keyboard")
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
+    assert page.evaluate(editing, roots[0]) == (activation != "pointer")
     assert stored_draft_text(page, f"reply:{roots[0]}") == "Keep this unsent reply."
 
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
     rendered(page)
     page.evaluate("lfWordsJudged()")
     if activation == "pointer":
-        # The reaction press already ended this composition, before the passive
+        # Escape already ended this composition, before the passive
         # adapter fault. Retiring its unfocused view withdraws saved work, not a
         # typing continuation. Calibrate only this exact report at that handoff;
         # adapter faults and every other loss remain with the strict collector.

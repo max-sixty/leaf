@@ -37,9 +37,10 @@ const exactClosures = {
   "queued-work.js": [],
   "control-selectors.js": [],
   "shadow-tree.js": [],
-  "contribution-model.js": ["words.js", "kernel-facts.js"],
+  "contribution-model.js": ["icon-paths.js", "words.js", "kernel-facts.js"],
   "margin-model.js": [
     "contribution-model.js",
+    "icon-paths.js",
     "words.js",
     "kernel-facts.js",
     "thread/workflow.js",
@@ -47,12 +48,13 @@ const exactClosures = {
   "margin-map-model.js": [
     "margin-model.js",
     "contribution-model.js",
+    "icon-paths.js",
     "words.js",
     "kernel-facts.js",
     "thread/workflow.js",
   ],
   "projection/model.js": ["kernel-facts.js"],
-  "projection/state.js": ["semantic-state.js", "queued-work.js"],
+  "projection/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
   "thread/model.js": [
     "anchor-coordinate.js",
     "thread/identity.js",
@@ -60,6 +62,7 @@ const exactClosures = {
   ],
   "thread/state.js": [
     "semantic-state.js",
+    "version-signal.js",
     "queued-work.js",
     "thread/model.js",
     "anchor-coordinate.js",
@@ -68,10 +71,11 @@ const exactClosures = {
   ],
   "thread/workflow.js": [],
   "pending/model.js": ["thread/identity.js", "kernel-facts.js"],
-  "pending/state.js": ["semantic-state.js", "queued-work.js"],
+  "pending/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
   "keyboard/dispatch.js": [
     "context.js",
     "semantic-state.js",
+    "version-signal.js",
     "queued-work.js",
     "focus.js",
     "dom-move.js",
@@ -96,6 +100,10 @@ const exactClosures = {
     "repaint.js",
     "shadow.js",
     "arrivals.js",
+    // A widget's declared commands arrive by the event it dispatches, and a malformed
+    // declaration is reported as its failure.
+    "widget-upgrade.js",
+    "page-paint.js",
   ],
 };
 
@@ -138,7 +146,6 @@ const forbiddenClosures = Object.fromEntries([
     "anchor-travel.js",
     "page-layout.js",
     "annotation-overlay/composing/drawing-paint.js",
-    "indication.js",
     "annotation-overlay/margin-layout.js",
     "page-geometry.js",
     "target-paint.js",

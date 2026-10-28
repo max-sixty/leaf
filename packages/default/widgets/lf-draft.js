@@ -35,14 +35,17 @@
  * drawing drafts in a sent message's face, which the editor already wore, since drafts
  * would lose their document type, chosen by the user on 2026-10-23.
  *
- * The editor reads as an ordinary text box: its words stand in the field until Save,
- * Discard or a press away from the draft, and the field's own undo walks them back.
- * Save submits one absolute edit through the shared send generation, and a press away
- * saves as Save does (focus.js, `onPressAway`), so a tap elsewhere on a phone keeps what
- * was typed without finding the check mark first. Discard and Escape close the editor,
- * throwing away its changes, as a message rewrite's do. Rejected: saving at each pause
- * in the typing, as a form does, since every save is an edit delivered to the agent,
- * which would read half-written words. Pointer Discard returns the frame
+ * The editor reads as an ordinary text box: its words stand in the field until the user
+ * leaves it, and the field's own undo walks them back. Two ways out throw its changes
+ * away, Discard and Escape, as a message rewrite's do; every other way out saves them
+ * as Save does, which submits one absolute edit through the shared send generation. A
+ * press away from the draft saves (focus.js, `onPressAway`), so a tap elsewhere on a
+ * phone keeps what was typed without finding Save first, and Android's back
+ * gesture saves the same way (`keep`, close-requests.js). A stray edge swipe therefore
+ * sends the agent a turn, as a stray tap does (the user's decision, 2026-10-27). Rejected: back closing the editor with its
+ * words kept unsaved, a third way out whose state the closed box had to show beside
+ * Edit; and saving at each pause in the typing, as a form does, since every save is an
+ * edit delivered to the agent, which would read half-written words. Pointer Discard returns the frame
  * over a short native size interpolation; its words and Edit focus return at once.
  * Keyboard discarding and reduced motion are instant; reopening cancels the effect.
  * A saved edit is withdrawn with the page's undo (`z`), and the log keeps every version for the agent. Rejected: Escape setting
@@ -63,7 +66,6 @@ import {
   commandScope,
   motion,
   returnDuration,
-  iconTemplate,
   html,
   render,
   offered,
@@ -72,11 +74,9 @@ import {
   LeafElement,
   offer,
   TEXT_FIELD,
-  paintKeys,
   quoted,
   sendDraft,
   raiseError,
-  commands,
   copyBlock,
   saveDraft,
   loadDraft,
@@ -95,13 +95,14 @@ import {
   focused,
   onPressAway,
   PRESSABLE,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
-// Each control's key, name and mark.
-const ACTIONS = [
-  ["edit", "Edit", "edit"],
-  ["save", "Save", "check"],
-  ["cancel", "Discard", "cross"],
+// Each control's key and the action whose mark it shows.
+const TOOLS = [
+  ["edit", "edit"],
+  ["save", "save"],
+  ["cancel", "discard"],
 ];
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -313,9 +314,11 @@ customElements.define(
           title: "Discard",
           when: () => Boolean(this.#editor),
           run: () => this.#close(true),
+          keep: () => this.#commit(),
         },
       ]);
-      commands(this, this.#commandScope);
+      this.lfCommands = this.#commandScope;
+      commandsChanged(this);
     }
 
     #control(key) {
@@ -333,22 +336,21 @@ customElements.define(
         html`<span ${offered("lf-draft-status")} role="status"
             >${this.#failed ? "Save failed. The edit is kept." : ""}</span
           >
-          ${ACTIONS.map(([key, title, icon]) => {
-            const retry = key === "save" && this.#failed;
-            const name = retry ? "Retry" : title;
-            return html`<button
-              ${offeredAction("mark", "", name)}
-              data-lf-draft-action=${key}
-              ?hidden=${key === "edit" ? editing : !editing}
-              aria-expanded=${key === "edit" ? String(editing) : nothing}
-            >
-              ${iconTemplate(retry ? "retry" : icon, "lf-mark-icon")}
-            </button>`;
-          })}
+          ${TOOLS.map(
+            ([key, action]) =>
+              html`<button
+                ${offeredAction("mark", "", undefined, {
+                  action: key === "save" && this.#failed ? "retry" : action,
+                })}
+                data-lf-draft-action=${key}
+                ?hidden=${key === "edit" ? editing : !editing}
+                aria-expanded=${key === "edit" ? String(editing) : nothing}
+              ></button>`,
+          )}
           ${this.#copy}`,
         this.#tools,
       );
-      paintKeys();
+      commandsChanged(this);
     }
 
     #available() {
@@ -400,7 +402,8 @@ customElements.define(
       // being the innermost scope's is what keeps the runtime's own rung from running
       // behind it and closing a panel too.
       this.#editor = editor;
-      commands(editor, this.#commandScope);
+      editor.lfCommands = this.#commandScope;
+      commandsChanged(editor);
       this.#body.after(editor);
       // Its toolbar stands inside the draft, so Discard and Copy are no press away.
       this.#stopPressAway = onPressAway(

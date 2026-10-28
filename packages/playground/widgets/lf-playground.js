@@ -39,7 +39,6 @@
  * makes it submit a replacement. Its face derives from that comparison, never from
  * delivery timing or a separate saved flag. */
 import {
-  commands,
   compoundReadingRegionId,
   closeNativeLayer,
   copyControl,
@@ -48,20 +47,17 @@ import {
   initialRender,
   isNativeLayer,
   keeps,
-  keepsText,
   LeafElement,
-  nothing,
-  paintKeys,
   registerReadingRegion,
   reachedForWords,
   says,
-  showNativeLayer,
   sizeObserver,
   tabStore,
   wear,
   whileConnected,
   focused,
   worksInside,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
 
@@ -125,21 +121,16 @@ customElements.define(
     }
 
     #initial = null;
-    #controls = [];
     #controlByName = new Map();
     #views = new Set();
-    #presetSettings = new Map();
-    #presetButtons = new Map();
     /** @type {Readonly<Record<string, unknown>>} */
     #defaults = Object.freeze({});
     #values = Object.freeze({});
     #pendingValues = {};
     #instructionProvider = null;
-    #output = null;
     #preview = null;
     #submit = null;
     #reset = null;
-    #choosing = false;
     #projected = undefined;
     #drawnThrough = -Infinity;
     #ready = false;
@@ -177,7 +168,7 @@ customElements.define(
           width = innerWidth;
         };
         window.addEventListener("resize", putAway, { signal });
-        this.#paintAvailability();
+        this.#draw();
         return () => {
           observer.disconnect();
           for (const stop of stops) stop();
@@ -229,7 +220,6 @@ customElements.define(
     #build() {
       this.#initial = initialRender(this);
       const initial = this.#initial;
-      this.#controls = initial.controls;
       this.#controlByName = initial.controlByName;
       this.#defaults = initial.defaults;
       this.#values = initial.values;
@@ -238,19 +228,15 @@ customElements.define(
           ([name]) => !Object.hasOwn(this.#defaults, name),
         ),
       );
-      this.#output = initial.output;
       this.#preview = initial.preview;
       this.#interactive = Boolean(initial.submit);
       this.#submit = initial.submit;
       this.#reset = initial.reset;
-      this.#presetButtons = initial.presetButtons;
       this.#regions = initial.regions.map((region) => ({
         ...region,
         id: compoundReadingRegionId(this, region.name),
       }));
-      this.#presetSettings = initial.presetSettings;
-      this.#initial.renderValues(this.#values);
-      const reflection = this.#reflection();
+      const reflection = this.#initial.reflection(this.#values);
       wear(this, reflection);
       if (this.#interactive) {
         this.addEventListener("click", (event) => {
@@ -264,25 +250,19 @@ customElements.define(
           focusDestination(radio, "press");
           radio.click();
         });
-        for (const control of this.#controls)
+        for (const control of initial.controls)
           control.addEventListener("input", (event) => {
-            const input = initial.inputs.get(control.getAttribute("name"));
-            if (
-              !(Array.isArray(input)
-                ? input.includes(event.target)
-                : input === event.target)
-            )
-              return;
+            if (!initial.isInput(control, event.target)) return;
             this.#set(
               control.getAttribute("name"),
-              this.#parse(control, String(this.#initial.readInput(control))),
+              initial.parse(control, String(initial.readInput(control))),
             );
           });
-        for (const [preset, button] of this.#presetButtons)
+        for (const [preset, button] of initial.presetButtons)
           button.addEventListener("click", () => {
             this.#values = this.#normalize({
               ...this.#values,
-              ...this.#presetSettings.get(preset),
+              ...initial.presetSettings.get(preset),
             });
             this.#draw();
           });
@@ -302,25 +282,10 @@ customElements.define(
           },
           { capture: true },
         );
-        instruction.firstElementChild.append(copy);
-        // A press on the reveal while the instruction is open lands outside it, and
-        // the popover's light dismiss closes it before the click: the press closes it.
-        // A key's click (`detail` 0) reads only the popover, since a press dragged off
-        // the reveal leaves no click to clear what it saw.
-        let openAtPress = false;
-        reveal.addEventListener("pointerdown", () => {
-          openAtPress = isNativeLayer(instruction);
-        });
-        reveal.addEventListener("click", (event) => {
-          const open = (event.detail > 0 && openAtPress) || isNativeLayer(instruction);
-          openAtPress = false;
-          if (open) closeNativeLayer(instruction);
-          // Tab goes on from the reveal into the instruction it opened, to its copy.
-          else showNativeLayer(instruction, { source: reveal });
-        });
+        initial.copy = copy;
         instruction.addEventListener("toggle", (event) => {
           keeps(reveal, "aria-expanded", event.newState === "open");
-          paintKeys();
+          commandsChanged(this);
         });
         this.addEventListener("mousedown", (event) => {
           const target = /** @type {Element} */ (event.target);
@@ -358,11 +323,6 @@ customElements.define(
         });
         this.#commands();
       }
-      this.#paintPresets();
-    }
-
-    #parse(control, raw) {
-      return this.#initial.parse(control, raw);
     }
 
     #normalize(candidate) {
@@ -382,10 +342,6 @@ customElements.define(
           }),
         ),
       );
-    }
-
-    #paintPresets() {
-      this.#initial.paintPresets(this.#values);
     }
 
     // Whether the user is in the preview, where a candidate can draw on the element
@@ -409,30 +365,32 @@ customElements.define(
     }
 
     #commands() {
-      commands(this, "In a playground", [
-        {
-          id: "playground.choose",
-          contextKeys: ["1"],
-          bindingBadge: null,
-          control: this.#submit,
-          decision: true,
-          title: () => this.#submit.textContent,
-          when: () =>
-            !this.#choosing &&
-            (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
-          run: () => this.#choose(),
-        },
-        {
-          id: "playground.reset",
-          keys: ["Alt+0"],
-          control: this.#reset,
-          title: "reset controls",
-          run: () => {
-            this.#restore(this.#defaults);
-            this.#draw();
+      this.lfCommands = {
+        title: "In a playground",
+        rows: [
+          {
+            id: "playground.choose",
+            contextKeys: ["1"],
+            bindingBadge: null,
+            control: this.#submit,
+            decision: true,
+            title: () => this.#submit.textContent,
+            when: () => (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
+            run: () => this.#choose(),
           },
-        },
-      ]);
+          {
+            id: "playground.reset",
+            keys: ["Alt+0"],
+            control: this.#reset,
+            title: "reset controls",
+            run: () => {
+              this.#restore(this.#defaults);
+              this.#draw();
+            },
+          },
+        ],
+      };
+      commandsChanged(this);
     }
 
     #set(name, value) {
@@ -443,15 +401,6 @@ customElements.define(
     #draw() {
       this.requestUpdate();
       this.performUpdate();
-    }
-
-    #setInput(control, value) {
-      this.#initial.setInput(control, value);
-    }
-
-    // The same reflection dresses the host and each live sample below its preview.
-    #reflection() {
-      return this.#initial.reflection(this.#values);
     }
 
     #restore(candidate) {
@@ -468,79 +417,47 @@ customElements.define(
     }
 
     #paint() {
-      for (const [name, control] of this.#controlByName)
-        this.#setInput(control, this.#values[name]);
-      const reflection = this.#reflection();
+      const reflection = this.#initial.reflection(this.#values);
       wear(this, reflection);
-      this.#renderOutput();
-      this.#paintPresets();
       // Keep not-yet-declared tab values without another copy of known working slices.
       tabStore.set(
-        this.#storeKey(),
+        `lf-playground:${this.id}`,
         JSON.stringify({ ...this.#pendingValues, ...this.#values }),
       );
       for (const paint of this.#views) paint(this.#values);
       layoutChanged(this);
-      paintKeys();
+      commandsChanged(this);
     }
 
-    #storeKey() {
-      return `lf-playground:${this.id}`;
-    }
-
-    #renderOutput() {
-      if (!this.#instructionProvider) {
-        this.#initial.renderValues(this.#values);
-        return;
-      }
+    #providedInstruction() {
+      if (!this.#instructionProvider) return null;
       const instruction = this.#instructionProvider(this.values);
       if (!instruction.trim())
         throw new Error("instruction provider must return non-empty text");
-      this.#output.renderInstruction(instruction.trim());
+      return instruction.trim();
     }
 
     #instruction() {
-      return says(this.#output)
+      return says(this.#initial.output)
         .replace(/\s+/g, " ")
         .replace(/\s+([,.;:!?])(?=\s|$)/g, "$1")
         .trim();
     }
 
-    async #choose() {
-      if (this.#choosing) return;
+    #choose() {
       const chosen = this.#chosen();
       const undo = chosen ? this.#undo() : null;
       if (chosen ? !undo : !this.#available()) return;
-      this.#choosing = true;
-      this.#paintAvailability();
-      this.#submit.setAttribute("aria-busy", "true");
-      try {
-        await this.controller.dispatch(
-          chosen
-            ? { kind: "undo", target: undo.attempt ?? undo.id }
-            : {
-                kind: "action",
-                verb: "choose",
-                detail: { values: this.values, instruction: this.#instruction() },
-                says: "Playground settings",
-              },
-        )?.delivery;
-      } finally {
-        this.#choosing = false;
-        this.#submit.removeAttribute("aria-busy");
-        this.#paintAvailability();
-      }
-    }
-
-    #paintAvailability() {
-      if (!this.#submit) return;
-      keepsText(
-        this.#submit.firstElementChild,
-        this.#chosen()
-          ? "Undo choice"
-          : (this.getAttribute("submit-label") ?? "Use these settings"),
+      this.controller.dispatch(
+        chosen
+          ? { kind: "undo", target: undo.attempt ?? undo.id }
+          : {
+              kind: "action",
+              verb: "choose",
+              detail: { values: this.values, instruction: this.#instruction() },
+              says: "Playground settings",
+            },
       );
-      paintKeys();
     }
 
     #chosen() {
@@ -578,9 +495,13 @@ customElements.define(
       }
       if (Number.isInteger(choice?.seq))
         this.#drawnThrough = Math.max(this.#drawnThrough, choice.seq);
+      const template = this.#initial.render({
+        values: this.#values,
+        instruction: this.#providedInstruction(),
+        chosen: () => this.#chosen(),
+      });
       this.#paint();
-      this.#paintAvailability();
-      return nothing;
+      return template;
     }
   },
 );

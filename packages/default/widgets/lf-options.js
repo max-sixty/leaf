@@ -112,7 +112,6 @@ import {
   inChrome,
   keeps,
   keepsText,
-  commands,
   LeafElement,
   nothing,
   landInThread,
@@ -127,6 +126,7 @@ import {
   wrote,
   focusDestination,
   scrollIntoView,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 // What an option is called, in either form: its title where it leads with one, and its
@@ -207,7 +207,6 @@ customElements.define(
     }
 
     #addition = null;
-    #answering = null;
     #choosable = false;
     #controls = new Map();
     #contextNumbers = new Map();
@@ -257,7 +256,8 @@ customElements.define(
         if (this.#choosable || option.hasAttribute("chosen"))
           this.#control(option, this.#choosable);
       this.#addition = new OptionAddition(this, {
-        offered: this.#choosable && !inChrome(this),
+        // `closed` answers only from the listed options.
+        offered: this.#choosable && !inChrome(this) && !this.hasAttribute("closed"),
         available: () => this.#available("choose"),
         commit: (added, choice, attempt) => {
           if (!this.#available("add") || !this.#available("choose")) return null;
@@ -348,12 +348,14 @@ customElements.define(
     }
 
     // The one statement a live channel can't derive: the set is whole. Done is a
-    // reversible gesture; its pressed state is the answer action in force. Its digit
+    // reversible gesture; its pressed state is the answer action in force. It records
+    // the user's answer, so it wears the commit face, which the user chose on 26
+    // October over the quiet word face every other worded press wears. Its digit
     // is inside the button, as an option's is inside the option, so a press on it is a
     // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
       this.#done = offer(DONE_TAG, "lf-options-done");
-      const button = offerAction("word", "lf-done", "Done");
+      const button = offerAction("commit", "lf-done", "Done");
       const bindingBadge = offer("span", "lf-key-badge");
       bindingBadge.setAttribute("aria-hidden", "true");
       button.append(bindingBadge);
@@ -375,27 +377,15 @@ customElements.define(
         : this.#available("answer");
     }
 
-    // The press paints its result before the log replies. The in-flight guard keeps
-    // repeated presses from sending duplicate answers or withdrawals.
+    // The press paints its result before the log replies, and Done's face derives from
+    // that result, so a second press does what the button then says.
     #answer() {
-      if (this.#answering) return this.#answering;
-      if (!this.#doneAvailable()) return Promise.resolve(false);
+      if (!this.#doneAvailable()) return;
       const undo = this.#doneUndo();
-      const dispatched = undo
-        ? this.controller.dispatch({ kind: "undo", target: undo.attempt ?? undo.id })
-        : this.#dispatch("answer", {}, null, "Marked answered");
-      if (!dispatched) return Promise.resolve(false);
-      // A refusal answers false, and reconciliation has restored the prior state.
-      const sent = dispatched.delivery.then(Boolean);
-      this.#answering = sent;
+      if (undo)
+        this.controller.dispatch({ kind: "undo", target: undo.attempt ?? undo.id });
+      else this.#dispatch("answer", {}, null, "Marked answered");
       this.#syncDone();
-      const clear = () => {
-        if (this.#answering !== sent) return;
-        this.#answering = null;
-        this.#syncDone();
-      };
-      sent.then(clear, clear);
-      return sent;
     }
 
     #syncDone() {
@@ -409,7 +399,6 @@ customElements.define(
           : "Done: these picks are complete",
       );
       keeps(this.#done.control, "aria-pressed", String(answered));
-      keeps(this.#done.control, "aria-busy", this.#answering ? "true" : null);
     }
 
     #refreshAvailability() {
@@ -462,41 +451,45 @@ customElements.define(
         // Declared on the mark rather than the group, because the group holds the
         // option's own argument too — a link, a say-box, a tabbed exhibit — and a scope
         // over the whole subtree would promise local mechanics from any of them.
-        commands(mark, SECTION, [
-          {
-            id: "option.reply",
-            keys: ["Enter"],
-            title: "reply",
-            when: () => Boolean(this.#reply()),
-            // The box hands the user back to the thread it belongs to, and to
-            // this option where that thread is nowhere to stand — the route
-            // `landInThread` records for exactly that case, and the one Escape
-            // out of a text box reads.
-            run: () =>
-              landInThread(this.#reply(), {
-                target: mark,
-                line: "back to the options",
-              }),
-          },
-          ...rowWalk({
-            id: "option",
-            noun: "Option",
-            plural: "options",
-            rows: () => this.#marks(),
-          }),
-          {
-            id: "option.toggle",
-            keys: [" "],
-            title: "toggle",
-            run: () => mark.click(),
-          },
-          {
-            id: "option.reach",
-            keys: [],
-            label: "⇥",
-            title: "Reach an option's mark",
-          },
-        ]);
+        mark.lfCommands = {
+          title: SECTION,
+          rows: [
+            {
+              id: "option.reply",
+              keys: ["Enter"],
+              title: "reply",
+              when: () => Boolean(this.#reply()),
+              // The box hands the user back to the thread it belongs to, and to
+              // this option where that thread is nowhere to stand — the route
+              // `landInThread` records for exactly that case, and the one Escape
+              // out of a text box reads.
+              run: () =>
+                landInThread(this.#reply(), {
+                  target: mark,
+                  line: "back to the options",
+                }),
+            },
+            ...rowWalk({
+              id: "option",
+              noun: "Option",
+              plural: "options",
+              rows: () => this.#marks(),
+            }),
+            {
+              id: "option.toggle",
+              keys: [" "],
+              title: "toggle",
+              run: () => mark.click(),
+            },
+            {
+              id: "option.reach",
+              keys: [],
+              label: "⇥",
+              title: "Reach an option's mark",
+            },
+          ],
+        };
+        commandsChanged(mark);
       }
       if (this.#addition.input)
         answerRows.push({
@@ -525,9 +518,10 @@ customElements.define(
               ? "Take back Done and keep choosing"
               : "Finish choosing options",
           when: () => this.#doneAvailable(),
-          run: () => void this.#answer(),
+          run: () => this.#answer(),
         });
-      commands(this, SECTION, answerRows);
+      this.lfCommands = { title: SECTION, rows: answerRows };
+      commandsChanged(this);
     }
 
     // The block this option is about. A pointer, not a voice: it names the block by the

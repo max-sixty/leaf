@@ -15,7 +15,7 @@ widgets, and external data.
 
 Leaf's bundled `default` package is on every page; any other package is on only the
 pages that select it. Presentation or behavior used by one page stays in that page's
-`<style>`, inline modules or `page/`. Anything reused belongs in a package:
+`<style>`, its scripts or `page/`. Anything reused belongs in a package:
 
 ```bash
 leaf package init packages/callout --widget lf-callout
@@ -27,13 +27,17 @@ leaf package run NAME SCRIPT [ARGS]...
 
 `--package` takes a bare name, which selects an installed or bundled package, or a
 path relative to the project or starting with `~`, such as `./.leaf` or
-`'~/.config/leaf'`. Absolute paths are refused, since the vendored registry is public.
+`'~/.config/leaf'`. Absolute paths are refused, since the page's registry is public.
+`page init` copies a package selected by path into the page's `packages/`, so the
+page reads the same wherever it is served; run `page init --package` again to take
+in edits to the package.
 
 `leaf package install SOURCE` checks the directory and copies it into
 `~/.local/state/leaf/packages/`, so `--package NAME` selects it from any project on this
 machine. The copy holds only the files in the package layout below, so a README and
 tests stay behind. An installed package overrides a bundled one of the same name. A page records
-the bare name, so re-vendoring it on another machine needs the package installed there
+the bare name, and every Leaf that reads the page composes the package it finds by
+that name, so serving the page on another machine needs the package installed there
 too.
 
 The optional bundled packages are:
@@ -49,6 +53,7 @@ The optional bundled packages are:
 | `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback decision.                                                             |
 | `motion`        | `lf-motion`, shared playback and scrubbing for authored animations and video comparisons.                                                                   |
 | `deck`          | `lf-deck`, a pile of decisions the user works through one card at a time.                                                                                   |
+| `detail`        | `lf-dial`, which turns a page from each section's `.gist` to every closed detail, keeping the reader's place.                                               |
 | `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                                                                                |
 | `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                                                                          |
 | `timeline`      | `lf-timeline`, an authored sequence of events in lanes that the reader steps through, with a playhead and a step list.                                      |
@@ -62,11 +67,9 @@ Every package uses this layout, and every file is optional:
 ```text
 package/
 ├── registry.json       element declarations and shared $ declarations
-├── widgets.css         defaults scoped to this package's widgets
+├── widgets.css         defaults for this package's widgets
 ├── widget-shadow.css   widget defaults also loaded in their shadow trees
 ├── theme.css           page-wide theme inputs and presentation
-├── theme-shadow.css    theme rules also loaded in every declared shadow tree
-├── controls.css        deliberate styling of generated controls
 ├── instructions/       Markdown instructions named for their audiences
 ├── runtime/            package-owned browser modules
 ├── widgets/            entry modules and their private helpers
@@ -87,57 +90,51 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 ### Styles and composition
 
 Choose a stylesheet by the contribution it makes. A package may supply any combination;
-adding a widget does not change its theme or control styling.
+adding a widget does not change its theme styling.
 
-| Sheet               | Document                                               | Declared shadow trees                |
-| ------------------- | ------------------------------------------------------ | ------------------------------------ |
-| `widgets.css`       | Scoped to the package's widgets in `lf-base`           | —                                    |
-| `widget-shadow.css` | Scoped to the package's widgets in `lf-base`           | Scoped to their hosts in `lf-shadow` |
-| `theme.css`         | Page-wide in `lf-theme`                                | —                                    |
-| `theme-shadow.css`  | Page-wide in `lf-theme`                                | Unscoped in `lf-theme`               |
-| `controls.css`      | Explicit access to generated controls in `lf-controls` | —                                    |
+| Sheet               | Document                | Declared shadow trees |
+| ------------------- | ----------------------- | --------------------- |
+| `widgets.css`       | `lf-base`               | —                     |
+| `widget-shadow.css` | `lf-base`               | `lf-shadow`           |
+| `theme.css`         | Page-wide in `lf-theme` | —                     |
 
 Widget defaults rank below Layouts; theme contributions rank above them. Leaf orders
 the cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-theme`,
-`lf-controls`, `lf-state`. A shared shadow sheet precedes its document-only sheet;
-later selected packages win ties. The page's own CSS is unlayered above these normal
-rules. Layouts do not reach inside shadow trees. Page authors grant control access per
-stylesheet (`page-layout.md`, "Page CSS and Leaf's controls"). Use public inputs and
-selectors to customise a widget rather than `!important` or inline overrides.
+`lf-state`. A shared shadow sheet precedes its document-only sheet; later selected
+packages win ties. The page's own CSS is unlayered above these normal rules. Layouts
+do not reach inside shadow trees. A theme's rules, like the page's own, reach the
+controls widgets build (`page-layout.md`, "Page CSS and Leaf's controls"). Being
+layered, they also outrank the layered faces of the controls in Leaf's panel and thread
+cards, so a theme's element rules name the content they style, such as `main button`. Use public inputs and selectors to customise a widget rather than
+`!important` or inline overrides.
+
+A package's sheet can be split into files: `@import "./styles/tabs.css";`, optionally
+with `layer(name)`, names a file inside the package, and composition puts that file's
+rules where the import stands, so the page receives one sheet and edits need no build.
 
 An element with `hidden` is always `display: none`, in the document and in shadow
 trees, except `hidden="until-found"`. Give a box that must stay laid out while unseen a
 state of its own.
 
-Leaf's own controls and comment marks are unlayered, and a theme contribution's rule for
-`button` styles the page's buttons, not the controls widgets build (`page-layout.md`,
-"Page CSS and Leaf's controls"). Change Leaf's colours and type through the theme
-inputs below. Put a dependency's default styles in `lf-base` with `inBaseLayer(text)`
-(`module-authoring.md`, "Shadow stages and styles").
+Leaf's chrome and comment marks are unlayered, so change their colours and type
+through the theme inputs below. Put a dependency's default styles in `lf-base` with
+`inBaseLayer(text)` (`module-authoring.md`, "Shadow stages and styles").
 
-Leaf wraps widget sheets in `@scope`, rooted at the package's widget tags, or at
-`:host` in a shadow root. A rule for `p` styles paragraphs inside those widgets;
-`html`, `body` and the box around a widget are outside the scope. `:scope` is the widget
-itself, and `:scope:is(lf-tag)` picks one of the package's widgets; in
-`widget-shadow.css`, `:scope:host(.state)` reads the host's state.
-In `widgets.css`, write outside conditions as a nested scope, such as
-`@scope (html[data-lf-interactive] :scope)`; a shadow tree's rules can't see the
-document. Widget sheets require a declared widget.
-In the document, their scope ends below a nested foreign widget, whether declared by
-another package or the page: an outer widget can arrange its host, while the nested
-widget styles its own interior, including authored content. The boundary applies
-before modules load and when a revision introduces a new page declaration. In a
-shadow tree, `widget-shadow.css` reaches everything the tree holds, including Leaf's
-views placed there, such as a diff's threads. Widgets from the same package can
-share their compound structure. Replacing a widget's declaration or module does
-not withdraw the selected package's independent stylesheet contribution. Inherited
-values still cross these boundaries. Adjust another widget's internals through its
-inputs or API; theme contributions are deliberately page-wide.
+Leaf places each sheet in its tier and changes none of its rules, so a sheet names
+the widgets it styles: `lf-tag .part` in the document, and `:host(lf-tag) .part` in a
+shadow tree, where `:host(lf-tag.ready)` reads the host's state. A bare `p { … }`
+reaches every paragraph on the page, and in a shadow sheet everything the tree holds,
+including Leaf's views placed there, such as a diff's threads. A rule naming a widget
+also reaches a foreign widget nested inside it, so style structure a nested widget may
+share through a child combinator or the package's own classes. Replacing a widget's
+declaration or module does not withdraw the selected package's stylesheet
+contribution. Inherited values cross every widget boundary. Adjust another widget's
+internals through its inputs or API; theme contributions are deliberately page-wide.
 
 Document selectors don't reach into a shadow root. A declared `x-shadow` root built with
 `shadowStage` gets the composed shared stylesheet. Use theme inputs for changes across
-both trees, `widget-shadow.css` for owned internals, `theme-shadow.css` for a deliberate
-theme-wide change, and `::part` to expose a public control.
+both trees, `widget-shadow.css` for owned internals, and `::part` to expose a public
+control.
 
 Custom properties come in four kinds:
 
@@ -153,12 +150,14 @@ documents any further inputs it supports. No type or colour override may shrink 
 control below its touch target or focus clearance.
 
 A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path.
-Import Leaf only through `/runtime/widget-api.js`, and `runtime/` modules can add paths
-but not replace the kernel's. The Leaf serving a page supplies its runtime,
-`widget-api.js` and the kernel's `vendor/` modules included, so a vendored package runs
-against whichever Leaf serves its page, and a package's `vendor/` file at one of those
-paths replaces it there. Leaf keeps `widget-api.js`'s names and what they return across
-updates at one page protocol (`../../../src/leaf/layer-registry.md`, "Page protocol").
+Import Leaf only through `/runtime/widget-api.js`, or its portable part
+`/runtime/portable-api.js` (module-authoring.md, "A widget that also runs off Leaf"),
+and `runtime/` modules can add paths but not replace the kernel's. The Leaf serving a page supplies its runtime,
+`widget-api.js` and the kernel's `vendor/` modules included, and composes the page's
+packages from its own catalogue, so a package runs against the runtime of whichever
+Leaf serves its page, and a package's `vendor/` file at one of those paths replaces it
+there. `widget-api.js` can change in any update; `leaf package check --render` and
+`leaf page check --render` report a module it breaks.
 
 Registries merge in order: kernel, `default`, then the selected packages in command
 order, and a later package wins a collision. A later package replaces an element or
@@ -185,7 +184,7 @@ leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
 returns the packages' shared instructions. Each `--use ENTRY` adds that entry's
 `x-instructions` to `author`, along with the entries its `x-example` uses and its
 `x-data` contracts, whose instructions join their own audiences. It reads the layer
-just vendored and any `page/registry.json`, so it works before the page has markup.
+the page selects and any `page/registry.json`, so it works before the page has markup.
 `page-authoring.md`, "Read the registry", says when an author reads each part.
 
 A replacement `icon.svg` must contain an element with `class="lf-tone"`, which Leaf
@@ -263,10 +262,11 @@ The presentation checks:
   keyboard routes"). The check reads only the commands in the example's state, so a
   command such as a multiple-choice decision's Done needs an example in that state.
 
-After `leaf page init` re-vendors a page with the package (`serving-pages.md`,
-"Re-vendoring"), run `leaf page check <page> --render`, which reports a module's
-mistakes on the page, such as an upgrade that defines no element or a widget with no
-size, and note the re-vendor in the next stamped version's changelog.
+After `leaf page init --package` adds the package to a page, run `leaf page check
+<page> --render`, which reports a module's mistakes on the page, such as an upgrade
+that defines no element or a widget with no size, and note the change in the next
+stamped version's changelog. A served page takes later edits to an installed package
+when its server next starts.
 
 Then put the widget on the page. A widget is reviewed in place: the version that
 answers the user's comment uses it where they asked, and they comment on it there.

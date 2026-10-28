@@ -382,9 +382,9 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     """A reaction in force keeps neutral furniture, and the fill it holds with the
     pointer away is what says it stands.
 
-    #371 left the lifecycle marker to `busy`, so the chip of a reaction in force paints no
-    second witness on top of itself. Hover lays down the same fill; the readings here
-    therefore move the pointer away before distinguishing in force from idle.
+    The chip of a reaction in force paints no second witness on top of itself. Hover
+    lays down the same fill; the readings here therefore move the pointer away before
+    distinguishing in force from idle.
     """
     page = open_page(
         browser,
@@ -2000,7 +2000,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     # older reply.
     open_panel_thread(page, root).focus()
     page.keyboard.press("e")
-    expect(strip(latest)).to_have_class(re.compile("lf-react-open"))
+    expect(strip(latest).locator(".lf-react-palette:popover-open")).to_have_count(1)
     expect(strip(latest).locator(".lf-react:visible")).to_have_count(6)
     assert strip(latest).evaluate(
         """s => { const row = s.getBoundingClientRect();
@@ -2105,7 +2105,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
               box.bottom <= action.top || box.top >= action.bottom,
             triggerHit: hit(trigger), resolveHit: hit(resolve)};
         }""")
-        floor = 44 if touch else 26
+        floor = 44 if touch else 28
         assert reading == {
             "width": floor,
             "aim": floor,
@@ -2153,7 +2153,7 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     view = open_panel_thread(page, root)
     strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
     strip.get_by_role("button", name="Add reaction", exact=True).tap()
-    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     cdp = context.new_cdp_session(page)
 
     def centre(token):
@@ -2333,8 +2333,8 @@ def _thread(page_dir):
             "agent": "Claude",
             "parent": root,
             "revision": 1,
-            "text": "Forty is what the slowest device we ship on can hold.",
-            "markup": f'<lf-ask id="forty-enough-{root}">Is forty enough?</lf-ask>',
+            "text": "Forty is what the slowest device we ship on can hold. Is forty enough?",
+            "obligation": True,
         },
     )
     return root, reply["id"]
@@ -2403,15 +2403,15 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
     view = open_panel_thread(page, root)
     strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
     strip.locator(".lf-react-trigger").click()
-    expect(strip).to_have_class(re.compile("lf-react-open"))
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
 
     thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
     expect(page.locator(".lf-fp-controls .lf-thread-news")).to_have_text("Resolved")
-    expect(strip).to_have_class(re.compile("lf-react-open"))
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
-    expect(page.locator(".lf-react-open")).to_have_count(0)
+    expect(page.locator(".lf-react-palette:popover-open")).to_have_count(0)
     expect(view).to_be_visible()
     page.keyboard.press("1")
     page.wait_for_timeout(100)
@@ -2491,9 +2491,9 @@ def test_a_reply_s_reactions_keep_their_keys_in_a_covering_thread_view(browser, 
     expect(choices.nth(0)).to_be_focused()
     page.keyboard.press("ArrowRight")
     expect(choices.nth(1)).to_be_focused()
-    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     page.keyboard.press("ArrowLeft")
     expect(choices.nth(0)).to_be_focused()
     page.keyboard.press("Escape")
-    expect(strip).not_to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
     expect(strip.locator(".lf-react-trigger")).to_be_focused()

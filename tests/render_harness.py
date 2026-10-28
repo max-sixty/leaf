@@ -1311,7 +1311,8 @@ def _picture_pages(test, pages):
             continue
         try:
             page.screenshot(
-                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png", timeout=5000
+                path=ROOT / f".tmp/test-results/screens/{name}-{n}.png",
+                timeout=render_checks_model.SERVED_TIMEOUT_MS,
             )
         except PlaywrightError:
             continue
@@ -1650,37 +1651,46 @@ def consume_browser_errors(page, *expected):
 
 
 def navigate(page, url, *, wait_until="load", upgraded=True):
-    """Navigate through a complete page handover, classifying only the
-    ResizeObserver notices raised during that navigation.
-
-    A platform notice seen once under load is not a page fault; one the confirming
-    navigation repeats is, reported with the `confirmation` value `recurred`, as the
-    render gate reports one. Everything else remains on the page from the attempt that
-    reported it, and anything arriving after this helper returns remains strict.
-    """
-
-    errors = page.lf_errors
+    """Navigate through a complete page handover, classifying the ResizeObserver
+    notices raised during that navigation (`confirming_resize_notices`)."""
 
     def complete_navigation():
+        page.goto(
+            url,
+            wait_until=wait_until,
+            timeout=render_checks_model.HANDOVER_DEADLINE_MS,
+        )
+        if upgraded:
+            wait_until_ready(page)
+        else:
+            page.wait_for_function(
+                "() => document.querySelector('.lf-floating-panel') !== null",
+                timeout=render_checks_model.HANDOVER_DEADLINE_MS,
+            )
+        # Let the rendering turn that earned the readiness stamp finish. A loop
+        # notice is delivered by that turn, rather than by the DOM write alone.
+        one_frame(page)
+
+    confirming_resize_notices(page, complete_navigation)
+
+
+def confirming_resize_notices(page, attempt, again=None):
+    """Run `attempt`, classifying only the ResizeObserver notices it raises.
+
+    A platform notice seen once under load is not a page fault; one that the
+    confirming attempt, `again` or else `attempt` itself, repeats is, reported with the
+    `confirmation` value `recurred`, as the render gate reports one. Everything else
+    remains on the page from the attempt that reported it, and anything arriving after
+    this helper returns remains strict.
+    """
+    errors = page.lf_errors
+
+    def noticed(act):
         # A test that adjudicates the page's notices itself keeps its own list.
         outside = getattr(page, "lf_resize_notices", None)
         notices = page.lf_resize_notices = []
         try:
-            page.goto(
-                url,
-                wait_until=wait_until,
-                timeout=render_checks_model.HANDOVER_DEADLINE_MS,
-            )
-            if upgraded:
-                wait_until_ready(page)
-            else:
-                page.wait_for_function(
-                    "() => document.querySelector('.lf-floating-panel') !== null",
-                    timeout=render_checks_model.HANDOVER_DEADLINE_MS,
-                )
-            # Let the rendering turn that earned the readiness stamp finish. A loop
-            # notice is delivered by that turn, rather than by the DOM write alone.
-            one_frame(page)
+            act()
         except BaseException:
             errors.extend(notices)
             raise
@@ -1688,11 +1698,11 @@ def navigate(page, url, *, wait_until="load", upgraded=True):
             page.lf_resize_notices = outside
         return notices
 
-    notices = complete_navigation()
+    notices = noticed(attempt)
     if not notices:
         return
     try:
-        confirming_notices = complete_navigation()
+        confirming_notices = noticed(again or attempt)
     except Exception:
         errors.extend(notice for notice in notices if notice not in errors)
         raise
@@ -1782,11 +1792,35 @@ def panel_settled(page, open=True, view=None):
     )
 
 
+def press_visible(page, control, *, touch=False):
+    """Press a control already in view without Playwright moving the page for it.
+
+    Locator click/tap on Chromium 156 can scroll the document while preparing a
+    visible fixed control. Coordinates exercise the user's visible route directly.
+    """
+    expect(control).to_be_in_viewport()
+    box = control.bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    if touch:
+        page.touchscreen.tap(x, y)
+    else:
+        page.mouse.click(x, y)
+
+
 def open_threads(page):
     """Open the panel's Threads view by pointer, as a user reaches it
     (`leaf_dev.browser.open_threads`), and wait for its motion to end."""
     dev_browser.open_threads(page)
     panel_settled(page, view="threads")
+
+
+def show_resolved(page):
+    """Open Threads and unfold its resolved threads (`leaf_dev.browser.show_resolved`),
+    returning their rows once the view's motion ends."""
+    open_threads(page)
+    rows = dev_browser.show_resolved(page)
+    panel_settled(page, view="threads")
+    return rows
 
 
 # How many open threads the page's reading holds, the number the Threads tab says
@@ -1841,17 +1875,17 @@ def panel_menu(page, at=None):
     leaf = page.locator(".lf-fp-leaf")
     menu = page.locator(".lf-fp-menu")
     if host.get_attribute("data-rest") == "mark":
-        leaf.click()
+        press_visible(page, leaf)
         expect(host).to_have_attribute("data-rest", "row")
     if host.get_attribute("data-menu") is None:
-        leaf.click()
+        press_visible(page, leaf)
         expect(host).to_have_attribute("data-menu", "")
     if menu.get_attribute("data-level") is not None:
-        menu.locator(".lf-fp-menu-back").click()
+        press_visible(page, menu.locator(".lf-fp-menu-back"))
         expect(menu).not_to_have_attribute("data-level", re.compile("."))
     if at is not None:
         door = "versions" if at == "versions" else f"group:{at}"
-        menu.locator(f'.lf-fp-item[data-row="{door}"]').click()
+        press_visible(page, menu.locator(f'.lf-fp-item[data-row="{door}"]'))
         expect(menu).to_have_attribute(
             "data-level", "versions" if at == "versions" else "group"
         )
@@ -2441,7 +2475,7 @@ def live_leaf(tmp_path, monkeypatch):
             cwd=str(tmp_path / f"{name}-work"),
         )
         waiters.append(
-            leases_model.take_lease(leases_model.waiter_lease_path(d, f"s-{name}"))
+            leases_model.take_wait_lease(leases_model.waiter_lease_path(d, f"s-{name}"))
         )
         # Use the durable server's maintenance loop: the row remains canonical
         # even while no browser has visited this neighboring page.
@@ -2567,6 +2601,18 @@ SHELL_BOX = """(() => {
 # Put the user nowhere, with the next Tab starting at the top of the document: the
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.
+# Each field's closed shadow root, so a test can read inside it.
+EDITOR_ROOTS = """
+  window.editorRoots = new Map();
+  const attach = Element.prototype.attachShadow;
+  Element.prototype.attachShadow = function(options) {
+    const root = attach.call(this, options);
+    if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+    return root;
+  };
+"""
+
+
 RELEASE_FOCUS = """async () =>
   (await window.__lfCheckApi()).releaseFocus()"""
 

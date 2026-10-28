@@ -146,7 +146,7 @@ the panel and the transcript say when the agent did.
 transaction's lease. A retry whose `attempt` was accepted gets that record back
 without repeating the gesture, and an `attempt` the log holds for a different command
 is refused (HTTP 409). Otherwise admission reads the vocabulary the event's revision
-captured, so re-vendoring cannot reinterpret a document the user acted on; checks the
+captured, so `page init` cannot reinterpret a document the user acted on; checks the
 command against its kind's record schema before any gate reads its fields; allocates
 the id; runs the kind's gates against the page and the current log; derives `meaning`
 and `attention`; and validates the finished record against its stored schema.
@@ -270,9 +270,8 @@ to a page obligation, each carrying `failure`, a harness-owned code. Only the ha
 writes `failure`, and the panel draws such a reply as a receipt that answers nothing.
 
 A widget with a local `x-awaits` obligation in a reply's markup declares that obligation
-itself. Frozen in the reply, it stays open until `x-awaits.answered` holds, or for a
-question asked in words (`x-awaits.reply`) until the user's next message in the thread
-or a reaction there whose token settles it. Actions on it before then are not handed
+itself. Frozen in the reply, it stays open until `x-awaits.answered` holds. Actions on
+it before then are not handed
 over: they carry no receipt and need no reply. The action that answers carries the
 receipt and hands the turn to the agent, and undoing it returns the obligation to the
 user and removes the reply obligation. An action on a frozen widget that answers no
@@ -285,9 +284,8 @@ to-do a reply promised (`obligations.thread_obligation_readings`). A thread anch
 a page obligation does the same, so an obligation the user has commented on leaves their
 On me list while the reply owed to the comment stands on the agent's, and a promised
 to-do keeps that obligation the agent's even after the thread is resolved
-(`obligations.anchors_with_agent`). A question asked in words (`obligation: true` or
-`x-awaits.reply`) is answered by that
-message instead, along with every open question before it, or by a reaction whose token
+(`obligations.anchors_with_agent`). A question asked in words (`obligation: true`)
+is answered by that message instead, along with every open question before it, or by a reaction whose token
 declares `settles` on the message holding it. Neither answer resolves the thread, and
 the agent's `todo_end` can retire a question unanswered (`obligations.settle_by_words`).
 
@@ -333,10 +331,10 @@ to-do is made from an obligation.
 - An agent `reply` may move its thread with an `anchor` captured against its revision,
   or detach it with a null anchor, in the same append as the message explaining it. A
   thread whose opening comment `holds` a command goal cannot move or detach.
-- A body is Markdown, stored as typed and rendered by the page's vendored runtime, so
+- A body is Markdown, stored as typed and rendered by the serving Leaf's runtime, so
   the renderer and the panel's styles version together; raw HTML shows as text. A
   widget rides the `markup` field, which only `leaf thread create` and the reply commands
-  accept, validated against the vendored registry. The door refuses a Markdown link or
+  accept, validated against the page's registry. The door refuses a Markdown link or
   image, in text or markup, to a `/media/…` path the page directory cannot answer.
 - A raster image pasted into a browser text box is stored first as page media, and the
   draft holds an ordinary Markdown image at `/media/<digest>.<ext>`; no draft or event

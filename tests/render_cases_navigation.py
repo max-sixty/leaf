@@ -901,7 +901,7 @@ SUGGEST_BLOCK = (
 def live_watcher(page_dir, page):
     """Hold the exact lease `leaf wait` uses for the duration of the block."""
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, session["id"] if session else None)
     )
     assert lease

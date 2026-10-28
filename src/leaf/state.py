@@ -23,6 +23,7 @@ import functools
 import hashlib
 import json
 import os
+import re
 import secrets
 import stat
 import sys
@@ -34,6 +35,22 @@ from pathlib import Path
 # Installation paths start at the plugin, independent of its instruction skills.
 # Keep this locator dependency-free for standalone SessionEnd and cold hooks.
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
+
+
+def plugin_cache_copy(root: Path) -> bool:
+    """Whether `root` is a copy Claude Code installed from a marketplace into its
+    plugin cache, `<config>/plugins/cache/<marketplace>/leaf/<version>`, rather
+    than a checkout. Leaf leaves its manifest version unset, so the version
+    component is the source commit's SHA."""
+    parents = root.parents
+    return (
+        len(parents) >= 4
+        and root.parent.name == "leaf"
+        and parents[2].name == "cache"
+        and parents[3].name == "plugins"
+        and re.fullmatch(r"[0-9a-f]{7,40}", root.name) is not None
+    )
+
 
 EVENTS_FILE = "events.jsonl"
 
@@ -72,8 +89,17 @@ def hold_mode(path: Path, mode: int) -> None:
 
 # A session's hook capability observation, which ends with its instance.
 HOOKS_SUFFIX = "hooks"
+# The tool calls its hooks last ran before (`leases.first_hook_for_tool`).
+TOOLS_SUFFIX = "tools"
 # Its lifecycle outlives its instance while a claim reads it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
+
+
+def sessions_home() -> Path:
+    """The state home's session directory, created on first use."""
+    sessions = state_home() / "sessions"
+    sessions.mkdir(exist_ok=True)
+    return sessions
 
 
 def session_file(session_id: str, suffix: str) -> Path:
@@ -85,7 +111,7 @@ def session_file(session_id: str, suffix: str) -> Path:
     suffix, in the state home's `sessions/`.
     """
     key = hashlib.sha256(session_id.encode()).hexdigest()[:32]
-    return state_home() / "sessions" / f"{key}.{suffix}"
+    return sessions_home() / f"{key}.{suffix}"
 
 
 def page_key(page_dir: Path) -> str:
@@ -441,9 +467,7 @@ SESSION = Record(
 
 
 def session_lock_path(session_id: str) -> Path:
-    path = session_file(session_id, "delivery.lock")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
+    return session_file(session_id, "delivery.lock")
 
 
 def session_record(session_id: str) -> dict | None:
@@ -452,9 +476,10 @@ def session_record(session_id: str) -> dict | None:
 
 
 def write_session(record: dict) -> dict:
-    path = session_file(record["id"], SESSION_SUFFIX)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return SESSION.write(path, {**record, "revision": record["revision"] + 1})
+    return SESSION.write(
+        session_file(record["id"], SESSION_SUFFIX),
+        {**record, "revision": record["revision"] + 1},
+    )
 
 
 def chat_exists(record: dict | None) -> bool:
@@ -693,7 +718,7 @@ def _retire(session_id: str) -> None:
     (`flocked`). A failed takeover that restores a claim naming the session after
     this finds it ended either way. Directories, such as a Codex task's delivery
     records, are their owner's to retire."""
-    if holds_claims(session_id):
+    if held_claims(session_id):
         session_file(session_id, HOOKS_SUFFIX).unlink(missing_ok=True)
         return
     lock = session_lock_path(session_id)
@@ -745,13 +770,6 @@ def end_harness_instance(session_id: str) -> None:
 def session_claims(session_id: str) -> Path:
     """This session's discovery locators; payloads remain canonical by page."""
     return state_home().resolve() / "claims" / session_file(session_id, "claims").stem
-
-
-def holds_claims(session_id: str) -> bool:
-    """Whether the session holds a claim, in this generation or a kept one from
-    before: a page it claimed that still stands and no other session has claimed
-    since."""
-    return bool(held_claims(session_id))
 
 
 def held_claims(session_id: str) -> list[Path]:
@@ -829,15 +847,16 @@ def drop_locator(session_id: str, name: str) -> None:
 
 def main() -> None:
     payload = json.load(sys.stdin)
-    if sys.argv[1:2] == ["hook-gate"]:
-        # `bin/leaf` asks this before starting uv for a hook registered
-        # `--if-claimed`, and a hook it skips takes about 25 ms in place of about
-        # 70 (measured on macOS). 3 alone says "nothing to do": a failure here
-        # must not skip the hook.
-        sys.exit(0 if holds_claims(payload.get("session_id") or "") else 3)
     if payload.get("hook_event_name") == "SessionEnd":
         end_harness_instance(payload.get("session_id") or "")
 
 
 if __name__ == "__main__":
+    # `bin/leaf` asks this before starting uv for a hook registered `--if-claimed`,
+    # with -S, so no site packages load. A hook it skips takes about 25 ms in
+    # place of about 70 for starting the package (measured on macOS). Only status
+    # 3 skips the hook; any failure runs it whole.
+    if sys.argv[1:] == ["hook-gate"]:
+        payload = json.load(sys.stdin)
+        sys.exit(0 if held_claims(payload.get("session_id") or "") else 3)
     main()

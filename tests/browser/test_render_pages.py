@@ -10,6 +10,7 @@ from click.testing import CliRunner
 from interact_support import (
     add_test_widget,
     append_carried_log_record,
+    declare_on_page,
     record_claim,
 )
 from PIL import Image, ImageChops, ImageStat
@@ -91,46 +92,11 @@ from browser.threads import open_panel_thread
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
+from leaf.registry.storage import load_registry
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-def test_sort_source_follows_the_initial_step_when_code_arrives_later(browser, serve):
-    """The film may paint its first step before the code's tokenizer returns."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
-    context = browser.new_context(
-        reduced_motion="reduce", viewport={"width": 1440, "height": 900}
-    )
-    held = []
-    context.route("**/vendor/syntax.esm.js", lambda route: held.append(route))
-    page = open_page(
-        browser,
-        serve(example),
-        context=context,
-        upgraded=False,
-        wait_until="domcontentloaded",
-    )
-    expect(page.locator("#sort-film .sort-moment")).to_have_attribute(
-        "data-part", "moment:random:7:0"
-    )
-    expect(page.locator("#sort-source [data-lf-indicated]")).to_have_count(0)
-    assert held
-    for route in held:
-        route.continue_()
-    context.unroute_all(behavior="wait")
-    wait_until_ready(page)
-    source = page.locator("#sort-source")
-    indicated = source.locator("[data-lf-indicated]")
-    expect(indicated).to_have_count(1)
-    body = source.bounding_box()
-    line = indicated.bounding_box()
-    assert body["y"] + 40 <= line["y"]
-    assert line["y"] + line["height"] <= body["y"] + body["height"] - 40
-    expect(page.locator("#sort-film .sort-moment")).to_have_attribute(
-        "data-part", "moment:random:7:0"
-    )
 
 
 def test_sort_film_readout_and_narration(browser, serve):
@@ -614,10 +580,13 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     the target on the strength of its entry. This rules out a consumer that knows one
     widget by name and silently misses the next."""
     url = serve(PICTURE_PAGE)
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry = load_registry(serve.page_dir)
     assert registry["lf-diagram"]["x-visual"], "this test needs the shipped declaration"
-    registry["lf-code"]["x-visual"] = "whole"  # a widget core has never heard of
-    (serve.page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_on_page(
+        serve.page_dir,
+        # A widget core has never heard of.
+        lambda registry: registry["lf-code"].update({"x-visual": "whole"}),
+    )
     page = open_page(browser, url)
 
     # The inner svg belongs to the renderer and carries generated ids; the anchor
@@ -1431,7 +1400,8 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
     """A widget's preferred minimum never claims the sidebar's margin. Native wide and
     available blocks read the same capacity; four and five board columns previously
     overrode it at mid widths, while the control without a sidebar fitted there.
-    Narrow boards scroll their columns inside that allocation rather than the page.
+    A board too narrow to share between columns stacks them inside that allocation,
+    so neither it nor the page scrolls sideways.
     """
     sidebar = '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
     boards = "".join(
@@ -1471,8 +1441,8 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 assert at[name]["right"] <= at["room"]["right"] + 1, (width, at)
             assert root_overflow(page) == 0, (width, at)
             if width == 540:
-                assert at["board-4"]["scrolls"] > 0, at
-                assert at["board-5"]["scrolls"] > 0, at
+                assert at["board-4"]["scrolls"] == 0, at
+                assert at["board-5"]["scrolls"] == 0, at
             elif width == 1440:
                 assert at["wide"]["width"] == pytest.approx(wide_width(page), abs=1), at
                 assert at["room"]["width"] > at["wide"]["width"], at
@@ -1562,6 +1532,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + '<div data-width="wide">Room.</div></span></div>'
         + '<div id="padded" style="margin-inline: -600px; padding-inline: 600px">'
         + '<div data-width="wide">Room.</div></div>'
+        + '<div id="pinned" style="position: fixed; inset: auto 0 0 0">Pinned.</div>'
     )
     column = open_page(browser, serve(leaf_page("Column", body + extras)))
     resized(column, 1726, 900)
@@ -1590,7 +1561,8 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # An obligation that spans its block is a breakout the theme grows, so the gate reads it
     # as one, even where it reaches further than a table of two columns does; a box the
     # page pulls out of the column by its margins, an inline one, or one it grows round
-    # its block by margins and padding of its own, still stands in the margin.
+    # its block by margins and padding of its own, still stands in the margin. A fixed
+    # box across the column's edges answers for itself, as it hangs off the window.
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
         ("past-column", "<div id=pulled>"),

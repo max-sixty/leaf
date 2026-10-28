@@ -19,7 +19,9 @@ adoption needs no entry. Resolved failures leave this list; reasons the current
 implementation still needs belong beside its code. Rewrite an entry when its
 status changes rather than appending the investigation's chronology.
 `uv run leaf-dev probe SOURCE --browser firefox` (or `webkit`) runs a probe or
-journey in Playwright's Firefox or WebKit.
+journey in Playwright's Firefox or WebKit, and `--browser ios` runs a probe in
+Safari on an iPhone simulator, whose WebKit can differ from Playwright's desktop
+build.
 
 Minor visual differences are acceptable when content remains readable and
 controls remain usable. Lost drafts, broken actions, inaccessible controls, and
@@ -28,6 +30,20 @@ An unsupported API alone does not justify blocking the whole browser: record
 what fails and what still works.
 
 ## Known gaps
+
+### Tab underline travel between anchors
+
+The selected-tab underline in `packages/default/styles/tabs.css` follows its
+label with CSS anchors. Playwright Firefox 155.0, build 1543, moved directly to
+the new anchor on 2026-10-26, without a transition or `transitionrun` event;
+Chromium 153.0.8010.12 interpolated its position and width. Instant selection
+is an accepted visual difference: the selected label, panel, keyboard routes
+and nested strips remain usable. Recheck by opening `lost-update` with
+`leaf-dev probe --firefox --motion no-preference`, selecting the adjacent tab
+with the pointer and inspecting `.lf-tab-selection` across animation frames.
+The Chromium behavior and interruption contract are covered by
+`test_pointer_tab_underline_moves_without_delaying_the_view` in
+`tests/browser/widgets/test_tabs.py`.
 
 ### Scroll-state containers
 
@@ -72,7 +88,7 @@ review's 58rem container query, while the case list between them was an
 inline-size container, as the theme makes a pane's body. On 2026-10-25,
 narrowing `visual-review-gallery` from 1200px to 880px reproduced it on every
 crossing; Firefox 155 took the narrow padding. `.lf-vr-case-list` in
-`packages/visual-review/styles/theme.css` declares `container-type: normal`,
+`packages/visual-review/widgets.css` declares `container-type: normal`,
 since nothing in the list queries it. Recheck by deleting that declaration,
 narrowing the page with `leaf-dev probe` and reading a case button's computed
 padding; `test_page_fixture_renders[visual-review-gallery]` in
@@ -159,8 +175,8 @@ Recheck with real speech in the affected browser.
 
 ### Find-in-page scrolling to folded content
 
-`lf-tabs`, `lf-options` and `lf-trace-compare` use `hidden="until-found"`.
-WebKit's reported gap is that finding a match reveals folded content without
+Widgets fold content with `hidden="until-found"`, which Leaf's own travel reveals
+too (`runtime/widget-elements.js`, `reveal`). WebKit's reported gap is that finding a match reveals folded content without
 scrolling to the match. [WebKit 304174](https://webkit.org/b/304174) remained
 open when checked on 2026-10-22; this is published evidence, not a local Safari
 reproduction. Recheck native find-in-page on text inside a closed panel before
@@ -226,7 +242,7 @@ with caching enabled when changing the policy or sample lifetime.
 
 ### Frame margin trimming
 
-The frame-edge rules in `browser/styles/theme.css` traverse bare wrappers,
+The frame-edge rules in `browser/theme.css` traverse bare wrappers,
 skip generated apparatus and stop at declared rows. Native `margin-trim`
 cannot replace that behavior across the checked engines: on 2026-10-08,
 Chrome 155 trimmed block-flow margins but left flex and grid item margins;
@@ -259,10 +275,9 @@ with a shadow root unloaded every iframe in that shadow tree, leaving it
 connected with a null `contentWindow`, even when the host had no children to
 remove; `textContent = ""` did the same when it had some. Removing each child
 with `remove()` kept the frames, as Chromium 153.0.8010.12 and Firefox 155.0
-did for all three. `lf-diff` removes its authored placeholder child by child on
-each rendering, since a thread outlet in its stage can hold a frame. Leaf's
-other calls clear a host without a shadow root, or a stage's host once at
-setup, before anything stands in the stage. Recheck with `test_a_diff_revision_leaves_a_line_thread_where_it_stands`
+did for all three. `shadowStage` (`browser/runtime/shadow-stage.js`) removes a host's
+light children child by child, the one place a widget clears its host, since a thread
+outlet in a stage can hold a frame. Recheck with `test_a_diff_revision_leaves_a_line_thread_where_it_stands`
 in `tests/browser/widgets/test_diffs.py`.
 
 ### Area capture rendering

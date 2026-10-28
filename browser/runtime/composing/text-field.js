@@ -76,6 +76,16 @@
  * surface being replaced can keep its words in flow until then, so measuring the
  * connecting field never collapses the scrollport before it has content.
  *
+ * CodeMirror isn't part of the page's opening: it loads once the page has presented
+ * (field-editor.js, `loadFieldEditor`), well before a reader usually starts writing, so
+ * arriving in a field still builds its editor in the same turn. A field that must build
+ * sooner, holding words before then or with the user arriving in it, keeps a rendering
+ * hold until CodeMirror arrives, draws its words plain in the empty line's place, and
+ * keeps the user's focus there; what they type meanwhile lands natively in that place,
+ * which the field reads back as its value, so the editor builds holding it. Rejected:
+ * loading CodeMirror with the page, about 345 KB of the bytes before the server's
+ * state shows, for a capability most openings never use.
+ *
  * The host is also the control accessibility tooling addresses, since nothing outside a
  * closed root sees into it: it takes `role="textbox"`, `aria-multiline` and a tab stop
  * unless the page gave it its own, and it carries the name, description and busy state
@@ -121,31 +131,10 @@
  */
 import { scrollIntoView } from "../landing-scroll.js";
 import { moveScrollerBy } from "../scrolling.js";
-import {
-  EditorView,
-  EditorState,
-  StateEffect,
-  Compartment,
-  WidgetType,
-  Decoration,
-  LanguageSupport,
-  ViewPlugin,
-  keymap,
-  history,
-  standardKeymap,
-  historyKeymap,
-  isolateHistory,
-  invertedEffects,
-  markdownLanguage,
-  insertNewlineContinueMarkup,
-} from "../../vendor/codemirror.esm.js";
-import { caretAt, LeafEditorView } from "../editor-view.js";
 import { TEXT_FIELD } from "../control-selectors.js";
-import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
-import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
-import { sizeObserver } from "../rendering.js";
-
-const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
+import { afterPresentation } from "../presentation.js";
+import { loadFieldEditor, readFaces } from "./field-editor.js";
+import { holdRendering, sizeObserver } from "../rendering.js";
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -159,8 +148,10 @@ sheet.replaceSync(`
   .cm-content { padding: 0; caret-color: currentColor; min-height: 1lh; }
   /* An empty field draws no editor until the user arrives in it (#build). This box
      holds the empty line's place, as tall as the editor's line, and takes the focus
-     that builds the editor. */
-  .lf-field-rest { min-height: 1lh; outline: none; }
+     that builds the editor; while the editor loads, it holds the words, wrapped as
+     the editor wraps them. */
+  .lf-field-rest { min-height: 1lh; outline: none; white-space: pre-wrap;
+    overflow-wrap: break-word; }
   .cm-line { padding: 0; }
   /* A space after a line's last word hangs past its end, as in a textarea and in the
      sent message (reading.css, \`.lf-msg-text > p\`), rather than taking room on the
@@ -188,7 +179,8 @@ sheet.replaceSync(`
      cut away whole. Words an owner carries down from above the box, as a line removed
      carries them, need more: it sets --lf-field-reach as far as they travel, and
      stops the host scrolling meanwhile. Chrome refuses calc() here, so the reach
-     replaces the caret's margin rather than adding to it. */
+     replaces the caret's margin rather than adding to it, so the owner keeps at
+     least 2px there and at the moving content's inline clip edges. */
   .lf-field { overflow: clip; overflow-clip-margin: var(--lf-field-reach, 2px); }
   .lf-field > * {
     translate: var(--lf-field-carry);
@@ -267,466 +259,61 @@ sheet.replaceSync(`
   .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
 
-// A step an owner recorded in the words' history (`record`): `run` makes it happen when
-// the history reaches it, and `back` is the step the other way.
-const ownerStep = StateEffect.define();
+// The field's editor (field-editor.js), once CodeMirror under it has loaded. It loads as
+// soon as the page has presented, as an arrival the page answers for, so a field the
+// user arrives in builds its editor in the turn that brings them, as it did when
+// CodeMirror loaded with the page; a field that must draw before then asks for it
+// sooner.
+/** @typedef {Awaited<ReturnType<typeof loadFieldEditor>>} FieldEditor */
+/** @type {FieldEditor | null} */
+let editor = null;
+const loadEditor = () => loadFieldEditor().then((loaded) => (editor = loaded));
+afterPresentation(loadEditor);
 
-const hide = Decoration.replace({});
-const dim = Decoration.mark({ class: "lf-md-mark" });
-const link = Decoration.mark({ class: "lf-md-link" });
-const unseen = Decoration.mark({
-  class: "lf-md-unseen",
-  attributes: { "aria-hidden": "true" },
-});
-const marker = Decoration.mark({
-  class: "lf-md-marker lf-md-unseen",
-  attributes: { "aria-hidden": "true" },
-});
-const shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
-const line = (cls) => Decoration.line({ class: cls });
-// A list item's line at its depth, wearing the marker a message's list draws there: the
-// bullet the platform's style sheet nests, or the item's number in its list. An item's
-// later line, and one whose source marker shows, wear none.
-const BULLETS = ["lf-md-disc", "lf-md-circle", "lf-md-square"];
-const itemLine = (depth, kind, number) =>
-  Decoration.line({
-    class: kind ? `lf-md-item lf-md-listed ${kind}` : "lf-md-item",
-    attributes: {
-      style: `--lf-list-depth: ${depth}${kind === "lf-md-number" ? `; counter-set: list-item ${number}` : ""}`,
-    },
-  });
-
-// The inline constructs the preview draws, by the renderer's token type: each as the
-// element the renderer sends it as.
-const INLINE = {
-  code_inline: Decoration.mark({ tagName: "code" }),
-  em_open: Decoration.mark({ tagName: "em" }),
-  strong_open: Decoration.mark({ tagName: "strong" }),
-  s_open: Decoration.mark({ tagName: "s" }),
-};
-
-// Whether the selection touches [from, to], ends included: the caret standing just
-// after a closing backtick still reveals it, so the user can delete what they see.
-const touches = (state, from, to) =>
-  state.selection.ranges.some((range) => range.from <= to && range.to >= from);
-
-// The draft as the renderer reads it, placed. Empty until the renderer has loaded.
-const read = (state) => {
-  return placedMarkdownTokens(state.doc.toString());
-};
-
-// The elements the renderer sends each block as, in an order that stands each one
-// between others, as a block inside a body stands.
-const FACE_PROBE =
-  "<div></div><p></p><h1></h1><h2></h2><h3></h3><h4></h4><h5></h5><h6></h6><pre></pre>" +
-  "<blockquote></blockquote><ul><li></li><li></li></ul><ol></ol><div></div>";
-// The gap two blocks' margins leave between them, collapsed as the platform collapses
-// adjoining margins, in px or as CSS over the two a gap line names (`standBlocks`).
-const collapsed = (a, b) => Math.max(a, b, 0) + Math.min(a, b, 0);
-const GAP =
-  "calc(max(var(--lf-gap-end), var(--lf-gap-start), 0px) + " +
-  "min(var(--lf-gap-end), var(--lf-gap-start), 0px))";
-// The rules that draw each block in the face the cascade gives it in `display`, the
-// element whose blocks the field's words are shown as: their type, and the margins and
-// padding that set them apart from their neighbours. The probe is an empty copy of that
-// element standing beside the field, in its place among its siblings, so the page's own
-// rules, which skip Leaf's interface, and its density reach the probe's blocks as they
-// reach the display's. A list's outer margins collapse with its first and last items'.
-function readFaces(field, display) {
-  const probe = /** @type {HTMLElement} */ (display.cloneNode(false));
-  probe.removeAttribute("id");
-  probe.setAttribute("aria-hidden", "true");
-  probe.style.cssText =
-    "position: absolute; visibility: hidden; inline-size: 0; display: block";
-  probe.innerHTML = FACE_PROBE;
-  field.after(probe);
-  const face = {};
-  // Type the field already inherits stays inherited: a line height restated in pixels
-  // can round otherwise than the one it resolves from.
-  const own = getComputedStyle(field);
-  const TYPE = ["font-size", "line-height", "font-weight", "letter-spacing"];
-  for (const node of probe.querySelectorAll(":scope > :not(div), li + li")) {
-    const s = getComputedStyle(node);
-    const px = (value) => Number.parseFloat(value) || 0;
-    face[node.localName] = {
-      type: TYPE.filter(
-        (name) => s.getPropertyValue(name) !== own.getPropertyValue(name),
-      )
-        .map((name) => `${name}: ${s.getPropertyValue(name)}`)
-        .join("; "),
-      start: px(s.marginTop),
-      end: px(s.marginBottom),
-      padStart: px(s.paddingTop),
-      padEnd: px(s.paddingBottom),
-      inset: s.paddingInlineStart,
-      indent: s.marginInlineStart,
-    };
+// A field's words before it has an editor: the source, the selection, and the steps an
+// owner recorded in its history (`record`), which the editor's history takes up as it
+// builds.
+// `base` is the words the history starts from, which a `value` write sets and the
+// user's typing doesn't.
+class Draft {
+  steps = [];
+  constructor(text) {
+    this.text = this.base = text;
+    this.anchor = this.head = text.length;
   }
-  probe.remove();
-  const { li, pre, blockquote: quote } = face;
-  const rules = [];
-  for (const [tag, { type, start, end }] of Object.entries(face)) {
-    const list = tag === "ul" || tag === "ol";
-    rules.push(
-      `.lf-face-${tag} { ${type} }`,
-      `.lf-starts-${tag} { --lf-gap-start: ${list ? collapsed(start, li.start) : start}px }`,
-      `.lf-ends-${tag} { --lf-gap-end: ${list ? collapsed(end, li.end) : end}px }`,
-    );
-  }
-  rules.push(
-    `.lf-face-gap { line-height: ${GAP} }`,
-    `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`,
-    `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`,
-    `.lf-face-rule { line-height: 0 }`,
-    `.lf-face-gap-above { padding-block-start: ${GAP} }`,
-    `.lf-face-fence-open { line-height: ${pre.padStart}px }`,
-    `.lf-face-fence-close { line-height: ${pre.padEnd}px }`,
-    `.lf-face-code { padding-inline: ${pre.inset} }`,
-    `.lf-face-quote { margin-inline-start: ${quote.indent}; padding-inline-start: ${quote.inset}; --lf-marker-inset: ${quote.inset} }`,
-    `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`,
-    `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`,
-    `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`,
-    `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`,
-    `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`,
-    `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`,
-  );
-  return rules.join("\n");
 }
 
-// A picture's syntax, while the caret is away, is the picture the message shows for it,
-// from the source the parser resolved, a reference's included, at the address the
-// renderer gives page media (markdown.js). A press on it puts the caret in its source.
-class Picture extends WidgetType {
-  constructor(src, alt) {
-    super();
-    this.src = isCanonicalMediaUrl(src) ? scopedMediaUrl(src) : src;
-    this.alt = alt;
-  }
-  eq(other) {
-    return other.src === this.src && other.alt === this.alt;
-  }
-  toDOM(view) {
-    const img = document.createElement("img");
-    img.className = "lf-md-picture";
-    img.alt = this.alt;
-    img.src = this.src;
-    img.addEventListener("load", () => view.requestMeasure(), { once: true });
-    return img;
-  }
-  ignoreEvent() {
-    return false;
-  }
-}
-// The mark the page draws after a link that leaves it (prepaint.js).
-class ExternalMark extends WidgetType {
-  eq() {
-    return true;
-  }
-  toDOM() {
-    return document.documentElement.lfExternalLink.mark();
-  }
-}
-const externalMark = Decoration.widget({ widget: new ExternalMark(), side: -1 });
-const opensElsewhere = (href) =>
-  document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
-
-function decorate(state, placed) {
-  const out = [];
-  // The ends of the lists open at the token being read, each list line's item, and the
-  // code blocks, whose lines their own reading indents.
-  const lists = [];
-  const items = new Map();
-  const code = [];
-  const add = (from, to, deco) => {
-    if (from >= to) return;
-    // A hidden range may not hold a line break; such syntax stays drawn.
-    if (deco === hide && state.doc.sliceString(from, to).includes("\n")) deco = dim;
-    out.push(deco.range(from, to));
-  };
-  const lines = (from, to, each) => {
-    for (let at = from; at < to;) {
-      const current = state.doc.lineAt(at);
-      each(current);
-      at = current.to + 1;
-    }
-  };
-  for (const {
-    token,
-    from,
-    to,
-    contentFrom,
-    contentTo,
-    escapes,
-    markers,
-    contentLines,
-    words: said,
-  } of placed) {
-    const syntax = touches(state, from, to) ? dim : hide;
-    if (token.type === "code_inline" || contentFrom !== undefined) {
-      const words =
-        token.type === "code_inline"
-          ? [from + token.markup.length, to - token.markup.length]
-          : [contentFrom, contentTo];
-      if (words[0] > words[1]) continue;
-      if (INLINE[token.type]) add(from, to, INLINE[token.type]);
-      else if (token.type === "link_open" && token.meta.linked) {
-        add(words[0], words[1], link);
-        if (opensElsewhere(token.attrGet("href")))
-          out.push(externalMark.range(words[1]));
-      }
-      add(from, words[0], syntax);
-      add(words[1], to, syntax);
-    } else if (token.type === "image") {
-      // A replacement a plugin draws may not take a line break, so a picture whose
-      // source spans lines stays source. With the caret in its source the picture
-      // stays drawn after it, so reaching the source adds its line and takes no
-      // picture away from the page.
-      if (said !== "" || state.doc.sliceString(from, to).includes("\n")) continue;
-      const widget = new Picture(token.attrGet("src"), token.content);
-      out.push(
-        touches(state, from, to)
-          ? Decoration.widget({ widget, side: 1 }).range(to)
-          : Decoration.replace({ widget }).range(from, to),
-      );
-    } else if (token.type === "text") {
-      for (const at of escapes ?? [])
-        add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
-    } else if (token.type === "heading_open") {
-      lines(...contentLines, (each) => {
-        out.push(line("lf-md-heading").range(each.from));
-      });
-      // A Setext heading's rule is a line of its own, which keeps its room unseen while
-      // the caret is away, as a fence's does.
-      for (const [a, b] of markers) {
-        const rule = state.doc.lineAt(a);
-        const shown = touches(state, rule.from, rule.to) ? dim : unseen;
-        add(a, b, token.markup.startsWith("#") ? syntax : shown);
-      }
-    } else if (token.type === "fence" || token.type === "code_block") {
-      code.push([from, to]);
-      // Each line of code keeps the indent the parser's reading of it keeps; the rest,
-      // a list item's or an indented block's own four spaces, the message drops.
-      const body = token.content.split("\n");
-      const opened = state.doc.lineAt(from).number + (token.type === "fence" ? 1 : 0);
-      lines(from, to, (each) => {
-        const ends = [
-          each.from <= from ? " lf-md-code-first" : "",
-          each.to + 1 >= to ? " lf-md-code-last" : "",
-          token.type === "code_block" ? " lf-md-code-bare" : "",
-        ].join("");
-        out.push(line(`lf-md-code-block${ends}`).range(each.from));
-        const kept = body[each.number - opened];
-        if (kept === undefined || each.number - opened >= body.length - 1) return;
-        const lead = each.text.match(/^[ \t]*/)[0].length;
-        add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
-      });
-      // A fence's lines stand for the message's code padding (`standBlocks`), and each
-      // shows its marks, at a line's height, while the caret is on it.
-      for (const [a, b] of markers ?? []) {
-        const fence = state.doc.lineAt(a);
-        add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
-      }
-    } else if (token.type === "blockquote_open") {
-      lines(from, to, (each) => {
-        out.push(line("lf-md-quote").range(each.from));
-      });
-      for (const [a, b] of markers)
-        add(a, b, touches(state, a, b) ? shownMarker : marker);
-    } else if (
-      token.type === "bullet_list_open" ||
-      token.type === "ordered_list_open"
-    ) {
-      while (lists.at(-1)?.to <= from) lists.pop();
-      const ordered = token.type === "ordered_list_open";
-      lists.push({ to, next: ordered ? Number(token.attrGet("start") ?? 1) : null });
-    } else if (token.type === "list_item_open") {
-      while (lists.at(-1)?.to <= from) lists.pop();
-      const list = lists.at(-1);
-      const depth = lists.length;
-      // An item's later lines stand under its words, their indent hidden as the
-      // message drops it, and never revealed, so the words don't jump as the caret
-      // arrives: a paragraph's whole indent, and in code what the code's reading drops
-      // (above). A nested item, read after its parent, takes its own lines.
-      const head = state.doc.lineAt(from);
-      const [at, end] = markers[0];
-      // The marker's own indent stands in the inset with it. A quote's line keeps the
-      // quote's rule and prefix at its start, where the platform's marker can't stand,
-      // so an item there keeps its source marker, drawn as the prefix is.
-      const start = at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length;
-      if (head.text.slice(0, start - head.from).trim()) {
-        add(start, end, dim);
-        continue;
-      }
-      lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
-        items.set(each.from, { depth, continued: true });
-      });
-      const kind =
-        list.next === null
-          ? BULLETS[Math.min(depth, BULLETS.length) - 1]
-          : "lf-md-number";
-      const shown = state.selection.ranges.some(
-        (range) => range.from < end && range.to >= start,
-      );
-      items.set(head.from, { depth, kind: shown ? null : kind, number: list.next });
-      if (list.next !== null) list.next++;
-      add(start, end, shown ? shownMarker : marker);
-    }
-  }
-  for (const [from, { depth, kind, number, continued }] of items) {
-    out.push(itemLine(depth, kind, number).range(from));
-    if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
-    add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
-  }
-  standBlocks(state, placed, out);
-  return Decoration.set(out, true);
-}
-
-// Each outermost block's lines name its face, and the lines between two blocks the gap
-// the display leaves there: the blank lines that part them in the source, or the
-// second's first line where none do. A field that edits in place has rules for the
-// names (`readFaces`); elsewhere only a fence's do. A code fence's lines stand for its
-// block's padding while the caret is away, and an item after the first in a list stands
-// its gap above it. The display trims the outer margins of its first and last blocks,
-// so the field leaves none there, but a list's first and last items keep theirs.
-const blockTag = (token) =>
-  token.type === "fence" || token.type === "code_block" ? "pre" : token.tag;
-function standBlocks(state, placed, out) {
-  const lines = (from, to, each) => {
-    for (let at = from; at < to;) {
-      const current = state.doc.lineAt(at);
-      each(current);
-      at = current.to + 1;
-    }
-  };
-  const named = (from, cls) => out.push(line(cls).range(from));
-  // A run of blank lines stands as one gap, shared among them.
-  const gapLines = (from, to, gap) => {
-    const runs = state.doc.lineAt(to).number - state.doc.lineAt(from).number;
-    const share = runs > 1 ? ` lf-face-share-${Math.min(runs, 3)}` : "";
-    lines(from, to, (each) => named(each.from, `lf-face-gap${share} ${gap}`));
-  };
-  const lineTouched = (at) => {
-    const { from, to } = state.doc.lineAt(at);
-    return touches(state, from, to);
-  };
-  // The block before the one being read in each container still open, by level: the
-  // draft itself and each quote. A list's items stand apart by their own gap.
-  const before = [];
-  const open = [];
-  let item = null;
-  const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
-  for (const { token, from, to, markers, contentLines } of placed) {
-    if (!token.block) continue;
-    const tag = blockTag(token);
-    // A heading and a fence wear their faces wherever they stand.
-    if (token.type === "heading_open") {
-      lines(...contentLines, (each) => named(each.from, `lf-face-${tag}`));
-      if (!token.markup.startsWith("#"))
-        for (const [at] of markers)
-          if (!lineTouched(at)) named(state.doc.lineAt(at).from, "lf-face-rule");
-    } else if (token.type === "fence" || token.type === "code_block") {
-      lines(from, to, (each) => named(each.from, "lf-face-code"));
-      const opener = state.doc.lineAt(from).number;
-      for (const [at] of token.type === "fence" ? markers : []) {
-        const fence = state.doc.lineAt(at);
-        if (lineTouched(at)) continue;
-        const side = fence.number === opener ? "open" : "close";
-        named(fence.from, `lf-face-fence-${side}`);
-      }
-    }
-    while (open.at(-1)?.to <= from) before.length = open.pop().level + 1;
-    const within = open.at(-1)?.type;
-    if (token.type === "list_item_open" && within !== "list_item_open") {
-      if (item?.to === from) named(from, "lf-face-item");
-      item = { to };
-    }
-    const container = /^(blockquote|bullet_list|ordered_list|list_item)_open$/.test(
-      token.type,
-    );
-    if (container) open.push({ type: token.type, to, level: token.level });
-    if (token.type === "list_item_open" || within === "list_item_open") continue;
-    const level = token.level;
-    if (!FACE_PROBE.includes(`<${tag}>`)) {
-      before[level] = null;
-      continue;
-    }
-    const list = tag === "ul" || tag === "ol";
-    if (list && from === 0) named(0, "lf-face-list-lead");
-    if (list && to >= state.doc.length)
-      named(state.doc.lineAt(state.doc.length).from, "lf-face-list-tail");
-    const prior = before[level];
-    const gap = `lf-ends-${prior?.tag} lf-starts-${tag}`;
-    if (prior && prior.to < from) gapLines(prior.to, from, gap);
-    else if (prior) named(from, `lf-face-gap-above ${gap}`);
-    // A block's reading can take in the blank lines after it, which part it from the next.
-    let end = to;
-    while (end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;
-    before[level] = { tag, to: end };
-    before.length = level + 1;
-    if (token.type === "paragraph_open" && level === 0)
-      lines(from, to, (each) => named(each.from, "lf-face-p"));
-    else if (token.type === "blockquote_open" && level === 0) {
-      lines(from, end, (each) => named(each.from, "lf-face-quote"));
-      named(from, "lf-face-quote-first");
-      named(state.doc.lineAt(Math.max(from, end - 1)).from, "lf-face-quote-last");
-    }
-  }
-  // Blank lines after the last block, short of the line the next words will start on,
-  // stand as the gap before a paragraph, so typing that paragraph moves no line.
-  const last = state.doc.line(state.doc.lines);
-  const final = before[0];
-  if (final && final.to < last.from)
-    gapLines(final.to, last.from, `lf-ends-${final.tag} lf-starts-p`);
-}
-
-// The draft is read by the renderer that will send it, so the preview styles exactly what
-// the message will: the same constructs, the same links. The reading is taken again when
-// the words change and the styling when the selection moves. The renderer loads lazily;
-// until it has, the words stand plain, and its arrival draws every open field.
-const livePreview = ViewPlugin.fromClass(
-  class {
-    constructor(view) {
-      this.live = true;
-      this.placed = read(view.state);
-      this.decorations = decorate(view.state, this.placed);
-      this.judged = markdownReady();
-      if (!this.judged)
-        loadMarkdown().then(
-          () => this.live && view.dispatch({}),
-          () => {},
-        );
-    }
-    destroy() {
-      this.live = false;
-    }
-    update(update) {
-      const judged = markdownReady();
-      if (update.docChanged || judged !== this.judged) {
-        this.judged = judged;
-        this.placed = read(update.state);
-      } else if (!update.selectionSet) return;
-      this.decorations = decorate(update.state, this.placed);
-    }
-  },
-  { decorations: (plugin) => plugin.decorations },
-);
+// The words a node of the empty line's place holds: its text, with a line for each
+// break.
+const placeWords = (node) =>
+  node.nodeType === Node.TEXT_NODE
+    ? /** @type {Text} */ (node).data
+    : node.nodeName === "BR"
+      ? "\n"
+      : [...node.childNodes].map(placeWords).join("");
 
 /** @typedef {LeafText} LeafTextElement For its tag (`runtime-globals.d.ts`). */
 class LeafText extends HTMLElement {
-  // The field's one model. Until the field has an editor it is a bare EditorState,
-  // which holds the value, selection and configuration without a DOM; building the
-  // editor hands it to the view that edits it from then on (`#build`).
-  #model;
+  // The field's one model. Until the field has first built an editor it is a Draft;
+  // building the editor hands it to the view that edits it from then on (`#build`),
+  // and an editor destroyed as the field leaves the page hands back its state, undo
+  // history included.
+  /** @type {Draft | ReturnType<FieldEditor["fieldState"]>} */
+  #model = new Draft("");
   #view = null;
   // The empty line's place while the field has no editor, and the node focus lands on
-  // there, whichever route brought it.
+  // there, whichever route brought it. While the editor loads, it holds the words, plain,
+  // and takes what the user types (`#typeAtRest`).
   #rest = document.createElement("div");
+  // The rendering hold of a field waiting for its editor to load (`#build`).
+  #waiting = null;
+  // Whether an input method is composing in the empty line's place. The words it
+  // holds are unfinished until it ends, so they join the draft, and the editor builds,
+  // only then.
+  #composing = false;
   #nativeInput = false;
   #root;
   #internals = null;
-  #editable = new Compartment();
-  #history = new Compartment();
-  #attributes = new Compartment();
   /** The element whose blocks a field editing words where they are shown shows them
    * as, such as a draft's prose; unset, the field draws a sent message's faces.
    * @type {Element | null} */
@@ -762,7 +349,7 @@ class LeafText extends HTMLElement {
   // as the caret, inside the host's padding (see the header). The words wrap, so the
   // host scrolls only down and up.
   #rowTravel(view, pos) {
-    const { destination, rectangle: caret } = caretAt(view, pos);
+    const { destination, rectangle: caret } = view.caretAt(pos);
     const node =
       destination instanceof Range ? destination.startContainer : destination;
     const row =
@@ -858,9 +445,10 @@ class LeafText extends HTMLElement {
     // passes focus on in its own `focus` handler, and the move inside the closed root
     // reaches nothing outside it, so the page would never hear the field take focus.
     this.#rest.addEventListener("focusin", () => this.#build());
+    for (const type of ["beforeinput", "input", "compositionstart", "compositionend"])
+      this.#rest.addEventListener(type, (event) => this.#typeAtRest(event));
     this.#frame.append(this.#placeholderLayer, this.#rest);
     this.#root.append(this.#frame);
-    this.#model = this.#create("");
     this.#dressRest();
     this.addEventListener("mousedown", (event) => this.#pressPadding(event));
     // Words dragged in drop where the editor will take them.
@@ -877,100 +465,155 @@ class LeafText extends HTMLElement {
       this.#root.addEventListener(type, (event) => event.stopPropagation());
   }
 
-  // A fresh state holding `text`, caret at its end, under the field's current
-  // configuration. A new state is also a new undo history.
-  #create(text) {
-    return EditorState.create({
-      doc: text,
-      selection: { anchor: text.length },
-      extensions: [
-        // DOM input has already changed the words when CodeMirror reads it, so its
-        // bracket started at beforeinput. EditContext leaves rendering to the editor;
-        // its transactions, like commands, still start before the DOM changes.
-        EditorView.inputHandler.of((view, _from, _to, _text, insert) => {
-          this.#nativeInput = !view.contentDOM.editContext;
-          try {
-            view.dispatch(insert());
-          } finally {
-            this.#nativeInput = false;
-          }
-          return true;
-        }),
-        // An edit's reveal shows the caret's row in the host first; the view's own
-        // reveal (editor-view.js) then carries the caret out through the page.
-        EditorView.scrollHandler.of((view, range) => {
-          moveScrollerBy(this, this.#rowTravel(view, range.head));
-          return false;
-        }),
-        this.#history.of(history()),
-        // A one-line field holds one line, so a line break pasted or inserted by the
-        // platform, as Android's editing does, becomes a space.
-        EditorState.transactionFilter.of((tr) => {
-          if (!tr.docChanged || !this.#oneLine) return tr;
-          const breaks = [];
-          tr.changes.iterChanges((_fromA, _toA, fromB, _toB, inserted) => {
-            const text = inserted.toString();
-            for (
-              let at = text.indexOf("\n");
-              at !== -1;
-              at = text.indexOf("\n", at + 1)
-            )
-              breaks.push({ from: fromB + at, to: fromB + at + 1, insert: " " });
-          });
-          return breaks.length ? [tr, { changes: breaks, sequential: true }] : tr;
-        }),
-        invertedEffects.of((tr) =>
-          tr.effects
-            .filter((effect) => effect.is(ownerStep))
-            .map(({ value }) => ownerStep.of({ run: value.back, back: value.run })),
-        ),
-        keymap.of([
-          // A one-line field takes no line break (`#oneLine`).
-          { key: "Shift-Enter", run: () => this.#oneLine },
-          {
-            key: "Enter",
-            run: (view) =>
-              this.dispatchEvent(new Event("lf-edit-return", { cancelable: true })) &&
-              insertNewline(view),
-          },
-          { key: "Shift-Enter", run: insertNewlineContinueMarkup },
-          // Outside a list or quote, a plain new line, which asks to be seen as typing
-          // does, so a field at its height limit scrolls to it.
-          {
-            key: "Shift-Enter",
-            run: (view) => (
-              view.dispatch(
-                view.state.update(view.state.replaceSelection("\n"), {
-                  scrollIntoView: true,
-                  userEvent: "input",
-                }),
-              ),
-              true
-            ),
-          },
-          ...standardKeymap.filter(
-            ({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter",
-          ),
-          ...historyKeymap,
-        ]),
-        new LanguageSupport(markdownLanguage),
-        livePreview,
-        EditorView.lineWrapping,
-        this.#editable.of(EditorState.readOnly.of(this.#readOnly)),
-        this.#attributes.of(EditorView.contentAttributes.of(this.#contentAttributes())),
-      ],
+  // What the user types before the editor has loaded lands natively in the empty line's
+  // place, and the draft takes it from there, words and caret, so the editor builds
+  // holding it: read again after each input, as the page's own `input`, and after an
+  // input method finishes. Return asks its owner first, as in the editor, whether it
+  // may make a new line; Shift+Return, a line break, does unless the field holds one
+  // line (`#oneLine`).
+  #typeAtRest(event) {
+    if (this.#view || !(this.#model instanceof Draft)) return;
+    if (event.type === "compositionstart") {
+      this.#composing = true;
+      return;
+    }
+    if (event.type === "beforeinput") {
+      if (
+        this.#readOnly ||
+        (event.inputType === "insertParagraph" && !this.#returned()) ||
+        (event.inputType === "insertLineBreak" && this.#oneLine)
+      )
+        event.preventDefault();
+      return;
+    }
+    if (event.type === "compositionend") this.#composing = false;
+    else if (this.#composing || /** @type {InputEvent} */ (event).isComposing) return;
+    this.#readRest();
+    this.#paintEmpty();
+    this.dispatchEvent(new Event("input", { bubbles: true }));
+    if (event.type === "compositionend" && editor) this.#build();
+  }
+
+  // Takes the words and caret of the empty line's place into the draft. The last
+  // break only holds an empty last line open, and a one-line field takes a pasted
+  // line break as a space, as its editor does.
+  #readRest() {
+    const words = placeWords(this.#rest);
+    const kept = this.#rest.lastChild?.nodeName === "BR" ? words.slice(0, -1) : words;
+    const text = this.#oneLine ? kept.replaceAll("\n", " ") : kept;
+    const selection = this.#selection();
+    const [range] = selection.getComposedRanges({ shadowRoots: [this.#root] });
+    const at = (node, offset) => {
+      if (!this.#rest.contains(node)) return text.length;
+      const before = document.createRange();
+      before.setStart(this.#rest, 0);
+      before.setEnd(node, offset);
+      return Math.min(placeWords(before.cloneContents()).length, text.length);
+    };
+    const from = range ? at(range.startContainer, range.startOffset) : text.length;
+    const to = range ? at(range.endContainer, range.endOffset) : text.length;
+    const backward = selection.direction === "backward";
+    Object.assign(this.#model, {
+      text,
+      anchor: backward ? to : from,
+      head: backward ? from : to,
     });
+    if (text !== kept) this.#paintRest();
+  }
+
+  // Firefox and WebKit lack ShadowRoot.getSelection; the document holds theirs.
+  #selection() {
+    return this.#root.getSelection?.() ?? document.getSelection();
+  }
+
+  // The words a field without an editor shows, plain, in the empty line's place, and,
+  // while the user is in it, the draft's caret there.
+  #paintRest() {
+    if (this.#composing) return;
+    const text = this.#view ? "" : this.#text;
+    const here = !this.#view && this.#root.activeElement === this.#rest;
+    const last = this.#rest.lastChild?.nodeName === "BR";
+    const shown = placeWords(this.#rest).slice(0, last ? -1 : undefined) === text;
+    // Placing the caret needs the words as one text node, a break after them where
+    // the last line is empty, as this writes them.
+    const plain = (node) => node?.nodeType === Node.TEXT_NODE;
+    const one =
+      this.#rest.childNodes.length === (text ? 1 : 0) + Number(last) &&
+      (!text || plain(this.#rest.firstChild));
+    if (shown && (!here || one)) return this.#placeRestCaret(here);
+    this.#rest.replaceChildren(
+      ...(text ? [text] : []),
+      ...(!text || text.endsWith("\n") ? [document.createElement("br")] : []),
+    );
+    this.#placeRestCaret(here);
+  }
+
+  #placeRestCaret(here) {
+    if (!here) return;
+    const { anchor, head } = this.#range;
+    const words = this.#rest.firstChild;
+    if (words.nodeType === Node.TEXT_NODE)
+      this.#selection().setBaseAndExtent(words, anchor, words, head);
+    else this.#selection().setBaseAndExtent(this.#rest, 0, this.#rest, 0);
+  }
+
+  #returned() {
+    return this.dispatchEvent(new Event("lf-edit-return", { cancelable: true }));
+  }
+
+  // The hooks the editor's state calls (`fieldState`).
+  #hooks() {
+    return {
+      readOnly: this.#readOnly,
+      attributes: this.#contentAttributes(),
+      returned: () => this.#returned(),
+      oneLine: () => this.#oneLine,
+      revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(view, pos)),
+      typed: (native, insert) => {
+        this.#nativeInput = native;
+        try {
+          insert();
+        } finally {
+          this.#nativeInput = false;
+        }
+      },
+    };
+  }
+
+  // The field's model as it stands: the editor's state, the state a destroyed editor
+  // left, or the draft.
+  get #state() {
+    return this.#view?.state ?? this.#model;
+  }
+  get #text() {
+    const state = this.#state;
+    return state instanceof Draft ? state.text : state.doc.toString();
+  }
+  get #length() {
+    const state = this.#state;
+    return state instanceof Draft ? state.text.length : state.doc.length;
+  }
+  // The selection's `anchor` and `head`.
+  get #range() {
+    const state = this.#state;
+    return state instanceof Draft ? state : state.selection.main;
+  }
+
+  /** Applies a change to the editor, to the state a destroyed editor left, or, before
+   * the field has an editor, to its draft (`draft`). `spec` reads the editor module.
+   * @param {(module: FieldEditor) => object} spec
+   * @param {(draft: Draft) => unknown} [draft] */
+  #change(spec, draft = () => {}) {
+    if (this.#view) this.#view.dispatch(spec(editor));
+    else if (this.#model instanceof Draft) draft(this.#model);
+    else this.#model = this.#model.update(spec(editor)).state;
   }
 
   attributeChangedCallback(name) {
     if (name === "placeholder") this.#placeholderText.data = this.placeholder;
     if (name === "aria-describedby") return this.#describe();
     this.#dressRest();
-    this.#apply({
-      effects: this.#attributes.reconfigure(
-        EditorView.contentAttributes.of(this.#contentAttributes()),
-      ),
-    });
+    this.#change((module) => module.contentAttributes(this.#contentAttributes()));
   }
 
   // A move by `moveBefore` keeps the editor and its focus but collapses the native
@@ -993,7 +636,7 @@ class LeafText extends HTMLElement {
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
     this.#internals ??= this.attachInternals();
     this.#root.adoptedStyleSheets = [sheet, this.#faces];
-    if (this.#model.doc.length) this.#build();
+    if (this.#length) this.#build();
     else this.#describe();
     this.#paintEmpty();
     this.#internals.states.add("ready");
@@ -1024,24 +667,50 @@ class LeafText extends HTMLElement {
   // it. Building on arrival hands focus to the words in the same task, so the first key
   // the user types lands in them. A page holding many fields, such as one under each
   // list of options, builds none of them to show itself.
+  //
+  // Before the editor module has loaded, the field holds a rendering hold and builds
+  // the moment it arrives, showing its words plain in the empty line's place until then,
+  // with the user's focus there, so what they type meanwhile is the editor's first words
+  // (`#typeAtRest`).
   #build() {
+    if (this.#view) return;
+    if (!editor) {
+      this.#paintRest();
+      if (this.#waiting) return;
+      this.#waiting = holdRendering();
+      // The hold covers the load. An input method still composing as it lands holds
+      // the build until it ends, which waits on the user rather than on the page.
+      void loadEditor()
+        .then(() => this.isConnected && this.#build())
+        .finally(() => {
+          this.#waiting();
+          this.#waiting = null;
+        });
+      return;
+    }
+    // An input method composing in the empty line's place builds the editor as it
+    // ends (`#typeAtRest`).
+    if (this.#composing) return;
+    if (this.#model instanceof Draft && this.#root.activeElement === this.#rest)
+      this.#readRest();
     // A field that stands where its words are shown takes their faces from there, read
     // as the editor builds: the field is in place, and nothing has drawn its words yet.
     this.#readFaces();
-    this.#view = new LeafEditorView({
+    const module = editor;
+    this.#view = new module.LeafEditorView({
       root: this.#root,
       parent: this.#frame,
-      state: this.#model,
+      state:
+        this.#model instanceof Draft
+          ? module.fieldState(this.#model, this.#hooks())
+          : this.#model,
       // Dispatched word changes are the user's. The value setter updates the view
       // directly and silently; an owner's `record` changes no words.
       dispatchTransactions: (transactions, view) => {
         const edited = transactions.some((tr) => tr.docChanged);
         if (edited && !this.#nativeInput) this.#beforeEdit();
         view.update(transactions);
-        for (const tr of transactions)
-          if (tr.isUserEvent("undo") || tr.isUserEvent("redo"))
-            for (const effect of tr.effects)
-              if (effect.is(ownerStep)) effect.value.run();
+        module.runOwnerSteps(transactions);
         this.#paintEmpty();
         this.#measureOverflow();
         if (edited) this.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1067,6 +736,7 @@ class LeafText extends HTMLElement {
       this.#view.placeSelection();
     }
     this.#rest.hidden = true;
+    this.#paintRest();
     this.#measureOverflow();
   }
 
@@ -1107,17 +777,19 @@ class LeafText extends HTMLElement {
   }
 
   // The editor adapter places its recorded caret without native scrolling. The
-  // field reveals itself separately when its caller requests ordinary focus.
+  // field reveals itself separately when its caller requests ordinary focus. While
+  // the editor loads, the user stands in the empty line's place.
   focus(options) {
-    if (!this.#view && this.isConnected) this.#build();
-    if (!this.#view) return;
-    this.#view.focus();
-    if (this.#root.activeElement !== this.#view.contentDOM) return;
+    if (!this.isConnected) return;
+    this.#build();
+    if (this.#view) this.#view.focus();
+    else this.#rest.focus({ preventScroll: true });
+    if (this.#root.activeElement !== (this.#view?.contentDOM ?? this.#rest)) return;
     if (!options?.preventScroll) scrollIntoView(this, { block: "nearest" });
   }
 
   blur() {
-    this.#view?.contentDOM.blur();
+    (this.#view?.contentDOM ?? this.#rest).blur();
   }
 
   // A press on the box outside the editor's own area — its padding — lands in the words
@@ -1146,16 +818,6 @@ class LeafText extends HTMLElement {
     this.#view.dispatch({ selection: { anchor: at } });
   }
 
-  get #state() {
-    return this.#view?.state ?? this.#model;
-  }
-
-  #apply(spec) {
-    if (!this.#view && spec.changes && this.isConnected) this.#build();
-    if (this.#view) this.#view.dispatch(spec);
-    else this.#model = this.#model.update(spec).state;
-  }
-
   get #oneLine() {
     return this.getAttribute("aria-multiline") === "false";
   }
@@ -1174,39 +836,53 @@ class LeafText extends HTMLElement {
   }
 
   #paintEmpty() {
-    if (this.#state.doc.length) this.#internals.states.delete("placeholder-shown");
+    if (this.#length) this.#internals.states.delete("placeholder-shown");
     else this.#internals.states.add("placeholder-shown");
   }
 
   get value() {
-    return this.#state.doc.toString();
+    return this.#text;
   }
 
   edit(text) {
     text = String(text).replace(/\r\n?/g, "\n");
     if (text === this.value) return;
-    this.#apply({
-      changes: { from: 0, to: this.#state.doc.length, insert: text },
-      selection: { anchor: text.length },
-      userEvent: "input.dictation",
-    });
+    if (!this.#view && this.isConnected) this.#build();
+    this.#change(
+      () => ({
+        changes: { from: 0, to: this.#length, insert: text },
+        selection: { anchor: text.length },
+        userEvent: "input.dictation",
+      }),
+      (draft) => {
+        if (this.isConnected) this.#beforeEdit();
+        draft.text = text;
+        draft.anchor = draft.head = text.length;
+        if (!this.isConnected) return;
+        this.#paintRest();
+        this.#paintEmpty();
+        this.dispatchEvent(new Event("input", { bubbles: true }));
+      },
+    );
   }
 
   // Records a change the owner has just made outside the words as a step of the words'
   // history, standing alone: taking the step back calls `undo`, redoing it calls `redo`.
   record(undo, redo) {
-    this.#apply({
-      effects: ownerStep.of({ run: redo, back: undo }),
-      annotations: isolateHistory.of("full"),
-    });
+    this.#change(
+      (module) => module.record(undo, redo),
+      (draft) => draft.steps.push([undo, redo]),
+    );
   }
 
   // Forgets the history and keeps the words, the caret and the editor's DOM, for a box
-  // that takes up a draft as it stands. Dropping the history's field and adding it back
-  // starts it empty.
+  // that takes up a draft as it stands.
   restartHistory() {
-    this.#apply({ effects: this.#history.reconfigure([]) });
-    this.#apply({ effects: this.#history.reconfigure(history()) });
+    this.#change(
+      (module) => module.forgetHistory,
+      (draft) => Object.assign(draft, { steps: [], base: draft.text }),
+    );
+    this.#change((module) => module.startHistory());
   }
 
   get naturalBlockSize() {
@@ -1225,7 +901,10 @@ class LeafText extends HTMLElement {
     if (text === this.value) return;
     if (!this.#view && this.isConnected) this.#build();
     if (!this.#view) {
-      this.#model = this.#create(text);
+      this.#model = new Draft(text);
+      if (!this.isConnected) return;
+      this.#paintRest();
+      this.#paintEmpty();
       return;
     }
     // Loading another draft ends the old native composition. Deactivating its
@@ -1239,11 +918,9 @@ class LeafText extends HTMLElement {
     const reset = this.#view.state.update({
       changes: { from: 0, to: this.#view.state.doc.length, insert: text },
       selection: { anchor: text.length },
-      effects: this.#history.reconfigure([]),
+      ...editor.forgetHistory,
     });
-    const fresh = reset.state.update({
-      effects: this.#history.reconfigure(history()),
-    });
+    const fresh = reset.state.update(editor.startHistory());
     this.#view.update([reset, fresh]);
     if (composing) content.editContext = composing;
     this.#paintEmpty();
@@ -1251,30 +928,36 @@ class LeafText extends HTMLElement {
   }
 
   get selectionStart() {
-    return this.#state.selection.main.from;
+    const { anchor, head } = this.#range;
+    return Math.min(anchor, head);
   }
   get selectionEnd() {
-    return this.#state.selection.main.to;
+    const { anchor, head } = this.#range;
+    return Math.max(anchor, head);
   }
   get selectionDirection() {
-    const { main } = this.#state.selection;
-    return main.empty ? "none" : main.head < main.anchor ? "backward" : "forward";
+    const { anchor, head } = this.#range;
+    return anchor === head ? "none" : head < anchor ? "backward" : "forward";
   }
   // A textarea's clamping: each end within the words, and a start past the end moved to
   // the end.
   setSelectionRange(start, end, direction = "none") {
-    const length = this.#state.doc.length;
+    const length = this.#length;
     const to = Math.min(Math.max(Number(end) || 0, 0), length);
     const from = Math.min(Math.max(Number(start) || 0, 0), to);
-    this.#apply({
-      selection:
-        direction === "backward"
-          ? { anchor: to, head: from }
-          : { anchor: from, head: to },
-    });
+    const [anchor, head] = direction === "backward" ? [to, from] : [from, to];
+    // A draft's caret also stands in its place, where typing lands until the editor
+    // builds and which the editor builds from (`#readRest`).
+    this.#change(
+      () => ({ selection: { anchor, head } }),
+      (draft) => {
+        Object.assign(draft, { anchor, head });
+        this.#paintRest();
+      },
+    );
   }
   select() {
-    this.setSelectionRange(0, this.#state.doc.length);
+    this.setSelectionRange(0, this.#length);
   }
 
   get placeholder() {
@@ -1290,9 +973,7 @@ class LeafText extends HTMLElement {
   set readOnly(on) {
     this.#readOnly = Boolean(on);
     this.#dressRest();
-    this.#apply({
-      effects: this.#editable.reconfigure(EditorState.readOnly.of(this.#readOnly)),
-    });
+    this.#change((module) => module.readOnly(this.#readOnly));
   }
 
   get name() {

@@ -5,7 +5,7 @@ import { shownBox } from "./geometry.js";
 import { layoutPx } from "./keeps.js";
 import { paintSet } from "./target-paint-geometry.js";
 import { el } from "./widget-elements.js";
-import { tabStore } from "./storage.js";
+import { tabStore } from "./tab-store.js";
 import {
   isAddressable,
   ADDRESSABLE,

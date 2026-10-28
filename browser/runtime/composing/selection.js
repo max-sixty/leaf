@@ -3,7 +3,9 @@
    The selection composer keeps its passage painted after an explicit Comment gesture
    moves focus into the field. Automatic passage selection leaves the native
    selection in place. Its `.lf-composer` wrapper contributes state and draft machinery
-   through `display: contents`; only `.lf-fab-input` draws. `showComposer` states
+   and draws nothing: seated in a widget it is `display: contents`, and floating it is
+   the box holding what moves as the field changes size (annotation-chrome.css), and
+   only the field's frame draws. `showComposer` states
    whether it is open through `data-lf-open`; the shared response stylesheet derives
    its field and bar's visible shape from that and the surface's target-only state.
    Reopening the same passage resumes its words, seed, and modes; omitted modes
@@ -97,7 +99,7 @@ fabInput.name = "comment";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
 const fab = responseAction(el("button", "lf-ui lf-fab"), {
-  icon: "comment",
+  action: "comment",
   label: "Comment",
   behavior: "disclosure",
 });
@@ -109,7 +111,7 @@ fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
 const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
-  icon: "edit",
+  action: "suggest",
   label: "Suggest",
   collapse: true,
 });
@@ -119,7 +121,7 @@ export const fabOptionsTrigger = offerAction(
   "symbol",
   "lf-response-trigger",
   "Other responses",
-  { icon: "more" },
+  { action: "more" },
 );
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
@@ -144,14 +146,13 @@ const composerInput = fabInput;
 // announced on focus — which is more than the visible quote ever said, since nothing
 // pointed a user at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);
-const composerSend = el("button", "", "Comment");
 // The field, and the shelf and controls `wireInput` gathers around it, wait outside the
 // page until the composer first opens (`showComposer`), since a connected field builds
 // its editor: a page whose composer never opens builds none. Everything that reads the
 // field before then reads its words and draft, which it holds unconnected.
 const composerField = document.createDocumentFragment();
 composerField.append(composerInput);
-composer.append(composerQuote, composerSend);
+composer.append(composerQuote);
 fabBar.prepend(composer);
 
 export let pendingAnchor = null;
@@ -300,7 +301,7 @@ export function createSelectionComposer({
   function syncSuggestMode() {
     const suggest = !suggestionMode;
     responseAction(fabSuggest, {
-      icon: suggest ? "edit" : "comment",
+      action: suggest ? "suggest" : "comment",
       label: suggest ? "Suggest" : "Comment",
       collapse: true,
     });
@@ -683,7 +684,6 @@ export function createSelectionComposer({
             ? "About the layer"
             : "Comment…",
       sends: () => (suggestionMode ? "suggest" : "comment"),
-      sendBtn: composerSend,
       allowsMedia: () =>
         suggestionMode ? "Images can be added to comments, not replacement text" : true,
       hasContent: holdsContent,

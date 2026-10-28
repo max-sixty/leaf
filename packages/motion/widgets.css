@@ -1,4 +1,4 @@
-:scope {
+lf-motion {
   display: block;
   min-width: 0;
   container-type: inline-size;
@@ -70,15 +70,5 @@
 }
 
 .lf-motion-play {
-  inline-size: var(--lf-motion-control-height);
-  block-size: var(--lf-motion-control-height);
-}
-.lf-motion-play svg {
-  inline-size: 16px;
-  block-size: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  --lf-icon-action-face: var(--lf-motion-control-height);
 }

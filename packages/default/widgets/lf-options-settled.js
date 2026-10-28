@@ -1,8 +1,10 @@
 /* A settled options group's tab-local disclosure. The current option projection is
- * always read from the host; the row never becomes a second record of selection. */
+ * always read from the host; the row never becomes a second record of selection.
+ * Options remain the host's direct children, the boundary its selection, replay and
+ * page-authored layout selectors read. A native details wrapper would reparent them,
+ * so this disclosure owns their hidden state without changing that boundary. */
 import {
   DISCLOSE,
-  commands,
   comparisonChanges,
   keeps,
   generated,
@@ -11,6 +13,7 @@ import {
   render,
   selectableOffer,
   tabStore,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 const SETTLED_KEY = "lf-settled:";
@@ -35,17 +38,20 @@ export class SettledOptions {
     this.#row = selectableOffer("button", "lf-settled lf-disclosure-marker");
     this.#row.setAttribute("aria-expanded", "false");
     this.#row.onclick = () => this.#open(!this.#isOpen, true);
-    commands(this.#row, "In settled options", [
-      {
-        id: "option.toggle-settled",
-        keys: () => DISCLOSE(this.#row),
-        title: () => (this.#isOpen ? "close" : "open"),
-        run: () => this.#row.click(),
-      },
-    ]);
+    this.#row.lfCommands = {
+      title: "In settled options",
+      rows: [
+        {
+          id: "option.toggle-settled",
+          keys: () => DISCLOSE(this.#row),
+          title: () => (this.#isOpen ? "close" : "open"),
+          run: () => this.#row.click(),
+        },
+      ],
+    };
+    commandsChanged(this.#row);
     this.#host.prepend(this.#row);
     this.#host.addEventListener("beforematch", () => this.#open(true, true), true);
-    this.#host.addEventListener("lf-reveal", () => this.#open(true, true), true);
     this.#host.classList.toggle("lf-rendered", true);
     this.#open(tabStore.get(SETTLED_KEY + this.#host.id) === "1", false);
   }
@@ -77,7 +83,7 @@ export class SettledOptions {
     render(
       html`<span ${generated({ says: true })}
           >${names.length ? `Settled: ${names.join(", ")}` : "Settled"}</span
-        >${changes ? html`<span class="lf-settled-diff">Δ${changes}</span>` : nothing}`,
+        >${changes ? html`<span class="lf-settled-diff tag lf-change-count">Δ${changes}</span>` : nothing}`,
       this.#row,
     );
   }

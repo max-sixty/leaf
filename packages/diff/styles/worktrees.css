@@ -2,7 +2,7 @@
  * natural height underneath. The collection owns summary columns so labels and
  * counts line up across its worktrees. Container queries follow the widget's own width,
  * including when a page seats it beside other evidence. */
-:scope:is(lf-worktree-diffs) {
+lf-worktree-diffs {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) repeat(5, auto);
   column-gap: var(--sp-3);
@@ -15,14 +15,14 @@
   container-type: inline-size;
 }
 
-:scope:is(lf-worktree),
+lf-worktree,
 .lf-worktree-disclosure,
 .lf-worktree-summary,
 .lf-worktree-summary > .lf-worktree-stats {
   column-gap: inherit;
 }
 
-:scope:is(lf-worktree) {
+lf-worktree {
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
@@ -37,7 +37,7 @@
   line-height: 1.5;
 }
 
-:scope:is(lf-worktree-diffs) > lf-worktree + lf-worktree {
+lf-worktree-diffs > lf-worktree + lf-worktree {
   margin-block-start: var(--sp-2);
 }
 
@@ -90,7 +90,7 @@
 
 .lf-worktree-summary::before {
   inline-size: 1rem;
-  text-align: center;
+  margin: 0;
   justify-self: center;
   color: var(--muted);
 }
@@ -234,7 +234,7 @@
 }
 
 @container (max-width: 38rem) {
-  :scope:is(lf-worktree),
+  lf-worktree,
   .lf-worktree-disclosure {
     display: block;
   }

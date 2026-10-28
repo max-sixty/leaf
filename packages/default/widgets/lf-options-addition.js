@@ -28,7 +28,6 @@ export class OptionAddition {
   #form = null;
   #bindingBadge = null;
   #input = null;
-  #add = null;
   #syncInput = null;
   #inForce = new Set();
   #end = null;
@@ -73,32 +72,23 @@ export class OptionAddition {
     this.#input.setAttribute("aria-label", ANOTHER);
     // An option's title is one line, so Return adds it from a phone's keyboard too.
     this.#input.setAttribute("aria-multiline", "false");
-    this.#add = offer("button", "", "Add");
-    this.#add.setAttribute("aria-label", "Add and select option");
     this.#bindingBadge = offer("span", "lf-key-badge");
     this.#bindingBadge.setAttribute("aria-hidden", "true");
     this.#input.value = loadDraft(this.#context) ?? "";
-    this.#form.append(this.#bindingBadge, this.#input, this.#add);
+    this.#form.append(this.#bindingBadge, this.#input);
     this.#syncInput = wireInput(this.#input, {
       hint: "Add another option",
       sends: "add and select option",
-      icon: "add",
-      sendBtn: this.#add,
+      action: "add",
       allowsMedia: () => "Images can be added to comments, not options",
       busy: () => !this.available(),
       hasContent: (raw) => Boolean(raw.trim()),
-      paint: this.#paintEmpty,
       save: () => this.remember(this.#picked()),
       send: (text, _raw, owns) => this.#submit(text, owns),
     });
     this.#host.append(this.#form);
     this.#syncInput();
   }
-
-  #paintEmpty = () => {
-    const empty = !this.#input.value.trim();
-    this.#add.toggleAttribute("data-lf-empty", empty);
-  };
 
   #picked() {
     return new Set(this.#host.querySelectorAll(":scope > lf-option[chosen]"));

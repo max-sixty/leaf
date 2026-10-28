@@ -31,21 +31,31 @@ interface LeafReading {
 /** The closed set of control roles, each with one face (`prepaint.js`, `ACTION_FACES`). */
 type LeafActionRole = "symbol" | "word" | "commit" | "mark";
 
-/** A package's synchronous initial drawing of one host (`initial/<tag>.js`). */
+/** A package's retained template and optional rendering root. Node references and
+ * mechanical inputs remain package-owned; the same render is used after upgrade. */
+interface LeafInitialView {
+  root?: HTMLElement | ShadowRoot;
+  render(...args: any[]): unknown;
+  [key: string]: any;
+}
+
+/** A package's synchronous initial view factory (`initial/<tag>.js`). */
 type LeafInitialRenderer = (
   host: HTMLElement,
   tools: {
     tabStore: LeafStore;
     offer: LeafInitial["offer"];
     selectableOffer: LeafInitial["selectableOffer"];
+    selectableOfferElement: LeafInitial["selectableOfferElement"];
     offerElement: LeafInitial["offerElement"];
     offerAction: LeafInitial["offerAction"];
+    offerActionElement: LeafInitial["offerActionElement"];
     generatedElement: LeafInitial["generatedElement"];
     keeps: LeafInitial["keepsAttribute"];
     /** Moves every child of the host into `node`, the box that holds its authored body. */
     authoredBody<T extends Element>(node: T): T;
   },
-) => unknown;
+) => LeafInitialView | null;
 
 /** The prepaint's initial drawing and root-state registries (`prepaint.js`). */
 interface LeafInitial {
@@ -79,7 +89,7 @@ interface LeafInitial {
   skipped(element: Element, parent?: (node: Element) => Element | null): boolean;
   register(tag: string, render: LeafInitialRenderer): void;
   has(tag: string): boolean;
-  paint(host: HTMLElement): unknown;
+  paint(host: HTMLElement): LeafInitialView | null;
   mount(template: HTMLTemplateElement): void;
   restoreSource<T extends ParentNode>(root: T): T;
   authoredCopy<T extends Node>(node: T, target?: Document | null): T;
@@ -170,6 +180,25 @@ interface HTMLElement {
   lfFirstMessage?: HTMLElement;
 }
 
+interface Element {
+  /** The keys a widget binds while the user is in this element, as data Leaf reads when
+   * the widget says they changed (`commandsChanged`; keyboard/scopes.js): a scope's
+   * title, rows and options, or a `commandScope()` value. */
+  lfCommands?:
+    | {
+        title: string | null;
+        rows: any[];
+        when?: () => boolean;
+        ready?: () => boolean;
+        escape?: "inner";
+        claims?: (binding: string) => boolean;
+      }
+    | ReturnType<typeof import("../runtime/keyboard/scopes.js").commandScope>
+    | null;
+  /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
+  lfCopy?: () => string;
+}
+
 interface HTMLScriptElement {
   /** A sample child's private port, owned by the bootstrap element until the entry starts. */
   lfDocumentPort?: MessagePort;
@@ -190,7 +219,7 @@ interface Window {
 /** The runtime's own elements, by tag, as each module defines it. */
 interface HTMLElementTagNameMap {
   "leaf-floating-panel": import("../runtime/floating-panel.js").FloatingPanelElement;
-  "leaf-attached-media-shelf": import("../runtime/composing/input.js").AttachedMediaShelfElement;
+  "leaf-composition-field": import("../runtime/composing/input.js").CompositionFieldElement;
   "leaf-text": import("../runtime/composing/text-field.js").LeafTextElement;
   "leaf-margin-cluster": import("../runtime/annotation-overlay/margin-cluster-view.js").MarginClusterViewElement;
 }
@@ -204,6 +233,9 @@ interface WindowEventMap {
     error?: unknown;
     page?: boolean;
   }>;
+  /** A widget's words for a listener, which Leaf says in its live region
+   * (`widget-upgrade.js`, `announce`). */
+  "lf-announce": CustomEvent<string>;
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;
@@ -234,14 +266,13 @@ interface DocumentEventMap {
   }>;
   /** A sample child's request to scroll the page along from its frame (`sample.js`). */
   "lf-sample-step": CustomEvent<{ amount: number; unit: string }>;
+  /** Drawing a widget has under way, by the community protocol (`widget-upgrade.js`). */
+  "pending-task": import("../runtime/widget-upgrade.js").PendingTaskEvent;
 }
 
-interface HTMLElementEventMap {
-  /** An ancestor is asked to show `target` (`widget-elements.js`, `reveal`). */
-  "lf-reveal": CustomEvent<{
-    target: Element;
-    mayReveal(): boolean;
-    replacedView(): void;
-    present(ready?: Promise<unknown>): void;
-  }>;
+// TypeScript's DOM library lacks the platform's close watcher (HTML, "Close requests
+// and close watchers"), which `keyboard/close-requests.js` holds; only what it uses.
+interface CloseWatcher extends EventTarget {
+  destroy(): void;
 }
+declare var CloseWatcher: { prototype: CloseWatcher; new (): CloseWatcher };

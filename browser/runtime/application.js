@@ -221,7 +221,6 @@ export function mountApplication(dependencies) {
     wireInput: dependencies.wireInput,
     landSent: dependencies.landSent,
     landInThread: dependencies.landInThread,
-    changed: refreshThread,
   };
   const settlementView = {
     pendingEntries: ledger.snapshot,
@@ -267,9 +266,8 @@ export function mountApplication(dependencies) {
     dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
-  // The margin's annotations, which the thread presentation, the margin's own geometry
-  // and contributions also redraw directly. `refresh()` redraws them once they have
-  // been drawn.
+  // The margin's annotations, which the margin's own geometry and contributions also
+  // redraw directly. `refresh()` redraws them once they have been drawn.
   let annotationsDrawn = false;
   const renderAnnotations = () => {
     annotationsDrawn = true;
@@ -283,10 +281,12 @@ export function mountApplication(dependencies) {
   };
   // The inventory lists the marks the projection's chrome paints, reading their nodes,
   // which signals cannot track, so it reads the parts that move them itself, and
-  // reads them once that region has committed. The ages the margin shows are followed
-  // with the rest of what this paint reads, so the clock repaints them by the same
-  // proof.
+  // reads them once that region has committed. What the thread pass decides about
+  // each thread, where it is placed and whether a widget seats or holds it, and the
+  // ages the margin shows are followed with the rest of what this paint reads, so a
+  // commit that moves one and the clock repaint them by the same proof.
   const annotationInputs = readPart(annotationSelection);
+  let marginPresentation = null;
   const mountAnnotations = () => {
     const presentation = applicationPresenter({
       region: "annotations",
@@ -294,6 +294,7 @@ export function mountApplication(dependencies) {
       reading: () => annotationInputs(),
       paint: renderAnnotations,
     });
+    marginPresentation = presentation;
     void presentation.present();
     // A paint on paper read no ages, so the return to screen paints through the
     // presenter, which follows them again.
@@ -343,7 +344,6 @@ export function mountApplication(dependencies) {
     pageGeometry: dependencies.pageGeometry,
     readDraft: dependencies.readThreadDraft,
     activeActionAnchor: dependencies.activeActionAnchor,
-    renderAnnotations,
     renderSurfaces,
     // Where a thread stands now, put up for a user carried there from a box a surface
     // stopped drawing: the surface drawing it, its margin card, or the floating panel.
@@ -361,6 +361,9 @@ export function mountApplication(dependencies) {
     // The thread a margin entry stands for, which a user on it goes on with when the
     // thread leaves the margin.
     threadAt: (node) => overlay?.entryThread(node) ?? null,
+    // The margin's own commit, which reply continuity waits for; before the margin
+    // mounts there is nothing to wait for.
+    marginCommitted: () => marginPresentation?.committed() ?? Promise.resolve(),
     read,
   });
   const accountPending = (receipts) => {

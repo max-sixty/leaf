@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from interact_support import append_carried_log_record
-from PIL import Image
+from PIL import Image, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -19,18 +19,14 @@ from render_cases_interaction import (
 )
 from render_harness import (
     LONG_PAGE,
-    displayed,
     example_media,
     leaf_page,
     open_page,
     resized,
-    restarting,
     round_trip,
     scroll_settled,
     select_words,
     sending,
-    stamp_page,
-    wait_for_revision,
     write,
 )
 
@@ -40,9 +36,10 @@ from browser.threads import (
     append_agent_reply,
     open_panel_thread,
     paste_image,
+    summarize_thread,
 )
 from leaf import thread as thread_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -119,6 +116,55 @@ def test_thread_actions_share_consistently_sized_message_headers(
             geometry
         )
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
+
+
+def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve):
+    """A margin card's heads end short of its edge, where the first message's head
+    leaves the thread's actions their room, so Copy at a later message's head end
+    stood mid-card. It stands at the card's edge, in the actions' column, and copies
+    the message's Markdown source; with nothing selected, the copy key in the thread
+    presses the Copy of the message whose words the user clicked."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Can it **wait**?", {"section": "lede"})
+    source = "Not safely:\n\n- setup runs **untrusted** code\n- `v2` is weeks away"
+    append_agent_reply(serve.page_dir, root, source)
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-margin-marker").first.click()
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    reply = card.locator(".lf-msg.agent")
+    # A press leaves focus on the first message's Copy, and its controls still leave
+    # with the pointer. While they show, a rule parts them from the thread's actions.
+    first = card.locator(".lf-msg.user")
+    first.hover()
+    first.locator(".lf-msg-copy").click()
+    shown = """message => [getComputedStyle(message, '::after').opacity,
+      ...[...message.querySelectorAll(':scope > .lf-msg-control')]
+        .map(control => getComputedStyle(control).opacity)]"""
+    assert first.evaluate(shown) == ["1", "1", "1"]
+    reply.locator(".lf-msg-text p").first.hover()
+    rendered(page)
+    assert first.evaluate("m => m.contains(document.activeElement)")
+    assert first.evaluate(shown) == ["0", "0", "0"]
+    # The hovered reply's Copy shows over its head row's cell in the actions' track.
+    assert reply.locator(".lf-msg-copy").evaluate(
+        """copy => { const box = copy.getBoundingClientRect();
+          return getComputedStyle(copy).opacity === '1' && copy.contains(
+            document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)); }"""
+    )
+    reply.locator(".lf-msg-text p").first.click()
+    rendered(page)
+    edges = card.evaluate(
+        """card => ({
+          copy: card.querySelector('.lf-msg.agent .lf-msg-copy').getBoundingClientRect().right,
+          close: card.closest('.lf-margin-preview').querySelector('.lf-margin-preview-close')
+            .getBoundingClientRect().right,
+        })"""
+    )
+    assert edges["copy"] == pytest.approx(edges["close"], abs=1), edges
+    page.keyboard.press("ControlOrMeta+c")
+    expect(reply.locator(".lf-msg-copy")).to_have_js_property("status", "success")
+    assert page.evaluate("navigator.clipboard.readText()") == source
 
 
 @pytest.mark.parametrize("surface", ["panel", "margin"])
@@ -272,41 +318,36 @@ def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):
     )
 
 
-def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serve):
-    """A page dressing its own `button` and `a` is dressing its prose. The controls a
-    widget builds and the chrome's own buttons keep Leaf's face instead: a page's
-    element rule once took the family and ink of half corpus.html's widget controls,
-    and the family, ink, border and padding of the banner's and thread panel's. An
-    explicitly marked stylesheet grants access for deliberate control styling. A face
-    set on body reaches prose by inheritance and stops at controls and chrome, which
-    state their own."""
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
+    """A page's CSS is ordinary CSS over its document: its `button` and `a` rules dress
+    the controls a widget builds as they dress its prose. They stop at the chrome, which
+    rolls a page rule as light as one class back to Leaf's own faces
+    (styles/chrome-guard.css): without that, a page's `button` rule turned all of the
+    panel's buttons cursive and red. A face set on body reaches prose by inheritance and
+    stops at controls and chrome, which state their own. A token set on :root, a
+    condition on an ancestor and a pseudo-element keep working as page CSS does."""
     board = (
         '<h1>t</h1><lf-board id="b"><lf-column id="c1" label="To do">'
         '<lf-card id="k1">One</lf-card><lf-card id="k2">Two</lf-card></lf-column>'
         '<lf-column id="c2" label="Done"></lf-column></lf-board>'
         '<p>See <a href="#b">the board</a>.</p>'
-        '<style id="body-controls">lf-board button { border-bottom-color: rgb(51, 102, 153); }</style>'
     )
     page = open_page(
-        browser,
+        request.getfixturevalue(engine),
         live_url(
             serve(
                 leaf_page(
                     "t",
                     board,
-                    # A selector naming a widget grants no access. Native scope is also
-                    # ordinary CSS, not permission to style generated controls.
-                    head="<style>button:not(lf-board), a, lf-board .lf-absent { font-family: cursive;"
+                    head="<style>button, a, .lf-ui { font-family: cursive;"
                     " color: rgb(255, 0, 0); }"
                     "body { font-style: italic; letter-spacing: 3px; }"
-                    "@scope (lf-board) { button { background-color: rgb(255, 0, 0); } }"
-                    ":root { --control-access-proof: teal; }"
+                    ":root { --page-token: teal; }"
                     "html[data-lf-interactive] p > a { background-color: rgb(1, 2, 3); }"
                     "p > a::before { content: 'Kept'; }"
-                    "p { border-top: 7px solid red; }</style>"
-                    "<style data-controls>"
-                    ":nth-child(1 of lf-board) button { outline: 3px solid rgb(0, 128, 0); }"
-                    "</style>",
+                    "::placeholder { font-style: italic; }"
+                    "p { border-top: 7px solid red; }</style>",
                 )
             )
         ),
@@ -316,80 +357,61 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
         adopted.replaceSync('p { border-top-color: rgb(0, 0, 255); }');
         document.adoptedStyleSheets = [...document.adoptedStyleSheets, adopted];
         const face = el => { const cs = getComputedStyle(el);
-            return [el.className, cs.fontFamily, cs.color, cs.fontStyle, cs.letterSpacing,
-                    cs.outlineColor]; };
+            return [el.className, cs.fontFamily, cs.color, cs.fontStyle, cs.letterSpacing]; };
         return {
             controls: [...document.querySelectorAll('main button.lf-ui')].map(face),
             chrome: [...document.querySelectorAll('.lf-chrome button')].map(face),
+            placeholders: [...document.querySelectorAll(
+                '.lf-chrome :is(input, textarea)[placeholder]')].map(
+                el => getComputedStyle(el, '::placeholder').fontStyle),
             prose: face(document.querySelector('main p > a')),
-            rootToken: getComputedStyle(document.documentElement)
-                .getPropertyValue('--control-access-proof').trim(),
+            chromeToken: getComputedStyle(document.querySelector('.lf-chrome'))
+                .getPropertyValue('--page-token').trim(),
             ancestor: getComputedStyle(document.querySelector('main p > a')).backgroundColor,
             pseudo: getComputedStyle(document.querySelector('main p > a'), '::before').content,
             adopted: getComputedStyle(document.querySelector('main p')).borderTopColor,
-            controlBackgrounds: [...document.querySelectorAll('main button.lf-ui')].map(
-                el => getComputedStyle(el).backgroundColor),
         };
     }""")
-    assert faces["rootToken"] == "teal", faces
+    assert faces["chromeToken"] == "teal", faces
     assert faces["ancestor"] == "rgb(1, 2, 3)", faces
     assert faces["pseudo"] == '"Kept"', faces
     assert faces["adopted"] == "rgb(0, 0, 255)", faces
-    assert "rgb(255, 0, 0)" not in faces["controlBackgrounds"], faces
-    # The control: the page's rules reach the page's own link, by selector and by
-    # inheritance.
     assert faces["prose"][1:5] == ["cursive", "rgb(255, 0, 0)", "italic", "3px"], faces[
         "prose"
     ]
     assert faces["controls"], "the board built no control to read"
     assert faces["chrome"], "the chrome built no button to read"
+    assert faces["placeholders"], "the chrome built no field to read"
+    assert "italic" not in faces["placeholders"], faces["placeholders"]
+    assert {tuple(face[1:3]) for face in faces["controls"]} == {
+        ("cursive", "rgb(255, 0, 0)")
+    }, faces["controls"]
+    inherited = [
+        face for face in faces["controls"] if face[3] == "italic" or face[4] == "3px"
+    ]
+    assert not inherited, inherited
     reached = [
         face
-        for face in faces["controls"] + faces["chrome"]
+        for face in faces["chrome"]
         if "cursive" in face[1]
         or face[2] == "rgb(255, 0, 0)"
         or face[3] == "italic"
         or face[4] == "3px"
     ]
     assert not reached, reached
-    # The marked sheet selects the board using native nth-child selector grammar.
-    assert {face[5] for face in faces["controls"]} == {"rgb(0, 128, 0)"}, faces[
-        "controls"
-    ]
-    source = (serve.page_dir / "index.html").read_text()
-    stamp_page(
-        serve.page_dir,
-        source.replace(
-            '<style id="body-controls">', '<style id="body-controls" data-controls>'
-        ),
-        "Grant the body stylesheet control access",
-    )
-    wait_for_revision(page, 2)
-    expect(page.locator("lf-board button.lf-ui").first).to_have_css(
-        "border-bottom-color", "rgb(51, 102, 153)"
-    )
-
-    stamp_page(serve.page_dir, source, "Withdraw body stylesheet control access")
-    wait_for_revision(page, 3)
-    expect(page.locator("lf-board button.lf-ui").first).not_to_have_css(
-        "border-bottom-color", "rgb(51, 102, 153)"
-    )
 
 
-def test_a_sheet_a_page_script_writes_later_leaves_the_layers_controls_alone(
-    browser, serve
-):
+def test_a_sheet_a_page_script_writes_later_stops_at_the_chrome(browser, serve):
     """A CSS framework such as Tailwind builds its sheet in the head after the page
     loads and rewrites it as classes change, and each rewrite is a new sheet. Its
-    element rules reach the page's prose and stop at Leaf's controls, as the page's
-    own stylesheet's do: Tailwind's reset once took the family of every chrome
-    button."""
+    element rules reach the page's prose and stop at the chrome, as the page's own
+    stylesheet's and its imports' do: Tailwind's reset once took the family of every
+    chrome button."""
     url = serve(
         leaf_page(
             "t",
             '<h1>t</h1><p>See <a id="prose" href="#t">the link</a>.</p>',
             head="""<style>@import url("page/author.css");</style>
-<link rel="stylesheet" data-controls href="page/controls.css">
 <script type="module">
 const sheet = document.createElement("style");
 document.head.append(sheet);
@@ -402,8 +424,6 @@ setTimeout(() => {
         ),
         page_files={
             "author.css": "a { border-top: 7px solid red; } button { border-top: 77px solid red; }",
-            "controls.css": '@import url("controls-import.css");',
-            "controls-import.css": ".lf-chrome button { outline-color: rgb(0, 128, 0); }",
         },
     )
     page = open_page(browser, url)
@@ -416,11 +436,8 @@ setTimeout(() => {
             imported: getComputedStyle(document.getElementById('prose')).borderTopWidth,
             chromeBorders: [...document.querySelectorAll('.lf-chrome button')].map(
                 el => getComputedStyle(el).borderTopWidth),
-            chromeOutlines: [...document.querySelectorAll('.lf-chrome button')].map(
-                el => getComputedStyle(el).outlineColor),
         };
     }""")
-    assert set(faces["chromeOutlines"]) == {"rgb(0, 128, 0)"}, faces
     assert faces["prose"] == "cursive", faces
     assert faces["imported"] == "7px", faces
     assert "77px" not in faces["chromeBorders"], faces
@@ -428,154 +445,14 @@ setTimeout(() => {
     assert not [f for f in faces["chrome"] if f in {"cursive", "fantasy"}], faces
 
 
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
-def test_a_packages_rules_reach_only_inside_its_widgets(
-    request, serve, tmp_path, engine
-):
-    """A package that declares widgets styles those widgets and nothing else, whatever
-    its sheet says: its rule for `p` dresses the paragraph inside its widget and leaves
-    the page's own paragraphs alone, and its rule for the widget's host still reaches
-    the host. Its scope stops below a foreign widget, while same-package compound
-    parts and independently nested instances retain their own scope. Page-declared
-    widgets obey the same boundary before upgrade, after upgrade, and on revision,
-    in every engine, since each reads the composed scope and its limit itself."""
-    package = tmp_path / ".leaf"
-    package.mkdir()
-    (package / "widgets.css").write_text(
-        "p { color: rgb(0, 128, 0); }\n"
-        "em { @media screen { color: rgb(0, 128, 0); } }\n"
-        ":scope:is(lf-shelf) { display: block; border: 3px solid rgb(0, 128, 0); --scope-input: plum; }\n"
-        "lf-foreign, lf-page-box, lf-page-live { display: block; border: 3px solid rgb(0, 128, 0); }\n"
-    )
-    declaration = {
-        "description": "A project-supplied box.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-upgrade": False,
-    }
-    other = tmp_path / "other"
-    other.mkdir()
-    (other / "registry.json").write_text(json.dumps({"lf-foreign": declaration}))
-    source = leaf_page(
-        "t",
-        '<h1>t</h1><p id="out">Outside <em id="out-em">here</em>.</p>'
-        '<lf-shelf id="shelf"><p id="in">Inside <em id="in-em">here</em>.</p>'
-        '<lf-shelf-part id="part"><p id="same-package">Compound part.</p></lf-shelf-part>'
-        '<lf-foreign id="foreign"><p id="nested">Foreign authored content.</p>'
-        '<div><p id="deeper">Deeper foreign content.</p></div>'
-        '<lf-shelf id="nested-own"><p id="nested-own-words">Own again.</p></lf-shelf>'
-        "</lf-foreign>"
-        '<lf-page-box id="page-box"><p id="page-words">Page vocabulary.</p>'
-        '<lf-shelf-part id="page-own"><p id="page-own-words">Own part again.</p></lf-shelf-part>'
-        "</lf-page-box>"
-        '<lf-page-live id="page-live"><p id="page-live-words">Before upgrade.</p></lf-page-live>'
-        "</lf-shelf>",
-    )
-    page_registry = {
-        "lf-page-box": declaration,
-        "lf-page-live": {**declaration, "x-upgrade": True},
-        # Replacing a declaration does not withdraw selected package CSS.
-        "lf-shelf-part": {**declaration, "description": "A page-described part."},
-    }
-    url = serve(
-        source,
-        packages=("./other",),
-        layer_registry={"lf-shelf": declaration, "lf-shelf-part": declaration},
-        page_files={
-            "registry.json": json.dumps(page_registry),
-            "widgets/lf-page-live.js": """
-customElements.define('lf-page-live', class extends HTMLElement {
-  connectedCallback() {
-    if (this.querySelector('[data-lf-gen]')) return;
-    const words = document.createElement('p');
-    words.id = `${this.id}-generated`;
-    words.dataset.lfGen = '1';
-    words.textContent = 'After upgrade.';
-    this.append(words);
-  }
-});
-""",
-        },
-    )
-    page = request.getfixturevalue(engine).new_page()
-    boot = []
-    page.route("**/leaf.js", lambda route: boot.append(route))
-
-    def faces():
-        return page.evaluate("""() => Object.fromEntries(
-        ['out', 'in', 'out-em', 'in-em', 'shelf', 'same-package', 'foreign',
-         'nested', 'deeper', 'nested-own-words', 'page-box', 'page-words',
-         'page-own-words', 'page-live', 'page-live-words'].map(id => {
-        const cs = getComputedStyle(document.getElementById(id));
-        return [id, [cs.color, cs.borderTopWidth, cs.getPropertyValue('--scope-input').trim()]]; }))""")
-
-    try:
-        with page.expect_request("**/leaf.js"):
-            page.goto(live_url(url), wait_until="commit")
-        displayed(page)
-        assert boot
-        assert not page.evaluate("!!customElements.get('lf-page-live')")
-        before = faces()
-        for own in (
-            "in",
-            "in-em",
-            "same-package",
-            "nested-own-words",
-            "page-own-words",
-        ):
-            assert before[own][0] == "rgb(0, 128, 0)", before
-        assert "rgb(0, 128, 0)" not in (before["out"][0], before["out-em"][0]), before
-        for host in ("shelf", "foreign", "page-box", "page-live"):
-            assert before[host][1] == "3px", before
-        for foreign in ("nested", "deeper", "page-words", "page-live-words"):
-            assert before[foreign][0] == before["out"][0], before
-            assert before[foreign][2] == "plum", before
-
-        boot.pop().continue_()
-        wait_until_ready(page)
-        page.unroute_all(behavior="wait")
-        assert faces() == before
-        expect(page.locator("#page-live-generated")).to_have_css(
-            "color", before["out"][0]
-        )
-
-        with restarting(page):
-            page_registry["lf-page-new"] = declaration
-            (serve.page_dir / "page/registry.json").write_text(
-                json.dumps(page_registry)
-            )
-            stamp_page(
-                serve.page_dir,
-                source.replace(
-                    '<lf-page-box id="page-box">',
-                    '<lf-page-new id="revised"><p id="revised-words">New vocabulary.</p></lf-page-new>'
-                    '<lf-page-box id="page-box">',
-                ),
-                "Add a page-declared widget",
-            )
-            wait_for_revision(page, 2)
-            expect(page.locator("#revised-words")).to_have_css(
-                "color", before["out"][0]
-            )
-            assert faces() == before
-    finally:
-        for route in boot:
-            route.continue_()
-        page.unroute_all(behavior="wait")
-
-
 def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     browser, serve, tmp_path
 ):
     """A theme contribution, even beside a widget, outranks the Layouts and
     every widget package's defaults (layer.py, `lf-theme`), so its `main` padding beats
-    the column Layout's and its plain `lf-card` rule beats the board's own
-    `:scope:is(lf-card)`. Like the page's own rules, its bare `button` dresses the
-    page's buttons and leaves the controls the board builds alone. A separate controls.css
-    sheet grants deliberate access to board controls (runtime/page-sheets.js)."""
+    the column Layout's and its plain `lf-card` rule beats the board's own `lf-card`
+    rule. Like the page's own rules, its `button` rule dresses the page's buttons and the
+    controls the board builds."""
     theme = tmp_path / "theme"
     theme.mkdir()
     (theme / "registry.json").write_text(
@@ -596,10 +473,7 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     (theme / "theme.css").write_text(
         "main { padding-top: 11px; }\n"
         "lf-card { padding-left: 13px; }\n"
-        "button { font-family: cursive; }\n"
-    )
-    (theme / "controls.css").write_text(
-        "lf-board button { outline: 3px solid rgb(0, 128, 0); }\n"
+        "main button { font-family: cursive; }\n"
     )
     page = open_page(
         browser,
@@ -620,8 +494,6 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
             card: cs(document.getElementById('k1')).paddingLeft,
             own: cs(document.getElementById('own')).fontFamily,
             controls: [...document.querySelectorAll('lf-board button.lf-ui')].map(
-                el => [cs(el).fontFamily, cs(el).outlineColor]),
-            chrome: [...document.querySelectorAll('.lf-chrome button')].map(
                 el => cs(el).fontFamily),
         };
     }""")
@@ -629,25 +501,24 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     assert faces["card"] == "13px", faces
     assert faces["own"] == "cursive", faces
     assert faces["controls"], "the board built no control to read"
-    assert faces["chrome"], "the chrome built no button to read"
-    assert not [f for f, _ in faces["controls"] if "cursive" in f], faces
-    assert not [f for f in faces["chrome"] if "cursive" in f], faces
-    assert {color for _, color in faces["controls"]} == {"rgb(0, 128, 0)"}, faces
+    assert set(faces["controls"]) == {"cursive"}, faces
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
     request, serve, tmp_path, engine
 ):
-    """Every declared shadow tree receives the layer's shadow sheet, so a package's
-    `widget-shadow.css` is confined there too: its rule for `span` dresses the tree its own
-    widget hosts and not the tree another package's widget hosts. Each engine reads
-    the composed scope itself: Firefox applied none of it while the scope had a limit."""
+    """Every declared shadow tree receives the layer's composed shadow sheet in every
+    engine, so a package's `widget-shadow.css` rule naming its host, `:host(lf-own-tree)
+    span`, dresses that widget's tree and not another package's. Each engine reads the
+    composed sheet itself: Firefox once applied none of a generated `:host` scope."""
     own, own_module = _shadow_tree_widget("lf-own-tree")
     other, other_module = _shadow_tree_widget("lf-other-tree")
     project = tmp_path / ".leaf"
     project.mkdir()
-    (project / "widget-shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
+    (project / "widget-shadow.css").write_text(
+        ":host(lf-own-tree) span { color: rgb(0, 128, 0); }\n"
+    )
     neighbour = tmp_path / "other"
     (neighbour / "widgets").mkdir(parents=True)
     (neighbour / "registry.json").write_text(json.dumps({"lf-other-tree": other}))
@@ -670,35 +541,6 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
     assert colors["other"] != "rgb(0, 128, 0)", colors
 
 
-def test_a_theme_packages_shadow_rules_outrank_the_widget_packages_own(
-    browser, serve, tmp_path
-):
-    """A theme contribution's `theme-shadow.css` reaches every declared shadow tree from the
-    `lf-theme` tier, above the shadow rules of the package that owns the widget: its
-    bare `span` beats the owner's more specific rule for the same span."""
-    own, own_module = _shadow_tree_widget("lf-own-tree")
-    project = tmp_path / ".leaf"
-    project.mkdir()
-    (project / "widget-shadow.css").write_text(
-        ":scope span { color: rgb(255, 0, 0); }\n"
-    )
-    theme = tmp_path / "theme"
-    theme.mkdir()
-    (theme / "theme-shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
-    url = serve(
-        leaf_page("t", '<h1>t</h1><lf-own-tree id="own"></lf-own-tree>'),
-        packages=("./theme",),
-        layer_registry={"lf-own-tree": own},
-        layer_widgets={"lf-own-tree.js": own_module},
-    )
-    page = open_page(browser, url)
-    color = page.evaluate(
-        """() => getComputedStyle(document.getElementById('own').shadowRoot
-            .querySelector('span')).color"""
-    )
-    assert color == "rgb(0, 128, 0)", color
-
-
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     """The chrome's private rules live in one @scope block rooted at the runtime's
     own container, so whatever name a widget or a page coins, it matches none of
@@ -709,8 +551,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
 
     The chrome sheet reaches the page only through the classes its owner declares
     shared (`chromeSharedClasses`, runtime/stylesheets.js): a rule written outside the
-    block that names any other class is a private rule leaking out, not a widening.
-    Those classes, and the faces the authored theme states for a private name at
+    block that names any other class is a private rule leaking out, not a widening. The
+    guard against page rules (styles/chrome-guard.css) stands outside the block and names
+    only `lf-chrome`, the chrome's own root, which no authored element may wear since
+    the `lf-` namespace is Leaf's; it reaches nothing in the page. Those classes, and the faces the authored theme states for a private name at
     document level, stay off the probe, since the movement their rules cause is the
     reach they were given on purpose."""
     page = open_page(
@@ -729,6 +573,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
             else if (r.selectorText) classes(r.selectorText).forEach(c => into.add(c));
             else if (r.cssRules) collect(r.cssRules, into, privateRules); } };
         collect(sheet.cssRules, unscoped, scoped);
+        unscoped.delete("lf-chrome");
         for (const other of [...document.styleSheets, ...document.adoptedStyleSheets]
                  .filter(s => s !== sheet))
             collect(other.cssRules, themed);
@@ -949,12 +794,15 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
     of the card's actions, and the focus-ring room above that line shows no words,
     in forced colours too, which drop shadows. Firefox stuck a head at its subgrid
     scroller's edge, past the room, so the name stood 6px above the actions and words
-    showed over Resolve; in Chromium they showed above the name."""
+    showed over Resolve; in Chromium they showed above the name. Nor do words show
+    beneath the actions, a summary's included, and the head row holding the line
+    lends them its ground: an arriving message's tint runs behind them, where the
+    actions' own paper box used to cut it whenever the card was scrolled."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
     )
-    for turn in range(1, 8):
+    turns = [
         append_carried_log_record(
             serve.page_dir,
             {
@@ -964,6 +812,10 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
                 "text": f"Turn {turn}. " + LANDING_WORDS,
             },
         )
+        for turn in range(1, 8)
+    ]
+    # A summary's words have no head of their own, and pass beneath the actions too.
+    summarize_thread(serve.page_dir, turns[0]["id"], turns[1]["id"], LANDING_WORDS)
     page = open_page(request.getfixturevalue(engine), url)
     resized(page, 1200, 600)
     if forced:
@@ -978,11 +830,29 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
     travel = transcript.evaluate("box => box.scrollHeight - box.clientHeight")
     # Through the first messages, including where one pushes the last one's head off.
     assert travel > 300, travel
+    actions = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        " > .lf-margin-thread-controls"
+    )
+
+    def shot(clip, hidden=None):
+        toggle = "row => { for (const c of row.children) c.style.visibility = '%s'; }"
+        if hidden:
+            hidden.evaluate(toggle % "hidden")
+        image = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        if hidden:
+            hidden.evaluate(toggle % "")
+        return image
+
+    def spread(image):
+        low, high = image.convert("L").getextrema()
+        return high - low
+
     for scroll in range(0, 300, 7):
         transcript.evaluate("(box, y) => { box.scrollTop = y; }", scroll)
         rendered(page)
         reading = transcript.evaluate(
-            """box => {
+            r"""box => {
               const controls = box.parentElement
                 .querySelector(':scope > .lf-margin-thread-controls');
               const edge = box.getBoundingClientRect().top + box.clientTop;
@@ -992,10 +862,11 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
               const card = box.parentElement.getBoundingClientRect();
               return {edge, head: at.top, left: card.left, right: card.right,
                 pushed: at.bottom >= head.parentElement.getBoundingClientRect().bottom - 1,
-                line: controls.getBoundingClientRect().top
-                  + parseFloat(getComputedStyle(controls).paddingTop),
+                line: controls.getBoundingClientRect().top,
+                actions: controls.getBoundingClientRect().toJSON(),
                 // The focus-ring room, which the transcript's landings also keep.
-                ring: parseFloat(getComputedStyle(box).scrollPaddingTop)};
+                ring: parseFloat(getComputedStyle(box).scrollPaddingTop),
+                event: head.parentElement.dataset.event};
             }"""
         )
         # A head the next message pushes off rises with it; every other stands on the
@@ -1005,22 +876,39 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
             reading,
         )
         assert reading["line"] - reading["edge"] >= reading["ring"], reading
-        room = min(reading["line"], reading["head"]) - reading["edge"]
+        # Beneath the controls, with the paper their row lays under the heads.
+        beneath = {
+            side: reading["actions"][side] for side in ("x", "y", "width", "height")
+        }
+        ground = shot(beneath, hidden=actions)
+        assert spread(ground) < 40, (scroll, reading)
+        # Where no head holds the line, as over a summary, words run to the edge as
+        # they do anywhere a transcript is cut.
+        if reading["head"] > reading["line"] + 0.5:
+            continue
+        if not forced and not reading["pushed"]:
+            # The head holding the line lends its arrival tint to the actions' track.
+            held = transcript.locator(f'.lf-msg[data-event="{reading["event"]}"]')
+            held.evaluate("m => m.style.setProperty('--lf-msg-arrival', '1')")
+            rendered(page)
+            tinted = shot(beneath, hidden=actions)
+            held.evaluate("m => m.style.removeProperty('--lf-msg-arrival')")
+            rendered(page)
+            assert spread(tinted) < 40, (scroll, reading)
+            blue = ImageStat.Stat(ground).mean[2] - ImageStat.Stat(tinted).mean[2]
+            assert blue > 20, (scroll, blue, reading)
+        room = reading["head"] - reading["edge"]
         if room < 1:
             continue
-        band = Image.open(
-            io.BytesIO(
-                page.screenshot(
-                    clip={
-                        "x": reading["left"],
-                        "y": reading["edge"],
-                        "width": reading["right"] - reading["left"],
-                        "height": room,
-                    }
-                )
-            )
-        ).convert("L")
-        assert band.getextrema()[1] - band.getextrema()[0] < 40, (scroll, reading)
+        band = shot(
+            {
+                "x": reading["left"],
+                "y": reading["edge"],
+                "width": reading["right"] - reading["left"],
+                "height": room,
+            }
+        )
+        assert spread(band) < 40, (scroll, reading)
 
 
 @pytest.mark.parametrize(("width", "touch"), [(1200, False), (311, True)])
@@ -1268,6 +1156,12 @@ def test_a_dropped_surface_keeps_its_box_until_placement_commits(
     grip = holder.locator(":scope > .lf-surface-grip")
     box = grip.bounding_box()
     x, y = box["x"] + 25, box["y"] + (6 if surface == "card" else 2)
+    # A press without travel leaves placement alone, including its inline style.
+    # The write watch catches a zero translation added and removed within the click.
+    resting = holder.bounding_box()
+    page.mouse.click(x, y)
+    rendered(page)
+    assert holder.bounding_box() == resting
     page.mouse.move(x, y)
     page.mouse.down()
     expect(holder).to_have_attribute("data-lf-carried", "")

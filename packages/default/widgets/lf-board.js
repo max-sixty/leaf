@@ -2,11 +2,16 @@
  * path and one gesture gate. Dragging is wired via the vendored SortableJS
  * (pointer-driven `forceFallback` mode, so the follower is stylable — native HTML5 DnD
  * is not used). A short label follows the pointer; native state stays in the real
- * card. Phones show each card's other columns as direct move buttons instead;
- * a horizontal board cannot expose a distant drop target while the pointer is held.
+ * card. Phones show each card's other columns as direct move buttons instead: the
+ * board stacks its columns there (board.css), so another column is a long press-hold
+ * drag through autoscroll away, and the buttons name every destination where the card is.
  * The grip is a press (`offer`), so the keyboard path needs no pointer: Enter grabs,
  * arrows restate the card's placement (announced through the live region), Enter drops,
- * and Escape or focus loss restores the origin. Escape also cancels a pointer drag.
+ * and Escape or focus loss restores the origin. Left and Right change column, named for
+ * the column rather than a direction, since on a stacked board the next column stands
+ * below; there Down past a column's last card continues into the column below and Up
+ * past its first into the one above, the next slot the user sees (#step). Escape also
+ * cancels a pointer drag.
  * For the whole gesture the board holds
  * the page's drag (`dragging`), so no new revision or undo replaces the cards under it,
  * and defers its own drawing (`defer`), so no foreign move replays mid-gesture; a
@@ -44,7 +49,6 @@ import {
   quoted,
   says,
   announce,
-  commands,
   labelOf,
   layoutChanged,
   saying,
@@ -67,6 +71,7 @@ import {
   focused,
   declarationFor,
   shownAnswer,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -293,12 +298,18 @@ customElements.define(
       // Whether the card is authored to show an answer, read off its markup since the
       // answer's own state may not have loaded yet.
       const shows = card.hasAttribute(declarationFor(card, "x-shows")?.attr ?? "");
+      // Columns run the way the page's words do, so left is the previous column only
+      // in left-to-right text; the title names the column, which holds whichever way
+      // the board lays them out.
+      const [back] = rowArrows(this);
+      const column = (binding) =>
+        `Move it to the ${binding === back ? "previous" : "next"} column`;
       // A card showing an answer only changes column, so it has no up or down.
       const routes = [
         { id: "board.move-up", binding: "ArrowUp", title: "Move it up" },
         { id: "board.move-down", binding: "ArrowDown", title: "Move it down" },
-        { id: "board.move-left", binding: "ArrowLeft", title: "Move it left" },
-        { id: "board.move-right", binding: "ArrowRight", title: "Move it right" },
+        { id: "board.move-left", binding: "ArrowLeft", title: column("ArrowLeft") },
+        { id: "board.move-right", binding: "ArrowRight", title: column("ArrowRight") },
       ].slice(shows ? 2 : 0);
       const grab = {
         id: "board.grab",
@@ -313,7 +324,7 @@ customElements.define(
       // grip answers Space too, and said Enter on every surface for as long as the word and
       // the press were separate objects.
       grip.title = `Drag to move — or ${labelOf(grab)} to grab`;
-      return commands(grip, "On a card grip", [
+      const rows = [
         grab,
         {
           id: "board.move",
@@ -325,8 +336,6 @@ customElements.define(
           repeat: true,
           // The card goes where it is moved, and the view and the user with it.
           travels: true,
-          // Columns run the way the page's words do, so left is the previous column
-          // only in left-to-right text.
           run: (binding) => {
             const [back, ahead] = rowArrows(this);
             this.#step(
@@ -357,7 +366,10 @@ customElements.define(
             else this.#cancel(true);
           },
         },
-      ]);
+      ];
+      grip.lfCommands = { title: "On a card grip", rows };
+      commandsChanged(grip);
+      return rows;
     }
     #grip(card) {
       const grip = offer("button", "lf-grip", "⠿");
@@ -437,9 +449,23 @@ customElements.define(
       if (dRow) {
         const cards = this.#cards(col);
         const to = cards.indexOf(card) + dRow;
-        if (to < 0 || to >= cards.length) return;
-        target = col;
-        index = to;
+        if (to >= 0 && to < cards.length) {
+          target = col;
+          index = to;
+        } else {
+          // Past the column's end. Where the board stacks its columns the next column
+          // stands on that side, so the step continues into it at the slot nearest
+          // this one; side by side, nothing stands there and the card stays.
+          const cols = [...this.querySelectorAll(":scope > lf-column")];
+          const beside = cols[cols.indexOf(col) + dRow];
+          if (!beside) return;
+          const here = col.getBoundingClientRect();
+          const there = beside.getBoundingClientRect();
+          if (dRow > 0 ? there.top < here.bottom - 1 : there.bottom > here.top + 1)
+            return;
+          target = beside;
+          index = dRow > 0 ? 0 : this.#cards(beside).length;
+        }
       } else {
         // Past any column the card's answer cannot name.
         const cols = [...this.querySelectorAll(":scope > lf-column")].filter(

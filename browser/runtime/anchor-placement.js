@@ -20,6 +20,7 @@ import { placePoints } from "./pointed-place.js";
 import { threadKey, threadNames } from "./thread/model.js";
 import { messageHolding } from "./thread/messages.js";
 import { signal } from "/runtime/framework.js";
+import { tick } from "./version-signal.js";
 
 const samePlacement = (a, b) =>
   a?.kind === b?.kind &&
@@ -102,7 +103,7 @@ export function createAnchorPlacement() {
       before.size !== placed.size ||
       [...placed].some(([id, placement]) => !samePlacement(before.get(id), placement))
     )
-      version.value += 1;
+      tick(version);
     return { readings, draft: { ...draft, resolved: resolvedDraft }, action };
   }
   return Object.freeze({

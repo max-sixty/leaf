@@ -334,8 +334,8 @@ def test_the_obligation_walk_lands_on_a_suggestion_the_reveal_just_opened(
     browser, serve
 ):
     """Stepping the obligations opens the closed <details> a change waits inside, and does
-    it in the same task as the arrival. The row un-waits on the runtime's reveal signal
-    rather than at the observer's next frame: settled asynchronously, the arrival landed
+    it in the same task as the arrival. The row un-waits as the arrival lands rather than
+    at the observer's next frame: settled asynchronously, the arrival landed
     on a display:none element and the user stayed where they were — at the previous
     decision — while the announce said otherwise, so Enter was aimed at a decision they
     had already seen."""
@@ -503,9 +503,10 @@ def test_a_settled_boxless_suggestion_keeps_its_own_margin_identity(browser, ser
     assert item.evaluate("row => row.lfTarget.id") == "sug"
 
 
-def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
-    """Reject leaves an active Undo, never a dead circle or a second status. Undo has
-    the same failure lifecycle without inventing a counter-decision."""
+def test_a_refused_undo_keeps_the_outcome_and_its_undo(browser, serve):
+    """Reject leaves an active Undo, never a dead circle or a second status. A refused
+    Undo restores the outcome and leaves Undo to press again, without inventing a
+    counter-decision."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     row = page.locator("[data-lf-margin-for='sug']")
     reject = row.locator(".lf-sug-reject")
@@ -541,25 +542,15 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
     assert [(event["kind"], event["undoes"]) for event in refused] == [
         ("undo", decision["id"])
     ]
-    receipt = row.locator(".lf-margin-receipt")
-    expect(receipt).to_have_text("Undo failed · Rejected")
-    consume_browser_errors(page, http_error_console(400))
-    assert receipt.evaluate(
-        """element => {
-          const probe = document.createElement('span');
-          probe.style.color = 'var(--danger-ink)';
-          document.body.append(probe);
-          const matches = getComputedStyle(element).color === getComputedStyle(probe).color;
-          probe.remove();
-          return matches;
-        }"""
-    )
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "reject")
-    item = row.locator("xpath=..")
-    expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    expect(row.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("Couldn't take this")
+    )
+    consume_browser_errors(page, http_error_console(400))
     page.unroute("**/api/event")
-    with sending(page, "the retried withdrawal"):
-        item.get_by_role("button", name="Retry", exact=True).click()
+    with sending(page, "the repeated withdrawal"):
+        row.get_by_role("button", name=re.compile(r"^Undo rejecting")).click()
     expect(page.locator("#sug")).not_to_have_attribute(
         "data-lf-state", re.compile(".+")
     )
@@ -789,21 +780,21 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     ]
 
 
-def test_a_refused_decision_returns_to_pending_with_failure_controls(
-    held_events, serve
-):
-    """The reversible result paints immediately, then refusal restores the offer."""
+def test_a_refused_decision_returns_to_pending(held_events, serve):
+    """The reversible result paints immediately, then a refusal restores the offer:
+    the server's state comes back with Accept and Reject, and pressing Accept again is
+    the retry."""
     browser, held = held_events
     page = open_page(browser, serve(SUGGESTION_PAGE))
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    item.locator(".lf-sug-accept").click()
 
     holding(page, held, 1, "the accepted suggestion")
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
-    pending_item = page.locator('[data-lf-margin-for="sug-refill"]')
-    expect(pending_item.locator(".lf-margin-receipt")).to_have_count(0)
-    expect(pending_item.get_by_text("Accepted", exact=True)).to_have_count(0)
+    expect(item.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(item.get_by_text("Accepted", exact=True)).to_have_count(0)
 
     held.pop(0).fulfill(
         status=400,
@@ -815,56 +806,33 @@ def test_a_refused_decision_returns_to_pending_with_failure_controls(
     )
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     assert page.locator("#sug-refill").get_attribute("data-lf-state") is None
-    item = page.locator('[data-lf-margin-for="sug-refill"]')
-    expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
-    expect(item).to_have_attribute("data-lf-state", "failed")
-    expect(item.locator(".lf-margin-more")).to_be_hidden()
-    expect(item.get_by_role("button", name="Retry", exact=True)).to_be_visible()
-    expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
-    expect(item.get_by_role("button", name="Details", exact=True)).to_have_count(0)
-    expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
-    item.get_by_role("button", name="Cancel", exact=True).click()
     expect(item.locator(".lf-margin-receipt")).to_have_count(0)
-    expect(item.locator(".lf-sug-accept")).to_be_focused()
-    item.locator(".lf-sug-accept").click()
-    holding(page, held, 1, "the repeated accepted suggestion")
-    held.pop(0).fulfill(
-        status=400,
-        json={
-            "ok": False,
-            "error": "refused before append",
-            "final": True,
-        },
-    )
-    expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
+    expect(item.locator(".lf-sug-accept")).to_be_visible()
+    expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
     # And the page's own count is derived from that, so it comes back too.
     expect_accept_all(page, 3)
     expect(panel_field(page)).to_have_attribute(
         "placeholder", re.compile("Couldn't take this")
     )
-    assert [
-        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
-    ] == []
+    assert actions(serve.page_dir) == []
 
-    # Retry starts a fresh attempt without reloading or pretending the failed one won.
     page.unroute("**/api/event")
-    item.get_by_role("button", name="Retry", exact=True).click()
+    item.locator(".lf-sug-accept").click()
     round_trip(page)
     logged = actions(serve.page_dir)
     assert [
         (event["widget"], event["detail"].get("outcome", event["action"]))
         for event in logged
     ] == [("sug-refill", "accept")]
-    assert logged[0]["attempt"]
     undo(page)
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     consume_browser_errors(page, http_error_console(400))
 
 
 def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
-    """Losing an accepted action answer keeps the original press busy and retries
-    that exact attempt. Repeating the press cannot mint a second decision that one
-    undo would merely uncover."""
+    """Losing an accepted action answer retries that exact attempt, and the decided
+    face offers no second Accept that could mint a decision one undo would merely
+    uncover."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     requests = []
     accepted = []
@@ -930,6 +898,8 @@ def test_an_optimistic_decision_stays_plain_while_delivery_waits(held_events, se
         "button", name=re.compile(r"^Undo accepting")
     )
     assert pending_undo.bounding_box() == resting
+    expect(pending_undo).to_be_enabled()
+    expect(pending_undo).not_to_have_attribute("aria-busy", "true")
 
     held.pop(0).continue_()
     page.unroute("**/api/event")

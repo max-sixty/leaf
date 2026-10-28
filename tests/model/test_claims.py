@@ -35,7 +35,6 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
-from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import presence as presence_model
@@ -437,16 +436,18 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
     page = tmp_path / "concurrent-page"
     reached_layer = threading.Event()
     resume = threading.Event()
-    original_composed_sheets = layer_model.composed_sheets
+    original_compose_layer = vendoring_model.compose_layer
 
-    def held_composed_sheets(sources):
+    # Held where init composes the selection under the page lock, which runs on
+    # every init.
+    def held_compose_layer(*roots):
         reached_layer.set()
         assert resume.wait(timeout=STATED_TIMEOUT), (
             "the concurrent init never released its peer"
         )
-        return original_composed_sheets(sources)
+        return original_compose_layer(*roots)
 
-    monkeypatch.setattr(layer_model, "composed_sheets", held_composed_sheets)
+    monkeypatch.setattr(vendoring_model, "compose_layer", held_compose_layer)
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(vendoring_model.cmd_init, page)
     try:
@@ -566,7 +567,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     """The held lease, not a timestamp or pid, is the wait's liveness."""
     # The suite's hook marks (`isolated_session`) are not records this test makes.
     for session in HOOKED_SESSIONS:
-        leases_model.hooks_path(session).unlink()
+        cleanup_model.session_file(session, cleanup_model.HOOKS_SUFFIX).unlink()
     for name in identity_names:
         monkeypatch.delenv(name, raising=False)
     serving(page_dir, 1)
@@ -831,7 +832,7 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     assert service_model.claim_page(page_dir)
     first = harness_model.session_harness()
     first_turn = service_model.page_claim(page_dir)["turn"]
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, first.session)
     )
     assert lease and page_state(page_dir)["listening"]

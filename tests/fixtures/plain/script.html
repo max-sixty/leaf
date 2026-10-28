@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>What changed in 4.13</title>
+    <meta
+      name="description"
+      content="The changes in release 4.13, filterable by area."
+    />
+    <style>
+      body {
+        margin: 0;
+        font:
+          15px/1.5 system-ui,
+          sans-serif;
+        color: #18181b;
+      }
+      main {
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 0 0 1rem;
+      }
+      input {
+        font: inherit;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #d4d4d8;
+        border-radius: 6px;
+      }
+      ul {
+        list-style: none;
+        margin: 1rem 0 0;
+        padding: 0;
+      }
+      li {
+        padding: 0.6rem 0;
+        border-bottom: 1px solid #e4e4e7;
+      }
+      .area {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #71717a;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>What changed in 4.13</h1>
+      <input
+        id="filter"
+        type="search"
+        placeholder="Filter by area or words"
+        aria-label="Filter"
+      />
+      <ul id="changes"></ul>
+    </main>
+    <script>
+      var changes = [
+        ["signing", "Releases are signed with the 2026 key."],
+        ["cli", "The export command keeps file modes."],
+        ["cli", "A failed upload names the file it stopped at."],
+        ["server", "Restarts keep the session's claim."],
+      ];
+      var list = document.getElementById("changes");
+      function show(words) {
+        list.replaceChildren();
+        changes.forEach(function (change) {
+          if (words && (change[0] + " " + change[1]).toLowerCase().indexOf(words) < 0)
+            return;
+          var item = document.createElement("li");
+          item.innerHTML = '<div class="area">' + change[0] + "</div>" + change[1];
+          list.appendChild(item);
+        });
+      }
+      document.getElementById("filter").addEventListener("input", function (event) {
+        show(event.target.value.trim().toLowerCase());
+      });
+      show("");
+    </script>
+  </body>
+</html>

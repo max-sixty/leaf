@@ -19,30 +19,34 @@
  *
  * Every number from the first shown line to the last addresses a row: its own line,
  * or the elided row standing in for the stretch it falls in. So a left-out line is
- * referenced like any other — `hi` tints the elided row, an indication lights it, and
- * a note whose `at` falls there becomes that row's caption, saying what was left out.
+ * referenced like any other — `hi` tints the elided row, and a note whose `at` falls
+ * there becomes that row's caption, saying what was left out.
  *
- * `lfElementsFor(key)` answers another widget's indication (runtime/indication.js,
- * experimental) in that same grammar. A number outside the block addresses nothing,
- * so a driver can offer one key to several excerpts of the same file.
+ * `lfElementsFor(key)` answers a reference into the block (`navigateToDatum`) in that
+ * same grammar. A number outside the block addresses nothing.
  * The reader can switch wrapping through the code block’s command scope without rebuilding source rows. This
  * is tab-local reading state, retained by widget id across revisions, not a decision.
  * Until the reader chooses, authored presentation remains the default. Paper wraps
- * complete lines regardless of the screen choice. */
+ * complete lines regardless of the screen choice.
+ *
+ * It imports only the helpers that load in any document, so a plain HTML page that maps
+ * `/runtime/` and `/vendor/` draws it too: coloured, numbered by its own stylesheet where
+ * the page loads it, and with nothing of Leaf's. What Leaf adds it reads from outside:
+ * the drawing under way as a `pending-task` event, the wrap key as the element's
+ * `lfCommands`, the Copy control from the block's `data-lf-copy`, and the word a
+ * listener hears on a highlighted line from its `data-lf-quiet`. */
 import {
+  PendingTaskEvent,
   bodyText,
-  commands,
-  tabStore,
-  copyBlock,
-  once,
+  commandsChanged,
   failSoft,
   layoutChanged,
-  quietWord,
-  widgetController,
+  once,
   synNodes,
   syntax,
+  tabStore,
   tokenLines,
-} from "/runtime/widget-api.js";
+} from "/runtime/portable-api.js";
 
 // "3-5,8" → [[3, 5], [8, 8]].
 const spans = (spec) =>
@@ -95,8 +99,7 @@ const numbering = (el, count) => {
 customElements.define(
   "lf-code",
   class extends HTMLElement {
-    // The rendered lines a range addresses, none before the lines are in; the render
-    // states their arrival through layoutChanged, and an indication resolves again then.
+    // The rendered lines a range addresses, none before the lines are in.
     lfElementsFor(key) {
       const addressed = within(key);
       return [
@@ -106,10 +109,10 @@ customElements.define(
 
     connectedCallback() {
       if (!once(this)) return;
-      // Registered with the controller so the runtime holds the first anchor pass until
+      // Announced as a pending task so the runtime holds the first anchor pass until
       // the lines are in — the tokenizer loads lazily, so even an uncolored block
       // lands a microtask late and one writer has to finish before another reads.
-      widgetController(this).present(this.render());
+      this.dispatchEvent(new PendingTaskEvent(this.render()));
     }
 
     async render() {
@@ -168,13 +171,18 @@ customElements.define(
           // clipboard — so "lines 3 to 4" would name something the user cannot hear.
           // Said per line, it arrives where it is true. The one word rides the same
           // clip as every other quiet word, out of the selection with it, so a copied
-          // block is still the source and nothing else.
-          if (hi(n)) quietWord(line, "highlighted");
+          // block is still the source and nothing else. Leaf writes it from the
+          // declaration, since only Leaf's theme keeps it off the screen.
+          if (hi(n)) line.dataset.lfQuiet = "highlighted";
           pre.append(line);
           // Moved, not copied: the authored element keeps its text and id.
           pre.append(...(byLine.get(n) ?? []));
         });
         pre.append(...notes.filter((note) => !pre.contains(note)));
+        // Copied as the source the lines were drawn from, never as the lines' text,
+        // which carries the notes docked among them.
+        pre.dataset.lfCopy = "code";
+        pre.lfCopy = () => source;
         this.replaceChildren(pre);
         this.classList.add("lf-rendered");
         const key = `code-wrap:${this.id}`;
@@ -184,14 +192,7 @@ customElements.define(
         let horizontal = 0;
         const paintWrap = (value) => {
           wrapped = value;
-          if (!this.hasAttribute("data-lf-reader-wrap"))
-            this.setAttribute("data-lf-reader-wrap", "");
-          for (const line of /** @type {NodeListOf<HTMLElement>} */ (
-            pre.querySelectorAll(".lf-code-line")
-          )) {
-            line.style.whiteSpace = value ? "pre-wrap" : "pre";
-            line.style.overflowWrap = value ? "anywhere" : "normal";
-          }
+          this.setAttribute("data-lf-reader-wrap", value ? "wrap" : "scroll");
         };
         if (saved !== null) paintWrap(saved === "true");
         const toggleWrap = () => {
@@ -201,15 +202,18 @@ customElements.define(
           if (!wrapped) pre.scrollTo({ left: horizontal, behavior: "instant" });
           layoutChanged(this);
         };
-        commands(this, "On a code block", [
-          {
-            id: "code.wrap",
-            keys: ["w"],
-            title: () => (wrapped ? "unwrap lines" : "wrap lines"),
-            run: toggleWrap,
-          },
-        ]);
-        this.append(copyBlock(pre, () => source, "code"));
+        this.lfCommands = {
+          title: "On a code block",
+          rows: [
+            {
+              id: "code.wrap",
+              keys: ["w"],
+              title: () => (wrapped ? "unwrap lines" : "wrap lines"),
+              run: toggleWrap,
+            },
+          ],
+        };
+        commandsChanged(this);
         layoutChanged(this);
       } catch (err) {
         failSoft(this, err, source);
@@ -229,7 +233,7 @@ function elided(from, to, highlighted, captions) {
   row.dataset.to = to;
   const count = to - from + 1;
   row.dataset.elided = `${count} line${count === 1 ? "" : "s"}`;
-  if (highlighted) quietWord(row, "highlighted");
+  if (highlighted) row.dataset.lfQuiet = "highlighted";
   row.append(...captions);
   return row;
 }

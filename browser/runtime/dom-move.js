@@ -34,6 +34,8 @@ export function move(parent, node, before) {
   return node;
 }
 
-// The early Lit instance keeps this indirection: once modules run, every keyed move
-// uses the same focus-preserving implementation as the rest of the runtime.
+// Leaf's Lit asks the root for its mover at every insertion and inserts natively where
+// there is none, as in a document Leaf did not compose. The runtime installs this one
+// (framework.js imports it), so once modules run every keyed move uses the same
+// focus-preserving implementation as the rest of the runtime.
 document.documentElement.lfInitial.move = move;

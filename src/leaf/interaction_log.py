@@ -9,15 +9,16 @@ Each `leaf` command records how long it took in every page it acted on, one
 `leaf_command` observation as it exits (`record_command`), so a page says Leaf's own
 share of an agent's reply on any harness. A command acts on the pages it names: an
 initialized page as a `PAGE` argument (`cli.resolve_dir`; `page init`, which
-creates or re-vendors one, records nothing), an answer reference's page
+creates or re-initializes one, records nothing), an answer reference's page
 (`delivery.response_address`), or the pages a delivery it reads or acknowledges
 carries (`delivery.acting_on_delivery`); each notes its page (`acting_on`). A
 command that names none, as `leaf wait` watching every page a session owns,
 records nothing: its time is the agent waiting, not Leaf answering. One that
 names a page and then waits, as `leaf wait PAGE` does, records its own work as it
-starts waiting. Harness hooks
-don't pass through the CLI, and their time shows as delivery in the page's pickup
-receipts. A command's time runs from its launcher's start, `bin/leaf`'s uv
+starts waiting. Harness hooks name no command pages; their time shows as delivery in the
+page's pickup receipts. A harness's watch between turns records instead when it
+started and how it ended (`record_watch`), so a pickup that waited with nothing
+waking the session says whether a watch ran and could read the page. A command's time runs from its launcher's start, `bin/leaf`'s uv
 included, to its exit; one the sandbox bridge runs for Claude Code is timed from
 the bridge's start of it.
 
@@ -31,16 +32,15 @@ with other users. Client traces can contain draft text and entered values;
 decide which fields to redact or omit for those users.
 """
 
+import contextlib
 import fcntl
 import json
 import os
-import sys
 import time
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .event_log import jsonl_line
 from .schema import INTERACTIONS_FILE
 from .state import now_iso, session_record
 
@@ -55,6 +55,8 @@ def append_interactions(page_dir: Path, records: list[dict]) -> list[dict]:
     Diagnostics are best effort across a process crash; unlike admitted user
     decisions they do not claim disk durability in the HTTP response.
     """
+    from .event_log import jsonl_line
+
     stamp = now_iso()
     records = [{"ts": stamp, **record} for record in records]
     data = "".join(jsonl_line(record) + "\n" for record in records).encode()
@@ -83,11 +85,10 @@ def launched() -> float:
     import psutil
 
     process = psutil.Process()
-    args = sys.argv[1:]
+    args = process.cmdline()[1:]
     parent = process.parent()
     words = parent.cmdline() if parent is not None else []
-    tail = words[len(words) - len(args) - 2 :]
-    if tail == ["-m", "leaf", *args]:
+    if args[:2] == ["-m", "leaf"] and words[-len(args) :] == args:
         return parent.create_time()
     return process.create_time()
 
@@ -98,14 +99,14 @@ def record_command(command: str) -> None:
     the system won't let this process gather or write, as a sandbox may refuse a
     session record or a page, is dropped, since the command's own result has
     already been decided."""
-    import psutil
-
-    from .harness import session_harness
-
     pages, ended = list(_ACTED_ON), time.time()
     _ACTED_ON.clear()
     if not pages:
         return
+    import psutil
+
+    from .harness import session_harness
+
     try:
         started = launched()
         harness = session_harness()
@@ -127,6 +128,28 @@ def record_command(command: str) -> None:
                 append_interactions(page_dir, [record])
         except OSError:
             continue
+
+
+def record_watch(pages: list[Path], session: str, began: float, ended: str) -> None:
+    """Record in each page a harness's watch between turns read when it started,
+    the protocol its Leaf speaks, and how it `ended`: `woke` the session,
+    `superseded` by a later watch, `server-down`, `no-pages` left to watch,
+    `harness-exited`, or `stopped` by a signal or an error. A watch that held a
+    page it couldn't read shows its older protocol, and one killed outright leaves
+    no record. Dropped where the page can't be written, as `record_command` is."""
+    from .registry.kernel import kernel_protocol
+
+    record = {
+        "source": "cli",
+        "type": "watch",
+        "session": session,
+        "started": datetime.fromtimestamp(began, UTC).isoformat(),
+        "protocol": kernel_protocol(),
+        "ended": ended,
+    }
+    for page_dir in pages:
+        with contextlib.suppress(OSError):
+            append_interactions(page_dir, [record])
 
 
 def admit_batch(batch: object) -> dict:

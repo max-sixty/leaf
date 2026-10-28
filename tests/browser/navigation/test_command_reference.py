@@ -11,12 +11,12 @@ from render_harness import (
     LONG_PAGE,
     PANEL_THREAD,
     open_page,
-    open_threads,
     panel_control,
     panel_field,
     panel_view,
     resized,
     round_trip,
+    show_resolved,
 )
 
 from leaf.render_checks import rendered
@@ -90,7 +90,21 @@ def test_a_first_keyboard_opening_wires_the_references_close_control(browser, se
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
+    expect(reference).to_have_attribute("open", "")
     expect(reference).to_be_visible()
+    # The catalog is captured before the native dialog opens and takes focus. Its
+    # own instructions must still appear on that first opening.
+    for command in ["next", "previous", "activate"]:
+        expect(
+            reference.locator(
+                f'[data-lf-command="command.reference.command.{command}"].lf-command-reference-row'
+            )
+        ).to_have_count(1)
+    expect(
+        reference.locator(
+            '[data-lf-command="command.reference.close"].lf-command-reference-row'
+        )
+    ).to_have_count(1)
     page.get_by_role("combobox", name="Search commands").fill("comment")
     page.get_by_role("button", name="Close the command reference").click()
     expect(reference).to_be_hidden()
@@ -433,8 +447,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(result).to_have_attribute("data-lf-selected", "true")
     page.keyboard.press("Enter")
     expect(help_el).to_be_hidden()
-    open_threads(page)
-    expect(page.locator(".lf-fp-thread[data-resolved]")).to_have_count(1)
+    expect(show_resolved(page)).to_have_count(1)
 
 
 # On me stands for the panel's views: its mark is the row's control, and Threads, a tab
@@ -640,13 +653,13 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
     page = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const { commands, paintKeys } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const control = document.createElement('button');
           control.id = 'changing-command-scope';
           control.textContent = 'Changing command scope';
           control.dataset.phase = 'first';
           document.querySelector('main').append(control);
-          commands(control, 'Changing commands', [
+          control.lfCommands = { title: 'Changing commands', rows: [
             {
               id: 'test.changing.first',
               keys: ['F8'],
@@ -663,8 +676,9 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
               when: () => control.dataset.phase === 'second',
               run: () => { control.dataset.ran = 'second'; },
             },
-          ]);
-          paintKeys();
+          ] };
+          commandsChanged(control);
+          commandsChanged(document.body);
           control.focus();
         }"""
     )

@@ -420,8 +420,8 @@
     );
     return node;
   };
-  // Words an upgrade wrote, which the page's authored source lacks: the version diff
-  // looks past them, and they are a passage cell of their own. `says` is whether they
+  // Words an upgrade wrote, which the page's authored source lacks: the `wrote` reading
+  // leaves them out, and they are a passage cell of their own. `says` is whether they
   // are the page speaking (data-lf-said, quotable even inside chrome), a copy of words
   // the page says elsewhere ("echo", data-lf-echo), or neither; widget-elements.js,
   // over `relabel`, says why each answer matters and why none is assumed.
@@ -1230,38 +1230,27 @@
     }
     return changed;
   };
-  // A page of parts' title, which its list stands fixed under (layouts.css, "A page of
-  // parts"): no CSS stacks one fixed box under another of unknown height. The title
-  // is what stands before the parts, in the one row above the list.
-  const TITLE = "--lf-parts-title-h";
+  // A page of parts' title scrolls within its fixed column. Declare that
+  // surface alongside the layout, so reach need not discover it by scanning content.
+  // CSS anchors its list below the title (layouts.css, "A page of parts").
   const title = () => {
-    const body = document.body;
     const main = document.querySelector("body > main");
-    if (!body) return false;
     const parts =
       main && !isLayoutBox(main)
         ? main.querySelector(':scope > [data-lf-views="parts"]')
         : null;
-    let height = 0;
     let marked = false;
     for (
       let node = parts?.previousElementSibling;
       node;
       node = node.previousElementSibling
     ) {
-      // The parts layout owns this scrolling title surface. Declare it here,
-      // alongside its layout, so reach need not discover it by scanning content.
       if (!node.classList.contains("scroll")) {
         node.classList.add("scroll");
         marked = true;
       }
-      height = Math.max(height, node.getBoundingClientRect().height);
     }
-    const value = height ? `${Math.round(height)}px` : "";
-    if (body.style.getPropertyValue(TITLE) === value) return marked;
-    if (value) setRuntimeRootStyle(body, TITLE, value);
-    else removeRuntimeRootStyle(body, TITLE);
-    return true;
+    return marked;
   };
   // The header a Layout sticks over its body, as a workspace does where the window is
   // too small to be its screen (layouts.css, "Workspace"): what the body stands under is
@@ -1354,7 +1343,9 @@
         offer,
         offerElement,
         offerAction,
+        offerActionElement,
         selectableOffer,
+        selectableOfferElement,
         generatedElement,
         keeps: keepsAttribute,
         authoredBody(node) {
@@ -1367,6 +1358,8 @@
         throw new TypeError(
           `initial renderer for <${host.localName}> must be synchronous`,
         );
+      if (drawing !== null)
+        root.lfInitial.lit.render(drawing.render(), drawing.root ?? host, { host });
       drawings.set(host, drawing);
       return drawing;
     },

@@ -65,8 +65,8 @@ import {
   shownExtent,
   shownParts,
   shownWindow,
-  skipped,
 } from "../geometry.js";
+import { skipped } from "../shown-box.js";
 import {
   renderedChildren,
   renderedParent,
@@ -85,6 +85,7 @@ import {
   packRows,
   rowPlacement,
   seatRows,
+  seatsBy,
 } from "./margin-placement.js";
 import { clamp, clippingAxes, overlaps, union } from "../rect.js";
 import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
@@ -92,7 +93,7 @@ import { railStands } from "../content-layout.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { move } from "../dom-move.js";
 import { coarsePointer, hoveringPointer } from "../pointer.js";
-import { LAYOUT } from "../widget-elements.js";
+import { LAYOUT } from "../widget-upgrade.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
@@ -637,6 +638,13 @@ function partsOf(target) {
 // scrolls the pin (`stop`): a pin can take no press from a control nobody can see, as a
 // pane body's options scrolled behind the pane's footer, but a control scrolled with the
 // pin counts whole, so the pane's scroll never moves the pin's seat.
+//
+// It also answers whether another block stands at a seat (`beside`): a shown box that
+// is not the target's, does not hold it, and is not a run of words, since an inline
+// box spans the empty ends of its lines and its words are cover already. A pin in a
+// neighbour's box reads as the neighbour's even over its empty padding, as a card's pin
+// in the gap between board columns reads as the next column's card (`seatsBy`). Only
+// the boxes a seat meets are read further, so the walk costs one rect per element.
 const OPAQUE = "img, svg, canvas, video, iframe, object, embed";
 
 // Every control that paints inside a shadow host: the rendered tree beneath it, through
@@ -657,6 +665,7 @@ function controlsIn(host) {
 function coverIn(root, band, target, bands, stop) {
   const cover = [];
   const controls = [];
+  const boxes = [];
   const meets = (box) => box.bottom > band.top && box.top < band.bottom;
   const visit = (el) => {
     for (const node of renderedChildren(el)) {
@@ -673,10 +682,12 @@ function coverIn(root, band, target, bands, stop) {
         continue;
       }
       if (node.nodeType !== Node.ELEMENT_NODE || node.closest(".lf-chrome")) continue;
+      if (skipped(node)) continue;
       const box = node.getBoundingClientRect();
       const boxless = !box.width && !box.height;
       if (!boxless && !meets(box)) continue;
       const holds = node !== target && renderedUnder(target, node);
+      if (!boxless && !holds && node !== target) boxes.push({ node, box });
       const control = node.matches(TAB_STOP);
       if (
         !boxless &&
@@ -697,6 +708,9 @@ function coverIn(root, band, target, bands, stop) {
         continue;
       }
       if (node instanceof SVGElement) continue;
+      // The container can draw its own box while skipping its children, including
+      // bare text which has no element to ask `skipped` of on the next step.
+      if (getComputedStyle(node).contentVisibility === "hidden") continue;
       // A closed disclosure draws only its summary; reading the rest would force its
       // skipped content's layout (`skipped`).
       if (node.localName === "details" && !node.open) {
@@ -708,7 +722,15 @@ function coverIn(root, band, target, bands, stop) {
     }
   };
   visit(root);
-  return { cover, controls };
+  const beside = (seat) =>
+    boxes.some(({ node, box }) => {
+      if (!overlaps(box, seat) || getComputedStyle(node).display === "inline")
+        return false;
+      if (renderedUnder(node, target) || !node.checkVisibility()) return false;
+      const shown = clippedBand(node, box, bands, stop);
+      return Boolean(shown) && overlaps(shown, seat);
+    });
+  return { cover, controls, beside };
 }
 
 // The whole content a scroller scrolls, wherever it is scrolled to: a pin in a pane is
@@ -765,55 +787,6 @@ function standFolded(row, fold, on) {
   fold?.changed();
 }
 
-// The seats by one subject, in the order a pin takes them, `size` wide and as tall as
-// `home`, the pin's seat inside the subject's top-right corner; `parts` are the
-// subject's boxes, `inline` whether it is a run of words, which adds the seat after
-// its last word, and `passage` whether the above seat hangs off quoted words.
-function seatsBy(parts, home, inline, passage, cover, size) {
-  const height = home.bottom - home.top;
-  const box = union(parts) ?? home;
-  const end = parts.at(-1);
-  // Below the corner only where the row under the subject is empty from its left edge
-  // to the corner: beside the next block's words, a pin reads as that block's.
-  // Measured from the subject's own foot, not its home's: a subject shorter than a pin
-  // would otherwise skip the block below it.
-  const under = {
-    left: Math.min(home.left, box.left),
-    right: home.right,
-    top: box.bottom + GAP,
-    bottom: box.bottom + GAP + height,
-  };
-  const belowClear = !cover.some((box) => overlaps(box, under));
-  return [
-    {
-      left: box.right + GAP,
-      right: box.right + GAP + size,
-      top: box.top,
-      bottom: box.top + height,
-    },
-    ...(inline && end
-      ? [
-          {
-            left: end.right + GAP,
-            right: end.right + GAP + size,
-            top: end.top,
-            bottom: end.top + height,
-          },
-        ]
-      : []),
-    { ...home, left: home.right - size },
-    // Above the corner: a quoted passage hangs off its words so the pin's pointed
-    // foot meets them. Other inline targets keep the inset seat inside their corner.
-    {
-      left: passage ? box.right : home.right - size,
-      right: passage ? box.right + size : home.right,
-      top: box.top - GAP - height,
-      bottom: box.top - GAP,
-    },
-    ...(belowClear ? [{ ...under, left: home.right - size }] : []),
-  ];
-}
-
 // Prepares every pin's seats and what they must keep off, then supplies its posture
 // solver to the shared seating order. Each pin avoids the final rows and held labels
 // already placed, and writes its final seat into the entry's rect. The walk crosses the
@@ -823,17 +796,19 @@ function seatsBy(parts, home, inline, passage, cover, size) {
 // A pin's seats, in the order it takes them, all touch its target (`seatRows`): just
 // outside the target's top-right corner; for a run of text or a quoted passage, whose
 // corner is its own words' rather than the block's, just after its last word, where a
-// reader finishes it; just inside the corner, on the target itself, or further down its
-// right edge; then just above that inside seat, which keeps the inset from the
-// window's edge, so a target as wide as the window still has room above it (a run of
-// words' hangs off its top-right corner instead, where the pin's pointed foot meets
-// it); and last
-// just below its bottom-right corner, at the same inset, where nothing stands level
-// with it under the target. Above and below come last because a pin there can read as
-// the neighbouring block's, and above stands outside what a pane shows when the pane is
-// scrolled to its target. Below is the one seat clear beside a full-width figure or
-// keypad that sits right under a paragraph. A quoted passage's pin then tries the same
-// seats by the block holding it, so it covers words only where the block's do too.
+// reader finishes it (each of these two only where no other block stands level with
+// it, since a pin in a neighbour's box reads as the neighbour's, `seatsBy`); just
+// inside the corner, on the
+// target itself, or further down its right edge; then just above that inside seat,
+// which keeps the inset from the window's edge, so a target as wide as the window
+// still has room above it (a run of words' hangs off its top-right corner instead,
+// where the pin's pointed foot meets it); and last just below its bottom-right
+// corner, at the same inset, where nothing stands level with it under the target.
+// Above and below come last because a pin there can read as the neighbouring block's,
+// and above stands outside what a pane shows when the pane is scrolled to its target.
+// Below is the one seat clear beside a full-width figure or keypad that sits right
+// under a paragraph. A quoted passage's pin then tries the same seats by the block
+// holding it, so it covers words only where the block's do too.
 //
 // A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
 // which are worked out rather than read, since only the one it stands at is drawn:
@@ -895,13 +870,14 @@ function pinSeating(rows, { bands, shell, pinInset }) {
     // header, standing still above it, would enter the band as the pane scrolled the
     // target up to it, and seat the pin differently at that scroll.
     const stop = read.scroller;
-    const { cover, controls } = coverIn(
+    const room = coverIn(
       stop === pageScroller ? main : stop,
       band,
       target,
       bands,
       stop,
     );
+    const { cover, controls } = room;
     const end = parts.at(-1);
     const inline =
       Boolean(words) ||
@@ -918,9 +894,11 @@ function pinSeating(rows, { bands, shell, pinInset }) {
       seat.top >= Math.min(...parts.map((part) => part.top)) - reach &&
       seat.bottom <= Math.max(...parts.map((part) => part.bottom)) + reach;
     const seatsAt = (size) => [
-      ...seatsBy(parts, home, inline, Boolean(words), cover, size),
+      ...seatsBy(parts, home, inline, Boolean(words), room, size, GAP),
       ...(block
-        ? seatsBy(block.parts, block.home, false, false, cover, size).filter(near)
+        ? seatsBy(block.parts, block.home, false, false, room, size, GAP).filter(
+            (seat) => seat && near(seat),
+          )
         : []),
     ];
     /** @type {{left?: number, right?: number, top: number, bottom?: number}} */

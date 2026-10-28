@@ -11,6 +11,7 @@ from render_cases_navigation import source_revision
 from render_harness import (
     PANEL,
     PANEL_THREAD,
+    RELEASE_FOCUS,
     consume_browser_errors,
     http_error_console,
     leaf_page,
@@ -337,14 +338,14 @@ def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve)
     trigger = message.locator(".lf-react-trigger")
     trigger.click()
     strip = message.locator(":scope > .lf-react-strip")
-    expect(strip).to_contain_class("lf-react-open")
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     trigger.evaluate(
         """trigger => scrollBy({top: trigger.getBoundingClientRect().bottom + 4,
           behavior: 'instant'})"""
     )
     box = trigger.bounding_box()
     assert box["y"] + box["height"] < 0, box
-    expect(strip).not_to_contain_class("lf-react-open")
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
     expect(page.locator(".lf-react-palette:popover-open")).to_have_count(0)
 
 
@@ -549,8 +550,10 @@ def test_r_settles_the_thread_seated_under_the_diff_line_the_user_stands_on(
     page = open_page(browser, url)
     thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
     expect(thread).to_be_visible()
-    page.keyboard.press("Shift")
-    page.locator("lf-diff .lf-diff-fold-all").focus()
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("Tab")  # The file's comment control.
+    page.keyboard.press("Tab")  # Its disclosure, also on a single-file diff.
+    expect(page.locator("lf-diff summary")).to_be_focused()
     page.keyboard.press("]")
     line = page.locator('lf-diff div[data-lf-line=\'["app.py","old",1]\']')
     expect(line).to_be_focused()

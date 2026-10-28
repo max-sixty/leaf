@@ -1,6 +1,8 @@
 """What a new version or an arriving edit leaves of each open editor: its words, caret,
 focus and session, and the revision a draft aims at."""
 
+import os
+
 import pytest
 from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
@@ -38,6 +40,7 @@ from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import revisioning as revisioning_model
 from leaf import vendoring as vendoring_model
+from leaf.registry.storage import layer_packages
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -51,7 +54,7 @@ def test_an_automatic_revision_keeps_the_empty_panel_reply_focused(
     reply box, an open thread's, focused and empty."""
     url = live_url(serve(REPLY_HOST_PAGE))
     root = panel_comment(
-        serve.page_dir, "Should reads fall back?", author="agent", question="Fall back?"
+        serve.page_dir, "Should reads fall back?", author="agent", obligation=True
     )
     page = open_page(browser, url)
     open_panel_thread(page, root)
@@ -351,9 +354,19 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
         words = "Half a thought the reload must not take"
         write(editor, words)
         birth = page.evaluate("performance.timeOrigin")
-        theme = page_dir / "theme.css"
-        theme.write_text(theme.read_text() + "\n/* a newer layer */\n")
-        vendoring_model.cmd_init(page_dir)
+        # A newer layer: the page selects one more package. Its record names each
+        # package copy relative to the page, and init resolves a path from where it
+        # runs.
+        newer = page_dir.parent / "newer-layer"
+        newer.mkdir()
+        (newer / "theme.css").write_text("/* a newer layer */\n")
+        held = tuple(
+            "./" + os.path.relpath(page_dir / value)
+            if value.startswith("./")
+            else value
+            for value in layer_packages(page_dir)
+        )
+        vendoring_model.cmd_init(page_dir, (*held, "./" + os.path.relpath(newer)))
         revised = revisioning_model.activate_source(page_dir)
         assert revised.error is None
         with restarting(page):

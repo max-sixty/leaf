@@ -153,7 +153,7 @@ leaf thread reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebui
 ```
 
 The answer's head shows what it leaves: **Waiting on me** while its question is open,
-and **To-do open** until you end the to-do. A promise declared `--done` reads as
+and **Still to do** until you end the to-do. A promise declared `--done` reads as
 finished work.
 
 ### Progress messages
@@ -178,7 +178,7 @@ questions, to-dos, markup, anchor moves and failure receipts each need a reply o
 their own.
 
 Any widget in a reply's markup whose registry entry declares `x-awaits`, such as an
-`lf-options` or an `lf-ask`, waits on the user and keeps its thread at "Your turn"
+`lf-options`, waits on the user and keeps its thread at "Your turn"
 until they answer it. A thread you open waits on nobody by itself: `--obligation` registers the
 message's request without markup. A user task attached to the thread instead waits
 for Done; discussing it does not complete it.

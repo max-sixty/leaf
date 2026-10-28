@@ -1,7 +1,7 @@
 /* The delivery gate, the event and media doors, the page's JSON requests, and the
    page's error channel to the agent.
 
-   A document speaks the generation of the vendored layer it was served from, and runs
+   A document speaks the generation of the layer record it was served under, and runs
    the runtime of the Leaf that served it (`runtime_selection.py`), both of which its
    server names in the document (`DELIVERY`). `admitResponse` observes every response's
    session metadata and checks every successful payload against the document's layer,
@@ -41,6 +41,7 @@ import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 import { holdingError } from "./errors.js";
+import { failureContext, failureOf } from "./widget-upgrade.js";
 
 const { layer: layerGeneration, release, probe, runtime: runtimeIdentity } = DELIVERY;
 
@@ -81,7 +82,7 @@ function reloadNow(message) {
 }
 
 // Each foreign answer gets its own reading of the source, because the source may move
-// while the page waits — this very page can be re-vendored during the hold — and an
+// while the page waits — this very page can be re-initialized during the hold — and an
 // answer carried over from an earlier reading would leave the tab with no way back. One
 // probe is in the air at a time, so a burst of refusals costs one. Waiting lasts as long
 // as the disagreement does, so it is a held error (errors.js) rather than a passing
@@ -183,7 +184,7 @@ export async function requestJson(url, init, what) {
 export function sameLayer(generation) {
   if (generation === layerGeneration) return true;
   // Say what is about to happen before it happens. The user is looking at a page
-  // that re-vendoring has moved out from under, and a tab that reloads itself with
+  // that `page init` has moved out from under, and a tab that reloads itself with
   // nothing said is a page that appears to have lost their place for no reason.
   reloadDelivery("Leaf has been updated — reloading this page.");
   return false;
@@ -351,7 +352,8 @@ export const uploadMedia = async (file) => {
 // itself through the poll would recurse, and nothing here needs the answer.
 // Not part of the helper surface a module gets: an upgrade that throws is already on
 // this path through window.error, and a widget that wants to say so itself has
-// failSoft, which puts the message where the user is looking and reports it here.
+// failSoft, which puts the message where the user is looking and dispatches the
+// `error` event that window.error reports here.
 const reportedReasons = new WeakSet();
 const reportedPrimitives = new Set();
 const reportedErrors = new Set();
@@ -409,6 +411,13 @@ export function exceptionText(reason, context = "") {
 }
 
 window.addEventListener("error", (e) => {
+  // A widget's own failure, which it shows where it stands and dispatches
+  // (`reportFailure`, widget-upgrade.js), named for the widget it happened in.
+  const failure = failureOf(e);
+  if (failure) {
+    reportPageError(failure.reason, failureContext(failure.element));
+    return;
+  }
   // Chrome also puts ResizeObserver loop notices on window.error without an
   // exception. This one live page cannot tell an occasional scheduling notice
   // from a layout feedback loop, so it persists neither in the user's log. The

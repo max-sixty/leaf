@@ -15,6 +15,7 @@ from .layer import (
     checked_inputs,
     checked_layer_inputs,
     compose_layer,
+    imported_sheets,
     input_paths,
     layer_inputs,
     named_package,
@@ -30,15 +31,14 @@ from .locations import (
 from .machine import package_store
 from .refusals import Refused
 from .schema import (
-    BROWSER_DIRS,
     ELEMENT_ID,
     HTML_NAME,
+    LAYER_FILE,
     PACKAGE_DIRS,
     PACKAGE_FILES,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     SCRIPTS_DIR,
-    VENDORED_FILES,
     WIDGET_NAME,
     WIDGET_NAME_RULE,
 )
@@ -187,13 +187,10 @@ def initialized_page_owning(path: Path):
     resolved = path.resolve()
     at = path_location(resolved)
     for root in (resolved, *resolved.parents):
-        # The append-only event log is the successful-init marker. Disposable
-        # runtime state cannot identify the page whose owned paths this gate protects.
-        if not (
-            (root / EVENTS_FILE).is_file()
-            and all((root / name).is_file() for name in VENDORED_FILES)
-            and all((root / name).is_dir() for name in BROWSER_DIRS)
-        ):
+        # The append-only event log is the successful-init marker, beside the layer
+        # record init writes. Disposable runtime state cannot identify the page whose
+        # owned paths this gate protects.
+        if not ((root / EVENTS_FILE).is_file() and (root / LAYER_FILE).is_file()):
             continue
         if (
             at == path_location(root)
@@ -266,7 +263,7 @@ def validate_package_dir(package: Path) -> list:
         raise Refused(
             f"package path {target} is owned by initialized page {page}; "
             "packages must stay separate from page-owned paths, "
-            "then run `page init` to re-vendor the page"
+            "then run `page init` again"
         )
     refuse_package_overlap(paths, protected)
     return protected
@@ -317,6 +314,16 @@ def copy_package_contract(package: Path, staged: Path) -> None:
             target.mkdir()
     if (package / SCRIPTS_DIR).is_dir():
         shutil.copytree(package / SCRIPTS_DIR, staged / SCRIPTS_DIR)
+    # A sheet's imports are part of it (`layer.stylesheet`), wherever in the package
+    # they stand; one inside a directory copied above is already staged.
+    for name in PACKAGE_FILES:
+        if not name.endswith(".css") or not (package / name).is_file():
+            continue
+        for imported in imported_sheets(package / name, package):
+            target = staged / imported.relative_to(package.resolve())
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(imported, target)
 
 
 def validate_starter_candidate(package: Path, files: dict[str, bytes]) -> None:

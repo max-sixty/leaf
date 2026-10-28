@@ -22,24 +22,20 @@
  * it. Where neither the address nor the tab names a card, the deck opens on the first
  * that waits once the first reading is in. Inactive cards are `hidden="until-found"`, so find-in-page, a fragment and the On
  * walk (`m`, `obligationActions.next`) open the card holding what they reach
- * (`beforematch`, `lf-reveal`); `m` is therefore the keyboard's Later, and a card the
+ * (`beforematch`); `m` is therefore the keyboard's Later, and a card the
  * walk leaves behind stays waiting for the end of the pass. Leaf's Undo travels to the
  * answer it takes back before taking it, which opens its card the same way, so the deck
  * has no Undo of its own.
  *
  * The bar above the cards holds Back, the tally's count of the deck's obligations
- * (`tallyWords`) with a mark per card, Reply on a card asked in words, and one forward
- * control: Later on a waiting card, Next on any other, then Go through the cards left,
+ * (`tallyWords`) with a mark per card, and one forward control: Later on a waiting card, Next on any other, then Go through the cards left,
  * or Review, once the pass is over. Then a quiet frame stands where the cards stood,
  * saying how many still wait, with the same step back in as words, since a symbol
  * alone at the end of the pass went unnoticed. They are symbols of one size and one style, named by
- * their titles as a draft's actions are, that never take focus from a pointer, so none
- * wears a frame another lacks. Each is a command row whose control it is, so the arrow
+ * their titles as a draft's actions are. Each is a command row whose control it is, so the arrow
  * keys toward and away from the text's start are Back and forward wherever the user is
  * in the deck, and Leaf shows Back unavailable on the first card while focus stays on it.
- * Reply puts the user on the question and opens its comment box, as `c` there would
- * (`executeCommand`): a question asked in words is answered by a comment, and nothing on
- * the card says so otherwise. The bar stands above the card, so cards of different
+ * The bar stands above the card, so cards of different
  * heights never move a control under the pointer; for the same reason a card that comes
  * up after an answer takes no press until it has settled. Cards move as a stack: the
  * open one flies off the side it was sent, the one behind rises into place, Back brings
@@ -55,11 +51,7 @@
  * around the questions it is waiting on, chosen by the user on 2026-10-24. */
 import {
   agentName,
-  answeredInWords,
-  commands,
-  elementById,
-  executeCommand,
-  iconElement,
+  nameAction,
   rowArrows,
   dragging,
   focusDestination,
@@ -89,6 +81,7 @@ import {
   whileConnected,
   html,
   nothing,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 // How far a touch drag travels before a release sends the card; how long a card takes
@@ -116,7 +109,6 @@ customElements.define(
     #bar = null;
     #status = null;
     #back = null;
-    #reply = null;
     #forward = null;
     #end = null;
     #again = null;
@@ -146,17 +138,13 @@ customElements.define(
       this.#bar = offer("div", "lf-deck-bar");
       this.#status = document.createElement("span");
       this.#status.className = "lf-deck-status";
-      const control = (name, icon, label) => {
-        const button = offerAction("symbol", `lf-deck-${name}`, label, { icon });
-        button.dataset.icon = icon;
-        // A press never takes focus, so no control keeps a frame the others lack.
-        button.addEventListener("mousedown", (event) => event.preventDefault());
+      const control = (name, action, label) => {
+        const button = offerAction("symbol", `lf-deck-${name}`, label, { action });
         return button;
       };
       this.#back = control("back", "previous", "Back");
-      this.#reply = control("reply", "comment", "Reply");
       this.#forward = control("forward", "next");
-      this.#bar.append(this.#back, this.#status, this.#reply, this.#forward);
+      this.#bar.append(this.#back, this.#status, this.#forward);
       // Where the cards stood once the pass is over: what is left, and a way back in.
       this.#end = offer("div", "lf-deck-end");
       this.#end.hidden = true;
@@ -165,42 +153,33 @@ customElements.define(
       this.#again.addEventListener("click", () => this.#forwardPress(this.#readings()));
       this.#end.append(this.#again);
       const [back, ahead] = rowArrows(this);
-      commands(this, "In a deck", [
-        {
-          id: "deck.back",
-          keys: [back],
-          title: "Back",
-          control: this.#back,
-          bindingBadge: null,
-          touch: false,
-          when: () => this.#index() > 0,
-          run: () => this.#stepBack(),
-        },
-        {
-          id: "deck.reply",
-          keys: [],
-          title: "Reply",
-          control: this.#reply,
-          touch: false,
-          when: () => Boolean(this.#asking()),
-          run: () => this.#replyHere(),
-        },
-        {
-          id: "deck.forward",
-          keys: [ahead],
-          title: () => this.#forwardWord(),
-          control: this.#forward,
-          bindingBadge: null,
-          touch: false,
-          run: () => this.#forwardPress(this.#readings()),
-        },
-      ]);
+      this.lfCommands = {
+        title: "In a deck",
+        rows: [
+          {
+            id: "deck.back",
+            keys: [back],
+            title: "Back",
+            control: this.#back,
+            bindingBadge: null,
+            touch: false,
+            when: () => this.#index() > 0,
+            run: () => this.#stepBack(),
+          },
+          {
+            id: "deck.forward",
+            keys: [ahead],
+            title: () => this.#forwardWord(),
+            control: this.#forward,
+            bindingBadge: null,
+            touch: false,
+            run: () => this.#forwardPress(this.#readings()),
+          },
+        ],
+      };
+      commandsChanged(this);
       for (const card of this.#cards) {
         card.addEventListener("beforematch", () => this.#show(card));
-        card.addEventListener("lf-reveal", (event) => {
-          if (this.#open.value !== card) event.detail.replacedView?.();
-          event.detail.present?.(this.#show(card));
-        });
       }
       this.prepend(this.#bar);
       this.append(this.#end);
@@ -230,7 +209,7 @@ customElements.define(
     #show(card) {
       // Arriving at the open card, as `m` does at the card a motion is bringing up,
       // leaves that motion to finish.
-      if (card === this.#open.value) return Promise.resolve();
+      if (card === this.#open.value) return;
       this.#landing?.();
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === card ? "" : null);
@@ -242,7 +221,7 @@ customElements.define(
       this.#waited = null;
       this.#pressed = null;
       if (card) keepView(this, card);
-      return layoutChanged(this);
+      layoutChanged(this);
     }
 
     // Move from the open card to `next`, or to the end of the pass when it is null.
@@ -455,12 +434,7 @@ customElements.define(
       }
       const waiting = this.#readings()
         ?.get(card)
-        .find(
-          (item) =>
-            item.status === "open" &&
-            item.next_actor === "user" &&
-            !answeredInWords(item),
-        );
+        .find((item) => item.status === "open" && item.next_actor === "user");
       if (waiting) obligationActions.open(waiting.id);
       else focusDestination(card, "move");
     }
@@ -469,29 +443,6 @@ customElements.define(
       const index = this.#index();
       if (index <= 0) return;
       this.#go(this.#cards[index - 1], "back");
-    }
-
-    // The open card's question asked in words that waits on the user, if it holds one.
-    #asking() {
-      const card = this.#open.value;
-      const held = card && this.#readings()?.get(card);
-      return (
-        held?.find(
-          (item) =>
-            item.status === "open" &&
-            item.next_actor === "user" &&
-            answeredInWords(item),
-        ) ?? null
-      );
-    }
-
-    // Put the user on the question and open its comment box, as `c` there would.
-    #replyHere() {
-      const asking = this.#asking();
-      const target = asking && elementById(asking.prompt.target);
-      if (!target) return;
-      focusDestination(target, "press");
-      executeCommand("comment.create");
     }
 
     // The forward control's word, its accessible name and tooltip, and its symbol: on a
@@ -607,16 +558,7 @@ customElements.define(
     updated() {
       if (!this.#cards.length) return;
       const word = this.#forwardWord();
-      keeps(this.#forward, "aria-label", word);
-      keeps(this.#forward, "title", word);
-      const icon = this.#open.value ? "next" : "start";
-      if (this.#forward.dataset.icon !== icon) {
-        this.#forward.dataset.icon = icon;
-        this.#forward
-          .querySelector("svg")
-          ?.replaceWith(iconElement(icon, "lf-action-icon"));
-      }
-      keeps(this.#reply, "hidden", this.#asking() ? null : "");
+      nameAction(this.#forward, this.#open.value ? "next" : "start", { label: word });
       // Once the pass is over the end frame's button is the step back in.
       keeps(this.#forward, "hidden", this.#open.value ? null : "");
       const readings = this.#readings();

@@ -1,9 +1,9 @@
 /* Trees owns row rendering and its scoped stylesheet. Leaf owns the empty state
  * and the surrounding theme tokens, inherited by the one declared shadow stage. */
-:scope:host(lf-file-tree) [data-file-tree-virtualized-scroll] {
+:host(lf-file-tree) [data-file-tree-virtualized-scroll] {
   --lf-holds-height: 1;
 }
-:scope:host(lf-file-tree) .lf-file-tree-empty {
+:host(lf-file-tree) .lf-file-tree-empty {
   margin: 0;
   padding: 0.75rem 1rem;
   color: var(--muted);
@@ -13,15 +13,15 @@
   place-items: center;
   pointer-events: none;
 }
-:scope:host(lf-file-tree) .lf-file-tree-empty[hidden] {
+:host(lf-file-tree) .lf-file-tree-empty[hidden] {
   display: none;
 }
 /* Rows touch one another and their viewport clips at either edge. Draw Leaf's
  * one actual-focus ring inside the row instead of adding it around Trees' ring. */
-:scope:host(lf-file-tree) [role="treeitem"][data-lf-focus-visible] {
+:host(lf-file-tree) [role="treeitem"][data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-:scope:host(lf-file-tree) [role="treeitem"][data-lf-focus]::before {
+:host(lf-file-tree) [role="treeitem"][data-lf-focus]::before {
   display: none;
 }

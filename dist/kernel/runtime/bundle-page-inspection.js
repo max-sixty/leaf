@@ -1,12 +1,9 @@
-import { closeLayer, currentLocationIn, focusDestination, handBack, openLayer, openerOf } from "./bundle-dom-move.js";
-import { requestJson, sessionIsActive } from "./bundle-layer-client.js";
-import { closeNativeLayer, showNativeLayer } from "./bundle-geometry.js";
-import { guard, html, nothing, offlineInteractive, pageUrl, render, runtime } from "./bundle-context.js";
-import { closeControl, el, offerAction, offeredAction, reveal } from "./bundle-errors.js";
-import { chromeForeground, pageControls } from "./bundle-page-controls.js";
+import { scrollBehavior } from "./bundle-portable.js";
+import { closeLayer, closeNativeLayer, currentLocationIn, focusDestination, guard, handBack, html, nothing, offlineInteractive, openLayer, openerOf, pageUrl, render, runtime, showNativeLayer } from "./bundle-layer-stack.js";
+import { closeControl, el, offerAction, offeredAction, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
+import { chromeForeground, pageControls } from "./bundle-content-layout.js";
 import { copyControl, retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
-import { scrollBehavior } from "./bundle-motion.js";
-import { readCurrentUserView } from "./bundle-user-view2.js";
+import { readCurrentUserView } from "./bundle-user-view.js";
 
 //#region runtime/copyable-text.js
 function copyableText(label, value) {
@@ -17,7 +14,8 @@ function copyableText(label, value) {
 		const copy = copyControl("", {
 			label: `Copy ${label}`,
 			success: `${label[0].toUpperCase()}${label.slice(1)} copied`,
-			error: `${label[0].toUpperCase()}${label.slice(1)} not copied · select the text to copy`
+			error: `${label[0].toUpperCase()}${label.slice(1)} not copied · select the text to copy`,
+			role: "symbol"
 		});
 		copy.value = value;
 		return copy;
@@ -115,11 +113,9 @@ const observations = (label, rows, describe) => html` <dt>${label}</dt>
               ${rows.map((row) => html` <li>
                     <code>${row.at}</code>: ${describe(row)}
                     ${destinations.has(row) ? html`<button
-                            ${offeredAction("word")}
+                            ${offeredAction("symbol", "", "Show on page", { action: "show" })}
                             @click=${() => showOnPage(row)}
-                          >
-                            Show on page
-                          </button>` : nothing}
+                          ></button>` : nothing}
                   </li>`)}
             </ul>` : "None observed"}
     </dd>`;
@@ -190,9 +186,10 @@ function present() {
         <h2>Authored CSS</h2>
         ${loading ? html`<p role="status">Reading source…</p>` : nothing}
         ${sourceError ? html`<p role="status">${sourceError}</p>
-                ${report.basis ? html`<button ${offeredAction("word")} @click=${loadSource}>
-                        Retry source inspection
-                      </button>` : nothing}` : nothing}
+                ${report.basis ? html`<button
+                        ${offeredAction("symbol", "", "Retry source inspection", { action: "retry" })}
+                        @click=${loadSource}
+                      ></button>` : nothing}` : nothing}
         ${report.css ? html`
                 <p>Source captured for r${report.basis.revision}. Static CSS only.</p>
                 ${metrics(report.css.page)}

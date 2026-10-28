@@ -14,7 +14,7 @@
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
 import { html, keyed, render, nothing } from "/runtime/framework.js";
-import { generatedElement, offered } from "../widget-elements.js";
+import { generatedElement, offeredAction } from "../widget-elements.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -45,25 +45,22 @@ import {
   strongestWorkflow,
   workflowLabel,
   workflowTitle,
+  workflowVoice,
 } from "./workflow.js";
-import {
-  markDeclared,
-  renderQuiet,
-  renderSaid,
-  writePrepaint,
-} from "../declared-words.js";
+import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
 import { elementById } from "../passages.js";
 import { designName } from "../design-readings.js";
 import { addressableWord, sectionLabel } from "../addressable-names.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
-import { rememberPassageParts } from "../widget-loader.js";
+import { importWidgets, rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
-import { iconTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
+import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
-import { pageClaimed } from "../semantic-state.js";
+import { agentName, pageClaimed } from "../semantic-state.js";
+import { copyControl } from "../copy-control.js";
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
@@ -132,14 +129,14 @@ export function threadName(thread) {
 // agent owes the thread work. A turn that ended, stalled or was never picked up sends
 // none, nor does a page nobody has claimed, and the thread reads its opening words.
 /** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly kind: string, readonly reason: string} | null}} thread */
-const titlePending = (thread) =>
+export const titlePending = (thread) =>
   thread.title == null &&
   thread.attention?.kind === "waiting" &&
   thread.attention.reason === "workflow" &&
   pageClaimed();
 
 // A thread's name wherever a surface draws it, as Threads, Page Map, On cards and the
-// thread's view (to assistive tech alone while untitled) do: while a title is on its way, a placeholder in the face of a step
+// thread's view do: while a title is on its way, a placeholder in the face of a step
 // under way (`.lf-thread-working-words`) rather than opening words that would read as
 // its title.
 // The opening words stay in its accessible name, after the placeholder, so a screen
@@ -176,7 +173,6 @@ export function prepareAuthoredMessage(message, thread) {
     const authored = stageAuthoredStates(template.content, new Map());
     rememberPassageParts(template.content, ["event", message.id]);
     const text = template.content.textContent;
-    writePrepaint(template.content);
     const nodes = Object.freeze([...template.content.childNodes]);
     authoredMessages.set(key, {
       message: message.id,
@@ -188,6 +184,7 @@ export function prepareAuthoredMessage(message, thread) {
       descriptors,
       nodes,
       root: template.content,
+      preparation: null,
     });
   }
   const prepared = authoredMessages.get(key);
@@ -197,7 +194,16 @@ export function prepareAuthoredMessage(message, thread) {
       descriptor.document.message !== message.id
     )
       throw new TypeError("an authored message changed its frozen document identity");
-  return prepared;
+  // The captured document owns preparation for its entire lifetime. Concurrent
+  // state reads join it, including after its nodes leave the inert fragment for a
+  // drawing. A failed import remains a failed state read; the next read may retry.
+  return (prepared.preparation ??= importWidgets(prepared.root).then(
+    () => prepared,
+    (error) => {
+      prepared.preparation = null;
+      throw error;
+    },
+  ));
 }
 const authoredMessage = (message) => {
   const prepared = authoredMessages.get(message.attempt ?? message.id);
@@ -220,8 +226,8 @@ const authoredMessage = (message) => {
 // would not.
 const authoredDrawings = new Map();
 const authoredHolders = new Map();
-const shown = (view) => view.node.isConnected && view.node.checkVisibility();
-const hidden = (view) => view.node.isConnected && !view.node.checkVisibility();
+const shown = (view) => view.node.isConnected && showsContents(view.node);
+const hidden = (view) => view.node.isConnected && !showsContents(view.node);
 const outranks = (a, b) => a.model.authoredRank > b.model.authoredRank;
 function settleAuthored(key) {
   const drawings = authoredDrawings.get(key) ?? new Set();
@@ -281,7 +287,7 @@ export function messageReading(
     // thread shows as its run's face until an answer folds it (transcript.js).
     progress: Boolean(message.ephemeral),
     // What an answer leaves standing, while it stands: "Waiting on me" for the question the
-    // user owes words to, "To-do open" for work it promised and has not ended
+    // user owes words to, Still to do (`todoLabel`) for work it promised and has not ended
     // (thread-card.js).
     leaves,
     version: message.content_version,
@@ -304,8 +310,9 @@ export function messageReading(
     // content version.
     base: message.content_version,
     workflow,
-    workflowLabel: workflowLabel(workflow),
-    workflowTitle: workflowTitle(workflow),
+    workflowLabel: workflowLabel(workflow, agentName()),
+    workflowTitle: workflowTitle(workflow, agentName()),
+    workflowVoice: workflowVoice(workflow),
     body: Object.freeze({
       kind,
       text: message.text ?? "",
@@ -317,6 +324,12 @@ export function messageReading(
       glyph: token?.glyph ?? "",
       authored: message.body.kind === "authored",
     }),
+    // The message as its Copy control copies it: its words as written, then any markup
+    // an agent sent after them, which Markdown carries as HTML. A reaction has none.
+    markdown:
+      kind === "reaction"
+        ? null
+        : [message.text, message.markup].filter(Boolean).join("\n\n"),
     // Where this drawing ranks among those that may hold the message's widgets
     // (`authoredHolders`); 0 for one that never does.
     authoredRank,
@@ -328,13 +341,13 @@ export class MessageView {
   #commands;
   #model = null;
   #reaction = null;
+  #copy = null;
   #authored = null;
   // Bumped each time this view takes the message's widgets back from another drawing.
   #authoredTake = 0;
   #dressed = false;
   #arrivalMotion = null;
   #stopRead = null;
-  #header = document.createElement("div");
   #editor = null;
   #kept = false;
   #stopKept = null;
@@ -362,7 +375,6 @@ export class MessageView {
       // Which message a node draws, for a presentation handing the user's place in a
       // thread to another, as the floating panel does to a page's own reader.
       this.node.dataset.message = model.key;
-      this.#header.className = "lf-msg-head";
       this.node.classList.add("lf-ui");
       generatedElement(this.node, { says: false });
       this.node.dataset.lfOffer = "";
@@ -411,7 +423,6 @@ export class MessageView {
         if (keptRewrite(this.#model.id) !== this.#kept)
           this.#commands.edit.paint(this.node);
       });
-    keeps(this.#header, "data-lf-reflow", "text");
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
     this.node.classList.toggle(model.author, true);
@@ -455,12 +466,15 @@ export class MessageView {
         )
       : nothing;
     const receipt = model.workflowLabel
-      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+      ? html`<span
+          class="lf-msg-sending"
+          title=${model.workflowTitle}
+          data-voice=${model.workflowVoice}
           >${model.workflowLabel}</span
         >`
       : nothing;
-    render(
-      html`
+    const header = html`
+      <div class="lf-msg-head" data-lf-reflow="text">
         <b>${model.by}</b
         ><span class="lf-msg-meta"
           >${
@@ -469,7 +483,9 @@ export class MessageView {
               : nothing
           }${
             model.unread
-              ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>`
+              ? html`<span class="lf-msg-new lf-unread-dot"
+                  ><span class="lf-quiet">New</span></span
+                >`
               : nothing
           }
           ${receipt}
@@ -497,33 +513,30 @@ export class MessageView {
             this.#kept
               ? html`<span
                   class="lf-msg-kept"
-                  title="The rewrite is kept; open it to save or cancel"
+                  title="The edit is kept; open it to save or discard"
                   >unsaved edit</span
                 >`
               : nothing
           }
         </span>
         ${headerControls}
-      `,
-      this.#header,
-    );
+      </div>
+    `;
     // The user's own words offer their rewrite where an agent's reply offers its
     // reactions: the message's one control, at its header's right edge (shadow.css).
     const rewrite =
       model.editable && !editing
         ? html`<button
-            ${offered("lf-msg-control lf-msg-edit")}
+            ${offeredAction("symbol", "lf-msg-control lf-msg-edit", "Edit message", {
+              action: "edit",
+            })}
             tabindex="-1"
-            aria-label="Edit message"
-            title="Edit message"
             @click=${() => this.openEdit()}
-          >
-            ${iconTemplate("edit", "lf-msg-control-icon")}
-          </button>`
+          ></button>`
         : nothing;
     render(
       html`
-        ${this.#header}
+        ${header}
         <div
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
         >
@@ -535,6 +548,7 @@ export class MessageView {
           }
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
+        ${model.markdown && !editing ? this.#copyControl(model.markdown) : nothing}
         ${strip} ${rewrite}
       `,
       this.node,
@@ -603,6 +617,25 @@ export class MessageView {
   // Whether this view draws an open rewrite.
   get editing() {
     return this.#editor !== null;
+  }
+
+  // Copy stands at the head's end, after the message's own control (controls.css), and
+  // copies the message whole as Markdown. Like Edit it is no Tab stop, which would add
+  // one to every message between a thread's controls; the keyboard presses it with the
+  // copy key in the thread (landing.js, `message.copy`).
+  #copyControl(markdown) {
+    if (!this.#copy) {
+      this.#copy = copyControl("lf-msg-control lf-msg-copy", {
+        role: "symbol",
+        label: "Copy as Markdown",
+        success: "Message copied as Markdown",
+        error: "Message not copied · select its words to copy",
+      });
+      this.#copy.tabIndex = -1;
+      this.#copy.title = "Copy as Markdown";
+    }
+    if (this.#copy.value !== markdown) this.#copy.value = markdown;
+    return this.#copy;
   }
 
   #body(body) {

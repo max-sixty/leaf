@@ -90,6 +90,7 @@ function makeLink(heading) {
     success: "Link copied",
     error: "Unable to copy link",
     action: "copy-link",
+    role: "symbol",
   });
   control.tabIndex = -1;
   const link = {

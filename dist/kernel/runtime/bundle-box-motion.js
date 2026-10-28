@@ -1,6 +1,6 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
 import { afterSettling, cancelRender, motionEasing, motionPlays, motionTime, nextRender, playMotion } from "./bundle-portable.js";
-import { TEXT_FIELD, atLayoutPrecision, keeps, layoutPx, move, onUserInput } from "./bundle-layer-stack.js";
+import { PRESSES, TEXT_FIELD, atLayoutPrecision, keeps, layoutPx, move, onUserInput } from "./bundle-layer-stack.js";
 import { el } from "./bundle-layer-client.js";
 import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, contentRides, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";
 import { hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-geometry.js";
@@ -99,7 +99,7 @@ function paintStand(box = null) {
 	root.className = "lf-ui lf-target-paint lf-paint-stand";
 	root.setAttribute("aria-hidden", "true");
 	root.style.position = "fixed";
-	if (box) root.style.setProperty("--lf-paint-outset", "var(--focus-ring-w)");
+	if (box) root.style.setProperty("--lf-paint-outset", "var(--focus-region-room)");
 	const carrier = document.createElement("div");
 	carrier.className = "lf-paint-carrier";
 	if (box) carrier.append(box);
@@ -171,6 +171,7 @@ function standOver(stand, placed, borderRadius) {
 		display: "block",
 		borderRadius
 	});
+	keeps(stand.box, "data-lf-mark-on", placed.surface.matches(PRESSES) ? "control" : null);
 	return {
 		...stood,
 		anchor,

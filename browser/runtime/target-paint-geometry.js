@@ -25,6 +25,7 @@ import {
   scrollsContent,
   shownBox,
 } from "./geometry.js";
+import { PRESSES } from "./control-selectors.js";
 import { hasArea, intersect } from "./rect.js";
 import { move } from "./dom-move.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
@@ -173,7 +174,7 @@ export function paintStand(box = null) {
   root.style.position = "fixed";
   // A contour spends its stroke outside the target. Let that stroke survive when
   // the target meets a scrollport edge; drawings and chips use stands without a box.
-  if (box) root.style.setProperty("--lf-paint-outset", "var(--focus-ring-w)");
+  if (box) root.style.setProperty("--lf-paint-outset", "var(--focus-region-room)");
   const carrier = document.createElement("div");
   carrier.className = "lf-paint-carrier";
   if (box) carrier.append(box);
@@ -266,6 +267,13 @@ export function standOver(stand, placed, borderRadius) {
   const stood = standIn(stand, placed, Boolean(anchor));
   standBox(stand.box, placed.rect, stood, anchor, at);
   Object.assign(stand.box.style, { display: "block", borderRadius });
+  // A control's marks stand at its own ring's gap, a region's at the region's
+  // (theme.css, "Where it stands").
+  keeps(
+    stand.box,
+    "data-lf-mark-on",
+    placed.surface.matches(PRESSES) ? "control" : null,
+  );
   return { ...stood, anchor, at };
 }
 

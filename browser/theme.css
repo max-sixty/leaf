@@ -528,12 +528,34 @@
   --react: light-dark(#dfd1ed40, #6152a036);
   /* A control's hover wash can follow its visible face inside a larger hit target. */
   --offer-hover-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent);
-  /* The focus ring: a control or bounded decision receiving the user's next press
-     wears one consistent band. A large composite surface would turn that band into a
-     second box around the box; it instead uses a quiet ground.
-     Its geometry distinguishes a target from a current region. The
-     gap is what the ring wants outside a box that stands on its own; a control packed
-     into a list states its own inset instead.
+  /* The marks of where the user is and of what a gesture addresses all draw one band,
+     in one ink. Two independent choices make each one's look: what the mark says sets
+     its stroke, and the box it stands round sets where the band stands.
+
+     What it says:
+     - The focus ring, whole: what takes the next key or press (`data-lf-focus-visible`).
+     - The location ring, whole: the decision the user stands in (`[data-lf-obligation]`,
+       chrome.css). A control inside it that carries the location itself stands it
+       down (`--lf-obligation-ring: none`).
+     - Brackets, the band's two ends (chrome.css): what a gesture under way addresses,
+       such as the Alt aim, a comment's element, the thread the user is in or its row
+       under the pointer in Threads. In the trace ink, the target of the margin entry
+       in hand; at 1px in the contour ink, the target of an action.
+     - A shape's own contour, stroked along its path in place of either
+       (target-paint-geometry.js).
+     - A quiet ground (--focus-surface): a large composite holding focus, such as a
+       thread, where a band would be a second box round the box.
+
+     Where it stands, which the box decides and the mark never does:
+     - A region, a block of the page standing among others (a section, a question, a
+       figure, a paragraph): outside it at --focus-region-gap. Every mark on a region
+       stands on this one perimeter, so going from aim to comment to arrival changes
+       only the stroke, and two marks on one region draw one line.
+     - A control standing on its own: outside its edge at --focus-ring-gap, or at a
+       smaller gap of its own where its neighbours stand closer (controls.css).
+     - A field: on its border, which the ring replaces.
+     - A box packed into a list, or one whose clip leaves no room outside it, region
+       or control: one band inside its edge (`calc(-1 * var(--focus-ring-w))`).
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be
@@ -560,6 +582,9 @@
      pane's top with the room alone stood 3.5px under the edge, short of the ring's
      5px. */
   --focus-ring-landing: calc(var(--focus-ring-room) + 2px);
+  --focus-region-gap: var(--focus-ring-gap);
+  --focus-region-room: calc(var(--focus-ring-w) + var(--focus-region-gap));
+  --focus-region-landing: calc(var(--focus-region-room) + 2px);
   --focus-surface: color-mix(in srgb, var(--accent) 4%, var(--card));
   /* The same band cast as a shadow, for the boxes that cannot spend an outline on it:
      the anchored response bar, whose focused states already write `outline: none` so
@@ -577,8 +602,8 @@
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
   /* SVG annotations stroke their actual contour in this quieter ink. Rectangular
-     annotations use the focus outline cut into brackets (chrome.css), flush outside
-     the target. */
+     annotations use the focus outline cut into brackets (chrome.css), on the region's
+     perimeter. */
   --mark-contour-w: 1.5px;
   --mark-contour-ink: color-mix(in srgb, var(--accent) 72%, var(--paper));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its

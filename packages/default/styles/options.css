@@ -606,7 +606,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   /* Focus inside the control is carried by the exact row, so the obligation's location ring
    * around it is suppressed rather than reading as a second border. The obligation is matched
    * as a widget root as well as a descendant, so an obligation at the page's top level is
-   * reached too. */
+   * reached too, and so is a choosing lf-options that is the obligation itself. */
   :is(
       lf-activity,
       lf-ask,
@@ -659,6 +659,9 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
         *
     )[data-lf-obligation]:has(
       lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus-visible]
+    ),
+  lf-options[choose][data-lf-obligation]:not(:where([data-lf-exhibit]) *):has(
+      [data-lf-focus-visible]
     ) {
     --lf-obligation-ring: none;
   }

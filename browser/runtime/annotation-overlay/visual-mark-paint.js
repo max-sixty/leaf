@@ -11,6 +11,7 @@ import { cancelRender, nextRender } from "../rendering.js";
 import { el } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { inChrome } from "../passages.js";
+import { PRESSES } from "../control-selectors.js";
 import {
   SVG_NS,
   dropStand,
@@ -31,11 +32,14 @@ const STATE_CLASSES = {
 };
 const INSET = "lf-visual-mark-inset";
 
-// What the contour takes outside its target: the focus ring's band (chrome.css).
-function ringRoom() {
-  return parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"),
-  );
+// What the contour takes outside `element`: the band and the gap its box stands at
+// (theme.css, "Where it stands").
+function ringRoom(element) {
+  const root = getComputedStyle(document.documentElement);
+  const gap = element.matches(PRESSES) ? "--focus-ring-gap" : "--focus-region-gap";
+  return ["--focus-ring-w", gap]
+    .map((token) => parseFloat(root.getPropertyValue(token)))
+    .reduce((sum, px) => sum + px, 0);
 }
 
 // The contour's brackets stand flush outside their target (chrome.css). Where a box that
@@ -74,7 +78,6 @@ export function createVisualMarkPaint() {
   }
 
   function paintTargets(rebuildGeometry = true) {
-    const room = ringRoom();
     for (const element of [...overlays.keys()])
       if (!targets.has(element)) {
         element.classList.toggle(PROJECTED, false);
@@ -111,7 +114,10 @@ export function createVisualMarkPaint() {
       element.classList.toggle(PROJECTED, true);
       keeps(overlay, "data-for", element.id || null);
       overlay.classList.toggle("lf-shaped", Boolean(geometry));
-      overlay.classList.toggle(INSET, !geometry && cramped(placed, room));
+      overlay.classList.toggle(
+        INSET,
+        !geometry && cramped(placed, ringRoom(target.surface)),
+      );
       if (
         rebuildGeometry ||
         record.geometry !== geometry ||

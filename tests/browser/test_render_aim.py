@@ -3529,7 +3529,8 @@ def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, se
 
 
 def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, subtests):
-    """Leaving Comment changes the mark, not which rectangle it identifies.
+    """Leaving Comment changes the mark, not which rectangle it identifies, and every
+    mark stands on the region's perimeter, at the gap the location ring takes.
 
     A native table ends at its last row, a card follows its authored corners, and a
     partly scrolled card keeps its shape behind the scrollport's cut. Compare to the content,
@@ -3573,8 +3574,11 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
       const ink = end.content !== 'none' ? end : style;
       const rect = node.getBoundingClientRect();
       const stroke = parseFloat(ink.outlineWidth), gap = parseFloat(ink.outlineOffset);
-      const painted = {left:rect.left - stroke, top:rect.top - stroke,
-        right:rect.right + stroke, bottom:rect.bottom + stroke};
+      const reach = stroke + gap;
+      const painted = {left:rect.left - reach, top:rect.top - reach,
+        right:rect.right + reach, bottom:rect.bottom + reach};
+      const region = parseFloat(getComputedStyle(document.documentElement)
+        .getPropertyValue('--focus-region-gap'));
       for (let frame = node.parentElement; frame; frame = frame.parentElement) {
         if (!frame.matches('.lf-paint-frame')) continue;
         const values = getComputedStyle(frame).clipPath.match(/-?[\d.]+px/g)?.map(parseFloat);
@@ -3585,7 +3589,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
         painted.right = Math.min(painted.right, box.right - values[1]);
         painted.bottom = Math.min(painted.bottom, box.bottom - values[2]);
       }
-      return {source:box.toJSON(), shown, painted, rect:rect.toJSON(), stroke, gap, ink:ink.outlineStyle,
+      return {source:box.toJSON(), shown, painted, rect:rect.toJSON(), stroke, gap, region, ink:ink.outlineStyle,
         radius:style.borderRadius, clip:ink.clipPath,
         nativeOutline:getComputedStyle(target).outlineStyle,
         rowBottom:id === 'square' ? target.rows[target.rows.length - 1].getBoundingClientRect().bottom : null};
@@ -3594,12 +3598,13 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
     def boundary(target, selector):
         reading = page.evaluate(read, [target, selector])
         assert reading["ink"] == "solid", reading
-        assert (reading["stroke"], reading["gap"]) == (2, 0), reading
+        assert (reading["stroke"], reading["gap"]) == (2, reading["region"]), reading
+        reach = reading["stroke"] + reading["gap"]
         for edge in ("left", "top", "right", "bottom"):
             assert reading["rect"][edge] == pytest.approx(
                 reading["source"][edge], abs=0.5
             ), reading
-            outside = -2 if edge in ("left", "top") else 2
+            outside = -reach if edge in ("left", "top") else reach
             assert reading["painted"][edge] == pytest.approx(
                 reading["shown"][edge] + outside, abs=0.5
             ), reading

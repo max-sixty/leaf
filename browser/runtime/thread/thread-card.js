@@ -41,7 +41,8 @@ import {
 import { html, render, nothing, share, signal } from "/runtime/framework.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
-import { generatedElement, offeredAction, measure } from "../widget-elements.js";
+import { generatedElement, offeredAction } from "../widget-elements.js";
+import { measure } from "../shown-box.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { commandsOn } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";

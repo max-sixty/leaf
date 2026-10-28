@@ -65,9 +65,9 @@ import {
   shownBox,
   shownWindow,
   userScrollport,
-  skipped,
   stuckBox,
 } from "./geometry.js";
+import { skipped } from "./shown-box.js";
 import {
   blockAt,
   closestAcross,

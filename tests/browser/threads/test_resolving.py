@@ -20,7 +20,6 @@ from render_harness import (
     LONG_PAGE,
     PANEL,
     PANEL_THREAD,
-    CutOff,
     expect_open_threads,
     holding,
     leaf_page,
@@ -99,7 +98,7 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
             thread.get_by_role(
                 "button", name=optimistic, exact=True, include_hidden=True
             )
-        ).to_have_attribute("aria-busy", "true")
+        ).to_be_attached()
         page.locator("#later").fill("Keep my later focus here.")
         held.pop().continue_()
         round_trip(page)
@@ -263,9 +262,6 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(held_events, serv
     expect(thread.locator(".lf-page-thread")).to_be_focused()
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     expect(resolve).to_be_enabled()
-    expect(resolve).not_to_have_attribute("aria-busy", "true")
-    # Its command is live again, so the button says so to the keyboard as well.
-    expect(resolve).not_to_have_attribute("aria-disabled", "true")
     expect(resolve).not_to_have_attribute("aria-keyshortcuts", re.compile(r".*x.*"))
     resolve.focus()
     with page.expect_request("**/api/event"):
@@ -491,16 +487,10 @@ def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serv
     ] == [root]
 
 
-def test_a_poll_accounted_settlement_repaints_before_its_post_response(
-    held_events, serve
-):
-    """A poll may prove acceptance while the original POST response remains held.
-
-    The poll paints and accounts the receipt first. Delivery then retires the already
-    accounted ledger entry, which must invalidate the unchanged thread reading;
-    otherwise the settlement control stays busy until an unrelated clock tick or state
-    read.
-    """
+def test_a_settlement_in_flight_leaves_its_opposite_live(held_events, serve):
+    """While a Resolve travels, the Reopen it leaves is live at once: it wears no busy
+    or unavailable face, and a press sends the unresolve after the resolve, as the
+    ledger orders them, rather than being swallowed."""
     browser, held = held_events
     url = serve(SEATED_OBLIGATION_PAGE)
     root = append_carried_log_record(
@@ -510,7 +500,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
             "author": "user",
             "revision": 1,
             "anchor": {"section": "jobs"},
-            "text": "Account this resolution from the complete reading.",
+            "text": "Resolve this and change my mind before the page answers.",
         },
     )["id"]
     page = open_page(browser, url)
@@ -519,27 +509,28 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
 
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Resolve thread", exact=True).click()
-    holding(page, held, 1, "the resolution whose response remains held")
+    holding(page, held, 1, "the resolve")
     page.locator("#jobs .lf-resolved-summary").click()
-    pending = inline.get_by_role("button", name="Reopen", exact=True)
-    expect(pending).to_be_disabled()
-    expect(pending).to_have_attribute("aria-busy", "true")
+    reopen = inline.get_by_role("button", name="Reopen", exact=True)
+    expect(reopen).to_be_enabled()
+    expect(reopen).not_to_have_attribute("aria-busy", "true")
+    reopen.click()
+    resolve = inline.get_by_role("button", name="Resolve thread", exact=True)
+    expect(resolve).to_be_enabled()
+    expect(resolve).not_to_have_attribute("aria-busy", "true")
 
-    # Let exactly the news-triggered state read through. Its receipt accounts the
-    # gesture while the page's original POST still has no response, and refusing later
-    # reads prevents another poll from hiding a missing local invalidation.
-    reads = CutOff(lets_through=1).hold(page)
-    route = held.pop()
-    accepted = route.fetch()
-    told(page)
-    reads.cut()
-    for settled in (inline.get_by_role("button", name="Reopen", exact=True),):
-        expect(settled).to_be_enabled()
-        expect(settled).not_to_have_attribute("aria-busy", "true")
-
-    route.fulfill(response=accepted)
+    with page.expect_request("**/api/event"):
+        held.pop().continue_()
+    holding(page, held, 1, "the unresolve sent after the resolve")
+    held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
+    assert [
+        event["kind"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("parent") == root
+    ] == ["resolve", "unresolve"]
+    expect(resolve).to_be_visible()
 
 
 def test_taking_back_a_resolve_is_the_users_own_gesture(browser, serve):

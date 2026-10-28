@@ -1207,7 +1207,9 @@ WORD_LINES = """node => {
 
 
 @pytest.mark.parametrize("touch", [False, True], ids=["mouse", "touch"])
-def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(browser, serve, touch):
+def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
+    browser, serve, touch
+):
     """The card's reply box is the comment box the card grew from, and ends its words,
     on every line, where the card's messages end theirs, so a reply breaks each line
     where it did as it was typed."""
@@ -1229,7 +1231,9 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(browser, serv
     STEP.open(page, touch)
     page.keyboard.insert_text(COMMENT)
     if touch:
-        page.locator(".lf-fab-bar").get_by_role("button", name="Comment", exact=True).tap()
+        page.locator(".lf-fab-bar").get_by_role(
+            "button", name="Comment", exact=True
+        ).tap()
     else:
         page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")

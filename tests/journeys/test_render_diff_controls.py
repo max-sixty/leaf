@@ -287,7 +287,9 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     write(floating, markdown)
     draft_face = face(floating)
     text_end = f"{(44 if touch else 28) + 2 * 16 + 1}px"
-    assert f"{float(draft_face["padding-right"].removesuffix("px")) + 1:g}px" == text_end
+    assert (
+        f"{float(draft_face['padding-right'].removesuffix('px')) + 1:g}px" == text_end
+    )
     floating.press("Control+Enter" if touch else "Enter")
     physical_reading = reading(page.locator(".lf-margin-preview .lf-msg-body").first)
     sent_insets = page.locator(".lf-margin-preview .lf-msg-text").first.evaluate(

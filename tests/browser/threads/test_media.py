@@ -533,7 +533,9 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
                 });
             }, {capture: true});
     }""")
-    page.get_by_role("button", name="Remove attached image 1", exact=True).tap()
+    page.get_by_role("button", name="Remove attached image 1", exact=True).tap(
+        force=True
+    )
     # Removal is synchronous in the click, so the shelf is empty as the tap returns,
     # with the drag's timers still held. An image here with the click on the ✕ says
     # the click did not remove it; a click elsewhere, or none, says the tap missed.

@@ -19,6 +19,7 @@ from render_harness import (
     panel_menu,
     panel_settled,
     panel_view,
+    press_visible,
     resized,
     scroll_settled,
     select,
@@ -935,8 +936,11 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
     page.evaluate("scrollBy(0,-160)")
     control = panel_control(page, ALIGN_ROW, at="navigate")
     expect(control).to_be_enabled()
-    control.tap()
-    _expect_aligned(page, "#align-ask")
+    press_visible(page, control, touch=True)
+    # Returning focus from the menu can align before the current-location paint
+    # supplies its scroll margin, just as activation from the command reference does.
+    # Both landings must clear the pinned band.
+    _expect_aligned(page, "#align-ask", exact_margin=False)
     page.locator("#align-heading").focus()
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()

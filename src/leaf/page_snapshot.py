@@ -30,6 +30,7 @@ from .revision_artifact import (
     read_artifact,
     read_revision,
 )
+from .runtime_selection import executing
 from .served_state.context import PageRead
 from .served_state.reading import join_reading
 from .service import PageTransaction
@@ -154,6 +155,8 @@ def capture_page_snapshot(
         # probes beside it (`runtime_selection`), so the probes call the runtime
         # they were written against, whichever Leaf captured the revision.
         artifacts[revision] = selected
+        artifacts = {number: executing(value) for number, value in artifacts.items()}
+        selected = artifacts[revision]
         registry = copy.deepcopy(selected.registry)
         data = read_data(page_dir, registry)
         # External data remains current even in a historical document. Its media

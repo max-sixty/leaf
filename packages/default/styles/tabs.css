@@ -191,6 +191,11 @@ lf-tabs.lf-rendered > lf-tab {
  * offered only in the live page and the rest is what the markup already says.
  * A control whose state the browser owns needs no such block. */
 @media screen {
+  /* A set, panel or side strip that scrolls at the window's foot clears the floating
+   * panel during native focus scrolling, using the clearance its content already has. */
+  :is(lf-tabs, lf-tab, .lf-tabstrip) {
+    scroll-padding-block-end: var(--lf-end-room);
+  }
   /* :where keeps the frame face below the generic edge trim's specificity. A set the
    * runtime has yet to upgrade wears each face it will have from the first paint: each
    * rule here names it beside the upgraded set (`html[data-lf-interactive]`, "Before
@@ -708,8 +713,9 @@ lf-tabs.lf-rendered > lf-tab {
     padding: var(--sp-4) 0 var(--lf-tab-end);
     --lf-block-frame: trim;
   }
+  /* Hidden panels keep their column width: shrinking a content-visibility:hidden
+   * panel to its contents also collapses its sized lazy images to zero. */
   lf-tabs.lf-rendered[data-lf-views-flow="page"] > lf-tab[hidden] {
-    align-self: start;
     height: 0;
     min-height: 0;
     overflow: clip;

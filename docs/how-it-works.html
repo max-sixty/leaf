@@ -748,12 +748,11 @@ flowchart TD
           <section id="agent-guidance">
             <h2>Agent instructions and notices</h2>
             <p id="guidance-placement">
-              Leaf puts each instruction where the agent will be when it applies. Goals
-              and workflow that hold for the whole session live in the skill. A rule for
-              one element or one update travels with that element or update, so the
-              agent reads it at the moment it acts, even late in a long session.
-              Problems the agent can't see for itself, such as an update it hasn't
-              answered, arrive from Leaf's hooks.
+              The workflow, including what the agent records for the user, lives in the
+              skill, which the agent reads at the start and again after a compaction. A
+              rule for one element or one kind of update travels with it, so the agent
+              reads it when it acts. Problems the agent can't see for itself, such as an
+              update it hasn't answered, arrive from Leaf's hooks.
             </p>
             <table id="guidance-channels">
               <thead>
@@ -785,10 +784,10 @@ flowchart TD
                     monitoring package's coordinator.
                   </td>
                   <td>
-                    When the agent runs <code>leaf page instructions</code>, which joins
-                    each package's <code>instructions/</code> files, its registry
-                    entries' <code>x-instructions</code> and its data contracts'
-                    instructions by audience.
+                    When the agent runs <code>leaf page instructions</code>, which
+                    prints each package's <code>instructions/</code> files by audience.
+                    Each <code>--use</code> adds that entry's
+                    <code>x-instructions</code> and its data contracts' instructions.
                   </td>
                 </tr>
                 <tr>
@@ -798,21 +797,25 @@ flowchart TD
                     and the registry's clauses for that kind of update.
                   </td>
                   <td>
-                    In every delivery, beside the events it applies to (<a
-                      href="#delivery-example"
+                    In every delivery, which lists each clause once and has each event
+                    name the clauses that apply (<a href="#delivery-example"
                       >Delivery fields and answer semantics</a
+                    >). A hook adds the delivery to a running turn, or a watch or
+                    message starts a turn with it (<a href="#delivery"
+                      >Harness connections and receipt</a
                     >).
                   </td>
                 </tr>
                 <tr>
                   <th scope="row">Hook notices</th>
                   <td>
-                    An update delivered and not answered, a page with nothing watching
-                    it, or a claim to reconnect.
+                    An owed update not yet answered, input not yet picked up, a page
+                    holding input with nothing watching it, or a claim to reconnect.
                   </td>
                   <td>
                     When the agent ends a turn (<a href="#turn-end">Stop hook checks</a
-                    >), or as a session or prompt starts.
+                    >), as a session or prompt starts, and in Claude Code between tool
+                    calls.
                   </td>
                 </tr>
                 <tr>

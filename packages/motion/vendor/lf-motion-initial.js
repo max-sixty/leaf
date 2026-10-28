@@ -232,8 +232,8 @@
         >Speed<select ${ref(speedRef)} name="speed">
           ${[1, 0.5, 0.25].map(
       (value) => html`<option value=${value} .selected=${live(rate === value)}>
-                  ${value}×
-                </option>`
+                ${value}×
+              </option>`
     )}
         </select></label
       >

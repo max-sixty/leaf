@@ -170,7 +170,7 @@ def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serv
         page.locator("#row").click(position={"x": 20, "y": 10})
     expect(
         page.locator('[data-lf-margin-for="choice"] .lf-margin-marker')
-    ).to_have_attribute("aria-label", re.compile(r"^Saved\b"))
+    ).to_have_attribute("aria-label", re.compile(r"^Queued for Claude\b"))
     for _ in range(2):
         rendered(page)
         assert preview.evaluate(where) == card
@@ -194,7 +194,7 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
         page.locator("#two").click(position={"x": 20, "y": 10})
     receipt = page.locator('[data-lf-margin-for="choice"]')
     expect(receipt.locator(".lf-margin-marker")).to_have_attribute(
-        "aria-label", re.compile(r"^Saved\b")
+        "aria-label", re.compile(r"^Queued for Claude\b")
     )
     rendered(page)
     assert thread.evaluate(where) == row

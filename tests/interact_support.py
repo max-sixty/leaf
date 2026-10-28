@@ -74,7 +74,8 @@ from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry, require_registry
-from leaf.revision_artifact import active_enclosing
+from leaf.revision_artifact import active_enclosing, read_artifact
+from leaf.runtime_selection import execution_identity
 from leaf.served_state import page as served_page
 from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
@@ -158,6 +159,13 @@ def append_carried_log_record(page_dir, event):
     if "revision" in contract["record"]["required"]:
         record.setdefault("revision", 1)
     return events_model.append_event(page_dir, record)
+
+
+def revision_root(page_dir: Path, revision: int) -> str:
+    """Where a page's server answers revision `revision`'s resources: under the
+    identity of the runtime and layer it executes (`http.PageEndpoint._named_root`)."""
+    name = files_model.revision_path(page_dir, revision).stem
+    return f"/revisions/{name}/{execution_identity(read_artifact(page_dir, revision))}"
 
 
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:

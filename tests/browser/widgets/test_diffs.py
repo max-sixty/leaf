@@ -5,7 +5,6 @@ import json
 import re
 
 import pytest
-from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_cases_widgets import (
@@ -44,6 +43,7 @@ from browser.widgets import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

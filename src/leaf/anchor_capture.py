@@ -80,7 +80,7 @@ def capture_anchor(
     document: SourceDocument,
     registry,
     quote: str,
-    section: str,
+    section: str | None,
     decided=None,
     rewrites=None,
     part: str | None = None,
@@ -116,6 +116,7 @@ def capture_anchor(
         if section not in enclosing:
             raise ValueError(f"no element id {section!r} in this version")
         if section in retired:
+            assert decided is not None
             sid = retired[section]
             raise ValueError(
                 f"§ {section} left the page when the user chose to {decided[sid]} "

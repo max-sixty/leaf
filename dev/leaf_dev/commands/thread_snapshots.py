@@ -54,7 +54,7 @@ from pathlib import Path
 
 import click
 from PIL import Image
-from playwright.sync_api import Page
+from playwright.sync_api import FloatRect, Page
 from pytest_image_snapshot import ImageMismatchError
 
 from leaf_dev import ROOT, leaf_assets
@@ -106,7 +106,7 @@ def render_profile(browser_version: str) -> str:
     )
 
 
-def visible_capture(image: Image.Image, clip: dict, window: dict) -> Image.Image:
+def visible_capture(image: Image.Image, clip: FloatRect, window: dict) -> Image.Image:
     """Keep captured pixels inside the response window, including frame halos.
 
     Both approved and actual images retain their full padded capture separately.
@@ -201,7 +201,8 @@ class SnapshotRun:
         region = reading["region"]
         viewport = page.viewport_size
         left, top = max(0, region["x"] - 16), max(0, region["y"] - 16)
-        clip = {
+        assert viewport is not None
+        clip: FloatRect = {
             "x": left,
             "y": top,
             "width": min(viewport["width"], region["x"] + region["width"] + 16) - left,

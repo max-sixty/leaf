@@ -128,6 +128,7 @@ class GestureWords:
                     self.registry,
                 )
             else:
+                assert revision is not None
                 reading = self.revisions(revision)
                 self._documents[revision] = _Document(
                     [reading.document.authoring.content],
@@ -174,7 +175,9 @@ class GestureWords:
         )
         if not creates:
             return None
-        entry = self._document(creator).registry.get(creator["meaning"]["creates"], {})
+        document = self._document(creator)
+        assert document is not None
+        entry = document.registry.get(creator["meaning"]["creates"], {})
         words = creator["detail"][creates["words"]]
         return collapse(shown_words(words, entry, added=True))
 
@@ -239,7 +242,7 @@ class GestureWords:
         """The registry entry the gesture's widget had in its own document."""
         document = self._document(event)
         node = document.nodes.get(event["widget"]) if document else None
-        return document.registry.get(node["tag"], {}) if node else {}
+        return document.registry.get(node["tag"], {}) if document and node else {}
 
     def name(self, event: dict, identity: str) -> str:
         """What the gesture's document calls one element it names: its title, else

@@ -19,9 +19,6 @@ from typing import NamedTuple
 import psutil
 import pytest
 from click.testing import CliRunner
-from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
-from leaf_dev.browser import shell_executable, use_linux_fonts
-from leaf_dev.page_fixtures import package_selection_args
 from playwright.sync_api import Frame, Page, sync_playwright
 
 from leaf import cli as cli_model
@@ -35,6 +32,9 @@ from leaf import state as cleanup_model
 from leaf.registry.schema import schema_error, with_leaf_resources
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
+from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
+from leaf_dev.browser import shell_executable, use_linux_fonts
+from leaf_dev.page_fixtures import package_selection_args
 
 __all__ = ["LEAF_COMMAND"]
 

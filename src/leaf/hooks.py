@@ -82,6 +82,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
     """Answer one hook of `harness`, the name its registration passes."""
     started = time.monotonic()
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
+    assert isinstance(event, str)
     if worker_tool_batch(harness, payload):
         return
     if sid:

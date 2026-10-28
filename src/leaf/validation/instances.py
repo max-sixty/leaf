@@ -225,7 +225,7 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     carries none. With one, its Layout and the parts' both arrange the page, and the
     page renders with nothing out of reach, so the render check passes it."""
     main = document.tree.select_one("body > main")
-    classes = main.attrs.get("class", []) if main else []
+    classes = (main.attrs.get("class") or []) if main else []
     layouts = [token for token in classes if token.startswith("layout-")]
     if not layouts:
         return []
@@ -290,7 +290,9 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         # The obligation's title is what the shared name rule reads, so this asks that rule
         # rather than restating a shape it accepts. It must be a heading as well, the
         # question's place in the outline and in heading navigation.
-        title = leading_title_node(document.authoring.node_of(region))
+        node = document.authoring.node_of(region)
+        assert node is not None
+        title = leading_title_node(node)
         titled = bool(title) and title["tag"] in {f"h{n}" for n in range(1, 7)}
         # A quoted enclosing widget is a mention whose widgets ask nothing by design.
         if not quoted_in(region, registry) and all(lacks for _, lacks in held):

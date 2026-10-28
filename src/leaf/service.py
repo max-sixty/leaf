@@ -327,6 +327,7 @@ class PageTransaction:
                 module, name = provider.split(":", 1)
                 getattr(importlib.import_module(module), name)(self)
         finally:
+            assert self._lock is not None
             self._lock.__exit__(exc_type, exc, traceback)
 
     @property
@@ -390,6 +391,7 @@ class PageTransaction:
         with flocked(session_lock_path(claim["id"])):
             projected = claim_reading(claim)
             if not claim_is_active(projected):
+                assert projected is not None
                 raise Refused(dead_session(projected))
             previous = self.claim
             yield previous, projected
@@ -431,6 +433,7 @@ class PageTransaction:
         prompt renewed the same one, never matches the ending a message already
         went out for."""
         claim = CLAIM.read(claim_path(self.page_dir))
+        assert claim is not None
         publish_claim(self.page_dir, {**claim, "messaged_ending": ending})
 
     @property
@@ -524,6 +527,8 @@ class PageTransaction:
     ) -> None:
         """Replace the provisional reply at a delivery's captured response address."""
         stream = self.stream
+        claim = self.claim
+        assert claim is not None
         previous = stream["reply"]
         timestamp = (
             previous["ts"]
@@ -543,7 +548,7 @@ class PageTransaction:
             "text": text,
             "state": state,
             "settles": settles,
-            "agent": self.claim["agent"],
+            "agent": claim["agent"],
             "ts": timestamp or updated_at,
             "updated_at": updated_at,
         }
@@ -612,8 +617,10 @@ class PageTransaction:
         reply opens (`set_stream_reply`). Reserving again, as a retried start
         does, names the claim's turn as it stands then."""
         stream = self.stream
+        claim = self.claim
+        assert claim is not None
         reservations = self._reserved(
-            stream, session_id, responds, attempt, self.claim["turn"]
+            stream, session_id, responds, attempt, claim["turn"]
         )
         if reservations != stream["reply_reservations"]:
             self._write_stream({**stream, "reply_reservations": reservations})
@@ -698,6 +705,7 @@ class PageTransaction:
     @property
     def events(self) -> list:
         if self._events is None:
+            assert self._log is not None
             self._log.seek(0)
             self._events = _parse_events(self._log.read())
         return self._events

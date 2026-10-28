@@ -95,11 +95,11 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
-from typing import ClassVar, Literal
+from typing import ClassVar, Literal, TypedDict
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
@@ -201,12 +201,24 @@ def app_server_socket_path(endpoint: str) -> Path | None:
     )
 
 
+# The functional form keeps schema fields out of vulture's variable scan.
+_ConnectionOptions = TypedDict(  # noqa: UP013
+    "_ConnectionOptions",
+    {
+        "open_timeout": float,
+        "close_timeout": float,
+        "compression": None,
+        "max_size": None,
+    },
+)
+
+
 def app_server_connect(endpoint: str):
     """Open one connection to a local App Server, by socket or by loopback."""
     from websockets.sync.client import connect, unix_connect
 
     socket_path = app_server_socket_path(endpoint)
-    options = {
+    options: _ConnectionOptions = {
         "open_timeout": START_TIMEOUT,
         "close_timeout": 1,
         "compression": None,
@@ -260,7 +272,7 @@ def private_app_server(
     arguments: tuple[str, ...] = (),
     cwd: str | None = None,
     log_path: Path | None = None,
-) -> Iterator[tuple[str, subprocess.Popen]]:
+) -> Generator[tuple[str, subprocess.Popen]]:
     """Run one App Server on a Unix socket only this user can reach, and yield its
     endpoint and process until the block ends or this process exits. The server stops
     at either boundary.
@@ -672,6 +684,7 @@ class AppServerEvents:
         if (
             self.opening_told
             or not self.opening_ended
+            or self.opening is None
             or not self._is_opening(self.opening)
             or not self.text.get(self.opening)
         ):
@@ -1340,6 +1353,7 @@ class TurnFold:
         """Open the draft this turn's final answer commits from, under its delivery's
         reply reservation."""
         if self.reply_target is not None:
+            assert self.delivery_id is not None
             self.reply_stream = AppServerReplyStream(
                 self.session_id,
                 self.turn_id,
@@ -1430,6 +1444,7 @@ class TurnFold:
                 and self.correction is None
                 and self.reply_target is not None
             ):
+                assert self.delivery_id is not None
                 self.correction = prepare_reply_correction(
                     self.session_id,
                     self.turn_id,
@@ -1466,6 +1481,7 @@ class TurnFold:
         if self.reply_target is not None:
             from .thread import release_delivery_reply
 
+            assert self.delivery_id is not None
             release_delivery_reply(self.session_id, self.delivery_id, self.reply_target)
         return None
 
@@ -1880,7 +1896,9 @@ def read_record(path: Path) -> DeliveryRecord | None:
     whose delivery this Leaf does not read. Only its pages being gone authorizes
     deleting a record (`state.retire_if_gone`)."""
     record = RECORD.read(path)
-    variant = RECORD_VARIANTS.get(record["state"]) if record else None
+    if record is None:
+        return None
+    variant = RECORD_VARIANTS.get(record["state"])
     if variant is None:
         return None
     if variant is not Collecting and stored_delivery(path.stem) is None:
@@ -2274,6 +2292,7 @@ def recover_codex_receipt(session_id: str) -> bool:
     if isinstance(record, Abandoned):
         finish_abandoned_batch(path, index, batch)
     else:
+        assert isinstance(record, Accepted)
         finish_codex_batch(path, index, batch, record)
     return True
 
@@ -2310,7 +2329,9 @@ def settle_answered_deliveries(session_id: str) -> bool:
         if target is None:
             continue
         if reply_target_answered(target):
-            abandon_uncertain_delivery(session_id, stored_delivery(delivery_id))
+            payload = stored_delivery(delivery_id)
+            assert payload is not None
+            abandon_uncertain_delivery(session_id, payload)
             settled = True
     return settled
 
@@ -2458,9 +2479,9 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                 if captured is None:
                     raise RuntimeError("the page input is already in a Codex delivery")
                 path, _, _ = captured
-                offered = offer_delivery(
-                    path, read_record(path), transport="app-server"
-                )
+                record = read_record(path)
+                assert isinstance(record, (Collecting, Offering))
+                offered = offer_delivery(path, record, transport="app-server")
                 return replace(offered, claim_transition=transition)
     except BaseException as error:
         restore_page_claim(page_dir, transition)

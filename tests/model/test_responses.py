@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+from typing import TypedDict
 
 import pytest
 from click.testing import CliRunner
@@ -45,6 +46,13 @@ from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.refusals import Refused
+
+
+class ResponseOptions(TypedDict, total=False):
+    ephemeral: bool
+    failure: str
+    markup: str
+
 
 QUESTION = (
     '<lf-options id="question" choose><lf-option id="question-a"><strong>A</strong>'
@@ -193,14 +201,15 @@ def test_the_first_reply_on_a_revision_notes_what_page_check_advises(page_dir, e
                     reference, "Checking.", ephemeral=True, markup="<p>Checking.</p>"
                 )
             assert refused_on(refused.value).code == "ephemeral-content"
+        options: ResponseOptions = (
+            {"ephemeral": True}
+            if earlier == "progress"
+            else {"failure": "unavailable", "markup": "<p>Unavailable.</p>"}
+        )
         thread_model.post_response(
             reference,
             "Checking." if earlier == "progress" else "Unavailable.",
-            **(
-                {"ephemeral": True}
-                if earlier == "progress"
-                else {"failure": "unavailable", "markup": "<p>Unavailable.</p>"}
-            ),
+            **options,
         )
     assert advised("first") == report["findings"]
     assert advised("second") == []
@@ -409,6 +418,7 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
     answer = thread_model.post_response(
         turn_ref, "Answer before reservation", identity={"session": "owner"}
     )
+    assert answer is not None
     assert answer["responds"] == event["id"]
 
     # CLI presentation adapts known refusals only; failures and numeric status
@@ -526,17 +536,22 @@ def test_delegated_author_write_survives_same_owner_process_restart(claimed):
     )
     reference = response_reference(claimed, comment)
     original = service_model.page_claim(claimed)
+    assert original is not None
     cleanup_model.ensure_session(original["id"], {"pid": os.getppid()})
     with service_model.PageTransaction(claimed) as page:
+        assert original is not None
         page.take_claim(
             harness_model.EmbeddedHarness(original["id"], "Coordinator", os.getpid())
         )
-    assert service_model.page_claim(claimed)["generation"] != original["generation"]
+    claim_record = service_model.page_claim(claimed)
+    assert claim_record is not None
+    assert claim_record["generation"] != original["generation"]
     answer = thread_model.post_response(
         reference,
         "Parser checked",
         identity={"session": "worker-1", "agent": "Indexer"},
     )
+    assert answer is not None
     assert (answer["responds"], answer["session"], answer["agent"]) == (
         comment["id"],
         "worker-1",
@@ -570,6 +585,7 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
     )
     assert files_model.latest_revision(page_dir) == active
     assert source.read_text() == "<lf-unknown>Unfinished draft</lf-unknown>"
+    assert reply is not None
     assert reply["failure"] == "unavailable"
     assert reply["responds"] == asked["id"]
     assert (
@@ -597,6 +613,7 @@ def _reserved_author_response(page_dir):
         page_dir, harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
     )
     target = codex_model.stream_reply_target(prepared.payload)
+    assert target is not None
     thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
     cleanup_model.open_session_turn("codex-thread", "author-turn")
     stream = codex_model.AppServerReplyStream(
@@ -737,9 +754,9 @@ def test_provider_response_commits_full_content_before_reconnect(
     assert json.loads(retried.output) == reply
     assert not thread_model.delivery_reply_reserved("codex-thread", delivery_id, target)
     assert (
-        thread_model.build_threads(
-            events_model.read_events(page_dir), lambda *args: None
-        )[comment["id"]]["title"]
+        thread_model.build_threads(events_model.read_events(page_dir), {})[
+            comment["id"]
+        ]["title"]
         == "Storage choice"
     )
 
@@ -761,10 +778,10 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
             page.take_claim(
                 harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
             )
-    assert (
-        cleanup_model.session_record("codex-thread")["generation"]
-        != before["generation"]
-    )
+    turn_record = cleanup_model.session_record("codex-thread")
+    assert turn_record is not None
+    assert before is not None
+    assert turn_record["generation"] != before["generation"]
     _observer()._resume(
         {
             "status": {"type": "idle"},
@@ -858,6 +875,7 @@ def test_addressed_progress_uses_active_revision_and_starts_work_atomically(page
     assert source.read_text() == "<lf-unknown>Unfinished draft</lf-unknown>"
     events = events_model.read_events(page_dir)
     assert [event["kind"] for event in events] == ["comment", "reply"]
+    assert progress is not None
     assert progress["start"]["item"] == comment["id"]
     assert todos_model.item_starts(events)[comment["id"]]["id"] == progress["id"]
     assert comment["id"] in delivery_model.current_responses(page_dir, events)
@@ -873,6 +891,7 @@ def test_addressed_progress_uses_active_revision_and_starts_work_atomically(page
     assert source.read_text() == original + "<!-- pending edit -->"
     answer = thread_model.post_response(reference, "The durable answer.")
     assert files_model.latest_revision(page_dir) != active
+    assert answer is not None
     assert answer["responds"] == comment["id"]
     assert comment["id"] not in delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)
@@ -938,6 +957,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
         batch = delivery_model.batch_data(page_dir, transaction, [newer])
     payload = delivery_model.freeze_delivery([batch], turn_replies=True)
     new_target = codex_model.stream_reply_target(payload)
+    assert new_target is not None
     thread_model.reserve_delivery_reply("codex-thread", payload["id"], new_target)
     cleanup_model.prompt_turn("codex-thread", "newer-turn")
     new = codex_model.AppServerReplyStream(
@@ -1033,6 +1053,7 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
     assert thread_model.successful_replies(
         events_model.read_events(page_dir), comment["id"]
     ) == [answer]
+    assert answer is not None
     assert answer["markup"] == QUESTION
 
 
@@ -1054,7 +1075,12 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
         },
     )
     reference = response_reference(page_dir, action)
-    for options in ({}, {"ephemeral": True}, {"failure": "unavailable"}):
+    variants: tuple[ResponseOptions, ...] = (
+        {},
+        {"ephemeral": True},
+        {"failure": "unavailable"},
+    )
+    for options in variants:
         before = events_model.read_events(page_dir)
         with pytest.raises(Refused) as refused:
             thread_model.post_response(reference, "This is not a revision.", **options)
@@ -1096,6 +1122,7 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
         page_dir, harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
     )
     target = codex_model.stream_reply_target(prepared.payload)
+    assert target is not None
     thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
     cleanup_model.open_session_turn("codex-thread", "author-turn")
     stream = codex_model.AppServerReplyStream(
@@ -1185,6 +1212,7 @@ def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, s
     payload = delivery_model.freeze_delivery([batch], turn_replies=True)
     new_target = codex_model.stream_reply_target(payload)
     cleanup_model.prompt_turn("codex-thread", "newer-turn")
+    assert new_target is not None
     thread_model.reserve_delivery_reply("codex-thread", payload["id"], new_target)
     new = codex_model.AppServerReplyStream(
         "codex-thread", "newer-turn", payload["id"], new_target

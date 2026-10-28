@@ -5,12 +5,12 @@ import json
 import os
 from types import SimpleNamespace
 
-import leaf_website as website_server
 import pytest
 from interact_support import append_carried_log_record as append_event
 from interact_support import owed_answers
 from websockets.exceptions import ConnectionClosedError
 
+import leaf_website as website_server
 from leaf.event_log import read_events
 from leaf.interaction_log import read_interactions
 from leaf.refusals import Refused
@@ -25,16 +25,23 @@ def unfollowed_turn(harness, page_dir, *, following=None, event_ids=("first-even
     turns read no connection: `following` is what happens in place of the reading,
     and the default is a turn that ended without incident.
     """
-    turn = website_server.HostedTurn(
+    lifecycle = session_record("hosted-thread")
+    assert lifecycle is not None
+
+    class FollowingTurn(website_server.HostedTurn):
+        def follow(self):
+            if following is not None:
+                following()
+
+    turn = FollowingTurn(
         harness,
         page_dir,
         "hosted-thread",
         "delivery-1",
         event_ids,
         "provider-turn",
-        lifecycle=session_record("hosted-thread"),
+        lifecycle=lifecycle,
     )
-    turn.follow = following if following is not None else lambda: None
     return turn
 
 

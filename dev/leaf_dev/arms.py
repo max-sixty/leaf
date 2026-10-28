@@ -45,7 +45,7 @@ from contextvars import ContextVar
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import IO, NamedTuple, Self
+from typing import IO, NamedTuple, Self, overload
 
 import click
 
@@ -115,7 +115,7 @@ def run_directory(parent: Path) -> Path:
     return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
 
 
-def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
+def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str, str]:
     """This process's environment without the agent session it may be running in.
 
     A harness run from a Claude Code or Codex session inherits that session's
@@ -167,7 +167,7 @@ def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
         and not (Path(entry).parent / "skills" / "leaf").is_dir()
     )
     if payload is not None:
-        env["PATH"] = os.pathsep.join((str(payload / "bin"), env["PATH"]))
+        env["PATH"] = os.pathsep.join((str(Path(payload) / "bin"), env["PATH"]))
     return {**env, **extra}
 
 
@@ -221,6 +221,7 @@ def serving(arm: Path, state: Path, page: Path):
         text=True,
         start_new_session=True,
     )
+    assert server.stdout is not None
     try:
         yield json.loads(server.stdout.readline())["url"]
     finally:
@@ -719,7 +720,7 @@ def run_agent(
     harness: str = ClaudeCodeHarness.name,
     model: str | None = None,
     limit: float = TURN_LIMIT,
-    **options: str | bool,
+    sandbox: bool = True,
 ) -> list[dict]:
     """Run an isolated harness turn, optionally resuming its preceding session.
 
@@ -728,8 +729,8 @@ def run_agent(
     have the same `limit`, TURN_LIMIT unless the caller bounds its turn more
     tightly; a timeout retains their partial native evidence and
     marks `out.with_suffix(".timed-out")` without fabricating completion. `model`
-    overrides either harness's author default; `options` passes Claude Code's
-    remaining child options (`claude_child`).
+    overrides either harness's author default; `sandbox` controls Claude Code's
+    child isolation (`claude_child`).
     """
     if harness == CodexHarness.name:
         with (
@@ -763,7 +764,7 @@ def run_agent(
                     dirs=dirs,
                     env=env,
                     model=model or MODELS[harness],
-                    **options,
+                    sandbox=sandbox,
                 ),
                 stdin=subprocess.DEVNULL,
                 stdout=stdout,
@@ -833,6 +834,8 @@ class ClaudeSession:
             self.raw.close()
             self.stderr_stream.close()
             raise
+        assert self.proc.stdin is not None and self.proc.stdout is not None
+        self.stdin, self.stdout = self.proc.stdin, self.proc.stdout
         self.deadline.start()
         try:
             self.send(self.prompt)
@@ -844,12 +847,12 @@ class ClaudeSession:
     def send(self, text: str) -> None:
         """Send the user's next chat message; a turn still running takes it next."""
         message = {"type": "user", "message": {"role": "user", "content": text}}
-        self.proc.stdin.write(json.dumps(message) + "\n")
-        self.proc.stdin.flush()
+        self.stdin.write(json.dumps(message) + "\n")
+        self.stdin.flush()
 
     def records(self):
         """The native stream; malformed output and unexpected exits raise."""
-        for line in self.proc.stdout:
+        for line in self.stdout:
             self.raw.write(line)
             self.raw.flush()
             yield {**json.loads(line), "received_at": now()}
@@ -890,18 +893,18 @@ class ClaudeSession:
         try:
             self.close()
             # The caller joins its sole observer before leaving this context.
-            shutil.copyfileobj(self.proc.stdout, self.raw)
+            shutil.copyfileobj(self.stdout, self.raw)
         finally:
             try:
-                self.proc.stdin.close()
+                self.stdin.close()
             except BrokenPipeError:
                 pass
-            self.proc.stdout.close()
+            self.stdout.close()
             self.stderr_stream.close()
             self.raw.close()
 
 
-def child_class(harness: str) -> type:
+def child_class(harness: str):
     """The live session class that runs `harness`, and so the transport it takes."""
     if harness == CodexHarness.name:
         from leaf_dev.eval_codex import CodexChild
@@ -1229,10 +1232,20 @@ def completed(trace: list[dict]) -> bool:
     return trace_result(trace).get("is_error") is False
 
 
+@overload
+def observed_sum(values: Iterable[int | None]) -> int | None: ...
+
+
+@overload
+def observed_sum(values: Iterable[float | None]) -> float | None: ...
+
+
 def observed_sum(values: Iterable[int | float | None]) -> int | float | None:
     """Sum complete measurements; absent or incomplete evidence stays unknown."""
     observed = list(values)
-    return sum(observed) if observed and all(v is not None for v in observed) else None
+    if not observed or any(v is None for v in observed):
+        return None
+    return sum(v for v in observed if v is not None)
 
 
 def token_counts(trace: list[dict]) -> dict[str, int | None]:

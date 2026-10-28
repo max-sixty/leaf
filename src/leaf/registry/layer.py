@@ -41,7 +41,7 @@ LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
 KERNEL_FACTS = frozenset({"$passages", "$names", "$marks", "$authored"})
 # The facts that document a declaration's keys, each beside the schema that admits
 # those keys (`validate_layer_declarations`).
-DOCUMENTED_KEYS = {
+DOCUMENTED_KEYS: dict[str, dict] = {
     "$keys": EXTENSION_SCHEMA,
     "$state": VERB_SCHEMA,
     "$awaits": AWAITS_SCHEMA,

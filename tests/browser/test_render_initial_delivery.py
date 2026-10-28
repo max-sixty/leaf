@@ -238,7 +238,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             elif self.path in resources:
                 self.wfile.write(resources[self.path].data)
 
-        def log_message(self, *args):
+        def log_message(self, format, *args):
             pass
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

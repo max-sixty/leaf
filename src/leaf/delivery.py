@@ -59,7 +59,7 @@ owner in its next delivery, with a ref of its own (`deliverable`).
 import re
 import secrets
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator, Iterable, Iterator
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Literal
@@ -543,7 +543,9 @@ def batch_data(
     reading = read_page(page_dir, events) if responses is None or acted else None
     if responses is None:
         responses = current_responses(page_dir, events, reading)
-    durable = reading.work.durable if acted else None
+    if acted:
+        assert reading is not None
+    durable = reading.work.durable if reading is not None and acted else None
     revisions = {
         revision["id"]: revision
         for thread in build_threads(events, within).values()
@@ -728,7 +730,7 @@ def handled(
 
 
 def freeze_delivery(
-    batches: list[dict],
+    batches: Iterable[dict],
     *,
     acknowledge: Callable[[str], str] | None = None,
     turn_replies: bool = False,
@@ -912,7 +914,9 @@ def earlier_pickup(payload: dict, session_id: str):
     from .findings import Finding
     from .served_state.context import read_page
 
-    turn = session_record(session_id)["turn"]
+    record = session_record(session_id)
+    assert record is not None
+    turn = record["turn"]
     turns, answers = set(), []
     for batch in payload["batches"]:
         page_dir = Path(batch["page"])
@@ -1247,7 +1251,7 @@ def receive_batch(
     *,
     session_id: str | None,
     confirm: bool = True,
-) -> Iterator[list[dict]]:
+) -> Generator[list[dict]]:
     """Commit receipt after the consumer records its durable pickup evidence.
 
     Every transport confirms here once its durable consumer accepts input.
@@ -1388,6 +1392,7 @@ def receive_one(
         turn = None
         if session_id:
             observed = session_record(session_id)
+            assert observed is not None
             if observed["turn_closed"] is not None:
                 raise ReceiptRefused("the receiving provider turn has ended")
             if expected is not None and observed != expected:

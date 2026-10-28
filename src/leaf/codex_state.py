@@ -255,6 +255,7 @@ def sync_transcript_turn(
             if current["provider"] and not ordered:
                 return current
             current = advance_turn(session_id, turn, running=True, observed_at=opened)
+            assert current is not None
         if closed is not None and current["turn_closed"] is None:
             current = advance_turn(session_id, turn, running=False, observed_at=closed)
         return current

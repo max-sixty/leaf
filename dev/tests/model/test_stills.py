@@ -5,8 +5,9 @@ from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
-from leaf_dev.commands import stills
 from PIL import Image
+
+from leaf_dev.commands import stills
 
 
 @pytest.fixture

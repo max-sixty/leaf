@@ -157,15 +157,17 @@ def test_codex_readdresses_a_collecting_record_if_its_delivery_id_collides(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
     with service_model.PageTransaction(page_dir) as transaction:
-        path, _, _ = codex_model.append_batch(
+        append_batch_result = codex_model.append_batch(
             "collision-test", page_dir, transaction, transaction.events
         )
+        assert append_batch_result is not None
+        path, _, _ = append_batch_result
     assert path.stem == "aaaaaaaa"
     delivery_model.freeze_delivery([], delivery_id=path.stem, created_at=0)
 
-    prepared = codex_model.offer_delivery(
-        path, codex_model.read_record(path), transport="queue"
-    )
+    record_2 = codex_model.read_record(path)
+    assert isinstance(record_2, (codex_model.Collecting, codex_model.Offering))
+    prepared = codex_model.offer_delivery(path, record_2, transport="queue")
 
     assert prepared.payload["id"] == "bbbbbbbb"
     assert codex_model.record_path("collision-test", "bbbbbbbb").is_file()
@@ -200,12 +202,14 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     }
     assert batch["events"][0]["id"] == comment["id"]
     claim = service_model.page_claim(page_dir)
+    assert claim is not None
     assert {key: claim[key] for key in ("id", "harness", "pid", "agent")} == {
         "id": "hosted-thread",
         "harness": "embedded",
         "pid": os.getpid(),
         "agent": "Leaf guide",
     }
+    assert claim is not None
     assert (claim["turn"], claim["turn_closed"]) == ("app-turn", None)
     assert accepted == {"page": page_dir, "events": (comment["id"],)}
     assert acknowledged_through(page_dir) == 1
@@ -259,7 +263,9 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
     codex_model.accept_codex_delivery(
         "hosted-thread", prepared.payload["id"], "app-turn"
     )
-    first_turn = service_model.page_claim(page_dir)["turn"]
+    claim_record = service_model.page_claim(page_dir)
+    assert claim_record is not None
+    first_turn = claim_record["turn"]
 
     second = append_carried_log_record(
         page_dir,
@@ -278,6 +284,7 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
         for item in state["workflows"]
         if item.get("input") in {first["id"], second["id"]}
     }
+    assert claim is not None
     assert claim["turn"] == first_turn
     assert activity["counts"]["handling"] == 2
     assert activity["counts"]["handling_comments"] == 2
@@ -642,6 +649,7 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
     try:
         announcement = codex_start_announcement(started)
         claim = service_model.page_claim(page_dir)
+        assert claim is not None
         generation = claim["generation"]
         begin.set()
         observed = wait_for(
@@ -655,6 +663,7 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
         )
         assert observed["activity"]["turn"] == "ordinary-turn"
         current = service_model.page_claim(page_dir)
+        assert current is not None
         assert current["generation"] == generation
         assert current["turn"] == "ordinary-turn"
         assert current["turn_closed"] is None
@@ -684,12 +693,14 @@ def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir):
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
     with service_model.PageTransaction(page_dir) as transaction:
-        path, _, _ = codex_model.append_batch(
+        append_batch_result_2 = codex_model.append_batch(
             "handling-test", page_dir, transaction, transaction.events
         )
-    payload = codex_model.offer_delivery(
-        path, codex_model.read_record(path), transport="queue"
-    ).payload
+        assert append_batch_result_2 is not None
+        path, _, _ = append_batch_result_2
+    record_3 = codex_model.read_record(path)
+    assert isinstance(record_3, (codex_model.Collecting, codex_model.Offering))
+    payload = codex_model.offer_delivery(path, record_3, transport="queue").payload
     payload["format"] = "leaf-delivery-v1"
     cleanup_model.write_json(delivery_model.delivery_path(payload["id"]), payload)
     with pytest.raises(Refused, match="written by another Leaf"):
@@ -718,9 +729,9 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
         )
         assert codex_adapter_model.capture_batch("original", reading)
     epoch_path, epoch = current_codex_record("original")
-    codex_model.offer_delivery(
-        epoch_path, codex_model.read_record(epoch_path), transport="queue"
-    )
+    record_4 = codex_model.read_record(epoch_path)
+    assert isinstance(record_4, (codex_model.Collecting, codex_model.Offering))
+    codex_model.offer_delivery(epoch_path, record_4, transport="queue")
     epoch = files_model.read_json(epoch_path)
     epoch.update(state="queued", pending=list(range(len(epoch["batches"]))))
     cleanup_model.write_json(epoch_path, epoch)
@@ -955,9 +966,9 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
             )
             assert codex_adapter_model.capture_batch("codex-thread", reading)
     epoch_path, epoch = current_codex_record("codex-thread")
-    codex_model.offer_delivery(
-        epoch_path, codex_model.read_record(epoch_path), transport="queue"
-    )
+    record_5 = codex_model.read_record(epoch_path)
+    assert isinstance(record_5, (codex_model.Collecting, codex_model.Offering))
+    codex_model.offer_delivery(epoch_path, record_5, transport="queue")
     epoch = files_model.read_json(epoch_path)
     epoch.update(state="queued", pending=list(range(len(epoch["batches"]))))
     cleanup_model.write_json(epoch_path, epoch)
@@ -1207,8 +1218,10 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
         attempted.append(payload)
         # The reply an uncertain start reserved stays reserved, because a turn
         # carrying this delivery may be running.
+        stream_reply_target_result = codex_model.stream_reply_target(payload)
+        assert stream_reply_target_result is not None
         thread_model.reserve_delivery_reply(
-            session_id, payload["id"], codex_model.stream_reply_target(payload)
+            session_id, payload["id"], stream_reply_target_result
         )
         raise codex_model.AppServerDeliveryUncertain("lost acknowledgement")
 
@@ -1346,8 +1359,10 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
         )
         assert codex_adapter_model.capture_batch("codex-thread", reading)
     second_path, _ = current_codex_record("codex-thread")
+    record_6 = codex_model.read_record(second_path)
+    assert isinstance(record_6, (codex_model.Collecting, codex_model.Offering))
     second_payload = codex_model.offer_delivery(
-        second_path, codex_model.read_record(second_path), transport="app-server"
+        second_path, record_6, transport="app-server"
     ).payload
     assert [
         event["id"] for batch in second_payload["batches"] for event in batch["events"]
@@ -1482,7 +1497,9 @@ def test_a_codex_stop_leaves_late_input_to_an_app_server_adapters_own_turn(
         )
         if app_server is not None:
             assert capsys.readouterr().out == ""
-            assert cleanup_model.session_record("codex-thread")["turn_closed"]
+            turn_record = cleanup_model.session_record("codex-thread")
+            assert turn_record is not None
+            assert turn_record["turn_closed"]
             assert acknowledged_through(page_dir) < comment["seq"]
             # Collected and unoffered, for the adapter's own start.
             [(_, record)] = codex_records("codex-thread")
@@ -1494,7 +1511,9 @@ def test_a_codex_stop_leaves_late_input_to_an_app_server_adapters_own_turn(
         assert [event["id"] for event in envelope["batches"][0]["events"]] == [
             comment["id"]
         ]
-        assert not cleanup_model.session_record("codex-thread")["turn_closed"]
+        turn_record_2 = cleanup_model.session_record("codex-thread")
+        assert turn_record_2 is not None
+        assert not turn_record_2["turn_closed"]
         assert not codex_adapter_model._offer_queued_delivery(
             "codex", "codex-thread", None
         )
@@ -1573,9 +1592,9 @@ def test_codex_hooks_leave_collected_input_after_ownership_transfers(
     )
     assert not capsys.readouterr().out
     assert codex_records("codex-thread")[0][1]["state"] == "collecting"
-    assert bool(cleanup_model.session_record("codex-thread")["turn_closed"]) == (
-        delivery_hook == "Stop"
-    )
+    turn_record_3 = cleanup_model.session_record("codex-thread")
+    assert turn_record_3 is not None
+    assert bool(turn_record_3["turn_closed"]) == (delivery_hook == "Stop")
 
 
 @pytest.mark.parametrize("acknowledge", ["receive_delivery", "cmd_delivery_ack"])
@@ -1686,7 +1705,9 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
         assert not codex_adapter_model._offer_queued_delivery(
             "codex", "codex-thread", None
         )
-        assert cleanup_model.session_record("codex-thread")["turn"] == "resumed"
+        turn_record_4 = cleanup_model.session_record("codex-thread")
+        assert turn_record_4 is not None
+        assert turn_record_4["turn"] == "resumed"
     hooks_model.cmd_hook(
         "codex",
         {
@@ -1715,7 +1736,9 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
         assert offer == {"decision": "block", "reason": context}
     else:
         assert offer["hookSpecificOutput"]["additionalContext"] == context
-    assert cleanup_model.session_record("codex-thread")["turn_closed"] is None
+    turn_record_5 = cleanup_model.session_record("codex-thread")
+    assert turn_record_5 is not None
+    assert turn_record_5["turn_closed"] is None
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     delivery_model.cmd_delivery_read(path.stem)
     delivery_model.cmd_delivery_ack(path.stem)
@@ -1726,10 +1749,13 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
         [comment["id"]],
     )
     append("task_complete", "prior")
-    assert codex_state_model.sync_transcript_turn("codex-thread")["turn_closed"] is None
+    sync_transcript_turn_result = codex_state_model.sync_transcript_turn("codex-thread")
+    assert sync_transcript_turn_result is not None
+    assert sync_transcript_turn_result["turn_closed"] is None
     append("task_complete", "resumed")
     codex_state_model.transcript_turns.cache_clear()
     closed = codex_state_model.sync_transcript_turn("codex-thread")
+    assert closed is not None
     assert closed["turn_closed"] is not None
     hooks_model.cmd_hook(
         "codex",
@@ -1955,7 +1981,9 @@ def _comment_before_the_first_tool_step(
         codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
     )
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
-    assert cleanup_model.session_record("codex-thread")["turn"] == "user-turn"
+    turn_record_6 = cleanup_model.session_record("codex-thread")
+    assert turn_record_6 is not None
+    assert turn_record_6["turn"] == "user-turn"
     assert not queued
     return comment, queued, append
 
@@ -2047,7 +2075,9 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
     )
     with service_model.PageTransaction(page_dir) as page:
         page.take_claim(harness_model.session_harness())
-    assert service_model.page_claim(page_dir)["turn"] == "user-turn"
+    claim_record_2 = service_model.page_claim(page_dir)
+    assert claim_record_2 is not None
+    assert claim_record_2["turn"] == "user-turn"
     # A preview owes no watcher, so Stop may end without a watcher lease.
     (page_dir / "preview.json").write_text("{}")
     hooks_model.cmd_hook(
@@ -2059,9 +2089,15 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
         },
     )
     assert not capsys.readouterr().out
-    assert service_model.page_claim(page_dir)["turn_closed"]
-    assert service_model.page_claim(page_dir)["turn"] == "user-turn"
-    assert not codex_state_model.hook_turn("codex-thread")["running"]
+    claim_record_3 = service_model.page_claim(page_dir)
+    assert claim_record_3 is not None
+    assert claim_record_3["turn_closed"]
+    claim_record_4 = service_model.page_claim(page_dir)
+    assert claim_record_4 is not None
+    assert claim_record_4["turn"] == "user-turn"
+    hook_turn_result = codex_state_model.hook_turn("codex-thread")
+    assert hook_turn_result is not None
+    assert not hook_turn_result["running"]
     hooks_model.cmd_hook(
         "codex",
         {
@@ -2071,8 +2107,12 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
         },
     )
     assert not capsys.readouterr().out
-    assert service_model.page_claim(page_dir)["turn_closed"]
-    assert service_model.page_claim(page_dir)["turn"] == "user-turn"
+    claim_record_5 = service_model.page_claim(page_dir)
+    assert claim_record_5 is not None
+    assert claim_record_5["turn_closed"]
+    claim_record_6 = service_model.page_claim(page_dir)
+    assert claim_record_6 is not None
+    assert claim_record_6["turn"] == "user-turn"
 
 
 @pytest.mark.parametrize("late", ["notification", "snapshot", "start"])
@@ -2103,6 +2143,7 @@ def test_completed_codex_predecessor_cannot_become_current_again(
             }
         )
     ended = cleanup_model.session_record("codex-thread")
+    assert ended is not None
     assert ended["turn"] == "idle" and ended["turn_closed"] is not None
     if late == "notification":
         observer._read(
@@ -2279,8 +2320,12 @@ def test_a_late_codex_tool_hook_cannot_replace_a_newer_turn(page_dir, codex_loop
     )
     assert codex_model.offer_hook_delivery("codex-thread", old) == (None, old)
     cleanup_model.close_session_turn("codex-thread", "old-turn")
-    assert service_model.page_claim(page_dir)["turn"] == "new-turn"
-    assert codex_state_model.hook_turn("codex-thread")["running"]
+    claim_record_7 = service_model.page_claim(page_dir)
+    assert claim_record_7 is not None
+    assert claim_record_7["turn"] == "new-turn"
+    hook_turn_result_2 = codex_state_model.hook_turn("codex-thread")
+    assert hook_turn_result_2 is not None
+    assert hook_turn_result_2["running"]
     assert not codex_records("codex-thread")
 
 
@@ -2366,7 +2411,9 @@ def test_a_codex_hook_read_survives_page_loss_after_offer(
         event["id"] for batch in envelope["batches"] for event in batch["events"]
     } == {comment["id"], resolved["id"]}
     if loss == "transfer":
-        assert service_model.page_claim(page_dir)["id"] == "successor"
+        claim_record_8 = service_model.page_claim(page_dir)
+        assert claim_record_8 is not None
+        assert claim_record_8["id"] == "successor"
         assert acknowledged_through(page_dir) == 0
         assert not any(
             event["kind"] == "pickup" for event in events_model.read_events(page_dir)
@@ -2398,9 +2445,9 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
     )
     [(path, _)] = codex_records("codex-thread")
     lease = adapter_lease("codex-thread", None)
-    waiter = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(page_dir, "codex-thread")
-    )
+    lease_path = leases_model.waiter_lease_path(page_dir, "codex-thread")
+    assert lease_path is not None
+    waiter = leases_model.take_wait_lease(lease_path)
     assert waiter
     try:
         hooks_model.cmd_hook(
@@ -2428,6 +2475,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
             codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
         )
         assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+        assert prompt is not None
         assert json.loads(prompt) == delivery_model.cmd_delivery_read(path.stem)
         assert [args[2] for args in queued] == [
             delivery_model.delivery_pointer_prompt(path.stem)
@@ -2797,7 +2845,9 @@ def test_embedded_codex_acceptance_retries_its_unfinished_receipt(
             (comment["id"],),
             "provider-turn",
         )
-    assert service_model.page_claim(page_dir)["turn_closed"]
+    claim_record_9 = service_model.page_claim(page_dir)
+    assert claim_record_9 is not None
+    assert claim_record_9["turn_closed"]
     assert acknowledged_through(page_dir) == comment["seq"]
     assert not codex_records("hosted-thread")
     history = files_model.read_json(path.parent / "history" / path.name)
@@ -2838,9 +2888,9 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         )
         assert codex_adapter_model.capture_batch("codex-thread", reading)
     record_path, queue = current_codex_record("codex-thread")
-    codex_model.offer_delivery(
-        record_path, codex_model.read_record(record_path), transport="queue"
-    )
+    record_7 = codex_model.read_record(record_path)
+    assert isinstance(record_7, (codex_model.Collecting, codex_model.Offering))
+    codex_model.offer_delivery(record_path, record_7, transport="queue")
     queue = files_model.read_json(record_path)
     queue.update(state="queued", pending=list(range(len(queue["batches"]))))
     cleanup_model.write_json(record_path, queue)
@@ -3110,6 +3160,7 @@ start_server(live, harness=session_harness())
 
     try:
         claim = service_model.page_claim(live)
+        assert claim is not None
         record_claim(offline, **{**claim, "page": str(offline.resolve())})
         assert set(service_model.owned_pages("codex-thread")) == {live, offline}
         service = read_record(live / "service.json")
@@ -3263,6 +3314,7 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
         )
 
         claim = service_model.page_claim(page)
+        assert claim is not None
         record_claim(page, **{**claim, "pid": dead_pid})
         wait_for(
             lambda: codex_adapter_model.adapter_is_live("codex-thread"),
@@ -3374,7 +3426,9 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_in_place(
         )
 
         cleanup_model.close_session_turn("codex-thread")
-        closed = service_model.page_claim(page)["turn_closed"]
+        claim_record_10 = service_model.page_claim(page)
+        assert claim_record_10 is not None
+        closed = claim_record_10["turn_closed"]
         assert closed
 
         hello = append_carried_log_record(
@@ -3386,7 +3440,9 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_in_place(
             failure="the queued delivery cursor did not advance",
         )
 
-        assert service_model.page_claim(page)["turn_closed"] == closed
+        claim_record_11 = service_model.page_claim(page)
+        assert claim_record_11 is not None
+        assert claim_record_11["turn_closed"] == closed
         queued = activity_reading(page)
         assert queued["kind"] == "working"
         assert [item["stage"] for item in queued["obligations"]] == ["queued"]

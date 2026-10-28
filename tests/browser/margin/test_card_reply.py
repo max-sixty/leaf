@@ -258,11 +258,11 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     assert frame["inset"] == frame["field"][0] - frame["card"] + 13, frame
 
 
-def test_a_reply_next_on_me_lands_on_wears_its_whole_ring_in_its_card(browser, serve):
-    """Next on me lands on the agent's long question in its card and rings it whole.
-    The message's own outline painted under its sticky head and the paper that head
-    reaches up over the room above it, so the ring lost its top run, leaving a box with
-    no lid."""
+def test_a_reply_next_on_me_lands_on_rings_its_card(browser, serve):
+    """Next on me lands on the agent's long question in its card, and the card wears
+    the ring, whole, as for the thread itself: the card is the thread's one frame. The
+    message wore its own outline, a frame in the frame whose top its sticky head
+    painted over."""
     question = {**LONG_THREAD[1], "obligation": True}
     page = open_page(
         browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, question])
@@ -274,8 +274,8 @@ def test_a_reply_next_on_me_lands_on_wears_its_whole_ring_in_its_card(browser, s
     expect(message).to_be_focused()
     rendered(page)
     drawn = rings_drawn(page)
-    worn = [seen for seen in drawn if seen["here"]]
-    assert len(worn) == 1 and worn[0]["who"].startswith("div.lf-msg."), drawn
+    worn = [seen["who"].split(" ")[0] for seen in drawn if seen["here"]]
+    assert worn == ["div.lf-margin-preview-card"], drawn
     assert not (faults := ring_faults(drawn, "on the reply Next on me reached")), (
         "\n".join(faults)
     )

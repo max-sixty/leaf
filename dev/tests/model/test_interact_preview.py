@@ -43,6 +43,7 @@ from leaf import codex_adapter, leases, server, service, session
 from leaf.interaction_log import read_interactions
 from leaf.layer import stylesheet
 from leaf.media import media_name
+from leaf.registry.storage import layer_record, load_registry, selected
 from leaf.structure import SourceDocument
 
 
@@ -202,12 +203,12 @@ def test_product_previews_prepare_the_authored_layer_and_media(
         (page / reference.removeprefix("/")).is_file()
         for reference in served.authoring.media_refs
     )
-    registry = json.loads((page / "registry.json").read_text())
+    registry = load_registry(page)
     assert "nav.sitenav" in registry
     package = ROOT / "docs" / "package"
     assert (
         stylesheet(package / "theme.css", package).rstrip()
-        in (page / "theme.css").read_text()
+        in selected(layer_record(page), page).top_files["theme.css"].decode()
     )
     watched = preview.watch_paths(source, ROOT, [])
     assert str(ROOT / "docs" / "layer.json") in watched.paths

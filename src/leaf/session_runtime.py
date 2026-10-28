@@ -3,7 +3,7 @@
 A harness session keeps running the plugin copy it loaded: Claude Code installs an
 update into a new cache directory and leaves every running session on the old
 one until `/reload-plugins` (`layer-registry.md`, "Page protocol"). A page a
-newer Leaf re-vendored is then one the session's hooks and watch can't read, and
+newer Leaf initialized is then one the session's hooks and watch can't read, and
 the user's input waits until someone reloads. So the session's hooks, its watch
 and, from an installed copy, its bare `leaf` commands all hand themselves to one
 launcher (`delivering_launcher`) before they read a page or change a turn; the
@@ -11,7 +11,7 @@ Codex delivery adapter follows the selection alone (`selected_launcher`):
 
 - the launcher the session selected, while it exists: the checkout a user preview
   serves (`dev/leaf_dev/commands/preview.py`), or a checkout whose command
-  re-vendored one of the session's pages (`select_checkout`), whose protocol the
+  initialized one of the session's pages (`select_checkout`), whose protocol the
   session's own copy may not speak yet;
 - otherwise, from a copy Claude Code installed, the copy it has installed since,
   which the marketplace sweep moves to each new commit;
@@ -124,7 +124,7 @@ def hand_off_command(argv: list[str]) -> None:
 
 def select_checkout(session_id: str) -> None:
     """Select this Leaf for the session's delivery where it runs from a checkout,
-    as a command re-vendors one of the session's pages (`vendoring`), since the
+    as a command initializes one of the session's pages (`vendoring`), since the
     copy the session loaded may not read the page at this protocol. A checkout
     can't tell which copy the session's hooks run, so it selects itself whenever
     the session lives. Only a command selects: a hook runs the delivering Leaf

@@ -187,7 +187,7 @@ def end_if_terminated() -> None:
 
 @contextlib.contextmanager
 def page_locked(page_dir: Path):
-    """Serialize one page's service changes, re-vendoring, and contract-bearing
+    """Serialize one page's service changes, `page init`, and contract-bearing
     writes.
 
     The lock is the page directory itself, flocked through a descriptor on it,
@@ -215,7 +215,7 @@ def page_locked(page_dir: Path):
 
 
 def contract_writer(function):
-    """Keep a CLI event's validation and append on one vendored contract."""
+    """Keep a CLI event's validation and append on one layer record."""
 
     @functools.wraps(function)
     def locked(page_dir: Path, *args, **kwargs):
@@ -311,8 +311,8 @@ def wait_is_live(page_dir: Path | None, session_id: str | None) -> bool:
     """Whether this ownership scope's exact wait lease is held now by a watch that
     can read what this Leaf reads. A watch holds the page protocol its Leaf speaks
     (`take_wait_lease`). One an older Leaf runs, such as a session's plugin
-    loaded before an update, can neither read nor re-vendor a page this Leaf
-    re-vendored, so it carries no input, and admission nudges the session past it
+    loaded before an update, can neither read nor write a page this Leaf
+    initialized, so it carries no input, and admission nudges the session past it
     as though no watch ran (`presence.nudge_unwatched`)."""
     lease_path = waiter_lease_path(page_dir, session_id)
     if not (lease_path and lock_is_held(lease_path)):

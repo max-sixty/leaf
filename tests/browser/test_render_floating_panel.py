@@ -4287,7 +4287,7 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     expect(expand).to_have_attribute("aria-pressed", "true")
     expect(field(page)).to_be_focused()
     settled(page)
-    assert panel.bounding_box()["width"] > narrow + 50
+    assert panel.bounding_box()["width"] > narrow + 100
     tall = field(page).bounding_box()["height"]
     assert before - 1 <= tall < page.viewport_size["height"] / 3, (before, tall)
     page.keyboard.press("ControlOrMeta+a")

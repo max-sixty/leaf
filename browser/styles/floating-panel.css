@@ -335,12 +335,15 @@
      view's head, so it takes no room the panel had not already given it. Pressed, the
      field stands at least six lines tall and grows with the words up to three quarters
      of the window, or half while a view stands above it, whose messages keep the rest.
-     The room it gives is height: the panel widens only to 640px, where the window
-     holds it (`--lf-fp-width`), a line of about 88 characters of the field's 14px
-     face, against 73 at rest, the most a writing measure runs (Obsidian's readable
-     line, WCAG's 80). The user found 760px, before the field grew tall, barely more
-     room (25 October), and then the 1100px that replaced it, about 157 characters a
-     line, too wide to write in (28 October); the window's whole width ran past 200.
+     The panel widens to 61 of the field's ems, where the window holds it
+     (`--lf-fp-width`): a line of about 120 characters beside the leaf and Send, against
+     73 at rest. The measure is in the field's em rather than `ch`, the width of a 0,
+     since the system sans sets a 0 a third wider than its average letter, so 120ch held
+     157 characters; in ems it follows the face, as under a finger, where it grows. The
+     user found 760px, before the field grew tall, barely more room (25 October), then
+     the 1100px that replaced it, 157 characters a line, too wide to write in, and a
+     writing measure's 88 stingy beside the 73 at rest (28 October); the window's whole
+     width ran past 200.
      The field first stood half the window tall however little it held, which on 27
      October the user found left a thread's message above it too little room.
      The mark stands in its corner whether or not it shows, and fades in and out on the
@@ -361,7 +364,7 @@
     transition: opacity var(--lf-motion-box-resize);
   }
   .lf-floating-panel[data-expanded] {
-    --lf-fp-max: 640px;
+    --lf-fp-max: calc(61 * var(--msg-size));
   }
   .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
     min-height: calc(6lh + var(--lf-line) - 1lh);

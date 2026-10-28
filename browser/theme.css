@@ -423,8 +423,11 @@
      the page rather than the page. Declared here, it takes the root's rung, so a
      density the page gives its `main` leaves it alone. The line is a whole pixel at
      either size, so a fold opening over several lines moves nothing by a fraction. It
-     keeps the entry floor, since a message turns into the editor that rewrites it. */
-  --msg-font: max(var(--entry-floor), var(--t-5)) / 1.5 var(--sans);
+     keeps the entry floor, since a message turns into the editor that rewrites it.
+     Its size is a token of its own, so a measure set in it, such as the floating
+     panel's widened field (floating-panel.css, `data-expanded`), follows the face. */
+  --msg-size: max(var(--entry-floor), var(--t-5));
+  --msg-font: var(--msg-size) / 1.5 var(--sans);
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
      element rules below draw them. They are tokens because the composer draws a draft
      in the same faces (runtime/composing/text-field.js), inside a shadow root those

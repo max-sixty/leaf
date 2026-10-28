@@ -585,7 +585,7 @@
             role="region"
             aria-label="Instruction to agent"
           >
-            <div class="lf-playground-actions">
+            <footer class="lf-playground-actions">
               <button ${resetOffer}></button>
               <button
                 ${revealOffer}
@@ -619,7 +619,7 @@ Undo choice`}>
               ${offline ? html`<span class="lf-playground-unavailable" data-lf-gen="1"
                       >Submission unavailable: no agent or server is available.</span
                     >` : nothing}
-            </div>
+            </footer>
           </div>
         </div>
       </div>`;

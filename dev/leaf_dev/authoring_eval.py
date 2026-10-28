@@ -7,8 +7,8 @@ run commands and check rendering; this executor independently checks the final
 page, plain and with `--render`, without repairing it. Existing assertions read
 the authored HTML, not a claim in the reply. Page files, prompts, native traces
 and both checks' output survive in the sample's evidence directory. The final
-render check's screenshots survive alongside the sample, with their measured
-dimensions and the saved page recorded in the standard report metadata. `check_log`
+render check's screenshots survive alongside the sample. Report captures use the
+selected eval viewports, which also reach the author in its request. `check_log`
 lists the author's tool calls in order with the output of each page check it ran,
 so a grader can tell what the checks told the author and what it did next. Reading
 and instruction-only probes stay with native providers.
@@ -24,8 +24,6 @@ import tempfile
 import time
 from pathlib import Path
 
-from PIL import Image
-
 from leaf.media import media_name
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -39,7 +37,8 @@ from leaf_dev.arms import (
     serving,
     trace_summary,
 )
-from leaf_dev.eval_cases import definition
+from leaf_dev.arrangement_eval import Run, capture_phase, preference
+from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, definition
 from leaf_dev.leaf_assets import pinned_copy
 
 
@@ -158,24 +157,6 @@ def operated_interaction(
     return json.loads(probe.stdout)
 
 
-def render_captures(check: dict, shots: Path) -> tuple[dict, dict]:
-    """Retain the check's exact captures before its isolated state is removed."""
-    screens = (check.get("browser") or {}).get("screens")
-    captures, widths = {}, {}
-    if screens is not None:
-        shots.mkdir(parents=True, exist_ok=True)
-        for shot in screens["files"]:
-            source = Path(screens["directory"]) / shot["file"]
-            target = shots / shot["file"]
-            shutil.copy2(source, target)
-            with Image.open(target) as image:
-                width, height = image.size
-            name = f"{width}x{height}"
-            widths[name] = [width, height]
-            captures.setdefault(name, []).append(str(target))
-    return captures, widths
-
-
 def execute(
     prompt: str,
     payload: Path,
@@ -185,6 +166,7 @@ def execute(
     harness: str,
     condition: str = "leaf",
     shots: Path | None = None,
+    viewports: tuple[str, ...] = DEFAULT_VIEWPORTS,
 ) -> dict:
     started = time.monotonic()
     context = (
@@ -215,8 +197,9 @@ def execute(
         else:
             run_leaf(payload, state, "page", "init", str(page), check=True)
         setup_seconds = time.monotonic() - started
+        brief = f"{prompt}\n\n{preference(viewports)}"
         request = definition("authoring_eval")["prompt"].format(
-            prompt=prompt, page=page, cwd=cwd, payload=payload
+            prompt=brief, page=page, cwd=cwd, payload=payload
         )
         if condition == "json":
             compiler = cwd / "compile.py"
@@ -300,8 +283,16 @@ def execute(
                 format_valid = rendered.returncode == 0
                 format_output = rendered.stdout + rendered.stderr
                 (evidence / "compile.txt").write_text(format_output)
+            run = Run(
+                metadata["case"],
+                payload,
+                evidence,
+                shots or evidence / "screens",
+                harness=harness,
+                condition="html" if condition == "adaptive" else "leaf",
+                viewports=viewports,
+            )
             operable = False
-            captures, widths = {}, {}
             if format_valid:
                 if condition == "adaptive":
                     from leaf_dev.arrangement_plain import load, serving
@@ -316,13 +307,6 @@ def execute(
                         view.on("pageerror", lambda error: errors.append(str(error)))
                         load(view, url)
                         rendered = view.locator("#card > *").count() > 0
-                        rendered_path = evidence / "rendered.png"
-                        view.screenshot(path=rendered_path, full_page=True)
-                        with Image.open(rendered_path) as image:
-                            width, height = image.size
-                        size = f"{width}x{height}"
-                        captures[size] = [str(rendered_path)]
-                        widths[size] = [width, height]
                     plain_output = "Adaptive Cards SDK parsed the source\n"
                     render_output = (
                         "\n".join(errors)
@@ -340,17 +324,10 @@ def execute(
                     render_output = check.stdout + check.stderr
                     page_valid = check.returncode == 0
                     operable = plain.returncode == 0 and (page / "index.html").is_file()
-                    captures, widths = (
-                        render_captures(
-                            json.loads(check.stdout),
-                            (shots or evidence / "screens") / "render",
-                        )
-                        if check.stdout
-                        else ({}, {})
-                    )
             else:
                 plain_output = render_output = "not run: source did not compile\n"
                 page_valid = False
+            captures = capture_phase(run, 1, page) if operable else {}
             interaction = None
             if operable and metadata["case"].split("/")[-1] in {"choice", "form"}:
                 interaction = operated_interaction(
@@ -385,11 +362,14 @@ def execute(
                         "condition": condition,
                         "payload": str(payload),
                         "comparison": {
-                            "brief": prompt,
+                            "brief": brief,
                             "decision_task": None,
                             "phases": {"": "1"},
                             "author_phases": [1],
-                            "widths": widths,
+                            "widths": {
+                                name: list(viewport)
+                                for name, (viewport, _) in run.widths.items()
+                            },
                         },
                         "phases": {
                             "1": {

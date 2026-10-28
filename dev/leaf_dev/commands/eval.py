@@ -212,10 +212,14 @@ def native_provider(
     home.mkdir(mode=0o700)
     config_home = codex_home(home / ".codex")
     codex = codex_program()
+    temporary = work / "tmp"
+    temporary.mkdir()
     cli_env = {
         "HOME": str(home),
         "CODEX_HOME": str(config_home),
         "XDG_STATE_HOME": str(home / ".local/state"),
+        "TMPDIR": str(temporary),
+        "TMPPREFIX": str(temporary / "zsh"),
     }
     # The installer and provider use the same CLI. Installing the complete
     # plugin preserves discovery and skill references relative to the plugin root.
@@ -379,7 +383,7 @@ def prepare(
                         metadata["scenario"], condition=condition
                     )
                 )
-                rubrics = test["assert"]
+                rubrics = sample["assert"]
                 if (
                     any(r["type"].endswith("agent-rubric") for r in rubrics)
                     and judge is None
@@ -399,23 +403,7 @@ def prepare(
                         {
                             **rubric,
                             **(
-                                {
-                                    "config": {
-                                        **rubric["config"],
-                                        "judge": {
-                                            "id": f"python:{ROOT / 'dev/leaf_dev/arrangement_eval.py'}",
-                                            "config": {
-                                                "pythonExecutable": sys.executable,
-                                                # Allow setup and retirement around
-                                                # the native judge's 20-minute turn.
-                                                "timeout": 30 * 60 * 1000,
-                                            },
-                                        },
-                                    }
-                                }
-                                if isinstance(rubric.get("value"), str)
-                                and rubric["value"].endswith("/authoring_assertion.mjs")
-                                else {"provider": judge}
+                                {"provider": judge}
                                 if rubric["type"].endswith("agent-rubric")
                                 else {}
                             ),
@@ -436,6 +424,10 @@ def prepare(
                 now = sample["vars"].pop("now", NOW)
                 if not authoring:
                     prompt = f"It is now {now}.\n\n{prompt}"
+                    sample["options"] = {
+                        "rubricPrompt": definition("eval")["source_grading_prompt"],
+                        **sample.get("options", {}),
+                    }
                 sample["vars"] = {
                     **sample["vars"],
                     "prompt": (
@@ -488,6 +480,18 @@ def prepare(
                         )
             for assertion in sample["assert"]:
                 value = assertion.get("value")
+                if isinstance(value, str) and value.endswith(
+                    "/authoring_assertion.mjs"
+                ):
+                    assertion["config"]["judge"] = {
+                        "id": f"python:{ROOT / 'dev/leaf_dev/arrangement_eval.py'}",
+                        "config": {
+                            "pythonExecutable": sys.executable,
+                            # Allow setup and retirement around the native judge's
+                            # 20-minute turn, for workflows and short authoring alike.
+                            "timeout": 30 * 60 * 1000,
+                        },
+                    }
                 if isinstance(value, str) and value.startswith("file://"):
                     assertion["value"] = (
                         f"file://{ROOT / 'evals' / value.removeprefix('file://')}"

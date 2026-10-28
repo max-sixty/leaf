@@ -27,8 +27,9 @@ from .registry.kernel import kernel_protocol
 from .registry.storage import LAYER
 from .revision_artifact import Disposable, RevisionArtifact
 from .revisioning import activate_source
+from .runtime_selection import executing
 from .sample_content import initial_sample_events
-from .schema import LAYER_FILE, PACKAGES_DIR
+from .schema import LAYER_FILE
 from .structure import SourceDocument
 from .thread_context import thread_structure
 
@@ -105,9 +106,13 @@ class Samples:
                     "protocol": kernel_protocol(),
                 },
             )
-            # The layer names the parent's copies of the packages it selects by path.
-            if (parent / PACKAGES_DIR).is_dir():
-                shutil.copytree(parent / PACKAGES_DIR, child / PACKAGES_DIR)
+            # A frozen parent lends the package bytes it captured, not whatever
+            # copies page init may since have replaced in its directory.
+            for directory, files in executing(artifact).package_copies.items():
+                for relative, content in files.items():
+                    target = child / directory / relative
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(content)
             # Message attachments are content-addressed page data, not necessarily
             # dependencies of the authored revision. Preserve those bytes too.
             if (parent / "media").is_dir():

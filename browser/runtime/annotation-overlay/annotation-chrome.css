@@ -750,6 +750,27 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     z-index: 1;
     background-color: var(--lf-msg-ground);
   }
+  /* A message holding visible focus, as Next on me leaves the reply it lands on, wears
+     its ring over its head. Its own outline would paint with its words, under the
+     sticky head, the head's cell in the actions' track and the paper the head lays over
+     the room above it, which left the ring its sides and no top. The ring is drawn
+     instead on a pseudo-element over the message, as a thread's is (surfaces.css),
+     but at the head's z-index, since the head names one, so it wins by coming after
+     the head in tree order. The transcript's mask makes it a stacking context, so the
+     lift reaches no further than the transcript. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg[data-lf-focus-visible] {
+    position: relative;
+    outline: none;
+  }
+  .lf-margin-thread .lf-thread-transcript .lf-msg[data-lf-focus-visible]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-gap);
+    pointer-events: none;
+  }
   .lf-margin-thread
     .lf-thread-transcript
     .lf-msg:not(:has(.lf-msg-control))

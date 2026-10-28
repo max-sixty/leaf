@@ -258,6 +258,29 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     assert frame["inset"] == frame["field"][0] - frame["card"] + 13, frame
 
 
+def test_a_reply_next_on_me_lands_on_wears_its_whole_ring_in_its_card(browser, serve):
+    """Next on me lands on the agent's long question in its card and rings it whole.
+    The message's own outline painted under its sticky head and the paper that head
+    reaches up over the room above it, so the ring lost its top run, leaving a box with
+    no lid."""
+    question = {**LONG_THREAD[1], "obligation": True}
+    page = open_page(
+        browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, question])
+    )
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    page.keyboard.press("m")
+    message = page.locator(f'.lf-margin-preview .lf-msg[data-event="{question["id"]}"]')
+    expect(message).to_be_focused()
+    rendered(page)
+    drawn = rings_drawn(page)
+    worn = [seen for seen in drawn if seen["here"]]
+    assert len(worn) == 1 and worn[0]["who"].startswith("div.lf-msg."), drawn
+    assert not (faults := ring_faults(drawn, "on the reply Next on me reached")), (
+        "\n".join(faults)
+    )
+
+
 # Whether a message stands wholly between the transcript's top and the reply row pinned
 # over its foot, which is the part of the transcript the user can read.
 SHOWN_ABOVE_THE_REPLY = """message => {

@@ -74,7 +74,6 @@
  * the disclosure and lands on its destination instead.
  */
 import {
-  commands,
   generatedElement,
   dragging,
   cancelAnimation,
@@ -109,7 +108,6 @@ import {
   layoutPx,
   LeafElement,
   onUserInput,
-  paintKeys,
   signal,
   quoted,
   registerVisualParts,
@@ -122,6 +120,7 @@ import {
   sizeObserver,
   whileConnected,
   currentLocationIn,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";
@@ -401,80 +400,85 @@ customElements.define(
       this.#build();
       const timeline = this.#timelineHost.value;
       // Element command scopes leave with their element; a return keeps the declaration.
-      if (!quoted(this))
-        commands(this, "In a Playwright recording", [
-          // Back along the time scale is the arrow toward its start. The scale
-          // runs left to right in every text direction (theme.css), so its arrows
-          // are fixed rather than read from the computed direction, which would
-          // force a style recalculation each time the page's keys are reflected.
-          {
-            id: "trace.previous",
-            keys: ["ArrowLeft"],
-            title: "previous timeline point",
-            control: this.#previous.value,
-            when: () => this.#position() > 0 || this.#cursorTime !== null,
-            run: () => this.#step(-1),
-          },
-          {
-            id: "trace.next",
-            keys: ["ArrowRight"],
-            title: "next timeline point",
-            control: this.#next.value,
-            when: () => this.#position() < this.#items().length - 1,
-            run: () => this.#step(1),
-          },
-          {
-            id: "trace.zoom-in",
-            keys: () => (currentLocationIn(timeline) ? ["="] : []),
-            title: "zoom the timeline in",
-            control: this.#zoomIn.value,
-            when: () => this.#timeline.canZoomIn,
-            run: () => this.#zoom(() => this.#timeline.zoomBy(2)),
-          },
-          {
-            id: "trace.zoom-out",
-            keys: () => (currentLocationIn(timeline) ? ["-"] : []),
-            title: "zoom the timeline out",
-            control: this.#zoomOut.value,
-            when: () => this.#timeline.canZoomOut,
-            run: () => this.#zoom(() => this.#timeline.zoomBy(0.5)),
-          },
-          {
-            id: "trace.zoom-fit",
-            keys: () => (currentLocationIn(timeline) ? ["0"] : []),
-            title: "show the whole recording",
-            control: this.#zoomFit.value,
-            when: () => this.#timeline.canZoomOut,
-            run: () => this.#zoom(() => this.#timeline.fit()),
-          },
-          {
-            id: "trace.previous-event",
-            keys: () => (currentLocationIn(timeline) ? ["Shift+ArrowLeft"] : []),
-            title: "previous input or moment",
-            when: () => this.#eventStop(-1) !== null,
-            run: () => this.#navigate(this.#eventStop(-1)),
-          },
-          {
-            id: "trace.next-event",
-            keys: () => (currentLocationIn(timeline) ? ["Shift+ArrowRight"] : []),
-            title: "next input or moment",
-            when: () => this.#eventStop(1) !== null,
-            run: () => this.#navigate(this.#eventStop(1)),
-          },
-          {
-            id: "trace.play",
-            keys: () => (currentLocationIn(timeline) ? [" "] : []),
-            title: () => (this.#playing ? "pause recording" : "play recording"),
-            control: this.#play.value,
-            when: () => this.#items().length > 1,
-            run: () => {
-              const pause = this.#playIntent ?? this.#playing;
-              this.#playIntent = null;
-              if (pause) this.pause();
-              else this.#startPlayback();
+      if (!quoted(this)) {
+        this.lfCommands = {
+          title: "In a Playwright recording",
+          rows: [
+            // Back along the time scale is the arrow toward its start. The scale
+            // runs left to right in every text direction (theme.css), so its arrows
+            // are fixed rather than read from the computed direction, which would
+            // force a style recalculation each time the page's keys are reflected.
+            {
+              id: "trace.previous",
+              keys: ["ArrowLeft"],
+              title: "previous timeline point",
+              control: this.#previous.value,
+              when: () => this.#position() > 0 || this.#cursorTime !== null,
+              run: () => this.#step(-1),
             },
-          },
-        ]);
+            {
+              id: "trace.next",
+              keys: ["ArrowRight"],
+              title: "next timeline point",
+              control: this.#next.value,
+              when: () => this.#position() < this.#items().length - 1,
+              run: () => this.#step(1),
+            },
+            {
+              id: "trace.zoom-in",
+              keys: () => (currentLocationIn(timeline) ? ["="] : []),
+              title: "zoom the timeline in",
+              control: this.#zoomIn.value,
+              when: () => this.#timeline.canZoomIn,
+              run: () => this.#zoom(() => this.#timeline.zoomBy(2)),
+            },
+            {
+              id: "trace.zoom-out",
+              keys: () => (currentLocationIn(timeline) ? ["-"] : []),
+              title: "zoom the timeline out",
+              control: this.#zoomOut.value,
+              when: () => this.#timeline.canZoomOut,
+              run: () => this.#zoom(() => this.#timeline.zoomBy(0.5)),
+            },
+            {
+              id: "trace.zoom-fit",
+              keys: () => (currentLocationIn(timeline) ? ["0"] : []),
+              title: "show the whole recording",
+              control: this.#zoomFit.value,
+              when: () => this.#timeline.canZoomOut,
+              run: () => this.#zoom(() => this.#timeline.fit()),
+            },
+            {
+              id: "trace.previous-event",
+              keys: () => (currentLocationIn(timeline) ? ["Shift+ArrowLeft"] : []),
+              title: "previous input or moment",
+              when: () => this.#eventStop(-1) !== null,
+              run: () => this.#navigate(this.#eventStop(-1)),
+            },
+            {
+              id: "trace.next-event",
+              keys: () => (currentLocationIn(timeline) ? ["Shift+ArrowRight"] : []),
+              title: "next input or moment",
+              when: () => this.#eventStop(1) !== null,
+              run: () => this.#navigate(this.#eventStop(1)),
+            },
+            {
+              id: "trace.play",
+              keys: () => (currentLocationIn(timeline) ? [" "] : []),
+              title: () => (this.#playing ? "pause recording" : "play recording"),
+              control: this.#play.value,
+              when: () => this.#items().length > 1,
+              run: () => {
+                const pause = this.#playIntent ?? this.#playing;
+                this.#playIntent = null;
+                if (pause) this.pause();
+                else this.#startPlayback();
+              },
+            },
+          ],
+        };
+        commandsChanged(this);
+      }
       whileConnected(this, (signal) => {
         document.addEventListener("visibilitychange", this.#visibility, { signal });
         const stopInput = onUserInput(this.#reviewGesture);
@@ -542,32 +546,37 @@ customElements.define(
           if (this.#playing) this.pause();
         },
         // Zoom availability follows the window a gesture left.
-        onZoom: () => paintKeys(),
+        onZoom: () => commandsChanged(this),
       });
       this.addEventListener("lf-inspect", (event) => this.#inspect(event));
       this.#parts = registerVisualParts(this, () => this.#inventory, {
         label: (id) => this.#targets.get(id)?.label ?? null,
         reveal: (id) => this.#reveal(id),
       });
-      if (!quoted(this))
-        commands(this.#timelineHost.value, "On a recording timeline", [
-          {
-            id: "trace.first",
-            travels: true,
-            keys: ["Home"],
-            title: "first capture",
-            control: this.#first.value,
-            when: () => this.#items().length > 0,
-            run: () => this.#navigate(this.#items().at(0)?.id ?? null),
-          },
-          {
-            id: "trace.last",
-            travels: true,
-            keys: ["End"],
-            title: "last capture",
-            run: () => this.#navigate(this.#items().at(-1)?.id ?? null),
-          },
-        ]);
+      if (!quoted(this)) {
+        this.#timelineHost.value.lfCommands = {
+          title: "On a recording timeline",
+          rows: [
+            {
+              id: "trace.first",
+              travels: true,
+              keys: ["Home"],
+              title: "first capture",
+              control: this.#first.value,
+              when: () => this.#items().length > 0,
+              run: () => this.#navigate(this.#items().at(0)?.id ?? null),
+            },
+            {
+              id: "trace.last",
+              travels: true,
+              keys: ["End"],
+              title: "last capture",
+              run: () => this.#navigate(this.#items().at(-1)?.id ?? null),
+            },
+          ],
+        };
+        commandsChanged(this.#timelineHost.value);
+      }
     }
 
     // Review gestures belong to evidence, independently of navigation layout.
@@ -1780,7 +1789,7 @@ customElements.define(
     #zoom(change) {
       this.pause();
       change();
-      paintKeys();
+      commandsChanged(this);
     }
 
     // The playhead and its readout, without redrawing evidence. Playback changes
@@ -2134,7 +2143,7 @@ customElements.define(
                     "aria-expanded",
                     isNativeLayer(this.#imageScaleOptions.value),
                   );
-                  paintKeys();
+                  commandsChanged(this);
                 }}
               >
                 ${[
@@ -2283,37 +2292,42 @@ customElements.define(
             "aria-label",
             "Captured image. Arrow keys pan the image; use image controls to zoom or fit.",
           );
-          if (!quoted(this))
-            commands(canvas, "In a captured image", [
-              {
-                id: "trace.image.left",
-                keys: ["ArrowLeft"],
-                title: "pan image left",
-                control: canvas,
-                run: () => this.#panPicture(-40, 0),
-              },
-              {
-                id: "trace.image.right",
-                keys: ["ArrowRight"],
-                title: "pan image right",
-                control: canvas,
-                run: () => this.#panPicture(40, 0),
-              },
-              {
-                id: "trace.image.up",
-                keys: ["ArrowUp"],
-                title: "pan image up",
-                control: canvas,
-                run: () => this.#panPicture(0, -40),
-              },
-              {
-                id: "trace.image.down",
-                keys: ["ArrowDown"],
-                title: "pan image down",
-                control: canvas,
-                run: () => this.#panPicture(0, 40),
-              },
-            ]);
+          if (!quoted(this)) {
+            canvas.lfCommands = {
+              title: "In a captured image",
+              rows: [
+                {
+                  id: "trace.image.left",
+                  keys: ["ArrowLeft"],
+                  title: "pan image left",
+                  control: canvas,
+                  run: () => this.#panPicture(-40, 0),
+                },
+                {
+                  id: "trace.image.right",
+                  keys: ["ArrowRight"],
+                  title: "pan image right",
+                  control: canvas,
+                  run: () => this.#panPicture(40, 0),
+                },
+                {
+                  id: "trace.image.up",
+                  keys: ["ArrowUp"],
+                  title: "pan image up",
+                  control: canvas,
+                  run: () => this.#panPicture(0, -40),
+                },
+                {
+                  id: "trace.image.down",
+                  keys: ["ArrowDown"],
+                  title: "pan image down",
+                  control: canvas,
+                  run: () => this.#panPicture(0, 40),
+                },
+              ],
+            };
+            commandsChanged(canvas);
+          }
           canvas.addEventListener("pointerdown", () =>
             focusDestination(canvas, "press"),
           );
@@ -2416,7 +2430,7 @@ customElements.define(
       this.#marked = marked;
       this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.#trace } }));
       this.#parts.update();
-      paintKeys();
+      commandsChanged(this);
     }
   },
 );

@@ -44,7 +44,8 @@ assert:
         to the Add item button: handBack(openerOf(popup)) after openLayer(popup) as it
         opens, or handBack naming the button;
       - any focus it places itself goes through focusDestination with a cause;
-      - the popup's Escape, if shown, is a command row (commands(...)), not a listener.
+      - the popup's Escape, if shown, is a command row in an element's lfCommands,
+        not a listener.
       Fail if it calls element.focus() directly, searches for the nearest surviving
       row itself, keeps the opener in a variable of its own, or installs focus or
       keydown listeners.

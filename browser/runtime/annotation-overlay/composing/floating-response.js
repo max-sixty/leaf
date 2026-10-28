@@ -39,7 +39,7 @@ import { blockAt, pageRange, quoteFrom, segmentsIn } from "../../passages.js";
 import { pageSelection, selectionAnchor } from "../../composing/capture.js";
 import { closeLayer, drawn, holdFocus } from "../../focus.js";
 import { coarsePointer } from "../../pointer.js";
-import { LAYOUT } from "../../widget-elements.js";
+import { LAYOUT } from "../../widget-upgrade.js";
 import { under } from "../../shadow.js";
 import { union } from "../../rect.js";
 import { floatingPlacement, floatingUi, heldEdges } from "../floating.js";

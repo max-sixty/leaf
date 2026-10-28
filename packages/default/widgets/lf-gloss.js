@@ -18,10 +18,10 @@ import {
   offer,
   generatedElement,
   once,
-  paintKeys,
   reachedForWords,
   worksInside,
   whileConnected,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 let nextId = 0;
@@ -85,7 +85,7 @@ customElements.define(
         this.#pinned = true;
         this.#shown = true;
         this.#mark.setAttribute("aria-expanded", "true");
-        paintKeys();
+        commandsChanged(this);
       });
       this.#bubble.addEventListener("toggle", (event) => {
         if (event.newState !== "closed" || !this.#shown || isNativeLayer(this.#bubble))
@@ -94,7 +94,7 @@ customElements.define(
         this.#pinned = false;
         this.#dismissed = true;
         this.#mark.setAttribute("aria-expanded", "false");
-        paintKeys();
+        commandsChanged(this);
       });
     }
 
@@ -161,7 +161,7 @@ customElements.define(
       if (show === this.#shown && show === open) return;
       this.#shown = show;
       keeps(this.#mark, "aria-expanded", show);
-      paintKeys();
+      commandsChanged(this);
 
       if (show) {
         showNativeLayer(this.#bubble);

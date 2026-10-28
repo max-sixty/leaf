@@ -164,12 +164,14 @@
    is an overlaid menu below its trigger; opening it never moves this message or the
    threads after it. At rest only feedback already left earns flow space. The words
    run up to the group, past the head's gap, since a control's face stands inside
-   its box. */
+   its box, and the group takes no height, so a control taller than the head's line
+   stands over its edges rather than growing it. */
 .lf-msg-controls {
   display: flex;
   flex: none;
   align-items: center;
   gap: var(--lf-msg-edit-gap);
+  block-size: 0;
   margin-inline-start: calc(-1 * var(--sp-2));
 }
 .lf-msg-controls:empty {

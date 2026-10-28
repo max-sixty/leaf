@@ -84,6 +84,20 @@ index.html now fails. A page this Leaf cannot write, because its renewal failed
 or a newer Leaf initialized it, offers no input (`delivery.deliverable`), so the hook
 names the refusal and records no pickup there.
 
+While the agent works, the page's status shows the line it last started. Each
+`STATUS_RENEWAL`, a tool boundary checks the session's pages, Claude Code's
+`PostToolBatch` here and Codex's tool hook through `CodexHarness.offer_at_step`, and
+reminds the agent of any working line that has stood that long to restate it, in
+new words where its work has moved on (`status_reminders`). A restatement renews
+the line even where its words stay, so while the agent runs tools a working status
+is never much more than two intervals old. Checking on a clock rather than at each
+boundary keeps Codex's tool hook, which runs after every call, from reading its pages
+each time (`state.status_check_due`). Only a working status, at a tool boundary, is reminded: a turn waiting
+on the user or between turns runs none, and a closed or listening page shows no
+line to renew. Whether the work has moved on is the agent's judgement; the hook only
+says how long the line has stood. This was the user's choice (28 October 2026) over
+Leaf reading the turn's liveness, or its current step, from the hooks itself.
+
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
 inside its timeout, and prints afterwards. It never waits for a lock past that
@@ -94,6 +108,7 @@ interrupted just after they start leave their updates Delivered.
 import json
 import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from .activity import acknowledged_obligations, turn_obligations, unanswered
@@ -120,6 +135,8 @@ from .service import (
     page_claim,
 )
 from .state import (
+    STATUS_CHECKED_SUFFIX,
+    STATUS_RENEWAL,
     STRING,
     Record,
     described,
@@ -128,7 +145,40 @@ from .state import (
     session_file,
     session_lock_path,
     session_record,
+    status_check_due,
 )
+
+
+def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
+    """A line for each page whose working status has stood `STATUS_RENEWAL`,
+    recording the check (`state.status_check_due`)."""
+    session_file(session_id, STATUS_CHECKED_SUFFIX).touch()
+    now = datetime.now().astimezone()
+    lines = []
+    for plan in plans:
+        activity = plan.state["activity"]
+        if activity["kind"] != "working" or not activity["ts"]:
+            continue
+        stood = now - datetime.fromisoformat(activity["ts"])
+        if stood < STATUS_RENEWAL:
+            continue
+        minutes = int(stood / timedelta(minutes=1))
+        source = activity["detail_source"]
+        if source:
+            lines.append(
+                f"Leaf: your status on {plan.page} has read "
+                f'"{activity["detail"]}" for {minutes} min. Restate it with '
+                f'`leaf task start {plan.page} {source["item"]} --text "<what you '
+                'are doing now>"`, in new words if your work has moved on.'
+            )
+        else:
+            lines.append(
+                f"Leaf: {plan.page} has shown no status line from you for {minutes} "
+                f"min while you work on its updates. Say what you are doing with "
+                f'`leaf task start {plan.page} <update id> --text "<what you are '
+                'doing>"`.'
+            )
+    return lines
 
 
 def restart(obligations: list[dict]) -> str:
@@ -504,7 +554,12 @@ def carry_turn(
         if carries
         else []
     )
-    if event == "PostToolBatch" and not batches:
+    renewals = (
+        status_reminders(sid, plans)
+        if event == "PostToolBatch" and status_check_due(sid)
+        else []
+    )
+    if event == "PostToolBatch" and not batches and not renewals:
         return
     if event == "UserPromptSubmit":
         pick_up_acknowledged(sid, plans)
@@ -515,8 +570,9 @@ def carry_turn(
         reminds=harness.watches_between_turns(),
     ):
         return True
-    # A tool boundary carries only new input; response-debt and housekeeping
-    # reminders belong to prompt and Stop. It neither reopens nor ends a turn.
+    # A tool boundary carries only new input and a status line gone unrenewed;
+    # response-debt and housekeeping reminders belong to prompt and Stop. It
+    # neither reopens nor ends a turn.
     reminding = [] if event == "PostToolBatch" else plans
     reasons = remedies(reminding, batches)
     # The message avoids "unattended": a page can be watched and still be owed
@@ -556,7 +612,7 @@ def carry_turn(
     context = notices(reconnect_harness, sid, expected)
     if context is None:
         return
-    attention = [*context, *attention]
+    attention = [*context, *attention, *renewals]
     if delivery is None:
         message = "\n".join(attention)
     else:

@@ -9,7 +9,7 @@ import re
 import shutil
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -24,6 +24,7 @@ from interact_support import (
     append_carried_log_record,
     continued,
     declare_idle,
+    declare_work,
     declared,
     delivered,
     delivered_ref,
@@ -40,6 +41,7 @@ from interact_support import (
     working,
     yaml_document,
 )
+from interact_support import declare as declare_status
 
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
@@ -1013,6 +1015,53 @@ def test_a_step_opens_a_claude_code_turn_no_prompt_hook_named(claimed, capsys):
     assert cleanup_model.session_record("s1")["turn"] == "p11"
     hook("Stop", "p11")
     assert cleanup_model.session_record("s1")["turn_closed"] is not None
+
+
+def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
+    claimed, capsys
+):
+    """Each renewal interval, a tool boundary tells the agent how long its working
+    status line has stood once that reaches the interval, naming the command that
+    restates it. A page put down to wait for the user shows no working line, so it
+    is never reminded however long it waits."""
+
+    def hook(event: str) -> str:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": event, "session_id": "s1", "prompt_id": "p1"},
+        )
+        return capsys.readouterr().out
+
+    mark = cleanup_model.session_file("s1", cleanup_model.STATUS_CHECKED_SUFFIX)
+    stood = datetime.now().astimezone() - timedelta(minutes=3)
+
+    def check_due():
+        os.utime(mark, (stood.timestamp(), stood.timestamp()))
+
+    hook("UserPromptSubmit")
+    start = declare_work(claimed, "reading the traces", session="s1")
+    assert hook("PostToolBatch") == ""
+
+    declare_work(
+        claimed,
+        "reading the traces",
+        ts=stood.isoformat(timespec="seconds"),
+        session="s1",
+    )
+    # Checked a moment ago, when the line was fresh: the next check is due later.
+    assert hook("PostToolBatch") == ""
+    check_due()
+    context = json.loads(hook("PostToolBatch"))["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert '"reading the traces" for 3 min' in context
+    assert f"leaf task start {claimed} {start['item']}" in context
+    assert hook("PostToolBatch") == ""
+
+    declare_status(claimed, ts=stood.isoformat(timespec="seconds"), session="s1")
+    assert activity_reading(claimed)["kind"] != "working"
+    check_due()
+    assert hook("PostToolBatch") == ""
 
 
 def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(

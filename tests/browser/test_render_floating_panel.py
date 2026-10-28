@@ -2503,8 +2503,8 @@ def test_floating_status_records_feedback_only_when_its_words_show(
 def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     browser, serve, request
 ):
-    """A clock tick cannot move tooltip words; the leaf stays live and reopening
-    reads current status. A notice answering a gesture still shows immediately."""
+    """A clock tick cannot move tooltip words, and reopening reads current status. A
+    notice answering a gesture still shows immediately."""
     from browser.threads import claim_for_codex
 
     url = serve(LONG_PAGE)
@@ -2539,7 +2539,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
 
     page.route("**/api/state*", aged_state)
     page.clock.set_fixed_time(now)
-    expect(leaf).to_have_attribute("aria-label", re.compile("1m ago"))
+    ticked(page)
     assert peek.inner_text() == words
     assert peek.bounding_box() == before
     page.mouse.move(5, 5)
@@ -2572,7 +2572,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     words = peek.inner_text()
     now += timedelta(minutes=1)
     page.clock.set_fixed_time(now)
-    expect(leaf).to_have_attribute("aria-label", re.compile("2m ago"))
+    ticked(page)
     assert peek.inner_text() == words
     page.evaluate(
         "async () => (await window.__lfWidgetApi()).notice('Saved for later')"
@@ -4026,7 +4026,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
     url = serve(OBLIGATION_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
-    line = re.compile(r"^(\S+ ago · )?Drafting the rollout")
+    line = re.compile(r"^Drafting the rollout")
     page.locator(".lf-fp-leaf").click()
     head = page.locator(".lf-fp-state")
     expect(head.locator("> *")).to_have_count(2)

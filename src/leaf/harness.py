@@ -730,7 +730,8 @@ class CodexHarness(EnvironmentHarness):
         (`later_turn_takes_input`), and the turn would continue for it
         (`hook_transport.stop_continues`). The tool hook offers only input the
         cursor has not passed, and Stop also an update the session holds no usable
-        reference for (`delivery.deliverable`).
+        reference for (`delivery.deliverable`). The tool hook also carries the
+        reminder of a status line left standing (`hook_transport.status_reminders`).
         """
         if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
             return None, expected
@@ -752,8 +753,17 @@ class CodexHarness(EnvironmentHarness):
             ):
                 return None, expected
         from .codex import offer_hook_delivery
+        from .state import status_check_due
 
-        return offer_hook_delivery(self.session, expected, received=event == "Stop")
+        prompt, expected = offer_hook_delivery(
+            self.session, expected, received=event == "Stop"
+        )
+        if event == "PostToolUse" and status_check_due(self.session):
+            from .hook_transport import read_plans, status_reminders
+
+            renewals = status_reminders(self.session, read_plans(self.session))
+            prompt = "\n".join(filter(None, [prompt, *renewals])) or None
+        return prompt, expected
 
     @classmethod
     def run_ack(cls, command: str) -> str:

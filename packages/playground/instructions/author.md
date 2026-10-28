@@ -206,8 +206,9 @@ submit action; Undo withdraws the choice and keeps the working values.
 Write a preview's script as an inline `<script type="module">`, and put the candidates
 in ordinary or custom elements (`references/page-behavior.md`, "A page script").
 
-The playground owns working values. Read its immutable `values` aggregate, or declare
-one named structured slice with `playground.registerContributor(name, defaults)`.
+The playground owns working values. Its immutable `values` aggregate can hold scalar
+controls, contributor slices, or both. Declare a named structured slice with
+`playground.registerContributor(name, defaults)`.
 The returned handle's `get()` reads its immutable current value; `set(next)` replaces
 that slice. Update it on input, so a later control change or submission sees the edit.
 Names are unique and distinct from control names. Retain the handle rather than a

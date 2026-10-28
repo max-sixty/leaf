@@ -565,6 +565,76 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
     expect(card.locator("leaf-text")).to_have_js_property("value", words)
 
 
+def test_keyboard_file_navigation_keeps_its_destination_beside_a_retained_reply(
+    browser, serve
+):
+    """A tabbed-away reply continues without reopening the file the reader left."""
+    patch = "".join(
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        f'@@ -1 +1 @@\n-return "old"\n+return "{value}"\n'
+        for path, value in [("app.py", "new"), ("tests.py", "checked")]
+    )
+    url = serve(
+        leaf_page(
+            "Review files beside a reply",
+            '<h1>Review the patch</h1><lf-diff id="patch" source="review-patch" '
+            'view="file"><pre></pre></lf-diff>'
+            '<lf-file-tree id="files" for="patch"></lf-file-tree>'
+            '<a id="after-files" href="#patch">Back to the patch</a>',
+        ),
+        packages=("diff", "file-tree"),
+    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "What about this return value?",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
+            },
+        },
+    )["id"]
+    page = open_page(browser, url)
+    reply = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"] leaf-text')
+    words = "Keep this draft while I inspect the test."
+    write(reply, words)
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    caret = reply.evaluate("node => node.selectionStart")
+    search = page.locator("#files").get_by_role("textbox")
+    for _ in range(20):
+        page.keyboard.press("Tab")
+        if search.evaluate('node => node.matches(":focus")'):
+            break
+    expect(search).to_be_focused()
+    page.keyboard.press("Tab")
+    page.keyboard.press("End")
+    target = page.locator("#files").get_by_role("treeitem", name="tests.py", exact=True)
+    expect(target).to_be_focused()
+    page.keyboard.press("Enter")
+    wait_until_ready(page)
+    expect(target).to_have_attribute("aria-selected", "true")
+    expect(
+        page.locator("#patch").get_by_text('return "checked"', exact=True)
+    ).to_be_visible()
+    expect(target).to_be_focused()
+    assert stored_draft_text(page, f"reply:{root}") == words
+    # Resuming is explicit; merely inspecting another file must not take the reader back.
+    page.keyboard.press("Tab")
+    expect(page.locator("#after-files")).to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    resumed = page.locator("leaf-text:focus")
+    expect(resumed).to_have_js_property("value", words)
+    expect(resumed).to_have_js_property("selectionStart", caret)
+
+
 def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
     browser, serve
 ):

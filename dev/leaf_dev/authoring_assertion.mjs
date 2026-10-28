@@ -23,7 +23,9 @@ export default async function grade(output, context, load = loadApiProvider) {
   });
   try {
     if (context.providerResponse.error) throw new Error(context.providerResponse.error);
-    const { diagnostics, work } = context.providerResponse.metadata;
+    const { diagnostics, work, checks } = context.providerResponse.metadata;
+    if (!checks.completed)
+      throw new Error("Native author did not complete; inspect retained native evidence.");
     const pages = Object.fromEntries(
       Object.entries(diagnostics.comparison.phases).map(([suffix, phase]) => [
         suffix ? "before_decision" : "final",

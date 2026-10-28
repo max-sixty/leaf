@@ -261,13 +261,9 @@ cases:
             "At the declared window sizes, the substantive review evidence and navigation remain
             readable and reachable, and the final decision is clear. Inspect the implementation,
             acceptance tests and both documentation files through the offered directory and file
-            navigation. Use an ordinary mouse click and release on a file, then arrow keys and
-            Enter to reach and select another file, expanding directories as needed. Verify the
-            selected path and actual displayed change agree; programmatic focus or a held mouse
-            button does not establish this route. Scroll the longer test file, then select the
-            implementation and a documentation file: each selected file's heading and beginning
-            of its change should be visible immediately, without scrolling back through the
-            previous file or opening an unrelated disclosure. Inspect
+            navigation. Every file is reachable and selectable by pointer and keyboard through
+            discoverable controls. The selected path matches the displayed change, and switching
+            files makes the selected change's heading and beginning visible. Inspect
             whether the code uses the available reading area and whether navigation, code and
             review controls remain usable as content grows. Judge wasted space or clipped focus
             by its effect on reading, navigation and decisions, without requiring a particular

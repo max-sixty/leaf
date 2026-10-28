@@ -10,6 +10,7 @@ import { layoutChanged } from "./widget-elements.js";
 import { layoutBox, pageDocument } from "./passages.js";
 import { marks } from "./kernel-facts.js";
 import { pageControlsChanged } from "./page-controls.js";
+import { syncLayoutRegion } from "./reading-regions.js";
 // One computed reading seats the rail first without moving the column, then each
 // authored margin element on its preferred side, or in flow when there is no room. The
 // column's runtime grid offset is removed before measuring, including RTL, while an
@@ -48,6 +49,7 @@ function watchHead() {
 }
 function readMarginContentLayout() {
   const { changed } = document.documentElement.lfInitial.marginContentLayout();
+  syncLayoutRegion();
   watchHead();
   if (changed) layoutChanged(pageDocument());
   readFinished?.(changed);

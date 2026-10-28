@@ -1560,7 +1560,7 @@ dd {
 figcaption,
 caption,
 th:not([scope="row"]),
-.facts dt,
+dl.facts dt,
 summary {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
@@ -1724,19 +1724,19 @@ aside.sidenote {
   color: var(--muted);
   margin: 12px 0 12px var(--sp-4);
 }
-.facts {
+dl.facts {
   display: grid;
   grid-template-columns: max-content 1fr;
   align-items: baseline;
   gap: var(--sp-1) var(--sp-3);
   margin: 14px 0;
 }
-.facts dt {
+dl.facts dt {
   color: var(--muted);
   font-weight: 400;
   font-size: var(--t-5);
 }
-.facts dd {
+dl.facts dd {
   margin: 0;
 }
 /* A metric tile: one figure under the label naming it, with an optional change beside
@@ -1745,32 +1745,35 @@ aside.sidenote {
    tokens it reads. The figure and its change each go to a new line whole, and a figure
    too long for the tile breaks anywhere rather than overflow it.
 
-   In a grid, such as a row of tiles, the label and the figure take two of the row's
-   tracks (subgrid), so every figure in a row stands on one line however many lines a
-   neighbour's label wraps to. Elsewhere the tile is its own two-row grid. */
-.metric {
+   In a grid, a tile containing just its term and definition takes two of its parent's
+   tracks (subgrid), so peer figures align however many lines a neighbour's label wraps to.
+   Other content keeps its natural rows: a shared two-row span would overlap a third
+   block, such as an authored baseline note. */
+dl.metric {
   margin: 0;
   padding-block-start: var(--sp-2);
   border-block-start: 1px solid var(--rule);
   display: grid;
-  grid-row: span 2;
-  grid-template-rows: subgrid;
   row-gap: 0;
 }
-.metric dt {
+dl.metric:has(> dt:first-child + dd:last-child) {
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+}
+dl.metric dt {
   color: var(--muted);
   font: 600 var(--t-6) / 1.3 var(--sans);
 }
-.metric dd {
+dl.metric dd {
   margin: var(--sp-1) 0 0;
   font: 600 var(--t-2) / 1.2 var(--sans);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-.metric dd > :is(strong, small) {
+dl.metric dd > :is(strong, small) {
   display: inline-block;
 }
-.metric dd small {
+dl.metric dd small {
   font: 500 var(--t-6) / 1.3 var(--sans);
 }
 @media screen {
@@ -1779,11 +1782,11 @@ aside.sidenote {
        leave its explanation as a one-word ribbon. Stack each fact while the box holding
        the facts is narrow, a phone's column or a narrow pane alike; later terms keep the
        ordinary block rhythm through the row gap. */
-    .facts {
+    dl.facts {
       grid-template-columns: minmax(0, 1fr);
       align-items: start;
     }
-    .facts dd + dt {
+    dl.facts dd + dt {
       margin-top: var(--sp-2);
     }
   }

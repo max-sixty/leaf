@@ -30,6 +30,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -126,6 +127,11 @@ def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
     would shadow the launcher a child harness puts on PATH for the arm's plugin.
     When supplied, `payload` puts that arm's bin directory first on the clean PATH.
 
+    An isolated HOME keeps agent settings and state private, while uv shares the
+    host's dependency cache and the interpreter running this harness. Otherwise
+    hiding the host's managed Python can select a different system interpreter
+    and compile dependencies again for every sample.
+
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
     set. It outranks CHROME_PATH and CHROME_BIN, which hosts set for other tools
@@ -150,6 +156,8 @@ def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
     if browser_model.VARIABLE not in env:
         env[browser_model.VARIABLE] = shell_executable()
     env.setdefault(render_command_model.PIN_VARIABLE, "fixed")
+    env.setdefault("UV_CACHE_DIR", str(Path.home() / ".cache/uv"))
+    env.setdefault("UV_PYTHON", sys.executable)
     venv = os.environ.get("VIRTUAL_ENV")
     env["PATH"] = os.pathsep.join(
         entry
@@ -512,7 +520,6 @@ def claude_environment(home: Path, **extra: str) -> dict[str, str]:
     host's uv cache and keeps no memory."""
     env = environment(
         HOME=str(home),
-        UV_CACHE_DIR=os.environ.get("UV_CACHE_DIR", str(Path.home() / ".cache/uv")),
         CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
         **extra,
     )

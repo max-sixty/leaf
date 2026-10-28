@@ -139,7 +139,7 @@ lf-option > .tag {
   margin: 0 6px 2px 0;
 }
 /* The titled form: cards stacked full width and read down, whatever their length. A
- * `.facts` list at the top of an option docks right where the row can spare it, so
+ * `dl.facts` list at the top of an option docks right where the row can spare it, so
  * scalars align down the group, and stacks above the prose where it cannot. */
 lf-options:has(> lf-option > strong) {
   display: block;
@@ -160,20 +160,20 @@ lf-options:has(> lf-option > strong) {
   }
   /* The rail declares its frame, so its first term's margin is trimmed rather than
    * collapsing into the option's padding and dropping the rail below the case. */
-  & > lf-option > .facts {
+  & > lf-option > dl.facts {
     display: block;
     margin: 0 0 var(--sp-2);
     --lf-block-frame: 1;
   }
   @container (min-width: calc(9.5em + 16px + 20em)) {
-    & > lf-option > .facts {
+    & > lf-option > dl.facts {
       float: right;
       clear: right;
       width: 9.5em;
       margin: 0 0 var(--sp-2) var(--sp-3);
     }
   }
-  & > lf-option > .facts dt {
+  & > lf-option > dl.facts dt {
     color: var(--muted);
     font-size: var(--t-6);
     text-transform: uppercase;
@@ -182,7 +182,7 @@ lf-options:has(> lf-option > strong) {
     margin-top: 6px;
     padding: 0;
   }
-  & > lf-option > .facts dd {
+  & > lf-option > dl.facts dd {
     font-size: var(--t-5);
     margin: 0;
   }

@@ -58,7 +58,7 @@ import { keeps } from "./keeps.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { plainPress } from "./pointer.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
-import { offer, offered } from "./widget-elements.js";
+import { namedAction, offer, offered } from "./widget-elements.js";
 import { html, live, nothing, render } from "/runtime/framework.js";
 
 const PLAYER = PAGE_PAINT_ATTRIBUTE.player;
@@ -126,10 +126,11 @@ export function paintRecordingControls(video, bar, enterFullScreen) {
           ? html`<button
               ${offered("lf-video-full-screen")}
               tabindex="-1"
-              aria-label="Full screen"
-            >
-              ${actionTemplate("expand", "lf-video-icon")}
-            </button>`
+              ${namedAction("expand", {
+                label: "Full screen",
+                className: "lf-video-icon",
+              })}
+            ></button>`
           : nothing
       }`,
     bar,

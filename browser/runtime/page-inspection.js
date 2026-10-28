@@ -145,7 +145,7 @@ const observations = (label, rows, describe) =>
                     ${
                       destinations.has(row)
                         ? html`<button
-                            ${offeredAction("symbol", "", undefined, { action: "show" })}
+                            ${offeredAction("symbol", "", "Show on page", { action: "show" })}
                             @click=${() => showOnPage(row)}
                           ></button>`
                         : nothing

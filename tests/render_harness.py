@@ -2475,7 +2475,7 @@ def live_leaf(tmp_path, monkeypatch):
             cwd=str(tmp_path / f"{name}-work"),
         )
         waiters.append(
-            leases_model.take_lease(leases_model.waiter_lease_path(d, f"s-{name}"))
+            leases_model.take_wait_lease(leases_model.waiter_lease_path(d, f"s-{name}"))
         )
         # Use the durable server's maintenance loop: the row remains canonical
         # even while no browser has visited this neighboring page.

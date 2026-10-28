@@ -152,7 +152,7 @@ page of parts, whose column parts each take their own outline.
 
 ## Style the page
 
-The vendored theme styles semantic HTML (headings, prose, tables, code) and Leaf's
+The theme styles semantic HTML (headings, prose, tables, code) and Leaf's
 widgets in both colour schemes, so a page of ordinary content needs no CSS of its own:
 polish it through clearer content and hierarchy within that treatment. Where the task
 calls for a design of its own, such as an instrument, an arrangement, or a look the
@@ -202,16 +202,15 @@ which entries you pick:
 leaf page instructions <page> | jq -r '.author // empty'
 ```
 
-`<page>/registry.json` is the vocabulary `page init` vendored. Ordinary keys are
-element names or CSS selectors; `$` keys are facts shared across the layer. List the
-vocabulary by purpose, then read the entries you pick, and any `$` fact you rely on, in
-full:
+`leaf page vocabulary <page>` prints the vocabulary the page is written in. Ordinary
+keys are element names or CSS selectors; `$` keys are facts shared across the layer.
+List the vocabulary by purpose, then read the entries you pick, and any `$` fact you
+rely on, in full:
 
 ```bash
-registry="<page>/registry.json"
-jq 'with_entries(select(.key | startswith("$") | not))
-    | map_values(.description)' "$registry"
-jq '.["lf-options"], .[".eyebrow"], .["$series"]' "$registry"
+leaf page vocabulary <page> | jq 'with_entries(select(.key | startswith("$") | not))
+    | map_values(.description)'
+leaf page vocabulary <page> | jq '.["lf-options"], .[".eyebrow"], .["$series"]'
 ```
 
 Before writing markup, read the author instructions for the entries you will use,

@@ -403,7 +403,8 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 	player: "data-lf-player",
 	kept: "data-lf-kept",
 	mediaWidth: "data-lf-media-width",
-	mediaHeight: "data-lf-media-height"
+	mediaHeight: "data-lf-media-height",
+	quiet: "data-lf-quiet"
 });
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const pageUpgraded = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgraded);
@@ -660,6 +661,29 @@ var PendingTaskEvent = class extends Event {
 		this.complete = complete;
 	}
 };
+const LAYOUT = "lf-layout";
+const layoutChanged = (el) => {
+	el.dispatchEvent(new CustomEvent(LAYOUT, {
+		bubbles: true,
+		composed: true
+	}));
+};
+const COMMANDS = "lf-commands";
+const CHANGED = Symbol("element whose commands changed");
+const REFUSED = Symbol("why Leaf refused the declaration");
+function commandsChanged(el) {
+	const event = new Event(COMMANDS, {
+		bubbles: true,
+		composed: true
+	});
+	event[CHANGED] = el;
+	(el.isConnected ? el : window).dispatchEvent(event);
+	if (event[REFUSED]) throw event[REFUSED];
+}
+const commandsChangedOn = (event) => event[CHANGED];
+const refuseCommands = (event, error) => {
+	event[REFUSED] = error;
+};
 function failSoft(el, err, source) {
 	reportFailure(el, err);
 	showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`, source);
@@ -757,8 +781,117 @@ function measure(el, take) {
 }
 
 //#endregion
+//#region runtime/syntax-languages.js
+const syntaxLanguages = {
+	"bash": () => import("/vendor/syntax/bash.js"),
+	"css": () => import("/vendor/syntax/css.js"),
+	"diff": () => import("/vendor/syntax/diff.js"),
+	"go": () => import("/vendor/syntax/go.js"),
+	"html": () => import("/vendor/syntax/html.js"),
+	"java": () => import("/vendor/syntax/java.js"),
+	"javascript": () => import("/vendor/syntax/javascript.js"),
+	"json": () => import("/vendor/syntax/json.js"),
+	"markdown": () => import("/vendor/syntax/markdown.js"),
+	"python": () => import("/vendor/syntax/python.js"),
+	"rust": () => import("/vendor/syntax/rust.js"),
+	"sql": () => import("/vendor/syntax/sql.js"),
+	"toml": () => import("/vendor/syntax/toml.js"),
+	"typescript": () => import("/vendor/syntax/typescript.js"),
+	"yaml": () => import("/vendor/syntax/yaml.js")
+};
+const syntaxLanguageNames = {
+	"shellscript": "bash",
+	"bash": "bash",
+	"sh": "bash",
+	"shell": "bash",
+	"zsh": "bash",
+	"css": "css",
+	"diff": "diff",
+	"go": "go",
+	"html": "html",
+	"java": "java",
+	"javascript": "javascript",
+	"js": "javascript",
+	"cjs": "javascript",
+	"mjs": "javascript",
+	"json": "json",
+	"markdown": "markdown",
+	"md": "markdown",
+	"python": "python",
+	"py": "python",
+	"rust": "rust",
+	"rs": "rust",
+	"sql": "sql",
+	"toml": "toml",
+	"typescript": "typescript",
+	"ts": "typescript",
+	"cts": "typescript",
+	"mts": "typescript",
+	"yaml": "yaml",
+	"yml": "yaml"
+};
+
+//#endregion
+//#region runtime/syntax-tokens.js
+let tokenizerReady;
+const tokenizer = () => tokenizerReady ??= import("/vendor/syntax.esm.js");
+const languagesReady = /* @__PURE__ */ new Map();
+function ensureSyntaxLanguage(lang) {
+	if (!lang) return tokenizer();
+	if (!languagesReady.has(lang)) {
+		const load = syntaxLanguages[lang];
+		if (!load) throw new Error(`no ${lang} grammar — rebuild syntax from registry.json`);
+		languagesReady.set(lang, Promise.all([tokenizer(), load()]).then(async ([shared, grammar]) => {
+			await shared.registerLanguage(lang, grammar.default);
+			return shared;
+		}));
+	}
+	return languagesReady.get(lang);
+}
+async function syntax(source, lang) {
+	const tokens = await (await ensureSyntaxLanguage(lang)).tokenize(source, lang);
+	if (tokens.map((t) => t.text).join("") !== source) throw new Error(`the ${lang} tokenizer did not return the source unchanged`);
+	return tokens;
+}
+const synNodes = (tokens) => tokens.map(({ text, style }) => {
+	if (!Object.keys(style).length) return document.createTextNode(text);
+	const span = document.createElement("span");
+	span.dataset.lfSyn = "";
+	for (const [property, value] of Object.entries(style)) span.style.setProperty(property, value);
+	span.textContent = text;
+	return span;
+});
+function tokenLines(tokens) {
+	const lines = [[]];
+	for (const { text, style } of tokens) text.split("\n").forEach((part, i) => {
+		if (i) lines.push([]);
+		if (part) lines.at(-1).push({
+			text: part,
+			style
+		});
+	});
+	return lines;
+}
+
+//#endregion
 //#region runtime/base-layer.js
 const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
 
 //#endregion
-export { PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, afterScript, afterSettling, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, composedParentNode, dataBody, elementBox, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, frameFor, frameVisibility, holdRendering, inBaseLayer, isNativeLayer, isStage, liveStages, measure, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, onFrameVisibility, once, pagePresented, pageUpgraded, placesFailure, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, scrollGlides, scrolling, shadowHost, sizeObserver, skipped, stagesFailure, under, upFrom, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };
+//#region runtime/tab-store.js
+const tabStore = document.documentElement.lfStorage?.tabStore ?? {
+	read: () => ({
+		available: false,
+		value: null
+	}),
+	get: () => null,
+	set: () => false,
+	where: (key) => ({
+		store: "session",
+		key
+	}),
+	keys: () => []
+};
+
+//#endregion
+export { COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, afterScript, afterSettling, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, elementBox, ensureSyntaxLanguage, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, frameFor, frameVisibility, holdRendering, inBaseLayer, isNativeLayer, isStage, layoutChanged, liveStages, measure, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, onFrameVisibility, once, pagePresented, pageUpgraded, placesFailure, readSampleVisibility, refuseCommands, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, scrollGlides, scrolling, shadowHost, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, tokenLines, under, upFrom, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };

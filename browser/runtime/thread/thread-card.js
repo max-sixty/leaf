@@ -195,7 +195,8 @@ function workingMessage(thread, attention, messages) {
 }
 
 // The user's open to-dos on a thread, over the conversation about them: each title
-// with its Done in words, since a thread head's check is Resolve. Done is the user's
+// with its Done, the ticked circle it shows wherever Leaf offers it, which tells it from
+// the thread head's Resolve check. A thread card once worded it. Done is the user's
 // `todo_end`, which takes the line away in the turn it is pressed (queue-api.js,
 // `done`). A card draws them at its head, and so does the floating panel's view of a
 // thread, under its quote.
@@ -206,7 +207,10 @@ export function threadTodos(todos, done) {
       (todo) =>
         html`<li class="lf-thread-todo">
           <span class="lf-thread-todo-title">To-do · ${todo.title}</span
-          ><button ${offeredAction("word")} @click=${() => done(todo.id)}>Done</button>
+          ><button
+            ${offeredAction("symbol", "", undefined, { action: "done" })}
+            @click=${() => done(todo.id)}
+          ></button>
         </li>`,
     )}
   </ul>`;

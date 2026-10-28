@@ -54,8 +54,7 @@ class PageView:
 
     def registry(self, revision: int | None) -> dict | None:
         """The vocabulary a revision captured, or the candidate's where the page has
-        no revision yet (`page_vocabulary`). None on a page nothing has vendored a
-        layer into."""
+        no revision yet (`page_vocabulary`). None on a page with no layer record."""
         return page_vocabulary(self._page_dir, revision)
 
     @property

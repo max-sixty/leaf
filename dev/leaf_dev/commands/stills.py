@@ -1324,7 +1324,7 @@ def ship_answered(page: Page) -> None:
 
 def card_message_by_keyboard(page: Page) -> None:
     """The agent's question in a margin card, reached by Next on me (`m`), which
-    focuses the message, so its ring runs beside the card's sticky head."""
+    focuses the message, so its card wears the ring."""
     for _ in range(4):
         page.keyboard.press("m")
         settle(page)

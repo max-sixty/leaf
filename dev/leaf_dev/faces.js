@@ -140,19 +140,33 @@
     return null;
   };
 
+  const layer = (style) => ({
+    fill: style.backgroundColor,
+    image: style.backgroundImage !== "none",
+    sides: SIDES.map((side) => [
+      parseFloat(style[`border${side}Width`]),
+      style[`border${side}Style`],
+      style[`border${side}Color`],
+    ]),
+    radius: style.borderTopLeftRadius,
+    shadow: style.boxShadow,
+  });
+  // An element's paint, and its `::before` where that is drawn: a press that keeps a
+  // larger hit box draws its face there (response.css, Send and Resolve).
   const paint = (el) => {
     const style = getComputedStyle(el);
+    const before = getComputedStyle(el, "::before");
+    const drawn =
+      !["none", "normal"].includes(before.content) && before.display !== "none";
     return {
-      fill: style.backgroundColor,
-      image: style.backgroundImage !== "none",
-      sides: SIDES.map((side) => [
-        parseFloat(style[`border${side}Width`]),
-        style[`border${side}Style`],
-        style[`border${side}Color`],
-      ]),
-      radius: style.borderTopLeftRadius,
-      shadow: style.boxShadow,
+      ...layer(style),
       pad: [parseFloat(style.paddingLeft), parseFloat(style.paddingRight)],
+      before: drawn
+        ? {
+            ...layer(before),
+            size: [parseFloat(before.width), parseFloat(before.height)],
+          }
+        : null,
     };
   };
 
@@ -170,8 +184,13 @@
     let ink = null;
     let font = null;
     let underline = false;
+    // The box of what the press shows, its words or its symbol, which a face frames.
+    let inked = null;
     const text = visibleText(press.stack[0]);
     if (text) {
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      inked = range.getBoundingClientRect();
       const style = getComputedStyle(text.parentElement);
       ink = style.color;
       underline = style.textDecorationLine.includes("underline");
@@ -186,6 +205,7 @@
       const symbol = firstDrawn(press.stack[0], (el) =>
         el.matches("svg, img, canvas, video"),
       );
+      inked = symbol?.getBoundingClientRect() ?? null;
       if (symbol?.localName === "svg") {
         const shape =
           symbol.querySelector(
@@ -210,6 +230,7 @@
     return {
       words: Boolean(text),
       size: [Math.round(box.width), Math.round(box.height)],
+      inked: inked && [inked.width, inked.height],
       stack: press.stack.map(paint),
       ink,
       font,
@@ -368,38 +389,57 @@
     };
     const COLOUR = /(?:rgba?|hsla?|hwb|color|oklab|oklch|lab|lch)\([^()]*\)/g;
 
-    const face = (raw) => {
-      const fills = raw.stack.map((member) => resolve(member.fill) ?? [0, 0, 0, 0]);
-      // Each member's fill over the ones beneath it, as the renderer composites them.
+    const border = ([width, style, colour]) =>
+      width > 0 && style !== "none" && style !== "hidden" && canonical(colour)
+        ? `${Math.round(width)}px ${style} ${canonical(colour)}`
+        : null;
+    const paints = (coat) =>
+      (resolve(coat.fill)?.[3] ?? 0) > 0.005 ||
+      coat.image ||
+      coat.shadow !== "none" ||
+      coat.sides.some(border);
+    // The stack member whose `::before` is the face: the first whose `::before`
+    // frames what the press shows and paints at rest or under the pointer, so a face
+    // drawn only under the pointer, as Resolve's is, keeps its box at rest too. One
+    // smaller than the words or symbol, such as a row's dot, decorates the face.
+    const frames = (before, inked) =>
+      before &&
+      paints(before) &&
+      (!inked || before.size.every((side, axis) => side >= inked[axis] - EDGE));
+    const faceOn = (press) =>
+      press.rest.stack.findIndex(
+        (member, index) =>
+          frames(member.before, press.rest.inked) ||
+          frames(press.hover?.stack[index].before, press.rest.inked),
+      );
+
+    const face = (raw, on) => {
+      // A `::before` paints over its element, so it is the top layer.
+      const before = on >= 0 ? raw.stack[on].before : null;
+      const layers = before ? [...raw.stack, before] : raw.stack;
+      // Each layer's fill over the ones beneath it, as the renderer composites them.
       let under = [0, 0, 0, 0];
-      for (const [r, g, b, a] of fills) {
+      for (const fill of layers.map((member) => resolve(member.fill))) {
+        const [r, g, b, a] = fill ?? [0, 0, 0, 0];
         if (!a) continue;
         const alpha = a + under[3] * (1 - a);
         const mix = (top, bottom) => (top * a + bottom * under[3] * (1 - a)) / alpha;
         under = [mix(r, under[0]), mix(g, under[1]), mix(b, under[2]), alpha];
       }
-      const sides = SIDES.map((_, side) => {
-        for (const member of [...raw.stack].reverse()) {
-          const [width, style, colour] = member.sides[side];
-          const drawn = canonical(colour);
-          if (width > 0 && style !== "none" && style !== "hidden" && drawn)
-            return `${Math.round(width)}px ${style} ${drawn}`;
-        }
-        return null;
-      });
-      const painters = raw.stack.filter(
-        (member, index) =>
-          fills[index][3] > 0.005 ||
-          member.image ||
-          member.shadow !== "none" ||
-          member.sides.some(
-            ([width, style, colour]) =>
-              width > 0 && style !== "none" && canonical(colour),
-          ),
+      const sides = SIDES.map(
+        (_, side) =>
+          [...layers]
+            .reverse()
+            .map((member) => border(member.sides[side]))
+            .find(Boolean) ?? null,
       );
+      const painters = layers.filter(paints);
+      const [w, h] =
+        before && before.size.every(Number.isFinite)
+          ? before.size.map(Math.round)
+          : raw.size;
       let radius = null;
       if (painters.length) {
-        const [w, h] = raw.size;
         const given = painters[0].radius.split(" ")[0];
         const px = given.endsWith("%")
           ? (parseFloat(given) / 100) * Math.min(w, h)
@@ -412,7 +452,6 @@
         .map((shadow) =>
           shadow.replace(COLOUR, (colour) => canonical(colour) ?? "transparent"),
         );
-      const [w, h] = raw.size;
       const pad = raw.stack.reduce(
         (sum, member) => [sum[0] + member.pad[0], sum[1] + member.pad[1]],
         [0, 0],
@@ -422,7 +461,7 @@
           ? { height: h, sides: pad.map(Math.round) }
           : { width: w, height: h },
         fill: named(under),
-        image: raw.stack.some((member) => member.image),
+        image: layers.some((member) => member.image),
         border: sides.every((side) => side === sides[0])
           ? sides[0]
           : Object.fromEntries(
@@ -437,15 +476,18 @@
       };
     };
 
-    const faces = presses.map((press) => ({
-      label: press.label,
-      element: press.element,
-      at: press.at,
-      flags: press.flags,
-      words: press.rest.words,
-      rest: face(press.rest),
-      hover: press.hover && face(press.hover),
-    }));
+    const faces = presses.map((press) => {
+      const on = faceOn(press);
+      return {
+        label: press.label,
+        element: press.element,
+        at: press.at,
+        flags: press.flags,
+        words: press.rest.words,
+        rest: face(press.rest, on),
+        hover: press.hover && face(press.hover, on),
+      };
+    });
     // The root's custom properties that hold a colour, by the colour, so a report can
     // name a face's colours as the theme does.
     const tokens = {};

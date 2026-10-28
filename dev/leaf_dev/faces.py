@@ -11,8 +11,13 @@ A press is a button in any spelling, a tab, a menu row, a disclosure's summary, 
 link laid out as a box rather than a run of prose, in the document or an open shadow
 root, whose centre is in the viewport and takes the pointer there (faces.js, `PRESS`).
 What paints it counts as one press, fills composited: the ancestors and parts whose
-box is its own, and a host whose shadow tree draws nothing but the press, as a vendor
-control's host draws the face around the button inside it.
+box is its own, a host whose shadow tree draws nothing but the press, as a vendor
+control's host draws the face around the button inside it, and a `::before` that
+frames the press's words or symbol and paints at rest or under the pointer, which is
+then the face's box (its size, fill, border and radius) while the press keeps the
+ink, as Send, Dictate, Resolve and the response trigger draw their faces inside a
+larger hit box (response.css). A smaller `::before`, such as a row's dot, is
+decoration and not read.
 
 A face is what makes two presses read as different kinds, at rest and again under
 the pointer: its fill, border and radius, its shadow, its ink (the words' colour, an
@@ -39,8 +44,8 @@ What it can't see: presses outside the viewport, behind something else, inside a
 iframe (a live sample) or a closed shadow root; a press that appears only once its
 container is hovered, unless a state hovers there; anything a hover opens over the
 next press, which then has no hover reading; focus, pressed and dragging faces
-except where a state leaves a press in them; motion; and pseudo-element paint, such
-as a focus ring or a badge drawn by `::after`.
+except where a state leaves a press in them; motion; focus rings; and `::after`
+paint, such as a badge or an unread dot.
 """
 
 import hashlib

@@ -638,6 +638,48 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         assert [(f.code, f.values["file"]) for f in findings] == [(code, file)], css
 
 
+def test_one_check_reports_every_capture_problem(page_dir, tmp_path):
+    """An author with several bad references fixes them all from one check, and a
+    save names the same ones: capture goes on past each refused reference, in the
+    same file, in other files, and in files nothing names."""
+    authored = page_dir / "page"
+    (authored / "data.json").write_text('{"value": 1}')
+    (authored / "app.js").write_text(
+        'import "lodash";\nimport "../../outside.js";\nimport "./missing.js";\n'
+    )
+    (authored / "style.css").write_text(
+        'main { background: url(a b); }\np { background: url("../../private.svg"); }'
+    )
+    (authored / "unnamed.js").write_text('import "react";')
+    (authored / "escape.js").symlink_to(tmp_path / "outside.js")
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</head>",
+            '<script type="module" src="/page/app.js"></script>'
+            '<link rel="stylesheet" href="/page/style.css">'
+            '<link rel="stylesheet" href="/page/data.json"></head>',
+        )
+    )
+
+    status, findings = check_findings(page_dir)
+
+    assert status == 1
+    assert sorted(
+        (f.code, f.values["file"], f.values.get("specifier")) for f in findings
+    ) == [
+        ("css-invalid", "/page/style.css", None),
+        ("dependency-outside-page", "/page/style.css", "../../private.svg"),
+        ("dependency-symlink", "/page/escape.js", None),
+        ("dependency-unreadable", "/page/missing.js", None),
+        ("module-not-local", "/page/app.js", "lodash"),
+        ("module-not-local", "/page/unnamed.js", "react"),
+        ("module-outside-page", "/page/app.js", "../../outside.js"),
+        ("stylesheet-type", "/page/data.json", None),
+    ]
+    refused = revisioning_model.activate_source(page_dir)
+    assert refused.error == "; ".join(map(str, findings))
+
+
 def test_an_image_loads_from_any_server(page_dir):
     images = (
         '<p><img src="https://outside.example/a.png?s=40" alt="a">'

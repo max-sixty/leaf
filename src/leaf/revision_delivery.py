@@ -653,20 +653,13 @@ def delivered_resource(
     return deliver_resource(resource, source, address)
 
 
-def delivery_identity(
-    revision: int, version: int | None, executable: str, widgets: dict
-) -> str:
+def delivery_identity(revision: int, version: int | None, executable: str) -> str:
     """State which revision a delivered document is, and what it is made of.
 
-    A later revision reaches an open document as a state reading, and two questions
-    decide what the user gets. The executable digest says whether this document can
-    take that revision on at all: a running document evaluates a module graph once and
-    defines an element once, so new bytes behind either need a fresh one. The widget
-    digests then say which widgets the user keeps, one per declared widget — by id,
-    or by tag and place among the unnamed of that tag — over the markup its author
-    wrote. Both travel in the head, where a document knows its own
-    answer without asking, and where the revision document a patch already fetches
-    carries the other one for free.
+    A later revision reaches an open document as a state reading. The executable
+    digest says whether this document can take that revision on at all: a running
+    document evaluates a module graph once and
+    defines an element once, so new bytes behind either need a fresh one.
 
     Every delivered document carries this (`compose_document`). A document that says
     part of it is a document the next reader of the contract has to guess about.
@@ -674,7 +667,6 @@ def delivery_identity(
     named = {
         "lf-revision": str(revision),
         "lf-executable": executable,
-        "lf-widgets": json.dumps(widgets, separators=(",", ":")),
         **({"lf-version": str(version)} if version is not None else {}),
     }
     return "".join(
@@ -732,7 +724,6 @@ def delivery_prelude(
     revision: int,
     version: int | None,
     executable: str,
-    widgets: dict,
 ) -> str:
     """Declare encoding, a device-width viewport, and immutable Leaf identity.
 
@@ -750,7 +741,7 @@ def delivery_prelude(
     )
     return (
         runtime_element("meta", {"charset": "utf-8"})
-        + delivery_identity(revision, version, executable, widgets)
+        + delivery_identity(revision, version, executable)
         + viewport
     )
 
@@ -788,7 +779,6 @@ def compose_document(
     version: int | None,
     *,
     executable: str,
-    widgets: dict,
     resources: Mapping[str, Resource],
     registry: Mapping,
     delivery: Delivery,
@@ -877,7 +867,7 @@ def compose_document(
             + theme
         )
     head = (
-        delivery_prelude(document, revision, version, executable, widgets)
+        delivery_prelude(document, revision, version, executable)
         + (
             runtime_element("script", {"type": "importmap"}, json_script(import_map))
             if import_map is not None

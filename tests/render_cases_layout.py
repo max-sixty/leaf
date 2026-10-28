@@ -1591,7 +1591,13 @@ def rings_drawn(page):
     as `ring_rules` reads it) and what is wrong with it.
 
     A non-focused element mark painting the band with no ring rule behind it is the
-    pointer's feedback contour rather than a ring, so it is left out."""
+    pointer's feedback contour rather than a ring, so it is left out.
+
+    It reads once the runtime has rendered what the input so far asked for. The probe
+    and the browser's matched styles are two reads, and a carrier the runtime replaces
+    between them, such as the projected focus mark after a focus move, has no styles
+    left to read."""
+    rendered(page)
     candidates = page.evaluate(RING_CANDIDATES)
     if not candidates:
         return []

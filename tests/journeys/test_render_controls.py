@@ -42,7 +42,6 @@ from render_harness import (
     held_frames,
     leaf_page,
     open_page,
-    open_threads,
     open_versions,
     opened_tab,
     page_comment,
@@ -56,6 +55,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     sending,
+    show_resolved,
     stamp_page,
     told,
     write,
@@ -566,13 +566,13 @@ RING_SCOPE_THREAD = {
 
 def open_panel_thread_holding(page, selector):
     """Open the panel's view of the first thread, open or resolved, whose view holds
-    `selector`, walking Threads' rows in turn."""
-    open_threads(page)
+    `selector`, walking Threads' rows in turn, the folded resolved ones unfolded."""
+    show_resolved(page)
     keys = page.locator(".lf-fp-thread").evaluate_all(
         "rows => rows.map(row => row.dataset.key)"
     )
     for key in keys:
-        open_threads(page)
+        show_resolved(page)
         page.locator(f'.lf-fp-thread[data-key="{key}"]').click()
         panel_settled(page, view="thread")
         if page.locator(f"{PANEL} {selector}").count():
@@ -621,6 +621,9 @@ def _tab_walk(page, stem):
     empty = 0
     for _ in range(400):
         page.keyboard.press("Tab")
+        # The stop's reading and the styles `seen_stop` asks for are two reads of
+        # carriers the runtime may still be replacing, so both wait for its render.
+        rendered(page)
         stop, seen = page.evaluate(WALKED_STOP)
         lost = seen_stop(page, seen)
         if stop == "seen":
@@ -1593,6 +1596,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 expect(
                     page.locator("#pr-exact-patch .lf-diff-line > [data-line]:focus")
                 ).to_have_count(1)
+                # The landing then scrolls the page smoothly, which no animation
+                # `page_at_rest` waits on stands for.
+                scroll_settled(page)
             page_at_rest(page)
             if surface := RING_SCOPE_SURFACE.get(scope):
                 assert page.locator(surface).count() == 1, (

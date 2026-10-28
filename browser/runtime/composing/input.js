@@ -48,7 +48,6 @@ import { keeps } from "../keeps.js";
 import { advertisesKeys, submitBindings, spell, PRESS } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce } from "../notifications.js";
-import { actionTemplate } from "../icons.js";
 import { drawingThumbnail } from "./drawing-context.js";
 import {
   LitElement,
@@ -72,7 +71,7 @@ import { sizeObserver } from "../rendering.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
-import { offered, offeredAction } from "../widget-elements.js";
+import { namedAction, offered, offeredAction } from "../widget-elements.js";
 
 const INPUT_DRAFT = Symbol("composition draft");
 
@@ -466,16 +465,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const submitControl = html`<button
         type="button"
         ${offered(`${sendClass} lf-compose-submit`)}
-        aria-label=${action}
-        title=${sendKeys ? `${action} (${sendKeys})${newline}` : action}
+        ${namedAction(submitAction, {
+          label: action,
+          title: sendKeys ? `${action} (${sendKeys})${newline}` : action,
+        })}
         aria-disabled=${String(!canSend())}
         ?data-lf-empty=${!hasWords}
         ?hidden=${micShown}
         @mousedown=${keepEditing}
         @click=${() => pressed(send)}
-      >
-        ${actionTemplate(submitAction, "lf-action-icon")}
-      </button>`;
+      ></button>`;
       if (submitIn) render(submitControl, submitIn, { renderBefore: submitEnd });
       const drawn = drawing?.read() ?? null;
       const media = mediaTemplate({
@@ -511,14 +510,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             ${offered("lf-compose-dictate")}
             ?hidden=${!micShown}
             data-dictation=${dictationState}
-            aria-label=${micAction}
+            ${namedAction("dictate", {
+              label: micAction,
+              title: live || !status ? micAction : `${micAction} (${status})`,
+            })}
             aria-pressed=${String(live)}
             aria-description=${status || nothing}
-            title=${live || !status ? micAction : `${micAction} (${status})`}
             @mousedown=${(event) => event.preventDefault()}
-          >
-            ${actionTemplate("dictate", "lf-action-icon")}
-          </button>`
+          ></button>`
         : nothing;
       const content = html`
         ${ta}${sentMedia ? shelf : nothing} ${submitIn ? nothing : submitControl}

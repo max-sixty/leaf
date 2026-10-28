@@ -300,14 +300,15 @@ svg[data-lf-icon] {
    on that message's head line, a rule stands in the gap between them while the
    message's show: the controls before it act on the message, those after it on the
    whole thread. An open rewrite's Discard and Save take the thread's place past the
-   gap (response.css), so the rule leaves with it. */
+   gap (response.css), so the rule leaves with it, and a message holding the
+   keyboard's ring draws that on its ::after instead (annotation-chrome.css). */
 :is(.lf-thread-content, .lf-page-thread):has(
     > :is(.lf-thread-controls, .lf-margin-thread-controls)
   )
   > .lf-thread-transcript
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint):has(
     > :is(.lf-react-strip, .lf-msg-control)
-  ):not(:has(> .lf-msg-body > .lf-msg-editor))::after {
+  ):not([data-lf-focus-visible], :has(> .lf-msg-body > .lf-msg-editor))::after {
   content: "";
   position: absolute;
   z-index: 2;

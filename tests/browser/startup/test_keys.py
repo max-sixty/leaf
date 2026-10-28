@@ -600,10 +600,10 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
-          commands(document.body, 'On a draft',
-               [{ id: 'test.project-widget', keys: ['F2'],
-                  title: 'a project widget using the same heading' }]);
+          const { commandsChanged } = await window.__lfWidgetApi();
+          document.body.lfCommands = { title: 'On a draft', rows: [{ id: 'test.project-widget', keys: ['F2'],
+                  title: 'a project widget using the same heading' }] };
+          commandsChanged(document.body);
         }"""
     )
     page.keyboard.press("?")

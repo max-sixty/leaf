@@ -88,7 +88,6 @@ import {
   capturePlace,
   comparisonChanges,
   claimTraversals,
-  commands,
   compoundReadingRegionId,
   cycledRow,
   elementsDeclaring,
@@ -129,6 +128,7 @@ import {
   render,
   repeat,
   ref,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 const PLACE_KEY = "lf-tabs-place:";
@@ -232,53 +232,57 @@ export class TabSet extends LeafElement {
     };
     // Across the row, back is the way the names run from.
     const [back, ahead] = rowArrows(this);
-    commands(strip, "On a tab", [
-      {
-        id: "tab.activate",
-        keys: PRESS,
-        title: "open the tab",
+    strip.lfCommands = {
+      title: "On a tab",
+      rows: [
+        {
+          id: "tab.activate",
+          keys: PRESS,
+          title: "open the tab",
 
-        // The tab already open has nothing for this press to do, so the line does not
-        // name it there; the walk beside it is what moves.
-        when: () => focused() !== this.#buttons.get(this.#active.value),
-        run: () => focused().click(),
-      },
-      {
-        id: "tab.walk",
-        // A list standing beside its panels is read down, so it walks down too.
-        keys: down
-          ? ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
-          : ["ArrowLeft", "ArrowRight"],
-        routes: [
-          ...(down
-            ? [
-                { id: "tab.up", binding: "ArrowUp", title: "Previous tab" },
-                { id: "tab.down", binding: "ArrowDown", title: "Next tab" },
-              ]
-            : []),
-          { id: "tab.previous", binding: back, title: "Previous tab" },
-          { id: "tab.next", binding: ahead, title: "Next tab" },
-        ],
-        title: "walk the tabs",
-        repeat: true,
-        travels: true,
-        run: (binding) => {
-          const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
-          walk(cycledRow(tabs(), focused(), step));
+          // The tab already open has nothing for this press to do, so the line does not
+          // name it there; the walk beside it is what moves.
+          when: () => focused() !== this.#buttons.get(this.#active.value),
+          run: () => focused().click(),
         },
-      },
-      {
-        id: "tab.edge",
-        keys: ["Home", "End"],
-        routes: [
-          { id: "tab.first", binding: "Home", title: "First tab" },
-          { id: "tab.last", binding: "End", title: "Last tab" },
-        ],
-        title: "first / last",
-        travels: true,
-        run: (binding) => walk(binding === "Home" ? tabs()[0] : tabs().at(-1)),
-      },
-    ]);
+        {
+          id: "tab.walk",
+          // A list standing beside its panels is read down, so it walks down too.
+          keys: down
+            ? ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
+            : ["ArrowLeft", "ArrowRight"],
+          routes: [
+            ...(down
+              ? [
+                  { id: "tab.up", binding: "ArrowUp", title: "Previous tab" },
+                  { id: "tab.down", binding: "ArrowDown", title: "Next tab" },
+                ]
+              : []),
+            { id: "tab.previous", binding: back, title: "Previous tab" },
+            { id: "tab.next", binding: ahead, title: "Next tab" },
+          ],
+          title: "walk the tabs",
+          repeat: true,
+          travels: true,
+          run: (binding) => {
+            const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
+            walk(cycledRow(tabs(), focused(), step));
+          },
+        },
+        {
+          id: "tab.edge",
+          keys: ["Home", "End"],
+          routes: [
+            { id: "tab.first", binding: "Home", title: "First tab" },
+            { id: "tab.last", binding: "End", title: "Last tab" },
+          ],
+          title: "first / last",
+          travels: true,
+          run: (binding) => walk(binding === "Home" ? tabs()[0] : tabs().at(-1)),
+        },
+      ],
+    };
+    commandsChanged(strip);
     this.prepend(strip);
     this.#declareHeader();
     this.classList.add("lf-rendered"); // the upgraded marker every widget uses

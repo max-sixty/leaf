@@ -51,22 +51,6 @@
     up: '<path d="m4 9.75 4-4 4 4"/>',
     waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>'
   };
-  var SVG = "http://www.w3.org/2000/svg";
-  var iconMarkup = (icon) => {
-    const markup = ICONS[icon];
-    if (!markup) throw new TypeError(`Unknown Leaf icon: ${icon}`);
-    return markup;
-  };
-  function iconElement(icon, className = "lf-margin-entry-icon") {
-    const svg2 = document.createElementNS(SVG, "svg");
-    svg2.setAttribute("viewBox", "0 0 16 16");
-    svg2.setAttribute("focusable", "false");
-    svg2.setAttribute("aria-hidden", "true");
-    svg2.setAttribute("class", className);
-    svg2.dataset.lfIcon = icon;
-    svg2.innerHTML = iconMarkup(icon);
-    return svg2;
-  }
   var ACTIONS = {
     accept: { name: "Accept", icon: "check" },
     add: { name: "Add", icon: "add" },
@@ -117,14 +101,6 @@
     if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
     return named.icon;
   };
-  function showAction(control, action, className = "lf-action-icon") {
-    const icon = actionIcon(action);
-    const drawn = control.querySelector(":scope > svg[data-lf-icon]");
-    if (drawn?.getAttribute("data-lf-icon") === icon) return;
-    const symbol = iconElement(icon, className);
-    if (drawn) drawn.replaceWith(symbol);
-    else control.prepend(symbol);
-  }
 
   // packages/motion/initial/lf-motion.js
   document.documentElement.lfInitial.register(
@@ -148,50 +124,47 @@
       const clockRef = offered("clock", "lf-motion-clock");
       const speedLabelRef = offered("speedLabel", "lf-motion-speed");
       const speedRef = offered("speed", "");
-      const paint = ({ time, rate, label, playing }) => {
-        render(
-          html`
-          <div
-            ${ref(controlsRef)}
-            role="group"
-            aria-label=${host.getAttribute("aria-label")}
-          >
-            <button ${ref(playRef)} aria-label=${label} title=${label}></button>
-            <input
-              ${ref(timeRef)}
-              type="range"
-              name="time"
-              min="0"
-              max=${host.getAttribute("duration")}
-              step="1"
-              aria-label="Time"
-              aria-valuetext=${`${Math.round(time)} milliseconds`}
-              .value=${live(String(time))}
-            />
-            <span ${ref(clockRef)}>${Math.round(time)} ms</span>
-            <label ${ref(speedLabelRef)}
-              >Speed<select ${ref(speedRef)} name="speed">
-                ${[1, 0.5, 0.25].map(
-            (value) => html`<option value=${value} .selected=${live(rate === value)}>
-                      ${value}×
-                    </option>`
-          )}
-              </select></label
-            >
-          </div>
-          ${body}
-        `,
-          host
-        );
-        showAction(drawing.play, playing ? "pause" : "play");
-      };
-      paint({
-        time: Math.min(Number(host.getAttribute("duration")), saved.time),
-        rate: saved.rate,
-        label: "Play",
-        playing: false
-      });
-      return Object.assign(drawing, { paint });
+      const template = ({
+        time = Math.min(Number(host.getAttribute("duration")), saved.time),
+        rate = saved.rate,
+        label = "Play",
+        playing = false
+      } = {}) => html`
+      <div
+        ${ref(controlsRef)}
+        role="group"
+        aria-label=${host.getAttribute("aria-label")}
+      >
+        <button ${ref(playRef)} aria-label=${label} title=${label}>
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            ${unsafeSVG(ICONS[actionIcon(playing ? "pause" : "play")])}
+          </svg>
+        </button>
+        <input
+          ${ref(timeRef)}
+          type="range"
+          name="time"
+          min="0"
+          max=${host.getAttribute("duration")}
+          step="1"
+          aria-label="Time"
+          aria-valuetext=${`${Math.round(time)} milliseconds`}
+          .value=${live(String(time))}
+        />
+        <span ${ref(clockRef)}>${Math.round(time)} ms</span>
+        <label ${ref(speedLabelRef)}
+          >Speed<select ${ref(speedRef)} name="speed">
+            ${[1, 0.5, 0.25].map(
+        (value) => html`<option value=${value} .selected=${live(rate === value)}>
+                  ${value}×
+                </option>`
+      )}
+          </select></label
+        >
+      </div>
+      ${body}
+    `;
+      return Object.assign(drawing, { render: template });
     }
   );
 })();

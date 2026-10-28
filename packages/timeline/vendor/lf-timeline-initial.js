@@ -302,16 +302,14 @@
     );
     let layout = null;
     const drawing = {
+      render: template,
       model,
       rows: [],
       get current() {
         return current;
       },
-      /** Paint step `index`, clamped to the steps there are. */
-      show(index) {
+      set current(index) {
         current = Math.max(0, Math.min(model.steps.length - 1, index));
-        paint();
-        return current;
       },
       /** Measure the track and lay labels out again; false while it has no width. */
       layout() {
@@ -321,7 +319,6 @@
         const style = getComputedStyle(drawing.chart);
         const font = `${style.getPropertyValue("--lf-timeline-label-weight").trim() || 500} ${style.fontSize} ${style.fontFamily}`;
         layout = layoutLabels(model, width, font);
-        paint();
         return true;
       },
       /** The event's drawn group and its mark, for comment targets. */
@@ -351,9 +348,7 @@
           "symbol",
           "lf-timeline-previous",
           void 0,
-          {
-            action: "previous"
-          }
+          { action: "previous" }
         );
     };
     const nextRef = (node) => {
@@ -439,60 +434,57 @@
         ></span>
       </div>`;
     };
-    const paint = () => {
+    function template() {
       const position = model.steps.length ? `Step ${current + 1} of ${model.steps.length} \xB7 ${clock(model.steps[current].time)}` : "No events";
-      render(
-        html` <div class="lf-timeline-view" ${ref(viewRef)}>
-        <div
-          ${ref(controlsRef)}
-          role="group"
-          aria-label=${host.getAttribute("aria-label") ?? "Timeline"}
-        >
-          <button
-            ${ref(previousRef)}
-            aria-disabled=${current > 0 ? nothing : "true"}
-          ></button>
-          <button
-            ${ref(nextRef)}
-            aria-disabled=${current < model.steps.length - 1 ? nothing : "true"}
-          ></button>
-          <span ${ref(positionRef)}>${position}</span>
-        </div>
-        <div
-          class="lf-timeline-chart"
-          aria-hidden="true"
-          ${ref(chartRef)}
-          style="--lf-timeline-lanes: ${model.lanes.length}; --lf-timeline-edge: ${EDGE}px"
-        >
-          ${chartTemplate()}
-        </div>
-        <ol class="lf-timeline-steps" ${ref(listRef)}>
-          ${model.steps.map(
-          (step, index) => html`<li>
-                <span
-                  ${ref(rowRefs[index])}
-                  tabindex="0"
-                  data-step=${index}
-                  aria-current=${index === current ? "step" : nothing}
-                  ?data-past=${index < current}
-                >
-                  <span class="lf-timeline-step-time">${clock(step.time)}</span>
-                  ${step.events.map(
-            (event) => html`<span class="lf-timeline-step-event"
-                        ><span class="lf-timeline-step-lane"
-                          >${model.lanes[event.lane].label}: </span
-                        >${event.label}</span
-                      >`
-          )}
-                </span>
-              </li>`
+      return html` <div class="lf-timeline-view" ${ref(viewRef)}>
+      <div
+        ${ref(controlsRef)}
+        role="group"
+        aria-label=${host.getAttribute("aria-label") ?? "Timeline"}
+      >
+        <button
+          ${ref(previousRef)}
+          aria-disabled=${current > 0 ? nothing : "true"}
+        ></button>
+        <button
+          ${ref(nextRef)}
+          aria-disabled=${current < model.steps.length - 1 ? nothing : "true"}
+        ></button>
+        <span ${ref(positionRef)}>${position}</span>
+      </div>
+      <div
+        class="lf-timeline-chart"
+        aria-hidden="true"
+        ${ref(chartRef)}
+        style="--lf-timeline-lanes: ${model.lanes.length}; --lf-timeline-edge: ${EDGE}px"
+      >
+        ${chartTemplate()}
+      </div>
+      <ol class="lf-timeline-steps" ${ref(listRef)}>
+        ${model.steps.map(
+        (step, index) => html`<li>
+              <span
+                ${ref(rowRefs[index])}
+                tabindex="0"
+                data-step=${index}
+                aria-current=${index === current ? "step" : nothing}
+                ?data-past=${index < current}
+              >
+                <span class="lf-timeline-step-time">${clock(step.time)}</span>
+                ${step.events.map(
+          (event) => html`<span class="lf-timeline-step-event"
+                      ><span class="lf-timeline-step-lane"
+                        >${model.lanes[event.lane].label}: </span
+                      >${event.label}</span
+                    >`
         )}
-        </ol>
-      </div>`,
-        host
-      );
-    };
-    paint();
+              </span>
+            </li>`
+      )}
+      </ol>
+    </div>`;
+    }
+    render(drawing.render(), host, { host });
     drawing.layout();
     return drawing;
   }

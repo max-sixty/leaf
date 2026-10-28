@@ -3,7 +3,7 @@
  * their sources enter the drawing; frames and controls survive capture revisions.
  * ShotView owns inspection state, retained nodes and fitting from delivery onward.
  * Live behavior fills the same owner with decoded captures and difference readings. */
-import { html, nothing, ref, render, styleMap } from "/vendor/lit.js";
+import { html, nothing, ref, styleMap } from "/vendor/lit.js";
 export const SHOT_VIEWS = {
   flip: "Slider",
   compare: "Pair",
@@ -187,11 +187,9 @@ export class ShotView {
     while (document.getElementById(optionsId));
     this.optionsId = optionsId;
     host.replaceChildren();
-    this.paint();
-    if (this.fit()) this.paint();
   }
 
-  paint() {
+  render() {
     const { host, tools, optionsId } = this;
     const { offerElement, generatedElement, keeps } = tools;
     const offered = (cls, save = undefined) =>
@@ -313,95 +311,89 @@ export class ShotView {
     });
     keeps(host, "data-lf-shot-mode", this.view);
     keeps(host, "data-lf-shot-outlines", this.outlines);
-    render(
-      html`
-        <div ${offered("lf-shot-toolbar lf-ui", (node) => (this.toolbar = node))}>
-          ${caption("before")}
-          <div ${offered("lf-shot-actions")}>
-            ${choices("Comparison view", SHOT_VIEWS, this.view, this.chooseView)}
-            <div ${offered("lf-shot-tools")}>
-              <button
-                ${ref(this.scaleRef)}
-                type="button"
-                popovertarget=${optionsId}
-                @click=${this.toggleOptions ?? null}
-              ></button>
-              <button
-                ${ref(this.outlineRef)}
-                type="button"
-                aria-label="Outline changes"
-                title="Outline changes"
-                aria-pressed=${String(this.outlines)}
-                aria-description=${this.description ?? nothing}
-                ?disabled=${this.view === "pixels" || !this.reading?.regions.length}
-                @click=${this.toggleOutlines ?? null}
-              >
-                Outline
-              </button>
-              <div
-                ${offered("lf-shotoptions", (node) => (this.options = node))}
-                id=${optionsId}
-                popover="auto"
-                role="group"
-                aria-label="Image options"
-              >
-                ${choices(
-                  "Image scale",
-                  { fit: "Fit", actual: "100%" },
-                  this.actual ? "actual" : "fit",
-                  this.chooseScale,
-                  "lf-shot-scale-options",
-                )}
-                <label
-                  ${offered("choice lf-shotchoice")}
-                  ?hidden=${!this.metadata.focus}
-                >
-                  <input
-                    ${offered("")}
-                    type="checkbox"
-                    .checked=${this.full}
-                    @change=${this.changeFull ?? null}
-                  />
-                  <span ${offered("")}>Full frame</span>
-                </label>
-                <div ${offered("lf-shot-pixel-key")}>
-                  <span ${offered("lf-shot-key-swatch")} aria-hidden="true"></span>
-                  <span ${offered("")}>Changed pixels</span>
-                </div>
+    return html`
+      <div ${offered("lf-shot-toolbar lf-ui", (node) => (this.toolbar = node))}>
+        ${caption("before")}
+        <div ${offered("lf-shot-actions")}>
+          ${choices("Comparison view", SHOT_VIEWS, this.view, this.chooseView)}
+          <div ${offered("lf-shot-tools")}>
+            <button
+              ${ref(this.scaleRef)}
+              type="button"
+              popovertarget=${optionsId}
+              @click=${this.toggleOptions ?? null}
+            ></button>
+            <button
+              ${ref(this.outlineRef)}
+              type="button"
+              aria-label="Outline changes"
+              title="Outline changes"
+              aria-pressed=${String(this.outlines)}
+              aria-description=${this.description ?? nothing}
+              ?disabled=${this.view === "pixels" || !this.reading?.regions.length}
+              @click=${this.toggleOutlines ?? null}
+            >
+              Outline
+            </button>
+            <div
+              ${offered("lf-shotoptions", (node) => (this.options = node))}
+              id=${optionsId}
+              popover="auto"
+              role="group"
+              aria-label="Image options"
+            >
+              ${choices(
+                "Image scale",
+                { fit: "Fit", actual: "100%" },
+                this.actual ? "actual" : "fit",
+                this.chooseScale,
+                "lf-shot-scale-options",
+              )}
+              <label ${offered("choice lf-shotchoice")} ?hidden=${!this.metadata.focus}>
+                <input
+                  ${offered("")}
+                  type="checkbox"
+                  .checked=${this.full}
+                  @change=${this.changeFull ?? null}
+                />
+                <span ${offered("")}>Full frame</span>
+              </label>
+              <div ${offered("lf-shot-pixel-key")}>
+                <span ${offered("lf-shot-key-swatch")} aria-hidden="true"></span>
+                <span ${offered("")}>Changed pixels</span>
               </div>
             </div>
           </div>
-          ${caption("after")}
         </div>
-        <div
-          class="lf-shotstage"
-          tabindex="0"
-          role="region"
-          aria-label=${`Screenshot comparison — ${host.getAttribute("alt")}`}
-          ${box((node) => (this.stage = node))}
-        >
-          <div class="lf-shotcanvas" ${box((node) => (this.canvas = node))}>
-            ${["before", "after"].map(frame)}
-            ${
-              this.pixels
-                ? html`<div
-                    class="lf-shotpixels lf-shotimage lf-media-frame"
-                    role="img"
-                    aria-label=${`changed pixels: ${host.getAttribute("alt")}`}
-                    ${box()}
-                  >
-                    <div class="lf-shotplane" ${box()}>
-                      <img alt="" src=${this.images[1]?.src || nothing} />
-                      <span class="lf-shot-pixel-mask" style=${pixelStyle}></span>
-                    </div>
-                  </div>`
-                : nothing
-            }
-          </div>
+        ${caption("after")}
+      </div>
+      <div
+        class="lf-shotstage"
+        tabindex="0"
+        role="region"
+        aria-label=${`Screenshot comparison — ${host.getAttribute("alt")}`}
+        ${box((node) => (this.stage = node))}
+      >
+        <div class="lf-shotcanvas" ${box((node) => (this.canvas = node))}>
+          ${["before", "after"].map(frame)}
+          ${
+            this.pixels
+              ? html`<div
+                  class="lf-shotpixels lf-shotimage lf-media-frame"
+                  role="img"
+                  aria-label=${`changed pixels: ${host.getAttribute("alt")}`}
+                  ${box()}
+                >
+                  <div class="lf-shotplane" ${box()}>
+                    <img alt="" src=${this.images[1]?.src || nothing} />
+                    <span class="lf-shot-pixel-mask" style=${pixelStyle}></span>
+                  </div>
+                </div>`
+              : nothing
+          }
         </div>
-      `,
-      host,
-    );
+      </div>
+    `;
   }
 
   fit() {

@@ -17,7 +17,6 @@ import {
   readApplication,
 } from "./semantic-state.js";
 import { reportCarried, sameLayer } from "./layer-client.js";
-import { importWidgets } from "./widget-loader.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
 import { announce, notice } from "./notifications.js";
@@ -44,7 +43,6 @@ export function createStateApplication({
 }) {
   let observedSemanticNews = null;
   let presentedNewsReading = null;
-  const markupRead = new Set();
   let stateApplying = false;
   let admission = Promise.resolve();
 
@@ -74,40 +72,31 @@ export function createStateApplication({
     // Every view holds the same messages, read under its own registry; the active
     // one is always served.
     const threads = state.browser.views[state.active.revision].thread.threads;
-    const frozenDocuments = [];
     const preparations = [
       prepareActivation(state),
       threads.length ? loadMessageMarkdown() : null,
     ];
     // The log retains withdrawn messages; only the current thread inventory owns
-    // authored islands that this reading can prepare and publish.
+    // authored islands that this reading can prepare and publish. Each captured
+    // document owns its preparation, shared across overlapping state reads.
     for (const thread of threads)
       for (const message of thread.msgs) {
-        if (!message.markup) continue;
-        const authored = prepareAuthoredMessage(message, thread.id);
-        frozenDocuments.push(authored);
-        if (markupRead.has(message.id)) continue;
-        preparations.push(
-          importWidgets(authored.root).then(() => markupRead.add(message.id)),
-        );
+        if (message.markup)
+          preparations.push(prepareAuthoredMessage(message, thread.id));
       }
-    const [activation] = await Promise.all(preparations);
+    const [activation, , ...frozenDocuments] = await Promise.all(preparations);
     const bodies = new Map(
       threads.flatMap((thread) =>
-        thread.msgs.map((message) => {
-          const authored = message.markup
-            ? prepareAuthoredMessage(message, thread.id).body
-            : null;
-          return [
-            message.id,
-            {
-              ...(authored ?? {}),
-              text: [messageText(message), authored?.text].filter(Boolean).join("\n"),
-            },
-          ];
-        }),
+        thread.msgs.map((message) => [message.id, { text: messageText(message) }]),
       ),
     );
+    for (const frozen of frozenDocuments)
+      bodies.set(frozen.message, {
+        ...frozen.body,
+        text: [bodies.get(frozen.message).text, frozen.body.text]
+          .filter(Boolean)
+          .join("\n"),
+      });
 
     return runSerialized(async () => {
       // Pending deferral is rechecked by activates. An installation edits the user's

@@ -127,9 +127,9 @@ function layoutLabels(model, width, font) {
 const fraction = (value) => Math.round(value * 1e5) / 1e5;
 
 /**
- * Draw the timeline into `host` with the initial renderer's `tools`. Returns the
- * retained controls and `show(index)`, which paints a step, and `layout()`, which
- * measures the track and lays the labels out again.
+ * The timeline's one template and its mechanical inputs. `current` selects a
+ * step; `layout()` measures the generated ruler and computes label geometry.
+ * Neither changes the DOM: parser delivery and the live element render the template.
  */
 export function drawTimeline(host, tools) {
   const model = readTimeline(host);
@@ -141,16 +141,14 @@ export function drawTimeline(host, tools) {
   let layout = null;
 
   const drawing = {
+    render: template,
     model,
     rows: [],
     get current() {
       return current;
     },
-    /** Paint step `index`, clamped to the steps there are. */
-    show(index) {
+    set current(index) {
       current = Math.max(0, Math.min(model.steps.length - 1, index));
-      paint();
-      return current;
     },
     /** Measure the track and lay labels out again; false while it has no width. */
     layout() {
@@ -160,7 +158,6 @@ export function drawTimeline(host, tools) {
       const style = getComputedStyle(drawing.chart);
       const font = `${style.getPropertyValue("--lf-timeline-label-weight").trim() || 500} ${style.fontSize} ${style.fontFamily}`;
       layout = layoutLabels(model, width, font);
-      paint();
       return true;
     },
     /** The event's drawn group and its mark, for comment targets. */
@@ -190,9 +187,7 @@ export function drawTimeline(host, tools) {
         "symbol",
         "lf-timeline-previous",
         undefined,
-        {
-          action: "previous",
-        },
+        { action: "previous" },
       );
   };
   const nextRef = (node) => {
@@ -292,68 +287,68 @@ export function drawTimeline(host, tools) {
       </div>`;
   };
 
-  const paint = () => {
+  function template() {
     const position = model.steps.length
       ? `Step ${current + 1} of ${model.steps.length} · ${clock(model.steps[current].time)}`
       : "No events";
     // Lit owns the complete generated view from first paint through each step. The
     // authored lanes remain beside it as the source, rather than becoming template DOM.
-    render(
-      html` <div class="lf-timeline-view" ${ref(viewRef)}>
-        <div
-          ${ref(controlsRef)}
-          role="group"
-          aria-label=${host.getAttribute("aria-label") ?? "Timeline"}
-        >
-          <button
-            ${ref(previousRef)}
-            aria-disabled=${current > 0 ? nothing : "true"}
-          ></button>
-          <button
-            ${ref(nextRef)}
-            aria-disabled=${current < model.steps.length - 1 ? nothing : "true"}
-          ></button>
-          <span ${ref(positionRef)}>${position}</span>
-        </div>
-        <div
-          class="lf-timeline-chart"
-          aria-hidden="true"
-          ${ref(chartRef)}
-          style="--lf-timeline-lanes: ${
-            model.lanes.length
-          }; --lf-timeline-edge: ${EDGE}px"
-        >
-          ${chartTemplate()}
-        </div>
-        <ol class="lf-timeline-steps" ${ref(listRef)}>
-          ${model.steps.map(
-            (step, index) =>
-              html`<li>
-                <span
-                  ${ref(rowRefs[index])}
-                  tabindex="0"
-                  data-step=${index}
-                  aria-current=${index === current ? "step" : nothing}
-                  ?data-past=${index < current}
-                >
-                  <span class="lf-timeline-step-time">${clock(step.time)}</span>
-                  ${step.events.map(
-                    (event) =>
-                      html`<span class="lf-timeline-step-event"
-                        ><span class="lf-timeline-step-lane"
-                          >${model.lanes[event.lane].label}: </span
-                        >${event.label}</span
-                      >`,
-                  )}
-                </span>
-              </li>`,
-          )}
-        </ol>
-      </div>`,
-      host,
-    );
-  };
-  paint();
+    return html` <div class="lf-timeline-view" ${ref(viewRef)}>
+      <div
+        ${ref(controlsRef)}
+        role="group"
+        aria-label=${host.getAttribute("aria-label") ?? "Timeline"}
+      >
+        <button
+          ${ref(previousRef)}
+          aria-disabled=${current > 0 ? nothing : "true"}
+        ></button>
+        <button
+          ${ref(nextRef)}
+          aria-disabled=${current < model.steps.length - 1 ? nothing : "true"}
+        ></button>
+        <span ${ref(positionRef)}>${position}</span>
+      </div>
+      <div
+        class="lf-timeline-chart"
+        aria-hidden="true"
+        ${ref(chartRef)}
+        style="--lf-timeline-lanes: ${
+          model.lanes.length
+        }; --lf-timeline-edge: ${EDGE}px"
+      >
+        ${chartTemplate()}
+      </div>
+      <ol class="lf-timeline-steps" ${ref(listRef)}>
+        ${model.steps.map(
+          (step, index) =>
+            html`<li>
+              <span
+                ${ref(rowRefs[index])}
+                tabindex="0"
+                data-step=${index}
+                aria-current=${index === current ? "step" : nothing}
+                ?data-past=${index < current}
+              >
+                <span class="lf-timeline-step-time">${clock(step.time)}</span>
+                ${step.events.map(
+                  (event) =>
+                    html`<span class="lf-timeline-step-event"
+                      ><span class="lf-timeline-step-lane"
+                        >${model.lanes[event.lane].label}: </span
+                      >${event.label}</span
+                    >`,
+                )}
+              </span>
+            </li>`,
+        )}
+      </ol>
+    </div>`;
+  }
+  // The ruler's generated grid column is the measurement, not the host width:
+  // its first column sizes itself to the authored lane names. Mount the same
+  // template once to read that column; delivery commits the measured template.
+  render(drawing.render(), host, { host });
   drawing.layout();
   return drawing;
 }

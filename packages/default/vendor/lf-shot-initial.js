@@ -1,4 +1,7 @@
 (() => {
+  // leaf-initial-lit:lit
+  var { AsyncDirective, AsyncReplaceDirective, CSSResult, Directive, LitElement, PartType, ReactiveElement, TemplateResultType, UnsafeHTMLDirective, UntilDirective, _$LE, _$LH, adoptStyles, asyncAppend, asyncReplace, cache, choose, classMap, clearPart, createRef, css, customElement, defaultConverter, directive, eventOptions, getCommittedValue, getCompatibleStyle, getDirectiveClass, guard, html, ifDefined, insertPart, isCompiledTemplateResult, isDirectiveResult, isPrimitive, isServer, isSingleExpression, isTemplateResult, join, keyed, literal, live, map, mathml, noChange, notEqual, nothing, property, query, queryAll, queryAssignedElements, queryAssignedNodes, queryAsync, range, ref, removePart, render, repeat, setChildPartValue, setCommittedValue, standardProperty, state, staticHtml, staticMathml, staticSvg, styleMap, supportsAdoptingStyleSheets, svg, templateContent, unsafeCSS, unsafeHTML, unsafeMathML, unsafeSVG, unsafeStatic, until, when, withStatic } = document.documentElement.lfInitial.lit;
+
   // browser/runtime/icon-paths.js
   var SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
   var ICONS = {
@@ -170,9 +173,6 @@
     };
   }
 
-  // leaf-initial-lit:lit
-  var { AsyncDirective, AsyncReplaceDirective, CSSResult, Directive, LitElement, PartType, ReactiveElement, TemplateResultType, UnsafeHTMLDirective, UntilDirective, _$LE, _$LH, adoptStyles, asyncAppend, asyncReplace, cache, choose, classMap, clearPart, createRef, css, customElement, defaultConverter, directive, eventOptions, getCommittedValue, getCompatibleStyle, getDirectiveClass, guard, html, ifDefined, insertPart, isCompiledTemplateResult, isDirectiveResult, isPrimitive, isServer, isSingleExpression, isTemplateResult, join, keyed, literal, live, map, mathml, noChange, notEqual, nothing, property, query, queryAll, queryAssignedElements, queryAssignedNodes, queryAsync, range, ref, removePart, render, repeat, setChildPartValue, setCommittedValue, standardProperty, state, staticHtml, staticMathml, staticSvg, styleMap, supportsAdoptingStyleSheets, svg, templateContent, unsafeCSS, unsafeHTML, unsafeMathML, unsafeSVG, unsafeStatic, until, when, withStatic } = document.documentElement.lfInitial.lit;
-
   // packages/default/widgets/shot-view.js
   var SHOT_VIEWS = {
     flip: "Slider",
@@ -318,10 +318,8 @@
       while (document.getElementById(optionsId));
       this.optionsId = optionsId;
       host.replaceChildren();
-      this.paint();
-      if (this.fit()) this.paint();
     }
-    paint() {
+    render() {
       const { host, tools, optionsId } = this;
       const { offerElement, generatedElement, keeps } = tools;
       const offered = (cls, save = void 0) => ref((node) => {
@@ -412,91 +410,85 @@
       });
       keeps(host, "data-lf-shot-mode", this.view);
       keeps(host, "data-lf-shot-outlines", this.outlines);
-      render(
-        html`
-        <div ${offered("lf-shot-toolbar lf-ui", (node) => this.toolbar = node)}>
-          ${caption("before")}
-          <div ${offered("lf-shot-actions")}>
-            ${choices("Comparison view", SHOT_VIEWS, this.view, this.chooseView)}
-            <div ${offered("lf-shot-tools")}>
-              <button
-                ${ref(this.scaleRef)}
-                type="button"
-                popovertarget=${optionsId}
-                @click=${this.toggleOptions ?? null}
-              ></button>
-              <button
-                ${ref(this.outlineRef)}
-                type="button"
-                aria-label="Outline changes"
-                title="Outline changes"
-                aria-pressed=${String(this.outlines)}
-                aria-description=${this.description ?? nothing}
-                ?disabled=${this.view === "pixels" || !this.reading?.regions.length}
-                @click=${this.toggleOutlines ?? null}
-              >
-                Outline
-              </button>
-              <div
-                ${offered("lf-shotoptions", (node) => this.options = node)}
-                id=${optionsId}
-                popover="auto"
-                role="group"
-                aria-label="Image options"
-              >
-                ${choices(
-          "Image scale",
-          { fit: "Fit", actual: "100%" },
-          this.actual ? "actual" : "fit",
-          this.chooseScale,
-          "lf-shot-scale-options"
-        )}
-                <label
-                  ${offered("choice lf-shotchoice")}
-                  ?hidden=${!this.metadata.focus}
-                >
-                  <input
-                    ${offered("")}
-                    type="checkbox"
-                    .checked=${this.full}
-                    @change=${this.changeFull ?? null}
-                  />
-                  <span ${offered("")}>Full frame</span>
-                </label>
-                <div ${offered("lf-shot-pixel-key")}>
-                  <span ${offered("lf-shot-key-swatch")} aria-hidden="true"></span>
-                  <span ${offered("")}>Changed pixels</span>
-                </div>
+      return html`
+      <div ${offered("lf-shot-toolbar lf-ui", (node) => this.toolbar = node)}>
+        ${caption("before")}
+        <div ${offered("lf-shot-actions")}>
+          ${choices("Comparison view", SHOT_VIEWS, this.view, this.chooseView)}
+          <div ${offered("lf-shot-tools")}>
+            <button
+              ${ref(this.scaleRef)}
+              type="button"
+              popovertarget=${optionsId}
+              @click=${this.toggleOptions ?? null}
+            ></button>
+            <button
+              ${ref(this.outlineRef)}
+              type="button"
+              aria-label="Outline changes"
+              title="Outline changes"
+              aria-pressed=${String(this.outlines)}
+              aria-description=${this.description ?? nothing}
+              ?disabled=${this.view === "pixels" || !this.reading?.regions.length}
+              @click=${this.toggleOutlines ?? null}
+            >
+              Outline
+            </button>
+            <div
+              ${offered("lf-shotoptions", (node) => this.options = node)}
+              id=${optionsId}
+              popover="auto"
+              role="group"
+              aria-label="Image options"
+            >
+              ${choices(
+        "Image scale",
+        { fit: "Fit", actual: "100%" },
+        this.actual ? "actual" : "fit",
+        this.chooseScale,
+        "lf-shot-scale-options"
+      )}
+              <label ${offered("choice lf-shotchoice")} ?hidden=${!this.metadata.focus}>
+                <input
+                  ${offered("")}
+                  type="checkbox"
+                  .checked=${this.full}
+                  @change=${this.changeFull ?? null}
+                />
+                <span ${offered("")}>Full frame</span>
+              </label>
+              <div ${offered("lf-shot-pixel-key")}>
+                <span ${offered("lf-shot-key-swatch")} aria-hidden="true"></span>
+                <span ${offered("")}>Changed pixels</span>
               </div>
             </div>
           </div>
-          ${caption("after")}
         </div>
-        <div
-          class="lf-shotstage"
-          tabindex="0"
-          role="region"
-          aria-label=${`Screenshot comparison \u2014 ${host.getAttribute("alt")}`}
-          ${box((node) => this.stage = node)}
-        >
-          <div class="lf-shotcanvas" ${box((node) => this.canvas = node)}>
-            ${["before", "after"].map(frame)}
-            ${this.pixels ? html`<div
-                    class="lf-shotpixels lf-shotimage lf-media-frame"
-                    role="img"
-                    aria-label=${`changed pixels: ${host.getAttribute("alt")}`}
-                    ${box()}
-                  >
-                    <div class="lf-shotplane" ${box()}>
-                      <img alt="" src=${this.images[1]?.src || nothing} />
-                      <span class="lf-shot-pixel-mask" style=${pixelStyle}></span>
-                    </div>
-                  </div>` : nothing}
-          </div>
+        ${caption("after")}
+      </div>
+      <div
+        class="lf-shotstage"
+        tabindex="0"
+        role="region"
+        aria-label=${`Screenshot comparison \u2014 ${host.getAttribute("alt")}`}
+        ${box((node) => this.stage = node)}
+      >
+        <div class="lf-shotcanvas" ${box((node) => this.canvas = node)}>
+          ${["before", "after"].map(frame)}
+          ${this.pixels ? html`<div
+                  class="lf-shotpixels lf-shotimage lf-media-frame"
+                  role="img"
+                  aria-label=${`changed pixels: ${host.getAttribute("alt")}`}
+                  ${box()}
+                >
+                  <div class="lf-shotplane" ${box()}>
+                    <img alt="" src=${this.images[1]?.src || nothing} />
+                    <span class="lf-shot-pixel-mask" style=${pixelStyle}></span>
+                  </div>
+                </div>` : nothing}
         </div>
-      `,
-        host
-      );
+      </div>
+    `;
     }
     fit() {
       const { host, stage, metadata, images, frames } = this;
@@ -523,8 +515,10 @@
   };
 
   // packages/default/initial/lf-shot.js
-  document.documentElement.lfInitial.register(
-    "lf-shot",
-    (host, tools) => new ShotView(host, { ...tools, ...actionOffers(tools) })
-  );
+  document.documentElement.lfInitial.register("lf-shot", (host, tools) => {
+    const view = new ShotView(host, { ...tools, ...actionOffers(tools) });
+    render(view.render(), host, { host });
+    view.fit();
+    return view;
+  });
 })();

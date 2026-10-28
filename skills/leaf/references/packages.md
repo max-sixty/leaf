@@ -49,6 +49,7 @@ The optional bundled packages are:
 | `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback decision.                                                             |
 | `motion`        | `lf-motion`, shared playback and scrubbing for authored animations and video comparisons.                                                                   |
 | `deck`          | `lf-deck`, a pile of decisions the user works through one card at a time.                                                                                   |
+| `detail`        | `lf-dial`, which turns a page from each section's `.gist` to every closed detail, keeping the reader's place.                                               |
 | `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                                                                                |
 | `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                                                                          |
 | `timeline`      | `lf-timeline`, an authored sequence of events in lanes that the reader steps through, with a playhead and a step list.                                      |
@@ -145,12 +146,14 @@ documents any further inputs it supports. No type or colour override may shrink 
 control below its touch target or focus clearance.
 
 A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path.
-Import Leaf only through `/runtime/widget-api.js`, and `runtime/` modules can add paths
-but not replace the kernel's. The Leaf serving a page supplies its runtime,
-`widget-api.js` and the kernel's `vendor/` modules included, so a vendored package runs
-against whichever Leaf serves its page, and a package's `vendor/` file at one of those
-paths replaces it there. Leaf keeps `widget-api.js`'s names and what they return across
-updates at one page protocol (`../../../src/leaf/layer-registry.md`, "Page protocol").
+Import Leaf only through `/runtime/widget-api.js`, or its portable part
+`/runtime/portable-api.js` (module-authoring.md, "A widget that also runs off Leaf"),
+and `runtime/` modules can add paths but not replace the kernel's. The Leaf serving a
+page supplies its runtime, `widget-api.js` and the kernel's `vendor/` modules included,
+so a vendored package runs against whichever Leaf serves its page, and a package's
+`vendor/` file at one of those paths replaces it there. Leaf keeps `widget-api.js`'s
+names and what they return across updates at one page protocol
+(`../../../src/leaf/layer-registry.md`, "Page protocol").
 
 Registries merge in order: kernel, `default`, then the selected packages in command
 order, and a later package wins a collision. A later package replaces an element or

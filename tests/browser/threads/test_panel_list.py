@@ -143,7 +143,7 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     spoken = f"{pending} {opening}"
     expect(label.locator(".lf-thread-name-pending")).to_have_text(pending)
     expect(thread_row(page, root)).to_have_accessible_name(
-        re.compile(f"^{re.escape(spoken)} Saved$")
+        re.compile(f"^{re.escape(spoken)} Queued for Codex$")
     )
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -192,6 +192,6 @@ def test_a_thread_nobody_picked_up_reads_its_opening_words(browser, serve):
     )["id"]
     page = open_page(browser, url)
     row = thread_row(page, root)
-    expect(row.locator(".lf-fp-value")).to_have_text("Haven't seen it yet")
+    expect(row.locator(".lf-fp-value")).to_have_text(re.compile(r"^Still queued for "))
     expect(row.locator(".lf-fp-label")).to_have_text(opening)
     assert not take_browser_errors(page)

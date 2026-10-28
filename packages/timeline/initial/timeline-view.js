@@ -31,6 +31,7 @@ import {
   axisTicks,
   textWidth,
 } from "../../../browser/runtime/time-axis.js";
+import { iconMarkup } from "../../../browser/runtime/icon-paths.js";
 
 // The track's inset at each end, so a mark at 0 or at the end isn't cut in half. The
 // theme reads it as --lf-timeline-edge.
@@ -180,11 +181,31 @@ export function drawTimeline(host, tools) {
   const controlsRef = offered("controls", "lf-timeline-controls");
   const previousRef = (node) => {
     if (node)
-      drawing.previous = tools.offerActionElement(node, "word", "lf-timeline-previous");
+      drawing.previous = tools.offerActionElement(
+        node,
+        "symbol",
+        "lf-timeline-previous",
+        "Previous",
+      );
   };
   const nextRef = (node) => {
-    if (node) drawing.next = tools.offerActionElement(node, "word", "lf-timeline-next");
+    if (node)
+      drawing.next = tools.offerActionElement(
+        node,
+        "symbol",
+        "lf-timeline-next",
+        "Next",
+      );
   };
+  const icon = (name) =>
+    html`<svg
+      viewBox="0 0 16 16"
+      focusable="false"
+      aria-hidden="true"
+      class="lf-action-icon"
+      data-lf-icon=${name}
+      .innerHTML=${iconMarkup(name)}
+    ></svg>`;
   const chartRef = (node) => {
     if (node) drawing.chart = tools.generatedElement(node, { says: "echo" });
   };
@@ -289,13 +310,13 @@ export function drawTimeline(host, tools) {
         aria-label=${host.getAttribute("aria-label") ?? "Timeline"}
       >
         <button ${ref(previousRef)} aria-disabled=${current > 0 ? nothing : "true"}>
-          Previous
+          ${icon("previous")}
         </button>
         <button
           ${ref(nextRef)}
           aria-disabled=${current < model.steps.length - 1 ? nothing : "true"}
         >
-          Next
+          ${icon("next")}
         </button>
         <span ${ref(positionRef)}>${position}</span>
       </div>

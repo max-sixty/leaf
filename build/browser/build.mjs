@@ -22,7 +22,7 @@
  * The framework (`runtime/framework.js` and the modules behind it) is written as
  * JavaScript the type check reads, so a page serves its source as it does every other
  * runtime module. Its third-party packages are minified builds from the lock and the
- * adaptations below. Delivery inlines Lit only when an initial producer needs it,
+ * adaptations below. Delivery inlines Lit when a page declares an initial producer,
  * mapping `vendor/lit.js` to that instance's facade; otherwise it loads as a normal
  * module (`build/lit.mjs`). Both outputs share the same namespace source, and a page
  * loads one implementation. Signals are the framework's own: the kernel compiles

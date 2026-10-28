@@ -1651,37 +1651,46 @@ def consume_browser_errors(page, *expected):
 
 
 def navigate(page, url, *, wait_until="load", upgraded=True):
-    """Navigate through a complete page handover, classifying only the
-    ResizeObserver notices raised during that navigation.
-
-    A platform notice seen once under load is not a page fault; one the confirming
-    navigation repeats is, reported with the `confirmation` value `recurred`, as the
-    render gate reports one. Everything else remains on the page from the attempt that
-    reported it, and anything arriving after this helper returns remains strict.
-    """
-
-    errors = page.lf_errors
+    """Navigate through a complete page handover, classifying the ResizeObserver
+    notices raised during that navigation (`confirming_resize_notices`)."""
 
     def complete_navigation():
+        page.goto(
+            url,
+            wait_until=wait_until,
+            timeout=render_checks_model.HANDOVER_DEADLINE_MS,
+        )
+        if upgraded:
+            wait_until_ready(page)
+        else:
+            page.wait_for_function(
+                "() => document.querySelector('.lf-floating-panel') !== null",
+                timeout=render_checks_model.HANDOVER_DEADLINE_MS,
+            )
+        # Let the rendering turn that earned the readiness stamp finish. A loop
+        # notice is delivered by that turn, rather than by the DOM write alone.
+        one_frame(page)
+
+    confirming_resize_notices(page, complete_navigation)
+
+
+def confirming_resize_notices(page, attempt, again=None):
+    """Run `attempt`, classifying only the ResizeObserver notices it raises.
+
+    A platform notice seen once under load is not a page fault; one that the
+    confirming attempt, `again` or else `attempt` itself, repeats is, reported with the
+    `confirmation` value `recurred`, as the render gate reports one. Everything else
+    remains on the page from the attempt that reported it, and anything arriving after
+    this helper returns remains strict.
+    """
+    errors = page.lf_errors
+
+    def noticed(act):
         # A test that adjudicates the page's notices itself keeps its own list.
         outside = getattr(page, "lf_resize_notices", None)
         notices = page.lf_resize_notices = []
         try:
-            page.goto(
-                url,
-                wait_until=wait_until,
-                timeout=render_checks_model.HANDOVER_DEADLINE_MS,
-            )
-            if upgraded:
-                wait_until_ready(page)
-            else:
-                page.wait_for_function(
-                    "() => document.querySelector('.lf-floating-panel') !== null",
-                    timeout=render_checks_model.HANDOVER_DEADLINE_MS,
-                )
-            # Let the rendering turn that earned the readiness stamp finish. A loop
-            # notice is delivered by that turn, rather than by the DOM write alone.
-            one_frame(page)
+            act()
         except BaseException:
             errors.extend(notices)
             raise
@@ -1689,11 +1698,11 @@ def navigate(page, url, *, wait_until="load", upgraded=True):
             page.lf_resize_notices = outside
         return notices
 
-    notices = complete_navigation()
+    notices = noticed(attempt)
     if not notices:
         return
     try:
-        confirming_notices = complete_navigation()
+        confirming_notices = noticed(again or attempt)
     except Exception:
         errors.extend(notice for notice in notices if notice not in errors)
         raise
@@ -1788,6 +1797,15 @@ def open_threads(page):
     (`leaf_dev.browser.open_threads`), and wait for its motion to end."""
     dev_browser.open_threads(page)
     panel_settled(page, view="threads")
+
+
+def show_resolved(page):
+    """Open Threads and unfold its resolved threads (`leaf_dev.browser.show_resolved`),
+    returning their rows once the view's motion ends."""
+    open_threads(page)
+    rows = dev_browser.show_resolved(page)
+    panel_settled(page, view="threads")
+    return rows
 
 
 # How many open threads the page's reading holds, the number the Threads tab says

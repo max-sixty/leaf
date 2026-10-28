@@ -192,6 +192,8 @@ function createPlayground(
     }),
   );
   const formatted = (control, value) => `${value}${control.getAttribute("unit") ?? ""}`;
+  // Each value is generated separately from the authored instruction around it,
+  // and remains quotable as the configuration's words.
   const slots = [...output.querySelectorAll("lf-playground-value")].filter((slot) =>
     belongsTo(host, slot),
   );
@@ -345,12 +347,7 @@ function createPlayground(
       }
       return { attributes, properties };
     },
-    render({
-      values: next = values,
-      instruction = null,
-      choosing = false,
-      chosen = () => false,
-    } = {}) {
+    render({ values: next = values, instruction = null, chosen = () => false } = {}) {
       if (instruction === null) {
         for (const slot of slots)
           render(
@@ -508,11 +505,7 @@ function createPlayground(
               >
                 ${moreIcon}
               </button>
-              <button
-                ${submitOffer}
-                data-room=${`${submitLabel}\nUndo choice`}
-                aria-busy=${choosing ? "true" : nothing}
-              >
+              <button ${submitOffer} data-room=${`${submitLabel}\nUndo choice`}>
                 <span data-lf-gen="1">${chosen() ? "Undo choice" : submitLabel}</span>
               </button>
               <div

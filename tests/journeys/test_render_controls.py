@@ -249,12 +249,12 @@ CONTROL_ARCHETYPES = (
     {
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": '.lf-vr-case[aria-hidden="false"] .lf-shot-views button:nth-child(2)',
+        "target": ".lf-vr-case:not([hidden]) .lf-shot-views button:nth-child(2)",
     },
     {
         "name": "visual-review-approval",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": '.lf-vr-case[aria-hidden="false"] .lf-vr-approval',
+        "target": ".lf-vr-case:not([hidden]) .lf-vr-approval",
     },
 )
 
@@ -841,7 +841,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     threads = panel_view("threads")
     for name in ("overview", "resolved"):
         expect(views[name].locator(PANEL)).to_have_attribute("data-open", "threads")
-        expect(views[name].locator(f"{threads} .lf-fp-thread").first).to_be_visible()
+    expect(views["overview"].locator(f"{threads} .lf-fp-thread").first).to_be_visible()
 
     expect(views["overview"].locator(f"{threads} .lf-fp-thread")).to_have_count(3)
     anchored = views["you"].locator(".lf-margin-preview")
@@ -851,14 +851,12 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     )
     expect(anchored.locator(".lf-msg")).to_have_count(3)
     expect(anchored.locator("leaf-text")).to_be_visible()
-    expect(views["resolved"].locator(f"{threads} .lf-fp-ended")).to_have_text(
-        "Resolved"
+    expect(views["resolved"].locator(f"{threads} .lf-fp-settled")).to_have_text(
+        re.compile(r"^\s*Resolved\s*1\s*$")
     )
-    expect(
-        views["resolved"].locator(
-            f"{threads} .lf-fp-ended ~ .lf-fp-thread[data-resolved]"
-        )
-    ).to_have_count(1)
+    expect(views["resolved"].locator(f"{threads} .lf-fp-settled")).to_have_attribute(
+        "aria-expanded", "false"
+    )
     summary = views["summary"].locator(f'{PANEL_THREAD}[data-thread="c1a39980"]')
     expect(summary).to_be_visible()
     expect(views["summary"].locator(".lf-fp-title")).to_have_text("Afternoon workshop")

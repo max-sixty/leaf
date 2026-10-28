@@ -46,12 +46,6 @@ customElements.define(
       choices.orientation = "horizontal";
       for (const [index, recording] of this.#recordings.entries()) {
         const view = this.#views[index];
-        view.addEventListener("lf-reveal", (event) => {
-          if (index !== this.#selected) event.detail.replacedView();
-          this.#selected = index;
-          choices.value = String(index);
-          event.detail.present(this.#draw());
-        });
         view.addEventListener("beforematch", () => {
           this.#selected = index;
           choices.value = String(index);
@@ -101,7 +95,7 @@ customElements.define(
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
       if (this.#views[this.#selected]) keepView(this, this.#views[this.#selected]);
-      return layoutChanged(this);
+      layoutChanged(this);
     }
   },
 );

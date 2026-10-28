@@ -118,7 +118,7 @@ import { registry, tagsDeclaring } from "./registry.js";
 import {
   inlineMarkdownFragment,
   paintMarkdown,
-  prepareDeclaredMarkdown,
+  loadDeclaredMarkdown,
   formatDeclaredMarkdown,
 } from "./markdown.js";
 import {
@@ -469,6 +469,11 @@ registerPageControl({
 // picker's menu, where the note saying what changed in words sits beside the
 // press that marks it on the page.
 //
+// Both sides are sources: the base version's and this version's, each painted with
+// the widget state it shows (`paintedSource`). What a module wrote into the page is in
+// neither, so it can't read as a change, marked or not. A changed block then marks the
+// live node its source node stands for (`standingFor`).
+//
 // Which blocks and which widgets is the registry's answer both times, so a widget added
 // to the vocabulary diffs on the strength of its declaration: a compound member whose content
 // model is prose is a block of the page's prose the same way a paragraph is.
@@ -478,9 +483,12 @@ const diffBlockSel = () =>
     "aside",
     ...tagsDeclaring((e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
     // Preserving widgets contribute their own prose. The leaf-blocks-only rule
-    // below avoids counting nested blocks twice and keeps base and live readings
-    // symmetric: a draft's authored <pre> and rendered body key the same words.
-    ...tagsDeclaring((e) => e["x-verbatim"]),
+    // below avoids counting nested blocks twice. One set among the words around it
+    // (x-inline), such as a gloss, is part of its paragraph's words instead, or that
+    // rule would skip the paragraph and miss a change to the words around it. A
+    // suggestion's slots stay blocks: the decision retiring one makes the suggestion
+    // opaque, and its paragraph's words would run across it.
+    ...tagsDeclaring((e) => !e["x-inline"] && e["x-verbatim"]),
   ].join(",");
 // Opaque: a widget whose upgrade renders its data body, so the text on screen is the
 // module's and can't compare; and one whose slots a decision retires, which holds two
@@ -508,18 +516,19 @@ const diffBase = signal(null);
 const comparisonGeneration = signal(0);
 const diffPendingBase = signal(null);
 const diffMarked = new Set();
-// What each marked block said in the base version, and which of those readings the
-// user has open. The marks say a block changed; these say what it changed from, at
-// the block, so learning it costs no travel to the other version and back.
+// What each marked block said in the base version and says in this version's source,
+// and which of those readings the user has open. The marks say a block changed; these
+// say what it changed from, at the block, so learning it costs no travel to the other
+// version and back.
 //
 // Identity across versions is the id — the fact threads and reading position already
 // ride, and the same lookup the state half of applyDiff resolves its units by. A block
 // with no id names nothing in the base document, so the comparison holds nothing for it
 // and its Change reading stays the plain travel it always was. An opaque widget holds
-// nothing either, and for the reason the pass keys those by identity rather than by
-// words: the live one is upgraded and the base one is not, so their texts were never
-// each other's to compare.
-const diffBefore = new Map(); // marked element -> the base version's words, or null
+// nothing either: what the user reads there is its module's rendering, not the source
+// words the two versions hold.
+/** @type {Map<Element, {was: string | null, is: string | null}>} */
+const diffWordsOf = new Map();
 const inlineOpen = new Map(); // marked element -> its generated nodes and highlight ranges
 // The comparison request that owns the page. Every request takes the next number and every
 // stop takes one too, so a base whose document lands after the user has moved on is
@@ -527,46 +536,44 @@ const inlineOpen = new Map(); // marked element -> its generated nodes and highl
 // walk asks per row: it is one fetch per press, and the presses come faster than the network.
 let diffRequest = 0;
 // A containing prose block owns its words, not an opaque child's rendered data.
-// Use the same boundary for comparison keys, stored before words and inline ranges.
+// Use the same boundary for comparison keys, stored words and inline ranges.
 // The child has its own identity and binding key in diffBlocks below.
 const comparisonTextNodes = (root, opaque = diffOpaqueSel()) =>
   textNodesUnder(root, "wrote", (child) => child.matches(opaque));
+const comparisonWords = (root, opaque) => quoteFrom(comparisonTextNodes(root, opaque));
 
-// A renderer may format authored words while keeping their source on the formatted
-// island. Compare that source with the unupgraded base document, then use the live
-// DOM for what a user can quote and see in an inline comparison.
+// Formatting may render authored words while keeping their source on the formatted
+// island. The keys compare that source; an inline comparison reads the formatted words,
+// which are what the user sees.
 function diffWords(block, opaque) {
-  const words = (root) => quoteFrom(comparisonTextNodes(root, opaque));
+  const words = (root) => comparisonWords(root, opaque);
   if (!block.querySelector("[data-lf-source-words]")) return words(block);
   const source = block.cloneNode(true);
   for (const island of source.querySelectorAll("[data-lf-source-words]"))
     island.replaceWith(document.createTextNode(island.dataset.lfSourceWords));
   return words(source);
 }
-// A block's key is its *authored* text (`wrote`), which is why that reading exists: it
-// drops even the labels anchoring reads as the page's own words, because the base
-// version is parsed unupgraded and holds none of them.
+// The blocks of a painted source (`paintedSource`), each keyed by its authored text
+// (`wrote`), which leaves out what formatting generated, such as Markdown's media button.
 function diffBlocks(root) {
   const pairs = [];
   const [blocks, opaque] = [diffBlockSel(), diffOpaqueSel()];
-  const authoredHere = authored(root);
   // A data body is one source value. Its formatted paragraphs are its reading,
   // not independent source units; comparing the source also detects changed emphasis.
   for (const body of root.querySelectorAll(".lf-markdown-body")) {
     const owner = body.parentElement;
-    if (inChrome(owner) || owner.closest(opaque)) continue;
+    if (owner.closest(opaque)) continue;
     pairs.push([owner, `markdown:${body.dataset.lfSourceWords}`]);
   }
   for (const b of root.querySelectorAll(blocks)) {
-    if (inChrome(b) || b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
+    if (b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
     if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque)))
       continue; // leaf blocks only, excluding opaque children on both sides
     let key = diffWords(b, opaque);
     // An x-says value is the page's words at the element's edge (renderSaid), so it
     // belongs to what this block says: folded into the key at its declared edge, a
     // version that moves a metric's number or an event's time marks though no prose
-    // changed. Symmetric for free — the base parses unupgraded, where the same
-    // attribute would have painted the same words through the pseudo-element.
+    // changed. Both sources hold the attribute, so the key reads it on both sides.
     for (const [attr, edge] of Object.entries(
       registry[b.localName]?.["x-says"] ?? {},
     )) {
@@ -575,14 +582,14 @@ function diffBlocks(root) {
     }
     if (key) pairs.push([b, key]);
   }
-  // Opaque widgets key by identity, not body: an upgrade rewrote the live body,
-  // so text can't compare — but a widget the base didn't have still marks.
+  // Opaque widgets key by identity, not body, since the user reads their module's
+  // rendering rather than those words — but a widget the base didn't have still marks.
   for (const w of root.querySelectorAll(opaque)) {
-    // parentElement, not w itself: an svg a widget rendered stays its widget's.
-    if (!authoredHere(w) || inChrome(w) || w.parentElement?.closest(opaque)) continue;
+    // parentElement, not w itself: an svg inside a widget stays its widget's.
+    if (w.parentElement?.closest(opaque)) continue;
     const entry = registry[w.localName] ?? {};
-    // A data binding is authored semantics even though the generated children
-    // of an upgraded widget are opaque to comparison.
+    // A data binding is authored semantics even though the body it fills is
+    // opaque to comparison.
     const bindingAttrs = new Set();
     for (const input of Object.values(entry["x-data"] ?? {})) {
       if (input.source) bindingAttrs.add(input.source);
@@ -629,7 +636,7 @@ function inOrder(before, after) {
     else j++;
   return kept;
 }
-// The before surface holds the same accepted body projection as its version would
+// A painted source holds the same accepted body projection as its version would
 // show: the event's exact source, never a collapsed comparison value.
 function paintBodies(doc, widgets) {
   for (const [id, { state, specs }] of widgets)
@@ -645,9 +652,9 @@ function paintBodies(doc, widgets) {
     }
 }
 // A child an action in force created (`creates`) stood on the page that version
-// showed, so the base holds it too, as passages.py adds it to the file's reading: at
-// its owner's end, marked `data-lf-added`, its words formatted as its entry says.
-// Without it, an option the user added before the base reads as changed since.
+// showed, so its painted source holds it too, as passages.py adds it to the file's
+// reading: at its owner's end, marked `data-lf-added`, its words formatted as its entry
+// says. Without it, an option the user added before the base reads as changed since.
 function placeCreated(doc, widgets) {
   for (const [id, { state, specs }] of widgets)
     for (const [verb, spec] of specs) {
@@ -668,50 +675,63 @@ function placeCreated(doc, widgets) {
       }
     }
 }
-// The content half: the blocks under `live` whose words `doc`, a base version's
-// unupgraded document, doesn't hold, each with the words the comparison read in it.
-// Multiset membership rather than an alignment: an unchanged block that merely moved
-// stays unmarked; a changed or new one has no twin.
-/** @param {Document} doc @param {Element} [live] */
-function blocksWithoutTwin(doc, live = document.body) {
-  const base = new Map();
-  for (const [, key] of diffBlocks(doc)) base.set(key, (base.get(key) ?? 0) + 1);
-  const without = [];
-  for (const [b, key] of diffBlocks(live)) {
-    const left = base.get(key) ?? 0;
-    if (left > 0) base.set(key, left - 1);
-    else without.push([b, key]);
-  }
-  return without;
+// A version's source as that version shows with `widgets`' state: a copy in a document
+// of its own, its Markdown formatted, its body records painted and the children its
+// actions created placed. `sourceOf` maps each copied element to the source element it
+// copies, read before formatting replaces a Markdown body's <pre>; what the painting
+// made has none. Formatting is synchronous: the renderer is loaded wherever a source
+// declares Markdown, for the live page at its upgrade and for a base before this.
+function paintedSource(source, widgets) {
+  const doc = document.implementation.createHTMLDocument("");
+  const root = doc.importNode(source, true);
+  const sources = [source, ...source.querySelectorAll("*")];
+  const sourceOf = new Map(
+    [root, ...root.querySelectorAll("*")].map((copy, at) => [copy, sources[at]]),
+  );
+  doc.body.replaceChildren(root);
+  formatDeclaredMarkdown(doc);
+  paintBodies(doc, widgets);
+  placeCreated(doc, widgets);
+  return { doc, root, sourceOf };
 }
 // This version's source and the live node each of its nodes stands for, as the
 // controller holds them.
 /** @type {() => {source: Element | null, pairs: WeakMap<Node, Node>} | null} */
 let versionSource = () => null;
-// The version being read compared with its own source, which should mark nothing: the
-// state half has the same fold on both sides, so only words the live page shows and
-// its source doesn't, such as a widget's that it wrote without `generatedElement`,
-// can mark a block. The render gate reads it (`render-checks/words.js`,
-// `wordsReadAsChanged`). It reads the controller's source of this version rather than
-// fetching it, because a candidate `page check` serves has no stamped address yet.
-// Formatting is synchronous here: a source holding Markdown formatted the live page
-// with the same loaded renderer.
-export function selfComparison() {
-  const source = versionSource()?.source;
-  return source ? blocksNewSince(source) : [];
+// This version's source painted with the state the page shows now.
+const currentSource = () =>
+  paintedSource(versionSource().source, readApplication().effective.widgets);
+// The live node a block of this version's painted source stands for: the one its source
+// element is paired with, or else the page's element of its id, as for a child the
+// painting created or an element a script replaced with a copy. Where a module took
+// that node off the page, as a widget that redraws its words does, the nearest ancestor
+// still on it stands for the block.
+function standingFor(block, current) {
+  const { pairs } = versionSource();
+  for (let at = block; at && at !== current.root; at = at.parentElement) {
+    const paired = current.sourceOf.has(at) && pairs.get(current.sourceOf.get(at));
+    if (paired?.isConnected) return paired;
+    const named = at.id && elementById(at.id, pageDocument());
+    if (named?.isConnected) return named;
+  }
+  return null;
 }
-// The live page's blocks a version's source has no twin for, read as the comparison
-// reads them, with the current widget state painted on both sides. A revision landing
-// asks it of the source it replaced, to tint the blocks the revision changed.
-function blocksNewSince(source) {
-  const doc = document.implementation.createHTMLDocument("");
-  doc.body.replaceChildren(doc.importNode(source, true));
-  formatDeclaredMarkdown(doc);
-  const { widgets } = readApplication().effective;
-  paintBodies(doc, widgets);
-  placeCreated(doc, widgets);
-  // The source is the page's `main`, so the live side is too.
-  return blocksWithoutTwin(doc, pageDocument());
+// The content half: the live nodes standing for the blocks of `current` whose words
+// `base` doesn't hold, both painted sources. Multiset membership rather than an
+// alignment: an unchanged block that merely moved stays unmarked; a changed or new one
+// has no twin. A revision landing asks it of the source it replaced, to tint the blocks
+// the revision changed.
+function changedSince(base, current = currentSource()) {
+  const held = new Map();
+  for (const [, key] of diffBlocks(base.root)) held.set(key, (held.get(key) ?? 0) + 1);
+  const changed = new Set();
+  for (const [block, key] of diffBlocks(current.root)) {
+    const left = held.get(key) ?? 0;
+    if (left > 0) held.set(key, left - 1);
+    else changed.add(standingFor(block, current));
+  }
+  changed.delete(null);
+  return changed;
 }
 // The live elements this version's source wrote: whether the page or Leaf put an
 // element there is this, not whether a module marked the words it fills it with.
@@ -748,22 +768,19 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
       [...baseProjection.desired].filter(([, entry]) => declaredAlike(entry)),
     ),
   });
-  paintBodies(doc, baseWidgets);
-  placeCreated(doc, baseWidgets);
-  for (const [b] of blocksWithoutTwin(doc)) {
-    b.classList.add("lf-ins-block");
-    diffMarked.add(b);
-  }
-  // The state half: block keys catch words, and a pure state change — a card
-  // in a different column, a pick on a different option — has no text of its
-  // own. Compare declared state instead: the base fold above against the
-  // publisher's current one. Body records are words and the block keys above own
-  // them.
   const mark = (target) => {
     if (diffMarked.has(target)) return;
     target.classList.add("lf-ins-block");
     diffMarked.add(target);
   };
+  const base = paintedSource(pageDocument(doc), baseWidgets);
+  const current = currentSource();
+  for (const block of changedSince(base, current)) mark(block);
+  // The state half: block keys catch words, and a pure state change — a card
+  // in a different column, a pick on a different option — has no text of its
+  // own. Compare declared state instead: the base fold above against the
+  // publisher's current one. Body records are words and the block keys above own
+  // them.
   for (const [id, now] of readApplication().effective.widgets) {
     const before = baseWidgets.get(id);
     const widget = elementById(id);
@@ -812,23 +829,25 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
   // One pass over everything marked, after both halves, because the two halves mark
   // for different reasons and a block reached by either is a block a user can ask
   // about. The words are taken here rather than at the press: this is the one moment
-  // the base document is in hand, and holding it open for a press that may never come
-  // would keep a whole second document alive for the life of the comparison.
+  // the two sources are in hand, and holding them open for a press that may never come
+  // would keep two more documents alive for the life of the comparison.
   const opaque = diffOpaqueSel();
   for (const block of diffMarked) {
     if (!block.matches(ADDRESSABLE) || block.closest(opaque)) continue;
-    const baseBlock = doc.getElementById(block.id);
-    diffBefore.set(
-      block,
-      baseBlock ? quoteFrom(comparisonTextNodes(baseBlock, opaque)) : null,
-    );
+    const [was, is] = [base, current].map(({ doc }) => doc.getElementById(block.id));
+    diffWordsOf.set(block, {
+      was: was ? comparisonWords(was, opaque) : null,
+      is: is ? comparisonWords(is, opaque) : null,
+    });
   }
   return diffMarked.size;
 }
 // ---------- one marked block's inline comparison ----------
-// `wrote` is the authority for the two texts. This companion reading keeps the same
-// normalized text with a boundary back into the authored text nodes, so a run the
-// alignment calls inserted can be painted in place. Generated labels and deletions wear
+// `wrote` is the authority for the two texts, read from the two sources; the live block
+// offers a comparison only while it reads the same as its source (`inlineComparison`).
+// This companion reading keeps the same normalized text with a boundary back into the
+// live block's authored text nodes, so a run the alignment calls inserted can be painted
+// in place. Generated labels and deletions wear
 // `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
 // current document rather than the temporary historical words on screen.
 const inlineId = (target) => `lf-version-inline-${target.id}`;
@@ -884,7 +903,7 @@ function paintInlineInsertions() {
 }
 
 function openInlineComparison(target) {
-  const before = diffBefore.get(target);
+  const before = diffWordsOf.get(target).was;
   const reading = authoredReading(target);
   const current = currentVersionToken();
   const label = el(
@@ -957,18 +976,19 @@ function closeInlineComparison(target) {
 // state change remains marked but offers no empty prose comparison. The one controlled
 // id is a quiet label at the start of the block. It names the versions for assistive
 // reading while the margin and Page Map carry that provenance visually, outside the
-// passage whose words are being compared.
-export const inlineComparison = (target) =>
-  diffOn.value &&
-  diffBefore.has(target) &&
-  (diffBefore.get(target) === null ||
-    diffBefore.get(target) !== quoteFrom(comparisonTextNodes(target)))
+// passage whose words are being compared. The comparison paints the source's words onto
+// the live block's, so a block whose live words aren't its source's, such as one a
+// module writes into, stays marked whole and offers none.
+export const inlineComparison = (target) => {
+  const words = diffOn.value ? diffWordsOf.get(target) : undefined;
+  return words && words.was !== words.is && words.is === comparisonWords(target)
     ? {
         id: inlineId(target),
         open: inlineOpen.has(target),
         offer: `v${diffBase.value} → ${currentVersionToken()}`,
       }
     : null;
+};
 
 // The press, and the sentence to say about it — composed here, where the versions are
 // named. The comparison signal also tracks its current rendering: the same pass
@@ -1005,7 +1025,7 @@ function setDiff(on, base, pendingBase = null) {
       // Inline diffs leave with the block marks. Historical words or insertion paint
       // under a block nothing marks any more would leave half of the comparison behind.
       for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
-      diffBefore.clear();
+      diffWordsOf.clear();
       for (const b of diffMarked) b.classList.remove("lf-ins-block");
       diffMarked.clear();
     }
@@ -1051,9 +1071,10 @@ async function showComparison(base) {
       if (runtime.lastEventSeq === throughSeq) break;
     }
     if (mine !== diffRequest) return;
-    // Typed authored state reads the source before its Markdown is formatted.
+    // Typed authored state reads the source, which formatting leaves alone: it formats
+    // a copy (`paintedSource`), with the renderer loaded here.
     baseAuthored = stageAuthoredStates(doc, new Map());
-    await prepareDeclaredMarkdown(doc);
+    await loadDeclaredMarkdown(doc);
   } catch {
     if (mine === diffRequest) {
       diffPendingBase.value = null;
@@ -1622,7 +1643,11 @@ export function createVersionController({
           if (comparedFrom !== null) showComparison(comparedFrom);
           // Each block the revision changed takes a newly arrived message's tint,
           // which paints and moves nothing.
-          for (const [block] of blocksNewSince(outgoing))
+          const outgoingSource = paintedSource(
+            outgoing,
+            readApplication().effective.widgets,
+          );
+          for (const block of changedSince(outgoingSource))
             backgroundFlash(block, flashDuration());
           notice(`Updated to ${target.label}`, { background: true });
         }),

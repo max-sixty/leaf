@@ -244,16 +244,8 @@ interface DocumentEventMap {
   }>;
   /** A sample child's request to scroll the page along from its frame (`sample.js`). */
   "lf-sample-step": CustomEvent<{ amount: number; unit: string }>;
-}
-
-interface HTMLElementEventMap {
-  /** An ancestor is asked to show `target` (`widget-elements.js`, `reveal`). */
-  "lf-reveal": CustomEvent<{
-    target: Element;
-    mayReveal(): boolean;
-    replacedView(): void;
-    present(ready?: Promise<unknown>): void;
-  }>;
+  /** Drawing a widget has under way, by the community protocol (`widget-upgrade.js`). */
+  "pending-task": import("../runtime/widget-upgrade.js").PendingTaskEvent;
 }
 
 // TypeScript's DOM library lacks the platform's close watcher (HTML, "Close requests

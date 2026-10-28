@@ -1,5 +1,5 @@
 {
-  "protocol": 34,
+  "protocol": 35,
   "events": {
     "ownership": {
       "derived": ["meaning","attention"],
@@ -76,7 +76,7 @@
     },
     "codex-adapter": {
       "since": 13,
-      "schema": {"description":"A Codex task's running delivery adapter, written into the lease it holds at the state home's `sessions/<digest>.adapter`. A session can select a replacement runtime while this lease remains held (`running_adapter`).","type":"object","properties":{"app_server":{"description":"The Codex App Server the adapter delivers through, or null for the task's queue.","type":["string","null"]},"launcher":{"description":"The immutable runtime running the adapter.","type":"string"}},"required":["app_server"]}
+      "schema": {"description":"A Codex task's running delivery adapter, written into the lease it holds at the state home's `sessions/<digest>.adapter`. A session can select a replacement runtime while this lease remains held (`running_adapter`).","type":"object","properties":{"app_server":{"description":"The Codex App Server the adapter delivers through, or null for the task's queue.","type":["string","null"]},"launcher":{"description":"The launcher running the adapter.","type":"string"}},"required":["app_server"]}
     },
     "codex-delivery": {
       "since": 14,

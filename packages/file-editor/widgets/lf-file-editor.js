@@ -19,9 +19,10 @@
  * quiet word in the header's fixed status slot until the newest buffer is
  * acknowledged. A failure and a conflict stand in that same slot, so the editor's top
  * and height measure the same in every state (`browser/AGENTS.md`, "Stability"). A
- * failure reads "Not saved · Retry", with the error as the status's tooltip and
- * Retry's description. A conflict reads "Changed on disk" in the warning tone, one
- * control opening a small menu of its choices: Compare, Save draft, Use file version.
+ * failure reads "Not saved" beside Retry's symbol, with the error as the status's
+ * tooltip and Retry's description. A conflict reads "Changed on disk" in the warning
+ * tone, one control opening a small menu of its choices: Compare, Save draft, Use file
+ * version.
  * A Save draft that fails keeps that control, since Save draft is the retry and the
  * other choices still stand; it then reads "Not saved", the slot's one line having
  * no room for both, with the error as its description. Where no file
@@ -288,18 +289,16 @@ customElements.define(
                     : slow
                       ? "Saving changes…"
                       : ""
-              }${
-                retryable
-                  ? html`<span aria-hidden="true">&nbsp;·&nbsp;</span>`
-                  : nothing
-              }<button
+              }${retryable ? html`&nbsp;` : nothing}<button
                 ${offered("lf-file-editor-retry")}
                 ?hidden=${!retryable}
+                aria-label="Retry"
+                title="Retry"
                 aria-description=${failure?.message ?? nothing}
                 aria-disabled=${busy ? "true" : nothing}
                 @click=${(event) => retry(event.currentTarget)}
               >
-                Retry</button
+                ${iconTemplate("retry", "lf-file-editor-icon")}</button
               ><button
                 ${offered("lf-file-editor-conflict")}
                 ?hidden=${!conflicted}
@@ -309,7 +308,7 @@ customElements.define(
               >
                 ${failure ? "Not saved" : "Changed on disk"}${iconTemplate(
                   "down",
-                  "lf-file-editor-chevron",
+                  "lf-file-editor-icon",
                 )}
               </button></span
             >

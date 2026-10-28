@@ -26,6 +26,8 @@
     // with an obligation and with help (`?`).
     inbox: '<path d="M2.75 9.25h2.9l1 1.6h2.7l1-1.6h2.9M2.75 9.25 4.4 4h7.2l1.65 5.25v2.75H2.75z"/>',
     link: '<path d="M6.67 8.67a3.33 3.33 0 0 0 5.03.36l2-2a3.33 3.33 0 0 0-4.71-4.71l-1.15 1.14M9.33 7.33a3.33 3.33 0 0 0-5.03-.36l-2 2a3.33 3.33 0 0 0 4.71 4.71l1.14-1.14"/>',
+    // A map's locate mark, for the way from a thread to where its words stand.
+    locate: '<circle cx="8" cy="8" r="4"/><path d="M8 1.75v2.5M8 11.75v2.5M1.75 8h2.5M11.75 8h2.5"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/>',
     microphone: '<rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 7.5v.75a4 4 0 0 0 8 0V7.5M8 12.25V14M6 14h4"/><path class="lf-mic-slash" d="M2.5 2.5l11 11"/>',
     next: '<path d="m6 3.5 4.5 4.5L6 12.5"/>',
     pause: '<path d="M5 3v10M11 3v10"/>',
@@ -343,12 +345,7 @@
         }
         return { attributes, properties };
       },
-      render({
-        values: next = values,
-        instruction = null,
-        choosing = false,
-        chosen = () => false
-      } = {}) {
+      render({ values: next = values, instruction = null, chosen = () => false } = {}) {
         if (instruction === null) {
           for (const slot of slots)
             render(
@@ -482,12 +479,8 @@
               >
                 ${moreIcon}
               </button>
-              <button
-                ${submitOffer}
-                data-room=${`${submitLabel}
-Undo choice`}
-                aria-busy=${choosing ? "true" : nothing}
-              >
+              <button ${submitOffer} data-room=${`${submitLabel}
+Undo choice`}>
                 <span data-lf-gen="1">${chosen() ? "Undo choice" : submitLabel}</span>
               </button>
               <div

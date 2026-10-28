@@ -4,6 +4,7 @@ through news, presses, reflows and scrolls, panes included."""
 import re
 
 import pytest
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
@@ -170,7 +171,7 @@ def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serv
         page.locator("#row").click(position={"x": 20, "y": 10})
     expect(
         page.locator('[data-lf-margin-for="choice"] .lf-margin-marker')
-    ).to_have_attribute("aria-label", re.compile(r"^Saved\b"))
+    ).to_have_attribute("aria-label", re.compile(r"^Queued for Claude\b"))
     for _ in range(2):
         rendered(page)
         assert preview.evaluate(where) == card
@@ -194,7 +195,7 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
         page.locator("#two").click(position={"x": 20, "y": 10})
     receipt = page.locator('[data-lf-margin-for="choice"]')
     expect(receipt.locator(".lf-margin-marker")).to_have_attribute(
-        "aria-label", re.compile(r"^Saved\b")
+        "aria-label", re.compile(r"^Queued for Claude\b")
     )
     rendered(page)
     assert thread.evaluate(where) == row
@@ -226,13 +227,22 @@ TIMES_WHOLE = """card => [...card.querySelectorAll('.lf-msg-head')]
 
 
 def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
-    """A card at its narrowest, with Previous and Next for its target's two threads,
+    """A narrow card, with Previous and Next for its target's two threads,
     holding news while the user writes: the notice reads whole beside the actions, the
     message head's time stays whole, and the name gives up the room, with an ellipsis."""
     url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Make the banner quieter", {"section": "h-how"}
-    )
+    # Supply the overflow this test needs: a short author can fit as the other
+    # header content changes.
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "The release review and accessibility assistant",
+            "text": "Make the banner quieter",
+            "anchor": {"section": "h-how"},
+        },
+    )["id"]
     panel_comment(serve.page_dir, "Keep the logo where it is", {"section": "h-how"})
     page = open_page(browser, url)
     resized(page, 1200, 900)
@@ -244,7 +254,7 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     rendered(page)
     thread_model.post_reply(
         serve.page_dir,
-        {"responds": root},
+        {"parent": root},
         "The status line can drop one weight.",
     )
     thread_model.post_reply(

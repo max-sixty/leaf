@@ -121,7 +121,7 @@ def test_initial_lit_drawings_keep_the_readers_nodes_through_upgrade(browser, se
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_streamed_initial_host_first_shows_its_complete_drawing(
-    engine, request, compiled_installation
+    engine, request, compiled_checkout
 ):
     """A pause inside a nested widget must not expose source layout before its drawing,
     and the drawn host stands among its authored siblings with no delivery script left.
@@ -132,7 +132,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
     so its run holds delivery to writing none.
     """
     browser = request.getfixturevalue(engine)
-    assets = compiled_installation / "browser"
+    assets = compiled_checkout / "browser"
     host_source = (
         '<lf-initial-outer id="outer"><aside data-lf-exhibit="">'
         '<lf-initial-inner id="inner"><p>Original nested prose</p>'
@@ -168,7 +168,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             "/" + path.relative_to(root).as_posix(): Resource(
                 path.read_bytes(), "application/javascript"
             )
-            for root in (assets, compiled_installation / "dist/kernel")
+            for root in (assets, compiled_checkout / "dist/kernel")
             for path in root.rglob("*.js")
         },
         "/leaf.js": Resource(

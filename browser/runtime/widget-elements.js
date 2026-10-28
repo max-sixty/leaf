@@ -1,12 +1,11 @@
-/* The chrome a widget injects, the words it labels, and the room it measures.
+/* The chrome a widget injects and the words it labels.
 
    A behavior module builds injected controls with `offer`, a press wearing one of
-   Leaf's control faces with `offerAction` by its role, marks other words it
-   writes with `generatedElement`, and uses `relabel` when a control's label is also
-   one of the page's words. A Lit template reaches the same writers through element
-   directives built by `elementDirective`. A behavior module
-   reads a box from inside `measure`: a widget upgrades wherever the runtime connects
-   it, and a shut panel is `display: none`, where every word measures zero. A label
+   Leaf's control faces with `offerAction` by its role, marks words it writes that
+   should stand apart from the author's with `generatedElement`, and uses `relabel`
+   when a control's label is also one of the page's words. A Lit template reaches the
+   same writers through element directives built by `elementDirective`. A behavior module
+   reads a box from inside `measure` (shown-box.js). A label
    whose words change holds one room for all of them with `data-room`, which the
    theme sizes without script and which cuts words past it (controls.css). A module calls
    `layoutChanged(el)` after view state rearranges descendants without resizing its
@@ -41,13 +40,13 @@
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
 import { PRESSES, WORKS } from "./control-selectors.js";
-import { sizeObserver } from "./rendering.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
-import { shownBox } from "./geometry.js";
+import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { iconElement, iconTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
+import { isNativeLayer } from "./shadow-tree.js";
 import { keeps, keepsText } from "./keeps.js";
 import {
   Directive,
@@ -59,39 +58,44 @@ import {
   signal,
 } from "/runtime/framework.js";
 
-// A scroll target can sit inside a collapsed container — a closed <details>, an
-// inactive tab. Opening what the platform owns (details) and letting a container
-// widget open what it owns (the lf-reveal event; lf-tabs listens) gives the
-// target geometry before the scroll. The caller passes the intent its gesture retained
-// (user-intent.js), and asynchronous listeners inherit that permission through
-// event.detail.mayReveal. There is no default: one taken here would be taken after
-// whatever the caller awaited, which is the late capture that lets stale work move a
-// user who has since moved on.
-// Exposure is synchronous; ready joins the presentation it started. A widget replacing
-// its visible view reports replacedView, so travel can place it before waiting on ready.
+// A scroll target can sit inside a collapsed container: a closed <details> or popover,
+// an inactive tab. Leaf reveals it as the browser's find-in-page and fragment
+// navigation do (the HTML standard's ancestor revealing algorithm): it opens a closed
+// <details>, and at an element `hidden="until-found"` it fires `beforematch` and
+// removes the attribute, so a widget that folds content that way opens for Leaf's travel
+// and the browser's find alike, and imports nothing from Leaf to do it, as the runtime's
+// own folds do too (thread/transcript.js). Leaf also opens a closed popover, which the
+// browser's find leaves shut. It walks outside-in, unlike the standard, so an inner
+// widget has geometry when its own content is revealed.
+// The caller passes the intent its gesture retained (user-intent.js). There is no
+// default: one taken here would be taken after whatever the caller awaited, which is
+// the late capture that lets stale work move a user who has since moved on.
+// Exposure is synchronous. A widget that sets `hidden` on a sibling of the element it
+// reveals before its listener returns, as a tab set hides the panel it leaves, replaced
+// the view that stood there, so travel can place the target before waiting on ready,
+// which joins the `updateComplete` of each element holding what was revealed that has
+// one: a Lit widget whose view switch finishes after its listener extends its own
+// `updateComplete`, as Lit elements do.
 export function reveal(el, mayReveal) {
   const chain = [];
-  const pending = [];
+  const settling = new Set();
   let replacedView = false;
   for (let a = el; a; a = renderedParent(a)) chain.push(a);
-  // Reveal outside-in so an inner widget has geometry when it handles the signal.
-  for (const a of chain.reverse()) {
+  chain.reverse();
+  for (const [at, a] of chain.entries()) {
     if (!mayReveal()) break;
     if (a.tagName === "DETAILS" && !a.open) a.open = true;
-    a.dispatchEvent(
-      new CustomEvent("lf-reveal", {
-        detail: {
-          target: el,
-          mayReveal,
-          replacedView: () => {
-            replacedView = true;
-          },
-          present: (ready) => ready?.then && pending.push(ready),
-        },
-      }),
-    );
+    if (a.hasAttribute?.("popover") && !isNativeLayer(a))
+      showNativeLayer(a, { modal: false });
+    if (a.getAttribute?.("hidden") !== "until-found") continue;
+    const shown = [...(a.parentNode?.children ?? [])].filter((s) => !s.hidden);
+    a.dispatchEvent(new Event("beforematch", { bubbles: true }));
+    a.removeAttribute("hidden");
+    if (shown.some((sibling) => sibling.hidden)) replacedView = true;
+    for (const owner of chain.slice(0, at + 1))
+      if (owner.updateComplete?.then) settling.add(owner.updateComplete);
   }
-  const ready = Promise.all(pending);
+  const ready = Promise.all(settling);
   // Most reveal callers need only synchronous native/widget disclosure. A surface that
   // registers asynchronous presentation is already its error owner; observe this joined
   // promise so callers may ignore it without creating a duplicate page rejection.
@@ -139,76 +143,8 @@ export const dragging = (el, on) => {
 // rearranging descendants, so the widget states that geometry change explicitly.
 export const LAYOUT = "lf-layout";
 export const layoutChanged = (el) => {
-  const pending = [];
-  el.dispatchEvent(
-    new CustomEvent(LAYOUT, {
-      bubbles: true,
-      composed: true,
-      detail: {
-        present: (ready) => ready?.then && pending.push(ready),
-      },
-    }),
-  );
-  const ready = Promise.all(pending);
-  void ready.catch(() => {});
-  return ready;
+  el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
 };
-
-// A number a widget can only read off a box the browser has laid out. Three ship: the
-// room a pick mark's word will need, the room a card keeps clear of its grip, the width
-// of a roster's state column. Every one is measured rather than stated for the same
-// reason — the face this page is actually set in, which no constant names across two
-// platforms — and every one reads 0 where there is no box to read.
-//
-// A widget upgrades wherever the runtime connects it, and not every one of those places
-// is drawn. A message body is built for every comment the log carries and connected
-// whether or not the user has opened the panel, and a shut panel is `display: none`:
-// every box beneath it is zero. `once` then refuses the second upgrade that would put
-// it right, and the body is cached for the life of the tab and never rebuilt — so a
-// zero taken there is indistinguishable from a measurement and stands for good. A pick
-// column collapsed to nothing, a grip drawn over the card's own title.
-//
-// So the module states the measurement and the runtime takes it: now, where there is
-// something to read, and otherwise the first time there is. ResizeObserver is the
-// browser's own answer to "this has a box now", and the one that answers it wherever
-// the element sits — a message scrolled past the panel's own fold has been laid out
-// just the same, which is the question an IntersectionObserver would get wrong.
-//
-// The observation ends at the reading it was waiting for, so what a measurement writes
-// cannot return through what triggered it: after the unobserve there is no second
-// delivery to the element that was just written.
-const measurements = new WeakMap();
-const drawn = (el) => {
-  const box = shownBox(el);
-  return Boolean(box.width || box.height);
-};
-const unmeasured = sizeObserver((entries) => {
-  const taking = [];
-  for (const { target } of entries) {
-    if (!drawn(target)) continue;
-    unmeasured.unobserve(target);
-    taking.push(measurements.get(target));
-    measurements.delete(target);
-  }
-  // Every one released before any of them is taken: a measurement writes room its own
-  // widget spends, which resizes it, and a widget still observed when that happens is a
-  // second delivery inside the round that wrote it.
-  for (const take of taking) take();
-});
-export function measure(el, take) {
-  // `shownBox`, not this element's own rect: a `display: contents` wrapper draws no box
-  // of its own and never will, and its contents are what the measurement is about. Asked
-  // the narrow way it would wait forever, holding the take and the observation with it.
-  if (drawn(el)) {
-    // A wait already pending for this element is over: it was waiting for the box
-    // this reading just found. Left pending it would deliver a second reading of
-    // the same number, which is harmless and still a claim that nothing was read.
-    if (measurements.delete(el)) unmeasured.unobserve(el);
-    return take();
-  }
-  measurements.set(el, take);
-  unmeasured.observe(el);
-}
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
 // one aimed at what it holds. This is the second: the nearest thing between `node` and
@@ -267,8 +203,9 @@ export function worksInside(node, container) {
 
 // The chrome a widget injects: a control, or the box that holds controls. Three
 // markers, one per question asked of it — `lf-ui` for apparatus identity, which
-// anchoring reads where no label speaks nearer; `data-lf-gen` so the diff looks away; `data-lf-offer`
-// for a thing to work, which paper drops because there is nothing there to press.
+// anchoring reads where no label speaks nearer; `data-lf-gen` for words the author
+// didn't write; `data-lf-offer` for a thing to work, which paper drops because there is
+// nothing there to press.
 // A widget writes none of the three by hand: they are what make an element chrome,
 // and one of them going missing is invisible until something breaks.
 //
@@ -453,8 +390,8 @@ document.addEventListener(
 // `.lf-ui` box around it — that box is a look, the chrome face, and it was standing
 // in for a permission the user has no category for — and paper reads it beside
 // data-lf-offer to keep a control whose label is one of the page's own words.
-// data-lf-gen goes on either way, because the diff parses the base version
-// unupgraded and would read any label as text that version lacked.
+// data-lf-gen goes on either way, because no label is words the author wrote, which
+// is what the `wrote` reading keeps (passages.js).
 //
 // Those are two questions with one answer until a label is a copy of words the page
 // says somewhere else — a roster row naming a worker, a generated index entry, any
@@ -482,10 +419,10 @@ document.addEventListener(
 // `generatedElement(node, {says})` writes those markers without the words: for a box
 // whose contents the widget writes, or words it fills in some other way. prepaint.js
 // holds it so that an initial producer receives it as it receives `offerElement`.
-// A forgotten marker shows as a widget's words read by the version diff as a change
-// nobody wrote, which only the render gate's comparison of a version with itself
-// reports (`version.js`, `selfComparison`), so widgets write the markers only through
-// it, `relabel` and the offers. `generated({says})` is its template form:
+// Widgets write the markers only through it, `relabel` and the offers, so the three
+// stay consistent. Words a module writes unmarked are the page's: the version
+// comparison reads sources (`version.js`), so they never read as a change, but `wrote`
+// keeps them and a quote can run across them. `generated({says})` is its template form:
 // `<h2 ${generated({ says: true })}>${title}</h2>`. Three writers stand apart because
 // they do something it doesn't: the datum projection (projection/data.js) marks and
 // unmarks authored nodes as their data comes and goes, markdown.js serializes its

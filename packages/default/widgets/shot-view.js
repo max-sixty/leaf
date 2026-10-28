@@ -318,7 +318,14 @@ export class ShotView {
               popovertarget=${optionsId}
               @click=${this.toggleOptions ?? null}
             >
-              …
+              <svg
+                viewBox="0 0 16 16"
+                focusable="false"
+                aria-hidden="true"
+                class="lf-action-icon"
+                data-lf-icon="more"
+                .innerHTML=${this.tools.iconMarkup("more")}
+              ></svg>
             </button>
             <button
               ${ref(this.outlineRef)}

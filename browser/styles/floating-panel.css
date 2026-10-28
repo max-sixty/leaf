@@ -502,7 +502,7 @@
     outline: none;
   }
   /* The empty field's words read dimmer than anything written in it: the agent's
-     status, a thread's turn, and, once the caret is in, where the words go. A passing
+     status, whose turn a thread is, and, once the caret is in, where the words go. A passing
      notice is news, so it reads a step brighter until it passes. While the agent works,
      its status carries the sheen that marks work under way (surfaces.css), from its own
      dim face to ink and back. The face is the field's placeholder part, so it holds
@@ -512,6 +512,24 @@
      for a frame, as the notice's weight once did over the status, carrying it sideways. */
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
+  }
+  /* In an open thread, whose turn it is stands beside the leaf in that dim face, the
+     agent's words as the status is at rest, and Reply stands at the field's end with
+     its key, in ink as the press it offers (floating-panel.js, `turnLead`). */
+  .lf-fp-field leaf-text[data-says="turn"] .lf-compose-placeholder > span:last-of-type {
+    margin-inline-start: auto;
+    color: var(--ink);
+  }
+  /* Its key comes only while the panel holds focus (composing/input.js, `enteringHint`),
+     so where keys are shown its room stands without it and Reply never moves as focus
+     comes and goes, standing out of the baseline it has no text for; a coarse pointer
+     is shown no keys (keyboard/bindings.js, `advertisesKeys`). */
+  @media not (pointer: coarse) {
+    .lf-fp-field leaf-text[data-says="turn"] .lf-compose-placeholder > kbd:empty {
+      display: inline-flex;
+      align-self: center;
+      visibility: hidden;
+    }
   }
   .lf-fp-field leaf-text[data-says="notice"]::part(placeholder) {
     color: var(--lf-fp-muted);
@@ -538,7 +556,7 @@
   .lf-fp-field .lf-compose-error > span {
     text-overflow: ellipsis;
   }
-  /* The shared reduced-motion guard (surfaces.css) stops at the field's closed tree. */
+  /* The shared reduced-motion guard (state.css) stops at the field's closed tree. */
   @media (prefers-reduced-motion: no-preference) {
     .lf-floating-panel[data-tone="working"]:not([data-asks])
       .lf-fp-field
@@ -583,7 +601,9 @@
   /* Words the agent can't be saying are set in italic, as a stage direction stands
      apart from the lines spoken: an error, Leaf's own state, or an instruction about
      the agent (the user's choice, 26 October 2026; `saying`). */
-  .lf-fp-field leaf-text[data-voice="leaf"]::part(placeholder) {
+  .lf-fp-field leaf-text[data-voice="leaf"]::part(placeholder),
+  .lf-compose-placeholder-lead [data-voice="leaf"],
+  .lf-fp-value [data-voice="leaf"] {
     font-style: italic;
   }
   /* The panel shows no key hints but the one that enters an open thread's reply, which
@@ -609,15 +629,14 @@
     min-height: 0;
     padding: 0;
   }
-  /* A thread walk's aside keeps the room drafting reserves for the Send corner, so the
-     placeholder doesn't shrink by that corner's width mid-read. */
+  /* An open thread's Reply, standing at the field's end, keeps the room drafting
+     reserves for the Send corner, so it doesn't move by that corner's width as writing
+     starts and ends. */
   .lf-floating-panel:is([data-writing], [data-drafted])
     .lf-fp-field
     .lf-compose-field
     > leaf-text,
-  .lf-fp-field
-    .lf-compose-field
-    > leaf-text:has(.lf-compose-placeholder-aside:not(:empty)) {
+  .lf-fp-field .lf-compose-field > leaf-text[data-says="turn"] {
     --lf-field-end-room: var(--lf-fp-send-room);
   }
   /* Send shows while the user writes words, in every composer's face: the accent arrow,
@@ -1039,7 +1058,7 @@
     outline: var(--focus-ring);
     outline-offset: -2px;
   }
-  :is(.lf-fp-quiet, .lf-fp-next-unread)[data-unoffered] {
+  :is(.lf-fp-on-page, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
   }
   /* Resolve is the check, turning the ok ink on hover; Reopen in its place is the
@@ -1470,15 +1489,35 @@
     flex-direction: column;
     padding: 10px 8px 12px;
   }
-  /* What left the list in view, under it: a section of its own, so a rule opens it. */
-  .lf-fp-ended {
-    margin: 0 8px;
-    padding-top: 10px;
-    border-top: 1px solid var(--lf-fp-faint);
+  /* What left a list, folded under its group heading (floating-panel.js,
+     `settledHeading`): the heading is the press, a row the height of the list's rows
+     whose columns are a thread row's, so its disclosure arrow (controls.css) stands in
+     the column the rows' news mark takes, its name starts where their names do, and
+     its count ends where their status does. */
+  .lf-fp-settled-group {
+    padding: 0;
+  }
+  .lf-fp-settled {
+    display: grid;
+    grid-template-columns: 6px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 34px;
+    padding: 5px 8px;
+    border-radius: var(--r);
     font: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--lf-fp-muted);
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: inherit;
+    text-align: start;
+  }
+  .lf-fp-settled > .lf-fp-count {
+    text-align: end;
+  }
+  .lf-fp-settled::before {
+    justify-self: center;
+    margin: 0;
   }
   .lf-fp-on-place,
   .lf-fp-on-title {
@@ -1899,6 +1938,7 @@
     }
     .lf-fp-item,
     .lf-fp-thread,
+    .lf-fp-settled,
     .lf-fp-page {
       min-height: 44px;
     }

@@ -8,7 +8,7 @@ import {
 } from "/runtime/dom-children.js";
 import { under } from "/runtime/shadow.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
-import { failSoftUnreported } from "/runtime/widget-upgrade.js";
+import { failSoftUnreported, placesFailure } from "/runtime/widget-upgrade.js";
 import { createRef, html, ref, render } from "/runtime/framework.js";
 
 test("failure replacement releases directives and supports native and template recovery", () => {
@@ -19,6 +19,7 @@ test("failure replacement releases directives and supports native and template r
   assert.equal(reference.value.textContent, "Before failure");
   failSoftUnreported(host, new Error("first failure"));
   assert.equal(reference.value, undefined);
+  assert.equal(host.textContent, "<test-widget> failed: first failure");
   paint("Recovered template");
   assert.equal(host.textContent, "Recovered template");
   failSoftUnreported(host, new Error("second failure"));
@@ -29,6 +30,19 @@ test("failure replacement releases directives and supports native and template r
   failSoftUnreported(host, new Error("third failure"));
   paint("Final template");
   assert.equal(host.textContent, "Final template");
+});
+
+test("an owner that registers its failure placer on every connection keeps one", () => {
+  const host = document.createElement("test-widget");
+  const asked = [];
+  for (const connection of ["first", "second"])
+    placesFailure(host, (box) => {
+      asked.push(connection);
+      host.append(box);
+      return true;
+    });
+  failSoftUnreported(host, new Error("failed"));
+  assert.deepEqual(asked, ["second"]);
 });
 
 test("a staged widget shows each failure in its stage and its next stage replaces it", () => {
@@ -93,6 +107,7 @@ function patch(beforeMarkup, afterMarkup = beforeMarkup) {
   };
   return {
     live,
+    after,
     rules,
     retains: (node) => patchRetains(before, after, node, rules),
     install: () => patchTree(before, after, rules),
@@ -212,6 +227,22 @@ test("a native shadow editor follows its containing owner's authored retention",
     root.append(editor);
     assert.equal(retains(editor), !changed);
   }
+});
+
+test("a widget a revision keeps stands for the same live nodes inside it", () => {
+  const { live, after, rules, install } = patch(
+    '<test-owner id="o"><p>Kept words.</p></test-owner><p>Before</p>',
+    '<test-owner id="o"><p>Kept words.</p></test-owner><p>After</p>',
+  );
+  const words = live.querySelector("test-owner p");
+  // The controller moved its paragraph into a box of its own.
+  const box = document.createElement("div");
+  live.firstElementChild.append(box);
+  box.append(words);
+  install();
+  const source = after.querySelector("test-owner p");
+  assert.equal(rules.pairs.get(source), words);
+  assert.equal(rules.pairs.get(source.firstChild), words.firstChild);
 });
 
 test("a revision reaching a widget writes inside the authored body its module built", () => {

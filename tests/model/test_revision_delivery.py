@@ -18,6 +18,7 @@ from leaf.revision_artifact import (
     capture_artifact,
     capture_local_resource,
     read_artifact,
+    resource_dependencies,
 )
 from leaf.revision_delivery import (
     Delivery,
@@ -357,9 +358,10 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
 def test_capture_delivery_and_export_read_one_set_of_stylesheet_urls(tmp_path):
     """Capture decides which files a stylesheet needs, delivery re-addresses them, and
     export embeds them, so all three have to find the same URLs in one sheet: a URL
-    only capture finds is a file nobody serves, and one only export finds is a file
-    capture never kept. An `@import` nested in a block is none of them in either
-    spelling, because a browser ignores it."""
+    only capture finds is a file capture refuses to be missing though nothing loads
+    it, and one only delivery or export finds is a file nobody checked. An `@import`
+    nested in a block is none of them in either spelling, because a browser ignores
+    it."""
     sheet = """@import "./base.css";
 @supports (display: grid) { @import "./ignored.css"; @import url(./ignored.css); }
 main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
@@ -377,9 +379,10 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
 
     artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     captured = artifact.resources["/page/style.css"]
-    assert {
-        path for path in artifact.resources if path.startswith("/page/")
-    } == expected | {"/page/style.css"}
+    assert (
+        set(resource_dependencies("/page/style.css", captured.data, captured.mime))
+        == expected
+    )
 
     delivered = deliver_resource(captured, "/page/style.css", ADDRESS).data.decode()
     assert {path for path in expected if f'"{ROOT}{path}"' in delivered} == expected

@@ -803,6 +803,10 @@ _TEXT = {
     "css-syntax": lambda at, v: (
         f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
     ),
+    "css-dropped": lambda at, v: (
+        f"{v['sheet']} syntax error at {v['row']}:{v['column']}, a declaration or"
+        f" rule a browser drops without a word: {v['message']}"
+    ),
     "unserved-media": lambda at, v: (
         f"{v['ref']} isn't a name `leaf page media` gives, so the page never serves it"
     ),

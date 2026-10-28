@@ -14,7 +14,7 @@ from leaf.structure import (
     allocation_valid,
     links_with_rel,
 )
-from leaf.styles import authored_sheets, css_syntax_errors
+from leaf.styles import authored_sheets, dropped_css
 
 
 def found_at(code: str, rec: dict, id: str = "", **values) -> Finding:
@@ -200,45 +200,26 @@ def fragment_style_errors(parser: SourceDocument) -> list[Finding]:
     return errors + authored_allocation_errors(parser)
 
 
-def presentation_errors(parser: SourceDocument) -> list[Finding]:
-    """Every syntax error in the CSS a document writes, each <style> and each style
-    attribute: Chrome drops a malformed rule without a word, so the author hears of
-    it here or not at all. Each door a document enters by asks it, so delivery,
-    which can't re-address a sheet holding one (`revision_artifact.rewrite_css`),
-    never meets one; a stylesheet file is the capture's to read
-    (`revision_artifact.resource_dependencies`)."""
+def dropped_styles(parser: SourceDocument) -> list[Finding]:
+    """Each declaration or rule a browser drops from the CSS a document writes, each
+    <style> and each style attribute (`styles.dropped_css`): Chrome drops it without
+    a word, so the author hears of it here or not at all. What delivery's reader
+    can't read at all is the capture's to refuse, or for a message the gate's
+    (`revision_artifact.uncaptured_errors`)."""
     return [
         error
         for css, sheet, block in authored_sheets(parser.authoring)
-        for error in css_syntax_errors(css, sheet, block=block)
+        for error in dropped_css(css, sheet, block=block)
     ]
-
-
-def media_errors(parser: SourceDocument, page_dir: Path) -> list[Finding]:
-    """A /media/ reference in message markup the page directory can't answer, which
-    renders as a broken image. The render gate would catch it as a 404, but that runs
-    once a page; this runs as the markup comes through, and a missing file is as
-    deterministic as a missing id.
-
-    A version asks the same of every file it reads as it captures them
-    (`revision_artifact.capture_local_resource`). A reply asks here, because a widget
-    carrying pictures is exactly the shape an agent sends in one — here is what it
-    looks like now, and after — and a reply is frozen in an append-only log the moment
-    it is accepted, so an unanswerable reference posted there is two broken images
-    for as long as the page exists, and no later check would ever mention them.
-
-    Asked at the door rather than in the vocabulary contract, for the reason
-    `check_markup` gives where that choice is made."""
-    return unanswered_media(parser.authoring.media_refs, page_dir)
 
 
 def text_media_errors(text: str, page_dir: Path) -> list[Finding]:
     """The same reference in a message's Markdown, which is the other way one arrives.
 
-    Markup names a picture in an attribute, where the parsed reading above finds it;
-    a message names one as a Markdown destination, which that reading cannot see — so
-    an agent sending a screenshot, the very shape `media_errors` was written for, came
-    through the one door that never asked. `check_markup` runs only when `--markup` is
+    Markup names a picture in an attribute or a stylesheet, where the parsed reading
+    finds it (`revision_artifact.uncaptured_errors`); a message names one as a
+    Markdown destination, which that reading cannot see — so an agent sending a
+    screenshot came through the one door that never asked. `check_markup` runs only when `--markup` is
     given, and text on its own reached the log unread.
 
     A reference is a rendered link or image destination, never a scan of the words.

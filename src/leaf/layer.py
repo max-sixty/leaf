@@ -229,14 +229,19 @@ def _stylesheet(source: Path, root: Path, opened: tuple[Path, ...]) -> str:
     """`stylesheet`, inside the imports of `opened`."""
     import tinycss2
 
-    from .styles import css_stylesheet, css_syntax_errors
+    from .revision_artifact import css_syntax_errors
+    from .styles import css_stylesheet
 
     opened = (*opened, source.resolve())
     try:
         css = source.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         raise Refused(f"{source} must be UTF-8")
-    if errors := css_syntax_errors(css, str(source)):
+    if errors := [
+        error
+        for error in css_syntax_errors(css, str(source))
+        if error.severity == "error"
+    ]:
         raise Refused(str(errors[0]))
     parts = []
     for node in css_stylesheet(css):

@@ -173,7 +173,7 @@ def test_inspection_does_not_report_missing_styles_as_zero(page_dir):
     style = next(
         source for source in partial["css"]["sources"] if source["kind"] == "style"
     )
-    assert style["syntax_errors"][0]["code"] == "css-syntax"
+    assert style["syntax_errors"][0]["code"] == "css-dropped"
     assert partial["css"]["coverage"][-1].startswith("CSS syntax errors")
     (page_dir / "index.html").write_text(
         leaf_page(

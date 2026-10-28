@@ -15,10 +15,18 @@ from leaf.layer import incompatible_layer
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import IncompatibleLayer, read_page_registry
-from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
+from leaf.revision_artifact import (
+    ArtifactError,
+    RevisionArtifact,
+    capture_artifact,
+    page_files,
+    resource_type,
+    uncaptured_errors,
+)
 from leaf.sample_content import initial_sample_events
 from leaf.schema import VENDORED_FILES
 from leaf.structure import SourceDocument
+from leaf.styles import dropped_css
 from leaf.thread_context import thread_ids, thread_names, thread_structure
 from leaf.validation.instances import (
     instance_errors,
@@ -28,10 +36,9 @@ from leaf.validation.instances import (
 from leaf.validation.markup import (
     authored_allocation_errors,
     document_declaration_errors,
+    dropped_styles,
     id_errors,
-    media_errors,
     page_boundary_errors,
-    presentation_errors,
     structure_errors,
     unpointable_blocks,
 )
@@ -49,8 +56,10 @@ class SourceCheck(NamedTuple):
 
     `reading` is the document under `registry` (none where the page has no
     vocabulary), read once for the whole check; the revision activation writes from
-    it adopts it (`revision_artifact.write_artifact`). `advice` names the threads
-    the revision would relocate; `source_advice` reads the source's other drift."""
+    it adopts it (`revision_artifact.write_artifact`). `errors` holds what refuses
+    the source and `notes` what the check found at a lesser severity, which
+    `source_advice` reports. `advice` names the threads the revision would
+    relocate; `source_advice` reads the source's other drift."""
 
     reading: SourceReading
     registry: dict | None
@@ -59,6 +68,7 @@ class SourceCheck(NamedTuple):
     artifact: RevisionArtifact | None = None
     reanchors: dict | None = None
     revision: PredecessorReading = NO_PREDECESSOR
+    notes: tuple[Finding, ...] = ()
 
     @property
     def document(self) -> SourceDocument:
@@ -129,14 +139,15 @@ def _authored_document_checks(
 ):
     """The same authored-page gate for the root and each isolated child document.
 
-    The files a document names are the capture's to refuse
-    (`revision_artifact.capture_artifact`), or, for a message no capture reads,
-    `message_sample_media_errors`'s."""
+    What the capture refuses in a document, the stylesheets it can't read and the
+    files the page can't answer, is its own to report
+    (`revision_artifact.capture_artifact`), or for a message no capture reads,
+    `uncaptured_sample_errors`'s."""
     errors = _document_errors(page_dir, document)
     errors.extend(_instance_errors(events, document, registry, thread_ids))
     if registry is not None:
         errors.extend(data_document_errors(readings))
-    errors.extend(presentation_errors(document))
+    errors.extend(dropped_styles(document))
     return errors
 
 
@@ -196,13 +207,10 @@ def sample_errors(
     return errors
 
 
-def message_sample_media_errors(
-    page_dir: Path, holder: SourceDocument
-) -> list[Finding]:
-    """Each /media/ file the page won't answer that a live sample child of the
-    message `holder` names, or a child of one. A page's own children are captured
-    with it, which refuses such a file (`revision_artifact.capture_local_resource`);
-    no capture reads a message, which is frozen in the log once admitted."""
+def uncaptured_sample_errors(page_dir: Path, holder: SourceDocument) -> list[Finding]:
+    """What a capture would refuse (`revision_artifact.uncaptured_errors`) in each
+    live sample child of the message `holder`, or a child of one. A page's own
+    children are captured with it; no capture reads a message."""
     errors = []
     pending = [(holder, ())]
     for declaring, outer in pending:
@@ -211,9 +219,26 @@ def message_sample_media_errors(
             pending.append((sample["document"], samples))
             errors.extend(
                 error.but(samples=samples)
-                for error in media_errors(sample["document"], page_dir)
+                for error in uncaptured_errors(sample["document"], page_dir)
             )
     return errors
+
+
+def _page_file_drops(page_dir: Path) -> list[Finding]:
+    """Each declaration or rule a browser drops from a stylesheet under `page/`
+    (`styles.dropped_css`), as the document's own sheets get from
+    `_authored_document_checks`. What delivery's reader can't read in one, or a file
+    that isn't UTF-8, the capture refuses."""
+    found = []
+    for path in page_files(page_dir):
+        if resource_type(path) != "text/css":
+            continue
+        try:
+            css = (page_dir / path.lstrip("/")).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        found.extend(dropped_css(css, path))
+    return found
 
 
 def moved_threads(
@@ -269,6 +294,7 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
     parser = checked.document
     stored_data = read_data(page_dir, checked.registry)
     return [
+        *checked.notes,
         *measurement_lag(parser.lf_elements, checked.registry or {}, stored_data),
         *(
             Finding(
@@ -284,7 +310,10 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
 
 
 def check_source(page_dir: Path, events: list) -> SourceCheck:
-    """Validate current source declarations and derive automatic anchor moves."""
+    """Validate current source declarations and derive automatic anchor moves.
+
+    Each finding's severity decides whether it refuses the source (`errors`) or is
+    reported beside it (`notes`)."""
     data, source_error = _source_bytes(page_dir)
     if source_error:
         return SourceCheck(EMPTY_READING, None, [source_error], [])
@@ -341,10 +370,15 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
             )
         except ArtifactError as error:
             errors.extend(error.findings)
-        if errors:
-            artifact = None
+    errors.extend(_page_file_drops(page_dir))
+    notes = tuple(error for error in errors if error.severity != "error")
+    errors = [error for error in errors if error.severity == "error"]
+    if errors:
+        artifact = None
     revision = predecessor_reading(page_dir, data, events, artifact)
     reanchors, advice = revision_reanchors(
         events, reading, revision, candidate_revision=revision.candidate
     )
-    return SourceCheck(reading, registry, errors, advice, artifact, reanchors, revision)
+    return SourceCheck(
+        reading, registry, errors, advice, artifact, reanchors, revision, notes
+    )

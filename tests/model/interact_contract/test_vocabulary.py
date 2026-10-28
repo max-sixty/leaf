@@ -575,14 +575,14 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     """A revision's vocabulary was validated when it activated, so a process reading
     the page anew does not validate it again while it stands unchanged, and no check
     parses the vendored sheets: together they were most of a cold first read."""
-    from leaf import revision_artifact, styles
-    from leaf.validation import markup
+    from leaf import styles
+    from leaf.validation import markup, source
 
     (page_dir / "index.html").write_text(styled("main { color: red; }"))
     assert revisioning_model.activate_source(page_dir).error is None
     validated, linted = [], []
     real_validate = registry_page.validate_registry
-    real_lint = styles.css_syntax_errors
+    real_lint = styles.dropped_css
     monkeypatch.setattr(
         registry_page,
         "validate_registry",
@@ -590,11 +590,11 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
             validated.append(source) or real_validate(registry, source)
         ),
     )
-    # The source check reads the document's CSS and the capture each file's.
-    for reader in (markup, revision_artifact):
+    # The source check reads the document's sheets and each file under page/.
+    for reader in (markup, source):
         monkeypatch.setattr(
             reader,
-            "css_syntax_errors",
+            "dropped_css",
             lambda css, where, **kw: (
                 linted.append(where) or real_lint(css, where, **kw)
             ),

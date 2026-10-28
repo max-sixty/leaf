@@ -71,7 +71,7 @@ from leaf.structure import (
     links_with_rel,
     script_kind,
 )
-from leaf.styles import authored_sheets, css_syntax_errors
+from leaf.styles import authored_sheets, dropped_css
 from leaf.validation.markup import unanswered_media
 
 PUBLIC_MODULES = (
@@ -369,9 +369,8 @@ def _is_stylesheet_url(url: str) -> bool:
 
 def _css_references(tokens, refused: list[Finding], invalid: list):
     """Yield each token in parsed CSS whose value is a URL the stylesheet loads, add
-    each one it refuses to `refused`, and each parse error to `invalid`. A parse error
-    is the sheet's syntax check's to report (`css_dependencies` says whose), so it
-    isn't refused here.
+    each one it refuses to `refused`, and each parse error to `invalid`, which
+    `_read_css` reports as the sheet's syntax error rather than a refused URL.
 
     Those are a `url()` in either spelling, a string argument of `image-set()`, and
     the string form of a top-level `@import`. An `@import` nested in a block is
@@ -394,10 +393,12 @@ def _css_references(tokens, refused: list[Finding], invalid: list):
             yield token
         elif token.type == "function" and token.lower_name == "url":
             values = _css_meaningful(token.arguments)
-            if len(values) != 1 or values[0].type != "string":
-                refused.append(_capture_finding("css-url"))
-            else:
+            if len(values) == 1 and values[0].type == "string":
                 yield values[0]
+            # A parse error among its arguments is the sheet's syntax error, which
+            # the walk into them below records, so the url() isn't refused too.
+            elif not any(value.type == "error" for value in values):
+                refused.append(_capture_finding("css-url"))
         elif token.type == "function" and token.lower_name in {
             "image-set",
             "-webkit-image-set",
@@ -437,8 +438,10 @@ def _parse_css(source: str, declarations: bool):
 class _CssReading:
     """One stylesheet's parse, kept as its serialization around the URLs it loads.
 
-    `refused` holds what the walk refused, which no address can deliver, and `valid`
-    is False where the parse holds an error, which none can deliver either.
+    `refused` holds what the walk refused, which no address can deliver, and
+    `invalid` each syntax error in the parse, which none can deliver either: this
+    reader is the one judge of what a sheet must not hold, and `styles.dropped_css`
+    reports only what it reads but a browser drops.
     `references` holds each URL token as `_css_references` finds it, as its value,
     its written representation and its type. `segments` is the serialized sheet
     split around them, one more segment than references, or None where the split
@@ -453,7 +456,7 @@ class _CssReading:
     segments: tuple[str, ...] | None
     order: tuple[int, ...] = ()
     refused: tuple[Finding, ...] = ()
-    valid: bool = True
+    invalid: tuple[Finding, ...] = ()
 
 
 # Delimits each URL in a sheet's serialization while `_read_css` splits it. Private
@@ -486,7 +489,24 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
         or any(mark in source for mark in _CSS_MARK)
         or len(set(map(id, found))) != len(found)
     ):
-        return _CssReading(references, None, refused=tuple(refused), valid=not invalid)
+        return _CssReading(
+            references,
+            None,
+            refused=tuple(refused),
+            invalid=tuple(
+                {
+                    (node.source_line, node.source_column, node.message): Finding(
+                        "css-syntax",
+                        values={
+                            "row": node.source_line,
+                            "column": node.source_column,
+                            "message": node.message,
+                        },
+                    )
+                    for node in invalid
+                }.values()
+            ),
+        )
     for index, token in enumerate(found):
         token.representation = f"{_CSS_MARK[0]}{index}{_CSS_MARK[1]}"
     import tinycss2
@@ -506,19 +526,53 @@ def css_dependencies(
     declarations: bool = False,
     refused: list[Finding] | None = None,
 ) -> tuple[str, ...]:
-    """The URLs a stylesheet loads, collecting each it refuses as `javascript_imports`
-    does. `sheet` names the stylesheet as its author finds it: a file's path, the
+    """The URLs a stylesheet loads, collecting what delivery's reader can't read in
+    it as `javascript_imports` does: each syntax error, and each URL no address can
+    deliver. `sheet` names the stylesheet as its author finds it: a file's path, the
     page's <style>, or one element's style attribute. The parse is shared by every
     sheet with the same text (`_read_css`), so a refusal of the text is told its
-    sheet here. Its syntax is checked by whoever reads the sheet: the source check
-    for a document's own (`validation.source`), `resource_dependencies` for a file."""
+    sheet here."""
     reading = _read_css(source, declarations)
-    problems = [finding.but(values={"file": sheet}) for finding in reading.refused]
+    problems = [
+        *(finding.but(values={"sheet": sheet}) for finding in reading.invalid),
+        *(finding.but(values={"file": sheet}) for finding in reading.refused),
+    ]
     if refused is not None:
         refused.extend(problems)
     elif problems:
         raise ArtifactError(problems)
     return tuple(value for value, _, _ in reading.references)
+
+
+def css_syntax_errors(
+    source: str, sheet: str, declarations: bool = False
+) -> list[Finding]:
+    """Every syntax error in a stylesheet: what delivery's reader can't read
+    (`css-syntax`), then what it reads but a browser drops (`styles.dropped_css`).
+    `sheet` names it as `css_dependencies` does."""
+    return [
+        *(
+            finding.but(values={"sheet": sheet})
+            for finding in _read_css(source, declarations).invalid
+        ),
+        *dropped_css(source, sheet, block=declarations),
+    ]
+
+
+def uncaptured_errors(document: SourceDocument, page_dir: Path) -> list[Finding]:
+    """What a capture would refuse in markup no capture reads, such as a message's,
+    which is frozen in the log once admitted: what delivery's reader can't read in
+    the stylesheets it writes (`css_dependencies`), and each `/media/` file it names
+    that the page won't answer (`unanswered_media`), in an attribute or a
+    stylesheet. A page's own markup the capture reads (`_capture_artifact`)."""
+    refused = []
+    media = set(document.authoring.media_refs)
+    for css, sheet, declarations in authored_sheets(document.authoring):
+        for specifier in css_dependencies(css, sheet, declarations, refused=refused):
+            path = _collect(refused, resolve_dependency, specifier, "/index.html")
+            if path is not None and path.startswith("/media/"):
+                media.add(path)
+    return [*refused, *unanswered_media(media, page_dir)]
 
 
 def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
@@ -534,11 +588,14 @@ def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
     from tinycss2.serializer import serialize_string_value
 
     reading = _read_css(source, declarations)
-    if reading.refused or not reading.valid:
+    if reading.refused or reading.invalid:
         raise ArtifactError(
             [
+                *(
+                    finding.but(values={"sheet": "stylesheet"})
+                    for finding in reading.invalid
+                ),
                 *reading.refused,
-                *css_syntax_errors(source, "stylesheet", block=declarations),
             ]
         )
     targets = {value: address(value) for value, _, _ in reading.references}
@@ -735,9 +792,9 @@ def resource_dependencies(
     path: str, data: bytes, mime: str, refused: list[Finding] | None = None
 ) -> tuple[str, ...]:
     """The local dependencies of an authored module or stylesheet, collecting each
-    reference it refuses as `javascript_imports` does, and each syntax error in a
-    stylesheet (`styles.css_syntax_errors`), whose rule a browser drops without a
-    word. A file that can't be read as text has no references to follow."""
+    reference it refuses as `javascript_imports` does, with what delivery's reader
+    can't read in a stylesheet (`css_dependencies`). A file that can't be read as
+    text has no references to follow."""
     problems = []
     edges = []
     if mime == "application/javascript" and path.startswith("/page/"):
@@ -751,7 +808,6 @@ def resource_dependencies(
         except UnicodeDecodeError:
             problems.append(_capture_finding("css-not-utf8", path))
         else:
-            problems.extend(css_syntax_errors(css, path))
             for specifier in css_dependencies(css, path, refused=problems):
                 edges.append(_collect(problems, resolve_dependency, specifier, path))
     if refused is not None:

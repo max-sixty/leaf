@@ -721,13 +721,16 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     field = open_compact_comment(page)
     bar = page.locator(".lf-fab-bar")
     assert bar.get_attribute("data-lf-placement") == "right-start"
-    assert bar.evaluate(
-        """async node => {
+    assert (
+        bar.evaluate(
+            """async node => {
           const {left, right} = node.getBoundingClientRect();
           return (await window.__lfWidgetApi())
             .shownWindow({gap: 8, across: {left, right}}).bottom;
         }"""
-    ) == foot
+        )
+        == foot
+    )
     resting = page.evaluate(SIDE_COMMENT)
     assert resting["bottom"] < foot - 20, (resting, foot)
     write(field, "\n".join(f"Line {n}" for n in range(6)))

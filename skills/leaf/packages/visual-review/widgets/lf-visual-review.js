@@ -132,10 +132,19 @@ customElements.define(
       this.#buildLayout();
       whileConnected(this, (signal) => {
         this.#sizes = sizeObserver(this.#scheduleEvidenceLayout);
+        // A native disclosure changes its open attribute in the input's task. Fit
+        // the pair at that task's microtask checkpoint, before resize delivery:
+        // fitting in the size observer resizes evidence other owners already read.
+        const inspection = new MutationObserver(() => this.#paintEvidenceLayout());
+        inspection.observe(this.#inspector, {
+          attributes: true,
+          attributeFilter: ["open"],
+        });
         // The first connection binds once its first draw has made the evidence.
         if (this.#evidenceHost) this.#bindEvidence();
         window.addEventListener("resize", this.#scheduleEvidenceLayout, { signal });
         return () => {
+          inspection.disconnect();
           this.#sizes.disconnect();
           this.#sizes = null;
           this.#stopEvidence();

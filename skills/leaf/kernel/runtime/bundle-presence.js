@@ -5,6 +5,7 @@ import {
 import {
   LAYOUT,
   PAGE_PAINT_ATTRIBUTE,
+  announceScroll,
   landingBand,
   pagePresented,
   reportPageError,
@@ -14,7 +15,8 @@ import {
   shownRect,
   skipped,
   userScrollport,
-  watchOwner
+  watchOwner,
+  watchScrolls
 } from "./bundle-page-paint.js";
 import {
   applicationPresented
@@ -298,11 +300,14 @@ var scrollLimit = (box) => Math.max(0, box.scrollHeight - box.clientHeight);
 var SCROLL_SLACK = 2;
 var atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= SCROLL_SLACK;
 var scrollToEnd = (box, behavior = "instant") => {
+  const before = box.scrollTop;
   if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
   box.scrollTo({ top: box.scrollHeight, behavior });
+  if (behavior === "instant" && box.scrollTop !== before) announceScroll(box);
 };
 var aims = /* @__PURE__ */ new WeakMap();
 var moveScrollerBy = (box, top, behavior = "instant") => {
+  const before = box.scrollTop;
   const aim = box.scrollTop + top;
   if (Math.abs(top) >= 0.5) {
     if (behavior !== "instant" && reachable(box, top)) startScroll(box);
@@ -311,6 +316,7 @@ var moveScrollerBy = (box, top, behavior = "instant") => {
   if (behavior === "instant" && Math.abs(aim - box.scrollTop) < 1)
     aims.set(box, { aim, at: box.scrollTop });
   else aims.delete(box);
+  if (behavior === "instant" && box.scrollTop !== before) announceScroll(box);
 };
 var aimedTop = (box) => {
   const kept2 = aims.get(box);
@@ -351,32 +357,28 @@ function returnStop(el, authored) {
 }
 var sideways = /* @__PURE__ */ new Set();
 var downwards = /* @__PURE__ */ new Set();
-var readingScrolled = (event) => paintReadingReach(event.currentTarget);
-var sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget);
+watchScrolls((box) => {
+  if (downwards.has(box)) paintReadingReach(box);
+  if (sideways.has(box)) paintSidewaysReach(box);
+});
 function reachReadingScroller(el) {
   downwards.add(el);
   watchReach(el);
-  el.addEventListener("scroll", readingScrolled, { passive: true });
   paintReadingReach(el);
   return () => {
     downwards.delete(el);
     if (!watched(el)) unwatchReach(el);
-    el.removeEventListener("scroll", readingScrolled);
     afterScript(() => {
       if (!downwards.has(el)) keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
     });
   };
 }
 var readingPaints = /* @__PURE__ */ new Set();
-var readingPaintQueued = false;
 function paintReadingReach(el) {
   readingPaints.add(el);
-  if (readingPaintQueued) return;
-  readingPaintQueued = true;
-  nextRender(paintReadingReachNow);
+  afterScript(paintReadingReachNow);
 }
 function paintReadingReachNow() {
-  readingPaintQueued = false;
   const pending = [...readingPaints];
   readingPaints.clear();
   for (const el of pending) {
@@ -449,7 +451,6 @@ function classify(el, style) {
   if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX) && !sideways.has(el)) {
     sideways.add(el);
     watchReach(el);
-    el.addEventListener("scroll", sidewaysScrolled, { passive: true });
   }
   if (!mayScroll.has(el)) {
     if (el.tabIndex >= 0 && !claimedStops.has(el)) return;
@@ -519,7 +520,7 @@ function paintSidewaysReach(el) {
 function gone(el) {
   if (el.isConnected) return false;
   mayScroll.delete(el);
-  if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
+  sideways.delete(el);
   downwards.delete(el);
   waiting.delete(el);
   if (queried.delete(el)) queries.unobserve(el);

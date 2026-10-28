@@ -12,7 +12,7 @@
 import { growthIsSeen, whenNone } from "../geometry.js";
 import { atLayoutPrecision, layoutPx } from "../keeps.js";
 import { TEXT_FIELD } from "../control-selectors.js";
-import { nextRender, sizeObserver } from "../rendering.js";
+import { sizeObserver } from "../rendering.js";
 import { placeKeeper } from "../user-place.js";
 import { scrollerFor } from "../reading-regions.js";
 import { offFlowSurfaceOf } from "../off-flow.js";
@@ -29,7 +29,6 @@ export class ReplyContinuity {
   // The writing areas a presentation changes, each with its height before it.
   #presenting = [];
   #writing = null;
-  #measure = null;
   #sizes = sizeObserver((entries) => {
     const writing = this.#writing;
     if (
@@ -38,21 +37,17 @@ export class ReplyContinuity {
         ({ target, borderBoxSize }) =>
           target === writing.input &&
           atLayoutPrecision(borderBoxSize[0].inlineSize) !== writing.width,
-      ) ||
-      this.#measure != null
+      )
     )
       return;
     // A new inline measure changes wrapping, independently of the draft's value.
-    // Reallocate through the rendering pass, outside ResizeObserver delivery.
-    this.#measure = nextRender(() => {
-      this.#measure = null;
-      if (this.#writing !== writing) return;
-      if (!this.#visible()) return this.#releaseSpace();
-      writing.width = atLayoutPrecision(
-        parseFloat(getComputedStyle(writing.input).inlineSize),
-      );
-      this.#allocateWriting(writing.input, layoutPx(writing.input.naturalBlockSize));
-    });
+    // Retain its new intrinsic room before this layout paints; a later frame
+    // would temporarily turn the newly wrapped words into overflowing content.
+    if (!this.#visible()) return this.#releaseSpace();
+    writing.width = atLayoutPrecision(
+      parseFloat(getComputedStyle(writing.input).inlineSize),
+    );
+    this.#allocateWriting(writing.input, layoutPx(writing.input.naturalBlockSize));
   });
   gap = document.createElement("div");
   constructor(owner) {

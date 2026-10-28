@@ -376,8 +376,23 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
             resting,
             edited,
         )
+    editor.evaluate("""input => {
+      const width = input.getBoundingClientRect().width;
+      window.firstReplyResize = null;
+      const observer = new ResizeObserver(() => {
+        if (input.getBoundingClientRect().width === width) return;
+        firstReplyResize = {
+          room: parseFloat(input.style.getPropertyValue('--lf-reply-writing-room')),
+          natural: input.naturalBlockSize,
+        };
+        observer.disconnect();
+      });
+      observer.observe(input);
+    }""")
     page.set_viewport_size({"width": 1600, "height": 1100})
     rendered(page)
+    first_resize = page.evaluate("firstReplyResize")
+    assert first_resize["room"] == pytest.approx(first_resize["natural"], abs=0.5)
     widened = reply_editing_pose(editor)
     assert widened["height"] < edited["height"] - 20, (edited, widened)
     page.keyboard.insert_text("?")

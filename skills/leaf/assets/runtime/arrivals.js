@@ -267,20 +267,22 @@ export function watchArrivalsIn(stage) {
 // inside a shadow stage reaches no listener outside it. Each stage hears its own
 // scrollers for every listener, through one listener of its own that holds nothing but
 // the stage, and only its own, since one slotted into it from the document reaches the
-// document too.
+// document too. Listeners receive the scroller itself. Leaf's instant scroll writes
+// announce their completed position here too: a write in resize delivery paints before
+// the browser sends its scroll event, so dependent paint cannot wait on that event.
 const scrollListeners = new Set();
 const SCROLL = { capture: true, passive: true };
+export function announceScroll(box) {
+  for (const listener of scrollListeners) listener(box);
+}
 const heardIn = (stage) => (event) => {
   if (event.target.getRootNode() !== stage) return;
-  for (const listener of scrollListeners) listener(event);
+  announceScroll(event.target === document ? document.scrollingElement : event.target);
 };
+document.addEventListener("scroll", heardIn(document), SCROLL);
 export function watchScrolls(listener) {
   scrollListeners.add(listener);
-  document.addEventListener("scroll", listener, SCROLL);
-  return () => {
-    scrollListeners.delete(listener);
-    document.removeEventListener("scroll", listener, SCROLL);
-  };
+  return () => scrollListeners.delete(listener);
 }
 
 // Whether a scroll is in flight anywhere in the page, from its first frame until it

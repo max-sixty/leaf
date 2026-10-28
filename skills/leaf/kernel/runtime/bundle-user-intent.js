@@ -111,6 +111,7 @@ import {
   admitResponse,
   adoptRegistry,
   announce,
+  announceScroll,
   bindings,
   checked,
   clampedRow,
@@ -476,8 +477,11 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
 
 // runtime/landing-scroll.js
 var land = (box, by, behavior) => {
+  const { scrollTop, scrollLeft } = box;
   if (behavior !== "instant") startScroll(box);
   box.scrollBy({ ...by, behavior });
+  if (behavior === "instant" && (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft))
+    announceScroll(box);
 };
 function scrollMargin(where, side = "Top") {
   if (!(where instanceof Range))
@@ -5783,22 +5787,17 @@ var ReplyContinuity = class {
   // The writing areas a presentation changes, each with its height before it.
   #presenting = [];
   #writing = null;
-  #measure = null;
   #sizes = sizeObserver((entries) => {
     const writing = this.#writing;
     if (!writing || !entries.some(
       ({ target, borderBoxSize }) => target === writing.input && atLayoutPrecision(borderBoxSize[0].inlineSize) !== writing.width
-    ) || this.#measure != null)
+    ))
       return;
-    this.#measure = nextRender(() => {
-      this.#measure = null;
-      if (this.#writing !== writing) return;
-      if (!this.#visible()) return this.#releaseSpace();
-      writing.width = atLayoutPrecision(
-        parseFloat(getComputedStyle(writing.input).inlineSize)
-      );
-      this.#allocateWriting(writing.input, layoutPx(writing.input.naturalBlockSize));
-    });
+    if (!this.#visible()) return this.#releaseSpace();
+    writing.width = atLayoutPrecision(
+      parseFloat(getComputedStyle(writing.input).inlineSize)
+    );
+    this.#allocateWriting(writing.input, layoutPx(writing.input.naturalBlockSize));
   });
   gap = document.createElement("div");
   constructor(owner) {

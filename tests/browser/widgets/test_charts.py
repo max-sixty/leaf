@@ -368,7 +368,22 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     assert held > 0, "the chart holds no word of the runtime's"
 
     # Narrower than the column, which is where the room actually changes: the column is
-    # capped, so a wider window leaves a chart exactly where it was.
+    # capped, so a wider window leaves a chart exactly where it was. Read during resize
+    # delivery, before paint: waiting for settlement would hide one frame of shrunken
+    # labels from an SVG still drawn for the preceding width.
+    page.evaluate("""() => {
+        window.chartResizeReadings = [];
+        window.chartResizeWatch = new ResizeObserver(entries => {
+            for (const {target} of entries) {
+                const svg = target.querySelector('svg[role=img]');
+                chartResizeReadings.push({
+                    room: Math.round(target.clientWidth),
+                    width: Number(svg.getAttribute('width')),
+                });
+            }
+        });
+        chartResizeWatch.observe(document.getElementById('c-bars'));
+    }""")
     resized(page, 620, 900)
     page.wait_for_function(
         """(id) => {
@@ -380,6 +395,12 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     )
     after = page.evaluate(CHART_MARKS, "c-bars")
     assert after["room"] < before["room"], (before, after)
+    readings = page.evaluate("""() => {
+        chartResizeWatch.disconnect();
+        return chartResizeReadings;
+    }""")
+    assert any(reading["room"] == after["room"] for reading in readings), readings
+    assert all(reading["width"] == reading["room"] for reading in readings), readings
     # The painted box of a tick label, not its computed font-size: a drawing scaled by its
     # viewBox keeps the same computed size and renders smaller, so the property this test
     # is about is invisible to the one reading and plain in the other.
@@ -420,8 +441,8 @@ def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
     assert box["height"] == 240, box
     assert box["legends"], box
     assert box["svg"] == box["drawing"] == box["bottom"], box
-    # Until it is drawn again for a narrower room, a frame later, the drawing keeps its
-    # height: scaled with the width, it would move everything below it for that frame.
+    # The drawing keeps its height even before resize delivery redraws it, so measuring
+    # the new room cannot move everything below the chart.
     narrowed = page.evaluate(
         """() => {
             const el = document.getElementById('c-tall');

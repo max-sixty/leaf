@@ -18,10 +18,9 @@
   }
 }
 /* Plot's own style sheets are defaults in lf-base. These adapter rules supply
- * the page face and paper; an author's Plot style options remain inline. A drawing
- * keeps the height it was drawn at until its redraw for a new width lands a frame
- * later: Plot's sheet scales the height with the width, which would move everything
- * below the chart for that frame, under whatever measured the page then. */
+ * the page face and paper; an author's Plot style options remain inline. The stated
+ * drawing height stays fixed while its width changes, so measuring the room for a
+ * redraw never scales the drawing's height or moves what follows the chart. */
 :scope:is(lf-chart) .lf-chart-drawing svg {
   display: block;
   font: inherit;

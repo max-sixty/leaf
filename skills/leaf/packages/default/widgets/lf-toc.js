@@ -184,7 +184,10 @@ customElements.define(
       // each kind of scroller.
       const scrollSource =
         this.#scroller === document.scrollingElement ? document : this.#scroller;
-      this.#watching = sizeObserver(() => this.#scheduleMeasure());
+      // A size delivery already has this frame's layout. The map writes only to
+      // itself, so measure now: queuing a frame would paint the changed document
+      // beside the previous section lengths and viewport lens.
+      this.#watching = sizeObserver(() => this.#measure());
       this.#watching.observe(this.#main);
       this.#renamed = new MutationObserver(() => {
         this.#reconcile();

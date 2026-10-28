@@ -231,6 +231,18 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert contained["framesBottom"] <= contained["bodyBottom"] + 0.5, contained
     assert 0.7 * 350 < contained["image"] < 350, contained
     assert contained["page"] <= 0, contained
+    # Opening the inspector takes space from the pair in this rendering update.
+    # A settled read would miss a frame with its bottom cut off by the pane.
+    widget.evaluate("""node => {
+        window.evidenceFits = [];
+        window.evidenceSize = new ResizeObserver(() => {
+            const bottom = node.querySelector('.lf-vr-cases').getBoundingClientRect().bottom;
+            evidenceFits.push([...node.querySelectorAll(
+                '.lf-vr-case[data-selected] .lf-shotframe')]
+                .every(frame => frame.getBoundingClientRect().bottom <= bottom + 0.5));
+        });
+        evidenceSize.observe(node.querySelector('.lf-vr-case[data-selected] .lf-vr-toolbar-slot'));
+    }""")
     widget.get_by_text("Inspect comparison", exact=True).click()
     page.wait_for_function(
         """node => {
@@ -242,6 +254,11 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     )
     opened = widget.evaluate(fit_reading)
     assert opened["image"] < contained["image"], opened
+    fits = page.evaluate("""() => {
+        evidenceSize.disconnect();
+        return evidenceFits;
+    }""")
+    assert fits and all(fits), fits
     widget.get_by_text("Inspect comparison", exact=True).click()
     page.wait_for_function(
         "(args) => args.node.querySelector('.lf-vr-case[data-selected] img')"

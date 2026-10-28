@@ -1163,17 +1163,17 @@ function watchArrivalsIn(stage) {
 }
 var scrollListeners = /* @__PURE__ */ new Set();
 var SCROLL = { capture: true, passive: true };
+function announceScroll(box) {
+  for (const listener of scrollListeners) listener(box);
+}
 var heardIn = (stage) => (event) => {
   if (event.target.getRootNode() !== stage) return;
-  for (const listener of scrollListeners) listener(event);
+  announceScroll(event.target === document ? document.scrollingElement : event.target);
 };
+document.addEventListener("scroll", heardIn(document), SCROLL);
 function watchScrolls(listener) {
   scrollListeners.add(listener);
-  document.addEventListener("scroll", listener, SCROLL);
-  return () => {
-    scrollListeners.delete(listener);
-    document.removeEventListener("scroll", listener, SCROLL);
-  };
+  return () => scrollListeners.delete(listener);
 }
 var SETTLE_MS = 80;
 var settleListeners = /* @__PURE__ */ new Set();
@@ -3441,6 +3441,7 @@ export {
   liveStages,
   watchArrivals,
   watchArrivalsIn,
+  announceScroll,
   watchScrolls,
   scrollGlides,
   scrolling,

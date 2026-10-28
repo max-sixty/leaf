@@ -1077,7 +1077,33 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
         tab = page.get_by_role("tab", name=name, exact=True)
         tab.click()
         tab.blur()
+    # Sample the first resized layout before paint, not the settled endpoint: the
+    # selected tab must never disappear for a frame as the column becomes a row.
+    page.evaluate("""() => {
+      window.firstStripResize = {};
+      const observer = new ResizeObserver(entries => {
+        for (const {target} of entries) {
+          const id = target.parentElement.id;
+          const strip = target.getBoundingClientRect();
+          if (innerWidth !== 390 || id in firstStripResize) continue;
+          const tab = target.querySelector('[aria-selected="true"]').getBoundingClientRect();
+          firstStripResize[id] = {left: tab.left - strip.left,
+            right: tab.right - strip.left, width: strip.width,
+            before: target.hasAttribute('data-lf-more-before'),
+            after: target.hasAttribute('data-lf-more-after')};
+        }
+      });
+      for (const id of ['framed', 'queue'])
+        observer.observe(document.querySelector(`#${id} > .lf-tabstrip`));
+      window.stripResizeObserver = observer;
+    }""")
     resized(page, 390, 844)
+    first_resize = page.evaluate("firstStripResize")
+    assert set(first_resize) == {"framed", "queue"}, first_resize
+    for box in first_resize.values():
+        assert box["left"] >= 0 and box["right"] <= box["width"], first_resize
+        assert box["before"] and not box["after"], first_resize
+    page.evaluate("stripResizeObserver.disconnect()")
     for strip in ("framed", "queue"):
         page.wait_for_function(shown, arg=[strip, 0])
 

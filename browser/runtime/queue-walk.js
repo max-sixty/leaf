@@ -549,7 +549,7 @@ export function createQueueWalk({
         keys: ["x"],
         title: "done",
         exit: true,
-        icon: "check",
+        action: "done",
         when: () => Boolean(doneTodo()),
         run: () => {
           const todo = doneTodo();

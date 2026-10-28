@@ -1,7 +1,7 @@
 /* Thread reaction projection and its synchronous Lit owner. The controller
    registers template-owned controls and owns only disclosure, keyboard and focus. */
 import { html, render, repeat } from "/runtime/framework.js";
-import { iconTemplate } from "../icons.js";
+import { actionTemplate } from "../icons.js";
 import { HOLDS_WORD } from "../held-word.js";
 import { offered } from "../widget-elements.js";
 
@@ -32,7 +32,7 @@ export class ReactionStripView {
           title="Add reaction"
           @click=${() => this.#registration.toggle()}
         >
-          ${iconTemplate("reaction", "lf-msg-control-icon")}
+          ${actionTemplate("react", "lf-msg-control-icon")}
         </button>
         <span
           class="lf-react-palette"

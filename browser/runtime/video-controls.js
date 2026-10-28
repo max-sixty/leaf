@@ -53,7 +53,7 @@ import {
 } from "./block-controls.js";
 import { headerLevels, nameable } from "./css-anchors.js";
 import { focusDestination, focused } from "./focus.js";
-import { iconTemplate } from "./icons.js";
+import { actionTemplate } from "./icons.js";
 import { keeps } from "./keeps.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { plainPress } from "./pointer.js";
@@ -101,7 +101,7 @@ export function paintRecordingControls(video, bar, enterFullScreen) {
         tabindex="-1"
         aria-label=${!video.paused ? "Pause recording" : "Play recording"}
       >
-        ${iconTemplate("play", "lf-video-icon")}${iconTemplate(
+        ${actionTemplate("play", "lf-video-icon")}${actionTemplate(
           "pause",
           "lf-video-icon",
         )}
@@ -128,7 +128,7 @@ export function paintRecordingControls(video, bar, enterFullScreen) {
               tabindex="-1"
               aria-label="Full screen"
             >
-              ${iconTemplate("expand", "lf-video-icon")}
+              ${actionTemplate("expand", "lf-video-icon")}
             </button>`
           : nothing
       }`,

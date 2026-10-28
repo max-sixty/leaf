@@ -67,6 +67,111 @@
     svg2.innerHTML = iconMarkup(icon);
     return svg2;
   }
+  var ACTIONS = {
+    accept: { name: "Accept", icon: "check" },
+    add: { name: "Add", icon: "add" },
+    arrange: { name: "Arrange", icon: "arrange" },
+    cancel: { name: "Cancel", icon: "cross" },
+    close: { name: "Close", icon: "cross" },
+    collapse: { name: "Collapse", icon: "collapse" },
+    comment: { name: "Comment", icon: "comment" },
+    copy: { name: "Copy", icon: "copy" },
+    "copy-link": { name: "Copy link", icon: "link" },
+    dictate: { name: "Dictate", icon: "microphone" },
+    discard: { name: "Discard", icon: "cross" },
+    done: { name: "Done", icon: "check" },
+    edit: { name: "Edit", icon: "edit" },
+    expand: { name: "Expand", icon: "expand" },
+    find: { name: "Find", icon: "search" },
+    "collapse-all": { name: "Collapse all", icon: "fold" },
+    "expand-all": { name: "Expand all", icon: "unfold" },
+    fit: { name: "Fit", icon: "fit" },
+    minimize: { name: "Minimize", icon: "subtract" },
+    more: { name: "More options", icon: "more" },
+    next: { name: "Next", icon: "next" },
+    // A find bar's steps run up and down its matches, as a browser's do.
+    "next-match": { name: "Next match", icon: "down" },
+    "on-me": { name: "On me", icon: "inbox" },
+    pause: { name: "Pause", icon: "pause" },
+    play: { name: "Play", icon: "play" },
+    previous: { name: "Previous", icon: "previous" },
+    "previous-match": { name: "Previous match", icon: "up" },
+    react: { name: "Add reaction", icon: "reaction" },
+    remove: { name: "Remove", icon: "cross" },
+    reject: { name: "Reject", icon: "cross" },
+    reopen: { name: "Reopen", icon: "check" },
+    reset: { name: "Reset", icon: "retry" },
+    resolve: { name: "Resolve", icon: "check" },
+    retry: { name: "Retry", icon: "retry" },
+    save: { name: "Save", icon: "save" },
+    send: { name: "Send", icon: "send" },
+    show: { name: "Show on page", icon: "locate" },
+    start: { name: "Start", icon: "start" },
+    suggest: { name: "Suggest", icon: "edit" },
+    undo: { name: "Undo", icon: "undo" },
+    "zoom-in": { name: "Zoom in", icon: "add" },
+    "zoom-out": { name: "Zoom out", icon: "subtract" }
+  };
+  var actionIcon = (action) => {
+    const named = ACTIONS[action];
+    if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
+    return named.icon;
+  };
+  var SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
+  function actionFace(role, label, action) {
+    if (!SYMBOLIC.has(role)) {
+      if (action !== void 0)
+        throw new TypeError(`A ${role} says its label and shows no action's symbol`);
+      return label;
+    }
+    if (action === void 0) throw new TypeError(`A ${role} names the action it shows`);
+    actionIcon(action);
+    return label ?? ACTIONS[action].name;
+  }
+  function showAction(control, action, className = "lf-action-icon") {
+    const icon = actionIcon(action);
+    const drawn = control.querySelector(":scope > svg[data-lf-icon]");
+    if (drawn?.getAttribute("data-lf-icon") === icon) return;
+    const symbol = iconElement(icon, className);
+    if (drawn) drawn.replaceWith(symbol);
+    else control.prepend(symbol);
+  }
+  var drawAction = (node, role, action) => showAction(node, action, role === "mark" ? "lf-mark-icon" : "lf-action-icon");
+  function actionOffers(base) {
+    const titled = (title) => title === void 0 ? void 0 : { title };
+    return {
+      /**
+       * @param {LeafActionRole} role @param {string} [className] @param {string} [label]
+       * @param {{title?: string, action?: string}} [options]
+       */
+      offerAction(role, className, label, { title, action } = {}) {
+        const node = base.offerAction(
+          role,
+          className,
+          actionFace(role, label, action),
+          titled(title)
+        );
+        if (SYMBOLIC.has(role)) drawAction(node, role, action);
+        return node;
+      },
+      /**
+       * @template {Element} T
+       * @param {T} node @param {LeafActionRole} role @param {string} [className]
+       * @param {string} [label] @param {{title?: string, action?: string}} [options]
+       */
+      offerActionElement(node, role, className, label, { title, action } = {}) {
+        base.offerActionElement(
+          node,
+          role,
+          className,
+          actionFace(role, label, action),
+          titled(title)
+        );
+        if (SYMBOLIC.has(role)) drawAction(node, role, action);
+        return node;
+      }
+    };
+  }
 
   // packages/playground/initial/lf-playground.js
   var own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
@@ -77,7 +182,9 @@
       (control) => belongsTo(host, control)
     )
   ];
-  function createPlayground(host, { tabStore, offerElement, offerActionElement, generatedElement }) {
+  function createPlayground(host, tools) {
+    const { tabStore, offerElement, generatedElement } = tools;
+    const { offerActionElement } = actionOffers(tools);
     const presets = own(host, "lf-playground-preset");
     const outputs = own(host, "lf-playground-output");
     const previews = own(host, "lf-playground-preview");
@@ -231,9 +338,13 @@
     });
     const inputOffer = offered((element) => offerElement(element, "lf-playground-input"));
     const radioOffer = offered((element) => offerElement(element, ""));
-    const action = (role, cls, label) => offered((element) => offerActionElement(element, role, cls, label));
-    const resetOffer = action("symbol", "lf-playground-reset", "Reset");
-    const revealOffer = action("symbol", "lf-playground-reveal", "Show instruction");
+    const action = (role, cls, label, options) => offered((element) => offerActionElement(element, role, cls, label, options));
+    const resetOffer = action("symbol", "lf-playground-reset", void 0, {
+      action: "reset"
+    });
+    const revealOffer = action("symbol", "lf-playground-reveal", "Show instruction", {
+      action: "more"
+    });
     const submitOffer = action("commit", "lf-playground-submit");
     const presetOffer = action("word", "lf-playground-preset");
     const nativeInputs = (control) => [
@@ -247,8 +358,6 @@
     );
     const instructionId = `${host.id}-instruction`;
     const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
-    const retryIcon = iconElement("retry", "lf-action-icon");
-    const moreIcon = iconElement("more", "lf-action-icon");
     const offline = Boolean(document.querySelector("script[data-lf-offline]"));
     const presetBar = () => !presets.length ? nothing : railed.length ? html`<header
             class="lf-playground-presets"
@@ -470,15 +579,13 @@
             aria-label="Instruction to agent"
           >
             <div class="lf-playground-actions">
-              <button ${resetOffer}>${retryIcon}</button>
+              <button ${resetOffer}></button>
               <button
                 ${revealOffer}
                 popovertarget=${instructionId}
                 aria-controls=${instructionId}
                 aria-expanded="false"
-              >
-                ${moreIcon}
-              </button>
+              ></button>
               <button ${submitOffer} data-room=${`${submitLabel}
 Undo choice`}>
                 <span data-lf-gen="1">${chosen() ? "Undo choice" : submitLabel}</span>

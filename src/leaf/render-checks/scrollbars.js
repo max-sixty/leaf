@@ -1,5 +1,5 @@
-/* Horizontal scrollbars must leave the words and controls at the end of their
- * content readable. macOS widens an overlay track to 15px under the pointer. The
+/* Horizontal scrollbars should leave the words and controls at the end of their
+ * content readable, which the gate reports as advice (readings.py, `swept_faults`). macOS widens an overlay track to 15px under the pointer. The
  * earlier code/table and opted-in widget spacers protect those layouts; this
  * reading asks the composed geometry, including unmarked and shadow scrollers.
  * It reads the content at its vertical end without scrolling or changing styles,

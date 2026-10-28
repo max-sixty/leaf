@@ -1,7 +1,7 @@
 /* The same synchronous Lit drawing owns the transport before first paint and while
  * playing. The authored body keeps its native nodes, media clocks and page styling. */
 import { html, live, ref, unsafeSVG } from "/vendor/lit.js";
-import { ICONS } from "../../../browser/runtime/icon-paths.js";
+import { ICONS, actionIcon } from "../../../browser/runtime/icon-paths.js";
 
 document.documentElement.lfInitial.register(
   "lf-motion",
@@ -19,6 +19,8 @@ document.documentElement.lfInitial.register(
       if (node) drawing[key] = offerElement(node, cls);
     };
     const controlsRef = offered("controls", "lf-motion-controls");
+    // The press takes only its face here: the template draws Play's or Pause's symbol
+    // as the clock runs, and says the clock's words as its name.
     const playRef = (node) => {
       if (node) drawing.play = offerActionElement(node, "symbol", "lf-motion-play");
     };
@@ -39,7 +41,7 @@ document.documentElement.lfInitial.register(
       >
         <button ${ref(playRef)} aria-label=${label} title=${label}>
           <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-            ${unsafeSVG(playing ? ICONS.pause : ICONS.play)}
+            ${unsafeSVG(ICONS[actionIcon(playing ? "pause" : "play")])}
           </svg>
         </button>
         <input

@@ -35,7 +35,7 @@ import { threadAttention } from "./thread/workflow.js";
 const RESTING_MARGIN_ENTRY_BUDGET = 2;
 // The options toggle's faces: More, or folded, the kind it folds (`clusterProjection`),
 // one each, so a view that painted a face knows it by identity.
-const TOGGLE = Object.freeze({ icon: "more", label: "More options" });
+const TOGGLE = Object.freeze({ action: "more", label: "More options" });
 const FOLDED = Object.freeze(
   Object.fromEntries(
     Object.entries(KINDS).map(([kind, { icon, label }]) => [

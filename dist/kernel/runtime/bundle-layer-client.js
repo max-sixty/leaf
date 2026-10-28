@@ -1476,6 +1476,216 @@ function iconElement(icon, className = "lf-margin-entry-icon") {
 	svg.innerHTML = iconMarkup(icon);
 	return svg;
 }
+const ACTIONS = {
+	accept: {
+		name: "Accept",
+		icon: "check"
+	},
+	add: {
+		name: "Add",
+		icon: "add"
+	},
+	arrange: {
+		name: "Arrange",
+		icon: "arrange"
+	},
+	cancel: {
+		name: "Cancel",
+		icon: "cross"
+	},
+	close: {
+		name: "Close",
+		icon: "cross"
+	},
+	collapse: {
+		name: "Collapse",
+		icon: "collapse"
+	},
+	comment: {
+		name: "Comment",
+		icon: "comment"
+	},
+	copy: {
+		name: "Copy",
+		icon: "copy"
+	},
+	"copy-link": {
+		name: "Copy link",
+		icon: "link"
+	},
+	dictate: {
+		name: "Dictate",
+		icon: "microphone"
+	},
+	discard: {
+		name: "Discard",
+		icon: "cross"
+	},
+	done: {
+		name: "Done",
+		icon: "check"
+	},
+	edit: {
+		name: "Edit",
+		icon: "edit"
+	},
+	expand: {
+		name: "Expand",
+		icon: "expand"
+	},
+	find: {
+		name: "Find",
+		icon: "search"
+	},
+	"collapse-all": {
+		name: "Collapse all",
+		icon: "fold"
+	},
+	"expand-all": {
+		name: "Expand all",
+		icon: "unfold"
+	},
+	fit: {
+		name: "Fit",
+		icon: "fit"
+	},
+	minimize: {
+		name: "Minimize",
+		icon: "subtract"
+	},
+	more: {
+		name: "More options",
+		icon: "more"
+	},
+	next: {
+		name: "Next",
+		icon: "next"
+	},
+	"next-match": {
+		name: "Next match",
+		icon: "down"
+	},
+	"on-me": {
+		name: "On me",
+		icon: "inbox"
+	},
+	pause: {
+		name: "Pause",
+		icon: "pause"
+	},
+	play: {
+		name: "Play",
+		icon: "play"
+	},
+	previous: {
+		name: "Previous",
+		icon: "previous"
+	},
+	"previous-match": {
+		name: "Previous match",
+		icon: "up"
+	},
+	react: {
+		name: "Add reaction",
+		icon: "reaction"
+	},
+	remove: {
+		name: "Remove",
+		icon: "cross"
+	},
+	reject: {
+		name: "Reject",
+		icon: "cross"
+	},
+	reopen: {
+		name: "Reopen",
+		icon: "check"
+	},
+	reset: {
+		name: "Reset",
+		icon: "retry"
+	},
+	resolve: {
+		name: "Resolve",
+		icon: "check"
+	},
+	retry: {
+		name: "Retry",
+		icon: "retry"
+	},
+	save: {
+		name: "Save",
+		icon: "save"
+	},
+	send: {
+		name: "Send",
+		icon: "send"
+	},
+	show: {
+		name: "Show on page",
+		icon: "locate"
+	},
+	start: {
+		name: "Start",
+		icon: "start"
+	},
+	suggest: {
+		name: "Suggest",
+		icon: "edit"
+	},
+	undo: {
+		name: "Undo",
+		icon: "undo"
+	},
+	"zoom-in": {
+		name: "Zoom in",
+		icon: "add"
+	},
+	"zoom-out": {
+		name: "Zoom out",
+		icon: "subtract"
+	}
+};
+const actionIcon = (action) => {
+	const named = ACTIONS[action];
+	if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
+	return named.icon;
+};
+const actionElement = (action, className) => iconElement(actionIcon(action), className);
+const SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
+function actionFace(role, label, action) {
+	if (!SYMBOLIC.has(role)) {
+		if (action !== void 0) throw new TypeError(`A ${role} says its label and shows no action's symbol`);
+		return label;
+	}
+	if (action === void 0) throw new TypeError(`A ${role} names the action it shows`);
+	actionIcon(action);
+	return label ?? ACTIONS[action].name;
+}
+function showAction(control, action, className = "lf-action-icon") {
+	const icon = actionIcon(action);
+	const drawn = control.querySelector(":scope > svg[data-lf-icon]");
+	if (drawn?.getAttribute("data-lf-icon") === icon) return;
+	const symbol = iconElement(icon, className);
+	if (drawn) drawn.replaceWith(symbol);
+	else control.prepend(symbol);
+}
+const drawAction = (node, role, action) => showAction(node, action, role === "mark" ? "lf-mark-icon" : "lf-action-icon");
+function actionOffers(base) {
+	const titled = (title) => title === void 0 ? void 0 : { title };
+	return {
+		offerAction(role, className, label, { title, action } = {}) {
+			const node = base.offerAction(role, className, actionFace(role, label, action), titled(title));
+			if (SYMBOLIC.has(role)) drawAction(node, role, action);
+			return node;
+		},
+		offerActionElement(node, role, className, label, { title, action } = {}) {
+			base.offerActionElement(node, role, className, actionFace(role, label, action), titled(title));
+			if (SYMBOLIC.has(role)) drawAction(node, role, action);
+			return node;
+		}
+	};
+}
 
 //#endregion
 //#region runtime/icons.js
@@ -1489,6 +1699,7 @@ function iconTemplate(icon, className = "lf-margin-entry-icon") {
     .innerHTML=${iconMarkup(icon)}
   ></svg>`;
 }
+const actionTemplate = (action, className) => iconTemplate(actionIcon(action), className);
 
 //#endregion
 //#region runtime/widget-elements.js
@@ -1588,12 +1799,10 @@ function elementDirective(name, write) {
 	});
 }
 const offered = elementDirective("offered", offerElement);
-const offerActionElement = (...args) => document.documentElement.lfInitial.offerActionElement(...args);
-function offerAction(role, className, label, { title, icon } = {}) {
-	const control = document.documentElement.lfInitial.offerAction(role, className, label, title === void 0 ? void 0 : { title });
-	if (icon) control.append(iconElement(icon, role === "mark" ? "lf-mark-icon" : "lf-action-icon"));
-	return control;
-}
+const { offerAction, offerActionElement } = actionOffers({
+	offerAction: (...args) => document.documentElement.lfInitial.offerAction(...args),
+	offerActionElement: (...args) => document.documentElement.lfInitial.offerActionElement(...args)
+});
 const offeredAction = elementDirective("offeredAction", offerActionElement);
 const selectableOfferElement = (node, role, cls) => document.documentElement.lfInitial.selectableOfferElement(node, role, cls);
 const selectableOffer = (role, cls, label) => document.documentElement.lfInitial.selectableOffer(role, cls, label);
@@ -1619,10 +1828,10 @@ function relabel(node, label, { says } = {}) {
 }
 const closeControl = ({ name, title = name, className = "" }) => offerAction("symbol", className, name, {
 	title,
-	icon: "cross"
+	action: "close"
 });
-function responseAction(control, { glyph = null, icon = null, label, behavior = "action", collapse = false }) {
-	if (Boolean(String(glyph ?? "").trim()) === Boolean(icon)) throw new TypeError("A response action needs exactly one glyph or icon");
+function responseAction(control, { glyph = null, action = null, label, behavior = "action", collapse = false }) {
+	if (Boolean(String(glyph ?? "").trim()) === Boolean(action)) throw new TypeError("A response action needs exactly one glyph or action");
 	control.classList.toggle("lf-response-control", true);
 	control.classList.toggle("lf-response-action", true);
 	keeps(control, "data-lf-behavior", behavior);
@@ -1630,7 +1839,7 @@ function responseAction(control, { glyph = null, icon = null, label, behavior = 
 	if (behavior !== "action" && !control.hasAttribute("aria-expanded")) control.setAttribute("aria-expanded", "false");
 	if (behavior === "action") control.removeAttribute("aria-expanded");
 	if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
-	render(html`${icon ? iconTemplate(icon) : html`<span class="lf-response-action-glyph" aria-hidden="true"
+	render(html`${action ? actionTemplate(action) : html`<span class="lf-response-action-glyph" aria-hidden="true"
               >${glyph}</span
             >`}<span class="lf-response-action-space" aria-hidden="true"> </span
       ><span class="lf-response-action-label">${label}</span>`, control);
@@ -2057,4 +2266,4 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 //#endregion
-export { EVERYTHING, LAYOUT, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, layoutChanged, live, liveEl, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offerActionElement, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };
+export { EVERYTHING, LAYOUT, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, actionElement, actionIcon, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, layoutChanged, live, liveEl, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, showAction, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };

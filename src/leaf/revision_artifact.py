@@ -396,16 +396,20 @@ def _css_references(tokens, refused: list[Finding]):
         }:
             yield from (item for item in token.arguments if item.type == "string")
         elif token.type == "at-rule" and token.lower_at_keyword == "import":
+            # The prelude is read here once, and a refused import loads nothing, so
+            # its URLs are neither followed nor refused again.
             values = _css_meaningful(token.prelude)
+            before = len(refused)
+            imported = list(_css_references(token.prelude, refused))
             if values and values[0].type == "string":
-                if _is_stylesheet_url(values[0].value):
-                    yield values[0]
-                else:
-                    refused.append(_capture_finding("css-import"))
-            else:
-                imported = list(_css_references(token.prelude, refused))
-                if not imported or not _is_stylesheet_url(imported[0].value):
-                    refused.append(_capture_finding("css-import"))
+                imported.insert(0, values[0])
+            if len(refused) > before:
+                continue
+            if not imported or not _is_stylesheet_url(imported[0].value):
+                refused.append(_capture_finding("css-import"))
+                continue
+            yield from imported
+            continue
         for attribute in ("prelude", "content", "arguments", "value"):
             nested = getattr(token, attribute, None)
             if isinstance(nested, list):
@@ -460,15 +464,17 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
     tokens = _parse_css(source, declarations)
     refused = []
     found = list(_css_references(tokens, refused))
-    # An `@import url()` prelude is walked twice, so one refusal can be read twice.
-    refused = tuple(dict.fromkeys(refused))
     references = tuple(
         (token.value, token.representation, token.type) for token in found
     )
-    if any(mark in source for mark in _CSS_MARK) or len(set(map(id, found))) != len(
-        found
+    # A refused sheet is never delivered (`rewrite_css`), and its parse may hold
+    # nodes tinycss2 can't serialize, so it isn't split.
+    if (
+        refused
+        or any(mark in source for mark in _CSS_MARK)
+        or len(set(map(id, found))) != len(found)
     ):
-        return _CssReading(references, None, refused=refused)
+        return _CssReading(references, None, refused=tuple(refused))
     for index, token in enumerate(found):
         token.representation = f"{_CSS_MARK[0]}{index}{_CSS_MARK[1]}"
     import tinycss2
@@ -478,8 +484,8 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
     )
     order = tuple(int(index) for index in parts[1::2])
     if sorted(order) != list(range(len(found))):
-        return _CssReading(references, None, refused=refused)
-    return _CssReading(references, tuple(parts[0::2]), order, refused)
+        return _CssReading(references, None)
+    return _CssReading(references, tuple(parts[0::2]), order)
 
 
 def css_dependencies(
@@ -513,6 +519,8 @@ def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
     from tinycss2.serializer import serialize_string_value
 
     reading = _read_css(source, declarations)
+    if reading.refused:
+        raise ArtifactError(list(reading.refused))
     targets = {value: address(value) for value, _, _ in reading.references}
     if all(target == value for value, target in targets.items()):
         return source
@@ -530,8 +538,8 @@ def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
 
 
 def _rewrite_parsed(source: str, targets: dict, declarations: bool) -> str:
-    """`rewrite_css` over a fresh parse, for an omitted URL or an unsplit sheet. What
-    the walk refuses is capture's to report (`css_dependencies`), so it is dropped."""
+    """`rewrite_css` over a fresh parse, for an omitted URL or an unsplit sheet, which
+    `rewrite_css` has read with nothing refused."""
     import tinycss2
     from tinycss2.serializer import serialize_string_value
 

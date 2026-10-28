@@ -5650,6 +5650,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	let refitting = false;
 	let drawnSections = null;
+	let landingKeys = null;
 	function refit() {
 		room = null;
 		drawnSections = null;
@@ -6132,14 +6133,20 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	const joinedNotice = newsNotice();
 	function showJoined() {
-		const keys = new Set(threadsListing().joined.map(({ thread }) => thread.key));
+		const { joined } = threadsListing();
+		const keys = new Set(joined.map(({ thread }) => thread.key));
 		const pressed = focused() === joinedNotice.node;
+		if (joined.every(({ now }) => now === "resolved") && !unfolded.has("resolved")) {
+			unfolded.add("resolved");
+			refit();
+		}
 		drawnSections = null;
+		landingKeys = keys;
 		paint();
+		landingKeys = null;
 		const row = threadRows().find((candidate) => keys.has(candidate.dataset.key));
 		if (!row) return null;
 		scrollIntoView(row, { block: "nearest" });
-		rove(threadRows(), row);
 		if (pressed) focusDestination(row, "move");
 		return null;
 	}
@@ -7205,7 +7212,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			fitted = outlet;
 		}
 		const listed = listRows();
-		rove(listed, listed.includes(focused()) ? focused() : listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]);
+		rove(listed, listed.includes(focused()) ? focused() : listed.find((row) => landingKeys?.has(row.dataset.key)) ?? listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]);
 		if (leavesReply && hadEditorFocus && !search) focusDestination(leaf, "return");
 		if (caretToField && !replying && !search) {
 			caretToField = false;

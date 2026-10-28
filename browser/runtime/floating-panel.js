@@ -1698,6 +1698,9 @@ export function createFloatingPanel({
   // no list stands, so the next paint draws every row where it now belongs
   // (`threadsListing`).
   let drawnSections = null;
+  // The keys of the rows a notice's press lands on, while its paint draws them
+  // (`showJoined`).
+  let landingKeys = null;
   function refit() {
     room = null;
     drawnSections = null;
@@ -2460,14 +2463,24 @@ export function createFloatingPanel({
   // order, comes into sight with the walk standing on it, and focus too where the
   // notice held it.
   function showJoined() {
-    const keys = new Set(threadsListing().joined.map(({ thread }) => thread.key));
+    const { joined } = threadsListing();
+    const keys = new Set(joined.map(({ thread }) => thread.key));
     const pressed = focused() === joinedNotice.node;
+    // Where only resolved threads joined, the row it lands on stands under Resolved,
+    // which unfolds to show it (`settledHeading`).
+    if (joined.every(({ now }) => now === "resolved") && !unfolded.has("resolved")) {
+      unfolded.add("resolved");
+      refit();
+    }
     drawnSections = null;
+    // The paint stands the list's walk on the row it lands on: a rove after it would
+    // take back the stop the paint first gave another row, a write that changes nothing.
+    landingKeys = keys;
     paint();
+    landingKeys = null;
     const row = threadRows().find((candidate) => keys.has(candidate.dataset.key));
     if (!row) return null;
     scrollIntoView(row, { block: "nearest" });
-    rove(threadRows(), row);
     if (pressed) focusDestination(row, "move");
     return null;
   }
@@ -4124,7 +4137,9 @@ export function createFloatingPanel({
       listed,
       listed.includes(focused())
         ? focused()
-        : (listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]),
+        : (listed.find((row) => landingKeys?.has(row.dataset.key)) ??
+            listed.find((row) => row.getAttribute("tabindex") === "0") ??
+            listed[0]),
     );
     if (leavesReply && hadEditorFocus && !search) focusDestination(leaf, "return");
     if (caretToField && !replying && !search) {

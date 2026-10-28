@@ -1281,7 +1281,7 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
     )
     page = floating(browser, url)
-    open_threads(page)
+    show_resolved(page)
     rows = page.locator(panel_view("threads")).locator(".lf-fp-thread")
     returned = rows.filter(has_text="Is the opening right?")
     expect(rows).to_have_count(4)
@@ -1326,6 +1326,35 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     expect(notice).to_have_count(0)
     expect(returned).to_have_attribute("data-resolved", "")
     expect(rows.first).not_to_have_text(re.compile("Is the opening right?"))
+
+
+def test_resolved_news_unfolds_resolved_to_land_on_its_row(browser, serve):
+    """A thread resolved elsewhere while Threads stands with Resolved folded keeps its
+    row in place behind the notice, and Enter on the notice unfolds Resolved, where the
+    row now stands, and lands on it."""
+    url = serve(LONG_PAGE, comments=2)
+    settling = panel_comment(serve.page_dir, "Is the opening right?", {"section": "p0"})
+    page = floating(browser, url)
+    open_threads(page)
+    view = page.locator(panel_view("threads"))
+    heading = view.locator(".lf-fp-settled")
+    row = view.locator(".lf-fp-thread", has_text="Is the opening right?")
+    expect(row).to_be_visible()
+    notice = page.locator(".lf-fp-joined .lf-thread-news")
+
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": settling}
+    )
+    told(page)
+    expect(notice).to_have_attribute("title", "1 thread resolved")
+    expect(row).to_be_visible()
+
+    notice.focus()
+    page.keyboard.press("Enter")
+    expect(notice).to_have_count(0)
+    expect(heading).to_have_attribute("aria-expanded", "true")
+    expect(row).to_have_attribute("data-resolved", "")
+    expect(row).to_be_focused()
 
 
 AGENDA_PAGE = titled_page(

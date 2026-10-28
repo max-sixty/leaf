@@ -9,7 +9,6 @@ from interact_support import (
     append_carried_log_record,
     declare,
 )
-from leaf_dev.browser import show_resolved
 from playwright.sync_api import expect
 from render_cases_layout import (
     DEFINE_BOXES,
@@ -855,7 +854,9 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(views["resolved"].locator(f"{threads} .lf-fp-settled")).to_have_text(
         re.compile(r"^\s*Resolved\s*1\s*$")
     )
-    expect(show_resolved(views["resolved"])).to_have_count(1)
+    expect(views["resolved"].locator(f"{threads} .lf-fp-settled")).to_have_attribute(
+        "aria-expanded", "false"
+    )
     summary = views["summary"].locator(f'{PANEL_THREAD}[data-thread="c1a39980"]')
     expect(summary).to_be_visible()
     expect(views["summary"].locator(".lf-fp-title")).to_have_text("Afternoon workshop")

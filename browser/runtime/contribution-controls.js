@@ -122,8 +122,8 @@ const controlContributions = new WeakMap();
 const contributorClasses = new WeakMap();
 
 /** Create the native host for one generated margin entry reading. */
-function createContributionControl(record, className = "") {
-  return offer(record.behavior === "status" ? "span" : "button", className);
+function createContributionControl(record) {
+  return offer(record.behavior === "status" ? "span" : "button", "lf-margin-entry");
 }
 
 const contributionControlMatches = (control, record) =>

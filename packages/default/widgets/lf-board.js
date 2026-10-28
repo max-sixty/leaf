@@ -45,6 +45,7 @@ import {
   nothing,
   move,
   offer,
+  offerAction,
   generatedElement,
   quoted,
   says,
@@ -394,8 +395,8 @@ customElements.define(
       label.textContent = "Move to";
       group.append(label);
       for (const column of columns) {
-        const button = offer(
-          "button",
+        const button = offerAction(
+          "word",
           "lf-board-destination",
           column.getAttribute("label"),
         );

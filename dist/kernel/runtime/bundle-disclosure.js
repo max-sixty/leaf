@@ -606,8 +606,8 @@ const presented = /* @__PURE__ */ new WeakMap();
 const records = /* @__PURE__ */ new WeakMap();
 const controlContributions = /* @__PURE__ */ new WeakMap();
 const contributorClasses = /* @__PURE__ */ new WeakMap();
-function createContributionControl(record, className = "") {
-	return offer(record.behavior === "status" ? "span" : "button", className);
+function createContributionControl(record) {
+	return offer(record.behavior === "status" ? "span" : "button", "lf-margin-entry");
 }
 const contributionControlMatches = (control, record) => record.behavior === "status" ? control instanceof HTMLSpanElement : control instanceof HTMLButtonElement;
 function contributionEntryRecord(control) {

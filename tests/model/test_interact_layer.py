@@ -1535,30 +1535,339 @@ def test_controls_are_built_by_role_and_never_by_face():
     words = {name for name in faces if not name.startswith("lf-")} | {"button"}
     assert words == {"primary", "button"}, words
     spelled = []
-    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
-        for source in sorted(root.rglob("*.js")):
-            if "vendor" in source.parts or source == owner:
-                continue
-            text = source.read_text()
-            where = source.relative_to(ROOT)
-            spelled += [f"{where}: {match[1]}" for match in named.finditer(text)]
-            code = re.sub(r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*", "", text, flags=re.DOTALL)
-            for literal in re.findall(r"([\"'`])((?:(?!\1).)*)\1", code):
-                classes = literal[1].split()
-                if (
-                    len(classes) > 1
-                    and all(re.fullmatch(r"[a-z][\w-]*", name) for name in classes)
-                    and words & set(classes)
-                ):
-                    spelled.append(f"{where}: {literal[1]}")
-            spelled += [
-                f"{where}: class={value[1]}"
-                for value in re.findall(r"class=([\"'])(.*?)\1", code)
-                if words & set(value[1].split())
-            ]
+    for source, text in _bundled_modules():
+        if source == owner:
+            continue
+        where = source.relative_to(ROOT)
+        spelled += [f"{where}: {match[1]}" for match in named.finditer(text)]
+        code = _uncommented(text)
+        for literal in re.findall(r"([\"'`])((?:(?!\1).)*)\1", code):
+            classes = literal[1].split()
+            if (
+                len(classes) > 1
+                and all(re.fullmatch(r"[a-z][\w-]*", name) for name in classes)
+                and words & set(classes)
+            ):
+                spelled.append(f"{where}: {literal[1]}")
+        spelled += [
+            f"{where}: class={value[1]}"
+            for value in re.findall(r"class=([\"'])(.*?)\1", code)
+            if words & set(value[1].split())
+        ]
     assert not spelled, (
         "build these controls with offerAction or offeredAction by role:\n"
         + "\n".join(spelled)
+    )
+
+
+def _bundled_modules():
+    """(path, text) of each module the runtime and the bundled packages ship, their
+    vendored bundles aside."""
+    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
+        for source in sorted(root.rglob("*.js")):
+            if "vendor" not in source.parts:
+                yield source, source.read_text()
+
+
+def _uncommented(text):
+    """A module's code, each comment blanked to its line breaks so that what follows
+    keeps its line number. A `//` after a colon or a word is a URL's."""
+    return re.sub(
+        r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*",
+        lambda comment: "\n" * comment[0].count("\n"),
+        text,
+        flags=re.DOTALL,
+    )
+
+
+def _reach(code, at, stops):
+    """The index of the first character of `stops` at `at`'s depth, or of the bracket
+    that closes that depth, stepping over brackets, quoted strings, and a template
+    literal's text with the `${…}` expressions inside it."""
+    open_ = []
+    while at < len(code):
+        char = code[at]
+        if open_ and open_[-1] == "`":
+            if char == "\\":
+                at += 1
+            elif char == "`":
+                open_.pop()
+            elif code.startswith("${", at):
+                open_.append("}")
+                at += 1
+        elif char in "\"'":
+            at += 1
+            while code[at] != char:
+                at += 2 if code[at] == "\\" else 1
+        elif char == "`":
+            open_.append("`")
+        elif char in "([{":
+            open_.append(")]}"["([{".index(char)])
+        elif char in ")]}":
+            if not open_:
+                return at
+            open_.pop()
+        elif char in stops and not open_:
+            return at
+        at += 1
+    return at
+
+
+def _opening_tag(code, at):
+    """The opening tag at `at`: the markup that dresses its element, the expressions in
+    its element part, where a directive such as `offeredAction` stands, and the index
+    of its closing `>`.
+
+    The markup keeps the `${…}` its `class` binds and those of its element part, and
+    drops those bound to any other attribute, property or event, since a handler's
+    selector names no class the element wears."""
+    markup, parts = "", []
+    while at < len(code) and code[at] != ">":
+        if not code.startswith("${", at):
+            markup += code[at]
+            at += 1
+            continue
+        end = _reach(code, at + 2, "")
+        bound = re.search(r"([\w-]*)=\"?$", markup)
+        if not bound:
+            parts.append(code[at + 2 : end])
+        if not bound or bound[1] == "class":
+            markup += code[at + 2 : end]
+        at = end + 1
+    return markup, parts, at
+
+
+def _binding(code, name):
+    """What a module binds `name` to, as a constant, a property or a class field: the
+    text from its `=` to the end of the statement, or "" where it binds none."""
+    match = re.search(
+        rf"(?:\b(?:const|let|var)\s+|\bthis\.#?|#){re.escape(name)}\s*=(?![=>])", code
+    )
+    return code[match.end() : _reach(code, match.end(), ";")] if match else ""
+
+
+# The presses that keep a face of their own rather than a role's (browser/AGENTS.md,
+# "A control wears its role's face"), each family's classes and the reason no role
+# serves it. A press belongs to a family by a class it is built with, and
+# `test_every_press_is_built_by_role_or_family` refuses one built neither by role nor
+# with a family's class. A class that no press outside the roles wears leaves the list.
+PRESS_FAMILIES = {
+    "margin entries": (
+        {"lf-margin-entry", "lf-margin-spill", "lf-margin-more"},
+        "a glyph out in the margin whose label a pointer or a key reveals (theme.css)",
+    ),
+    "reaction chips": (
+        {"lf-react"},
+        "a reaction's own glyph, not an action's symbol, kept in sight while in force",
+    ),
+    "the response bar": (
+        {"lf-fab", "lf-fab-suggest"},
+        "floats over the page, so it wears the field's border, height and elevation",
+    ),
+    "rows": (
+        {
+            "lf-fp-item",
+            "lf-fp-thread",
+            "lf-command-reference-command",
+            "lf-page-map-action",
+            "lf-vr-case-button",
+        },
+        "a whole row of a list, its columns more than a word, drawing the row's wash",
+    ),
+    "the panel's answers": (
+        {"lf-fp-answer"},
+        "On me's choices, each its name and what it gives, the chosen one marked",
+    ),
+    "the panel row's ends": (
+        {"lf-fp-leaf", "lf-fp-chip"},
+        "the leaf, and the On me mark, way out or notice at the row's end, a line tall",
+    ),
+    "the panel's words": (
+        {
+            "lf-fp-quiet",
+            "lf-fp-tab",
+            "lf-fp-back",
+            "lf-fp-plan-head",
+            "lf-fp-plan-tag",
+            "lf-fp-next-unread",
+            "lf-fp-new-reply",
+        },
+        "words at the panel's density on its own face (`lf-fp-face`), some with a bar",
+    ),
+    "the composer's actions": (
+        {"lf-compose-submit", "lf-compose-dictate"},
+        "Send and Dictate, which wireInput draws as a glyph on a disc in the field",
+    ),
+    "pictures": (
+        {"lf-media-open"},
+        "a picture that opens the media viewer, its face the picture itself",
+    ),
+    "disclosures": (
+        {"lf-disclosure-marker"},
+        "opens and closes what follows it, with a summary's turning triangle",
+    ),
+    "keyboard stops": (
+        {"lf-mark-note", "lf-visual-action", "lf-gloss-mark"},
+        "the keyboard's stop, unseen at rest, for what the pointer takes on the page",
+    ),
+    "grips": (
+        {"lf-grip"},
+        "a drag handle, grabbed rather than pressed, flush with its card's edge",
+    ),
+    "line numbers": (
+        {"lf-diff-line-comment"},
+        "a diff line's number, which takes a comment on its line from the gutter",
+    ),
+    "news notices": (
+        {"lf-thread-notice"},
+        "a thread's news in its accent or danger ink, underlined under a pointer",
+    ),
+    "links": (
+        {"lf-activity-target"},
+        "a press inside a line of the activity feed, drawn as the page's link",
+    ),
+    "status presses": (
+        {"lf-file-editor-retry", "lf-file-editor-conflict"},
+        "a file editor's status in its tone, accent or warning, the header's height",
+    ),
+    "message controls": (
+        {"lf-msg-control"},
+        "a duplicate of the symbol face until message-copy-markdown builds it by role",
+    ),
+}
+
+
+_ROLE_BUILDER = re.compile(r"\b(?:offerAction|offeredAction|offerActionElement)\s*\(")
+
+
+def _presses():
+    """(path, line, the press's tag or making, how a role dresses it or None, the
+    markup or making that dresses it) for every press a bundled module builds.
+
+    A press is a `<button>`, or an element marked `role="button"`, in a template or an
+    HTML string, and a "button" made by `offer`, `el` or `document.createElement`. A
+    role dresses it when its tag holds `offeredAction`, or a directive or callback
+    that calls a role's builder, or when `offerActionElement` takes it as it is made.
+    The dressing is its tag's markup, with the bindings a name in its element part
+    stands for, or its making and the `className` it is given after. A role set by
+    script isn't read: a margin entry's host writer sets it on an element made
+    elsewhere, which the writer's code can't name. Nor is a copy control, a Web Awesome
+    `wa-copy-button` that `copyControl` makes."""
+    for source, text in _bundled_modules():
+        code = _uncommented(text)
+        tags = {match.start() for match in re.finditer(r"<button\b", code)}
+        tags |= {
+            code.rfind("<", 0, match.start())
+            for match in re.finditer(r"(?<=\s)role=[\"']?button\b", code)
+        }
+        made = [
+            match
+            for match in re.finditer(r"\b(offer|el|createElement)\(", code)
+            if re.search(
+                r"([\"'`])button\1", code[match.end() : _reach(code, match.end(), ",")]
+            )
+        ]
+        for start in sorted(tags):
+            markup, parts, end = _opening_tag(code, start)
+            # A name the element part hands over, a directive kept in a constant or a
+            # callback given to `ref`, and the calls in what it is bound to.
+            handed = {
+                name
+                for part in parts
+                for pair in re.findall(
+                    r"^\s*(?:this\.)?#?([\w$]+)\s*$|\bref\(\s*(?:this\.)?#?([\w$]+)\s*\)",
+                    part,
+                )
+                for name in pair
+                if name
+            }
+            bound = [_binding(code, name) for name in handed]
+            bound += [
+                _binding(code, callee)
+                for text in list(bound)
+                for callee in re.findall(r"\b([\w$]+)\s*\(", text)
+            ]
+            how = (
+                "role in its tag"
+                if _ROLE_BUILDER.search(markup)
+                else "role through a name"
+                if _ROLE_BUILDER.search(" ".join(bound))
+                else None
+            )
+            site = code[start : end + 1]
+            yield (
+                source,
+                code.count("\n", 0, start) + 1,
+                site,
+                how,
+                " ".join([markup, *bound]),
+            )
+        for match in made:
+            end = _reach(code, match.end(), "")
+            making = code[match.end() : end]
+            before = code[max(0, match.start() - 200) : match.start()]
+            if match[1] == "createElement" and (
+                name := re.search(r"([\w$]+)\s*=\s*(?:document\.)?$", before)
+            ):
+                making += " ".join(
+                    re.findall(rf"\b{name[1]}\.className\s*=([^;]*)", code)
+                )
+            how = (
+                "role as it is made"
+                if re.search(rf"{_ROLE_BUILDER.pattern}\s*(?:[\w$]+\.)*$", before)
+                else None
+            )
+            site = code[match.start() : end + 1]
+            yield source, code.count("\n", 0, match.start()) + 1, site, how, making
+
+
+def test_every_press_is_built_by_role_or_family():
+    """Every press a bundled module builds (`_presses`) wears a role's face or belongs
+    to a family in `PRESS_FAMILIES` by a class it is built with, and every family's
+    class names some press that needs it.
+
+    Before this check only a role's classes were watched, so a press drawn with a face
+    of its own passed: the floating panel's symbols and a message's Edit and Add
+    reaction each drew a 26px face beside the thread's 28px symbols. Drawing a press's
+    symbol from its action gives it no face, so a press that does only that still needs
+    a role or a family."""
+    family_classes = {
+        name for classes, _reason in PRESS_FAMILIES.values() for name in classes
+    }
+    family_class = re.compile(
+        r"(?<![\w-])(" + "|".join(sorted(family_classes)) + r")(?![\w-])"
+    )
+    reached, unbuilt, worn = set(), [], set()
+    for source, line, site, how, dressing in _presses():
+        reached.add("tag" if site.startswith("<") else "made")
+        if how:
+            reached.add(how)
+        elif classes := set(family_class.findall(dressing)):
+            worn |= classes
+            reached.add("family")
+        else:
+            site = " ".join(site.split())
+            unbuilt.append(f"{source.relative_to(ROOT)}:{line}: {site}")
+    assert reached == {
+        "tag",
+        "made",
+        "role in its tag",
+        "role through a name",
+        "role as it is made",
+        "family",
+    }, f"the reading missed a kind of press: {reached}"
+    assert not unbuilt, (
+        "these presses draw a face of their own:\n"
+        + "\n".join(unbuilt)
+        + "\nBuild each by role with offerAction, offeredAction or offerActionElement"
+        " (prepaint.js, `ACTION_FACES`), or, where no role serves it, add its class to"
+        " a family in PRESS_FAMILIES (tests/model/test_interact_layer.py) with the"
+        " reason it keeps its own face, for a reviewer to weigh."
+    )
+    unworn = sorted(family_classes - worn)
+    assert not unworn, (
+        "no press outside the roles wears these classes; take them out of"
+        f" PRESS_FAMILIES: {unworn}"
     )
 
 

@@ -139,15 +139,6 @@ lf-column {
       color: var(--muted);
       font-size: var(--t-6);
     }
-    .lf-board-destination {
-      min-height: var(--aim-floor);
-      padding: var(--sp-1) var(--sp-2);
-      border: 1px solid var(--border-2);
-      border-radius: var(--chip-r);
-      background: var(--field);
-      color: var(--ink-2);
-      cursor: pointer;
-    }
   }
 }
 /* The heading is written by lf-board.js rather than by the x-says pass, because

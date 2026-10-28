@@ -3726,7 +3726,7 @@ export function createFloatingPanel({
         const counted = count(name);
         return html`<button
           type="button"
-          class="lf-fp-face"
+          class="lf-fp-face lf-fp-tab"
           aria-pressed=${String(current === name)}
           @click=${() => {
             refit();

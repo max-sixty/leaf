@@ -524,9 +524,9 @@ summary,
  * what each role is for. Each face holds across document and shadow trees; a package
  * places a control and may set its density (`--lf-icon-action-face`), but restates
  * none of its face, so a surface's own symbols, the floating panel's included, stand
- * beside its neighbours' alike. Margin entries, reaction chips, the response bar and
- * the floating panel's rows, answers and row end keep their own families, each drawn
- * by its one owner.
+ * beside its neighbours' alike. The presses that keep a face of their own, each family
+ * drawn by its one owner, are listed with the reason no role serves them in
+ * `PRESS_FAMILIES` (tests/model/test_interact_layer.py).
  *
  * The word face: words in the muted ink with no frame, until a hovering pointer or
  * visible focus lays the chip under them and inks them. A press leaves focus on the

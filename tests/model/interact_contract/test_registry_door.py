@@ -537,6 +537,24 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
         assert found(findings, "invalid-extensions", "<lf-suggestion>")
 
 
+@pytest.mark.parametrize("schema", [False, True])
+def test_a_boolean_attribute_schema_is_refused_beside_a_layer_fault(page_dir, schema):
+    """JSON Schema admits `true` or `false` as an attribute's schema, neither naming a
+    type, so a pane whose `id` is one is refused for it, in the same run as a layer
+    fact's problem."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-pane"]["properties"]["id"] = schema
+    registry["$languages"]["paths"][".zz"] = "unnamed"
+
+    with pytest.raises(registry_contract.RegistryError) as refused:
+        registry_validation.validate_registry(registry, "test registry")
+
+    assert [(f.code, f.at) for f in refused.value.findings] == [
+        ("undeclared-language", ""),
+        ("reading-role-attr", "<lf-pane>"),
+    ]
+
+
 def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
     """The parent and the children retiring under it are checked in one run, so each
     reads the parent's decision before its own check holds it to an outcome."""

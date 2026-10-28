@@ -42,6 +42,19 @@ alone times no request or first output. Its case is `working` where
 a turn was running at the admission, so the harness took the input at that turn's
 next tool boundary or its end, else `waiting`. Other harnesses' inputs carry no
 breakdown, and the summary's reply rows count them missing.
+
+Each input a Claude Code session opened, with its transcript on this machine, also
+carries what its pickup waited on (`pickup`, `reply_phases.pickup_wait`), and the
+summary's `opened_*` rows sort those waits by cause, each over its own inputs,
+with the seconds they add up to. A survey of every page touched in a week:
+
+    leaf-dev response-times --since 2026-10-20T00:00-07:00 $(find
+        ~/.local/state/leaf/pages -maxdepth 2 -name events.jsonl -mtime -7 |
+        sed 's:/events.jsonl$::')
+
+`prompted` waits are where nothing of Leaf's woke an idle session before the user
+typed; the transcript between admission and pickup says why, such as a hook
+refusing a page a newer Leaf re-vendored.
 """
 
 import json
@@ -49,6 +62,7 @@ import statistics
 from bisect import bisect_right
 from collections import Counter
 from datetime import datetime
+from functools import cache
 from pathlib import Path
 
 import click
@@ -59,9 +73,11 @@ from leaf.registry.kernel import kinds_declaring
 from leaf.state import now_iso
 from leaf.todos import start_reading
 from leaf_dev.reply_phases import (
+    WAIT_CAUSES,
     claude_code_records,
     claude_code_transcript,
     leaf_commands_ms,
+    pickup_wait,
     reply_breakdown,
 )
 
@@ -304,6 +320,7 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
             if answered is not None and command["session"] == answered["session"]
         ]
         row["reply"] = breakdown(row, mine)
+        row["pickup"] = waited(row)
         # From where the harness took the input, so a working harness's
         # commands for the work it was busy with stay out.
         took = row["milestones"].get("opened", {}).get("at", row["admitted_at"])
@@ -331,17 +348,37 @@ def breakdown(row: dict, commands: list[dict]) -> dict | None:
     answered = milestones["answered"]
     if answered["harness"] != "claude-code" or answered["session"] is None:
         return None
-    native = claude_code_transcript(answered["session"])
-    if native is None:
+    records = session_records(answered["session"])
+    if records is None:
         return None
     reply = reply_breakdown(
-        claude_code_records(native),
+        records,
         commands,
         row["admitted_at"],
         milestones["opened"]["at"],
         answered["at"],
     )
     return {**reply, "case": "working" if reply["busyMs"] else "waiting"}
+
+
+def waited(row: dict) -> dict | None:
+    """What the input waited on before its opened pickup (`pickup_wait`), where the
+    session that opened it is Claude Code's with its transcript on this machine."""
+    opened = row["milestones"].get("opened")
+    if opened is None or opened["harness"] != "claude-code" or not opened["session"]:
+        return None
+    records = session_records(opened["session"])
+    if records is None:
+        return None
+    return pickup_wait(records, row["admitted_at"], opened["at"])
+
+
+@cache
+def session_records(session: str) -> list[dict] | None:
+    """The Claude Code session's transcript records, read once a run, since a page
+    holds many inputs a session took."""
+    native = claude_code_transcript(session)
+    return None if native is None else claude_code_records(native)
 
 
 def _agent_context(session: str | None, turn: str | None, context: dict) -> dict:
@@ -393,6 +430,7 @@ def spread(rows: list[dict], observed: list[float]) -> dict:
         "p90_s": percentiles[89] if valid else None,
         "p95_s": percentiles[94] if valid else None,
         "max_s": max(valid) if valid else None,
+        "total_s": sum(valid),
     }
 
 
@@ -475,6 +513,13 @@ def response_times(
         rows,
         [row["leaf_commands_s"] for row in rows if row["leaf_commands_s"] is not None],
     )
+    for cause in WAIT_CAUSES:
+        waits = [
+            row for row in rows if row["pickup"] and row["pickup"]["cause"] == cause
+        ]
+        summary[f"opened_{cause}"] = spread(
+            waits, [row["pickup"]["ms"] / 1000 for row in waits]
+        )
     for case in ("waiting", "working"):
         replies = [
             row["reply"]
@@ -520,12 +565,18 @@ def response_times(
         "leaf_commands reads each command's own record on any harness; whole_* and leaf_share_* read Claude Code transcripts, so their missing includes every other input."
     )
     click.echo(
-        "milestone           observed  missing  clock errors      p50      p90      p95      max"
+        "opened_* sorts each opened pickup a Claude Code transcript on this machine covers by what ended its wait (reply_phases.pickup_wait), over those inputs alone."
+    )
+    click.echo(
+        "milestone           observed  missing  clock errors      p50      p90      p95      max     total"
     )
     for name, stats in summary.items():
-        values = " ".join(
-            f"{stats[key]:8.1f}" if stats[key] is not None else f"{'—':>8}"
-            for key in ("p50_s", "p90_s", "p95_s", "max_s")
+        values = (
+            " ".join(
+                f"{stats[key]:8.1f}" if stats[key] is not None else f"{'—':>8}"
+                for key in ("p50_s", "p90_s", "p95_s", "max_s")
+            )
+            + f" {stats['total_s']:9.0f}"
         )
         click.echo(
             f"{name:19} {stats['observed']:8} {stats['missing']:8} {stats['clock_errors']:12} {values}"

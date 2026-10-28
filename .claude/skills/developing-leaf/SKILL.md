@@ -270,7 +270,8 @@ release reads production.
 
 To benchmark replies, run each harness's journey a few times, with and without
 `--case working`, and tabulate the samples with `leaf-dev journey-chart --replies`;
-`leaf-dev response-times` measures retained pages
+`leaf-dev response-times` measures retained pages and sorts each pickup's wait
+by what ended it, which shows the waits only long real sessions have
 (`dev/leaf_dev/commands/response_times.py`). The benchmark is the whole reply's time,
 which `dev/leaf_dev/reply_phases.py` attributes to Leaf's delivery, commands and hooks,
 the harness, the model's wait and generation, and the agent's other tools. Model time

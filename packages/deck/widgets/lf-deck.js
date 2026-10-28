@@ -51,7 +51,6 @@
  * around the questions it is waiting on, chosen by the user on 2026-10-24. */
 import {
   agentName,
-  commands,
   showAction,
   rowArrows,
   dragging,
@@ -82,6 +81,7 @@ import {
   whileConnected,
   html,
   nothing,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 // How far a touch drag travels before a release sends the card; how long a card takes
@@ -153,27 +153,31 @@ customElements.define(
       this.#again.addEventListener("click", () => this.#forwardPress(this.#readings()));
       this.#end.append(this.#again);
       const [back, ahead] = rowArrows(this);
-      commands(this, "In a deck", [
-        {
-          id: "deck.back",
-          keys: [back],
-          title: "Back",
-          control: this.#back,
-          bindingBadge: null,
-          touch: false,
-          when: () => this.#index() > 0,
-          run: () => this.#stepBack(),
-        },
-        {
-          id: "deck.forward",
-          keys: [ahead],
-          title: () => this.#forwardWord(),
-          control: this.#forward,
-          bindingBadge: null,
-          touch: false,
-          run: () => this.#forwardPress(this.#readings()),
-        },
-      ]);
+      this.lfCommands = {
+        title: "In a deck",
+        rows: [
+          {
+            id: "deck.back",
+            keys: [back],
+            title: "Back",
+            control: this.#back,
+            bindingBadge: null,
+            touch: false,
+            when: () => this.#index() > 0,
+            run: () => this.#stepBack(),
+          },
+          {
+            id: "deck.forward",
+            keys: [ahead],
+            title: () => this.#forwardWord(),
+            control: this.#forward,
+            bindingBadge: null,
+            touch: false,
+            run: () => this.#forwardPress(this.#readings()),
+          },
+        ],
+      };
+      commandsChanged(this);
       for (const card of this.#cards) {
         card.addEventListener("beforematch", () => this.#show(card));
       }

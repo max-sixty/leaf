@@ -13,7 +13,12 @@
    naming the widget (layer-client.js, `failureOf`). Drawing still under way is a
    `pending-task` event (`PendingTaskEvent`), the Web Components Community Group's draft
    protocol for a component's asynchronous work, whose `complete` promise Leaf holds the
-   widget's presentation on (widget-controller.js). */
+   widget's presentation on (widget-controller.js). A rearrangement inside an unchanged
+   box is `lf-layout` (`layoutChanged`), which the readers that measure what a widget
+   holds hear. And the keys an element binds are data on it, `lfCommands`, which the
+   widget says it set or changed with `lf-commands` (`commandsChanged`): Leaf reads them
+   then and binds them (keyboard/scopes.js), and a plain page, reading nothing, binds no
+   key and advertises none. */
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 const initialized = new WeakSet();
@@ -52,6 +57,34 @@ export class PendingTaskEvent extends Event {
     this.complete = complete;
   }
 }
+
+// ResizeObserver covers size changes. A view swap can instead keep its outer box while
+// rearranging descendants, so the widget states that geometry change explicitly, and
+// geometry readers listen for it instead of watching every DOM mutation.
+export const LAYOUT = "lf-layout";
+export const layoutChanged = (el) => {
+  el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
+};
+
+// That an element's `lfCommands`, or anything its rows read, changed. An element out of
+// the document, such as a control built before it is placed, has no way out to the
+// window, so its event is dispatched there directly, carrying the element, as a failure's
+// is (`reportFailure`). A declaration Leaf refuses throws here, where the widget made
+// it, since a listener's exception never reaches the dispatcher.
+export const COMMANDS = "lf-commands";
+const CHANGED = Symbol("element whose commands changed");
+const REFUSED = Symbol("why Leaf refused the declaration");
+export function commandsChanged(el) {
+  const event = new Event(COMMANDS, { bubbles: true, composed: true });
+  event[CHANGED] = el;
+  (el.isConnected ? el : window).dispatchEvent(event);
+  if (event[REFUSED]) throw event[REFUSED];
+}
+// The element a `commandsChanged` event names, and the refusal its reader hands back.
+export const commandsChangedOn = (event) => event[CHANGED];
+export const refuseCommands = (event, error) => {
+  event[REFUSED] = error;
+};
 
 // A failed upgrade becomes a visible error box rather than a blank page. A widget failure
 // may failSoft its own element, or a part of it, so the rest of the page and Threads

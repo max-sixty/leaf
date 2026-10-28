@@ -13,9 +13,9 @@
  * What the host adds is what a drawing needs from the page it sits in. It is drawn for the
  * room it has and drawn again when that room changes, since a drawing scaled into a new
  * box takes its labels below legibility with it: the width is the host's, and the body
- * reads it to fit its ticks to the room. The height is stated (x-height, or the
- * occurrence's data-height, painted as data-lf-height), and the page lays that box out
- * before the drawing arrives, so the drawing and any legend Plot sets beside it are
+ * reads it to fit its ticks to the room. The height is the box's too: on a Leaf page it
+ * is stated (x-height, or the occurrence's data-height), and the theme holds the box at
+ * it before the drawing arrives, so the drawing and any legend Plot sets beside it are
  * drawn to fill it and move nothing below it. Its type and ink are the theme's, and so
  * are its series colours, because Plot takes `var(--series-N)` wherever it takes a colour. A user
  * who cannot see it hears Plot's `ariaLabel` in its place. It is one comment target,
@@ -26,7 +26,7 @@
  * it instead of loading in front of a user who never opens that panel.
  *
  * It imports only the helpers that load in any document, so a plain HTML page that maps
- * `/runtime/` and `/vendor/` draws it too, at the height its `data-lf-height` states. A
+ * `/runtime/` and `/vendor/` draws it too, into the box that page gives it. A
  * Leaf page hears its drawing and its refusals from outside it: the drawing under way
  * as a `pending-task` event, which holds the page's presentation until it is in, and a
  * refusal as the `error` event `failSoft` dispatches, which the page reports to the
@@ -148,9 +148,11 @@ customElements.define(
       }
     }
 
+    // Drawn to the box's height as well as its width. Once drawn the box is the
+    // drawing's, so a redraw for a new width reads the height the last drawing filled.
     paint(Plot, body) {
       const width = Math.round(this.clientWidth);
-      const box = Number(this.getAttribute("data-lf-height"));
+      const box = this.clientHeight;
       this.drawing.replaceChildren(this.plot(Plot, body, width, box));
       // A legend Plot sets beside the drawing takes its own height, which only laying it
       // out says, so a chart with one is drawn again into the room the legend leaves.

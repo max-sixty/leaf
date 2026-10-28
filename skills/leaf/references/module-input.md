@@ -5,14 +5,28 @@ module owes.
 
 ## Commands and keyboard routes
 
-A widget declares each command once, at upgrade, with
-`commands(element, title, rows, options)`; `options` is the scope's `when`, alone or as
-`{when}`.
+A widget declares its commands as data on the element they apply in: set the element's
+`lfCommands` to the scope, `{title, rows, when}`, and call `commandsChanged(element)`.
+Leaf reads the declaration then, and `commandsChanged` throws where a row is malformed.
+Leaf binds its keys, lists them in the command reference
+and hints, and is the only writer of `aria-keyshortcuts`; a page without Leaf reads
+nothing, so a widget that also runs there (`module-authoring.md`, "A widget that also
+runs off Leaf") binds no key. Declare at upgrade, once the element exists; it may still
+be out of the page. Setting a new declaration and calling `commandsChanged` again
+replaces the scope, and `null` withdraws it. `when` is optional.
+
+```javascript
+this.lfCommands = {
+  title: "On a code block",
+  rows: [{ id: "code.wrap", keys: ["w"], title: "wrap lines", run: toggleWrap }],
+};
+commandsChanged(this);
+```
 
 For controls Leaf draws, such as margin entries, build the scope as a value with
 `commandScope(title, rows, options)` and put it on the entry's `scope`
 (`module-annotations.md`, "Margin contributions"). Where the same commands also apply to
-the widget's own elements, attach that value with `commands(element, scope)`:
+the widget's own elements, that value is their `lfCommands`:
 
 ```javascript
 const actions = commandScope("In a classifier", [
@@ -28,7 +42,8 @@ const actions = commandScope("In a classifier", [
     run: () => classify("pass"),
   },
 ]);
-commands(classifier, actions);
+classifier.lfCommands = actions;
+commandsChanged(classifier);
 ```
 
 In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
@@ -72,7 +87,7 @@ with `notice("Edit kept")`.
 
 Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
 a widget's state or the threads. For any other state it reads, hold the value in a
-`signal` or call `paintKeys()` after changing it.
+`signal` or call `commandsChanged(element)` after changing it.
 
 ### How scopes compose
 
@@ -82,9 +97,9 @@ outward. A row keeps its key while unavailable, so the key never falls through t
 different meaning further out; an unavailable Escape, though, passes on to the next
 Escape. Text fields keep their editing keys ahead of every widget scope.
 
-A menu or other scope that covers the page passes `allButCommandReference` as its
-`claims` option, so the page's keys wait while the user is in it and only the command
-reference still opens.
+A menu or other scope that covers the page gives `allButCommandReference` as its
+declaration's `claims`, so the page's keys wait while the user is in it and only the
+command reference still opens.
 
 Give a native button's row both `control` and `run`, and Leaf runs `run` for its click
 and its key alike. Don't add a click listener, and don't call the button's own `click()`

@@ -20,15 +20,13 @@ import {
   alignText,
   announce,
   commandScope,
-  commands,
+  commandsChanged,
   foldBlock,
   keeps,
   LeafElement,
   contributionEntry,
   failSoft,
   nothing,
-  paintKeys,
-  quietWord,
   quoted,
   registerContribution,
   says,
@@ -303,7 +301,7 @@ customElements.define(
         immediate,
         focus: focus ?? (held ? this.#focusKey() : null),
       });
-      paintKeys();
+      commandsChanged(this);
     }
 
     #ensureCommands() {
@@ -331,7 +329,8 @@ customElements.define(
           run: () => this.#margin?.activate(key),
         })),
       );
-      commands(this, this.#commandScope);
+      this.lfCommands = this.#commandScope;
+      commandsChanged(this);
     }
 
     // What the change is about, for the button's label and failure receipt: the
@@ -576,7 +575,7 @@ customElements.define(
         ["lf-new", "proposed insertion"],
       ])
         for (const slot of this.querySelectorAll(`:scope > ${tag}`))
-          quietWord(slot, decided ? "" : word);
+          keeps(slot, "data-lf-quiet", decided ? null : word);
     }
 
     // The words that moved, as ranges over both slots' own text nodes. Which words

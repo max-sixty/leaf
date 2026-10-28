@@ -112,7 +112,6 @@ import {
   inChrome,
   keeps,
   keepsText,
-  commands,
   LeafElement,
   nothing,
   landInThread,
@@ -127,6 +126,7 @@ import {
   wrote,
   focusDestination,
   scrollIntoView,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 // What an option is called, in either form: its title where it leads with one, and its
@@ -465,41 +465,45 @@ customElements.define(
         // Declared on the mark rather than the group, because the group holds the
         // option's own argument too — a link, a say-box, a tabbed exhibit — and a scope
         // over the whole subtree would promise local mechanics from any of them.
-        commands(mark, SECTION, [
-          {
-            id: "option.reply",
-            keys: ["Enter"],
-            title: "reply",
-            when: () => Boolean(this.#reply()),
-            // The box hands the user back to the thread it belongs to, and to
-            // this option where that thread is nowhere to stand — the route
-            // `landInThread` records for exactly that case, and the one Escape
-            // out of a text box reads.
-            run: () =>
-              landInThread(this.#reply(), {
-                target: mark,
-                line: "back to the options",
-              }),
-          },
-          ...rowWalk({
-            id: "option",
-            noun: "Option",
-            plural: "options",
-            rows: () => this.#marks(),
-          }),
-          {
-            id: "option.toggle",
-            keys: [" "],
-            title: "toggle",
-            run: () => mark.click(),
-          },
-          {
-            id: "option.reach",
-            keys: [],
-            label: "⇥",
-            title: "Reach an option's mark",
-          },
-        ]);
+        mark.lfCommands = {
+          title: SECTION,
+          rows: [
+            {
+              id: "option.reply",
+              keys: ["Enter"],
+              title: "reply",
+              when: () => Boolean(this.#reply()),
+              // The box hands the user back to the thread it belongs to, and to
+              // this option where that thread is nowhere to stand — the route
+              // `landInThread` records for exactly that case, and the one Escape
+              // out of a text box reads.
+              run: () =>
+                landInThread(this.#reply(), {
+                  target: mark,
+                  line: "back to the options",
+                }),
+            },
+            ...rowWalk({
+              id: "option",
+              noun: "Option",
+              plural: "options",
+              rows: () => this.#marks(),
+            }),
+            {
+              id: "option.toggle",
+              keys: [" "],
+              title: "toggle",
+              run: () => mark.click(),
+            },
+            {
+              id: "option.reach",
+              keys: [],
+              label: "⇥",
+              title: "Reach an option's mark",
+            },
+          ],
+        };
+        commandsChanged(mark);
       }
       if (this.#addition.input)
         answerRows.push({
@@ -530,7 +534,8 @@ customElements.define(
           when: () => this.#doneAvailable(),
           run: () => void this.#answer(),
         });
-      commands(this, SECTION, answerRows);
+      this.lfCommands = { title: SECTION, rows: answerRows };
+      commandsChanged(this);
     }
 
     // The block this option is about. A pointer, not a voice: it names the block by the

@@ -1,6 +1,6 @@
 {
   "inputs": {
-    "leaf.js": "7c4d8de047efeda1d08014517e0ad736fe182d381ef919112c0178e1c559c8e2",
+    "leaf.js": "b0369d66b3333acd509e44400b1b2e63cf413579fecdbf4ae71c7037fe972db2",
     "runtime/abort.js": "a95360fd44e7614c6faa7d08a527b95a26646a52602d4908c786b97106d7f254",
     "runtime/activity-words.js": "279bac6bc471572ce9bbde5e9ac6f89fac45c88db848abdb77bef16aceb37837",
     "runtime/addressable-names.js": "a91c6440c4aaec79fa9a9f0e08185db6bd376cd5e599d5470dad729d32868b16",
@@ -11,7 +11,7 @@
     "runtime/anchor-resolution.js": "3da7d1bb0042344eda6ae05f717fee65bfdb1bd9a318665bcf0c9dcc7bad65b4",
     "runtime/anchor-travel.js": "20282068c38b0a90e9996a873898b987c21f3e61c1550067a84be99f49db9536",
     "runtime/annotation-inventory.js": "83bfcaa4797c984215c609bf7b2804d99791977ec06d63d7df2a34b857a223b6",
-    "runtime/annotation-overlay/anchor-paint.js": "51fc3f8b6a87ff71e73929297dd8696953e78d068a1f829ecd6492c97207021f",
+    "runtime/annotation-overlay/anchor-paint.js": "0fbfaac6c9e83024d0ade7152f660227f2b003c8582b91fcaa567de7b36912aa",
     "runtime/annotation-overlay/annotation-layer.js": "8e2a35efbf32d3f2b446e1816b64a0ecb61067cc436f8bc5ae7799f292da183e",
     "runtime/annotation-overlay/check-api.js": "e329869cd53d08ea0a8e423cc6a7fe1fbb22311cc172881aacc5f9274051b5c7",
     "runtime/annotation-overlay/comment-placement.js": "d82fdcef77ed569889d364d8144cd5587ac97838796d7520063b12960dd57ec0",

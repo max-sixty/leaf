@@ -5234,7 +5234,7 @@ function replyControlDestination(node) {
 function sendReply(draftCtx, key, text, owns, actions) {
 	return sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
 }
-function wireReply(key, row, input, wireInput, { hint, hintLead, accessibleName, busy }) {
+function wireReply(key, row, input, wireInput, { hint, hintLead, offers, accessibleName, busy }) {
 	row.classList.add("lf-comment-box");
 	const draftCtx = replyContext(key);
 	const composition = {
@@ -5253,6 +5253,7 @@ function wireReply(key, row, input, wireInput, { hint, hintLead, accessibleName,
 	const sync = wireInput(input, {
 		hint,
 		hintLead,
+		offers,
 		accessibleName,
 		busy,
 		sends: "send",
@@ -5334,7 +5335,7 @@ async function restoreReplyEditing(editing, land) {
 		if (compositions.get(context) === session && !available(session.owner)) closeSession(context);
 	}
 }
-function createReplyView(key, commands, redraw, { onChange = () => {}, editLast = null, hint = "Reply", hintLead = () => "", accessibleName = "Reply", busy = () => false, sending = null, sent = null } = {}) {
+function createReplyView(key, commands, redraw, { onChange = () => {}, editLast = null, hint = "Reply", hintLead = () => "", offers = () => true, accessibleName = "Reply", busy = () => false, sending = null, sent = null } = {}) {
 	const fresh = () => {
 		const row = offer("div", "lf-thread-reply");
 		const input = offer(TEXT_FIELD);
@@ -5343,6 +5344,7 @@ function createReplyView(key, commands, redraw, { onChange = () => {}, editLast 
 		return wireReply(key, row, input, commands.wireInput, {
 			hint,
 			hintLead,
+			offers,
 			accessibleName,
 			busy
 		});

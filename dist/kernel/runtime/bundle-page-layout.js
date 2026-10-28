@@ -5130,7 +5130,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 						};
 					} else {
 						let joined = false;
-						const { hint, hintLead, accessibleName, busy, sending, sent } = item.options;
+						const { hint, hintLead, offers, accessibleName, busy, sending, sent } = item.options;
 						const redraw = () => {
 							for (const row of node.querySelectorAll(":scope > .lf-thread-reply")) if (row !== reply.node) row.remove();
 							move(node, reply.node, node.firstChild);
@@ -5142,6 +5142,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 							editLast: rewritesOf(item.key).editLast,
 							hint,
 							hintLead,
+							offers,
 							accessibleName,
 							busy,
 							sending,

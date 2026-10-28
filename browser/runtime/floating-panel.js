@@ -944,7 +944,6 @@ export function createFloatingPanel({
     if (input) {
       keeps(input, "data-says", reading.says);
       keeps(input, "data-voice", reading.voice === "leaf" ? "leaf" : null);
-      keeps(input, "data-offers", reading.offers ? "" : null);
     }
     return reading.words;
   }
@@ -961,6 +960,7 @@ export function createFloatingPanel({
     general = { box, input, sync: null };
     const sync = wireInput(input, {
       hint: () => saying(null, input),
+      offers: () => fieldReading(null, input).offers === true,
       hintParts: () => {
         const parts = status().summaryParts;
         return fieldReading(null, input).says === "status" &&
@@ -1036,6 +1036,7 @@ export function createFloatingPanel({
       replyOptions.set(key, {
         hint: () => saying(key, replyInput()),
         hintLead: () => turnLead(key, replyInput()),
+        offers: () => fieldReading(key, replyInput()).offers === true,
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         sending: streamSend,
         // A turn the log refuses takes its room back from the view, and the words it

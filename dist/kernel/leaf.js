@@ -263,7 +263,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		hintedBox.value = hint?.box ?? null;
 		hintLabel.value = hint?.label ?? "";
 	};
-	function wireInput(ta, { hint, hintParts = null, hintLead = () => "", accessibleName = null, save, send, sendClass = "", sends, icon = "send", altLabel = null, altSend = null, allowsMedia = (() => true), busy = () => false, hasContent = (raw) => Boolean(raw), drawing = null, rows = [], submitIn = null, sentMedia = false }) {
+	function wireInput(ta, { hint, hintParts = null, hintLead = () => "", offers = () => false, accessibleName = null, save, send, sendClass = "", sends, icon = "send", altLabel = null, altSend = null, allowsMedia = (() => true), busy = () => false, hasContent = (raw) => Boolean(raw), drawing = null, rows = [], submitIn = null, sentMedia = false }) {
 		const field = document.createElement("leaf-composition-field");
 		ta.before(field);
 		const focusedHere = J(() => {
@@ -388,6 +388,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
 			const parts = status ? null : hintParts?.();
 			const lead = status ? "" : hintLead();
+			keeps(ta, "data-offers", !status && !focusedHere.value && offers() ? "" : null);
 			render(suffix && !status || parts != null || lead ? html` <span class="lf-compose-placeholder" slot="placeholder">
               <span class="lf-compose-placeholder-lead">${lead}</span
               ><span>${parts ?? word}</span><kbd class="lf-key-badge">${suffix}</kbd>
@@ -5175,7 +5176,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (input) {
 			keeps(input, "data-says", reading.says);
 			keeps(input, "data-voice", reading.voice === "leaf" ? "leaf" : null);
-			keeps(input, "data-offers", reading.offers ? "" : null);
 		}
 		return reading.words;
 	}
@@ -5194,6 +5194,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 		const sync = wireInput(input, {
 			hint: () => saying(null, input),
+			offers: () => fieldReading(null, input).offers === true,
 			hintParts: () => {
 				const parts = status().summaryParts;
 				return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? [hiddenLead(), ...statusParts(parts)] : null;
@@ -5247,6 +5248,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (!replyOptions.has(key)) replyOptions.set(key, {
 			hint: () => saying(key, replyInput()),
 			hintLead: () => turnLead(key, replyInput()),
+			offers: () => fieldReading(key, replyInput()).offers === true,
 			accessibleName: () => `Reply to ${threadTitle(key)}`,
 			sending: streamSend,
 			sent: () => {

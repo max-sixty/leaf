@@ -83,6 +83,16 @@ leaf-composition-field {
   background: transparent;
   color: var(--muted);
 }
+/* A hint naming the press that enters the box, such as a reply box's Reply, reads in
+   ink while the caret is elsewhere, as the next action the box offers, and words
+   standing before it keep the placeholder's dim face, as another's words
+   (composing/input.js, `offers`). With the caret in, it is a placeholder again. */
+leaf-text[data-offers]::part(placeholder) {
+  color: var(--ink);
+}
+leaf-text[data-offers] .lf-compose-placeholder-lead {
+  color: var(--muted);
+}
 /* An error about the box stands over its words and its actions, in the danger's ink,
    until the user comes back to them (composing/input.js). It wraps within the box's
    lines and takes no room of its own, so the box keeps its size when it comes and goes.

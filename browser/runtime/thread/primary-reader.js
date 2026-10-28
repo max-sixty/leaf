@@ -389,7 +389,7 @@ export function createPrimaryReader(
             let joined = false;
             // What the box reads, when it holds its sends and how a send lands are the
             // presentation's (replies.js, `createReplyView`), given with its nomination.
-            const { hint, hintLead, accessibleName, busy, sending, sent } =
+            const { hint, hintLead, offers, accessibleName, busy, sending, sent } =
               item.options;
             // The part draws whichever row the view holds: its own, or the session's
             // row it takes from a view that can draw the thread no more, the user
@@ -406,6 +406,7 @@ export function createPrimaryReader(
               editLast: rewritesOf(item.key).editLast,
               hint,
               hintLead,
+              offers,
               accessibleName,
               busy,
               sending,

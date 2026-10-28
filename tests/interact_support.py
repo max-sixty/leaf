@@ -73,8 +73,9 @@ from leaf.findings import Finding
 from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
-from leaf.registry.storage import load_registry, require_registry
-from leaf.revision_artifact import active_enclosing
+from leaf.registry.storage import load_registry, read_page_registry
+from leaf.revision_artifact import active_enclosing, read_artifact
+from leaf.runtime_selection import execution_identity
 from leaf.served_state import page as served_page
 from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
@@ -160,13 +161,19 @@ def append_carried_log_record(page_dir, event):
     return events_model.append_event(page_dir, record)
 
 
+def revision_root(page_dir: Path, revision: int) -> str:
+    """Where a page's server answers revision `revision`'s resources: under the
+    identity of the runtime and layer it executes (`http.PageEndpoint._named_root`)."""
+    name = files_model.revision_path(page_dir, revision).stem
+    return f"/revisions/{name}/{execution_identity(read_artifact(page_dir, revision))}"
+
+
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
     """Write revision `revision` of `data` under the page's current registry.
 
     A shortcut past `page stamp` for a test that stages history directly: it
     runs no gate and no activation, and refuses a revision number already taken."""
     from leaf.passages import SourceReading
-    from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import capture_artifact, write_artifact
     from leaf.structure import SourceDocument
 
@@ -632,16 +639,6 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
     )
 
 
-def revision_root(page_dir: Path, revision: int) -> str:
-    """Where a served revision's resources answer (`http.PageEndpoint._named_root`)."""
-    from leaf.files import revision_path
-    from leaf.revision_artifact import read_artifact
-    from leaf.runtime_selection import execution_identity
-
-    identity = execution_identity(read_artifact(page_dir, revision))
-    return f"/revisions/{revision_path(page_dir, revision).stem}/{identity}"
-
-
 def check(d):
     """`page check`, in-process."""
     return CliRunner().invoke(cli_model.cli, ["page", "check", str(d)])
@@ -703,9 +700,9 @@ def command_findings(*args) -> list[Finding]:
 
 
 def read_page_data(page_dir) -> dict:
-    """Every source the page records, judged against the vocabulary its live
-    document is read in."""
-    return data_model.read_data(page_dir, require_registry(page_dir))
+    """Every source the page records, judged against the vocabulary a write to it
+    takes: the page's layer with its own declarations (`data._write_source`)."""
+    return data_model.read_data(page_dir, read_page_registry(page_dir).registry)
 
 
 def declare_data_input(

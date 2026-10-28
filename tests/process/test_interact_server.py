@@ -4286,7 +4286,7 @@ def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
         root = (
             "/revisions/"
             + snapshot.revision_names[revision].removesuffix(".html")
-            + f"/{execution_identity(snapshot.artifact(revision))}"
+            + f"/{execution_identity(checked.artifact)}"
         )
         status, document = fetch(preview.origin + "/")
         assert status == 200

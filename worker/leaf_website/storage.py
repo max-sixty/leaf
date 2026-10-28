@@ -254,9 +254,8 @@ def _responses(
             continue
         name = snapshot.revision_names[item]
         paths.add(f"revisions/{name}")
-        # Where the container serves the revision's resources: beside the runtime it
-        # runs, under the identity of that runtime and the revision's layer
-        # (`http.PageEndpoint._named_root`).
+        # Where the container serves the revision's resources: under the identity of
+        # the runtime and layer it executes (`http.PageEndpoint._named_root`).
         served = (
             f"revisions/{name.removesuffix('.html')}/{execution_identity(artifact)}"
         )

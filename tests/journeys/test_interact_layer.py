@@ -110,7 +110,11 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
     assert vocabulary.returncode == 0, vocabulary.stderr
     installed_registry = json.loads(vocabulary.stdout)
     assert "lf-test-plan" in installed_registry
-    assert installed_registry["$layer"]["packages"] == list(selected)
+    # The page holds its copy of the project package, so it reads the same anywhere.
+    assert installed_registry["$layer"]["packages"] == [
+        "./packages/work",
+        *selected[1:],
+    ]
     (page / "index.html").write_text(PAGE)
     publish_result = subprocess.run(
         [
@@ -463,7 +467,8 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
     repeated = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert repeated.exit_code == 0, repeated.output
     registry = load_registry(page)
-    assert registry["$layer"]["packages"] == ["~/.config/leaf", "./.leaf"]
+    # The record names the page's copies of the packages selected by path.
+    assert registry["$layer"]["packages"] == ["./packages/leaf", "./packages/.leaf"]
     assert composed(page).top_files["theme.css"].decode() == theme
     cleared = runner.invoke(cli_model.cli, ["page", "init", "--no-packages", str(page)])
     assert cleared.exit_code == 0, cleared.output
@@ -805,8 +810,10 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     )
     assert initialized.exit_code == 0, initialized.output
     layer = selected(layer_record(page), page)
-    # The package's rule reaches the page confined to the package's own widget.
-    assert "@scope (:is(lf-callout)) to (" in layer.top_files["theme.css"].decode()
+    # The package's widget rule reaches the page among its defaults, unscoped.
+    theme = layer.top_files["theme.css"].decode()
+    assert "lf-callout {\n  display: block;" in theme
+    assert theme.index("lf-callout {") < theme.index("@layer lf-theme")
     assert load_registry(page)["lf-callout"] == entry
     assert (
         "Use them for short notices."

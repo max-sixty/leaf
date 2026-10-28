@@ -1,5 +1,5 @@
 import { TEXT_FIELD, Z, afterScript, bindQueuedWork, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, d, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, keepsText, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, q, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft, x } from "./bundle-dom-move.js";
-import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, elementDirective, generatedElement, holdingError, iconTemplate, isCommandScope, keys, layerHeaders, notice, offer, offerAction, paintKeys, paintKeysWithin, postEvent, pressIsKeyboardActivation, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
+import { PRESS, TEXT_ENTRY, actionIcon, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, elementDirective, generatedElement, holdingError, iconTemplate, isCommandScope, keys, layerHeaders, notice, offer, offerAction, paintKeys, paintKeysWithin, postEvent, pressIsKeyboardActivation, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
 import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, agentName, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, discussed, documentChanged, drawingSchema, editable, growthIsSeen, hasArea, html, intersect, isMessageEvent, isThreadEvent, layoutWindow, matchesWhen, moved, offlineInteractive, offlineState, pageUrl, placeBox, placeHolder, presentDocument, presented as presented$1, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, seenRect, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, shownWindow, stateCoordinate, tagsDeclaring, threadKey, tokenChoices, turns, union, watchOwner, watchPresentation, watchRoom, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented, whileConnected } from "./bundle-geometry.js";
 import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleMarginContentLayout, sectionOf, settlePageInterface, syncLayoutRegion, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
 import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, importWidgets, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, once, openMessageEditIn, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, reportFailure, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoLabel, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowLabel, workflowVoice } from "./bundle-data.js";
@@ -300,6 +300,7 @@ const RANK_PRIORITY = /* @__PURE__ */ new Map([
 const ENTRY_OPTIONS = /* @__PURE__ */ new Set([
 	"key",
 	"glyph",
+	"action",
 	"icon",
 	"label",
 	"voice",
@@ -429,9 +430,14 @@ const freezeRelation = (relation) => {
 };
 function contributionEntry$1(offered) {
 	unknownOptions(offered, ENTRY_OPTIONS, "entry");
-	const { key, glyph = null, icon = null, label, voice = "agent", accessibleLabel = null, context = null, description = null, behavior = "action", tone = "neutral", rank = "primary", state = "idle", visible = true, disabled = false, count = 1, pressed = null, workflowReceipt = void 0, relation = null, activation = key, title = null, className = null, scope = null } = offered;
+	const { key, glyph = null, action = null, icon: mark = null, label, voice = "agent", accessibleLabel = null, context = null, description = null, behavior = "action", tone = "neutral", rank = "primary", state = "idle", visible = true, disabled = false, count = 1, pressed = null, workflowReceipt = void 0, relation = null, activation = key, title = null, className = null, scope = null } = offered;
 	if (!text$1(key)) throw new TypeError("A contribution entry needs a key");
-	if (Boolean(text$1(glyph)) === Boolean(icon)) throw new TypeError("A contribution entry needs exactly one glyph or icon");
+	if ([
+		text$1(glyph),
+		action,
+		mark
+	].filter(Boolean).length !== 1) throw new TypeError("A contribution entry needs exactly one glyph, action or icon");
+	const icon = action ? actionIcon(action) : mark;
 	if (!text$1(label)) throw new TypeError("A contribution entry needs a label");
 	if (!TONES.has(tone)) throw new TypeError(`Unknown contribution entry tone: ${tone}`);
 	if (!BEHAVIORS.has(behavior)) throw new TypeError(`Unknown contribution entry behavior: ${behavior}`);
@@ -2275,7 +2281,7 @@ fabInput.name = "comment";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
 const fab = responseAction(el("button", "lf-ui lf-fab"), {
-	icon: "comment",
+	action: "comment",
 	label: "Comment",
 	behavior: "disclosure"
 });
@@ -2287,12 +2293,12 @@ fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
 const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
-	icon: "edit",
+	action: "suggest",
 	label: "Suggest",
 	collapse: true
 });
 fabOptions.append(fabSuggest);
-const fabOptionsTrigger = offerAction("symbol", "lf-response-trigger", "Other responses", { icon: "more" });
+const fabOptionsTrigger = offerAction("symbol", "lf-response-trigger", "Other responses", { action: "more" });
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
 fabOptionsTrigger.popoverTargetElement = fabOptions;
@@ -2394,7 +2400,7 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 	function syncSuggestMode() {
 		const suggest = !suggestionMode;
 		responseAction(fabSuggest, {
-			icon: suggest ? "edit" : "comment",
+			action: suggest ? "suggest" : "comment",
 			label: suggest ? "Suggest" : "Comment",
 			collapse: true
 		});
@@ -2789,7 +2795,7 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 //#endregion
 //#region runtime/margin-model.js
 const TOGGLE = Object.freeze({
-	icon: "more",
+	action: "more",
 	label: "More options"
 });
 const FOLDED = Object.freeze(Object.fromEntries(Object.entries(KINDS).map(([kind, { icon, label }]) => [kind, Object.freeze({

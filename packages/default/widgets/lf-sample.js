@@ -43,7 +43,7 @@ import {
   whileConnected,
   keeps,
   keepsText,
-  iconElement,
+  showAction,
   layoutPx,
   mountSample,
   once,
@@ -231,7 +231,7 @@ customElements.define(
       generatedElement(controls, { says: false });
       const actions = document.createElement("div");
       this.#reset = offerAction("symbol", "lf-sample-action", "Reset", {
-        icon: "retry",
+        action: "reset",
       });
       this.#reset.addEventListener("click", () => {
         if (this.#reset.ariaDisabled === "true") return;
@@ -239,7 +239,9 @@ customElements.define(
       });
       this.#status = offer("span", "lf-sample-status");
       this.#status.setAttribute("role", "status");
-      this.#full = offerAction("symbol", "lf-sample-action");
+      this.#full = offerAction("symbol", "lf-sample-action", undefined, {
+        action: "expand",
+      });
       this.#paintFull(false);
       this.#full.addEventListener("click", () => {
         if (isNativeLayer(this.#view)) this.#return();
@@ -294,9 +296,7 @@ customElements.define(
       this.#full.ariaLabel = this.#full.title = expanded
         ? "Return to page"
         : "Full view";
-      this.#full.replaceChildren(
-        iconElement(expanded ? "collapse" : "expand", "lf-action-icon"),
-      );
+      showAction(this.#full, expanded ? "collapse" : "expand");
     }
 
     #setWindow(value) {

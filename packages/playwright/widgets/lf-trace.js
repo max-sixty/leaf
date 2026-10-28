@@ -91,6 +91,7 @@ import {
   isNativeLayer,
   holdFocus,
   html,
+  actionTemplate,
   iconTemplate,
   inBaseLayer,
   live,
@@ -233,14 +234,12 @@ const playbackLayer = () =>
   });
 
 // A command row owns each transport button's activation and availability.
-const transport = (target, label, icon, disabled, title = label) =>
+const transport = (target, label, action, disabled, title = label) =>
   html`<button
-    ${offeredAction("symbol", "lf-trace-transport-button", label, { title })}
+    ${offeredAction("symbol", "lf-trace-transport-button", label, { title, action })}
     ${ref(target)}
     ?disabled=${disabled}
-  >
-    ${iconTemplate(icon, "lf-action-icon")}
-  </button>`;
+  ></button>`;
 
 customElements.define(
   "lf-trace",
@@ -2011,7 +2010,7 @@ customElements.define(
                         capture: true,
                       }}
                     >
-                      ${iconTemplate("play", "lf-action-icon")}${iconTemplate(
+                      ${actionTemplate("play", "lf-action-icon")}${actionTemplate(
                         "pause",
                         "lf-action-icon",
                       )}
@@ -2037,8 +2036,8 @@ customElements.define(
                     role="group"
                     aria-label="Timeline zoom"
                   >
-                    ${transport(this.#zoomOut, "Zoom out", "subtract", q)}
-                    ${transport(this.#zoomIn, "Zoom in", "add", q)}
+                    ${transport(this.#zoomOut, "Zoom out", "zoom-out", q)}
+                    ${transport(this.#zoomIn, "Zoom in", "zoom-in", q)}
                     ${transport(this.#zoomFit, "Whole recording", "fit", q)}
                   </div>
                   <label class="lf-trace-pace"
@@ -2087,17 +2086,15 @@ customElements.define(
                 ${ref(this.#imageTools)}
               >
                 ${[
-                  ["subtract", "Zoom image out", () => this.#picture?.zoom(-0.25)],
-                  ["add", "Zoom image in", () => this.#picture?.zoom(0.25)],
+                  ["zoom-out", "Zoom image out", () => this.#picture?.zoom(-0.25)],
+                  ["zoom-in", "Zoom image in", () => this.#picture?.zoom(0.25)],
                 ].map(
-                  ([icon, label, run]) =>
+                  ([action, label, run]) =>
                     html`<button
-                      ${offeredAction("symbol", "", label)}
+                      ${offeredAction("symbol", "", label, { action })}
                       ?disabled=${!this.#picture?.viewed || q}
                       @click=${run}
-                    >
-                      ${iconTemplate(icon, "lf-action-icon")}
-                    </button>`,
+                    ></button>`,
                 )}
                 <button
                   ${offeredAction("word", "lf-trace-image-scale")}

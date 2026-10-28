@@ -1,7 +1,7 @@
-/* The layer's icons: one table of 16px strokes, and a plain DOM drawing of one. It
-   imports nothing, so a package's first-paint producer, compiled into a script of its
-   own, draws the same symbols as the runtime; icons.js adds the Lit template the
-   runtime's renderers use. */
+/* The layer's icons: one table of 16px strokes, the actions that show them, and a
+   plain DOM drawing of one. It imports nothing, so a package's first-paint producer,
+   compiled into a script of its own, draws the same symbols as the runtime; icons.js
+   adds the Lit templates the runtime's renderers use. */
 
 // Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
 // are authored content and may supply emoji; structural Leaf faces keep their line
@@ -80,4 +80,150 @@ export function iconElement(icon, className = "lf-margin-entry-icon") {
   svg.dataset.lfIcon = icon;
   svg.innerHTML = iconMarkup(icon);
   return svg;
+}
+
+// Each action a press can show as a symbol, and the symbol and name it shows wherever
+// Leaf offers it (browser/AGENTS.md, "Visual grammar"). A press names its action and
+// never an icon, so one action can't show two symbols. Two actions may share one
+// symbol, as Close and Discard share ✕, and a press may say more than the action's
+// name, as "Retry source inspection" does. The icons above that no action names mark
+// a kind or a state, not a press.
+export const ACTIONS = {
+  accept: { name: "Accept", icon: "check" },
+  add: { name: "Add", icon: "add" },
+  arrange: { name: "Arrange", icon: "arrange" },
+  cancel: { name: "Cancel", icon: "cross" },
+  close: { name: "Close", icon: "cross" },
+  collapse: { name: "Collapse", icon: "collapse" },
+  comment: { name: "Comment", icon: "comment" },
+  copy: { name: "Copy", icon: "copy" },
+  "copy-link": { name: "Copy link", icon: "link" },
+  dictate: { name: "Dictate", icon: "microphone" },
+  discard: { name: "Discard", icon: "cross" },
+  done: { name: "Done", icon: "check" },
+  edit: { name: "Edit", icon: "edit" },
+  expand: { name: "Expand", icon: "expand" },
+  find: { name: "Find", icon: "search" },
+  "collapse-all": { name: "Collapse all", icon: "fold" },
+  "expand-all": { name: "Expand all", icon: "unfold" },
+  fit: { name: "Fit", icon: "fit" },
+  minimize: { name: "Minimize", icon: "subtract" },
+  more: { name: "More options", icon: "more" },
+  next: { name: "Next", icon: "next" },
+  // A find bar's steps run up and down its matches, as a browser's do.
+  "next-match": { name: "Next match", icon: "down" },
+  "on-me": { name: "On me", icon: "inbox" },
+  pause: { name: "Pause", icon: "pause" },
+  play: { name: "Play", icon: "play" },
+  previous: { name: "Previous", icon: "previous" },
+  "previous-match": { name: "Previous match", icon: "up" },
+  react: { name: "Add reaction", icon: "reaction" },
+  remove: { name: "Remove", icon: "cross" },
+  reject: { name: "Reject", icon: "cross" },
+  reopen: { name: "Reopen", icon: "check" },
+  reset: { name: "Reset", icon: "retry" },
+  resolve: { name: "Resolve", icon: "check" },
+  retry: { name: "Retry", icon: "retry" },
+  save: { name: "Save", icon: "save" },
+  send: { name: "Send", icon: "send" },
+  show: { name: "Show on page", icon: "locate" },
+  start: { name: "Start", icon: "start" },
+  suggest: { name: "Suggest", icon: "edit" },
+  undo: { name: "Undo", icon: "undo" },
+  "zoom-in": { name: "Zoom in", icon: "add" },
+  "zoom-out": { name: "Zoom out", icon: "subtract" },
+};
+
+/** The symbol `action` shows. */
+export const actionIcon = (action) => {
+  const named = ACTIONS[action];
+  if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
+  return named.icon;
+};
+
+/** The element that draws `action`'s symbol. */
+export const actionElement = (action, className) =>
+  iconElement(actionIcon(action), className);
+
+const SYMBOLIC = new Set(["symbol", "mark"]);
+const NAMED = new Set(Object.values(ACTIONS).map(({ name }) => name));
+
+// The name a control of `role` says, and the action whose symbol it shows. A symbol or
+// mark shows its action's symbol and says its name unless `label` says more. A word
+// that is an action's name would give that action a second face, so it is refused.
+function actionFace(role, label, action) {
+  if (!SYMBOLIC.has(role)) {
+    if (action !== undefined)
+      throw new TypeError(`A ${role} says its label and shows no action's symbol`);
+    if (role === "word" && NAMED.has(label))
+      throw new TypeError(
+        `${label} is an action Leaf shows as its symbol: offer it as a symbol of that action`,
+      );
+    return label;
+  }
+  if (action === undefined) throw new TypeError(`A ${role} names the action it shows`);
+  actionIcon(action);
+  return label ?? ACTIONS[action].name;
+}
+
+/**
+ * Draws `action`'s symbol as `control`'s first child, and leaves one that already
+ * shows it, so a template's later renders write nothing and a control whose action
+ * follows its state, as Expand all turns to Collapse all, swaps only the symbol.
+ * @param {Element} control @param {string} action @param {string} [className]
+ */
+export function showAction(control, action, className = "lf-action-icon") {
+  const icon = actionIcon(action);
+  const drawn = control.querySelector(":scope > svg[data-lf-icon]");
+  if (drawn?.getAttribute("data-lf-icon") === icon) return;
+  const symbol = iconElement(icon, className);
+  if (drawn) drawn.replaceWith(symbol);
+  else control.prepend(symbol);
+}
+
+const drawAction = (node, role, action) =>
+  showAction(node, action, role === "mark" ? "lf-mark-icon" : "lf-action-icon");
+
+/**
+ * The role constructors (`prepaint.js`, `ACTION_FACES`) with each symbol and mark
+ * drawn from its action: `offerAction(role, className, label, {title, action})`, and
+ * `offerActionElement(node, …)` for a template's element. The runtime builds its own
+ * from these (widget-elements.js), and an initial producer wraps the tools it
+ * receives.
+ * @param {Pick<LeafInitial, "offerAction" | "offerActionElement">} base
+ */
+export function actionOffers(base) {
+  const titled = (title) => (title === undefined ? undefined : { title });
+  return {
+    /**
+     * @param {LeafActionRole} role @param {string} [className] @param {string} [label]
+     * @param {{title?: string, action?: string}} [options]
+     */
+    offerAction(role, className, label, { title, action } = {}) {
+      const node = base.offerAction(
+        role,
+        className,
+        actionFace(role, label, action),
+        titled(title),
+      );
+      if (SYMBOLIC.has(role)) drawAction(node, role, action);
+      return node;
+    },
+    /**
+     * @template {Element} T
+     * @param {T} node @param {LeafActionRole} role @param {string} [className]
+     * @param {string} [label] @param {{title?: string, action?: string}} [options]
+     */
+    offerActionElement(node, role, className, label, { title, action } = {}) {
+      base.offerActionElement(
+        node,
+        role,
+        className,
+        actionFace(role, label, action),
+        titled(title),
+      );
+      if (SYMBOLIC.has(role)) drawAction(node, role, action);
+      return node;
+    },
+  };
 }

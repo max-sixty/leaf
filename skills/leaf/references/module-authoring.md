@@ -347,21 +347,24 @@ ${offered("my-tools")}>` does the same, with an input's `type` binding placed be
 `offered`.
 
 A button that looks like Leaf's own controls is built by its role, so every control of
-one kind wears one face: `offerAction(role, className, label, {title, icon})`, or
-`<button ${offeredAction(role, className, label)}>` in a template. The roles are:
+one kind wears one face: `offerAction(role, className, label, {title, action})`, or
+`<button ${offeredAction(role, className, label, {action})}></button>` in a template.
+The roles are:
 
-- `"symbol"`, a press drawn as one of Leaf's icons (`icon`; `module-reading.md`,
-  "Icons"). `label` is its tooltip and accessible name, and `title` replaces the
-  tooltip where it says more, such as the key that does the same. In a template, put
-  `${iconTemplate(name, "lf-action-icon")}` inside the button.
+- `"symbol"`, a press that shows the symbol of its `action`, one of Leaf's actions
+  (`module-reading.md`, "Icons"), and draws it for you. Its tooltip and accessible name
+  are the action's name, or `label` where that says more, such as "Retry loading the
+  file"; `title` replaces the tooltip where it says more still, such as the key that
+  does the same.
 - `"word"`, a press that says what it does, a row of a list or menu included; `label`
   is its words. A toggle is a word with `aria-pressed`, which draws as selected.
 - `"commit"`, the one press on a surface that commits the user's work.
-- `"mark"`, a small symbol seated on the thing it acts on, at its corner.
+- `"mark"`, a small symbol seated on the thing it acts on, at its corner, which names
+  its `action` as a symbol does.
 
-`className` places the control; don't restyle its face. Use a symbol where a standard
-symbol for the action exists, one readers know from other software, and words where
-none does.
+`className` places the control; don't restyle its face. Use a symbol where Leaf has an
+action for what the press does, and words where it has none. A word whose label is an
+action's name, such as "Retry", is refused, since that action already has its symbol.
 Shared control styles (`page-layout.md`, "Page CSS and Leaf's controls") apply to
 generated controls too.
 

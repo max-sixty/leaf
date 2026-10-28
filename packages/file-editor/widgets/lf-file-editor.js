@@ -50,6 +50,7 @@ import {
   focused,
   handBack,
   html,
+  actionTemplate,
   iconTemplate,
   isNativeLayer,
   LeafElement,
@@ -312,7 +313,7 @@ customElements.define(
                 aria-disabled=${busy ? "true" : nothing}
                 @click=${(event) => retry(event.currentTarget)}
               >
-                ${iconTemplate("retry", "lf-file-editor-icon")}</button
+                ${actionTemplate("retry", "lf-file-editor-icon")}</button
               ><button
                 ${offered("lf-file-editor-conflict")}
                 ?hidden=${!conflicted}

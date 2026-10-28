@@ -54,7 +54,6 @@ import {
 } from "./replies.js";
 import { atScrollEnd } from "../scrolling.js";
 import { settleThread } from "./folding.js";
-import { iconTemplate } from "../icons.js";
 import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX } from "./selectors.js";
 import { threadAttention, todoLabel, workflowLabel } from "./workflow.js";
@@ -761,10 +760,10 @@ export class ThreadView {
     const label =
       reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
     return html`<button
-      ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve")}
+      ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve", label, {
+        action: reopen ? "reopen" : "resolve",
+      })}
       aria-busy=${state.pending ? "true" : nothing}
-      aria-label=${label}
-      title=${label}
       ${commandsOn(`On a thread's ${word} button`, (button) => [
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
@@ -775,9 +774,7 @@ export class ThreadView {
           run: this.#settle,
         },
       ])}
-    >
-      ${iconTemplate("check", "lf-action-icon")}
-    </button>`;
+    ></button>`;
   }
 
   // What the thread holds, shown by a press on one of its controls. Where showing it

@@ -1,7 +1,7 @@
 /* The same synchronous Lit drawing owns the transport before first paint and while
  * playing. The authored body keeps its native nodes, media clocks and page styling. */
-import { html, live, ref, render, unsafeSVG } from "/vendor/lit.js";
-import { ICONS } from "../../../browser/runtime/icon-paths.js";
+import { html, live, ref, render } from "/vendor/lit.js";
+import { showAction } from "../../../browser/runtime/icon-paths.js";
 
 document.documentElement.lfInitial.register(
   "lf-motion",
@@ -34,11 +34,7 @@ document.documentElement.lfInitial.register(
             role="group"
             aria-label=${host.getAttribute("aria-label")}
           >
-            <button ${ref(playRef)} aria-label=${label} title=${label}>
-              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                ${unsafeSVG(playing ? ICONS.pause : ICONS.play)}
-              </svg>
-            </button>
+            <button ${ref(playRef)} aria-label=${label} title=${label}></button>
             <input
               ${ref(timeRef)}
               type="range"
@@ -66,6 +62,8 @@ document.documentElement.lfInitial.register(
         `,
         host,
       );
+      // The press is lent its face alone, since its name follows the clock's words.
+      showAction(drawing.play, playing ? "pause" : "play");
     };
     paint({
       time: Math.min(Number(host.getAttribute("duration")), saved.time),

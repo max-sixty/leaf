@@ -9,7 +9,7 @@
  * setting's and value slot's `for` naming a control of this playground (a keyed
  * x-refers). This producer checks only what needs the values themselves, such as a
  * range value against its bounds or a choice control's value among its choices. */
-import { iconElement } from "../../../browser/runtime/icon-paths.js";
+import { actionOffers } from "../../../browser/runtime/icon-paths.js";
 
 const own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
 const belongsTo = (host, member) =>
@@ -24,7 +24,9 @@ const ownControls = (host, preview) => [
   ),
 ];
 
-function render(host, { tabStore, offer, offerAction, generatedElement, keeps }) {
+function render(host, tools) {
+  const { tabStore, offer, generatedElement, keeps } = tools;
+  const { offerAction } = actionOffers(tools);
   const presets = own(host, "lf-playground-preset");
   const outputs = own(host, "lf-playground-output");
   const previews = own(host, "lf-playground-preview");
@@ -305,8 +307,9 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
     // agent's thread once sent. Shown at rest, a long instruction took more of the
     // playground's room than the controls that wrote it (2026-10-25).
     const actions = node("div", "lf-playground-actions");
-    reset = offerAction("symbol", "lf-playground-reset", "Reset");
-    reset.append(iconElement("retry", "lf-action-icon"));
+    reset = offerAction("symbol", "lf-playground-reset", undefined, {
+      action: "reset",
+    });
     instruction = node("div", "lf-playground-instruction");
     instruction.id = `${host.id}-instruction`;
     instruction.popover = "auto";
@@ -323,12 +326,13 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
     const instructionBody = node("div", "lf-playground-instruction-body");
     instructionBody.append(output);
     instruction.append(instructionHead, instructionBody);
-    reveal = offerAction("symbol", "lf-playground-reveal", "Show instruction");
+    reveal = offerAction("symbol", "lf-playground-reveal", "Show instruction", {
+      action: "more",
+    });
     reveal.popoverTargetElement = instruction;
     // Leaf's disclosure keys and Go-to routes read this explicit relation.
     reveal.setAttribute("aria-controls", instruction.id);
     reveal.setAttribute("aria-expanded", "false");
-    reveal.append(iconElement("more", "lf-action-icon"));
     submit = offerAction("commit", "lf-playground-submit");
     const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
     submit.dataset.room = `${submitLabel}\nUndo choice`;

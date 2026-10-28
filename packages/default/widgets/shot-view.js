@@ -174,7 +174,13 @@ export class ShotView {
       node && tools.offerActionElement(node, "word", "lf-shot-outline");
     this.scaleRef = (node) => {
       if (node)
-        this.scaleTrigger = tools.offerActionElement(node, "symbol", "lf-shot-scale");
+        this.scaleTrigger = tools.offerActionElement(
+          node,
+          "symbol",
+          "lf-shot-scale",
+          "Image options",
+          { action: "more" },
+        );
     };
     let optionsId;
     do optionsId = `lf-shot-options-${++nextOptionsId}`;
@@ -317,19 +323,9 @@ export class ShotView {
               <button
                 ${ref(this.scaleRef)}
                 type="button"
-                aria-label="Image options"
                 popovertarget=${optionsId}
                 @click=${this.toggleOptions ?? null}
-              >
-                <svg
-                  viewBox="0 0 16 16"
-                  focusable="false"
-                  aria-hidden="true"
-                  class="lf-action-icon"
-                  data-lf-icon="more"
-                  .innerHTML=${this.tools.iconMarkup("more")}
-                ></svg>
-              </button>
+              ></button>
               <button
                 ${ref(this.outlineRef)}
                 type="button"

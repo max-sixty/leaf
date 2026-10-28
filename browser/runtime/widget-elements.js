@@ -47,7 +47,8 @@ import { paintKeysWithin } from "./keyboard/scopes.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { shownBox } from "./geometry.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
-import { iconElement, iconTemplate } from "./icons.js";
+import { actionOffers } from "./icon-paths.js";
+import { actionTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
 import { isNativeLayer } from "./shadow-tree.js";
 import { keeps, keepsText } from "./keeps.js";
@@ -331,38 +332,20 @@ export function elementDirective(name, write) {
 export const offered = elementDirective("offered", offerElement);
 
 // A press that wears one of Leaf's control faces is built by its role, never by naming
-// the face's classes: `offerAction(role, className, label, {title, icon})` and, in a
-// template, `<button ${offeredAction(role, className, label)}>`. prepaint.js
-// (`ACTION_FACES`) lists the roles and says what each is for; `className` places the
-// control and never restyles its face. A symbol or mark is named by `label` as its
-// tooltip and accessible name; `icon` draws its symbol from icons.js, which a template
-// writes as the button's content. Initial producers receive the same `offerAction`.
-/** @type {LeafInitial["offerActionElement"]} */
-const offerActionElement = (...args) =>
-  document.documentElement.lfInitial.offerActionElement(...args);
-/**
- * @param {LeafActionRole} role
- * @param {string} [className]
- * @param {string} [label]
- * @param {{title?: string, icon?: string}} [options]
- */
-export function offerAction(role, className, label, { title, icon } = {}) {
-  const control = document.documentElement.lfInitial.offerAction(
-    role,
-    className,
-    label,
-    title === undefined ? undefined : { title },
-  );
-  if (icon)
-    control.append(
-      iconElement(icon, role === "mark" ? "lf-mark-icon" : "lf-action-icon"),
-    );
-  return control;
-}
+// the face's classes: `offerAction(role, className, label, {title, action})` and, in a
+// template, `<button ${offeredAction(role, className, label, {action})}></button>`.
+// prepaint.js (`ACTION_FACES`) lists the roles and says what each is for; `className`
+// places the control and never restyles its face. A symbol or mark names its `action`
+// (icon-paths.js, `ACTIONS`), whose symbol it shows and whose name it says as its
+// tooltip and accessible name unless `label` says more. Initial producers wrap the
+// tools they receive with the same `actionOffers`.
+const { offerAction, offerActionElement } = actionOffers({
+  offerAction: (...args) => document.documentElement.lfInitial.offerAction(...args),
+  offerActionElement: (...args) =>
+    document.documentElement.lfInitial.offerActionElement(...args),
+});
+export { offerAction };
 export const offeredAction = elementDirective("offeredAction", offerActionElement);
-// A control that is a vendor element, such as Web Awesome's copy button, wears its
-// role's face through the element writer (copy-control.js).
-export { offerActionElement };
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. Chromium does not begin text selection inside a form control, so those
@@ -501,19 +484,20 @@ export function relabel(node, label, { says } = {}) {
 // closes, since the glyph alone says only "close". `name` is the accessible name, such
 // as "Close threads"; `title` is the hover's, which says the key where one closes it too.
 export const closeControl = ({ name, title = name, className = "" }) =>
-  offerAction("symbol", className, name, { title, icon: "cross" });
+  offerAction("symbol", className, name, { title, action: "close" });
 
 // The anchored response bar has one control grammar of its own. Its buttons share the
 // field's type, border, height, and floating elevation without claiming to be target-
 // margin entries. The repeated anatomy lets Comment, Suggest, and package reactions
-// change vocabulary without each inventing a button shape. Restating the anatomy a
-// control already wears writes nothing (keeps.js).
+// change vocabulary without each inventing a button shape. A reaction shows its glyph,
+// and Leaf's own actions their symbol (icon-paths.js, `ACTIONS`). Restating the anatomy
+// a control already wears writes nothing (keeps.js).
 export function responseAction(
   control,
-  { glyph = null, icon = null, label, behavior = "action", collapse = false },
+  { glyph = null, action = null, label, behavior = "action", collapse = false },
 ) {
-  if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
-    throw new TypeError("A response action needs exactly one glyph or icon");
+  if (Boolean(String(glyph ?? "").trim()) === Boolean(action))
+    throw new TypeError("A response action needs exactly one glyph or action");
   control.classList.toggle("lf-response-control", true);
   control.classList.toggle("lf-response-action", true);
   keeps(control, "data-lf-behavior", behavior);
@@ -524,8 +508,8 @@ export function responseAction(
   if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
   render(
     html`${
-        icon
-          ? iconTemplate(icon)
+        action
+          ? actionTemplate(action)
           : html`<span class="lf-response-action-glyph" aria-hidden="true"
               >${glyph}</span
             >`

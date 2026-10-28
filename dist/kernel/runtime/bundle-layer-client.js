@@ -1,5 +1,5 @@
 import { ANNOUNCE, COMMANDS, PAGE_PAINT_ATTRIBUTE, actionIcon, actionName, actionOffers, commandsChangedOn, failureContext, failureOf, iconMarkup, isNativeLayer, nextRender, refuseCommands, renderedParent, showAction, under } from "./bundle-portable.js";
-import { AsyncDirective, CARET_KEYS, DELIVERY, Directive, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, controlNavigationKeys, describeFailure, directive, focusRevision, focused, html, keeps, keepsText, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, pageUrl, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, x as x$1 } from "./bundle-layer-stack.js";
+import { AsyncDirective, CARET_KEYS, DELIVERY, Directive, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, controlNavigationKeys, describeFailure, directive, focusDestination, focusRevision, focused, html, keeps, keepsText, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, pageUrl, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, x as x$1 } from "./bundle-layer-stack.js";
 
 //#region runtime/root-state.js
 const setRuntimeRootAttribute = (...args) => document.documentElement.lfInitial.setRuntimeRootAttribute(...args);
@@ -704,6 +704,7 @@ function checked(rows, where, ready) {
 		if (!row) throw new TypeError(`${where}: row ${i + 1} is missing`);
 		named(row);
 		if (row.decision && row.control == null) throw new Error(`leaf: ${row.id} is a Decision command with no control`);
+		if (row.lands !== void 0 && typeof row.lands !== "function") throw new TypeError(`leaf: ${row.id} lands must be a function`);
 		if (row.native && !row.run) throw new Error(`leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`);
 		if (row.exit && (!row.run || row.touch || row.routes)) throw new Error(`leaf: ${row.id} is its stance's way out, which the panel's row offers in its own words, so it needs a run and no touch words or routes`);
 		if (row.touch && (!row.run || row.routes)) throw new Error(`leaf: ${row.id} stands in for its keys under a finger, so it needs a run and makes one press, with no routes`);
@@ -957,6 +958,11 @@ function claimButton(control) {
 	if (control.disabled) control.disabled = false;
 	rememberScopedElement(control);
 }
+function runLanding(row, run, from) {
+	run();
+	const to = row.lands?.(from);
+	if (to) focusDestination(to, "move");
+}
 function wireButton(control) {
 	claimButton(control);
 	if (wiredButtons.has(control)) return;
@@ -967,7 +973,7 @@ function wireButton(control) {
 		if (!command) return;
 		event.preventDefault();
 		if (command.scope.when && !command.scope.when() || !commandAvailable(command.row, command.entry === command.row ? null : command.entry)) return;
-		command.row.run(commandBinding(command.row, command.entry === command.row ? null : command.entry));
+		runLanding(command.row, () => command.row.run(commandBinding(command.row, command.entry === command.row ? null : command.entry)), control);
 	});
 }
 function wireDeclaredButtons(scope) {
@@ -2019,4 +2025,4 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 //#endregion
-export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offerActionElement, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };
+export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offerActionElement, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runLanding, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };

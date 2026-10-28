@@ -58,7 +58,6 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         # Restore installs the inherited transaction provider before serving.
         restore(site)
         assert os.environ["LEAF_PAGE_COMMIT"] == "leaf_website.storage:publish"
-        (private / "page" / "obsolete.txt").unlink()
         chosen = append_command(
             private,
             {
@@ -96,6 +95,9 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
             receive_batch(page, {"events": [chosen, comment, reply]}, session_id=None),
         ):
             pass
+        # One private revision drops a page input and revises the document. Each
+        # commit activates the source, so the two edits land before the same one.
+        (private / "page" / "obsolete.txt").unlink()
         (private / "index.html").write_text(
             (private / "index.html")
             .read_text()
@@ -164,7 +166,9 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
             for key in publication["responses"]
             if key.startswith("revisions/r2-") and key.endswith("/leaf.js")
         ]
-        assert body(private_entry) == serving_runtime().resources({}, {})["/leaf.js"].data
+        assert (
+            body(private_entry) == serving_runtime().resources({}, {})["/leaf.js"].data
+        )
         # Start a fresh filesystem from the same release image.
         replacement = tmp_path / "replacement"
         shutil.copytree(site, replacement, ignore=shutil.ignore_patterns("page"))

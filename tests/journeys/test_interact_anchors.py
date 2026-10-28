@@ -14,15 +14,13 @@ from interact_support import (
     check_findings,
     comment,
     decide,
+    declare_on_page,
     found,
     publish,
     published,
     stamp,
     state_json,
     suggested,
-)
-from model.test_interact_anchors import (
-    declare_part_prefixes,
 )
 
 from leaf import cli as cli_model
@@ -32,6 +30,16 @@ from leaf import files as files_model
 from leaf import structure as structure_model
 from leaf.events import build_threads
 from leaf.registry import storage as registry_storage
+
+
+def declare_part_prefixes(page_dir, *prefixes):
+    """Give the page's diagram part-id prefixes in place of its authored list."""
+    declare_on_page(
+        page_dir,
+        lambda registry: registry["lf-diagram"].update(
+            {"x-visual": {"prefixes": list(prefixes)}}
+        ),
+    )
 
 
 def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):

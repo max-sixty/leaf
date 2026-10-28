@@ -220,7 +220,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
         ],
     )
     assert revendored.exit_code == 0, revendored.output
-    assert layer_record(page_dir)["packages"][-1] == "./.leaf"
+    assert layer_record(page_dir)["packages"][-1] == "./packages/.leaf"
     # The old server went down with the restart, and this checkout's came up in its
     # place at the same URL, under the lifetime and claim it had.
     old_server.wait(timeout=STATED_TIMEOUT)

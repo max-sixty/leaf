@@ -73,7 +73,7 @@ from leaf.findings import Finding
 from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
-from leaf.registry.storage import load_registry, require_registry
+from leaf.registry.storage import load_registry, read_page_registry
 from leaf.revision_artifact import active_enclosing, read_artifact
 from leaf.runtime_selection import execution_identity
 from leaf.served_state import page as served_page
@@ -174,7 +174,6 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
     A shortcut past `page stamp` for a test that stages history directly: it
     runs no gate and no activation, and refuses a revision number already taken."""
     from leaf.passages import SourceReading
-    from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import capture_artifact, write_artifact
     from leaf.structure import SourceDocument
 
@@ -701,9 +700,9 @@ def command_findings(*args) -> list[Finding]:
 
 
 def read_page_data(page_dir) -> dict:
-    """Every source the page records, judged against the vocabulary its live
-    document is read in."""
-    return data_model.read_data(page_dir, require_registry(page_dir))
+    """Every source the page records, judged against the vocabulary a write to it
+    takes: the page's layer with its own declarations (`data._write_source`)."""
+    return data_model.read_data(page_dir, read_page_registry(page_dir).registry)
 
 
 def declare_data_input(

@@ -354,14 +354,19 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
         words = "Half a thought the reload must not take"
         write(editor, words)
         birth = page.evaluate("performance.timeOrigin")
-        # A newer layer: the page selects one more package.
+        # A newer layer: the page selects one more package. Its record names each
+        # package copy relative to the page, and init resolves a path from where it
+        # runs.
         newer = page_dir.parent / "newer-layer"
         newer.mkdir()
         (newer / "theme.css").write_text("/* a newer layer */\n")
-        vendoring_model.cmd_init(
-            page_dir,
-            (*layer_packages(page_dir), "./" + os.path.relpath(newer)),
+        held = tuple(
+            "./" + os.path.relpath(page_dir / value)
+            if value.startswith("./")
+            else value
+            for value in layer_packages(page_dir)
         )
+        vendoring_model.cmd_init(page_dir, (*held, "./" + os.path.relpath(newer)))
         revised = revisioning_model.activate_source(page_dir)
         assert revised.error is None
         with restarting(page):

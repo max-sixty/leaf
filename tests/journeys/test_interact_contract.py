@@ -40,6 +40,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
 from leaf import event_log as events_model
+from leaf import revisioning as revisioning_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
@@ -110,6 +111,8 @@ def test_revendoring_can_drop_a_historical_data_binding(page_dir):
     package.mkdir()
     (page_dir / "page" / "registry.json").rename(package / "registry.json")
     vendoring_model.cmd_init(page_dir, (*page_packages(), "./.leaf"))
+    # Revision 1 is the document read under the package's binding.
+    assert revisioning_model.activate_source(page_dir).error is None
     data_model.cmd_data_set(page_dir, "builds", [])
 
     refreshed = CliRunner().invoke(
@@ -246,7 +249,6 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
                 attr: {"type": "string"},
                 "restated": {"type": "boolean"},
             }
-            entry["required"] = sorted({*entry["required"], attr})
             entry["x-state"] = verbs
             entry["x-upgrade"] = True
             (widgets / f"{tag}.js").write_text("export default class {}\n")

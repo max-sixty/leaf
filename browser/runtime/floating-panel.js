@@ -2260,9 +2260,8 @@ export function createFloatingPanel({
   // the picker lists, each a press that travels there and says the note its stamp gave
   // it after its name, cut to the row and whole on hover. A column at the rows' end
   // holds Compare where the picker offers it and Showing for the version shown, so
-  // the two words line up and every version's press ends at the same edge. Showing
-  // stands beside the press rather than in it, as Compare does; the press carries it
-  // as `aria-current`.
+  // the two words line up. Showing stands outside the press, as Compare does, over
+  // the row's end; the press carries it as `aria-current`.
   const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();

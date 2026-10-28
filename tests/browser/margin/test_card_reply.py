@@ -667,7 +667,10 @@ def test_a_margin_reply_grows_before_it_scrolls(browser, serve, comment_repeats)
     if comment_repeats == 6:
         assert transcript.evaluate("list => list.scrollHeight <= list.clientHeight + 1")
     write(editor, "\n".join("A reply with several lines." for _ in range(5)))
-    assert editor.evaluate("input => input.getBoundingClientRect().height") > 120
+    assert editor.evaluate(
+        "input => input.getBoundingClientRect().height"
+        " >= 5 * parseFloat(getComputedStyle(input).lineHeight)"
+    )
     assert editor.evaluate("input => input.scrollHeight <= input.clientHeight + 1")
 
 

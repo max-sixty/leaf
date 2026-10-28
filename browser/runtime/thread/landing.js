@@ -206,13 +206,13 @@ export function createThreadLanding() {
  * click on its words focuses, the quote, a link in a reply; and on the element whose
  * thread a card shows beside it, which is one place with it, as `c` there continues that
  * thread. `r` settles the thread from any of them, since a control, a widget, or a text
- * box that owns a letter is walked first. Enter replies or reopens only from the card,
- * where no control inside has an Enter of its own to lose. The platform's copy key with
- * nothing selected presses Copy on the message the user is in, else on the thread's
- * latest, the keyboard's route to what Copy gives a pointer; with words selected it keeps
- * the browser's copy, which is Markdown too (markdown.js). The reopen button tells the
- * two states apart; absent a thread, the reference describes the open state users first
- * meet. */
+ * box that owns a letter is walked first. Enter replies only from the card, where no
+ * control inside has an Enter of its own to lose; where a resolved thread draws no reply
+ * box, as a resolved card doesn't, it reopens the thread into the box instead. The
+ * platform's copy key with nothing selected presses Copy on the message the user is in,
+ * else on the thread's latest, the keyboard's route to what Copy gives a pointer; with
+ * words selected it keeps the browser's copy, which is Markdown too (markdown.js). Absent
+ * a thread, the reference describes the open state users first meet. */
 export function declareThreadKeys(landIn, threadHere) {
   pageScope("thread", {
     title: "In a thread",
@@ -225,7 +225,10 @@ export function declareThreadKeys(landIn, threadHere) {
         touch: false,
         keys: ["Enter"],
         title: () =>
-          resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
+          !threadInput(cardThread()) &&
+          resolutionControl(cardThread())?.matches(".lf-reopen")
+            ? "reopen"
+            : "reply",
         when: () =>
           Boolean(threadInput(cardThread())) ||
           resolutionControl(cardThread())?.matches(
@@ -235,11 +238,9 @@ export function declareThreadKeys(landIn, threadHere) {
         // contain a widget with an editor of its own before the reply box in DOM order.
         run: () => {
           const thread = cardThread();
-          const reopen = resolutionControl(thread)?.matches(".lf-reopen")
-            ? resolutionControl(thread)
-            : null;
-          if (reopen) reopen.click();
-          else landIn({ held: thread, box: threadInput(thread) });
+          const box = threadInput(thread);
+          if (box) landIn({ held: thread, box });
+          else resolutionControl(thread).click();
         },
       },
       {

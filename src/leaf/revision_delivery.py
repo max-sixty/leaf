@@ -54,9 +54,9 @@ from .revision_artifact import (
 )
 from .schema import (
     BROWSER_DIRS,
+    LAYER_TOP_FILES,
     MEDIA_DIR,
     RENDER_CHECKS_DIR,
-    VENDORED_FILES,
 )
 from .structure import (
     UTF8_BOM,
@@ -81,7 +81,7 @@ _PAGE_PATH = re.compile(
     "/(?:"
     + "|".join(
         [f"(?:page|{MEDIA_DIR}|{'|'.join(BROWSER_DIRS)})/.+"]
-        + [re.escape(name) for name in VENDORED_FILES]
+        + [re.escape(name) for name in LAYER_TOP_FILES]
     )
     + ")"
 )

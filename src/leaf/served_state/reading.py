@@ -74,7 +74,7 @@ def page_roots(page_dir: Path) -> dict[Path, bool]:
     directory its direct children. Each other directory among them reports the
     entries whose arrival or removal moves its stamp, and each of `TREES` every
     file beneath it. Nothing deeper is an input, so what each revision in
-    `revisions/` holds and the vendored layer's modules go unwatched. The roots follow
+    `revisions/` holds and the page's package copies go unwatched. The roots follow
     the page's direct subdirectories as they stand: one created later is reported
     by the page directory, and the owner's next subscription takes it in."""
     roots = {page_dir.parent: False, page_dir: False}
@@ -143,8 +143,10 @@ def held_page_reading(page_dir: Path) -> str:
     a module dependency or stylesheet is a candidate revision even when the HTML stays
     unchanged. So is `data/`, whose publication files `leaf data set` replaces
     atomically. Other directories are stamped without descending — a new revision
-    moves `revisions/`, a stamp moves `events.jsonl`, and the vendored layer cannot
-    change under a served page at all, since re-vendoring restarts the server.
+    moves `revisions/`, a stamp moves `events.jsonl`, and the layer cannot change
+    under a served page at all: the server composes it once (`layer.selected_layer`),
+    and `page init`, which rewrites the record and the page's package copies,
+    restarts the server.
 
     Stat stamps rather than contents: the question is only whether anything moved, and
     the answer has to be cheap enough to ask many times a second. Activation keys on

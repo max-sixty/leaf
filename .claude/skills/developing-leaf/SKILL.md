@@ -177,8 +177,8 @@ to keep in view or reach next, then check their computed geometry before and aft
 input in the delivered page, embedded views included. Make those relationships hold as content
 and sizes change, through layout constraints or positions derived from one shared
 dimension, and check the constraints in the source too, since a screenshot can hide a
-small misalignment. Re-vendor after a runtime, theme, registry or widget change, then
-judge the composed page.
+small misalignment. A server keeps the runtime and layer it started with, so judge a
+runtime, theme, registry or widget change on a server started after it.
 
 To ask a page where an element sits, what style it computes, or what holds focus after
 a key, run `uv run leaf-dev probe` rather than writing a Playwright script or a scratch
@@ -270,7 +270,8 @@ release reads production.
 
 To benchmark replies, run each harness's journey a few times, with and without
 `--case working`, and tabulate the samples with `leaf-dev journey-chart --replies`;
-`leaf-dev response-times` measures retained pages
+`leaf-dev response-times` measures retained pages and sorts each pickup's wait
+by what ended it, which shows the waits only long real sessions have
 (`dev/leaf_dev/commands/response_times.py`). The benchmark is the whole reply's time,
 which `dev/leaf_dev/reply_phases.py` attributes to Leaf's delivery, commands and hooks,
 the harness, the model's wait and generation, and the agent's other tools. Model time
@@ -295,8 +296,9 @@ page's next revision or handoff. A brief for a subagent that writes the page nam
 content and the decisions to put to the user, and leaves how to pose them to those
 instructions.
 
-To make an existing page use the current checkout, re-vendor it with the checkout
-launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or report a
+To make an existing page use the current checkout, serve it with the checkout
+launcher, and run that launcher's `page init` on a page at another protocol
+(`<root>/skills/leaf/references/serving-pages.md`, "Leaf updates"); fix or report a
 compatibility refusal rather than falling back to the installed plugin.
 
 A page that explains how a Leaf widget, verb or event flow behaves lets the user try it

@@ -53,7 +53,7 @@ def element_declarations(registry: dict) -> dict:
 
 def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     """What the layer asks of the agent for one delivered event, read off the
-    vendored `$events`: the event kind's `handling` clauses, then the `answering`
+    registry's `$events`: the event kind's `handling` clauses, then the `answering`
     clauses of the answer it owes, each kept when its `when` schema matches.
 
     `entry` is the event record, plus the `answer` a delivery captured when the
@@ -66,7 +66,7 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     thread's missing title. An event owing nothing is told nothing about
     answering: a pick before Done, or a message a newer one in its thread answers
     through. A project layer restates a kind's clauses merge-patch style, so the
-    event carries the rule the page was vendored with. A missing or invalid
+    event carries the rule of the layer the page selects. A missing or invalid
     registry leaves the event unexplained; it never substitutes instructions from a
     different layer. What each case of each kind receives from the shipped layer,
     clause by clause, is snapshotted in `tests/_regtest_outputs/`, by
@@ -179,7 +179,7 @@ class RegistryError(Rejected):
     """A registry that is not a vocabulary, raised rather than exited because two doors
     read one. The CLI prints the message and stops; the page server owes the browser an
     answer, and `sys.exit` inside its request handler killed the connection mid-POST
-    while every other rejection beside it returned a 400 — so a page whose vendored
+    while every other rejection beside it returned a 400 — so a page whose
     stamp had fallen behind the running layer met the user's click with a dead socket
     and no words. The CLI renders it with Click's standard Error prefix, while the
     server catches the same rejection and answers the request.

@@ -11,6 +11,8 @@
 # installed plugin are the same tree — and this runs that project: uv keeps one
 # environment per installed version, and `uv run` syncs it from the lock before
 # each run where the lock or project has changed, so an update needs no step here.
+# A harness session's copy hands its hooks and commands on to the session's
+# delivering Leaf (`src/leaf/session_runtime.py`).
 # `--no-dev` because the project's dev group is the test suite and the
 # `leaf-dev` tooling, recorded in the shipped lock but never a harness's to
 # install. `-q` because an agent reads stderr back and an ordinary sync has

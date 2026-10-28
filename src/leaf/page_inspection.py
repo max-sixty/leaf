@@ -20,12 +20,13 @@ Revision comparisons name changed captured sources and metric deltas. The revisi
 directories retain the files for an author who needs their full text diff.
 """
 
+import json
 from pathlib import Path
 
 from .files import latest_revision, list_revisions
 from .leases import page_locked
 from .refusals import Refused
-from .registry.storage import read_page_registry
+from .registry.storage import read_page_registry, selected
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -37,6 +38,7 @@ from .revision_artifact import (
     resolve_dependency,
     resource_dependencies,
 )
+from .runtime_selection import executing
 from .structure import SourceDocument, links_with_rel, script_kind
 from .styles import css_block, css_stylesheet
 from .user_views import read_user_views
@@ -71,6 +73,18 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
     sources = []
     scripts = []
     references = {}
+    # The layer the revision selects is the serving Leaf's, not captured, but its
+    # files are what the page runs beside its own.
+    running = executing(artifact).resources
+    resources = {
+        **{
+            path: running[path]
+            for path in selected(
+                json.loads(artifact.manifest)["layer"], artifact.page_dir
+            ).files
+        },
+        **artifact.resources,
+    }
 
     def add_source(css, path, line, kind, owner, documents):
         sources.append(
@@ -95,10 +109,10 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
         visited = set()
         while pending:
             target = pending.pop()
-            if target in visited or target not in artifact.resources:
+            if target in visited or target not in resources:
                 continue
             visited.add(target)
-            resource = artifact.resources[target]
+            resource = resources[target]
             if resource.mime != "text/css":
                 continue
             references.setdefault(target, set()).add(document)
@@ -152,7 +166,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
                 {"tag": tag, "path": implementation["path"].lstrip("/")}
             )
 
-    for path, resource in sorted(artifact.resources.items()):
+    for path, resource in sorted(resources.items()):
         owner = "page" if path.startswith("/page/") else "layer"
         if resource.mime == "application/javascript":
             scripts.append(
@@ -202,7 +216,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
             "coverage": [
                 "Static authored CSS and captured stylesheet files; each file counts once.",
                 "JavaScript-generated styles and remote stylesheets are not counted.",
-                "Layer totals describe captured stylesheet files, not bytes loaded by this view.",
+                "Layer totals describe the selected layer's stylesheet files, not bytes loaded by this view.",
                 *(
                     [
                         "CSS syntax errors are listed with their sources; counts include only parsed rules and declarations."

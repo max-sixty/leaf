@@ -1,16 +1,34 @@
-"""The runtime a developer selects to own a session's delivery.
+"""The Leaf that runs a harness session's delivery.
 
-A user preview exercises a checkout that may know declarations the installed
-plugin does not. Its session therefore uses that checkout's launcher for hooks and
-the Codex delivery adapter, before either reads a page or changes a turn. Each hook
-runs the checkout's Python as it stands; a running adapter keeps the modules it
-loaded until it retires, which it does once its task owns no page, as when the
-preview that claimed it stops. The selection lives in the session lifecycle record
-and ends with its generation; ordinary plugin sessions have no selection. Page
-servers retain their own runtime, so choosing delivery does not replace a
-comparison arm's renderer.
+A harness session keeps running the plugin copy it loaded: Claude Code installs an
+update into a new cache directory and leaves every running session on the old
+one until `/reload-plugins` (`layer-registry.md`, "Page protocol"). A page a
+newer Leaf initialized is then one the session's hooks and watch can't read, and
+the user's input waits until someone reloads. So the session's hooks, its watch
+and, from an installed copy, its bare `leaf` commands all hand themselves to one
+launcher (`delivering_launcher`) before they read a page or change a turn; the
+Codex delivery adapter follows the selection alone (`selected_launcher`):
+
+- the launcher the session selected, while it exists: the checkout a user preview
+  serves (`dev/leaf_dev/commands/preview.py`), or a checkout whose command
+  initialized one of the session's pages (`select_checkout`), whose protocol the
+  session's own copy may not speak yet;
+- otherwise, from a copy Claude Code installed, the copy it has installed since,
+  which the marketplace sweep moves to each new commit;
+- otherwise this one.
+
+Each hook runs the chosen launcher's Python as it stands, so an update reaches a
+session at its next hook without a reload; Claude Code still reads `hooks.json`
+and the hooks module only as it loads the plugin, so a change to either still
+waits for one. A selection whose checkout is gone falls back to the installed
+copy, which refuses a page it can't read (`newer-layer`), so the agent learns why.
+A running adapter keeps the modules it loaded until it retires, which it does once
+its task owns no page. The selection lives in the session lifecycle record and
+ends with its generation. Page servers retain their own runtime, so choosing
+delivery does not replace a comparison arm's renderer.
 """
 
+import json
 import os
 from pathlib import Path
 
@@ -18,46 +36,107 @@ from .refusals import Refused
 from .state import (
     PLUGIN_ROOT,
     flocked,
+    plugin_cache_copy,
     session_lock_path,
     session_record,
     write_session,
 )
 
 
+def delivering_launcher(session_id: str) -> Path:
+    """The launcher that runs this session's delivery, as the module header
+    ranks them."""
+    return selected_launcher(session_id) or installed_launcher() or own_launcher()
+
+
 def selected_launcher(session_id: str) -> Path | None:
-    """Read a live generation's selection, refusing an unavailable runtime."""
+    """A live generation's selection, where its launcher still runs."""
     record = session_record(session_id)
     if record is None or record["ended"] is not None:
         return None
     value = record.get("launcher")
-    if value is None:
+    if value is not None and os.access(value, os.X_OK):
+        return Path(value).resolve()
+    return None
+
+
+def installed_launcher() -> Path | None:
+    """The launcher of the copy Claude Code has installed now, where this Leaf is
+    one it installed: the `installPath` its `installed_plugins.json`, beside the
+    cache, records for this plugin."""
+    if not plugin_cache_copy(PLUGIN_ROOT):
         return None
-    launcher = Path(value)
-    if (
-        not launcher.is_absolute()
-        or not launcher.is_file()
-        or not os.access(launcher, os.X_OK)
-    ):
-        raise Refused(
-            f"this session's selected Leaf launcher is unavailable: {launcher}; "
-            "restore that checkout or start a user preview from its replacement"
-        )
-    return launcher.resolve()
+    plugins = PLUGIN_ROOT.parents[3]
+    name = f"{PLUGIN_ROOT.parent.name}@{PLUGIN_ROOT.parents[1].name}"
+    try:
+        record = json.loads((plugins / "installed_plugins.json").read_text())
+        launchers = [
+            Path(install["installPath"]) / "bin" / "leaf"
+            for install in record["plugins"][name]
+        ]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return next(
+        (
+            launcher.resolve()
+            for launcher in launchers
+            if launcher.is_absolute() and os.access(launcher, os.X_OK)
+        ),
+        None,
+    )
 
 
 def select_launcher(session_id: str, launcher: Path) -> None:
-    """Select delivery only after a preview has established its session lifetime."""
+    """Select `launcher` for the session's delivery, once a preview or a command
+    has established its session lifetime."""
     launcher = launcher.resolve(strict=True)
     if not os.access(launcher, os.X_OK):
         raise Refused(f"the selected Leaf launcher is not executable: {launcher}")
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if record is None or record["ended"] is not None:
-            raise Refused(
-                "a user preview must establish its session before selecting Leaf"
-            )
+            raise Refused("a session must be established before selecting its Leaf")
         if record.get("launcher") != str(launcher):
             write_session({**record, "launcher": str(launcher)})
+
+
+def hand_off_command(argv: list[str]) -> None:
+    """Run this `leaf` command under the session's delivering launcher, replacing
+    this process, where this Leaf is a copy Claude Code installed and another
+    launcher delivers for the session. A checkout's launcher is one someone chose
+    to run, so it runs as it is; a hook hands itself off with its payload's
+    session (`hooks.main`)."""
+    if not plugin_cache_copy(PLUGIN_ROOT) or argv[:1] == ["hook"]:
+        return
+    from .harness import session_harness
+
+    try:
+        harness = session_harness()
+    except Refused:
+        harness = None
+    launcher = delivering_launcher(harness.session if harness else "")
+    if launcher == own_launcher():
+        return
+    environment = dict(os.environ)
+    environment.pop("LEAF_HOST_LAUNCHER", None)
+    os.execve(launcher, [str(launcher), *argv], environment)
+
+
+def select_checkout(session_id: str) -> None:
+    """Select this Leaf for the session's delivery where it runs from a checkout,
+    as a command initializes one of the session's pages (`vendoring`), since the
+    copy the session loaded may not read the page at this protocol. A checkout
+    can't tell which copy the session's hooks run, so it selects itself whenever
+    the session lives. Only a command selects: a hook runs the delivering Leaf
+    already, and a write to the lifecycle record would change the snapshot its own
+    readings compare against."""
+    record = session_record(session_id)
+    if (
+        not plugin_cache_copy(PLUGIN_ROOT)
+        and record is not None
+        and record["ended"] is None
+    ):
+        select_launcher(session_id, own_launcher())
 
 
 def own_launcher() -> Path:

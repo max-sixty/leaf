@@ -1215,10 +1215,12 @@ export function createResponseSurface({
     title: `comment on the ${word}`,
   });
   function commentDestination() {
+    // The panel's field quotes the selected words, and a press there does what c does,
+    // so the field carries c's badge.
     if (offeredSelection)
       return {
         ...commenting("selection"),
-        box: null,
+        box: pageComment.box,
         go: commentOnOfferedSelection,
       };
     const here = currentTarget();

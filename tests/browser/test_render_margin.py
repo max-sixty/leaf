@@ -350,15 +350,17 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
     # The card's top edge stands a gap over its words' first line while the whole card
     # fits under it, as the comment box's does (comment-placement.js), and it holds at
-    # the boundary's foot once the words scroll lower than that. Each scroll is read
+    # the window's foot once the words scroll lower than that. The panel stands beside
+    # this margin, so it takes none of the card's height. Each scroll is read
     # after the frame the scroll listener places the card in.
     moved = page.evaluate(
         """async () => {
           const positions = () => {
             const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-            const foot = document.querySelector('.lf-fp-card').getBoundingClientRect().top;
+            const panel = document.querySelector('.lf-fp-card').getBoundingClientRect();
             return {
-              card: card.top, cardBottom: card.bottom, foot,
+              card: card.top, cardBottom: card.bottom, foot: innerHeight,
+              besidePanel: card.left >= panel.right || card.right <= panel.left,
               // The words the thread quotes start the paragraph's first line.
               controls: (() => {
                 const range = document.createRange();
@@ -390,6 +392,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
         moved["high"]["card"] - moved["high"]["controls"], abs=0.5
     ), moved
     assert moved["low"]["controls"] > moved["low"]["card"], moved
+    assert moved["low"]["besidePanel"], moved
     assert moved["low"]["cardBottom"] == pytest.approx(
         moved["low"]["foot"] - 8, abs=0.5
     ), moved

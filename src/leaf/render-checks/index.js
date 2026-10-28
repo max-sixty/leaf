@@ -1,6 +1,6 @@
 /* Browser programs used by the render gate.
  *
- * This module is served by Leaf itself rather than vendored into a page. Its static
+ * This module is served by the Leaf running the check, like its runtime. Its static
  * imports are deliberate: the browser module loader verifies the public widget API
  * and check-only observations before any probe runs. Both entries share the running
  * kernel rather than constructing another runtime. */

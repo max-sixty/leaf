@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { render } from "/vendor/lit.js";
 import { initialRender } from "/runtime/initial-render.js";
 import "../../packages/default/initial/lf-shot.js";
 
@@ -42,7 +43,7 @@ test("Screenshot drawing retains controls, frames and images across adoption and
   drawing.chooseView = (view) => clicked.push(view);
   const paint = (state = shown) => {
     Object.assign(drawing, state);
-    drawing.paint();
+    render(drawing.render(), host);
   };
   const beforeLabel = host.querySelector('.lf-shot-toolbar [data-lf-state="before"]');
   const afterLabel = host.querySelector('.lf-shot-toolbar [data-lf-state="after"]');

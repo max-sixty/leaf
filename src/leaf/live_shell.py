@@ -80,7 +80,6 @@ def write_live_shell(
             revision,
             version,
             executable=artifact.executable,
-            widgets=artifact.widgets,
             resources=artifact.resources,
             registry=artifact.registry,
             delivery=replace(delivery, head=head),

@@ -1,7 +1,9 @@
-import { carriedFrom, deepFocus, focusDestination, focused, inputCount, nativeLayerHolding, nextRender, onCurrentLocation, renderedParent, renderedUnder, ringBox } from "./bundle-dom-move.js";
-import { iconElement, notice, offer, offerActionElement, raiseError } from "./bundle-layer-client.js";
-import { clippingAxes, landingBand, nearestScrollBy, placeBox, placeHolder, seenRect, shownWindow, visibleBand } from "./bundle-geometry.js";
+import { nativeLayerHolding, nextRender, renderedParent, renderedUnder } from "./bundle-portable.js";
+import { carriedFrom, deepFocus, focusDestination, focused, inputCount, onCurrentLocation, ringBox } from "./bundle-dom-move.js";
+import "./bundle-layer-stack.js";
+import { actionElement, iconElement, notice, offer, raiseError } from "./bundle-layer-client.js";
 import { localScrollBy, pageScroller, reachable, scrollAxes, scrollersOf, startScroll } from "./bundle-content-layout.js";
+import { clippingAxes, landingBand, nearestScrollBy, placeBox, placeHolder, seenRect, shownWindow, visibleBand } from "./bundle-geometry.js";
 
 //#region runtime/user-intent.js
 const passed = /* @__PURE__ */ new WeakMap();
@@ -134,9 +136,12 @@ function verticalTravel(box, movement) {
 		moved: local * scale
 	};
 }
-function scrollIntoReadingBand(where, holder, block, behavior) {
+function readingBandMoves(where, holder, block) {
 	const [box, ...around] = scrollersOf(holder);
-	if (!box) return;
+	if (!box) return {
+		moves: [],
+		moved: 0
+	};
 	const rect = destinationBox(where);
 	const margin = topMargin(where, box);
 	let { top, bottom } = rect;
@@ -146,19 +151,39 @@ function scrollIntoReadingBand(where, holder, block, behavior) {
 		bottom += scrollMargin(where, "Bottom");
 	}
 	let { local, moved } = verticalTravel(box, placementBy(where, block, box, margin));
-	if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
+	const moves = [{
+		box,
+		local,
+		moved
+	}];
 	let inner = box;
 	for (const outer of around) {
 		top -= moved;
 		bottom -= moved;
 		const band = landingBand(outer);
-		if (!band) return;
+		if (!band) break;
 		band.top = Math.max(band.top, readingTop(inner, outer));
 		if (block === "start") bottom = Math.min(bottom, top + band.bottom - band.top);
 		({local, moved} = verticalTravel(outer, nearestScrollBy(top, bottom, band.top, band.bottom)));
-		if (Math.abs(moved) >= 1) land(outer, { top: local }, behavior);
+		moves.push({
+			box: outer,
+			local,
+			moved
+		});
 		inner = outer;
 	}
+	return {
+		moves,
+		moved: moves.reduce((sum, move) => sum + move.moved, 0)
+	};
+}
+function landedBox(where) {
+	const rect = destinationBox(where);
+	const { moved } = readingBandMoves(where, holderOf(where), "center");
+	return new DOMRect(rect.x, rect.y - moved, rect.width, rect.height);
+}
+function scrollIntoReadingBand(where, holder, block, behavior) {
+	for (const { box, local, moved } of readingBandMoves(where, holder, block).moves) if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
 }
 function scrollIntoView(where, { alignment = where, behavior = "auto", block = "start", within = null } = {}) {
 	if (!where) return;
@@ -223,13 +248,13 @@ function copyThroughSelection(value, trigger) {
 		if (before?.isConnected) focusDestination(before, "return");
 	}
 }
-function copyControl(className, { label = "", success, error, icon = "copy", role = void 0 }) {
-	const copy = role ? offerActionElement(document.createElement("wa-copy-button"), role, className) : offer("wa-copy-button", className);
-	for (const [name, slot] of [
-		[icon, "copy-icon"],
-		["check", "success-icon"],
-		["cross", "error-icon"]
-	]) copy.append(Object.assign(iconElement(name, "lf-copy-icon"), { slot }));
+function copyControl(className, { label = "", success, error, action = "copy", role = void 0 }) {
+	const copy = role ? document.documentElement.lfInitial.offerActionElement(document.createElement("wa-copy-button"), role, className) : offer("wa-copy-button", className);
+	for (const [icon, slot] of [
+		[actionElement(action, "lf-copy-icon"), "copy-icon"],
+		[iconElement("check", "lf-copy-icon"), "success-icon"],
+		[iconElement("cross", "lf-copy-icon"), "error-icon"]
+	]) copy.append(Object.assign(icon, { slot }));
 	if (label) copy.copyLabel = label;
 	copy.successLabel = success;
 	copy.errorLabel = error;
@@ -256,4 +281,4 @@ function copyControl(className, { label = "", success, error, icon = "copy", rol
 }
 
 //#endregion
-export { alreadyShown, copyControl, fitsWhole, landingRoom, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView };
+export { alreadyShown, copyControl, fitsWhole, landedBox, landingRoom, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView };

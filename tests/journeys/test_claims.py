@@ -10,17 +10,21 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
+    page_packages,
     publish,
     start_server_command,
 )
+from leaf_dev.page_fixtures import package_selection_args
 
 from leaf import cli as cli_model
 from leaf import hooks as hooks_model
 from leaf import service as service_model
+from leaf.registry.storage import layer_record
 
 
 def test_revendor_preserves_pending_input_for_the_current_claim(claimed, capsys):
-    """A served page's pending comment reaches its session after re-vendoring."""
+    """A served page's pending comment reaches its session after a re-selection
+    restarts its server."""
     publish(claimed)
     started = start_server_command(claimed, session_id="s1")
     assert started.returncode == 0, started.stderr
@@ -28,11 +32,21 @@ def test_revendor_preserves_pending_input_for_the_current_claim(claimed, capsys)
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Still here"}
     )
-    theme = claimed / "theme.css"
-    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(claimed)])
+    generation = layer_record(claimed)["generation"]
+    extra = claimed.parent / "extra"
+    extra.mkdir()
+    (extra / "theme.css").write_text("/* another selection */\n")
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*page_packages(), "./extra")),
+            str(claimed),
+        ],
+    )
     assert result.exit_code == 0, result.output
-    assert "repair installed edit" not in theme.read_text()
+    assert layer_record(claimed)["generation"] != generation
     assert service_model.page_claim(claimed) == prior_claim
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}

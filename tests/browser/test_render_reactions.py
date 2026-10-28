@@ -382,9 +382,9 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     """A reaction in force keeps neutral furniture, and the fill it holds with the
     pointer away is what says it stands.
 
-    #371 left the lifecycle marker to `busy`, so the chip of a reaction in force paints no
-    second witness on top of itself. Hover lays down the same fill; the readings here
-    therefore move the pointer away before distinguishing in force from idle.
+    The chip of a reaction in force paints no second witness on top of itself. Hover
+    lays down the same fill; the readings here therefore move the pointer away before
+    distinguishing in force from idle.
     """
     page = open_page(
         browser,

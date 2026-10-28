@@ -35,7 +35,7 @@ import { focusDestination, onCurrentLocation } from "./focus.js";
 import { move } from "./dom-move.js";
 import { keepsHidden, layoutPx } from "./keeps.js";
 import { nextRender } from "./rendering.js";
-import { skipped } from "./geometry.js";
+import { skipped } from "./shown-box.js";
 import { upFrom } from "./shadow-tree.js";
 
 const home = document.createElement("div");

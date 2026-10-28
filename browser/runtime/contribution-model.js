@@ -2,6 +2,7 @@
    ordering and labels without browser dependencies. The browser registry keeps
    command-scope capabilities outside the normalized records. */
 
+import { actionIcon } from "./icon-paths.js";
 import { excerptWords } from "./words.js";
 
 const entryRecords = new WeakSet();
@@ -43,6 +44,7 @@ const RANK_PRIORITY = new Map([
 const ENTRY_OPTIONS = new Set([
   "key",
   "glyph",
+  "action",
   "icon",
   "label",
   "voice",
@@ -169,7 +171,8 @@ export function contributionEntry(offered) {
   const {
     key,
     glyph = null,
-    icon = null,
+    action = null,
+    icon: mark = null,
     label,
     voice = "agent",
     accessibleLabel = null,
@@ -191,8 +194,11 @@ export function contributionEntry(offered) {
     scope = null,
   } = offered;
   if (!text(key)) throw new TypeError("A contribution entry needs a key");
-  if (Boolean(text(glyph)) === Boolean(icon))
-    throw new TypeError("A contribution entry needs exactly one glyph or icon");
+  // An entry that does something shows its action's symbol (icon-paths.js, `ACTIONS`);
+  // `icon` is for one that shows what it holds, such as a margin entry's kind.
+  if ([text(glyph), action, mark].filter(Boolean).length !== 1)
+    throw new TypeError("A contribution entry needs exactly one glyph, action or icon");
+  const icon = action ? actionIcon(action) : mark;
   if (!text(label)) throw new TypeError("A contribution entry needs a label");
   if (!TONES.has(tone)) throw new TypeError(`Unknown contribution entry tone: ${tone}`);
   if (!BEHAVIORS.has(behavior))

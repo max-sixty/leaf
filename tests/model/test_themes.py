@@ -1,20 +1,18 @@
-"""Personal theme choices become captured layers, independent of later preferences."""
+"""Personal theme choices become recorded selections, independent of later
+preferences."""
 
-import json
 import os
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from interact_support import publish
-from model_folds import leaf_page
 
 from leaf.cli import cli
-from leaf.exporting import cmd_export
 from leaf.machine import package_store
 from leaf.packages import cmd_package_install
 from leaf.refusals import Refused
-from leaf.registry.storage import layer_metadata
+from leaf.registry.storage import layer_metadata, layer_record, selected
+from leaf.schema import LAYER_FILE
 from leaf.themes import cmd_list
 from leaf.vendoring import cmd_init
 
@@ -36,10 +34,15 @@ def catalogue(tmp_path, *, default="editorial"):
     return config
 
 
+def served_theme(page: Path) -> str:
+    """The theme sheet the layer `page` selects serves (`registry.storage.selected`)."""
+    return selected(layer_record(page), page).files["/theme.css"].decode()
+
+
 def test_an_installed_theme_keeps_the_files_its_sheet_imports(tmp_path):
-    """A theme split into files with `@import` installs whole, so a page vendored
-    from the installed copy carries the imported rules, whether an imported file
-    stands in a directory of its own or in one the package already ships."""
+    """A theme split into files with `@import` installs whole, so a page selecting
+    the installed copy carries the imported rules, whether an imported file stands in
+    a directory of its own or in one the package already ships."""
     source = tmp_path / "split"
     (source / "styles").mkdir(parents=True)
     (source / "widgets").mkdir()
@@ -54,7 +57,7 @@ def test_an_installed_theme_keeps_the_files_its_sheet_imports(tmp_path):
     config.write_text('themes = ["split"]\n')
     page = tmp_path / "page"
     cmd_init(page, theme="split")
-    theme = (page / "theme.css").read_text()
+    theme = served_theme(page)
     assert "#123456" in theme and "#fedcba" in theme
 
 
@@ -79,7 +82,7 @@ def test_theme_selection_is_independent_of_content_packages_and_later_defaults(
     replaced = layer_metadata(page)
     assert replaced["packages"] == ["diagram"]
     assert replaced["theme"] == {"name": "dense", "source": "explicit"}
-    css = (page / "theme.css").read_text()
+    css = served_theme(page)
     assert "#553399" in css and "#814b07" not in css
     assert cmd_init(page, dry_run=True)["changed"] is False
     without_theme = CliRunner().invoke(cli, ["page", "init", str(page), "--no-theme"])
@@ -94,23 +97,16 @@ def test_theme_selection_is_independent_of_content_packages_and_later_defaults(
     assert layer_metadata(page)["theme"] is None
 
 
-def test_missing_theme_refuses_revendoring_but_captured_page_exports(tmp_path):
+def test_missing_theme_refuses_revendoring_and_keeps_the_selection(tmp_path):
     catalogue(tmp_path)
     page = tmp_path / "page"
     cmd_init(page)
-    (page / "index.html").write_text(
-        leaf_page("Captured theme", '<h1 id="title">Captured theme</h1>')
-    )
-    publish(page, "Captured appearance")
-    captured = (page / "registry.json").read_bytes()
+    recorded = (page / LAYER_FILE).read_bytes()
     (package_store() / "names/editorial").unlink()
     with pytest.raises(Refused, match="unknown package 'editorial'"):
         cmd_init(page)
-    assert (page / "registry.json").read_bytes() == captured
-    output = tmp_path / "export.html"
-    cmd_export(page, output, None)
-    assert "#814b07" in output.read_text()
-    assert json.loads(captured)["$layer"]["theme"]["name"] == "editorial"
+    assert (page / LAYER_FILE).read_bytes() == recorded
+    assert layer_metadata(page)["theme"]["name"] == "editorial"
 
 
 def test_an_explicit_theme_must_name_a_personal_choice_before_creating_a_page(tmp_path):

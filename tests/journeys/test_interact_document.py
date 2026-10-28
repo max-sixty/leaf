@@ -21,9 +21,11 @@ from interact_support import (
     check_findings,
     decide,
     declare_data_input,
+    declare_on_page,
     found,
     fresh_process,
     obligations_on_user,
+    page_packages,
     publish,
     read_page_data,
     refused_on,
@@ -46,6 +48,8 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
+from leaf import vendoring as vendoring_model
+from leaf.registry.storage import load_registry
 
 
 def test_check_accepts_a_valid_page(page_dir):
@@ -72,10 +76,10 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
 
     A user's open document keeps its module graph and its defined elements for as
     long as it lives, so the capture states which revisions can be given to that
-    document and which need a new one. Words, styling, and the stamp a vendoring
-    run leaves behind can be given to it. The vocabulary that binds elements to
-    modules, the module bytes, and the inline module bodies cannot. A re-vendor
-    reaches the digest through the modules it replaced, its epoch included.
+    document and which need a new one. Words and styling can be given to it. The
+    vocabulary that binds elements to modules, the module bytes, and the inline
+    module bodies cannot. A new layer selection reaches the digest through its
+    generation.
     """
     authored = page_dir / "page"
     (authored / "widgets").mkdir(parents=True)
@@ -164,40 +168,23 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     reordered = activate()
     assert reordered.executable != relinked.executable
 
-    declaration = json.loads((page_dir / "registry.json").read_text())["lf-options"]
+    declaration = load_registry(page_dir)["lf-options"]
     declaration["description"] = "Options this page declares for itself."
     (authored / "registry.json").write_text(json.dumps({"lf-options": declaration}))
     redeclared = activate()
 
-    files_model.replace_files(
-        [(page_dir / "widgets" / "lf-options.js", b"// re-vendored widget", False)]
+    # The generation is what a tab speaks to the server (`runtime/layer-client.js`),
+    # so a new selection's gives the document a new executable. The re-selection
+    # activates the source itself.
+    extra = page_dir.parent / "extra"
+    extra.mkdir()
+    (extra / "theme.css").write_text("/* another selection */\n")
+    vendoring_model.cmd_init(page_dir, (*page_packages(), "./extra"))
+    reissued = artifact_model.read_artifact(
+        page_dir, files_model.latest_revision(page_dir)
     )
-    revendored = activate()
-    assert revendored.executable != redeclared.executable
-
-    # `$layer` records where a vendoring run came from rather than what it
-    # installed: the fingerprint identifies the composed layer independently of
-    # its epoch, and the producer names the checkout that built it. Neither says
-    # what this document would have to evaluate, so a restamp of them leaves the
-    # digest alone.
-    layer_path = page_dir / "registry.json"
-    vendored = json.loads(layer_path.read_text())
-    vendored["$layer"] = {
-        **vendored["$layer"],
-        "fingerprint": "sha256:" + "b" * 64,
-        "producer": {"commit": "abcdef1", "dirty": True},
-    }
-    files_model.replace_files([(layer_path, json.dumps(vendored).encode(), False)])
-    restamped = activate()
-    assert restamped.digest != revendored.digest
-    assert restamped.executable == revendored.executable
-
-    # The epoch is what a tab speaks to the server (`runtime/layer-client.js`), so a
-    # re-vendor's new one gives the document a new executable.
-    vendored["$layer"]["generation"] = "0123456789abcdef0123456789abcdef"
-    files_model.replace_files([(layer_path, json.dumps(vendored).encode(), False)])
-    reissued = activate()
-    assert reissued.executable != restamped.executable
+    assert reissued.digest != redeclared.digest
+    assert reissued.executable != redeclared.executable
 
 
 def test_a_version_can_change_the_authored_column_after_a_user_move(page_dir):
@@ -311,17 +298,15 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
 
     # The list is the layer's, so a layer that adds one accepts it with no widget
     # touched — which is the point of $tones over an enum on each widget.
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["$tones"]["names"].append("dangre")
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_on_page(
+        page_dir, lambda registry: registry["$tones"]["names"].append("dangre")
+    )
     assert check(page_dir).exit_code == 0
 
 
 def test_a_member_is_admissible_in_each_declared_owner(page_dir):
     """A package member can belong to different families without validator changes."""
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-label"] = {
+    label = {
         "description": "A package's shared label.",
         "type": "object",
         "properties": {},
@@ -330,7 +315,7 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
         "x-upgrade": False,
         "x-owners": ["lf-option", "lf-card"],
     }
-    registry_path.write_text(json.dumps(registry))
+    declare_on_page(page_dir, lambda registry: registry.__setitem__("lf-label", label))
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<lf-options>",
@@ -947,18 +932,7 @@ def test_a_page_source_can_be_shared_but_needs_one_simultaneous_contract(page_di
     shared = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert shared.exit_code == 0, shared.output
 
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["$data"]["contracts"]["other-rows"] = {
-        "description": "Another meaning.",
-        "schema": {"type": "array"},
-    }
-    registry["lf-other-data"] = {
-        **registry["lf-test-data"],
-        "description": "A differently typed test input.",
-        "x-data": {"data": {"contract": "other-rows", "source": "source"}},
-    }
-    registry_path.write_text(json.dumps(registry))
+    declare_other_rows(page_dir, "array")
     source.write_text(
         source.read_text().replace(
             "</main>",
@@ -979,6 +953,23 @@ def test_a_page_source_can_be_shared_but_needs_one_simultaneous_contract(page_di
     assert reading["active"]["revision"] == 1
 
 
+def declare_other_rows(page_dir, kind):
+    """Declare a second contract of `kind` and a test input bound to it."""
+
+    def declare(registry):
+        registry["$data"]["contracts"]["other-rows"] = {
+            "description": "Another meaning.",
+            "schema": {"type": kind},
+        }
+        registry["lf-other-data"] = {
+            **registry["lf-test-data"],
+            "description": "A differently typed test input.",
+            "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+        }
+
+    declare_on_page(page_dir, declare)
+
+
 @pytest.mark.parametrize("clear", [False, True])
 def test_a_later_version_can_reuse_a_source(page_dir, clear):
     """A changed binding replaces the publication's contract and value in one write.
@@ -990,18 +981,7 @@ def test_a_later_version_can_reuse_a_source(page_dir, clear):
     if clear:
         data_model.cmd_data_clear(page_dir, "project-feed")
 
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["$data"]["contracts"]["other-rows"] = {
-        "description": "Another meaning.",
-        "schema": {"type": "object"},
-    }
-    registry["lf-other-data"] = {
-        **registry["lf-test-data"],
-        "description": "A differently typed test input.",
-        "x-data": {"data": {"contract": "other-rows", "source": "source"}},
-    }
-    registry_path.write_text(json.dumps(registry))
+    declare_other_rows(page_dir, "object")
     first = (page_dir / "index.html").read_text()
     (page_dir / "index.html").write_text(first.replace("lf-test-data", "lf-other-data"))
 
@@ -1131,14 +1111,12 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
             name: count for (order, name), count in opens.items() if order == revision
         }
         marker = files_model.revision_path(page_dir, revision).name
-        assert set(metadata) == {marker, "registry.json"}
-        assert metadata[marker] == metadata["registry.json"] == 1
+        # Its document, and its manifest for the vocabulary it selects.
+        assert set(metadata) == {marker, "manifest.json"}
+        assert metadata[marker] == metadata["manifest.json"] == 1
     active_metadata = {
         name: count for (order, name), count in opens.items() if order == active
     }
-    assert set(active_metadata) == {
-        files_model.revision_path(page_dir, active).name,
-        "registry.json",
-        "manifest.json",
-    }
-    assert sum(active_metadata.values()) == 3
+    marker = files_model.revision_path(page_dir, active).name
+    assert set(active_metadata) == {marker, "manifest.json"}
+    assert active_metadata[marker] == 1

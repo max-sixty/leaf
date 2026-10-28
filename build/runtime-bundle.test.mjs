@@ -31,6 +31,7 @@ test("the kernel preserves native packages and shared state", async () => {
     "runtime/state.js": "export const state = { clicks: 0, annotations: false };",
     "runtime/vendor-bridge.js": 'export { state } from "./state.js";',
     "runtime/widget-api.js": 'export { state } from "./state.js";',
+    "runtime/portable-api.js": 'export { state } from "./state.js";',
     "runtime/check-api.js": 'export { state } from "./state.js";',
     "runtime/annotation-overlay/check-api.js": 'export { state } from "../state.js";',
     "runtime/media.js":
@@ -62,11 +63,15 @@ test("the kernel preserves native packages and shared state", async () => {
     const leaf = await import(pathToFileURL(join(output, "leaf.js")));
     const api = await import(pathToFileURL(join(output, "runtime/widget-api.js")));
     const checks = await import(pathToFileURL(join(output, "runtime/check-api.js")));
+    const portable = await import(
+      pathToFileURL(join(output, "runtime/portable-api.js"))
+    );
     const overlayChecks = await import(
       pathToFileURL(join(output, "runtime/annotation-overlay/check-api.js"))
     );
     assert.equal(leaf.state.annotations, false);
     assert.equal(checks.state, leaf.state);
+    assert.equal(portable.state, leaf.state);
     assert.equal(overlayChecks.state, leaf.state);
     const annotations = await leaf.annotations();
     assert.equal(leaf.state.annotations, true);
@@ -79,7 +84,8 @@ test("the kernel preserves native packages and shared state", async () => {
     api.state.clicks += 1;
     assert.equal(annotations.state.clicks, 1);
 
-    // The kernel is runtime modules and chunks named after their modules; it
+    // The kernel is runtime modules and chunks named after their modules, but for
+    // the one holding what the portable helpers reach, the shared state here; it
     // absorbs the framework and its signals and leaves widgets, upstream vendor
     // modules, and the classic scripts nothing imports native.
     assert.deepEqual([...kernel.keys()].sort(), [
@@ -87,10 +93,11 @@ test("the kernel preserves native packages and shared state", async () => {
       "leaf.js",
       "runtime/annotation-overlay/check-api.js",
       "runtime/bundle-annotation-overlay.js",
-      "runtime/bundle-state.js",
+      "runtime/bundle-portable.js",
       "runtime/check-api.js",
       "runtime/layer-client.js",
       "runtime/media.js",
+      "runtime/portable-api.js",
       "runtime/vendor-bridge.js",
       "runtime/widget-api.js",
     ]);
@@ -104,6 +111,7 @@ test("the kernel preserves native packages and shared state", async () => {
       "runtime/framework/render.js",
       "runtime/layer-client.js",
       "runtime/media.js",
+      "runtime/portable-api.js",
       "runtime/state.js",
       "runtime/vendor-bridge.js",
       "runtime/widget-api.js",

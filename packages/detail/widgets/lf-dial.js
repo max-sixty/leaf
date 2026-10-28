@@ -33,7 +33,6 @@
  * the reader can turn it wherever they are reading rather than only at the top, which
  * is where keeping their place matters. */
 import {
-  commands,
   focusDestination,
   foldDuration,
   keeps,
@@ -50,6 +49,7 @@ import {
   shownWindow,
   tabStore,
   whileConnected,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 const DEPTHS = [
@@ -121,10 +121,14 @@ customElements.define(
         this.turn(next.name);
         focusDestination(this.#buttons.get(next.name), "move");
       };
-      commands(this, "In the detail dial", [
-        { id: "dial.less", keys: [back], title: "Less detail", run: () => step(-1) },
-        { id: "dial.more", keys: [ahead], title: "More detail", run: () => step(1) },
-      ]);
+      this.lfCommands = {
+        title: "In the detail dial",
+        rows: [
+          { id: "dial.less", keys: [back], title: "Less detail", run: () => step(-1) },
+          { id: "dial.more", keys: [ahead], title: "More detail", run: () => step(1) },
+        ],
+      };
+      commandsChanged(this);
       this.#draw();
       whileConnected(this, (signal) => {
         // A revision applied in place rebuilds the folds over its new structure.
@@ -253,7 +257,7 @@ customElements.define(
     #foldRun({ container, after, blocks }) {
       const marker = offer("div", "lf-dial-more");
       const button = offerAction("symbol", "lf-dial-unfold", "Show the rest", {
-        icon: "more",
+        action: "more",
       });
       button.addEventListener("click", () =>
         this.#unfoldRun(marker, { pressed: true }),

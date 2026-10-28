@@ -1094,7 +1094,7 @@ def only_thread(page_dir):
 def travel_to_passage(page, thread_id):
     """Open the thread in the panel and take its way to the passage it is about."""
     open_panel_thread(page, thread_id)
-    page.locator(".lf-fp-quiet").filter(has_text="Show on page").click()
+    page.locator(".lf-fp-controls").get_by_role("button", name="Show on page").click()
 
 
 BOUNDED_LOG_FILLER = "".join(

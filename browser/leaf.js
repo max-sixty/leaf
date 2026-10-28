@@ -239,6 +239,7 @@ async function boot() {
     targetPaint: visualMarkPaint,
     pointer: pointerAt,
     currentLocationThreadId,
+    currentLocationObligation: () => items.currentLocationIn(),
     rowThread: () => floatingPanel?.hoveredThread() ?? null,
     threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
     marginThread: () => app?.overlay?.pointedThread() ?? null,
@@ -303,6 +304,7 @@ async function boot() {
     focusForNavigation,
     threadFocusTarget: (id, options) =>
       app.threadDestinations.threadFocusTarget(id, options),
+    clearFor: (destination, landed) => floatingPanel?.clearFor(destination, landed),
     announce,
   });
   const landing = createThreadLanding();

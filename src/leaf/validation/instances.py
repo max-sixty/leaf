@@ -40,7 +40,7 @@ def member_holders(rec: dict, registry: dict):
 
 
 def thread_markup_contract_errors(parser, registry: dict) -> list[Finding]:
-    """Registry-derived errors shared by admission and re-vendoring."""
+    """Registry-derived errors shared by admission and `page init`."""
     errors = fragment_errors(parser, registry)
     settled = retirement_slots(registry)
     errors.extend(

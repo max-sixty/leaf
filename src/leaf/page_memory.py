@@ -1,7 +1,7 @@
 """What a process keeps of a page between readings, and for how long.
 
 Some readings of a page are dear to repeat: a revision's parse, a candidate's capture
-and check, the vendored vocabulary, the activation answer, the presence token. Each is
+and check, the page's vocabulary, the activation answer, the presence token. Each is
 kept between reads and checked against the stamps of the files it read, so a kept
 reading is never stale, only dropped. They are kept in a `PageMemory`. A process
 keeps the memories of the eight pages it read most recently (`PageMemories`), and any

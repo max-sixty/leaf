@@ -821,7 +821,7 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
         ),
         comments=2,
     )
-    append_carried_log_record(
+    reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -854,7 +854,11 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
     page.keyboard.press("Shift+m")
     expect(page.locator("#first-decision")).to_be_focused()
 
-    # Located in that obligation is located in the space, so the step measures from it.
+    # Travel put away the view covering the page obligations. Reopen the reply
+    # before locating its control; the next step still measures from that obligation.
+    panel_settled(page, open=False)
+    expect(page.locator("#reply-decision")).to_have_count(0)
+    open_panel_thread(page, reply["id"])
     pick = page.locator("#reply-decision .lf-pick").first
     pick.focus()
     expect(pick).to_be_focused()

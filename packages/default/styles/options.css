@@ -896,6 +896,11 @@ lf-options[settled] > .lf-settled {
   border: 1px solid transparent;
   border-radius: var(--r);
 }
+/* The row's gap parts its disclosure arrow from its words. */
+lf-options[settled] > .lf-settled::before {
+  align-self: center;
+  margin: 0;
+}
 lf-options[settled] > .lf-settled[aria-expanded="false"] {
   margin-bottom: 0;
 }
@@ -909,12 +914,6 @@ lf-options[settled] > .lf-settled[data-lf-focus-visible] {
 .lf-settled-diff {
   margin-inline-start: auto;
   font-weight: 400;
-  font-size: var(--t-6);
-  padding: var(--chip-pad);
-  line-height: var(--chip-lh);
-  border-radius: var(--chip-r);
-  background: var(--add-tint);
-  color: var(--ok-ink);
 }
 @media screen {
   lf-options[settled] > .lf-settled {

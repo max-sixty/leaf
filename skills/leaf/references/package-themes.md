@@ -32,12 +32,12 @@ and demo recordings do not inherit the developer's personal default.
 `leaf page state <page>` exposes the effective name and whether it was explicit or
 default under `layer.theme`.
 
-Captured pages and exports carry their theme bytes. Creating or re-vendoring needs
-the selected package installed; viewing or exporting the captured revision does not.
-Live samples inherit their parent's captured layer; a sample may deliberately show
-different theme inputs as a style reference (`live-samples.md`). The current capture
-model keeps live and exported appearance together. Applying current preferences to
-already-authored live pages remains a possible later change.
+A page records its theme's name, and the Leaf serving, checking or exporting it
+composes the theme package it finds by that name, so each of those needs the package
+installed; an export carries the theme's bytes. Live samples inherit their parent's
+layer; a sample may deliberately show different theme inputs as a style reference
+(`live-samples.md`). Applying the catalogue's current default to already-authored
+pages remains a possible later change.
 
 ## A theme change
 

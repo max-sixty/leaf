@@ -1,7 +1,9 @@
-import { TAB_STOP, afterScript, atLayoutPrecision, cancelRender, keeps, layoutPx, move, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
-import { LAYOUT, coarsePointer, hoveringPointer } from "./bundle-layer-client.js";
-import { clamp, clippingAxes, overlaps, overlapsAcross, renderedChildren, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, skipped, union } from "./bundle-geometry.js";
+import { LAYOUT, afterScript, cancelRender, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, skipped, under, upFrom } from "./bundle-portable.js";
+import { TAB_STOP, atLayoutPrecision, keeps, layoutPx, move } from "./bundle-dom-move.js";
+import { renderedChildren } from "./bundle-layer-stack.js";
+import { coarsePointer, hoveringPointer } from "./bundle-layer-client.js";
 import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, effectiveScroller, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, shownRegionBounds, targetRange, targetSegments } from "./bundle-content-layout.js";
+import { clamp, clippingAxes, overlaps, overlapsAcross, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, union } from "./bundle-geometry.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
@@ -1538,12 +1540,16 @@ function commentReference(place, reference) {
 const COMMENT_GAP = 8;
 const LEAST_HEIGHT = 96;
 function commentBoundary({ region = null, right = Infinity } = {}) {
-	const shown = (within) => shownWindow({
-		within,
-		gap: 8
-	});
+	const room = (within) => {
+		const across = (columns) => shownWindow({
+			within,
+			gap: 8,
+			across: columns
+		});
+		return Object.assign(across(null), { across });
+	};
 	const bounds = region && shownRegionBounds(region);
-	const inRegion = bounds && shown(bounds);
+	const inRegion = bounds && room(bounds);
 	if (inRegion && Math.ceil(inRegion.width) >= Math.ceil(cardMinimum()) && inRegion.height >= 96) {
 		const whole = region.body.getBoundingClientRect();
 		return Object.assign(inRegion, {
@@ -1556,7 +1562,7 @@ function commentBoundary({ region = null, right = Infinity } = {}) {
 			]
 		});
 	}
-	const shell = shown({ right: Math.min(shellRight(), right) });
+	const shell = room({ right: Math.min(shellRight(), right) });
 	return Object.assign(shell, {
 		inRegion: null,
 		key: [
@@ -1693,11 +1699,6 @@ function commentPlacement() {
 			const past = (scale) => side === "right" && margin && margin.right > clear.right + .5 && boundary.right - margin.right - 8 >= cardMeasure() * scale.x ? margin.right : null;
 			const box = new DOMRect(clear.left, clear.top, (past({ x: 1 }) ?? clear.right) - clear.left, clear.height);
 			const inlineStart = unanchored ? boundary.left : clamp(column ?? box.right - minimumWidth, boundary.left, boundary.right - Math.min(minimumWidth, boundary.width));
-			const overflow = {
-				boundary: [],
-				rootBoundary: boundary,
-				padding: 0
-			};
 			let heldIn = false;
 			const attachment = ui.limitShift(() => ({
 				mainAxis: !across,
@@ -1723,6 +1724,21 @@ function commentPlacement() {
 				}
 			};
 			const measure = (state) => state.middlewareData.scaled;
+			let shown = boundary;
+			const overflow = (state) => {
+				const { scale } = measure(state);
+				const width = state.rects.floating.width * scale.x;
+				const left = clamp(box.left + (state.x - state.rects.reference.x) * scale.x, boundary.left, boundary.right - width);
+				shown = boundary.across({
+					left,
+					right: left + width
+				});
+				return {
+					boundary: [],
+					rootBoundary: shown,
+					padding: 0
+				};
+			};
 			const spot = held ?? initialHold;
 			const heldEdge = spot && { [edge]: spot[edge] };
 			const holding = (heldEdge || carriedInline !== null) && {
@@ -1751,8 +1767,8 @@ function commentPlacement() {
 					};
 				}
 			};
-			const size = ui.size({
-				...overflow,
+			const size = ui.size((state) => ({
+				...overflow(state),
 				apply(state) {
 					const { scale, line } = measure(state);
 					const stood = held ? Math.max(held.foot - held.top, tallest && Math.abs(tallest.line - line) < .5 ? tallest.height : 0) / scale.y : 0;
@@ -1760,12 +1776,13 @@ function commentPlacement() {
 					fit({
 						side,
 						width: Math.max(Math.min(minimumWidth, boundary.width) / scale.x, Math.min(state.availableWidth, lane / scale.x)),
-						height: rises ? boundary.height / scale.y : state.availableHeight,
+						height: rises ? shown.height / scale.y : state.availableHeight,
+						room: shown,
 						stood,
 						scale
 					});
 				}
-			});
+			}));
 			const sizing = heldEdge ? {
 				...size,
 				fn(state) {
@@ -1791,8 +1808,8 @@ function commentPlacement() {
 				}),
 				holding,
 				heldEdge && sizing,
-				ui.shift({
-					...overflow,
+				ui.shift((state) => ({
+					...overflow(state),
 					mainAxis: true,
 					crossAxis: true,
 					limiter: {
@@ -1817,7 +1834,7 @@ function commentPlacement() {
 							return limited;
 						}
 					}
-				}),
+				})),
 				!heldEdge && sizing
 			].filter(Boolean);
 			return {
@@ -1830,10 +1847,10 @@ function commentPlacement() {
 					if (!heldIn || Math.abs(shift) < .5) return "page";
 					return shift > 0 ? {
 						edge: "top",
-						at: boundary.top - 8
+						at: shown.top - 8
 					} : {
 						edge: "bottom",
-						at: boundary.bottom + 8
+						at: shown.bottom + 8
 					};
 				}
 			};

@@ -143,7 +143,7 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     spoken = f"{pending} {opening}"
     expect(label.locator(".lf-thread-name-pending")).to_have_text(pending)
     expect(thread_row(page, root)).to_have_accessible_name(
-        re.compile(f"^{re.escape(spoken)} Saved$")
+        re.compile(f"^{re.escape(spoken)} Queued for Codex$")
     )
     page.keyboard.press("Escape")
     panel_settled(page, open=False)

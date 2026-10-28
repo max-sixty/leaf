@@ -3,7 +3,7 @@
  * stands in the floating panel's menu. A scope with a row marked `exit` is a stance, such
  * as page search or Draw mode, or a to-do the user stands on, whose Done ends it: while
  * the innermost one stands (dispatch.js, `innermostStance`), the panel's row offers
- * that row as its one way out, drawn as the row's `icon` (a ✕ unless it names one), and
+ * that row as its one way out, drawn as the row's `action` (Close's ✕ unless it names one), and
  * the panel says the scope's `says`, else its title (status-context.js). Words,
  * availability and activation all come from the same row as keyboard dispatch.
  *
@@ -68,7 +68,7 @@ function placeStanceExit() {
     rank: PAGE_CONTROL_RANK.exit,
     exit: true,
     label: () => stance?.label ?? "",
-    icon: () => stance?.icon ?? "cross",
+    action: () => stance?.action ?? "close",
     group: "page",
     offered: () => Boolean(stance),
     disabled: () => stance?.disabled ?? true,
@@ -79,7 +79,7 @@ function placeStanceExit() {
 }
 
 const sameStance = (a, b) =>
-  a?.label === b?.label && a?.disabled === b?.disabled && a?.icon === b?.icon;
+  a?.label === b?.label && a?.disabled === b?.disabled && a?.action === b?.action;
 
 const same = (a, b) =>
   a?.label === b?.label &&
@@ -95,7 +95,7 @@ export function paintTouchControls() {
   const nextStance = held
     ? {
         label: title[0].toUpperCase() + title.slice(1),
-        icon: held.exit.icon ?? "cross",
+        action: held.exit.action ?? "close",
         disabled: !live(held.exit),
         press: { id: held.exit.id, row: held.exit, binding: undefined },
       }

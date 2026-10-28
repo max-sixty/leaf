@@ -154,7 +154,7 @@ test("a rewrite's generated save control shares its action row with retained dis
     submitIn: actions,
     sendClass: "lf-msg-control lf-msg-edit-save",
     sends: "save",
-    icon: "save",
+    action: "save",
   });
   assert.equal(actions.querySelector(".lf-msg-edit-save"), button);
   assert.equal(actions.firstElementChild, discard);

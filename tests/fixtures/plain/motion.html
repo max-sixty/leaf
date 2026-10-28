@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Deploy 2381</title>
+    <meta
+      name="description"
+      content="Progress of a staged deploy: which regions are live, which are rolling, and which wait."
+    />
+    <style>
+      :root {
+        --ink: #102a43;
+        --muted: #627d98;
+        --line: #d9e2ec;
+        --live: #0e9f6e;
+        --roll: #2563eb;
+      }
+      body {
+        margin: 0;
+        font:
+          15px/1.5 "Inter",
+          system-ui,
+          sans-serif;
+        color: var(--ink);
+        background: #f0f4f8;
+      }
+      main {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 48px 24px 96px;
+      }
+      h1 {
+        font-size: 28px;
+        margin: 0 0 4px;
+      }
+      .lede {
+        color: var(--muted);
+        margin: 0 0 32px;
+      }
+      .regions {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 16px;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .region {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 16px 18px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        transition:
+          box-shadow 200ms ease,
+          transform 200ms ease;
+      }
+      .region:hover {
+        box-shadow: 0 6px 20px rgb(16 42 67 / 0.12);
+        transform: translateY(-2px);
+      }
+      .region h2 {
+        font-size: 15px;
+        margin: 0;
+      }
+      .region p {
+        margin: 0;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .spinner {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        border: 2px solid var(--line);
+        border-top-color: var(--roll);
+        flex: none;
+      }
+      .done {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--live);
+        flex: none;
+      }
+      .waiting {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        border: 2px dashed var(--line);
+        flex: none;
+      }
+      .skeleton {
+        height: 10px;
+        width: 120px;
+        border-radius: 5px;
+        background: linear-gradient(90deg, #e4e9ef 0%, #f5f7fa 50%, #e4e9ef 100%);
+        background-size: 200% 100%;
+      }
+      .badge {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: var(--ink);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .pulse {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #34d399;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(1turn);
+        }
+      }
+      @keyframes shimmer {
+        to {
+          background-position: -200% 0;
+        }
+      }
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.35;
+        }
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .spinner {
+          animation: spin 0.9s linear infinite;
+        }
+        .skeleton {
+          animation: shimmer 1.4s ease-in-out infinite;
+        }
+        .region {
+          animation: rise 400ms ease-out both;
+        }
+        .region:nth-child(2) {
+          animation-delay: 60ms;
+        }
+        .region:nth-child(3) {
+          animation-delay: 120ms;
+        }
+        .pulse {
+          animation: pulse 2s ease-in-out infinite;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="badge" role="status"><span class="pulse"></span>Rolling out</div>
+      <h1>Deploy 2381</h1>
+      <p class="lede">
+        Staged rollout of the scheduler change. Each region waits for the one before it
+        to hold for ten minutes.
+      </p>
+      <ul class="regions">
+        <li class="region">
+          <span class="done"></span>
+          <div>
+            <h2>eu-west-1</h2>
+            <p>Live for 22 minutes</p>
+          </div>
+        </li>
+        <li class="region">
+          <span class="done"></span>
+          <div>
+            <h2>us-east-2</h2>
+            <p>Live for 9 minutes</p>
+          </div>
+        </li>
+        <li class="region">
+          <span class="spinner"></span>
+          <div>
+            <h2>ap-south-1</h2>
+            <p>Rolling: 3 of 8 hosts</p>
+          </div>
+        </li>
+        <li class="region">
+          <span class="waiting"></span>
+          <div>
+            <h2>sa-east-1</h2>
+            <div class="skeleton"></div>
+          </div>
+        </li>
+      </ul>
+    </main>
+  </body>
+</html>

@@ -67,11 +67,11 @@
 #              Leaf's chrome, such as `lf-composer`. `part`, when present, describes
 #              the control, region or picture the user clicked. Fix it in this page's
 #              source. If the behavior belongs to a package's widget, or the user asks
-#              for a wider fix, change the package as the Leaf skill's
-#              `references/packages.md` says, re-vendor, and note the re-vendor on the
-#              stamp. A fix to Leaf itself is the user's to raise; offer to file it
-#              (SKILL.md, "Improve Leaf through use"). Your reply names the stamped
-#              version that carries the fix.
+#              for a wider fix, change the package and take the change into the page
+#              as the Leaf skill's `references/packages.md` says, and note the package
+#              change on the stamp. A fix to Leaf itself is the user's to raise; offer
+#              to file it (SKILL.md, "Improve Leaf through use"). Your reply names the
+#              stamped version that carries the fix.
 #      clause 5, applies:
 #        when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
 #        text: The thread has no title yet. Name its subject with `--title "<a few
@@ -480,10 +480,10 @@ design comment:
         such as `lf-composer`. `part`, when present, describes the control, region
         or picture the user clicked. Fix it in this page's source. If the behavior
         belongs to a package's widget, or the user asks for a wider fix, change
-        the package as the Leaf skill's `references/packages.md` says, re-vendor,
-        and note the re-vendor on the stamp. A fix to Leaf itself is the user's
-        to raise; offer to file it (SKILL.md, "Improve Leaf through use"). Your
-        reply names the stamped version that carries the fix.
+        the package and take the change into the page as the Leaf skill's `references/packages.md`
+        says, and note the package change on the stamp. A fix to Leaf itself is
+        the user's to raise; offer to file it (SKILL.md, "Improve Leaf through use").
+        Your reply names the stamped version that carries the fix.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what

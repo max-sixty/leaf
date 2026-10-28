@@ -29,7 +29,13 @@
    the turn the user was reading, even when it is not the latest one. A thread opened
    for reading, on a card or in the panel's view, shows its first unread turn, else
    its latest (`showReturnTurn`). */
-import { seenRect, slotTop, stuckBox, userScrollport } from "../geometry.js";
+import {
+  seenRect,
+  showsContents,
+  slotTop,
+  stuckBox,
+  userScrollport,
+} from "../geometry.js";
 import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -109,8 +115,8 @@ const returnTurn = (transcript, unread) => {
     ...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)"),
   ];
   let start = unread && turns.find((node) => node.dataset.message === unread);
-  while (start && !start.checkVisibility()) start = start.previousElementSibling;
-  return start ?? turns.findLast((node) => node.checkVisibility()) ?? null;
+  while (start && !showsContents(start)) start = start.previousElementSibling;
+  return start ?? turns.findLast((node) => showsContents(node)) ?? null;
 };
 
 // A thread opened for reading shows the turn the user comes back for: the end of the

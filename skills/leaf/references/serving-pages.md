@@ -2,7 +2,7 @@
 
 Serve and hand over a page as your harness's reference says, keeping the exact keyed
 URL `leaf server start` prints. This reference covers export, changing the address,
-re-vendoring and resuming a page.
+Leaf updates and resuming a page.
 
 ## Exported files
 
@@ -30,8 +30,8 @@ the URL's key, which the browser keeps in a cookie. One key covers every page on
 machine, so sharing one page's URL gives access to all of them. Leaf opens no public
 tunnel; binding beyond loopback exposes the port to that network.
 
-A page keeps its host and port in `<page>/service.json`, so serving again, re-vendoring
-and reviving keep the same URL. `--host` changes the hostname and keeps the port. On
+A page keeps its host and port in `<page>/service.json`, so serving again, changing
+its packages and reviving keep the same URL. `--host` changes the hostname and keeps the port. On
 macOS, restarting a `--host` page can wait about 30 seconds for the port to free up, and
 serving refuses if it is still taken.
 
@@ -54,40 +54,30 @@ leaf server start <page> --host <reachable-name>
 on this machine, and an overlay-network hostname works. If no route works, export the
 version as a file.
 
-## Re-vendoring
+## Leaf updates
 
-Open pages keep working across Leaf updates, except after an update that changes the
-page protocol or removes a registry key the page's layer declares.
+A page records the packages it selects, and the Leaf serving, checking or exporting it
+composes their widgets, theme and vocabulary, as it supplies its runtime. A server
+keeps the Leaf it started under, so a page takes an update when its server next
+starts, and open pages keep working across updates except one that changes the page
+protocol.
 
-After a protocol change, the session holding the page re-vendors it at its first `leaf`
-command or hook, keeping the log and source, and reports only a failure. Leaf refuses
-to serve or write the page in two cases: the update removed a registry key the page's
-layer declares, or it changed the protocol while another live session holds the page.
-`leaf page state` then explains in `source.error`, naming the `leaf page init` command
-to run. Run it from the session that
-holds the page. Run it too when you want a newer runtime, theme or package:
+After a protocol change, the session holding the page takes it to the new protocol at
+its first `leaf` command or hook, keeping the log and source, and reports only a
+failure. While another live session holds the page, Leaf refuses to serve or write it,
+and `leaf page state` explains in `source.error`, naming the `leaf page init` command
+to run from the session that holds the page. A page a newer Leaf initialized is refused
+as well; the refusal says how to load a newer Leaf.
 
-```bash
-leaf page init <page>
-```
+An update can change what a widget accepts or how it draws, and a page's own widgets
+may call an API the update changed. `leaf page check` reports both, the second with
+`--render`; fix the source as for any other failure.
 
-A page vendored by a newer Leaf than the one you run is refused as well;
-the refusal says how to load a newer Leaf.
-
-While Leaf is in alpha, an update can also break an older page without a protocol
-change. `page check` and the leaf's menu in the page's panel name the Leaf that
-vendored the page and the one running, with their dates. If a page misbehaves and its Leaf is much older,
-re-vendor it rather than working around the fault. Don't re-vendor a working page for
-its age alone, since that reloads the user's open tabs.
-
-`page init` changes nothing if it refuses. When the layer, server code, dependencies,
-package selection or installed files changed, it restarts a running server at the same
-URL and reloads open tabs; a stopped server stays stopped. If the holding session
-has ended, it leaves the server stopped, and you serve it from your session.
-
-Versions saved before a protocol change stay in the history but no longer open. If
-`page init` can't read an older page's log, or the page still misbehaves after
-re-vendoring, write the current page into a new page directory and hand over its URL.
+`page init` changes nothing if it refuses. When the package selection or the page
+protocol changes, it restarts a running server at the same URL and reloads open tabs;
+a stopped server stays stopped. If the holding session has ended, it leaves the server
+stopped, and you serve it from your session. If `page init` can't read an older page's
+log, write the current page into a new page directory and hand over its URL.
 
 ## Page lifetime
 

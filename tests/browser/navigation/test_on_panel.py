@@ -209,6 +209,172 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     counts(1)
 
 
+FILLER = "".join(
+    f"<p>Step {i} of the release, written out long enough to wrap onto a second "
+    "line at a desktop width.</p>"
+    for i in range(14)
+)
+# Two choices waiting on the user: one the walk can land clear above an open view, and
+# one at the page's foot, which no scroll brings above it.
+UNDER_PANEL_PAGE = leaf_page(
+    "Stops under the panel",
+    '<h1 id="h">Release</h1>'
+    + FILLER
+    + '<lf-ask id="mid-ask"><h2>Which channel first?</h2>'
+    '<lf-options id="channel" choose><lf-option id="beta">Beta first</lf-option>'
+    '<lf-option id="both">Both at once</lf-option></lf-options></lf-ask>'
+    + FILLER
+    + '<lf-ask id="foot-ask"><h2>Ship notes with it?</h2>'
+    '<lf-options id="notes" choose><lf-option id="yes">Yes</lf-option>'
+    '<lf-option id="no">No</lf-option></lf-options></lf-ask>'
+    '<p id="tail">The notes go out with the build.</p>',
+)
+
+# How much of an element the user sees, as the runtime reads it (geometry.js,
+# `seenRect`), the open view taken away from what it stands over.
+SEEN_SHARE = """async (selector) => {
+  const {seenRect} = await window.__lfCheckApi();
+  const node = document.querySelector(selector);
+  const box = node.getBoundingClientRect();
+  const seen = seenRect(node, new Map());
+  return seen
+    ? ((seen.right - seen.left) * (seen.bottom - seen.top)) / (box.width * box.height)
+    : 0;
+}"""
+
+
+def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, serve):
+    """Travel shows the place it takes the user to (floating-panel.js, `clearFor`). `m`
+    from a thread the panel opened to a place the landing brings clear above the view
+    leaves the thread open, and the field names the stop rather than the thread's turn;
+    to one at the page's foot, which the view would stand over, it puts the view away."""
+    url = serve(UNDER_PANEL_PAGE)
+    asked = append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Ready?"},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": asked["id"],
+            "responds": asked["id"],
+            "revision": 1,
+            "text": "Which way should the rollout go first?",
+            "obligation": True,
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    page.evaluate("getSelection().removeAllRanges()")
+    thread = page.locator(panel_view("thread"))
+
+    def lands_whole(selector):
+        expect(page.locator(selector)).to_be_focused()
+        scroll_settled(page)
+        assert page.evaluate(SEEN_SHARE, selector) > 0.99
+
+    for position in ("1 of 3 · Options", "2 of 3 · Options", "3 of 3 · Reply"):
+        page.keyboard.press("m")
+        expect_walk_position(page, position.replace(" ·", " waiting on me ·"))
+    panel_settled(page, view="thread")
+
+    page.keyboard.press("m")
+    expect_walk_position(page, "1 of 3 waiting on me · Options")
+    lands_whole("#mid-ask")
+    expect(thread).to_have_count(1)
+    expect(page.locator(".lf-fp-field .lf-compose-placeholder-lead")).to_have_text(
+        "1 of 3 waiting on me · Options"
+    )
+
+    page.keyboard.press("m")
+    expect_walk_position(page, "2 of 3 waiting on me · Options")
+    panel_settled(page, open=False)
+    lands_whole("#foot-ask")
+
+
+# A choice at the end of a bounded block at the page's foot: landing on it scrolls the
+# block and then the page, and no scroll brings it above an open view.
+BOUNDED_FOOT_PAGE = leaf_page(
+    "A choice in a bounded block",
+    '<h1 id="h">Release</h1>'
+    + FILLER
+    + FILLER
+    + '<section id="bounded" data-bound="start" style="height: 220px">'
+    + "".join(f"<p>Log line {i} of the bounded block.</p>" for i in range(12))
+    + '<lf-ask id="bound-ask"><h2>Ship notes with it?</h2>'
+    '<lf-options id="bound" choose><lf-option id="yes">Yes</lf-option>'
+    '<lf-option id="no">No</lf-option></lf-options></lf-ask></section>'
+    '<p id="end">The end.</p>',
+)
+
+
+def test_travel_reads_the_landing_through_every_region_it_scrolls(browser, serve):
+    """Whether the open view would cover a destination is read where the whole landing
+    leaves it, the page's scroll after its bounded block's included: `m` from a panel
+    thread, with the page scrolled back to its top, to a choice at the end of a
+    bounded block at the page's foot puts the view away."""
+    url = serve(BOUNDED_FOOT_PAGE)
+    asked = append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Ready?"},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": asked["id"],
+            "responds": asked["id"],
+            "revision": 1,
+            "text": "Which way should the rollout go first?",
+            "obligation": True,
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    page.evaluate("getSelection().removeAllRanges()")
+    page.keyboard.press("m")
+    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    page.keyboard.press("m")
+    expect_walk_position(page, "2 of 2 waiting on me · Reply")
+    panel_settled(page, view="thread")
+    page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
+    page.keyboard.press("m")
+    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    expect(page.locator("#bound-ask")).to_be_focused()
+    panel_settled(page, open=False)
+    scroll_settled(page)
+    assert page.evaluate(SEEN_SHARE, "#bound-ask") > 0.99
+
+
+def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
+    """On me stays open over a place `m` reaches, whose card it rings, and gives way to
+    one it doesn't list: `t` to a thread at the page's foot, which On me would stand
+    over, puts it away (floating-panel.js, `clearFor`)."""
+    url = serve(UNDER_PANEL_PAGE, anchored=[("tail", "The notes go out")])
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    on_me = page.locator(panel_view("queue"))
+    page.locator("#h").click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    page.keyboard.press("m")
+    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    expect(page.locator("#mid-ask")).to_be_focused()
+    expect(on_me).to_have_count(1)
+    page.keyboard.press("t")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    panel_settled(page, open=False)
+    scroll_settled(page)
+    assert page.evaluate(SEEN_SHARE, "#tail") > 0.99
+
+
 def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     """An `lf-tally` counts the obligations its region holds, by the rule a queue row's mark
     reads, and leaves out one outside it. Its Next on me is `m` within the region: a

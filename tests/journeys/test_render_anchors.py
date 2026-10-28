@@ -1,6 +1,5 @@
 """Selection, passage, syntax, and version-travel tests."""
 
-import json
 import re
 from html import escape
 
@@ -53,6 +52,7 @@ from leaf import event_log as events_model
 from leaf import passages as passages_model
 from leaf import service as service_model
 from leaf import structure as structure_model
+from leaf.registry.storage import read_page_registry
 from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -250,7 +250,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     # regression that detaches ordinary file-readable prose must fail this sweep.
     passages = passages_model.page_passages(
         structure_model.SourceDocument((serve.page_dir / "index.html").read_text()),
-        json.loads((serve.page_dir / "registry.json").read_text()),
+        read_page_registry(serve.page_dir).registry,
     )
     for anchor in result["nonexact"]:
         located = {key: value for key, value in anchor.items() if key != "detached"}

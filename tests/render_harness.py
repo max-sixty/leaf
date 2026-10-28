@@ -1792,11 +1792,35 @@ def panel_settled(page, open=True, view=None):
     )
 
 
+def press_visible(page, control, *, touch=False):
+    """Press a control already in view without Playwright moving the page for it.
+
+    Locator click/tap on Chromium 156 can scroll the document while preparing a
+    visible fixed control. Coordinates exercise the user's visible route directly.
+    """
+    expect(control).to_be_in_viewport()
+    box = control.bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    if touch:
+        page.touchscreen.tap(x, y)
+    else:
+        page.mouse.click(x, y)
+
+
 def open_threads(page):
     """Open the panel's Threads view by pointer, as a user reaches it
     (`leaf_dev.browser.open_threads`), and wait for its motion to end."""
     dev_browser.open_threads(page)
     panel_settled(page, view="threads")
+
+
+def show_resolved(page):
+    """Open Threads and unfold its resolved threads (`leaf_dev.browser.show_resolved`),
+    returning their rows once the view's motion ends."""
+    open_threads(page)
+    rows = dev_browser.show_resolved(page)
+    panel_settled(page, view="threads")
+    return rows
 
 
 # How many open threads the page's reading holds, the number the Threads tab says
@@ -1851,17 +1875,17 @@ def panel_menu(page, at=None):
     leaf = page.locator(".lf-fp-leaf")
     menu = page.locator(".lf-fp-menu")
     if host.get_attribute("data-rest") == "mark":
-        leaf.click()
+        press_visible(page, leaf)
         expect(host).to_have_attribute("data-rest", "row")
     if host.get_attribute("data-menu") is None:
-        leaf.click()
+        press_visible(page, leaf)
         expect(host).to_have_attribute("data-menu", "")
     if menu.get_attribute("data-level") is not None:
-        menu.locator(".lf-fp-menu-back").click()
+        press_visible(page, menu.locator(".lf-fp-menu-back"))
         expect(menu).not_to_have_attribute("data-level", re.compile("."))
     if at is not None:
         door = "versions" if at == "versions" else f"group:{at}"
-        menu.locator(f'.lf-fp-item[data-row="{door}"]').click()
+        press_visible(page, menu.locator(f'.lf-fp-item[data-row="{door}"]'))
         expect(menu).to_have_attribute(
             "data-level", "versions" if at == "versions" else "group"
         )
@@ -2451,7 +2475,7 @@ def live_leaf(tmp_path, monkeypatch):
             cwd=str(tmp_path / f"{name}-work"),
         )
         waiters.append(
-            leases_model.take_lease(leases_model.waiter_lease_path(d, f"s-{name}"))
+            leases_model.take_wait_lease(leases_model.waiter_lease_path(d, f"s-{name}"))
         )
         # Use the durable server's maintenance loop: the row remains canonical
         # even while no browser has visited this neighboring page.

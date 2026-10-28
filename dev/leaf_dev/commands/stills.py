@@ -340,16 +340,6 @@ def floating_thread(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
 
 
-def floating_thread_resting(page: Page) -> None:
-    """The same thread with the reader's focus in its view, so the reply field rests
-    without its frame and only the view's foot stands between them."""
-    floating_thread(page)
-    page.locator(".lf-fp-view[data-view=thread]").focus()
-    page.wait_for_function(
-        "() => !document.querySelector('.lf-fp-field').matches(':focus-within')"
-    )
-
-
 def floating_thread_retitled(page: Page) -> None:
     """The same thread once its opening message is rewritten short, so its title is far
     narrower than the view it names."""
@@ -1332,6 +1322,19 @@ def ship_answered(page: Page) -> None:
     expect(page.locator(".lf-fp-opened")).to_be_visible()
 
 
+def card_message_by_keyboard(page: Page) -> None:
+    """The agent's question in a margin card, reached by Next on me (`m`), which
+    focuses the message, so its card wears the ring."""
+    for _ in range(4):
+        page.keyboard.press("m")
+        settle(page)
+        if page.evaluate(
+            "() => document.activeElement?.matches('.lf-margin-preview .lf-msg')"
+        ):
+            return
+    raise AssertionError("Next on me never reached a card's message")
+
+
 def element_thread_open(page: Page) -> None:
     """The same element while the user is in its thread, opened from its margin card:
     the contour that says which element the thread is about, beside the heading's
@@ -1733,19 +1736,6 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
-    State(
-        "floating-thread-resting",
-        "ship-review",
-        floating_thread_resting,
-        region=".lf-fp-card",
-    ),
-    State(
-        "floating-thread-resting-dark",
-        "ship-review",
-        floating_thread_resting,
-        scheme="dark",
-        region=".lf-fp-card",
-    ),
     State("ship-threads", "ship-review", go_to_threads, region=".lf-fp-opened"),
     State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
     State(
@@ -2739,6 +2729,12 @@ STATES = (
         touch=True,
     ),
     State("ship-thread", "ship-review", element_thread),
+    State(
+        "ship-card-message-keyboard",
+        "ship-review",
+        card_message_by_keyboard,
+        region=".lf-margin-preview",
+    ),
     State("ship-tasks", "ship-review", ship_tasks, region="#off-readiness"),
     State(
         "ship-tasks-dark",

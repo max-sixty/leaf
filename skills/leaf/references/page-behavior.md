@@ -1,10 +1,14 @@
 # Page behavior
 
-Write page behavior in an inline `<script type="module">` or in modules under `page/`,
-referenced as `/page/…`. Load a library that ships only as a classic script with
-`<script defer src>`. Relative imports stay within `page/`. A module imports Leaf's helpers
-from `/runtime/widget-api.js`. For floating placement that native layout cannot
-express, import the bundled Floating UI library from `/vendor/floating-ui.esm.js`.
+Write page behavior as you would on any web page: in a `<script>`, inline or a file
+under `page/` referenced as `/page/…`, or one from another server. Leaf runs every
+script once the page has parsed, as `defer` does, so `document.write` does nothing,
+a script sees the whole page, and an inline handler such as `onload` can fire before
+the function it calls is defined; attach handlers from the script instead. A
+script that imports is a module (`type="module"`), and its relative imports stay within `page/`. A
+module imports Leaf's helpers from `/runtime/widget-api.js`. For floating placement
+that native layout cannot express, import the bundled Floating UI library from
+`/vendor/floating-ui.esm.js`.
 Each revision saves every file under `page/` with the markup, except hidden ones, so
 page code can fetch any of them, such as JSON, CSV, text, images, fonts or wasm. Name a
 file relative to the module that fetches it, `fetch(new URL("./data.json",
@@ -31,9 +35,9 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   reaches the log.
 - Leaf takes printed letter keys before the page's listeners, for its own walks and
   commands, and handles other keys, such as Escape, on `document` once they bubble
-  there. Give the interface keys of its own with `commands()` (`module-input.md`,
-  "Commands and keyboard routes"), or handle arrows, Enter and Escape on the page's own
-  elements, which hear them first.
+  there. Give the interface keys of its own by declaring them as an element's
+  `lfCommands` (`module-input.md`, "Commands and keyboard routes"), or handle arrows,
+  Enter and Escape on the page's own elements, which hear them first.
 - A revision that changes only content patches the page in place without running
   scripts again, so an element it adds or replaces has none of the listeners the script
   attached. Listen on `main` or another stable ancestor, or set up again when
@@ -41,6 +45,12 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
 - Animate from JavaScript through `motion()`, which skips the animation for a user who
   asked for less motion. Leaf stops only its own CSS motion for that user, so stop or
   shorten the page's under `@media (prefers-reduced-motion: reduce)`.
+
+A page script may define custom elements with shadow DOM of their own. Comments can't
+quote the words only such a shadow root shows, and Leaf reads the element's own children
+in its place, so put words the user should quote in the light DOM and slot them, or
+write the element as a widget declaring `x-shadow` (`module-authoring.md`, "Shadow
+stages and styles").
 
 Reach a widget's methods with `whileInterfaceConnected` (`module-authoring.md`,
 "Startup and presentation"). The rest of `/runtime/widget-api.js` is there where its

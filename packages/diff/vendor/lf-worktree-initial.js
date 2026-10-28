@@ -1,62 +1,61 @@
 (() => {
+  // leaf-initial-lit:lit
+  var { AsyncDirective, AsyncReplaceDirective, CSSResult, Directive, LitElement, PartType, ReactiveElement, TemplateResultType, UnsafeHTMLDirective, UntilDirective, _$LE, _$LH, adoptStyles, asyncAppend, asyncReplace, cache, choose, classMap, clearPart, createRef, css, customElement, defaultConverter, directive, eventOptions, getCommittedValue, getCompatibleStyle, getDirectiveClass, guard, html, ifDefined, insertPart, isCompiledTemplateResult, isDirectiveResult, isPrimitive, isServer, isSingleExpression, isTemplateResult, join, keyed, literal, live, map, mathml, noChange, notEqual, nothing, property, query, queryAll, queryAssignedElements, queryAssignedNodes, queryAsync, range, ref, removePart, render, repeat, setChildPartValue, setCommittedValue, standardProperty, state, staticHtml, staticMathml, staticSvg, styleMap, supportsAdoptingStyleSheets, svg, templateContent, unsafeCSS, unsafeHTML, unsafeMathML, unsafeSVG, unsafeStatic, until, when, withStatic } = document.documentElement.lfInitial.lit;
+
   // packages/diff/initial/lf-worktree.js
   document.documentElement.lfInitial.register("lf-worktree", (host, tools) => {
-    const node = (tag, className, text) => {
-      const result = document.createElement(tag);
-      result.className = className;
-      if (text !== void 0) result.textContent = text;
-      return result;
-    };
-    const body = tools.authoredBody(node("div", "lf-worktree-body"));
-    const details = node("details", "lf-worktree-disclosure");
+    const body = tools.authoredBody(document.createElement("div"));
+    body.className = "lf-worktree-body";
     const key = `worktree:${host.id}`;
     const kept = tools.tabStore.get(key);
-    details.open = kept === null ? host.hasAttribute("open") : kept === "open";
-    details.addEventListener(
-      "toggle",
-      () => tools.tabStore.set(
+    const open = kept === null ? host.hasAttribute("open") : kept === "open";
+    const remember = (event) => {
+      const shown = event.currentTarget.open;
+      tools.tabStore.set(
         key,
-        details.open === host.hasAttribute("open") ? null : details.open ? "open" : "closed"
-      )
-    );
-    const summary = node("summary", "lf-worktree-summary lf-disclosure-marker");
-    tools.generatedElement(summary, { says: true });
-    const identity = node("span", "lf-worktree-identity");
-    const label = node("strong", "lf-worktree-label", host.getAttribute("label"));
-    const branch = host.getAttribute("branch");
-    const head = host.getAttribute("head");
-    const ref = node(
-      "span",
-      "lf-worktree-ref",
-      [branch || (head ? "Detached HEAD" : null), head?.slice(0, 8)].filter(Boolean).join(" \xB7 ")
-    );
-    identity.append(label, ref);
-    summary.append(identity);
-    const status = host.getAttribute("status");
-    const word = { clean: "Clean", unavailable: "Unavailable" }[status];
-    if (word) summary.append(node("span", "lf-worktree-status", word));
-    const stats = node("span", "lf-worktree-stats");
-    if (status !== "unavailable") {
-      const files = Number(host.getAttribute("files"));
-      stats.append(node("span", "", `${files} ${files === 1 ? "file" : "files"}`));
-      stats.append(
-        node("span", "lf-worktree-additions", `+${host.getAttribute("additions")}`)
+        shown === host.hasAttribute("open") ? null : shown ? "open" : "closed"
       );
-      stats.append(
-        node("span", "lf-worktree-deletions", `\u2212${host.getAttribute("deletions")}`)
-      );
-      const binary = Number(host.getAttribute("binary-files"));
-      if (binary) stats.append(node("span", "lf-worktree-binary", `${binary} binary`));
-    }
-    summary.append(stats);
-    const path = node("div", "lf-worktree-path");
-    tools.generatedElement(path, { says: true });
-    path.append(
-      node("span", "", "Worktree"),
-      node("code", "", host.getAttribute("path"))
-    );
-    details.append(summary, path, body);
-    host.append(details);
-    return { details };
+    };
+    const said = (node) => node && tools.generatedElement(node, { says: true });
+    return {
+      render() {
+        const branch = host.getAttribute("branch");
+        const head = host.getAttribute("head");
+        const identity = [branch || (head ? "Detached HEAD" : null), head?.slice(0, 8)].filter(Boolean).join(" \xB7 ");
+        const status = host.getAttribute("status");
+        const word = { clean: "Clean", unavailable: "Unavailable" }[status];
+        const files = Number(host.getAttribute("files"));
+        const binary = Number(host.getAttribute("binary-files"));
+        return html`<details
+        class="lf-worktree-disclosure"
+        ?open=${open}
+        @toggle=${remember}
+      >
+        <summary class="lf-worktree-summary lf-disclosure-marker" ${ref(said)}>
+          <span class="lf-worktree-identity"
+            ><strong class="lf-worktree-label">${host.getAttribute("label")}</strong
+            ><span class="lf-worktree-ref">${identity}</span></span
+          >
+          ${word ? html`<span class="lf-worktree-status">${word}</span>` : nothing}
+          <span class="lf-worktree-stats"
+            >${status === "unavailable" ? nothing : html`
+                    <span>${files} ${files === 1 ? "file" : "files"}</span>
+                    <span class="lf-worktree-additions"
+                      >+${host.getAttribute("additions")}</span
+                    >
+                    <span class="lf-worktree-deletions"
+                      >−${host.getAttribute("deletions")}</span
+                    >
+                    ${binary ? html`<span class="lf-worktree-binary">${binary} binary</span>` : nothing}
+                  `}</span
+          >
+        </summary>
+        <div class="lf-worktree-path" ${ref(said)}>
+          <span>Worktree</span><code>${host.getAttribute("path")}</code>
+        </div>
+        ${body}
+      </details>`;
+      }
+    };
   });
 })();

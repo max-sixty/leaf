@@ -1,7 +1,9 @@
 /* One fault reaches the agent once, however many consumers carry it.
 
    A producer reports each failure it sees, even where owners share one exception; a
-   consumer that carries a fault up reports it only where no producer did. */
+   consumer that carries a fault up reports it only where no producer did. A widget's
+   failure reaches it as the `error` event the widget dispatches (widget-upgrade.js),
+   named for the widget. */
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -13,6 +15,7 @@ document.head.append(canonical);
 // The log's door answers every report; only what reaches the console is read here.
 globalThis.fetch = async () => new Response(null, { status: 204 });
 const { reportCarried, reportPageError } = await import("/runtime/layer-client.js");
+const { failSoft } = await import("/runtime/widget-upgrade.js");
 
 const reported = (run) => {
   const lines = [];
@@ -68,6 +71,45 @@ test("a primitive reason stands for itself by its text", () => {
     }),
     ["leaf: Presentation failed: boom"],
   );
+});
+
+test("a widget's failure reaches the agent named for its widget, in the page or out of it", () => {
+  const widget = (id) => Object.assign(document.createElement("lf-probe"), { id });
+  const shown = widget("shown");
+  document.body.append(shown);
+  // A message body the panel holds while its thread is shut stands in no document.
+  const cached = widget("cached");
+  assert.deepEqual(
+    reported(() => {
+      failSoft(shown, new Error("drew nothing"));
+      failSoft(cached, new Error("plot failed to load"));
+    }),
+    [
+      'leaf: <lf-probe id="shown"> failed: drew nothing',
+      'leaf: <lf-probe id="cached"> failed: plot failed to load',
+    ],
+  );
+  shown.remove();
+});
+
+test("a failure with no Error gives every listener one and reports the reason as thrown", () => {
+  const widget = Object.assign(document.createElement("lf-probe"), { id: "bare" });
+  document.body.append(widget);
+  const heard = [];
+  const hear = (event) => heard.push(event.error);
+  window.addEventListener("error", hear);
+  try {
+    assert.deepEqual(
+      reported(() => failSoft(widget, undefined)),
+      ['leaf: <lf-probe id="bare"> failed: undefined'],
+    );
+  } finally {
+    window.removeEventListener("error", hear);
+    widget.remove();
+  }
+  assert.equal(heard.length, 1);
+  assert.ok(heard[0] instanceof Error, "the event carries an Error");
+  assert.equal(heard[0].stack, undefined, "no stack names a site the failure isn't at");
 });
 
 test("a departing document holds its faults until it stays, and drops them as it goes", (t) => {

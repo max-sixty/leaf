@@ -42,7 +42,9 @@ cancelling has put the DOM back; it draws the newest reading. A dragged widget
 (`dragging`, `module-input.md`, "Pointer presses") defers for the whole drag.
 
 Pass asynchronous preparation the page should wait for, such as a renderer loading, to
-`present(promise)`. Drawing that finishes a draw, such as highlighting what `render()`
+`present(promise)`, or, from a widget that also runs off Leaf, dispatch it as a
+`PendingTaskEvent` (`module-authoring.md`, "A widget that also runs off Leaf"), which
+Leaf passes to the same place. Drawing that finishes a draw, such as highlighting what `render()`
 placed, starts in `updated()` and extends the element's `updateComplete`, as any Lit
 element's completion waits for work its update starts:
 

@@ -132,10 +132,8 @@ Two test-owned failures recur:
 A cause issue (`tend-ci-cause`) records the first `ci` run on main its tests
 failed in, with its commit, since that brackets the change that broke it; a
 `journeys` test, like the whole `test-macos` job, runs only nightly, so the pull
-request that broke it usually passed its own CI. Its session works until the
-cause has a merged fix, or a pull request it is still driving when GitHub's
-six-hour job limit ends it. Before fixing, check current main: the complete
-suite takes hours, and later changes may have removed the cause. A passing rerun
+request that broke it usually passed its own CI. Before fixing, check current main:
+the complete suite takes hours, and later changes may have removed the cause. A passing rerun
 alone does not clear a failure that comes and goes.
 
 Establish the conflict before applying **Reading a red suite**'s revert-and-decision

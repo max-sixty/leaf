@@ -305,11 +305,8 @@ test("data readiness does not wait for an unrelated widget region", async () => 
     const { notifyDataSubscribers } = await import("/runtime/data.js");
     const { attachApplicationPresentation } =
       await import("/runtime/semantic-state.js");
-    const unrelated = attachApplicationPresentation(
-      "widget:unrelated:render",
-      document.body,
-    );
-    const held = unrelated.present("held");
+    const unrelated = attachApplicationPresentation("widget:unrelated:render");
+    const held = unrelated.present();
     let ready = false;
     const data = notifyDataSubscribers().then(() => {
       ready = true;

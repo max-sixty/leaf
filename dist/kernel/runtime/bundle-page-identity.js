@@ -1,4 +1,4 @@
-import { DELIVERY, runtime } from "./bundle-geometry.js";
+import { DELIVERY, runtime } from "./bundle-layer-stack.js";
 
 //#region runtime/color-scheme.js
 const darkPreference = matchMedia("(prefers-color-scheme: dark)");
@@ -17,7 +17,6 @@ function pageIdentity() {
 		url: String(url),
 		delivery: DELIVERY,
 		layer: state?.layer ?? null,
-		served_by: state?.leaf ?? null,
 		preview: state?.preview ?? null,
 		session_reference: runtime.sessionReference,
 		browser: { user_agent: navigator.userAgent }

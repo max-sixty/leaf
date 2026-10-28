@@ -79,7 +79,7 @@ export class OptionAddition {
     this.#syncInput = wireInput(this.#input, {
       hint: "Add another option",
       sends: "add and select option",
-      icon: "add",
+      action: "add",
       allowsMedia: () => "Images can be added to comments, not options",
       busy: () => !this.available(),
       hasContent: (raw) => Boolean(raw.trim()),

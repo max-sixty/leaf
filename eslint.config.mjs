@@ -41,6 +41,7 @@ const browserGlobals = Object.fromEntries(
     "DOMParser",
     "DOMRect",
     "Element",
+    "ErrorEvent",
     "Event",
     "EventSource",
     "FileReader",
@@ -176,8 +177,9 @@ const publicRuntimeBoundary = {
       ],
       patterns: [
         {
-          regex: "^/runtime/(?!widget-api\\.js$)",
-          message: "Behavior and probe modules use /runtime/widget-api.js.",
+          regex: "^/runtime/(?!(?:widget-api|portable-api)\\.js$)",
+          message:
+            "Behavior and probe modules use /runtime/widget-api.js, or /runtime/portable-api.js where a widget must also load off a Leaf page.",
         },
         {
           regex: "^\\.{1,2}/(?:.*/)?runtime/",
@@ -198,8 +200,9 @@ const publicRuntimeBoundary = {
     },
     {
       selector:
-        'ImportExpression[source.value=/^\\/runtime\\//]:not([source.value="/runtime/widget-api.js"])',
-      message: "Behavior and probe modules use /runtime/widget-api.js.",
+        'ImportExpression[source.value=/^\\/runtime\\//]:not([source.value="/runtime/widget-api.js"], [source.value="/runtime/portable-api.js"])',
+      message:
+        "Behavior and probe modules use /runtime/widget-api.js, or /runtime/portable-api.js where a widget must also load off a Leaf page.",
     },
     {
       selector: "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?runtime\\//]",

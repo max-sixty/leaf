@@ -120,12 +120,13 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
 
     refused = page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           try {
-            commands(document.body, 'A project scope', [
+            document.body.lfCommands = { title: 'A project scope', rows: [
               { id: 'test.no-line', keys: ['F2'],
                 run: () => {} },
-            ]);
+            ] };
+            commandsChanged(document.body);
             return 'declared';
           } catch (e) {
             return e.message;
@@ -142,13 +143,14 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # one thing no surface can project, so it is refused where declarations enter.
     modified = page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           try {
-            commands(document.body, 'A project scope', [
+            document.body.lfCommands = { title: 'A project scope', rows: [
               { id: 'test.bad-modifier', keys: ['Ctrl+k'],
                 title: 'a modifier the matcher never asks about',
                 line: 'a key that is really just k', run: () => {} },
-            ]);
+            ] };
+            commandsChanged(document.body);
             return 'declared';
           } catch (e) {
             return e.message;
@@ -163,10 +165,11 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # the reference omits from its presentation projection.
     routed = page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const declare = row => {
             try {
-              commands(document.body, 'A routed project scope', [row]);
+              document.body.lfCommands = { title: 'A routed project scope', rows: [row] };
+              commandsChanged(document.body);
               return 'declared';
             } catch (e) {
               return e.message;
@@ -207,17 +210,18 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # uses this for the Tab that closes it before the browser moves focus past its door.
     native = page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const owner = document.createElement('div');
           owner.tabIndex = -1;
           document.body.append(owner);
           owner.focus();
           let ran = 0;
-          commands(owner, 'A native companion', [
+          owner.lfCommands = { title: 'A native companion', rows: [
             { id: 'test.native-companion', keys: ['F2'],
               title: 'Run before the browser', line: 'run first',
               native: true, run: () => ran++ },
-          ]);
+          ] };
+          commandsChanged(owner);
           const event = new KeyboardEvent(
             'keydown', {key: 'F2', bubbles: true, cancelable: true}
           );

@@ -28,7 +28,6 @@ import {
   elementById,
   initialRender,
   LeafElement,
-  noChange,
   obligationActions,
   readObligations,
   tally,
@@ -62,7 +61,7 @@ customElements.define(
       // agent" and one by its name; a longer count widens them once.
       const digits = "0".repeat(Math.max(2, String(held.length).length));
       const widest = { onUser: digits, onAgent: digits, open: digits, total: digits };
-      this.#drawing.paint(
+      return this.#drawing.render(
         {
           ready,
           done: Boolean(held.length && !count.open),
@@ -73,7 +72,6 @@ customElements.define(
         },
         this.#next,
       );
-      return noChange;
     }
   },
 );

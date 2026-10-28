@@ -406,9 +406,9 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     that can differ from itself.
 
     `within` is the published page's containment, which the caller reads without
-    a vocabulary. A delivery may not raise, and loading a page's vendored
-    registry is a gate — a page vendored before the layer last changed fails it
-    by design — but containment was never the vocabulary's to answer. Folding
+    a vocabulary. A delivery may not raise, and loading a page's registry is a
+    gate — a page whose own declarations no longer validate over its layer fails
+    it by design — but containment was never the vocabulary's to answer. Folding
     with no page at all was the alternative, and it would show a settlement a
     floor had taken back as still in force, and a superseder taken back the same way
     as masking one: the user sees their question reopened while the agent is

@@ -30,8 +30,8 @@ interface SitePage {
 }
 
 // A page's URL namespace beneath its root, by kind: its browser layer's directories,
-// the directories its session writes, and the vendored files (`schema.BROWSER_DIRS`,
-// `SESSION_ROUTE_DIRS`, `VENDORED_FILES`). The API directory is the page server's
+// the directories its session writes, and the layer's top files (`schema.BROWSER_DIRS`,
+// `SESSION_ROUTE_DIRS`, `LAYER_TOP_FILES`). The API directory is the page server's
 // protocol prefix, fixed with the endpoints under it that this Worker handles by name.
 const API_DIR = "api";
 interface PageRoutes {

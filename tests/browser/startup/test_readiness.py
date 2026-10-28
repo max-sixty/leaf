@@ -42,6 +42,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
+from leaf.render_gate.page_code import run_page_code
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -635,6 +636,34 @@ def test_a_boot_that_fails_after_it_waits_names_the_startup_fault(browser, serve
         "root => root.lfStartupException.message"
     )
     consume_browser_errors(page, "dynamically imported module")
+
+
+def test_what_an_inline_classic_script_throws_reaches_the_check(browser, serve):
+    """An inline classic script throws, and rejects, at once. Delivery holds it until
+    the runtime has read the page and listens (`revision_delivery._deferred`), so
+    plain `page check`, which hears what the runtime reports, names each with its
+    throw site as it would a module's."""
+    url = serve(
+        leaf_page("Early fault", '<p id="words">Words.</p>').replace(
+            "</main>",
+            "</main><script>function parseTimeFault() {"
+            " throw new TypeError('thrown while parsing'); }"
+            " Promise.reject(new RangeError('rejected while parsing'));"
+            " parseTimeFault();</script>",
+        )
+    )
+    reports = [
+        finding.values["text"]
+        for finding in run_page_code(browser.unwatched, url)
+        if finding.code == "page-report"
+    ]
+    assert any(
+        "TypeError: thrown while parsing" in text and "parseTimeFault" in text
+        for text in reports
+    ), reports
+    assert any("RangeError: rejected while parsing" in text for text in reports), (
+        reports
+    )
 
 
 def test_a_page_the_suite_opens_has_read_the_log(browser, serve):

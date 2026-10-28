@@ -45,7 +45,7 @@
    and its own hidden state. What is registered is what stands in the page.
 
    A block in content the browser skips, a hidden tab's panel or a shut disclosure, is
-   left as it stands until it is drawn (geometry.js, `skipped`). Finding its scroller
+   left as it stands until it is drawn (shown-box.js, `skipped`). Finding its scroller
    reads the bounded element's style, and finding its end reads layout, and either
    question makes the browser style and lay out the hidden subtree first; Chromium has
    left style elsewhere on the page stale after that forced pass. A block first seen
@@ -57,7 +57,7 @@
    The watch starts before presentation because the first read it takes is the one the
    user sees: an `end` log opens at its end, and a pin taken after the page presents
    would show it at its top and then jump. */
-import { skipped } from "./geometry.js";
+import { skipped } from "./shown-box.js";
 import { sizeObserver } from "./rendering.js";
 import { SCROLL_SLACK, atScrollEnd as atEnd, scrollToEnd } from "./scrolling.js";
 import { watchArrivals } from "./arrivals.js";

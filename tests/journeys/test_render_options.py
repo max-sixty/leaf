@@ -89,27 +89,23 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     expect(box).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # The controls remain in document order: the other mark, then the text box. It keeps
-    # Shift+Enter keeps a native newline; Enter submits the option.
+    # The controls remain in document order: the other mark, then the text box.
+    # An option title is one line: Shift+Enter leaves it intact; Enter submits it.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-stop .lf-pick")).to_be_focused()
     page.keyboard.press("Tab")
     expect(box).to_be_focused()
     write(box, "Keep both layers")
+    expect(box).to_have_attribute("aria-multiline", "false")
     page.keyboard.press("Shift+Enter")
-    page.keyboard.type("Keep them together")
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("Preserve both histories")
-    expect(box).to_have_js_property(
-        "value", "Keep both layers\nKeep them together\nPreserve both histories"
-    )
+    expect(box).to_have_js_property("value", "Keep both layers")
     expect(box).to_have_attribute("aria-keyshortcuts", "Enter Meta+Enter Control+Enter")
     expect(page.locator("#storage-options > lf-option[data-lf-added]")).to_have_count(0)
     page.keyboard.press("Enter")
     added = page.locator("#storage-options > lf-option[data-lf-added]")
     expect(added).to_contain_text("Keep both layers")
     expect(added.locator(".lf-option-words")).to_have_css("white-space", "normal")
-    expect(added.locator("br")).to_have_count(2)
+    expect(added.locator("br")).to_have_count(0)
     page.close()
 
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))

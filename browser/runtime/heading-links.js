@@ -89,7 +89,8 @@ function makeLink(heading) {
     label: "Copy link to section",
     success: "Link copied",
     error: "Unable to copy link",
-    icon: "link",
+    action: "copy-link",
+    role: "symbol",
   });
   control.tabIndex = -1;
   const link = {

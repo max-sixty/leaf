@@ -45,9 +45,8 @@ tie with the theme's.
 
 A page captures its selected theme when initialized. Re-initializing preserves that
 choice, even if the user's default changes; an explicit `--theme` replaces it.
-`--no-theme` takes none, the only way to, and a later plain init keeps none;
-`--no-packages` clears only the content packages. `none` is reserved for this and
-can't name a theme.
+`--no-theme` takes none, and a later plain init keeps none; `--no-packages` clears
+only the content packages.
 Developer fixture builders use an empty configuration home, so examples, the website
 and demo recordings take `reading` rather than the developer's personal default.
 `leaf page state <page>` exposes the effective name and whether it was explicit or

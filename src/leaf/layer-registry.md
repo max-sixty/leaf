@@ -27,9 +27,8 @@ The layer record holds the selection and two identities:
 
 - `packages` records content-package selections. `theme` is the separately selected
   theme, the page's look, `{name, source}` with `source` explicit or default. A new
-  page takes the user's default or else Leaf's bundled `reading`; null, a record that
-  names no choice, reads as `reading` too, and taking none is recorded explicitly as
-  the reserved name `none` (`themes.theme_package`).
+  page takes the user's default or else Leaf's bundled `reading`; null records taking
+  none.
   The theme composes right after the default package, before the content packages,
   so a content package can restate what it declares. Re-running `page init` preserves
   the recorded choice until `--theme` replaces it or `--no-theme` clears it. User

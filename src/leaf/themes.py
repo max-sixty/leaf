@@ -8,9 +8,7 @@ personal themes agents may select, and each package's author instructions descri
 its intended uses. A page that takes none starts from the browser's defaults and
 Leaf's tokens. A page records its selection separately from content packages, so
 replacing one never silently retains the previous theme. Existing pages keep their
-recorded selection until explicitly changed. A record without a selection reads as
-Leaf's default theme, so taking none is recorded explicitly (`NO_THEME`), and
-`page init --no-theme` is the only way to get it (`theme_package`).
+recorded selection, including none, until explicitly changed.
 
 A page records the theme's name, and whichever Leaf reads the page composes that
 package as it finds it, as it does every package the page selects
@@ -35,8 +33,6 @@ type ThemeChoice = str | Literal[False] | None
 # The look a new page takes when the user names no default: the bundled package that
 # holds Leaf's reading look, its element and idiom defaults.
 DEFAULT_THEME = "reading"
-# The name a page records for taking no theme, which therefore names no package.
-NO_THEME = "none"
 
 _CATALOGUE = Draft202012Validator(
     {
@@ -70,8 +66,6 @@ def catalogue() -> tuple[Path, dict]:
         raise Refused(f"{path}: {error}") from None
     if error := next(_CATALOGUE.iter_errors(config), None):
         raise Refused(f"{path}: {error.message}")
-    if NO_THEME in config["themes"]:
-        raise Refused(f"{path}: {NO_THEME!r} means no theme and can't name one")
     if (default := config.get("default")) is not None and default not in config[
         "themes"
     ]:
@@ -110,7 +104,7 @@ def selected_theme(page_dir: Path, choice: ThemeChoice, *, fresh: bool) -> dict 
     affects future authoring, while its package is resolved wherever the page is read.
     """
     if choice is False:
-        return {"name": NO_THEME, "source": "explicit"}
+        return None
     if choice is None and not fresh:
         from .registry.storage import layer_record
 
@@ -125,12 +119,8 @@ def selected_theme(page_dir: Path, choice: ThemeChoice, *, fresh: bool) -> dict 
 
 
 def theme_package(theme: dict | None) -> str | None:
-    """The package a recorded theme selection composes: Leaf's default where the
-    record names none, as a page initialized before the reading look was a theme
-    does, and no package where it names `NO_THEME`."""
-    if theme is None:
-        return DEFAULT_THEME
-    return None if theme["name"] == NO_THEME else theme["name"]
+    """The package a recorded theme selection composes, or None for none."""
+    return theme and theme["name"]
 
 
 def with_theme(packages: tuple[str, ...], theme: dict | None) -> tuple[str, ...]:

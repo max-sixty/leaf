@@ -11,12 +11,10 @@ from leaf.cli import cli
 from leaf.machine import package_store
 from leaf.packages import cmd_package_install
 from leaf.refusals import Refused
-from leaf.registry.storage import LAYER, layer_metadata, layer_record, selected
+from leaf.registry.storage import layer_metadata, layer_record, selected
 from leaf.schema import LAYER_FILE
 from leaf.themes import cmd_list
 from leaf.vendoring import cmd_init
-
-NONE = {"name": "none", "source": "explicit"}
 
 
 def catalogue(tmp_path, *, default="editorial"):
@@ -92,7 +90,7 @@ def test_theme_selection_is_independent_of_content_packages_and_later_defaults(
     assert without_theme.exit_code == 0, without_theme.output
     cmd_init(page)
     assert layer_metadata(page)["packages"] == ["diagram"]
-    assert layer_metadata(page)["theme"] == NONE
+    assert layer_metadata(page)["theme"] is None
     cmd_init(page, theme="dense")
     cleared = CliRunner().invoke(cli, ["page", "init", str(page), "--no-packages"])
     assert cleared.exit_code == 0, cleared.output
@@ -112,7 +110,7 @@ def test_a_new_page_reads_in_leaf_s_look_unless_it_takes_none(tmp_path):
     assert ".callout" in selected(layer_record(page), page).registry
     assert "color-scheme: light dark;\n  --lf-reading-face: 1;" in served_theme(page)
     cmd_init(page, theme=False)
-    assert layer_metadata(page)["theme"] == NONE
+    assert layer_metadata(page)["theme"] is None
     assert ".callout" not in selected(layer_record(page), page).registry
     bare = served_theme(page)
     assert (
@@ -120,18 +118,6 @@ def test_a_new_page_reads_in_leaf_s_look_unless_it_takes_none(tmp_path):
         and "color-scheme: light dark;\n  --lf-reading" not in bare
     )
     assert "style(--lf-reading-face: 1)" in bare
-
-
-def test_a_page_recording_no_theme_choice_reads_in_leaf_s_look(tmp_path):
-    """A record that names no theme, as a page initialized before the reading look
-    was a theme does, composes Leaf's default, and re-initializing keeps it there:
-    only `--no-theme` records taking none."""
-    page = tmp_path / "page"
-    cmd_init(page)
-    LAYER.write(page / LAYER_FILE, {**layer_record(page), "theme": None})
-    assert ".callout" in selected(layer_record(page), page).registry
-    cmd_init(page)
-    assert ".callout" in selected(layer_record(page), page).registry
 
 
 def test_a_project_package_restates_a_theme_s_idiom(tmp_path, monkeypatch):
@@ -154,14 +140,6 @@ def test_a_project_package_restates_a_theme_s_idiom(tmp_path, monkeypatch):
     assert sheet.index(
         "background: var(--lf-ground);\n  padding: 12px 16px"
     ) < sheet.index("background: teal")
-
-
-def test_none_names_no_theme_in_the_catalogue(tmp_path):
-    config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
-    config.parent.mkdir(parents=True)
-    config.write_text('themes = ["none"]\n')
-    with pytest.raises(Refused, match="means no theme"):
-        cmd_list()
 
 
 def test_missing_theme_refuses_revendoring_and_keeps_the_selection(tmp_path):

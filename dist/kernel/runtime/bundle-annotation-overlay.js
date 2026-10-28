@@ -1,5 +1,5 @@
 import { LAYOUT, afterScript, cancelAnimation, cancelRender, nativeLayerHolding, nextAnimation, nextFrame, nextRender, renderedOrder, renderedUnder, setScroll, sizeObserver, skipped, tabStore, under } from "./bundle-portable.js";
-import { TEXT_FIELD, Z, bareReaction, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, hostIn, html, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, onCurrentLocation, onPressAway, onUserInput, pressLed, render, ringBox, roomPx, rove, sameAnchor, tabStops, turns, visibleFocus } from "./bundle-layer-stack.js";
+import { TEXT_FIELD, Z, bareReaction, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, hostIn, html, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, onCurrentLocation, onPressAway, onUserInput, pressLed, render, ringBox, roomPx, rove, sameAnchor, shownFocus, tabStops, turns, visibleFocus } from "./bundle-layer-stack.js";
 import { PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
@@ -1795,7 +1795,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 	};
 	const stepsOut = (from = focused()) => {
 		const target = targetFor(card.selection()?.entry);
-		return preview.contains(from) && !unfoldedUnder() && target?.isConnected && target.checkVisibility() ? target : null;
+		return preview.contains(from) && preview.contains(shownFocus()) && !unfoldedUnder() && target?.isConnected && target.checkVisibility() ? target : null;
 	};
 	function keyboardRung({ atFocus = true } = {}) {
 		const active = focused();

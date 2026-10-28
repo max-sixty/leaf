@@ -207,7 +207,9 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     The panel and the margin's thread view each have one way out, and a click, a
     keyboard activation of the same control and a walk that arrived from somewhere else
     all take it. Where that way out ends is what holds the thread — the panel, whose
-    view goes away, or the element a card's thread is about — and then the page: the
+    view goes away, or, while the card wears the focus ring, the element its thread is
+    about; a card a click left unringed shows no such step, so it goes at once — and
+    then the page: the
     Threads mark, the margin marker and the page mark are Leaf's own controls rather
     than places the user was reading, so none of them is a landing, and a user who
     reached one by Tab or by pointer is owed no return to it.
@@ -264,11 +266,14 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(threads[1]).to_be_focused()
     out_through("#p2")
 
-    # The mark on the page is the same door and the same way out.
+    # The mark on the page is the same door. Its click rings nothing, so the one way
+    # out takes the card down rather than stepping onto the element behind it.
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(preview).to_be_visible()
     expect(threads[0]).to_be_focused()
-    out_through("#p")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    assert page.evaluate(on_body)
 
     # And from the keyboard, focused on the marker itself: the same way out, to the
     # same place. The marker is Leaf's own control beside the words it marks, so it is

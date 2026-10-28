@@ -49,6 +49,7 @@ from browser.margin import (
     WORDS_RIGHT,
     _comment_on,
     leave_card_by_its_target,
+    leave_unringed_card,
     seeded_thread,
 )
 from leaf import event_log as events_model
@@ -271,14 +272,8 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     thread.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(thread).to_have_attribute("aria-expanded", "true")
-    # Out of the thread onto the block it is about; letting go of that takes the card.
-    page.keyboard.press("Escape")
-    expect(page.locator("#how-cap")).to_be_focused()
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    leave_unringed_card(page)
     expect(thread).to_have_attribute("aria-expanded", "false")
-    assert page.evaluate("() => document.activeElement === document.body")
 
     page.evaluate("window.lfThreadOwner.addPeers()")
     expect(options).to_be_hidden()

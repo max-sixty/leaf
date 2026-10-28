@@ -32,7 +32,7 @@ from browser.margin import (
     LONG_THREAD_ROOT,
     PARAGRAPH_ON_OBLIGATION,
     WORDS_RIGHT,
-    leave_card_by_its_target,
+    leave_unringed_card,
     resized_shell,
 )
 from leaf import thread as thread_model
@@ -474,14 +474,14 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
-    leave_card_by_its_target(page)
+    leave_unringed_card(page)
     marker.hover()
     expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_visible()
     expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
 
-    leave_card_by_its_target(page)
+    leave_unringed_card(page)
     resized(page, 1280, 600)
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
     marker.click()

@@ -23,7 +23,8 @@
    obligation to read its discussion with it. followCurrentLocation and the
    shared keyboard ladder decide when that relationship ends. It is margin chrome:
    target, cluster and card are one place. Being elsewhere on the page, releasing the target,
-   or pressing outside that place dismisses it. Escape inside lands on the target;
+   or pressing outside that place dismisses it. Escape inside a card wearing the focus
+   ring lands on the target, and inside one without it closes the card;
    Send keeps focus on its thread. The card shows
    the threads of the innermost target holding the user's place that has any (its own,
    else an enclosing one's), never those of a target inside it: a thread on an obligation's
@@ -99,6 +100,7 @@ import {
   onPressAway,
   onCurrentLocation,
   pressLed,
+  shownFocus,
   focused,
   closeLayer,
   rove,
@@ -1308,10 +1310,11 @@ export function createMarginProjection({
   // hoisted into the chrome while anchored to a target, so it counts as chrome for which
   // surface holds focus and as page-anchored for where the user lands.
   //
-  // Inside it, the thread's parent is the target it is about: the press steps out onto
-  // that target and the card stays up beside it, since the user is still there,
-  // and letting go of the target is the next press. From the entry it hangs from, the
-  // press takes the card down.
+  // Inside it, while the card wears the focus ring, the thread's parent is the target
+  // it is about: the press steps out onto that target and the card stays up beside it,
+  // since the user is still there, and letting go of the target is the next press.
+  // Without the ring, as after a click, that step would move nothing the user sees, so
+  // the press takes the card down, as it does from the entry it hangs from.
   // A cluster the user unfolded themselves and opened the card from is a level of
   // their own under the card, and the card hands back to it instead (below).
   const unfoldedUnder = () => {
@@ -1326,6 +1329,7 @@ export function createMarginProjection({
   const stepsOut = (from = focused()) => {
     const target = targetFor(card.selection()?.entry);
     return preview.contains(from) &&
+      preview.contains(shownFocus()) &&
       !unfoldedUnder() &&
       target?.isConnected &&
       target.checkVisibility()

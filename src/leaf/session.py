@@ -19,12 +19,11 @@ from .files import file_stamp
 from .findings import Finding, note
 from .harness import Harness, claim_harness, session_harness
 from .hook_transport import HOOK_TIMEOUT_S
-from .interaction_log import record_command
+from .interaction_log import record_command, record_watch
 from .leases import (
     end_if_terminated,
     release_lease,
-    supersede_lease,
-    take_lease,
+    take_wait_lease,
     waiter_lease_path,
 )
 from .locations import path_location, paths_same
@@ -194,7 +193,7 @@ class Watch:
         if self.leases:
             return True
         for path in self.lease_paths:
-            lease = supersede_lease(path) if supersede else take_lease(path)
+            lease = take_wait_lease(path, supersede=supersede)
             if lease is None:
                 self.release()
                 return False
@@ -761,6 +760,8 @@ def watch_between_turns(
             or time.monotonic() > settled
         )
 
+    # How the watch ended, which its record in each page it read keeps.
+    ended = "stopped"
     try:
         while harness.process_runs():
             mark = watch.mark()
@@ -775,11 +776,14 @@ def watch_between_turns(
             )
             # Superseded during the pass, it leaves what it found to its successor.
             if not watch.holds():
+                ended = "superseded"
                 return None
             if reading.delivered is not None:
+                ended = "woke"
                 woke_after(harness.session)
                 return reading.delivered
             if reading.outcome is not None:
+                ended = "server-down"
                 return "\n".join(
                     f"{tick.page_dir}: server is not running; restart it with "
                     f"`leaf server start {tick.page_dir}`"
@@ -787,10 +791,13 @@ def watch_between_turns(
                     if tick.lost
                 )
             if not reading.live:
+                ended = "no-pages"
                 return None
             watch.await_news(mark)
+        ended = "harness-exited"
     finally:
         watch.release()
+        record_watch(watch.watched, harness.session, began, ended)
     # Input admitted while this watch held the lease was not nudged, so now the
     # lease is gone, any such input is nudged as admission would have.
     nudge_pending(harness.session)

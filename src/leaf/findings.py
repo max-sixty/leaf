@@ -1599,8 +1599,7 @@ _TEXT = {
         f"{v['page']} was initialized at page protocol {v['recorded']} by a newer"
         f" Leaf, and this Leaf ({v['leaf']}) speaks protocol {v['protocol']}, so it"
         f" can neither serve nor write the page. Use a Leaf at protocol"
-        f" {v['recorded']} or later; in Claude Code, `/reload-plugins` loads an"
-        " installed update."
+        f" {v['recorded']} or later."
     ),
     "no-registry": lambda at, v: "the page has no layer.json",
     "unknown-kind": lambda at, v: f"kind must be one of {_json(v['kinds'])}",

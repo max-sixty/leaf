@@ -188,7 +188,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
         # session, and only while the claim is still this session's.
         held = page_claim(page_dir)
         unready = (
-            renew_layer(page_dir, claim_harness(held))
+            renew_layer(page_dir, claim_harness(held), command=False)
             if held and held["id"] == session_id
             else None
         )

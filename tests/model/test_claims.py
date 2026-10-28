@@ -832,7 +832,7 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     assert service_model.claim_page(page_dir)
     first = harness_model.session_harness()
     first_turn = service_model.page_claim(page_dir)["turn"]
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, first.session)
     )
     assert lease and page_state(page_dir)["listening"]

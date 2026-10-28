@@ -891,7 +891,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     page_dir = claimed
     session_model.cmd_waiting(page_dir)
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, session["id"])
     )
     assert lease

@@ -77,6 +77,19 @@ pages working. Admission validates a kernel record against the running Leaf's ow
 older one initialized. The promise runs one way: an older Leaf may refuse a field it
 does not know.
 
+"Any Leaf at the page's number" is per process, and one session can run two. Claude
+Code keeps a session on the plugin copy it loaded after its marketplace sweep installs
+an update, until `/reload-plugins` or a restart, and a worktree's `bin/leaf` can take
+a page the session holds past that copy's protocol. So the copy the session loaded
+hands each hook, its watch and its bare `leaf` commands to the session's delivering
+Leaf: the checkout that last initialized one of its pages, or a preview's, while it
+exists, and otherwise the copy Claude Code installed since (`session_runtime.py`). An
+update then reaches a session at its next hook; `hooks.json` and the hooks module,
+which Claude Code reads as it loads the plugin, still wait for a reload. Where a
+watch still can't read a page, as one started before this hand-off existed, its lease
+names the older protocol it speaks, so a newer Leaf reads it as no watch and admission
+nudges the session (`leases.wait_is_live`).
+
 Bump the number when a Leaf at it would misread an event another Leaf at it wrote into
 the log, or a record another wrote outside it. A change to the bundled widgets, their
 registry entries, the theme or the public package API (`runtime/widget-api.js` and

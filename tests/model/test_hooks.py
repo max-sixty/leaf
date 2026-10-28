@@ -54,6 +54,7 @@ from leaf import schema as schema_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
@@ -103,7 +104,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
 
     # A live watcher: the guard has nothing to say, and the ending is recorded anyway.
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -347,7 +348,7 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, printing, cap
     nothing new is the turn really ending."""
     session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -696,7 +697,7 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     assert workflow["stage"] == "sent"
     # A running wait changes nothing: it only wakes the session.
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -879,7 +880,7 @@ def test_the_server_nudges_a_first_claiming_turn_escape_left_unwatched(
 
     time.sleep(0.01)
     live.update(state="idle", since=datetime.now().astimezone().isoformat())
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(claimed, "s1"))
+    lease = leases_model.take_wait_lease(leases_model.waiter_lease_path(claimed, "s1"))
     server.live_until = 0
     server.refresh()
     assert nudged == []
@@ -1228,7 +1229,9 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     envelope = json.loads(delivery)
     assert envelope["batches"][0]["events"][0]["id"] == sent["id"]
     session = service_model.page_claim(page)
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
+    lease = leases_model.take_wait_lease(
+        leases_model.waiter_lease_path(page, session["id"])
+    )
     assert lease
     try:
         # The turn ends on its own answer, and the watch wakes a turn of its own
@@ -1588,12 +1591,15 @@ def test_a_prompt_reminds_of_debt_on_a_page_its_leaf_cannot_write(claimed, capsy
 
 
 def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_input(
-    claimed, capsys
+    claimed, capsys, monkeypatch
 ):
     """A plugin update that bumps the page protocol leaves the session's page on the
     older Leaf's layer. The first prompt under the new Leaf re-vendors it, keeping its
     log, and hands over the input waiting there, so the user's comment reaches the
-    turn with nothing asked of the agent first."""
+    turn with nothing asked of the agent first. The re-vendor runs inside the hook's
+    time, which a loaded host can stretch past CONFIRM_WITHIN; that bound has its
+    own tests."""
+    monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", 600.0)
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
@@ -1609,6 +1615,30 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
     assert "page protocol" not in context
     assert handed(claimed, comment["id"])
     assert event_contracts_model.write_refusal(claimed) is None
+    assert session_runtime_model.selected_launcher("s1") is None
+
+
+@pytest.mark.parametrize("selected", [False, True])
+def test_a_checkout_that_re_vendors_a_page_delivers_for_its_session(
+    claimed, tmp_path, selected
+):
+    """A command from a checkout, such as a worktree's `bin/leaf`, that re-vendors
+    a page becomes its session's delivering Leaf, whether the session had no
+    selection, as an installed plugin's doesn't, or had selected another, so its
+    hooks and watch can still read the page."""
+    if selected:
+        other = tmp_path / "installed" / "bin" / "leaf"
+        other.parent.mkdir(parents=True)
+        other.write_text("#!/bin/sh\n")
+        other.chmod(0o755)
+        session_runtime_model.select_launcher("s1", other)
+    vendored_at_another_protocol(claimed)
+
+    vendoring_model.renew_layer(claimed, harness_model.session_harness(), command=True)
+
+    assert event_contracts_model.write_refusal(claimed) is None
+    own = session_runtime_model.own_launcher()
+    assert session_runtime_model.selected_launcher("s1") == own
 
 
 def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(
@@ -1682,7 +1712,12 @@ def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypa
     monkeypatch.setattr(vendoring_model, "page_locked", newer_leaf_first)
     newer = layer_record(claimed)["protocol"] + 2
 
-    assert vendoring_model.renew_layer(claimed, harness_model.session_harness()) is None
+    assert (
+        vendoring_model.renew_layer(
+            claimed, harness_model.session_harness(), command=True
+        )
+        is None
+    )
     assert layer_record(claimed)["protocol"] == newer
 
 

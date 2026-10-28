@@ -113,7 +113,9 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     page = codex_claimed_page
     session_model.cmd_waiting(page)
     session = service_model.page_claim(page)
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
+    lease = leases_model.take_wait_lease(
+        leases_model.waiter_lease_path(page, session["id"])
+    )
     assert lease
 
     # A live watcher lets Claude end its turn, but Codex must keep this one active
@@ -161,7 +163,9 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     comment = append_carried_log_record(
         page, {"kind": "comment", "author": "user", "text": "hi"}
     )
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
+    lease = leases_model.take_wait_lease(
+        leases_model.waiter_lease_path(page, session["id"])
+    )
     assert lease
     hooks_model.cmd_hook(
         "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
@@ -197,7 +201,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
 def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeypatch):
     """A page-local lease proves only an unclaimed bare-shell watch."""
     session_model.cmd_waiting(page_dir)
-    bare = leases_model.take_lease(page_dir / "waiter.lock")
+    bare = leases_model.take_wait_lease(page_dir / "waiter.lock")
     assert bare
     try:
         assert page_state(page_dir)["listening"]
@@ -399,7 +403,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     session_model.cmd_waiting(claimed)
     # Watched, so the guard's other clause is clear and what fires below can only
     # be this one.
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, service_model.page_claim(claimed)["id"])
     )
     assert lease
@@ -461,7 +465,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
     # Watched, which is the whole of what clears the guard's other case and
     # clears nothing here.
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -604,7 +608,7 @@ def test_the_guard_survives_a_page_whose_layer_cannot_be_composed(
     reading the published version to settle threads loaded that page's registry."""
     session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -846,7 +850,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(
     to the agent — a reaction is not the user speaking. The user's words are."""
     session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -893,7 +897,7 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
         return json.loads(output) if output else None
 
     observations["no adapter"] = hook()
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page, "codex-thread")
     )
     assert lease

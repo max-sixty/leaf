@@ -2986,7 +2986,7 @@ def _watched(page_dir):
     """A claimed page this session watches, so only its debts reach the hooks."""
     session_model.cmd_waiting(page_dir)
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, session["id"])
     )
     assert lease

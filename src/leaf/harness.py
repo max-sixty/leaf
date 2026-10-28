@@ -360,6 +360,11 @@ class EnvironmentHarness(Harness):
         raise NotImplementedError
 
 
+# What Leaf's nudge to a Claude Code session says after the page's path, through
+# its socket or as a resumed job's prompt; the hooks module draws it by these words.
+NUDGE_WORDS = "has new input, which arrives with this message."
+
+
 @dataclass(frozen=True)
 class ClaudeCodeHarness(EnvironmentHarness):
     """Claude Code: a Stop hook that watches between turns and wakes the session,
@@ -544,7 +549,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
     def nudge(self, page_dir: Path) -> bool:
         """The session's socket, or, for a background job no worker hosts, the job
         itself, resumed with the message as its prompt."""
-        text = f"leaf: {page_dir} has new input, which arrives with this message."
+        text = f"leaf: {page_dir} {NUDGE_WORDS}"
         return message_claude_code_session(self.session, text) or (
             self.job is not None and resume_claude_code_job(self.session, text)
         )

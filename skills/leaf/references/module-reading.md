@@ -88,13 +88,16 @@ one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
 `highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
 names a language.
 
-Leaf adds a Copy button to each `pre > code` in the page. For other source text a widget
-draws, such as code in its shadow stage, append the button `copyBlock(block, source,
-noun)` returns once the block is connected; it copies `source()`, and `noun`, such as
-`"code"`, names what it copies. A copy that stands among a widget's own controls rather
-than over a block, such as in a popover's header, is `copyControl(className, {label,
-success, error})`: set its `value` before it copies, and it reports `success` or
-`error` as a code block's does.
+Leaf adds a Copy button to each `pre > code` in the page. A widget block holding other
+source text, such as numbered code lines, declares its own: give the block
+`data-lf-copy`, naming what it holds, such as `"code"`, and an `lfCopy()` method that
+returns the text to copy. Leaf stands the button right after the block while both are in
+the page, and a page without Leaf shows none. Where the button belongs among the
+widget's own controls, as in a draft's toolbar, place the one `copyBlock(block, source,
+noun)` returns once the block is connected; it copies `source()`. A copy that stands
+among a widget's own controls rather than over a block, such as in a popover's header,
+is `copyControl(className, {label, success, error})`: set its `value` before it copies,
+and it reports `success` or `error` as a code block's does.
 
 ### Text alignment
 

@@ -103,6 +103,20 @@ export function quietWord(el, word) {
   move(el, span, title ? title.nextSibling : el.firstChild);
 }
 
+// The quiet word a module declares on a part it builds, as `data-lf-quiet`, such as a
+// code line's "highlighted" or a suggestion slot's "proposed deletion": Leaf writes it
+// there while the part stands and declares it. Declared rather than written by the
+// module, because the word is only quiet where Leaf's theme clips it, so a widget that
+// also runs off Leaf (portable-api.js) must not write it there, and on a page without
+// Leaf nothing reads the declaration.
+export function watchQuietWords() {
+  const { quiet } = PAGE_PAINT_ATTRIBUTE;
+  watchArrivals(`[${quiet}]`, [quiet], {
+    arrive: (el) => quietWord(el, el.getAttribute(quiet)),
+    leave: (el) => quietWord(el, ""),
+  });
+}
+
 // Parser paint and later arrivals share one treatment and its per-link ownership.
 // Prepaint seats the mark before authored prose first paints; this watch carries the
 // same owner through revisions, generated content and declared shadow stages.

@@ -856,15 +856,11 @@
 
   /* ---------- an opened view: its name over it, its controls at its foot ---------- */
   /* Drawn only while a view is open, since it stands over the page while it is
-     (geometry.js, `declareOccluder`). A hairline across the card's full width ends
-     it, so the field below reads apart from the view even while the field draws no
-     contour of its own; painted inside its foot, it takes no room. */
+     (geometry.js, `declareOccluder`). */
   .lf-fp-opened {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) bottom / 100%
-      1px no-repeat;
   }
   .lf-floating-panel:not([data-open]) .lf-fp-opened {
     display: none;
@@ -1062,7 +1058,7 @@
     outline: var(--focus-ring);
     outline-offset: -2px;
   }
-  :is(.lf-fp-quiet, .lf-fp-next-unread)[data-unoffered] {
+  :is(.lf-fp-on-page, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
   }
   /* Resolve is the check, turning the ok ink on hover; Reopen in its place is the

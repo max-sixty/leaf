@@ -2400,7 +2400,7 @@ function pageControls() {
 			copies: read(row.copies) ?? "",
 			urgent: read(row.urgent) ?? null,
 			exit: Boolean(row.exit),
-			icon: read(row.icon) ?? null,
+			action: read(row.action) ?? null,
 			disabled: Boolean(read(row.disabled)),
 			press: row.press ?? null
 		});

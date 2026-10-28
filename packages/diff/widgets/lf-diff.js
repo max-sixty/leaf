@@ -46,7 +46,7 @@ import {
   render,
   relabel,
   inChrome,
-  iconTemplate,
+  showAction,
   commands,
   keeps,
   keepsText,
@@ -412,7 +412,7 @@ function commentButton(label, opened, className) {
     `lf-diff-comment ${className}`,
     `Comment on ${label}`,
     {
-      icon: "comment",
+      action: "comment",
     },
   );
   if (opened) button.addEventListener("click", opened);
@@ -536,7 +536,9 @@ function diffTools(host) {
   progress.append(count);
   // Opening every file is rare beside opening one, so it is a quiet icon after the count
   // of the files it opens rather than a labelled button of its own (widget-shadow.css).
-  const foldAll = offerAction("symbol", "lf-diff-fold-all");
+  const foldAll = offerAction("symbol", "lf-diff-fold-all", undefined, {
+    action: "expand-all",
+  });
   foldAll.slot = "end";
   foldAll.addEventListener("click", () => host.foldAll());
   search.append(progress, foldAll);
@@ -827,8 +829,7 @@ function deferredError(details, error, retry) {
     : `That file's diff cannot be shown: ${message}`;
   let standIn = header;
   if (retry) {
-    standIn = offerAction("symbol", "", "Retry");
-    render(iconTemplate("retry", "lf-action-icon"), standIn);
+    standIn = offerAction("symbol", "", undefined, { action: "retry" });
     standIn.addEventListener("click", () => {
       if (standIn.getAttribute("aria-disabled") === "true") return;
       standIn.setAttribute("aria-disabled", "true");
@@ -1616,8 +1617,7 @@ customElements.define(
       // With nothing to open it keeps its room, so the count beside it stays put.
       button.toggleAttribute("inert", !folds.length);
       const open = folds.some((details) => !details.open);
-      const icon = open ? "unfold" : "fold";
-      render(iconTemplate(icon, "lf-action-icon"), button);
+      showAction(button, open ? "expand-all" : "collapse-all");
       // No number: the count beside it also counts files that have nothing to open.
       const label = `${open ? "Expand" : "Collapse"} all files`;
       keeps(button, "aria-label", label);

@@ -110,9 +110,16 @@ on a generated image or link, so it resolves on published pages too.
 
 ### Icons
 
-`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons.
-A press drawn as an icon is a symbol (`module-authoring.md`, "Generated controls"):
-`offerAction("symbol", className, label, {icon: "comment"})` draws it with its label.
+`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons,
+for what something is or holds, such as a kind or a state. A press shows an action's
+symbol instead, so each action looks the same wherever it is offered. `ACTIONS` in
+`runtime/icon-paths.js` lists Leaf's actions with their symbol and name, and
+`offerAction("symbol", className, label, {action: "comment"})` draws one
+(`module-authoring.md`, "Generated controls"). `actionElement(action, className)` and
+`actionTemplate(action, className)` draw an action's symbol where your widget gives the
+press its face itself. `showAction(control, action)` makes a control show `action`'s
+symbol, replacing the symbol it shows if that differs, for a press whose action follows
+its state, such as Expand all turning to Collapse all.
 
 ## Page readings
 

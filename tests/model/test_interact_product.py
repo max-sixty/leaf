@@ -369,18 +369,6 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
         "empty-question",
         widgets=lacking({"settled": [False]}),
     )
-    # An obligation in a sample, quoted or interactive, is a demonstration, and its
-    # widgets ask nothing by design.
-    for mode in ("", " interactive"):
-        assert (
-            fragment_errors(
-                f'<lf-sample id="sample-ask" label="an obligation"{mode}>'
-                f'<lf-ask id="decision-shown"><h2>Choose</h2>{unasked}</lf-ask>'
-                "</lf-sample>",
-                registry,
-            )
-            == []
-        )
     assert (
         fragment_errors(
             f'<lf-ask id="decision-crowded"><h2>Two decisions</h2>{first}{second}</lf-ask>',

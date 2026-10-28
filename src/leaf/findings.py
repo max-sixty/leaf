@@ -562,10 +562,6 @@ _TEXT = {
         " inside it draws a box, so a comment anchored here outlines nothing. Put"
         " the words in an element that takes a box"
     ),
-    "undeclared-shadow": lambda at, v: (
-        "shadow roots the registry doesn't declare (an undeclared root's words anchor"
-        f" quotes astray; declare x-shadow): {', '.join(v['hosts'])}"
-    ),
     "devtools-issue": lambda at, v: (
         f"DevTools issue {v['issue']}"
         + (f" at {at}" if at else "")

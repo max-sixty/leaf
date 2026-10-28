@@ -55,7 +55,7 @@ LAYER = Record(
         },
         "required": ["packages", "theme", "generation", "protocol"],
     },
-    since=35,
+    since=36,
 )
 
 

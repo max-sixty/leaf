@@ -1495,7 +1495,7 @@ export function createVersionController({
     // to a controller. The nodes read here are the nodes that end up in the page, and the
     // roots among them are what the install dresses.
     const arrived = [];
-    const descriptorStages = [];
+    const arrivedDescriptors = new Map();
     const prior = readApplication().document;
     // The arriving revision's source is the complete page baseline. Capture it before
     // insertion can connect a custom element and turn authored input into presentation.
@@ -1514,20 +1514,22 @@ export function createVersionController({
       pairSources(node, arriving, sourcePairs);
       if (arriving.nodeType === Node.ELEMENT_NODE) {
         rememberPassageParts(arriving);
-        // Stated rather than read, because the node is not in the document yet and
-        // the readings below ask where it stands: whether an exhibit quotes it, and
-        // which declared elements enclose it.
+        // Keep authored parentage for later passage readings. Widget identity was
+        // already captured from the complete incoming source, where every enclosing
+        // owner is present; copied arrivals bind that same reading before connection.
         rememberAuthoredParents(arriving, parent);
-        const descriptors = stageWidgetDescriptors(arriving, {
-          kind: "page",
-          revision: target.revision,
-        });
-        descriptorStages.push(descriptors);
+        const bindings = [];
+        for (const element of [arriving, ...arriving.querySelectorAll("[id]")]) {
+          const descriptor = sourceDescriptors.descriptors.get(element.id);
+          if (!descriptor) continue;
+          bindings.push({ element, descriptor });
+          arrivedDescriptors.set(element.id, descriptor);
+        }
         // Bind the actual arrival before insertion can synchronously connect its
         // custom element. The publisher still holds the outgoing document until the
         // patch and matching server reading are admitted together, so this descriptor
         // cannot borrow the old widget's semantic state during preparation.
-        commitWidgetDescriptors(descriptors);
+        commitWidgetDescriptors({ bindings });
         formatDeclaredMarkdown(arriving);
         arrived.push(arriving);
       }
@@ -1593,12 +1595,9 @@ export function createVersionController({
       ),
     );
     for (const [id, value] of sourceAuthored) nextAuthored.set(id, value);
-    const arrivedDescriptors = new Map();
-    for (const stage of descriptorStages)
-      for (const [id, value] of stage.descriptors) arrivedDescriptors.set(id, value);
     // The incoming source owns page order. Retained controllers keep the descriptor
-    // identity captured with their live node; new or rewritten nodes use their arrival
-    // capture. Frozen thread documents follow the page in their current log order.
+    // identity captured with their live node; new or rewritten nodes use the incoming
+    // source's capture. Frozen thread documents follow the page in log order.
     const descriptors = new Map();
     for (const [id, incoming] of sourceDescriptors.descriptors)
       descriptors.set(

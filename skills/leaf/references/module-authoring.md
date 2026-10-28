@@ -192,24 +192,33 @@ moving anything. `leaf package check --render` reports a widget that moves as
   sets before first paint wherever its runtime will run.
 - The widget's initial structure goes in `x-initial`: the path of a committed classic
   script that calls
-  `document.documentElement.lfInitial.register(tag, render)`. Delivery calls
-  `render(host, tools)` as soon as each host's markup arrives, nested hosts first, so the widget first appears
+  `document.documentElement.lfInitial.register(tag, createView)`. Delivery calls
+  the supplied factory with `host` and `tools` as soon as each host's markup arrives,
+  nested hosts first, so the widget first appears
   whole. Delivery inlines each used bundle once in the head; for later revisions and
   thread messages the loader imports the bundle before the behavior module.
   `tools` provides `tabStore`, `offer`, `offerElement`, `offerAction`,
   `offerActionElement`, `selectableOffer`, `selectableOfferElement`,
   `generatedElement`, `keeps` (the attribute keeper) and `authoredBody`.
   Leaf keeps the authored markup before drawing, so source readings and comparisons
-  ignore the drawing. `render` is synchronous, fetches nothing and reads nothing from the log; it may move authored
+  ignore the drawing. `createView` is synchronous, fetches nothing and reads nothing from the log; it may move authored
   nodes within the host. To put every authored child inside a box it builds, as
   `lf-worktree` puts its evidence under its disclosure's summary, pass that box to
   `tools.authoredBody(box)`, which moves the children into it. Leaf treats the boxes around
   it as the widget's own and its contents as the page's, and an `x-patch: members`
-  revision edits inside it. It returns the node references the module needs, with an
-  update function where the drawing changes later. The module gets that result with
-  `initialRender(host)`, which draws on demand for a host that arrived later, adds
-  behavior to those nodes, and calls the same update function rather than drawing them
-  again. A drawing that reads markup after its host, as `lf-toc` reads the headings
+  revision edits inside it. The factory returns a view with `render()`, returning
+  a Lit template, and the node references and mechanical inputs the module needs.
+  Delivery supplies `document.documentElement.lfInitial.lit`, the shared Lit namespace,
+  before any factory script runs, including a custom classic script with no build.
+  Delivery renders that template into `view.root ?? host`; `root` isolates a generated
+  region when the host also retains authored children. The module gets
+  the view with `initialRender(host)`, which also initializes later arrivals. Its
+  `LeafElement.render()` returns the same view's template with its live inputs, so Lit
+  retains the first drawing's nodes and bindings. The factory does not keep a second
+  paint or update method. A view needing generated-node measurements may mount its
+  template with public Lit `render` before measuring; delivery commits the measured
+  template in the same root. A producer that only reserves geometry and draws nothing
+  returns null. A drawing that reads markup after its host, as `lf-toc` reads the headings
   below it, finishes when the document has parsed (`readystatechange`), before any
   module runs; if that changes its
   height, mark the affected reading scope `data-lf-initial-pending` while parsing and
@@ -274,6 +283,10 @@ custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
 `placeSelection()` from its `connectedMoveCallback`.
 
 ### Shadow stages and styles
+
+Declare `x-shadow` when the user should quote and comment on the words a widget's
+shadow root shows. A root attached any other way, as a vendored component or a page
+script's own custom element attaches one, is opaque to comments.
 
 Build an `x-shadow` widget's shadow root with `shadowStage(host, nodes)`, never
 `attachShadow`; it applies the theme's styles and returns the root. For a template,

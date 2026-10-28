@@ -68,7 +68,7 @@
     "why-context": "How many characters of context a captured anchor keeps on each side of its quote. A quote read from the file must be unique. The browser knows which occurrence the user selected, and widens the context until the shared resolver finds that one."
   },
   "$events": {
-    "protocol": 35,
+    "protocol": 36,
     "draft": {
       "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
       "since": 17,

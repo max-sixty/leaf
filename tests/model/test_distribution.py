@@ -59,8 +59,8 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
     # A JSON file the kernel never read leaves it current; the kernel registry it
     # compiled in does not, so an edit to it reaches the browser through the source
     # modules, which read it, as it reaches Python.
-    unread = assets / "vendor/initial-dependencies.json"
-    unread.write_text(unread.read_text() + "\n")
+    unread = assets / "vendor/unread.json"
+    unread.write_text("{}\n")
     assert runtime_selection.read_runtime().kernel is not None
     registry = assets / "runtime/kernel-registry.json"
     shipped = registry.read_bytes()

@@ -453,8 +453,9 @@ EXTENSION_SCHEMA = {
         # reserves only what an occurrence's data-height states.
         "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
         "x-history": {"const": True},
-        # A captured classic bundle registering one synchronous DOM producer. Delivery
-        # runs it after each occurrence closes; the module adopts its existing nodes.
+        # A captured classic script registering a synchronous Lit view factory. Delivery
+        # supplies lfInitial.lit before it runs, then draws each complete host;
+        # the module continues that view in its existing rendering root.
         "x-initial": {
             "type": "string",
             "pattern": r"^/(?:[a-z0-9-]+/)*[a-z0-9.-]+\.js$",

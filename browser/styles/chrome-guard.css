@@ -13,7 +13,10 @@
    rather than past it. The guard stands first in the chrome sheet and outside its
    @scope, so every chrome rule of the same weight wins by order or scope proximity.
    Custom properties are outside `all`, so a token the page sets on :root still reaches
-   the chrome.
+   the chrome. A shadow root would stop all of these, and was rejected: no engine lets
+   an element in a shadow root anchor to an `anchor-name` in the document, so the card,
+   passage outlines and margin carriers fell to their fallback positions (the spike is
+   e7745b70d, #2828; dropped in #3579).
 
    Zoom is restated rather than rolled back: no Leaf rule sets it, so `normal` is the
    value revert-layer reaches, and Chrome 155 crashed the renderer on load at any page

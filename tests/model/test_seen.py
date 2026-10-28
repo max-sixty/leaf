@@ -5,7 +5,7 @@ state"); the served state's `seen` is the newest one named, described as the bro
 fetches it (`read_state.seen_revision`, `PageRead.descriptor`)."""
 
 import pytest
-from interact_support import append_command, served_state_error
+from interact_support import append_command, served_state_error, state_json
 
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
@@ -55,6 +55,18 @@ def test_a_tab_can_say_it_showed_only_a_revision_the_page_holds(page_dir):
     revisioning_model.activate_source(page_dir)
     with pytest.raises(EventRefused, match="unknown-revision|revision"):
         append_command(page_dir, {"kind": "seen", "author": "user", "revision": 9})
+
+
+def test_page_state_tells_the_agent_which_revision_the_user_last_saw(page_dir):
+    """An agent revising a page reads which revision the user last saw beside the one
+    it serves, so it can point them at what changed rather than repeat it."""
+    first = revisioning_model.activate_source(page_dir).revision
+    assert state_json(page_dir)["seen"] is None
+    append_command(page_dir, {"kind": "seen", "author": "user", "revision": first})
+    revise(page_dir, "A revision the user has not been shown.")
+    state = state_json(page_dir)
+    assert state["seen"] == {"revision": first, "label": "Draft"}
+    assert state["active"]["revision"] > state["seen"]["revision"]
 
 
 def test_a_hosted_copy_marks_nothing_for_its_reader(page_dir):

@@ -11,6 +11,12 @@ opened it. Each thread's `unread` lists your messages the user has not read
 ([threads](threads.md#what-the-user-has-read)). Nothing records whether they saw a
 status.
 
+`seen` is the newest revision the user saw with the page in front of them (its
+`revision` and `label`), or `null` before they saw any. Where it is behind `active`,
+they have not seen your later revisions, and when they come back their page marks
+each block that changed since `seen`. Point them at what changed rather than
+restating it.
+
 ## The user's view
 
 `user_views` in `leaf page state <page>` has one entry per browser page load over the

@@ -137,3 +137,43 @@ def test_timeline_labels_stay_clear_at_any_width_and_on_paper(browser, serve):
     page.set_viewport_size({"width": 700, "height": 900})
     page.evaluate(NEXT_FRAME)
     assert_labels_clear(page)
+
+
+def test_a_timeline_s_unavailable_arrow_reaches_no_command_around_it(browser, serve):
+    """Next at the last step is unavailable, and its arrow stays the timeline's: a deck
+    around it keeps its card."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Deck with a timeline",
+                """<h1>Deck with a timeline</h1>
+<lf-deck id="deck">
+  <section id="card-one">
+    <h2>First card</h2>
+    <lf-timeline id="tl" aria-label="Two steps">
+      <lf-lane label="Build">
+        <lf-event id="e1" at="0" label="Compile"></lf-event>
+        <lf-event id="e2" at="1000" label="Ship"></lf-event>
+      </lf-lane>
+    </lf-timeline>
+  </section>
+  <section id="card-two"><h2>Second card</h2><p>The deck moved on.</p></section>
+</lf-deck>""",
+            ),
+            packages=("timeline", "deck"),
+        ),
+    )
+    rows = page.locator("#tl .lf-timeline-step")
+    rows.last.click()
+    expect(rows.last).to_have_attribute("aria-current", "step")
+    expect(page.locator("#tl .lf-timeline-next")).to_have_attribute(
+        "aria-disabled", "true"
+    )
+    page.keyboard.press("ArrowRight")
+    expect(rows.last).to_be_focused()
+    page.evaluate(NEXT_FRAME)
+    assert page.evaluate(
+        """() => [...document.querySelectorAll('#deck > section')]
+          .filter((card) => card.hasAttribute('data-lf-deck-open')).map((card) => card.id)"""
+    ) == ["card-one"]

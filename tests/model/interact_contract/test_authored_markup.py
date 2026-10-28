@@ -429,17 +429,31 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_di
 
 
 @pytest.mark.parametrize("style", ["color: red; } }", "& { color: red; }"])
+@pytest.mark.parametrize(
+    "holder",
+    [
+        "{}",
+        "<template>{}</template>",
+        '<div><template shadowrootmode="open">{}</template></div>',
+    ],
+    ids=["document", "template", "shadow-root"],
+)
 @pytest.mark.parametrize("door", ["page", "message"])
-def test_what_delivery_cannot_read_is_refused_at_each_door(page_dir, style, door):
+def test_what_delivery_cannot_read_is_refused_at_each_door(
+    page_dir, style, holder, door
+):
     """What a sheet must not hold is what delivery's reader can't read, so each door
-    asks that reader and refuses with its words. A nested rule in a style attribute
+    asks that reader of every sheet delivery rewrites, a template's and a shadow
+    root's included, and refuses with its words. A nested rule in a style attribute
     parses as a block's contents but not as the declaration list delivery reads,
     and once passed every check only for delivery to refuse it with no reason."""
-    from leaf.revision_artifact import ArtifactError, rewrite_css
+    from leaf.revision_artifact import ArtifactError
+    from leaf.revision_delivery import DeliveryAddress, rebase_document
 
-    markup = f'<p style="{style}">Shown</p>'
+    markup = holder.format(f'<p style="{style}">Shown</p>')
+    source = styled("", markup)
     if door == "page":
-        (page_dir / "index.html").write_text(styled("", markup))
+        (page_dir / "index.html").write_text(source)
         _, findings = check_findings(page_dir)
     else:
         published(page_dir)
@@ -449,12 +463,32 @@ def test_what_delivery_cannot_read_is_refused_at_each_door(page_dir, style, door
     [refused] = findings if door == "message" else found(findings, "css-syntax")
     assert refused.code == "css-syntax"
     assert refused.values["sheet"].startswith("<p style>")
-    assert refused.values["message"]
     with pytest.raises(ArtifactError) as delivered:
-        rewrite_css(style, lambda url: url, declarations=True)
+        rebase_document(source, DeliveryAddress("/root", "/revision"))
     assert [f.values["message"] for f in delivered.value.findings] == [
         refused.values["message"]
     ]
+
+
+@pytest.mark.parametrize("door", ["page", "page-sample", "message-sample"])
+def test_a_sheet_delivery_refuses_reports_nothing_dropped(page_dir, door):
+    """A sheet delivery's reader refuses has its syntax error and nothing more: a
+    reparse past that error would report the rules it misreads as dropped."""
+    sheet = "<style>p { ] }</style>"
+    sample = f'<template id="practice" data-sample>{sheet}<h1>Child</h1></template>'
+    if door == "message-sample":
+        published(page_dir)
+        findings = command_findings(
+            "thread", "create", page_dir, "--text", "Try:", "--markup", sample
+        )
+    else:
+        (page_dir / "index.html").write_text(
+            styled("", sample) if door == "page-sample" else styled("p { ] }")
+        )
+        _, findings = check_findings(page_dir)
+    assert [
+        (f.code, f.values["message"]) for f in findings if f.severity == "error"
+    ] == [("css-syntax", "Unmatched ]")]
 
 
 @pytest.mark.parametrize("severity", ["error", "advice"])

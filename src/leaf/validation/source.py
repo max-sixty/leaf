@@ -19,14 +19,14 @@ from leaf.revision_artifact import (
     ArtifactError,
     RevisionArtifact,
     capture_artifact,
+    css_drops,
+    document_drops,
     page_files,
     resource_type,
-    uncaptured_errors,
 )
 from leaf.sample_content import initial_sample_events
 from leaf.schema import VENDORED_FILES
 from leaf.structure import SourceDocument
-from leaf.styles import dropped_css
 from leaf.thread_context import thread_ids, thread_names, thread_structure
 from leaf.validation.instances import (
     instance_errors,
@@ -36,10 +36,10 @@ from leaf.validation.instances import (
 from leaf.validation.markup import (
     authored_allocation_errors,
     document_declaration_errors,
-    dropped_styles,
     id_errors,
     page_boundary_errors,
     structure_errors,
+    unanswered_media,
     unpointable_blocks,
 )
 from leaf.validation.source_history import (
@@ -139,15 +139,14 @@ def _authored_document_checks(
 ):
     """The same authored-page gate for the root and each isolated child document.
 
-    What the capture refuses in a document, the stylesheets it can't read and the
-    files the page can't answer, is its own to report
-    (`revision_artifact.capture_artifact`), or for a message no capture reads,
-    `uncaptured_sample_errors`'s."""
+    The stylesheets a document's delivery rewrites, its children's among them, and
+    the files it names are read once for the whole document: by the capture
+    (`revision_artifact.capture_artifact`) and `check_source`'s `document_drops`,
+    or for a message no capture reads, by its gate (`admission`)."""
     errors = _document_errors(page_dir, document)
     errors.extend(_instance_errors(events, document, registry, thread_ids))
     if registry is not None:
         errors.extend(data_document_errors(readings))
-    errors.extend(dropped_styles(document))
     return errors
 
 
@@ -208,9 +207,11 @@ def sample_errors(
 
 
 def uncaptured_sample_errors(page_dir: Path, holder: SourceDocument) -> list[Finding]:
-    """What a capture would refuse (`revision_artifact.uncaptured_errors`) in each
-    live sample child of the message `holder`, or a child of one. A page's own
-    children are captured with it; no capture reads a message."""
+    """Each /media/ file the page won't answer that an attribute names in a live
+    sample child of the message `holder`, or a child of one, which the message's own
+    reading leaves out. Its stylesheets, those in its samples included, the message
+    gate reads whole (`revision_artifact.uncaptured_errors`). A page's own children
+    are captured with it; no capture reads a message."""
     errors = []
     pending = [(holder, ())]
     for declaring, outer in pending:
@@ -219,16 +220,18 @@ def uncaptured_sample_errors(page_dir: Path, holder: SourceDocument) -> list[Fin
             pending.append((sample["document"], samples))
             errors.extend(
                 error.but(samples=samples)
-                for error in uncaptured_errors(sample["document"], page_dir)
+                for error in unanswered_media(
+                    sample["document"].authoring.media_refs, page_dir
+                )
             )
     return errors
 
 
 def _page_file_drops(page_dir: Path) -> list[Finding]:
     """Each declaration or rule a browser drops from a stylesheet under `page/`
-    (`styles.dropped_css`), as the document's own sheets get from
-    `_authored_document_checks`. What delivery's reader can't read in one, or a file
-    that isn't UTF-8, the capture refuses."""
+    (`revision_artifact.css_drops`), as the document's own sheets get from
+    `check_source`. What delivery's reader can't read in one, or a file that isn't
+    UTF-8, the capture refuses."""
     found = []
     for path in page_files(page_dir):
         if resource_type(path) != "text/css":
@@ -237,7 +240,7 @@ def _page_file_drops(page_dir: Path) -> list[Finding]:
             css = (page_dir / path.lstrip("/")).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        found.extend(dropped_css(css, path))
+        found.extend(css_drops(css, path))
     return found
 
 
@@ -370,6 +373,7 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
             )
         except ArtifactError as error:
             errors.extend(error.findings)
+    errors.extend(document_drops(document))
     errors.extend(_page_file_drops(page_dir))
     notes = tuple(error for error in errors if error.severity != "error")
     errors = [error for error in errors if error.severity == "error"]

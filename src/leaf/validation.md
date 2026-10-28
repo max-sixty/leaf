@@ -41,10 +41,12 @@ them:
   Each problem has one owner. The document's markup is the markup rules'. The
   capture owns what delivery can't deliver: each reference, a `/media/` file the
   page won't answer, whether markup or a stylesheet names it, and CSS that
-  delivery's own reader (`revision_artifact._read_css`) can't read, in the
-  document's sheets or a file's. What that reader reads but a browser drops, such
-  as `broken;` in a rule, the source check reports as `css-dropped`, whose
-  severity `styles.DROPPED_SEVERITY` sets alone. A message, which no capture
+  delivery's own reader (`revision_artifact._read_css`) can't read, in a file or
+  any sheet delivery rewrites in the document, which the capture finds by
+  delivery's own walk (`structure.delivered_elements`), templates and shadow roots
+  included. What that reader reads whole but a browser drops, such as `broken;`
+  in a rule, the source check reports as `css-dropped`, whose severity
+  `styles.DROPPED_SEVERITY` sets alone. A message, which no capture
   reads, asks what the capture would refuse at its own gate
   (`revision_artifact.uncaptured_errors`).
 

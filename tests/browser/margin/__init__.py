@@ -268,7 +268,7 @@ ON_THE_PAGE = (
 
 
 def leave_card_by_its_target(page):
-    """Escape from a ringed card's thread onto the target it is about, then let go of both.
+    """Escape from a card's thread onto the target it is about, then let go of both.
 
     The card stays beside the target the first press lands on, because the user still
     stands at it; letting go of the target is what takes the card down.
@@ -277,18 +277,6 @@ def leave_card_by_its_target(page):
     page.keyboard.press("Escape")
     expect(preview).to_be_visible()
     assert page.evaluate(ON_THE_PAGE)
-    page.keyboard.press("Escape")
-    expect(preview).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
-
-
-def leave_unringed_card(page):
-    """Escape from a card a press left focus in: with no ring, one press takes it down.
-
-    Stepping out onto the target would move only a focus the user cannot see.
-    """
-    preview = page.locator(".lf-margin-preview")
-    assert not preview.locator("[data-lf-focus-visible]").count()
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")

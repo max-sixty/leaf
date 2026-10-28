@@ -34,15 +34,12 @@ activation press, ahead of any widget or page scope around it (`dispatch.js`).
 
 Escape closes one step of the current interaction and lands the user on that step's
 parent. Both depend only on what is open now, so a surface opened by pointer or Tab
-closes the same way as one opened by its key. A step that only moves focus is open
-only while the focus ring shows it, as painted before the press (`shownFocus`,
-`focus.js`): a click leaves focus in a thread card without its ring, so Escape there
-closes the card, where after `t` it first steps out onto the passage. The focused
-control's own step comes first, then steps inside the focused surface, then the
-surface itself, then steps outside it; `STACK` and `RUNG_LADDER` order siblings, and
-native modals and popovers keep the browser's order. A close request, such as
-Android's back gesture, takes the same step, through its row's `keep` where `run`
-would throw away unsent words (`close-requests.js`).
+closes the same way as one opened by its key. The focused control's own step comes
+first, then steps inside the focused surface, then the surface itself, then steps
+outside it; `STACK` and `RUNG_LADDER` order siblings, and native modals and popovers
+keep the browser's order. A close request, such as Android's back gesture, takes the
+same step, through its row's `keep` where `run` would throw away unsent words
+(`close-requests.js`).
 
 - The document is the base. In a live sample, one more Escape returns focus to the
   containing page.

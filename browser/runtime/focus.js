@@ -511,10 +511,6 @@ export function visibleFocus(node = focused()) {
     ? node
     : null;
 }
-// The node wearing the keyboard cue as last painted: what the user sees. A key's own
-// dispatch already matches :focus-visible for that key, so a command that turns on what
-// the user saw as they pressed it reads this rather than `visibleFocus`.
-export const shownFocus = () => paintedVisible;
 function paintFocus(node) {
   const next =
     node === document.body || node === document.documentElement ? null : node;

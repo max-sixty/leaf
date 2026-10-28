@@ -378,12 +378,22 @@ class PreviewService:
             self.revive_at = 0.0
 
     @contextlib.contextmanager
-    def replacing(self):
+    def replacing(self, initializing: bool):
         """Hold a process-owned server down across a layer change and bring it back,
-        admitted or not, unless the preview itself is ending. `page init` restarts
-        a `--user` service itself."""
+        admitted or not, unless the preview itself is ending. A `--user` service is
+        restarted by the `page init` the block runs when `initializing`, and here
+        otherwise, since a server composes its layer once, as it starts."""
         if self.user:
-            yield
+            if initializing:
+                yield
+                return
+            from leaf.harness import claim_harness
+            from leaf.hosting import restarting_server
+
+            with restarting_server(
+                self.page, claim_harness(self.claim) if self.claim else None
+            ):
+                yield
             return
         self._close_temporary()
         try:
@@ -541,7 +551,7 @@ def refresh_preview(
         # package edit needs a server that read it as much as a new selection does.
         serving = serving_identity(runtime)
         if planned["changed"] or serving != state.get("serving"):
-            with service.replacing():
+            with service.replacing(planned["changed"]):
                 if planned["changed"]:
                     leaf(launcher, runtime, "page", "init", *selection_args, str(page))
             state["serving"] = serving

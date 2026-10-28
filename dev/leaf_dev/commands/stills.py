@@ -1324,17 +1324,13 @@ def ship_answered(page: Page) -> None:
 
 def card_message_by_keyboard(page: Page) -> None:
     """The agent's question in a margin card, reached by Next on me (`m`), which
-    focuses the message, then read from its top, so its ring runs over its head."""
+    focuses the message, so its ring runs beside the card's sticky head."""
     for _ in range(4):
         page.keyboard.press("m")
         settle(page)
         if page.evaluate(
             "() => document.activeElement?.matches('.lf-margin-preview .lf-msg')"
         ):
-            page.locator(".lf-margin-preview .lf-thread-transcript").evaluate(
-                "list => { list.scrollTop = 0; }"
-            )
-            settle(page)
             return
     raise AssertionError("Next on me never reached a card's message")
 

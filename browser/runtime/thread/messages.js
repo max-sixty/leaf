@@ -373,11 +373,11 @@ export class MessageView {
       // A double click on the user's own words opens them for rewriting, as the word
       // under it would otherwise only be selected. The word it selected goes first: the
       // editor then sets its own caret, which clearing the selection after would take. A
-      // link keeps its own double click.
+      // link keeps its own double click, and a control its own presses.
       this.node.addEventListener("dblclick", (event) => {
         if (
           /** @type {Partial<Element>} */ (event.target).closest?.(
-            ".lf-msg-editor, a[href]",
+            ".lf-msg-editor, .lf-msg-controls, a[href]",
           )
         )
           return;
@@ -457,6 +457,23 @@ export class MessageView {
           model.reactions,
         )
       : nothing;
+    // The message's own controls, one group at its head's end (controls.css): the user's
+    // own words offer their rewrite, or, open, its Discard and Save; an agent's reply
+    // its reactions.
+    const rewrite = editing
+      ? this.#editor.actions
+      : model.editable
+        ? html`<button
+            ${offered("lf-msg-control lf-msg-edit")}
+            tabindex="-1"
+            ${namedAction("edit", {
+              label: "Edit message",
+              className: "lf-msg-control-icon",
+            })}
+            @click=${() => this.openEdit()}
+          ></button>`
+        : nothing;
+    const react = model.reactions ? this.#reaction.trigger : nothing;
     const receipt = model.workflowLabel
       ? html`<span
           class="lf-msg-sending"
@@ -511,23 +528,9 @@ export class MessageView {
               : nothing
           }
         </span>
-        ${headerControls}
+        ${headerControls}<span class="lf-msg-controls">${rewrite}${react}</span>
       </div>
     `;
-    // The user's own words offer their rewrite where an agent's reply offers its
-    // reactions: the message's one control, at its header's right edge (shadow.css).
-    const rewrite =
-      model.editable && !editing
-        ? html`<button
-            ${offered("lf-msg-control lf-msg-edit")}
-            tabindex="-1"
-            ${namedAction("edit", {
-              label: "Edit message",
-              className: "lf-msg-control-icon",
-            })}
-            @click=${() => this.openEdit()}
-          ></button>`
-        : nothing;
     render(
       html`
         ${header}
@@ -542,7 +545,7 @@ export class MessageView {
           }
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
-        ${strip} ${rewrite}
+        ${strip}
       `,
       this.node,
     );

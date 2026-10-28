@@ -652,9 +652,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      message, so the words under it take the slot past its height as their `--lf-top`,
      and its height as their `scroll-margin` below the landing band (theme.css, at
      `--lf-top`): a reveal lands them below it and the runtime's reading counts what it
-     covers as hidden, while a whole message lands flush with its own head. The card
-     draws no reactions, so a head keeps a control's room only where it draws one, the
-     user's Edit; an agent's keeps none for a trigger under a finger. */
+     covers as hidden, while a whole message lands flush with its own head. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-body {
     --lf-top: calc(var(--lf-transcript-room) + var(--lf-msg-head-height));
   }
@@ -736,8 +734,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     inset-block-start: var(--lf-top);
     z-index: 1;
     background-color: var(--lf-msg-ground);
-    /* Paper over the room above it: a shadow, since the head clips what it holds and
-       anchors its control at its middle, and one that paints beneath the head's own
+    /* Paper over the room above it: a shadow, since the head clips what it holds, and one that paints beneath the head's own
        controls and their rings. Paper rather than the message's ground, which an
        arriving message tints. */
     box-shadow: 0 calc(-1 * var(--lf-thread-room-cover, 0px)) var(--paper);
@@ -759,12 +756,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      its top away. */
   .lf-margin-thread .lf-thread-transcript .lf-msg[data-lf-focus-visible] {
     outline: none;
-  }
-  .lf-margin-thread
-    .lf-thread-transcript
-    .lf-msg:not(:has(.lf-msg-control))
-    > .lf-msg-head {
-    padding-inline-end: 0;
   }
   /* A short name keeps its whole width even where the shared cap
      (components/surfaces.css) would cut it in a narrowed head; it shortens only once
@@ -808,7 +799,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       margin-inline-end: calc(-1 * var(--sp-2));
     }
     :is(
-      .lf-margin-thread .lf-thread-transcript .lf-msg-head > :not(b, .lf-msg-meta),
+      .lf-margin-thread
+        .lf-thread-transcript
+        .lf-msg-head
+        > :not(b, .lf-msg-meta, .lf-msg-controls),
       .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new)
     ):not([data-lf-focus]) {
       animation: lf-msg-annotation-exit linear both;

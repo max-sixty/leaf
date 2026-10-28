@@ -356,7 +356,8 @@ export class MessageEditor {
     this.node = offer("div", "lf-msg-editor lf-comment-box");
     this.input = offer(TEXT_FIELD);
     this.input.name = "edit";
-    const actions = offer("span", "lf-msg-edit-actions");
+    // Discard and Save, which the message draws among its head's controls.
+    const actions = (this.actions = offer("span", "lf-msg-edit-actions"));
     const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
     cancel.type = "button";
     nameAction(cancel, "discard", { className: "lf-msg-control-icon" });
@@ -365,7 +366,7 @@ export class MessageEditor {
     // in a closed tree, so a mark of no size after it is what a reveal can aim at.
     this.foot = document.createElement("span");
     this.foot.className = "lf-msg-edit-foot";
-    this.node.append(this.input, actions);
+    this.node.append(this.input);
     // The words a closed rewrite left, or the message's own. An empty draft is none.
     this.input.value = loadDraft(ctx) || said();
     // Until the user changes them, the words are the message's, so a rewrite the view
@@ -487,26 +488,27 @@ export class MessageEditor {
         },
       ],
     });
-    // Escape answers on the editor's controls as in its words, so it is the editor's
-    // own scope, around both, rather than a row of the text box alone; closing is a step
-    // ahead of the ladder's way out of a text box.
     opened = whole();
     // The foot follows the words, ahead of the message's pictures under them.
     this.input.after(this.foot);
-    keys(
-      this.node,
-      "Editing a message",
-      [
-        {
-          id: "message.edit.close",
-          keys: ["Escape"],
-          title: "discard",
-          run: () => close(),
-          keep,
-        },
-      ],
-      { escape: "inner" },
-    );
+    // Escape answers on the editor's controls as in its words, so it is a scope of the
+    // editor's own, on the box and on its controls, rather than a row of the text box
+    // alone; closing is a step ahead of the ladder's way out of a text box.
+    for (const where of [this.node, actions])
+      keys(
+        where,
+        "Editing a message",
+        [
+          {
+            id: "message.edit.close",
+            keys: ["Escape"],
+            title: "discard",
+            run: () => close(),
+            keep,
+          },
+        ],
+        { escape: "inner" },
+      );
     cancel.addEventListener("mousedown", (event) => event.preventDefault());
     cancel.addEventListener("click", () => close());
     this.#stop = mirrorDraft(this.input, sync, ctx, { retained: true, blank: said });

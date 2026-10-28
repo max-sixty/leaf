@@ -963,6 +963,17 @@ summary {
   > .lf-msg-head {
   anchor-name: --lf-thread-headline, --lf-msg-head;
 }
+/* The first message's controls share its header's line with the thread's, so a rule
+   (controls.css) stands between them: the controls before it act on the message, those
+   after it on the whole thread. An open rewrite's Discard and Save take Resolve's place
+   past the gap (response.css), so the rule leaves with it. */
+.lf-thread-content:has(> .lf-thread-controls)
+  > .lf-thread-transcript
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint):has(
+    > :is(.lf-react-strip, .lf-msg-control)
+  ):not(:has(> .lf-msg-body > .lf-msg-editor))::after {
+  content: "";
+}
 .lf-thread-meta-actions {
   display: inline-flex;
   flex: none;

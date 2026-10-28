@@ -132,6 +132,19 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     page.locator(".lf-margin-marker").first.click()
     card = page.locator(".lf-margin-preview .lf-page-thread")
     reply = card.locator(".lf-msg.agent")
+    # A press leaves focus on the first message's Copy, and its controls still leave
+    # with the pointer. While they show, a rule parts them from the thread's actions.
+    first = card.locator(".lf-msg.user")
+    first.hover()
+    first.locator(".lf-msg-copy").click()
+    shown = """message => [getComputedStyle(message, '::after').opacity,
+      ...[...message.querySelectorAll(':scope > .lf-msg-control')]
+        .map(control => getComputedStyle(control).opacity)]"""
+    assert first.evaluate(shown) == ["1", "1", "1"]
+    reply.locator(".lf-msg-text p").first.hover()
+    rendered(page)
+    assert first.evaluate("m => m.contains(document.activeElement)")
+    assert first.evaluate(shown) == ["0", "0", "0"]
     reply.locator(".lf-msg-text p").first.click()
     rendered(page)
     edges = card.evaluate(

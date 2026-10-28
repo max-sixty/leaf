@@ -262,7 +262,7 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--r);
-  opacity: 0;
+  opacity: var(--lf-msg-offered, 0);
   cursor: pointer;
 }
 /* Every Leaf icon (icons.js) is drawn the same way, whatever class its caller places it
@@ -285,9 +285,31 @@ svg[data-lf-icon] {
   inline-size: 16px;
   block-size: 16px;
 }
-.lf-msg:is(:hover, [data-lf-focus-within]) .lf-msg-control,
-.lf-msg-control[data-lf-focus] {
-  opacity: 1;
+/* A message offers its controls while the pointer is over it, the keyboard's cue is
+   inside it or one of its pickers is open, and not for a press's focus alone: a pressed
+   Copy keeps focus, and its message's controls stayed lit while the pointer read the
+   next message. Whatever else stands with them reads the same switch. */
+.lf-msg:is(
+  :hover,
+  [data-lf-focus-visible-within],
+  :has(.lf-msg-control[aria-expanded="true"])
+) {
+  --lf-msg-offered: 1;
+}
+/* Where a surface's own controls follow a message's on its head line, the surface
+   gives this rule content, and it stands in the gap after the message's controls,
+   shown with them, to part the message's controls from the surface's. */
+.lf-msg::after {
+  position: absolute;
+  position-anchor: --lf-msg-head;
+  inset-inline-start: calc(anchor(right) + var(--sp-2) / 2);
+  inset-block-start: anchor(center);
+  translate: -50% -50%;
+  inline-size: 1px;
+  block-size: 16px;
+  background: var(--border-2);
+  opacity: var(--lf-msg-offered, 0);
+  pointer-events: none;
 }
 .lf-react-strip {
   display: flex;
@@ -349,8 +371,8 @@ svg[data-lf-icon] {
   font-size: 16px;
 }
 @media (hover: none) {
-  .lf-msg-control {
-    opacity: 1;
+  .lf-msg {
+    --lf-msg-offered: 1;
   }
 }
 /* Under a finger a message's control reaches the aim floor around its face

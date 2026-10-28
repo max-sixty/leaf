@@ -712,6 +712,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-thread .lf-page-thread[data-lf-scrolled] > .lf-margin-thread-controls {
     background: var(--paper);
   }
+  /* The actions follow the first message's own controls on its head line, so a rule
+     (controls.css) parts them, in the actions' padding. */
+  .lf-margin-thread
+    .lf-page-thread
+    > .lf-thread-transcript
+    > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint):has(
+      > :is(.lf-react-strip, .lf-msg-control)
+    )::after {
+    content: "";
+  }
   /* A sticky head and its words paint the message's one animated ground.
      Shared message rules own wrapping, including progress disclosures below the
      capped metadata when the card's actions leave too little inline room. */

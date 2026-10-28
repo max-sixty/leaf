@@ -1,6 +1,6 @@
 ---
 name: hill-climb-ui
-description: Runs iterative improvements to Leaf UI and authoring instructions through experiments and comparisons with plain HTML. Use to start or resume a hill-climbing campaign.
+description: Runs iterative improvements to Leaf UI and authoring instructions through experiments and comparisons with plain HTML. Use to start or resume a hill-climbing campaign, or to have agent reviewers judge which of a change's candidates they prefer.
 ---
 
 # Hill-climb UI
@@ -91,3 +91,18 @@ own observation. The pair judge carries most of the layout signal; the live judg
 mostly finds content defects. The two presentation orders judge the same authored pages, so they
 are not independent samples. `leaf-dev eval-discover` explores saved pages for further
 weaknesses without another authoring run.
+
+## Judge one change head to head
+
+To have agents judge which of one change's candidates they prefer, without authors:
+
+- Judge every candidate, the current design included, on the content that prompted
+  the change and on the ordinary content the surface usually carries, so a win at
+  the common case's expense shows.
+- Give two or three fresh reviewers the user's task and their own copies of the
+  candidates under neutral names, without the author's reasoning or source
+  comments. Each drives them through `leaf-dev probe`, whose every run builds the
+  page fresh, so no reviewer sees another's gestures.
+- Vary which candidate comes first and count a win only where every order names it.
+- Report the tally by fixture beside the captures, showing where reviewers or
+  fixtures disagree.

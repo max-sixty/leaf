@@ -144,40 +144,6 @@ copies Leaf's mark from `browser/icon.svg` and each icon's path from
 `browser/runtime/icon-paths.js`. Drive the baseline and every candidate through
 the same journey before handoff.
 
-### Judge candidates head to head
-
-A preference review asks which candidate serves the user better, where "Review a UI
-change" asks what is broken. Run one before putting candidates to the user, and in
-place of asking where the choice is yours ("Choose what the user reviews"). Its
-result is only as good as the reviewers' independence and the content they judge:
-
-- **Fixtures.** Judge every candidate on the content that prompted the change and on
-  the ordinary content the same surface usually carries, so a candidate that wins
-  the prompting case at the common case's expense shows as a loss. The current
-  design is one candidate, so leaving it unchanged can win.
-- **Reviewers.** Each reviewer is a fresh agent given the user's task, the fixtures
-  and its own copy of the candidates under neutral names, without the author's
-  reasoning or leaning, source comments included. It uses each candidate live, as
-  "Review a UI change" describes, before comparing. Two or three reviewers on the
-  judge models `JUDGE_MODELS` pins (`dev/leaf_dev/arms.py`) show whether a
-  preference holds. Codex's workspace sandbox keeps a browser from starting, so run
-  a Codex judge outside it (`codex exec -s danger-full-access`).
-- **Order.** A judge favors a position, so vary which candidate comes first across
-  reviewers and count a win only where every order names it, as
-  `leaf-dev eval-pairs` does. A reviewer that can't tell the candidates apart has
-  produced a result, not a tie to break.
-- **Verdict.** Ask for each fixture's preferred candidate, its margin, its reason and
-  each candidate's defects. Report the tally by fixture beside the stills it rests
-  on; where reviewers or fixtures disagree, show the disagreement rather than
-  averaging it away.
-
-Reviewers drive candidates through `leaf-dev probe`, whose every run builds the page
-fresh from its source (`--journey` for a sequence of inputs), so one reviewer's
-gestures never reach another's as they would through a shared preview's log.
-`leaf-dev stills` crops the merge base and this checkout into the report's pairs.
-Where authors produce the candidates, as for a change to authoring guidance, the
-comparison is `/hill-climb-ui`'s.
-
 ## Choose what the user reviews
 
 Prefer outputs the user can review quickly. Do the reviews you can do as well as the

@@ -156,10 +156,12 @@ result is only as good as the reviewers' independence and the content they judge
   the prompting case at the common case's expense shows as a loss. The current
   design is one candidate, so leaving it unchanged can win.
 - **Reviewers.** Each reviewer is a fresh agent given the user's task, the fixtures
-  and the candidates under neutral labels, without the author's reasoning or
-  leaning. It uses each candidate live, as "Review a UI change" describes, before
-  comparing. Two or three reviewers on the judge models `JUDGE_MODELS` pins
-  (`dev/leaf_dev/arms.py`) show whether a preference holds.
+  and its own copy of the candidates under neutral names, without the author's
+  reasoning or leaning, source comments included. It uses each candidate live, as
+  "Review a UI change" describes, before comparing. Two or three reviewers on the
+  judge models `JUDGE_MODELS` pins (`dev/leaf_dev/arms.py`) show whether a
+  preference holds. Codex's workspace sandbox keeps a browser from starting, so run
+  a Codex judge outside it (`codex exec -s danger-full-access`).
 - **Order.** A judge favors a position, so vary which candidate comes first across
   reviewers and count a win only where every order names it, as
   `leaf-dev eval-pairs` does. A reviewer that can't tell the candidates apart has
@@ -169,10 +171,12 @@ result is only as good as the reviewers' independence and the content they judge
   on; where reviewers or fixtures disagree, show the disagreement rather than
   averaging it away.
 
-`leaf-dev compare` serves the merge base and this checkout side by side, and
-`leaf-dev stills` crops their pairs; serve other candidates as plain previews of one
-source each, with `--slot` names. Where authors produce the candidates, as for a
-change to authoring guidance, the comparison is `/hill-climb-ui`'s.
+Reviewers drive candidates through `leaf-dev probe`, whose every run builds the page
+fresh from its source (`--journey` for a sequence of inputs), so one reviewer's
+gestures never reach another's as they would through a shared preview's log.
+`leaf-dev stills` crops the merge base and this checkout into the report's pairs.
+Where authors produce the candidates, as for a change to authoring guidance, the
+comparison is `/hill-climb-ui`'s.
 
 ## Choose what the user reviews
 

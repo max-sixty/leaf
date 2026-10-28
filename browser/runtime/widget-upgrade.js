@@ -18,7 +18,8 @@
    holds hear. And the keys an element binds are data on it, `lfCommands`, which the
    widget says it set or changed with `lf-commands` (`commandsChanged`): Leaf reads them
    then and binds them (keyboard/scopes.js), and a plain page, reading nothing, binds no
-   key and advertises none. */
+   key and advertises none. Words for a listener are `lf-announce` (`announce`), which a
+   Leaf page says in its live region (notifications.js) and a plain page leaves unsaid. */
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 const initialized = new WeakSet();
@@ -80,6 +81,13 @@ export function commandsChanged(el) {
   (el.isConnected ? el : window).dispatchEvent(event);
   if (event[REFUSED]) throw event[REFUSED];
 }
+// Words a listener should hear now, such as where a step put the reader: an
+// `lf-announce` event on the window carrying them as its `detail`. Leaf says them in the
+// page's live region; a page without Leaf hears nothing unless it listens.
+export const ANNOUNCE = "lf-announce";
+export const announce = (words) =>
+  window.dispatchEvent(new CustomEvent(ANNOUNCE, { detail: words }));
+
 // The element a `commandsChanged` event names, and the refusal its reader hands back.
 export const commandsChangedOn = (event) => event[CHANGED];
 export const refuseCommands = (event, error) => {
@@ -189,8 +197,8 @@ function showFailure(el, text, source) {
   // and has no public way to set the part's value from outside a directive, so this sets
   // it as lit/directive-helpers.js's `setChildPartValue` does, by the name every
   // production build of Lit 3 gives the setter (`_$AI`; a development build keeps
-  // `_$setValue`). Importing Lit's `render` instead would tie this module to a Lit, and
-  // Leaf's loads only on a Leaf page. A native draw may have taken the part's marker
+  // `_$setValue`). Importing Lit's `render` instead would tie this module to one Lit.
+  // A native draw may have taken the part's marker
   // since; the box stands after it, in the part's place.
   el.replaceChildren(part.startNode);
   (part._$AI ?? part._$setValue).call(part, box);

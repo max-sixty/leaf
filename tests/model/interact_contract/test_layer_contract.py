@@ -100,6 +100,40 @@ def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
     assert refused.values["keyword"] == "pattern"
 
 
+def test_one_check_names_the_first_departure_in_each_layer_fact():
+    """Each layer fact holds its schema independently of the others, so one refusal
+    names a departure in each, and only the first within one."""
+    registry = shipped_core_registry()
+    named = {"description": "Build facts.", "schema": {}}
+    registry["$data"] = {"contracts": {"a\n": named, "b\n": named}}
+    registry["$reactions"] = {
+        **registry["$reactions"],
+        "tokens": {"keep\n": {"glyph": "+"}},
+    }
+
+    with pytest.raises(registry_contract.RegistryError) as refused:
+        registry_layer.check_layer_facts(registry, "kernel")
+
+    assert [finding.values["path"][0] for finding in refused.value.findings] == [
+        "$data",
+        "$reactions",
+    ]
+
+
+def test_one_check_names_each_missing_layer_fact():
+    """A missing fact is named for itself, not folded into another that is missing."""
+    registry = shipped_core_registry()
+    del registry["$languages"], registry["$tones"]
+
+    with pytest.raises(registry_contract.RegistryError) as refused:
+        registry_layer.check_layer_facts(registry, "kernel")
+
+    assert [finding.values["reason"] for finding in refused.value.findings] == [
+        "'$languages' is a required property",
+        "'$tones' is a required property",
+    ]
+
+
 @pytest.mark.parametrize("section", ["$events", "$languages", "$tones"])
 def test_init_inherits_contract_members_a_layer_does_not_state(
     page_dir, tmp_path, section

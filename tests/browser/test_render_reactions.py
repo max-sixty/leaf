@@ -2105,7 +2105,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
               box.bottom <= action.top || box.top >= action.bottom,
             triggerHit: hit(trigger), resolveHit: hit(resolve)};
         }""")
-        floor = 44 if touch else 26
+        floor = 44 if touch else 28
         assert reading == {
             "width": floor,
             "aim": floor,

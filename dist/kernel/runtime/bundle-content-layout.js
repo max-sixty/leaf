@@ -1,6 +1,5 @@
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, layoutChanged, nativeLayerHolding, nextFrame, nextRender, pagePresented, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, shadowHost, sizeObserver, skipped, under, upFrom, visualPartAdmission, watchArrivals, watchOwner, whileConnected } from "./bundle-portable.js";
-import { J, LENT_REACH_STOP, PRESSES, TEXT_BOX, WORKS, Z, deepFocus, keeps, layoutPx, move, onCurrentLocation, pressing, tabStops, wearsLentStop } from "./bundle-dom-move.js";
-import { TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, hostIn, inUi, isElementName, marks, registry, shadowRootsIn, tagsDeclaring, tick, uiInside } from "./bundle-layer-stack.js";
+import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, fragmentId, layoutChanged, nativeLayerHolding, nextFrame, nextRender, pagePresented, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, setScroll, shadowHost, sizeObserver, skipped, under, upFrom, visualPartAdmission, watchArrivals, watchOwner, watchScrolls, whileConnected } from "./bundle-portable.js";
+import { J, LENT_REACH_STOP, PRESSES, TEXT_BLOCK, TEXT_BOX, WORKS, Z, anchorKey, applicationPresented, deepFocus, documentChanged, hostIn, inUi, isElementName, keeps, layoutPx, marks, move, onCurrentLocation, pressing, registry, shadowRootsIn, tabStops, tagsDeclaring, tick, uiInside, wearsLentStop } from "./bundle-layer-stack.js";
 import { PRESSABLE, repaintPage, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { clamp, clippedContents, headerCuts, landingBand, nearObserver, nearWindow, overlaps, scrollContainer, scrollsBy, scrollsContent, shownBox, shownParts, shownRect, userScrollport } from "./bundle-geometry.js";
 import { DATUM, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
@@ -280,18 +279,6 @@ function addressableLabel(element) {
 	return excerptWords(addressableSays(element) || element.querySelector("[aria-label]")?.getAttribute("aria-label"), LABEL_WORDS);
 }
 const sectionLabel = (addressable) => [addressableWord(addressable), addressableLabel(addressable)].filter(Boolean).join(" · ");
-
-//#endregion
-//#region runtime/initial-render.js
-const coordinator = (node) => node.ownerDocument?.documentElement?.lfInitial ?? document.documentElement.lfInitial;
-const initialRender = (host) => coordinator(host).paint(host);
-const initialOrigin = (node) => coordinator(node).origin(node) ?? node;
-const initialParent = (node) => coordinator(node).parent(node);
-const authoredBody = (host) => coordinator(host).authoredBody(host);
-const initialSource = (node) => coordinator(node).reading(node);
-const restoreInitialSource = (root) => coordinator(root).restoreSource(root);
-const unmarkedCopy = (node) => coordinator(node).authoredCopy(node);
-const fragmentId = (fragment) => document.documentElement.lfInitial.fragmentId(fragment);
 
 //#endregion
 //#region runtime/anchor-resolution.js
@@ -807,7 +794,7 @@ ended.set(pageScroller, pageScroller.scrollTop);
 function stopScroll(boxes) {
 	const stopped = [...boxes].filter((box) => moving.has(box)).map((box) => [box, moving.get(box)]);
 	if (!stopped.length) return null;
-	for (const [box] of stopped) box.scrollTo({
+	for (const [box] of stopped) setScroll(box, {
 		left: box.scrollLeft,
 		top: box.scrollTop,
 		behavior: "instant"
@@ -886,7 +873,7 @@ const SCROLL_SLACK = 2;
 const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= 2;
 const scrollToEnd = (box, behavior = "instant") => {
 	if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
-	box.scrollTo({
+	setScroll(box, {
 		top: scrollLimit(box),
 		behavior
 	});
@@ -896,8 +883,8 @@ const moveScrollerBy = (box, top, behavior = "instant") => {
 	const aim = box.scrollTop + top;
 	if (Math.abs(top) >= .5) {
 		if (behavior !== "instant" && reachable(box, top)) startScroll(box);
-		box.scrollBy({
-			top,
+		setScroll(box, {
+			top: aim,
 			behavior
 		});
 	}
@@ -968,20 +955,20 @@ function returnStop(el, authored) {
 }
 const sideways = /* @__PURE__ */ new Map();
 const downwards = /* @__PURE__ */ new Map();
-const readingScrolled = (event) => paintReadingReach(event.currentTarget);
-const sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget, true);
+watchScrolls((box) => {
+	if (downwards.has(box)) paintReadingReach(box);
+	if (sideways.has(box)) paintSidewaysReach(box, true);
+});
 function reachReadingScroller(el, paintContinuation) {
 	el.classList.toggle("scroll", true);
 	downwards.set(el, paintContinuation);
 	sweep(el);
 	paintReach();
 	watchReach(el);
-	el.addEventListener("scroll", readingScrolled, { passive: true });
 	paintReadingReach(el);
 	return () => {
 		downwards.delete(el);
 		if (!watched(el)) unwatchReach(el);
-		el.removeEventListener("scroll", readingScrolled);
 		afterScript(() => {
 			if (!downwards.has(el)) {
 				keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
@@ -991,15 +978,11 @@ function reachReadingScroller(el, paintContinuation) {
 	};
 }
 const readingPaints = /* @__PURE__ */ new Set();
-let readingPaintQueued = false;
 function paintReadingReach(el) {
 	readingPaints.add(el);
-	if (readingPaintQueued) return;
-	readingPaintQueued = true;
-	nextRender(paintReadingReachNow);
+	afterScript(paintReadingReachNow);
 }
 function paintReadingReachNow() {
-	readingPaintQueued = false;
 	const pending = [...readingPaints];
 	readingPaints.clear();
 	for (const el of pending) {
@@ -1082,7 +1065,7 @@ function forgetSurface(el) {
 		mayScroll.delete(el);
 		if (!claimedStops.has(el)) returnStop(el, authored);
 	}
-	if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
+	sideways.delete(el);
 	waiting.delete(el);
 	keeps(el, PAGE_PAINT_ATTRIBUTE.scrolls, null);
 	keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, null);
@@ -1100,7 +1083,6 @@ function classify(el, style) {
 	asked.add(el);
 	paintSlot(el, style);
 	if (!userScrollport(style.overflowX) && sideways.delete(el)) {
-		el.removeEventListener("scroll", sidewaysScrolled);
 		keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, null);
 		keeps(el, PAGE_PAINT_ATTRIBUTE.moreBefore, null);
 		keeps(el, PAGE_PAINT_ATTRIBUTE.moreAfter, null);
@@ -1114,10 +1096,7 @@ function classify(el, style) {
 		return;
 	}
 	if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX)) {
-		if (!sideways.has(el)) {
-			watchReach(el);
-			el.addEventListener("scroll", sidewaysScrolled, { passive: true });
-		}
+		if (!sideways.has(el)) watchReach(el);
 		sideways.set(el, style.direction);
 	}
 	if (!mayScroll.has(el)) {
@@ -1173,7 +1152,7 @@ function paintSidewaysReach(el, readStyle = false) {
 function gone(el) {
 	if (el.isConnected) return false;
 	mayScroll.delete(el);
-	if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
+	sideways.delete(el);
 	downwards.delete(el);
 	waiting.delete(el);
 	if (queried.delete(el)) queries.unobserve(el);
@@ -2478,4 +2457,4 @@ function openMarginContentLayout({ onRead }) {
 }
 
 //#endregion
-export { ADDRESSABLE, JUST_NOW, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, aimedTop, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, atScrollEnd, authoredBody, boundedBlockOf, carriedAnchor, chosenSince, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, contentRides, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, elementFrame, exactTarget, followingItsEnd, fragmentId, fragmentTarget, headerLevels, holdArrivingBounds, initialOrigin, initialParent, initialRender, initialSource, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, pageScroller, passageBoxes, passageGeometry, placeKept, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, quietSince, railStands, rangeGeometry, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, restoreInitialSource, revealAddressed, saidNow, scheduleMarginContentLayout, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleMarginContentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, syncLayoutRegion, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, unmarkedCopy, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whenArriving, whileInterfaceConnected, widgetWord };
+export { ADDRESSABLE, JUST_NOW, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, aimedTop, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, atScrollEnd, boundedBlockOf, carriedAnchor, chosenSince, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, contentRides, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, pageScroller, passageBoxes, passageGeometry, placeKept, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, quietSince, railStands, rangeGeometry, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleMarginContentLayout, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleMarginContentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, syncLayoutRegion, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whenArriving, whileInterfaceConnected, widgetWord };

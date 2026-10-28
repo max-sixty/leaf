@@ -1,7 +1,9 @@
 /* A sample owns a disposable served page in an opaque browsing context. Its
  * unguessable page URL grants native requests to its own document, assets and log;
  * presentation commands and observations cross a private port as values.
- * Allocation captures the owning widget's immutable revision. Reset replaces the
+ * Allocation captures the owning widget's immutable revision and builds either its
+ * named template or a supplied full HTML source. Both become ordinary validated
+ * child pages; supplied source starts with an empty history. Reset replaces the
  * allocation, admitting its initial document with a credentialless HEAD before
  * native navigation. A later authored navigation keeps the frame and disables its
  * private port; an ordinary reload reconnects.
@@ -117,8 +119,9 @@ const request = (url, body, headers = {}) =>
     "sample",
   );
 
-export function mountSample(frame, { template, window: asWindow = false }) {
-  if (!template) throw new Error("a sample needs an authored template id");
+export function mountSample(frame, { template, source, window: asWindow = false }) {
+  if ((template == null) === (source == null))
+    throw new Error("a sample needs either an authored template id or source document");
   // A template is declared in its revision's document or in a message's frozen
   // markup, which the server reads from the log beside the current revision.
   let revision = runtime.currentRevision;
@@ -127,7 +130,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
     const descriptor = widgetDescriptor(owner);
     if (!descriptor) continue;
     if (descriptor.document.kind === "page") revision = descriptor.document.revision;
-    else message = descriptor.document.message;
+    else if (source == null) message = descriptor.document.message;
     break;
   }
   let current = null;
@@ -449,7 +452,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
         /** @type {import("../types/contract.js").ServedSampleAnswer} */
         const { url, page } = await request(
           pageUrl("api/samples"),
-          { template, message },
+          { template, source, message },
           revision ? { "Leaf-View-Revision": String(revision) } : {},
         );
         current = new URL(url, location.href).href;

@@ -54,6 +54,7 @@ from leaf.data_contracts import declared_data_bindings, output_findings, resourc
 from leaf.findings import Finding, element_at
 from leaf.layer import checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry.contract import element_declarations, read_registry_declarations
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import (
@@ -265,7 +266,10 @@ def served_examples(package: Path, pages):
                 )
             except ArtifactError as error:
                 raise UnreadablePage(str(error)) from error
-            with preview_server(page_dir, document, 1, artifact=artifact) as url:
+            snapshot = capture_page_snapshot(
+                page_dir, document, 1, url="/", artifact=artifact
+            )
+            with preview_server(page_dir, snapshot) as url:
                 yield layout, url, artifact
 
 

@@ -18,6 +18,8 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
 from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
@@ -37,6 +39,7 @@ from leaf_dev.arms import (
     inputs_received,
     now,
     observed_sum,
+    pages,
     read_page_state,
     read_trace,
     resumed,
@@ -45,6 +48,7 @@ from leaf_dev.arms import (
     trace_summary,
 )
 from leaf_dev.eval_cases import definition
+from leaf_dev.leaf_assets import pinned_assets
 
 FIXTURES = ROOT / "evals/usability/fixtures"
 READING_FIXTURE = json.loads((FIXTURES / "reading-answers.json").read_text())
@@ -194,6 +198,44 @@ def build_diagnostics_report(run: Run, page: Path) -> None:
     run.leaf(
         "page", "stamp", str(page), "--text",
         FIXTURE_INPUTS["diagnostics-report"]["stamp"], check=True,
+    )  # fmt: skip
+
+
+def build_remaining_review(run: Run, page: Path) -> None:
+    # The source probe and native continuation start from the same authored facts.
+    seed = yaml.safe_load(
+        (ROOT / "evals/assessment-surfaces-pending-decisions/case.yaml").read_text()
+    )["variants"]["remaining-review"]["vars"]
+    run.leaf("page", "init", str(page), "--package", "diagram", check=True)
+    shutil.copytree(
+        pinned_assets() / "evals/assessment-surfaces-pending-decisions/media",
+        page / "media",
+        dirs_exist_ok=True,
+    )
+    (page / "index.html").write_text(
+        '<!doctype html><html lang="en"><head><title>What remains on the UI branch</title>'
+        "</head><body>" + seed["draft"] + "</body></html>"
+    )
+    run.leaf(
+        "page", "stamp", str(page), "--text",
+        FIXTURE_INPUTS["remaining-review"]["stamp"], check=True,
+    )  # fmt: skip
+    run.leaf(
+        "thread", "create", str(page), "--section", "remaining-next",
+        "--title", "#59: next extraction scope", "--text", "My recommended next scope is #59.",
+        "--markup", seed["question"], check=True,
+    )  # fmt: skip
+    state = read_page_state(run.payload, run.state, page)
+    assert [item["id"] for item in state["queues"]["on_user"]] == ["widget:next-touch"]
+    assert state["queues"]["on_agent"] == []
+
+
+def build_layout_shifts(run: Run, page: Path) -> None:
+    run.leaf("page", "init", str(page), check=True)
+    (page / "index.html").write_text((FIXTURES / "layout-shifts.html").read_text())
+    run.leaf(
+        "page", "stamp", str(page), "--text",
+        FIXTURE_INPUTS["layout-shifts"]["stamp"], check=True,
     )  # fmt: skip
 
 
@@ -475,7 +517,9 @@ def append_elided_history(run: Run, page: Path) -> None:
 
 
 BUILDERS = {
+    "layout-shifts": build_layout_shifts,
     "diagnostics-report": build_diagnostics_report,
+    "remaining-review": build_remaining_review,
     "board": build_board,
     "constructs": build_constructs,
     "resume": build_resume,
@@ -517,8 +561,14 @@ def execute(run: Run, work: Path) -> None:
         else:
             execute_phases(run, case, work, page)
     finally:
-        for found in pages(work, run.state):
-            shutil.copytree(found, run.dir / "pages" / found.name, ignore=ignore)
+        # A copied or nested page can share another page's basename. Archive each
+        # source separately and retain its address, not just its display name.
+        archives = {}
+        for index, found in enumerate(pages(work, run.state)):
+            destination = Path("pages") / f"{index}-{found.name}"
+            shutil.copytree(found, run.dir / destination, ignore=ignore)
+            archives[str(found)] = str(destination)
+            (run.dir / "pages.json").write_text(json.dumps(archives, indent=2) + "\n")
             run.leaf("server", "stop", str(found))
 
 
@@ -778,11 +828,6 @@ def ignore(directory, names):
         if n in ("runtime", "vendor", "widgets", "instructions", "service.json")
         or n.endswith((".lock", ".js", ".css"))
     }
-
-
-def pages(*roots: Path) -> list[Path]:
-    """Every page directory under `roots`."""
-    return sorted(p.parent for root in roots for p in root.rglob("events.jsonl"))
 
 
 # Canonical evidence

@@ -65,9 +65,9 @@ async function litBindings() {
   return `const { ${names} } = ${litGlobal};\nexport { ${names} };\n`;
 }
 
-/** The later facade also installs the runtime's focus-preserving movement hook. */
+/** The later facade: module bindings to the instance the page initialized. */
 export async function litFacade() {
-  return 'import "/runtime/dom-move.js";\n' + (await litBindings());
+  return await litBindings();
 }
 
 /** Early bundles bind to the initialized namespace without copying any Lit code. */

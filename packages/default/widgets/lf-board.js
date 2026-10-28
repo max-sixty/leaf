@@ -41,6 +41,7 @@
  * twice. */
 import Sortable from "/vendor/sortable.esm.js";
 import {
+  setScroll,
   LeafElement,
   nothing,
   move,
@@ -533,7 +534,7 @@ customElements.define(
     // back at the old box; native scrolling and the card's motion then run together.
     #place(card, col, index, grip = null) {
       for (const box of [this, scrollerFor(this)])
-        box.scrollTo({
+        setScroll(box, {
           left: box.scrollLeft,
           top: box.scrollTop,
           behavior: "instant",

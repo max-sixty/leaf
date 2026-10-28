@@ -196,6 +196,39 @@ def element_attrs(element) -> dict:
     }
 
 
+def delivered_elements(tree):
+    """Every element a parsed document delivers, in document order: its own, those
+    in each template's contents, and those in each declarative shadow root, which
+    delivery serializes. Delivery's rewrite (`revision_delivery.rebase_document`)
+    walks this, and so does every reader of the CSS it rewrites
+    (`delivered_sheets`), so they meet the same sheets."""
+    roots = [tree]
+    for root in roots:
+        for element in root.find_all(True):
+            if element.shadow_root is not None:
+                roots.append(element.shadow_root)
+            yield element
+
+
+def delivered_sheets(document: "SourceDocument"):
+    """Each stylesheet delivery rewrites in `document` (`delivered_elements`), as its
+    CSS, the name its author finds it by, and whether it is a style attribute's
+    declarations: each `<style>` element's text and each `style` attribute."""
+    index = source_index(document.html)
+    for element in delivered_elements(document.tree):
+        location = element.source_location
+        if location is None:
+            continue
+        line = location.start_tag.start_line
+        style = element.attrs.get("style")
+        if isinstance(style, str):
+            yield style, f"<{element.tag} style> (line {line})", True
+        if element.tag == "style" and location.end_tag is not None:
+            start = index(location.start_tag.end_line, location.start_tag.end_col)
+            end = index(location.end_tag.start_line, location.end_tag.start_col)
+            yield document.html[start:end], f"page <style> (line {line})", False
+
+
 @lru_cache(maxsize=4096)
 def _local_resource(value: str) -> tuple[str, str] | None:
     """Read an attribute candidate; arbitrary prose need not be a valid URL.

@@ -41,6 +41,7 @@ import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 import { holdingError } from "./errors.js";
+import { failureContext, failureOf } from "./widget-upgrade.js";
 
 const { layer: layerGeneration, release, probe, runtime: runtimeIdentity } = DELIVERY;
 
@@ -351,7 +352,8 @@ export const uploadMedia = async (file) => {
 // itself through the poll would recurse, and nothing here needs the answer.
 // Not part of the helper surface a module gets: an upgrade that throws is already on
 // this path through window.error, and a widget that wants to say so itself has
-// failSoft, which puts the message where the user is looking and reports it here.
+// failSoft, which puts the message where the user is looking and dispatches the
+// `error` event that window.error reports here.
 const reportedReasons = new WeakSet();
 const reportedPrimitives = new Set();
 const reportedErrors = new Set();
@@ -409,6 +411,13 @@ export function exceptionText(reason, context = "") {
 }
 
 window.addEventListener("error", (e) => {
+  // A widget's own failure, which it shows where it stands and dispatches
+  // (`reportFailure`, widget-upgrade.js), named for the widget it happened in.
+  const failure = failureOf(e);
+  if (failure) {
+    reportPageError(failure.reason, failureContext(failure.element));
+    return;
+  }
   // Chrome also puts ResizeObserver loop notices on window.error without an
   // exception. This one live page cannot tell an occasional scheduling notice
   // from a layout feedback loop, so it persists neither in the user's log. The

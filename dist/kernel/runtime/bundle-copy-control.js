@@ -1,7 +1,9 @@
-import { carriedFrom, deepFocus, focusDestination, focused, inputCount, nativeLayerHolding, nextRender, onCurrentLocation, renderedParent, renderedUnder, ringBox } from "./bundle-dom-move.js";
+import { nativeLayerHolding, nextRender, renderedParent, renderedUnder } from "./bundle-portable.js";
+import { carriedFrom, deepFocus, focusDestination, focused, inputCount, onCurrentLocation, ringBox } from "./bundle-dom-move.js";
+import "./bundle-layer-stack.js";
 import { actionElement, iconElement, notice, offer, raiseError } from "./bundle-layer-client.js";
-import { clippingAxes, landingBand, nearestScrollBy, placeBox, placeHolder, seenRect, shownWindow, visibleBand } from "./bundle-geometry.js";
 import { localScrollBy, pageScroller, reachable, scrollAxes, scrollersOf, startScroll } from "./bundle-content-layout.js";
+import { clippingAxes, landingBand, nearestScrollBy, placeBox, placeHolder, seenRect, shownWindow, visibleBand } from "./bundle-geometry.js";
 
 //#region runtime/user-intent.js
 const passed = /* @__PURE__ */ new WeakMap();

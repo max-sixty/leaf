@@ -1,39 +1,7 @@
-import { CARET_KEYS, PRESSES, TEXT_BOX, WORKS, Z, controlNavigationKeys, focusRevision, focused, isNativeLayer, keeps, keepsText, nextRender, onCurrentLocation, onFocusVisibility, renderedParent, sizeObserver, takesLetters, under, x as x$1 } from "./bundle-dom-move.js";
-import { AsyncDirective, DELIVERY, Directive, PAGE_ROOT, PartType, describeFailure, directive, html, nothing, offlineInteractive, pageUrl, render, runtime, showNativeLayer, shownBox, tagsDeclaring } from "./bundle-geometry.js";
+import { PAGE_PAINT_ATTRIBUTE, failureContext, failureOf, isNativeLayer, nextRender, renderedParent, under } from "./bundle-portable.js";
+import { CARET_KEYS, PRESSES, TEXT_BOX, WORKS, Z, controlNavigationKeys, focusRevision, focused, keeps, keepsText, onCurrentLocation, onFocusVisibility, takesLetters, x as x$1 } from "./bundle-dom-move.js";
+import { AsyncDirective, DELIVERY, Directive, PAGE_ROOT, PartType, describeFailure, directive, html, nothing, offlineInteractive, pageUrl, render, runtime, showNativeLayer, tagsDeclaring } from "./bundle-layer-stack.js";
 
-//#region runtime/page-paint.js
-const PAGE_PAINT_ATTRIBUTE = Object.freeze({
-	class: "class",
-	obligation: "data-lf-obligation",
-	done: "data-lf-done",
-	restated: "data-lf-restated",
-	retired: "data-lf-retired",
-	settlement: "data-lf-state",
-	applied: "data-lf-applied",
-	reading: "data-lf-reading",
-	dataVersion: "data-lf-data-version",
-	source: "data-lf-source",
-	sourceRevision: "data-lf-source-revision",
-	userOverride: "data-lf-user-override",
-	presented: "data-lf-presented",
-	reported: "data-lf-reported",
-	upgraded: "data-lf-upgraded",
-	scrolls: "data-lf-scrolls",
-	moreBefore: "data-lf-more-before",
-	moreAfter: "data-lf-more-after",
-	scrollDirection: "data-lf-scroll-direction",
-	moreBelow: "data-lf-more-below",
-	goto: "data-lf-go-to-active",
-	traffic: "data-lf-traffic",
-	player: "data-lf-player",
-	kept: "data-lf-kept",
-	mediaWidth: "data-lf-media-width",
-	mediaHeight: "data-lf-media-height"
-});
-const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
-const pageUpgraded = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgraded);
-
-//#endregion
 //#region runtime/root-state.js
 const setRuntimeRootAttribute = (...args) => document.documentElement.lfInitial.setRuntimeRootAttribute(...args);
 const setRuntimeRootStyle = (...args) => document.documentElement.lfInitial.setRuntimeRootStyle(...args);
@@ -1781,29 +1749,6 @@ const layoutChanged = (el) => {
 		composed: true
 	}));
 };
-const measurements = /* @__PURE__ */ new WeakMap();
-const drawn = (el) => {
-	const box = shownBox(el);
-	return Boolean(box.width || box.height);
-};
-const unmeasured = sizeObserver((entries) => {
-	const taking = [];
-	for (const { target } of entries) {
-		if (!drawn(target)) continue;
-		unmeasured.unobserve(target);
-		taking.push(measurements.get(target));
-		measurements.delete(target);
-	}
-	for (const take of taking) take();
-});
-function measure(el, take) {
-	if (drawn(el)) {
-		if (measurements.delete(el)) unmeasured.unobserve(el);
-		return take();
-	}
-	measurements.set(el, take);
-	unmeasured.observe(el);
-}
 function worksInside(node, container) {
 	const parts = /* @__PURE__ */ new Set([container.localName]);
 	for (let grew = true; grew;) {
@@ -2308,6 +2253,11 @@ function exceptionText(reason, context = "") {
 	return `${context}: ${reason instanceof Error ? describeFailure(reason) : message ?? String(reason)}${message === void 0 ? "" : `\n${evidence}`}`;
 }
 window.addEventListener("error", (e) => {
+	const failure = failureOf(e);
+	if (failure) {
+		reportPageError(failure.reason, failureContext(failure.element));
+		return;
+	}
 	if (e.message?.startsWith("ResizeObserver loop")) return;
 	reportPageError(e.error?.stack ? e.error : `${e.message} (${e.filename}:${e.lineno})`);
 });
@@ -2316,4 +2266,4 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 //#endregion
-export { EVERYTHING, LAYOUT, LINK, LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, TEXT_ENTRY, actionElement, actionIcon, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, layoutChanged, live, liveEl, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offered, offeredAction, pagePresented, pageUpgraded, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, showAction, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };
+export { EVERYTHING, LAYOUT, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, actionElement, actionIcon, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, layoutChanged, live, liveEl, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, showAction, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };

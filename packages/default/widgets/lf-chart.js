@@ -23,8 +23,16 @@
  *
  * The vendored bundle loads once, on the first draw rather than with this module: a chart
  * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
- * it instead of loading in front of a user who never opens that panel. */
+ * it instead of loading in front of a user who never opens that panel.
+ *
+ * It imports only the helpers that load in any document, so a plain HTML page that maps
+ * `/runtime/` and `/vendor/` draws it too, at the height its `data-lf-height` states. A
+ * Leaf page hears its drawing and its refusals from outside it: the drawing under way
+ * as a `pending-task` event, which holds the page's presentation until it is in, and a
+ * refusal as the `error` event `failSoft` dispatches, which the page reports to the
+ * author. */
 import {
+  PendingTaskEvent,
   bodyText,
   frameFor,
   whileConnected,
@@ -33,8 +41,7 @@ import {
   measure,
   once,
   sizeObserver,
-  widgetController,
-} from "/runtime/widget-api.js";
+} from "/runtime/portable-api.js";
 
 let plotReady;
 const loadPlot = () => (plotReady ??= import("/vendor/plot.esm.js"));
@@ -95,7 +102,7 @@ customElements.define(
       // view restore and the first anchor pass until the drawing is in and the page's
       // geometry is final. In a shut panel there is no box at all and measure holds the
       // draw instead of the page.
-      measure(this, () => widgetController(this).present(this.draw()));
+      measure(this, () => this.dispatchEvent(new PendingTaskEvent(this.draw())));
     }
 
     async draw() {

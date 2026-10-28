@@ -65,8 +65,8 @@ import {
   shownExtent,
   shownParts,
   shownWindow,
-  skipped,
 } from "../geometry.js";
+import { skipped } from "../shown-box.js";
 import {
   renderedChildren,
   renderedParent,

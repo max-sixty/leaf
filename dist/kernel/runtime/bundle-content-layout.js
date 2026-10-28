@@ -1,6 +1,8 @@
-import { J, LENT_REACH_STOP, PRESSES, TEXT_BOX, WORKS, Z, afterScript, deepFocus, keeps, layoutPx, move, nativeLayerHolding, nextFrame, nextRender, onCurrentLocation, pressing, renderedParent, renderedUnder, renderingState, shadowHost, sizeObserver, tabStops, under, upFrom, wearsLentStop } from "./bundle-dom-move.js";
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, PRESSABLE, layoutChanged, pagePresented, repaintPage, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { TEXT_BLOCK, anchorKey, applicationPresented, clamp, clippedContents, documentChanged, headerCuts, hostIn, inUi, isElementName, landingBand, marks, nearObserver, nearWindow, overlaps, registry, scrollContainer, scrollsBy, scrollsContent, shadowRootsIn, shownBox, shownParts, shownRect, skipped, tagsDeclaring, tick, uiInside, userScrollport, watchArrivals, whileConnected } from "./bundle-geometry.js";
+import { PAGE_PAINT_ATTRIBUTE, afterScript, nativeLayerHolding, nextFrame, nextRender, pagePresented, renderedParent, renderedUnder, renderingState, shadowHost, sizeObserver, skipped, under, upFrom, watchArrivals, whileConnected } from "./bundle-portable.js";
+import { J, LENT_REACH_STOP, PRESSES, TEXT_BOX, WORKS, Z, deepFocus, keeps, layoutPx, move, onCurrentLocation, pressing, tabStops, wearsLentStop } from "./bundle-dom-move.js";
+import { TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, hostIn, inUi, isElementName, marks, registry, shadowRootsIn, tagsDeclaring, tick, uiInside } from "./bundle-layer-stack.js";
+import { LAYOUT, PRESSABLE, layoutChanged, repaintPage, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
+import { clamp, clippedContents, headerCuts, landingBand, nearObserver, nearWindow, overlaps, scrollContainer, scrollsBy, scrollsContent, shownBox, shownParts, shownRect, userScrollport } from "./bundle-geometry.js";
 import { DATUM, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
 //#region runtime/presence.js

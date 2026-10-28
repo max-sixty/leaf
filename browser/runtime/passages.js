@@ -78,8 +78,9 @@
    quote to satisfy a regular-expression limit; the stored quote is the passage the
    user selected.
 
-   Shadow trees: only open roots declared through `x-shadow` join the page reading.
-   `pageShadowRoots` (shadow.js) enumerates them. `textNodesUnder` crosses those roots,
+   Shadow trees: only open roots declared through `x-shadow` join the page reading;
+   any other root is opaque, and its host reads by its light children (`walk`).
+   `pageShadowRoots` (shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
    `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow.js),
    and `closestAcross` cross back to the host.
 
@@ -582,10 +583,13 @@ function walk(root, onText, skip = null, onBreak = null) {
         // Only a root the registry declares (x-shadow): the capture asks
         // getComposedRanges for exactly the declared ones, and every climb
         // crosses exactly those — so a walk that entered any open root read
-        // words the anchor side could never place, and a widget's undeclared
-        // root anchored quotes astray instead of staying opaque. The render gate
-        // names an undeclared root; this leaves its words alone, as it does a root
-        // refused for its bare text.
+        // words the anchor side could never place. Any other root, such as one a
+        // page script's own custom element attached, is opaque, as is a root
+        // refused for its bare text: its words stay out of the reading, and its
+        // host reads by its light children, slotted or not. That is the file's
+        // reading too (passages.py), which can't know a script will attach a
+        // root, so a quote the agent writes on the host's light words lands at
+        // the host rather than detaching.
         const declared = declaredRoot(child);
         if (declared && !refusesBareText(declared)) {
           passed.set(child, inner);

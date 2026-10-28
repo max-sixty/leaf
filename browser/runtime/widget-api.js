@@ -8,7 +8,12 @@
 
    Every export is supported for independent and bundled packages alike; the
    references/module-*.md files document each one. Kernel widgets import private
-   capabilities from their owners rather than lending them through this surface. */
+   capabilities from their owners rather than lending them through this surface.
+
+   The helpers that load in any document are portable-api.js's, re-exported here whole,
+   so a widget that must also run off a Leaf page imports from there and every other
+   widget keeps importing from here. */
+export * from "./portable-api.js";
 export {
   html,
   noChange,
@@ -37,7 +42,6 @@ export { widgetController } from "./widget-controller.js";
 export { LeafElement } from "./leaf-element.js";
 export { quoted } from "./widget-descriptors.js";
 export { initialRender } from "./initial-render.js";
-export { whileConnected, frameFor } from "./arrivals.js";
 export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
@@ -131,15 +135,6 @@ export {
 } from "./keyboard/scopes.js";
 // The claim of a scope standing over the page: every key but the command reference's.
 export { allButCommandReference } from "./keyboard/register.js";
-export {
-  afterScript,
-  cancelRender,
-  cancelAnimation,
-  nextAnimation,
-  nextFrame,
-  nextRender,
-  sizeObserver,
-} from "./rendering.js";
 export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
 export { excerptWords } from "./words.js";
 export {
@@ -182,7 +177,6 @@ export { alignText } from "./text-alignment.js";
 export { inChrome, says, wrote } from "./passages.js";
 export { ago, clockValue, quietSince, shortAgo } from "./presence.js";
 export { shadowStage } from "./shadow-stage.js";
-export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";
 export { loadDeferred, publishOutput } from "./data.js";
 export { boundFile } from "./file-api.js";
@@ -234,14 +228,6 @@ export {
   tokenLines,
 } from "./syntax.js";
 export {
-  bodyText,
-  dataBody,
-  failSoft,
-  once,
-  placesFailure,
-  reportFailure,
-} from "./widget-upgrade.js";
-export {
   saidAt,
   readHistory,
   reportSequence,
@@ -257,7 +243,6 @@ export {
   generated,
   generatedElement,
   layoutChanged,
-  measure,
   motionPreview,
   offer,
   offerAction,

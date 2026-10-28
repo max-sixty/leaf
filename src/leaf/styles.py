@@ -81,6 +81,11 @@ def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[Finding, .
     return tuple(errors)
 
 
-def inline_style_at(inline: dict) -> str:
-    """Name one style="" by the element and line an author finds it at."""
-    return f"<{inline['tag']} style> (line {inline['line']})"
+def authored_sheets(authoring):
+    """Each stylesheet a document's reading (`structure.SourceDocument.authoring`)
+    writes, as its CSS, the name its author finds it by, and whether it is a
+    declaration block: each <style>, then each style attribute."""
+    for sheet in authoring.style_blocks:
+        yield sheet["css"], f"page <style> (line {sheet['line']})", False
+    for inline in authoring.inline_styles:
+        yield inline["style"], f"<{inline['tag']} style> (line {inline['line']})", True

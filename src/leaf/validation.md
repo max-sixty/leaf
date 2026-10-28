@@ -36,6 +36,13 @@ them:
   vocabulary may all change. The check reports the threads that move (events.md,
   "Anchors"), and activation records them in the same page transaction as the
   revision.
+- The check captures the revision (`revision_artifact.capture_artifact`) whenever
+  the page's vocabulary reads, whatever the markup holds, so one run reports both.
+  Each problem has one owner. The document's markup and its own CSS are the markup
+  rules'. Every file the revision reads is the capture's: each reference, a page
+  file's CSS syntax, and a `/media/` file the page won't answer, whether markup or a
+  stylesheet names it. A message, which no capture reads, asks that of its pictures
+  at its own gate.
 
 The effective registry is validated only where it differs from the active revision's
 captured copy. Vendored sheets are validated when `page init` composes them.

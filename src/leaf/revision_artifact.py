@@ -71,6 +71,8 @@ from leaf.structure import (
     links_with_rel,
     script_kind,
 )
+from leaf.styles import authored_sheets, css_syntax_errors
+from leaf.validation.markup import unanswered_media
 
 PUBLIC_MODULES = (
     "/runtime/widget-api.js",
@@ -365,9 +367,11 @@ def _is_stylesheet_url(url: str) -> bool:
     return reference is None or Path(reference[0]).suffix == ".css"
 
 
-def _css_references(tokens, refused: list[Finding]):
-    """Yield each token in parsed CSS whose value is a URL the stylesheet loads, and
-    add each one it refuses to `refused`.
+def _css_references(tokens, refused: list[Finding], invalid: list):
+    """Yield each token in parsed CSS whose value is a URL the stylesheet loads, add
+    each one it refuses to `refused`, and each parse error to `invalid`. A parse error
+    is the sheet's syntax check's to report (`css_dependencies` says whose), so it
+    isn't refused here.
 
     Those are a `url()` in either spelling, a string argument of `image-set()`, and
     the string form of a top-level `@import`. An `@import` nested in a block is
@@ -385,7 +389,7 @@ def _css_references(tokens, refused: list[Finding]):
             nested_import = True
             continue
         if token.type == "error":
-            refused.append(_capture_finding("css-invalid", error=token.message))
+            invalid.append(token)
         elif token.type == "url":
             yield token
         elif token.type == "function" and token.lower_name == "url":
@@ -403,11 +407,11 @@ def _css_references(tokens, refused: list[Finding]):
             # The prelude is read here once, and a refused import loads nothing, so
             # its URLs are neither followed nor refused again.
             values = _css_meaningful(token.prelude)
-            before = len(refused)
-            imported = list(_css_references(token.prelude, refused))
+            before = (len(refused), len(invalid))
+            imported = list(_css_references(token.prelude, refused, invalid))
             if values and values[0].type == "string":
                 imported.insert(0, values[0])
-            if len(refused) > before:
+            if (len(refused), len(invalid)) != before:
                 continue
             if not imported or not _is_stylesheet_url(imported[0].value):
                 refused.append(_capture_finding("css-import"))
@@ -417,7 +421,7 @@ def _css_references(tokens, refused: list[Finding]):
         for attribute in ("prelude", "content", "arguments", "value"):
             nested = getattr(token, attribute, None)
             if isinstance(nested, list):
-                yield from _css_references(nested, refused)
+                yield from _css_references(nested, refused, invalid)
 
 
 def _parse_css(source: str, declarations: bool):
@@ -433,7 +437,8 @@ def _parse_css(source: str, declarations: bool):
 class _CssReading:
     """One stylesheet's parse, kept as its serialization around the URLs it loads.
 
-    `refused` holds what the walk refused, which no address can deliver.
+    `refused` holds what the walk refused, which no address can deliver, and `valid`
+    is False where the parse holds an error, which none can deliver either.
     `references` holds each URL token as `_css_references` finds it, as its value,
     its written representation and its type. `segments` is the serialized sheet
     split around them, one more segment than references, or None where the split
@@ -448,6 +453,7 @@ class _CssReading:
     segments: tuple[str, ...] | None
     order: tuple[int, ...] = ()
     refused: tuple[Finding, ...] = ()
+    valid: bool = True
 
 
 # Delimits each URL in a sheet's serialization while `_read_css` splits it. Private
@@ -467,18 +473,20 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
     few large layer sheets must outlast a page's worth of them."""
     tokens = _parse_css(source, declarations)
     refused = []
-    found = list(_css_references(tokens, refused))
+    invalid = []
+    found = list(_css_references(tokens, refused, invalid))
     references = tuple(
         (token.value, token.representation, token.type) for token in found
     )
-    # A refused sheet is never delivered (`rewrite_css`), and its parse may hold
-    # nodes tinycss2 can't serialize, so it isn't split.
+    # A refused or invalid sheet is never delivered (`rewrite_css`), and its parse
+    # may hold nodes tinycss2 can't serialize, so it isn't split.
     if (
         refused
+        or invalid
         or any(mark in source for mark in _CSS_MARK)
         or len(set(map(id, found))) != len(found)
     ):
-        return _CssReading(references, None, refused=tuple(refused))
+        return _CssReading(references, None, refused=tuple(refused), valid=not invalid)
     for index, token in enumerate(found):
         token.representation = f"{_CSS_MARK[0]}{index}{_CSS_MARK[1]}"
     import tinycss2
@@ -494,15 +502,18 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
 
 def css_dependencies(
     source: str,
-    path: str,
+    sheet: str,
     declarations: bool = False,
     refused: list[Finding] | None = None,
 ) -> tuple[str, ...]:
-    """The URLs the CSS in the file at `path` loads, collecting what it refuses as
-    `javascript_imports` does. The parse is shared by every file with the same text
-    (`_read_css`), so a refusal of the text is told its file here."""
+    """The URLs a stylesheet loads, collecting each it refuses as `javascript_imports`
+    does. `sheet` names the stylesheet as its author finds it: a file's path, the
+    page's <style>, or one element's style attribute. The parse is shared by every
+    sheet with the same text (`_read_css`), so a refusal of the text is told its
+    sheet here. Its syntax is checked by whoever reads the sheet: the source check
+    for a document's own (`validation.source`), `resource_dependencies` for a file."""
     reading = _read_css(source, declarations)
-    problems = [finding.but(values={"file": path}) for finding in reading.refused]
+    problems = [finding.but(values={"file": sheet}) for finding in reading.refused]
     if refused is not None:
         refused.extend(problems)
     elif problems:
@@ -523,8 +534,13 @@ def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
     from tinycss2.serializer import serialize_string_value
 
     reading = _read_css(source, declarations)
-    if reading.refused:
-        raise ArtifactError(list(reading.refused))
+    if reading.refused or not reading.valid:
+        raise ArtifactError(
+            [
+                *reading.refused,
+                *css_syntax_errors(source, "stylesheet", block=declarations),
+            ]
+        )
     targets = {value: address(value) for value, _, _ in reading.references}
     if all(target == value for value, target in targets.items()):
         return source
@@ -548,7 +564,7 @@ def _rewrite_parsed(source: str, targets: dict, declarations: bool) -> str:
     from tinycss2.serializer import serialize_string_value
 
     tokens = _parse_css(source, declarations)
-    refused = []
+    ignored = []
     omitted = {reference for reference, value in targets.items() if value is None}
 
     def available(entries):
@@ -563,7 +579,7 @@ def _rewrite_parsed(source: str, targets: dict, declarations: bool) -> str:
             ):
                 if any(
                     token.value in omitted
-                    for token in _css_references([entry], refused)
+                    for token in _css_references([entry], ignored, ignored)
                 ):
                     continue
             elif getattr(entry, "content", None) is not None:
@@ -576,7 +592,7 @@ def _rewrite_parsed(source: str, targets: dict, declarations: bool) -> str:
 
     if omitted:
         tokens = available(tokens)
-    for token in list(_css_references(tokens, refused)):
+    for token in list(_css_references(tokens, ignored, ignored)):
         value = targets[token.value]
         if value == token.value:
             continue
@@ -666,7 +682,9 @@ def capture_local_resource(page_dir: Path, path: str) -> Resource:
     read exact bytes here. Callers own URL admission before supplying a path. A file
     under `page/` or `media/` whose real path leaves its directory is refused, so a
     symlink never puts a file from elsewhere on the machine into a revision, and from
-    there into a published site or an export.
+    there into a published site or an export. A `/media/` path the page won't answer
+    is refused in the words the message door uses (`unanswered_media`), wherever the
+    page names it: an attribute, a stylesheet or its data.
     """
     source = page_dir / path.removeprefix("/")
     root = page_dir / ("page" if path.startswith("/page/") else "media")
@@ -675,6 +693,10 @@ def capture_local_resource(page_dir: Path, path: str) -> Resource:
         or not source.resolve().is_relative_to(root.resolve())
     ):
         raise artifact_error("dependency-symlink", path)
+    if path.startswith("/media/") and (
+        unanswered := unanswered_media([path], page_dir)
+    ):
+        raise ArtifactError(unanswered)
     try:
         data = source.read_bytes()
     except OSError as error:
@@ -713,8 +735,9 @@ def resource_dependencies(
     path: str, data: bytes, mime: str, refused: list[Finding] | None = None
 ) -> tuple[str, ...]:
     """The local dependencies of an authored module or stylesheet, collecting each
-    reference it refuses as `javascript_imports` does. A file that can't be read as
-    text has no references to follow."""
+    reference it refuses as `javascript_imports` does, and each syntax error in a
+    stylesheet (`styles.css_syntax_errors`), whose rule a browser drops without a
+    word. A file that can't be read as text has no references to follow."""
     problems = []
     edges = []
     if mime == "application/javascript" and path.startswith("/page/"):
@@ -722,12 +745,13 @@ def resource_dependencies(
             edges.append(
                 _collect(problems, resolve_dependency, specifier, path, module=True)
             )
-    elif mime == "text/css" and path.startswith(("/page/", "/media/")):
+    elif mime == "text/css" and path.startswith("/page/"):
         try:
             css = data.decode("utf-8")
         except UnicodeDecodeError:
             problems.append(_capture_finding("css-not-utf8", path))
         else:
+            problems.extend(css_syntax_errors(css, path))
             for specifier in css_dependencies(css, path, refused=problems):
                 edges.append(_collect(problems, resolve_dependency, specifier, path))
     if refused is not None:
@@ -851,14 +875,9 @@ def _capture_artifact(
                 refused.append(_capture_finding("stylesheet-type", path))
                 continue
             entries.append(path)
-        for sheet in authored.authoring.style_blocks:
+        for css, sheet, declarations in authored_sheets(authored.authoring):
             for specifier in css_dependencies(
-                sheet["css"], "/index.html", refused=refused
-            ):
-                entries.append(admit(resolve_dependency, specifier, "/index.html"))
-        for inline in authored.authoring.inline_styles:
-            for specifier in css_dependencies(
-                inline["style"], "/index.html", declarations=True, refused=refused
+                css, sheet, declarations, refused=refused
             ):
                 entries.append(admit(resolve_dependency, specifier, "/index.html"))
         for specifier in authored.authoring.resource_refs:

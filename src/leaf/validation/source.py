@@ -19,10 +19,6 @@ from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_arti
 from leaf.sample_content import initial_sample_events
 from leaf.schema import VENDORED_FILES
 from leaf.structure import SourceDocument
-from leaf.styles import (
-    css_syntax_errors,
-    inline_style_at,
-)
 from leaf.thread_context import thread_ids, thread_names, thread_structure
 from leaf.validation.instances import (
     instance_errors,
@@ -35,6 +31,7 @@ from leaf.validation.markup import (
     id_errors,
     media_errors,
     page_boundary_errors,
+    presentation_errors,
     structure_errors,
     unpointable_blocks,
 )
@@ -130,13 +127,16 @@ def _instance_errors(
 def _authored_document_checks(
     page_dir, document, events, registry, readings, thread_ids
 ):
-    """The same authored-page gate for the root and each isolated child document."""
+    """The same authored-page gate for the root and each isolated child document.
+
+    The files a document names are the capture's to refuse
+    (`revision_artifact.capture_artifact`), or, for a message no capture reads,
+    `message_sample_media_errors`'s."""
     errors = _document_errors(page_dir, document)
     errors.extend(_instance_errors(events, document, registry, thread_ids))
     if registry is not None:
         errors.extend(data_document_errors(readings))
-    errors.extend(media_errors(document, page_dir))
-    errors.extend(_presentation_errors(document))
+    errors.extend(presentation_errors(document))
     return errors
 
 
@@ -196,17 +196,23 @@ def sample_errors(
     return errors
 
 
-def _presentation_errors(parser) -> list[Finding]:
-    """Validate the page's own CSS: its <style> and each inline style."""
+def message_sample_media_errors(
+    page_dir: Path, holder: SourceDocument
+) -> list[Finding]:
+    """Each /media/ file the page won't answer that a live sample child of the
+    message `holder` names, or a child of one. A page's own children are captured
+    with it, which refuses such a file (`revision_artifact.capture_local_resource`);
+    no capture reads a message, which is frozen in the log once admitted."""
     errors = []
-    for sheet in parser.authoring.style_blocks:
-        errors.extend(
-            css_syntax_errors(sheet["css"], f"page <style> (line {sheet['line']})")
-        )
-    for inline in parser.authoring.inline_styles:
-        errors.extend(
-            css_syntax_errors(inline["style"], inline_style_at(inline), block=True)
-        )
+    pending = [(holder, ())]
+    for declaring, outer in pending:
+        for sample in declaring.samples:
+            samples = (*outer, sample["attrs"].get("id"))
+            pending.append((sample["document"], samples))
+            errors.extend(
+                error.but(samples=samples)
+                for error in media_errors(sample["document"], page_dir)
+            )
     return errors
 
 
@@ -319,8 +325,12 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
     errors.extend(
         sample_errors(page_dir, document, events, document, registry, contracts)
     )
+    # The capture reads the document and the files it names whatever the markup
+    # holds, so one check reports both; it needs only the vocabulary. Each problem
+    # has one of the two as its owner (`_authored_document_checks`), and a source
+    # with errors keeps no capture.
     artifact = None
-    if not errors and registry is not None:
+    if registry is not None:
         try:
             artifact = capture_artifact(
                 page_dir,
@@ -331,6 +341,8 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
             )
         except ArtifactError as error:
             errors.extend(error.findings)
+        if errors:
+            artifact = None
     revision = predecessor_reading(page_dir, data, events, artifact)
     reanchors, advice = revision_reanchors(
         events, reading, revision, candidate_revision=revision.candidate

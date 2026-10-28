@@ -2,6 +2,7 @@
 
 import io
 import json
+from itertools import pairwise
 from types import SimpleNamespace
 from urllib.parse import urljoin
 
@@ -1371,3 +1372,106 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
         for name in FACES
     }
     assert not any(differ.values()), differ
+
+
+# Quotes holding quotes and code, and a fence its quote ends, each ending in a word.
+NESTED = (
+    "> alpha\n> > beta\n> gamma\n\n> ```\n> delta\n> ```\n\n>     epsilon\n\n"
+    "> ```\n> zeta\nomega"
+)
+# Where each word stands in a root's content box: its left edge, its top, and the left
+# edge of each ruled or framed box holding it, innermost first. The source the editor
+# leaves unseen is not a word.
+WORDS_AND_RULES = """(root, words) => {
+  const style = getComputedStyle(root);
+  const origin = root.getBoundingClientRect().left + parseFloat(style.borderLeftWidth)
+    + parseFloat(style.paddingLeft);
+  const top = root.getBoundingClientRect().top;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const found = {};
+  for (let node; (node = walker.nextNode()); ) {
+    if (node.parentElement.closest('.lf-md-unseen')) continue;
+    for (const word of words) {
+      const at = node.data.indexOf(word);
+      if (at < 0 || word in found) continue;
+      const range = document.createRange();
+      range.setStart(node, at);
+      range.setEnd(node, at + word.length);
+      const r = range.getBoundingClientRect();
+      const rules = [];
+      for (let el = node.parentElement; el !== root; el = el.parentElement)
+        if (parseFloat(getComputedStyle(el).borderLeftWidth) > 0)
+          rules.push(Math.round(el.getBoundingClientRect().left - origin));
+      found[word] = {x: Math.round(r.left - origin), y: r.top - top, rules};
+    }
+  }
+  return found;
+}"""
+
+
+def test_a_draft_nests_its_blocks_as_its_sent_message_does(browser, serve):
+    """A quote inside a quote, and code inside a quote, stand in the draft where they will
+    in the message, each beside its quote's rule. The preview drew every quoted line with
+    one class, which CodeMirror merged, so a nested quote showed one rule at one inset and
+    a lazy line seemed back at the first level; a code block's frame replaced its quote's
+    rule and inset, and indented code in a quote showed its four spaces. A fence its quote
+    ended lacked the code's padding below it, so the next block rose on sending."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, NESTED, {"section": "p0"})
+    page = open_page(browser, url, init_script=KEEP_ROOTS)
+    view = open_panel_thread(page, root)
+    words = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "omega"]
+    sent = view.locator(".lf-msg-text").first.evaluate(WORDS_AND_RULES, words)
+    box = page.locator('.lf-fp-field leaf-text[name="reply"]')
+    # The caret stays after the last word, away from every container's source.
+    write(box, NESTED)
+    rendered(page)
+    draft = box.evaluate(
+        f"""(box, words) => ({WORDS_AND_RULES})(
+          window.__lfRoots.get(box).querySelector('.cm-content'), words)""",
+        words,
+    )
+    # Each word's line is read from the word above it, so one gap flags once.
+    step = {
+        name: [round(read[b]["y"] - read[a]["y"]) for a, b in pairwise(read)]
+        for name, read in (("sent", sent), ("draft", draft))
+    }
+    assert step["draft"] == pytest.approx(step["sent"], abs=1), step
+    for read in (sent, draft):
+        for place in read.values():
+            del place["y"]
+    assert draft == sent
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_new_line_in_an_open_fence_starts_in_its_code(engine, request, serve):
+    """A line begun at the end of a fence not yet closed is a line of its code from the
+    start. The parser's reading of the fence stops before the draft's empty last line,
+    so the preview drew that line, with the caret on it, below the code's frame as prose,
+    and moved it into the frame on the first key."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    page.keyboard.type("```")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("one")
+    page.keyboard.press("Shift+Enter")
+    expect(field).to_have_js_property("value", "```\none\n")
+    # The last line's box from the fence's, which the field's growth carries with it.
+    last_line = """box => {
+      const lines = [...window.__lfRoots.get(box).querySelectorAll('.cm-line')];
+      const fence = lines[0].getBoundingClientRect();
+      const r = lines.at(-1).getBoundingClientRect();
+      const style = getComputedStyle(lines.at(-1));
+      return {box: [r.left - fence.left, r.top - fence.top, r.width],
+        face: [style.fontFamily, style.backgroundColor]};
+    }"""
+    rendered(page)
+    empty = field.evaluate(last_line)
+    page.keyboard.type("two")
+    expect(field).to_have_js_property("value", "```\none\ntwo")
+    rendered(page)
+    typed = field.evaluate(last_line)
+    assert typed["box"] == pytest.approx(empty["box"], abs=0.5), (empty, typed)
+    assert typed["face"] == empty["face"]

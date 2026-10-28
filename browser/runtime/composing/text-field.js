@@ -3,8 +3,8 @@
  * Every composer the runtime builds is a `leaf-text`. Inside a closed shadow root it
  * runs CodeMirror over the draft's exact source, and draws that source the way a sent
  * message will read: inline code in code type, emphasis and strong in their weights, a
- * link as a link, a heading in bold, a list item at the message's inset under the
- * message's own marker, a picture as the picture, drawn after its source while the
+ * link as a link, a heading in bold, a quote and a list item at the message's insets at
+ * every level, an item under the message's own marker, a picture as the picture, drawn after its source while the
  * caret is in it, and a link that leaves the page with the mark the page draws after
  * one (prepaint.js). The syntax that produces each (backticks, asterisks, brackets,
  * hashes, list markers, a picture's source) is hidden unless the selection touches the
@@ -20,14 +20,14 @@
  * A field that edits words where they are shown, as a draft's does over its prose, names
  * the element that shows them (`facesOf`) and draws them in that display's faces
  * instead of the message's: each heading and code block in the type, padding and indent
- * the page gives it there, each outermost block's quote and list insets, and the
- * display's gap between two outermost blocks in place of the blank lines that part them
- * in the source, so no word moves as the editor opens (browser/AGENTS.md, "Editing in
+ * the page gives it there, each quote's inset, and the display's gap between two
+ * outermost blocks in place of the blank lines that part them in the source, so no
+ * word moves as the editor opens (browser/AGENTS.md, "Editing in
  * place"). The cascade answers what those faces are: as the editor builds, and when its
  * width changes, an empty copy of that element holding one of each block stands hidden
  * beside the field, where the page's own rules and density reach it, and is read and
  * removed in the same task. The rules it yields go in a sheet of the field's own, which
- * the lines' classes name, so the field draws nothing differently without one. A code
+ * the classes of the lines and of the quotes' boxes name, so the field draws nothing differently without one. A code
  * fence's line and a Setext heading's rule then stand for the block's padding while the
  * caret is away from that line. A list's inner gaps, a quote's inner blocks and a table
  * keep the source's lines. Rejected: rules the theme states for each element also stated
@@ -214,19 +214,25 @@ sheet.replaceSync(`
   .lf-md-heading { font-weight: bold; }
   .lf-md-link { color: var(--accent); text-decoration: underline var(--link-underline);
     text-underline-offset: var(--link-underline-offset); }
+  /* A quote and a list item are boxes around their lines (field-editor.js, \`box\`), as
+     the message's blockquote and li are, so their words stand where the message's do at
+     every level of nesting. An item stands one list inset in, under the platform's own
+     list marker, as in the message, so it is the same bullet or number at the same
+     place: the inset is the item's margin, as it is its list's padding in the message,
+     since the platform draws the marker outside the item's border. */
   .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
-    padding-inline-start: var(--quote-inset); color: var(--muted);
-    --lf-marker-inset: var(--quote-inset); }
-  /* A quote's and a list item's words stand where the message's do, and the source's
-     marker stands in the inset before them, unseen while the caret is away, so
-     revealing it moves no word. A list item's lines stand one list inset in per level,
-     under the platform's own list marker, as in the message, so it is the same bullet
-     or number at the same place. */
-  .lf-md-item { margin-inline-start: calc(var(--lf-list-depth) * var(--list-inset));
-    --lf-marker-inset: var(--list-inset); }
-  .lf-md-marker { display: inline-flex; justify-content: flex-end; white-space: pre;
-    inline-size: var(--lf-marker-inset);
-    margin-inline-start: calc(-1 * var(--lf-marker-inset)); }
+    padding-inline-start: var(--quote-inset); color: var(--muted); }
+  .lf-md-item { margin-inline-start: var(--list-inset); }
+  /* The source's markers that open a line stand in the insets before its words, each as
+     wide as its container's rule and inset, so each stands beside the rule it draws,
+     unseen while the caret is away, and revealing one moves no word: their run takes no
+     room, and stands back from the words by its own width. */
+  .lf-md-markers { display: inline-flex; inline-size: 0; justify-content: flex-end; }
+  .lf-md-marker { display: inline-flex; flex: none; justify-content: flex-end;
+    white-space: pre; box-sizing: content-box; }
+  .lf-md-item-marker { inline-size: var(--list-inset); }
+  .lf-md-quote-marker { inline-size: var(--quote-inset);
+    border-inline-start: var(--quote-rule); border-inline-start-color: transparent; }
   .lf-md-listed { display: list-item; }
   .lf-md-disc { list-style-type: disc; }
   .lf-md-circle { list-style-type: circle; }
@@ -252,11 +258,13 @@ sheet.replaceSync(`
     stroke-linejoin: round; overflow: visible; user-select: none;
     -webkit-user-select: none; }
   /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
-     and code with no fence lines takes that padding at its ends instead. A field that
-     edits in place reads its display's padding over this (\`readFaces\`). */
+     and an end of the code no fence line stands at, as indented code's ends and the
+     end of a fence its container or the draft ends, takes that padding on the code's
+     own line instead. A field that edits in place reads its display's padding over
+     this (\`readFaces\`). */
   .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
+  .lf-md-code-pad-start { padding-block-start: var(--pre-pad-block); }
+  .cm-line.lf-md-code-pad-end { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
 
 // The field's editor (field-editor.js), once CodeMirror under it has loaded. It loads as

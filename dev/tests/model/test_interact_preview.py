@@ -46,6 +46,8 @@ from leaf.media import media_name
 from leaf.registry.storage import layer_record, load_registry, selected
 from leaf.structure import SourceDocument
 
+LEAF_S_THEME = {"name": "reading", "source": "default"}
+
 
 def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_path):
     from leaf.packages import cmd_package_install
@@ -79,12 +81,12 @@ def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_pat
             str(page),
         )
         assert layer_metadata(page)["packages"] == ["diagram"]
-        assert layer_metadata(page)["theme"] is None
+        assert layer_metadata(page)["theme"] == LEAF_S_THEME
 
     page = tmp_path / "demo"
     with record_demo.demo_session(tmp_path / "demo-run"):
         record_demo.cmd_init(page)
-        assert layer_metadata(page)["theme"] is None
+        assert layer_metadata(page)["theme"] == LEAF_S_THEME
 
 
 def test_automated_page_producers_record_the_run_before_input(tmp_path, serve, request):

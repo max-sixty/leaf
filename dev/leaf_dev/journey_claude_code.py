@@ -54,6 +54,11 @@ The steps, in order:
   handed a comment at a tool boundary and ends on its answer with the comment
   unanswered, and no Stop hook continues it over the comment. The watch wakes a
   turn of its own whose prompt names the owed answer, and that turn answers it;
+- `compacting`: a comment sent while `/compact` runs at the idle prompt wakes the
+  session once the compaction ends, and a turn of its own answers it. Compaction
+  runs no prompt or Stop hook, so the watch the last turn's Stop started keeps
+  running through it, and Claude Code holds that watch's wake until the
+  compaction is done;
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
@@ -603,6 +608,17 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         "deferred: no prompt of a later turn named the owed comment",
     )
     step("deferred", started, "deferred")
+
+    def compacting() -> bool:
+        return "Compacting conversation" in cc.screen()
+
+    started = time.monotonic()
+    cc.say("/compact")
+    cc.until(compacting, "compacting: the compaction did not start", 30)
+    user.comment("compacting")
+    require(compacting(), "compacting: the compaction ended before the comment")
+    cc.until(answered("compacting"), "compacting: the comment was not answered")
+    step("compacting", started, "compacting")
 
     started = time.monotonic()
     cc.say("/exit")

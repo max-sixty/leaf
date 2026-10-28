@@ -1020,9 +1020,10 @@ def test_a_step_opens_a_claude_code_turn_no_prompt_hook_named(claimed, capsys):
 def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
     claimed, capsys
 ):
-    """While the agent works, a tool boundary tells it how long its status line has
-    stood once that reaches the renewal interval, naming the command that restates
-    it, and says so again only an interval after its last reminder."""
+    """Each renewal interval, a tool boundary tells the agent how long its working
+    status line has stood once that reaches the interval, naming the command that
+    restates it. A page put down to wait for the user shows no working line, so it
+    is never reminded however long it waits."""
 
     def hook(event: str) -> str:
         hooks_model.cmd_hook(
@@ -1031,17 +1032,25 @@ def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
         )
         return capsys.readouterr().out
 
+    mark = cleanup_model.session_file("s1", cleanup_model.STATUS_CHECKED_SUFFIX)
+    stood = datetime.now().astimezone() - timedelta(minutes=3)
+
+    def check_due():
+        os.utime(mark, (stood.timestamp(), stood.timestamp()))
+
     hook("UserPromptSubmit")
     start = declare_work(claimed, "reading the traces", session="s1")
     assert hook("PostToolBatch") == ""
 
-    stood = datetime.now().astimezone() - timedelta(minutes=3)
     declare_work(
         claimed,
         "reading the traces",
         ts=stood.isoformat(timespec="seconds"),
         session="s1",
     )
+    # Checked a moment ago, when the line was fresh: the next check is due later.
+    assert hook("PostToolBatch") == ""
+    check_due()
     context = json.loads(hook("PostToolBatch"))["hookSpecificOutput"][
         "additionalContext"
     ]
@@ -1049,15 +1058,9 @@ def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
     assert f"leaf task start {claimed} {start['item']}" in context
     assert hook("PostToolBatch") == ""
 
-    mark = cleanup_model.session_file("s1", cleanup_model.REMINDED_SUFFIX)
-    os.utime(mark, (stood.timestamp(), stood.timestamp()))
-    assert "reading the traces" in hook("PostToolBatch")
-
-    # A page put down to wait for the user shows no working line, so however long it
-    # has waited, there is nothing to renew.
     declare_status(claimed, ts=stood.isoformat(timespec="seconds"), session="s1")
     assert activity_reading(claimed)["kind"] != "working"
-    os.utime(mark, (stood.timestamp(), stood.timestamp()))
+    check_due()
     assert hook("PostToolBatch") == ""
 
 

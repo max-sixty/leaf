@@ -83,7 +83,7 @@ the page's work has ended.
 |---|---|
 | **Page directory** | The directory containing a page’s source, revisions, selected layer, data, media and event history |
 | **Package** | One composable source directory of declarations and their payload. Its code runs in the page document beside every other script, so a package bounds reuse, not reach |
-| **Leaf layer** | One checked, vendored composition of packages |
+| **Leaf layer** | One checked composition of the packages a page selects |
 | **User session** | One browser tab's temporary interaction with a page: its focus, scroll, selection and throwaway exploration |
 | **In force** | An action, report, reaction or decision that no undo took back and no version note retracted; for each widget, unit and action kind, the latest one in force sets the state (`events.InForce`, `StateProjection.in_force`; the served event field is still called `stands`) |
 

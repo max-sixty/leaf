@@ -11,6 +11,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
@@ -45,7 +46,6 @@ from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import file_changes as file_changes_model
-from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
@@ -59,6 +59,7 @@ from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+from leaf.registry.storage import LAYER, layer_record
 
 
 def handed(page_dir, input_id: str) -> bool:
@@ -1687,10 +1688,7 @@ def test_a_hook_renews_no_page_another_session_took_after_it_listed_its_pages(
     monkeypatch.setattr(hook_transport_model, "owned_pages", lambda _: [claimed])
 
     assert hook_transport_model.read_plans("s1") == []
-    assert (
-        files_model.read_json(claimed / "registry.json")["$events"]["protocol"]
-        == vendored
-    )
+    assert layer_record(claimed)["protocol"] == vendored
 
 
 def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypatch):
@@ -1704,13 +1702,16 @@ def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypa
     def newer_leaf_first(page_dir):
         if next(raced, False):
             # Another Leaf's own `page init` reaches the page before this one.
-            registry = files_model.read_json(page_dir / "registry.json")
-            registry["$events"]["protocol"] += 2
-            cleanup_model.write_json(page_dir / "registry.json", registry)
+            record = layer_record(page_dir)
+            (page_dir / schema_model.LAYER_FILE).unlink()
+            LAYER.write(
+                page_dir / schema_model.LAYER_FILE,
+                {**record, "protocol": record["protocol"] + 2},
+            )
         return locked(page_dir)
 
     monkeypatch.setattr(vendoring_model, "page_locked", newer_leaf_first)
-    newer = files_model.read_json(claimed / "registry.json")["$events"]["protocol"] + 2
+    newer = layer_record(claimed)["protocol"] + 2
 
     assert (
         vendoring_model.renew_layer(
@@ -1718,9 +1719,7 @@ def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypa
         )
         is None
     )
-    assert (
-        files_model.read_json(claimed / "registry.json")["$events"]["protocol"] == newer
-    )
+    assert layer_record(claimed)["protocol"] == newer
 
 
 def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
@@ -1732,8 +1731,8 @@ def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
     the same input again. It names the page protocol and the re-vendor instead, and
     the input waits on the page for the first prompt after the page is writable
     again."""
-    stamp = claimed / "registry.json"
-    vendored = stamp.read_text(encoding="utf-8")
+    stamp = claimed / schema_model.LAYER_FILE
+    vendored = layer_record(claimed)
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
@@ -1752,7 +1751,8 @@ def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
     assert hook_transport_model.INLINE_OPENING not in refused
     assert acknowledged_through(claimed) < comment["seq"]
 
-    cleanup_model.write_json(stamp, json.loads(vendored))
+    stamp.unlink()
+    LAYER.write(stamp, vendored)
     assert prompt().startswith(hook_transport_model.INLINE_OPENING)
     assert handed(claimed, comment["id"])
 
@@ -1765,6 +1765,17 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
     receipt's locks only until CONFIRM_WITHIN, hands over the pages it recorded, and
     leaves the input of a page still locked then pending for a later hook."""
     monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", 2.0)
+    # Only lock waits advance this clock: page preparation must not spend the
+    # budget before the test reaches the contended receipt lock.
+    elapsed = 0.0
+
+    def advance(seconds):
+        nonlocal elapsed
+        elapsed += seconds
+
+    clock = SimpleNamespace(monotonic=lambda: elapsed, sleep=advance)
+    for module in (hooks_model, hook_transport_model, cleanup_model):
+        monkeypatch.setattr(module, "time", clock)
     sibling = tmp_path / "sibling"  # after `claimed` in the walk's path order
     vendoring_model.cmd_init(sibling)
     service_model.claim_page(sibling)
@@ -1784,11 +1795,10 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
         hook_transport_model, "freeze_delivery", freeze_then_lock_sibling
     )
     try:
-        started = time.monotonic()
         hooks_model.cmd_hook(
             "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
         )
-        assert time.monotonic() - started < 2 * hook_transport_model.CONFIRM_WITHIN
+        assert elapsed == pytest.approx(hook_transport_model.CONFIRM_WITHIN)
         _, envelope, *_ = continued(capsys.readouterr().out).split("\n")
         assert [batch["page"] for batch in json.loads(envelope)["batches"]] == [
             str(claimed.resolve())
@@ -1801,7 +1811,7 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
     # Past the deadline even a free lock is not taken, so nothing is confirmed late.
     with (
         pytest.raises(TimeoutError),
-        service_model.PageTransaction(sibling, deadline=time.monotonic()),
+        service_model.PageTransaction(sibling, deadline=clock.monotonic()),
     ):
         pass
 

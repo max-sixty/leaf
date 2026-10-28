@@ -39,7 +39,6 @@
  * makes it submit a replacement. Its face derives from that comparison, never from
  * delivery timing or a separate saved flag. */
 import {
-  commands,
   compoundReadingRegionId,
   closeNativeLayer,
   copyControl,
@@ -49,7 +48,6 @@ import {
   isNativeLayer,
   keeps,
   LeafElement,
-  paintKeys,
   registerReadingRegion,
   reachedForWords,
   says,
@@ -59,6 +57,7 @@ import {
   whileConnected,
   focused,
   worksInside,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
 
@@ -286,7 +285,7 @@ customElements.define(
         initial.copy = copy;
         instruction.addEventListener("toggle", (event) => {
           keeps(reveal, "aria-expanded", event.newState === "open");
-          paintKeys();
+          commandsChanged(this);
         });
         this.addEventListener("mousedown", (event) => {
           const target = /** @type {Element} */ (event.target);
@@ -366,28 +365,32 @@ customElements.define(
     }
 
     #commands() {
-      commands(this, "In a playground", [
-        {
-          id: "playground.choose",
-          contextKeys: ["1"],
-          bindingBadge: null,
-          control: this.#submit,
-          decision: true,
-          title: () => this.#submit.textContent,
-          when: () => (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
-          run: () => this.#choose(),
-        },
-        {
-          id: "playground.reset",
-          keys: ["Alt+0"],
-          control: this.#reset,
-          title: "reset controls",
-          run: () => {
-            this.#restore(this.#defaults);
-            this.#draw();
+      this.lfCommands = {
+        title: "In a playground",
+        rows: [
+          {
+            id: "playground.choose",
+            contextKeys: ["1"],
+            bindingBadge: null,
+            control: this.#submit,
+            decision: true,
+            title: () => this.#submit.textContent,
+            when: () => (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
+            run: () => this.#choose(),
           },
-        },
-      ]);
+          {
+            id: "playground.reset",
+            keys: ["Alt+0"],
+            control: this.#reset,
+            title: "reset controls",
+            run: () => {
+              this.#restore(this.#defaults);
+              this.#draw();
+            },
+          },
+        ],
+      };
+      commandsChanged(this);
     }
 
     #set(name, value) {
@@ -423,7 +426,7 @@ customElements.define(
       );
       for (const paint of this.#views) paint(this.#values);
       layoutChanged(this);
-      paintKeys();
+      commandsChanged(this);
     }
 
     #providedInstruction() {

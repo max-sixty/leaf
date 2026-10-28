@@ -33,7 +33,7 @@ from leaf_dev.browser import panel_tab, show_resolved
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets
-from leaf_dev.page_fixtures import authored_markup, source_packages
+from leaf_dev.page_fixtures import authored_markup, read_event_lines, source_packages
 from PIL import Image
 from playwright.sync_api import expect
 from render_harness import (
@@ -67,9 +67,10 @@ from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import schema as schema_model
-from leaf.event_log import _parse_events, read_events
+from leaf.event_log import read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
+from leaf.registry.storage import layer_packages, layer_record, selected
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
@@ -304,16 +305,19 @@ def opened(page, url):
     navigate(page, url, wait_until="load")
 
 
-def test_product_pages_vendor_the_composed_theme(site, monkeypatch):
+def test_product_pages_select_the_sources_packages(site):
     """Publication and local previews compose the product source's same layer."""
-    monkeypatch.chdir(ROOT)
     for page in pages_under(DOCS):
-        inputs = layer_model.layer_inputs(tuple(source_packages(page)))
-        expected_theme = layer_model.composed_sheets(inputs)["theme.css"]
         target = site_build.product_page(site, page.name)
         source_markup = page.read_text()
         assert 'href="/theme.css"' not in source_markup, page.name
-        assert (target / "theme.css").read_bytes() == expected_theme, page.name
+        # The page records its own copy of each package the source selects by path.
+        assert layer_packages(target) == [
+            value
+            if re.fullmatch(schema_model.HTML_NAME, value)
+            else f"./{schema_model.PACKAGES_DIR}/{Path(value).name}"
+            for value in source_packages(page)
+        ], page.name
 
 
 @pytest.mark.parametrize("name", ["index", "event-log", "how-it-works"])
@@ -329,13 +333,19 @@ def test_published_product_page_renders(site, browser, name):
     assert failures == [], "\n".join(map(str, failures))
 
 
-def test_published_examples_keep_the_site_theme_out_of_their_layer(site):
+def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeypatch):
     """A website example uses the authored example's layout layer."""
+    monkeypatch.chdir(ROOT)  # resolve project-relative package selections
     package = DOCS / "package"
     context_theme = layer_model.stylesheet(package / "theme.css", package).rstrip()
     for source in site_build.published_page_sources():
-        theme = site / "examples" / source.stem / "theme.css"
-        assert context_theme not in theme.read_text(), source
+        record = layer_record(site / "examples" / source.stem)
+        theme = (
+            selected(record, site / "examples" / source.stem)
+            .top_files["theme.css"]
+            .decode()
+        )
+        assert context_theme not in theme, source
 
 
 def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
@@ -362,21 +372,19 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
 
 
 def test_product_pages_are_published_as_complete_page_records(site):
-    """Each page retains its layer, history, and every captured media input."""
+    """Each page retains its layer selection, history, and every captured media
+    input."""
     sources = pages_under(DOCS)
     for source in sources:
         page = site_build.product_page(site, source.name)
         expected = authored_markup(source)
         assert (page / "index.html").read_text() == expected, source.name
-        for name in (
-            *schema_model.VENDORED_FILES,
-            "events.jsonl",
-        ):
+        for name in (schema_model.LAYER_FILE, "events.jsonl"):
             assert (page / name).is_file(), f"{source.name}: no {name}"
-        # The runtime is the serving Leaf's, which the release publishes beside each
-        # revision rather than the page vendoring it (`runtime_selection`).
-        for name in ("instructions", "revisions", "vendor", "widgets"):
-            assert list((page / name).iterdir()), f"{source.name}: {name}/ is empty"
+        # The layer and runtime are the serving Leaf's, which the release publishes
+        # beside each revision rather than the page holding them
+        # (`runtime_selection`).
+        assert list((page / "revisions").iterdir()), f"{source.name}: no revisions"
         artifact = read_artifact(page, files_model.latest_revision(page))
         for path, resource in artifact.resources.items():
             if path.startswith("/media/"):
@@ -387,7 +395,7 @@ def test_product_pages_are_published_as_complete_page_records(site):
 def test_page_layers_stay_inside_their_page_directories(site):
     """The container image keeps complete pages rather than a public layer beside them."""
     for name in (
-        *schema_model.VENDORED_FILES,
+        *schema_model.LAYER_TOP_FILES,
         "session.js",
         "runtime.js",
         "events.jsonl",
@@ -596,7 +604,14 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
 
         seed = source.with_suffix(".jsonl")
         if seed.exists():
-            assert seed.read_text() in (page_dir / "events.jsonl").read_text()
+            # Each seeded event is in the log in order, as admission wrote it: the
+            # fields the seed states beside those admission derives, after the
+            # stamp of the revision it names.
+            remaining = iter(events)
+            assert all(
+                any(event.items() >= seeded.items() for event in remaining)
+                for seeded in read_event_lines(seed)
+            ), f"{seed.name} is not in the published log"
             # The seed is history, so the page acknowledges all of it.
             receipt = next(event for event in events if event["kind"] == "receipt")
             assert acknowledged(events) == receipt["seq"] - 1
@@ -607,16 +622,12 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
             stored = data_model.source_file(page_dir, operation["source"])
             assert json.loads(stored.read_text())["value"] == operation["value"]
 
-        for name in (
-            "events.jsonl",
-            "icon.svg",
-            "registry.json",
-            "theme.css",
-        ):
+        for name in ("events.jsonl", schema_model.LAYER_FILE):
             assert (page_dir / name).is_file(), f"{source.name}: no {name}"
-        # The runtime is the serving Leaf's, which the release publishes beside each
-        # revision rather than the page vendoring it (`runtime_selection`).
-        for sub in ("instructions", "media", "revisions", "vendor", "widgets"):
+        # The layer and runtime are the serving Leaf's, which the release publishes
+        # beside each revision rather than the page holding them
+        # (`runtime_selection`).
+        for sub in ("media", "revisions"):
             assert list((page_dir / sub).iterdir()), f"{source.name}: {sub}/ is empty"
         assert declared(page_dir)["state"] == "idle"
         assert not (page_dir / "service.json").exists()
@@ -1505,10 +1516,10 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     The anchor is the half that rots quietly: the quote is captured against the file, and
     a rewritten sentence leaves it resolving to nothing and the thread left detached,
     with no error anywhere."""
-    _, url = served_example("ship-review")
+    page_dir, url = served_example("ship-review")
     page = open_page(browser, url)
     source = EXAMPLES / "ship-review.html"
-    events = _parse_events(source.with_suffix(".jsonl").read_bytes())
+    events = read_events(page_dir)
     threads = [
         thread
         for thread in build_threads(

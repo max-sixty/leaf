@@ -78,10 +78,10 @@ transcript shows before it reads the page, so it hands over again only what neve
 reached the model, and names an update the model did read and left unanswered as
 owed.
 
-A page vendored at an older protocol is re-vendored before it is read
+A page at an older protocol is taken to this Leaf's before it is read
 (`vendoring.renew_layer`), and the turn is told why that failed or which checks
-index.html now fails. A page this Leaf cannot write, because its re-vendor failed
-or a newer Leaf vendored it, offers no input (`delivery.deliverable`), so the hook
+index.html now fails. A page this Leaf cannot write, because its renewal failed
+or a newer Leaf initialized it, offers no input (`delivery.deliverable`), so the hook
 names the refusal and records no pickup there.
 
 A harness reads a hook's output only after the hook exits, and discards it if the
@@ -160,7 +160,7 @@ class PagePlan:
     cursor, status and ownership snapshot. Planning never records a pickup. The
     caller selects which pending batches its transport can hand over.
     `unwritable` says why this Leaf may record no pickup there, or is None
-    (`event_contracts.write_refusal`). `unready` is what re-vendoring the page
+    (`event_contracts.write_refusal`). `unready` is what renewing the page's layer
     before the reading left for the agent, or None (`vendoring.renew_layer`).
     """
 

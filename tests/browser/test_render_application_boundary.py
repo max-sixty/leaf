@@ -567,14 +567,14 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
               return {
                 phase: application.phase,
                 epoch: application.semanticEpoch,
-                presented: presentation.presentedEpoch,
+                sealed: presentation.sealed,
                 pending: presentation.pending,
                 current: runtime.applicationPresented(),
               };
             }"""
     )
     assert waiting["phase"] == "waiting"
-    assert waiting["presented"] == waiting["epoch"]
+    assert waiting["sealed"] is True
     assert waiting["pending"] == []
     assert waiting["current"] is True
 
@@ -589,14 +589,14 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
               return {
                 phase: application.phase,
                 epoch: application.semanticEpoch,
-                presented: presentation.presentedEpoch,
+                sealed: presentation.sealed,
                 pending: presentation.pending,
               };
             }"""
     )
     assert ready["phase"] == "ready"
     assert ready["epoch"] > waiting["epoch"]
-    assert ready["presented"] == ready["epoch"]
+    assert ready["sealed"] is True
     assert ready["pending"] == []
 
 
@@ -2166,7 +2166,7 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
       const thread = node.thread;
       const agent = thread.msgs.find(message => message.author === 'agent');
       const choice = agent.reactions.choices.find(choice => choice.name === 'keep');
-      return thread.offers.reply && thread.offers.resolve && !thread.offers.reopen &&
+      return !thread.resolved &&
         choice.inForce && choice.glyph && choice.label && Object.isFrozen(choice);
     }""")
     assert page.evaluate("""async () => {

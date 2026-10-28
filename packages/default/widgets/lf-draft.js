@@ -74,11 +74,9 @@ import {
   LeafElement,
   offer,
   TEXT_FIELD,
-  paintKeys,
   quoted,
   sendDraft,
   raiseError,
-  commands,
   copyBlock,
   saveDraft,
   loadDraft,
@@ -97,6 +95,7 @@ import {
   focused,
   onPressAway,
   PRESSABLE,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 // Each control's key and the action whose mark it shows.
@@ -318,7 +317,8 @@ customElements.define(
           keep: () => this.#commit(),
         },
       ]);
-      commands(this, this.#commandScope);
+      this.lfCommands = this.#commandScope;
+      commandsChanged(this);
     }
 
     #control(key) {
@@ -350,7 +350,7 @@ customElements.define(
           ${this.#copy}`,
         this.#tools,
       );
-      paintKeys();
+      commandsChanged(this);
     }
 
     #available() {
@@ -402,7 +402,8 @@ customElements.define(
       // being the innermost scope's is what keeps the runtime's own rung from running
       // behind it and closing a panel too.
       this.#editor = editor;
-      commands(editor, this.#commandScope);
+      editor.lfCommands = this.#commandScope;
+      commandsChanged(editor);
       this.#body.after(editor);
       // Its toolbar stands inside the draft, so Discard and Copy are no press away.
       this.#stopPressAway = onPressAway(

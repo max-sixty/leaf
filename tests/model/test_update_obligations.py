@@ -2,13 +2,12 @@
 answers, named by every workflow that delivers toward it, and listed once on the lists
 by its next actor."""
 
-import json
-
 import model_folds as model
 from interact_support import (
     PAGE,
     append_carried_log_record,
     append_command,
+    declare_on_page,
     last_deliverable_seq,
     publish,
     queue_board_registry,
@@ -166,10 +165,8 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
     before updates published records: the newest of two messages in a row, each card
     of a finished queue frozen in a thread, a pick on a page obligation, and nothing for
     a draft edit or a message a harness handed back."""
-    (claimed / "registry.json").write_text(
-        json.dumps(
-            queue_board_registry(json.loads((claimed / "registry.json").read_text()))
-        )
+    declare_on_page(
+        claimed, lambda registry: registry.update(queue_board_registry(registry))
     )
     (claimed / "index.html").write_text(
         PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(

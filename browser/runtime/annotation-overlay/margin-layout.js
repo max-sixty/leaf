@@ -93,7 +93,7 @@ import { railStands } from "../content-layout.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { move } from "../dom-move.js";
 import { coarsePointer, hoveringPointer } from "../pointer.js";
-import { LAYOUT } from "../widget-elements.js";
+import { LAYOUT } from "../widget-upgrade.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {

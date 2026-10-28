@@ -28,6 +28,7 @@ from interact_support import (
     consume_pending_input,
     continued,
     declare_idle,
+    declare_on_page,
     declared,
     delivered_ref,
     delivery_through,
@@ -57,7 +58,6 @@ from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
@@ -596,17 +596,16 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
     leases_model.release_lease(lease)
 
 
-def test_the_guard_survives_a_page_vendored_before_the_layer_moved(
+def test_the_guard_survives_a_page_whose_layer_cannot_be_composed(
     claimed, printing, capsys
 ):
-    """A page directory holds the copy of the layer it was created with, and the
-    stamp refuses a copy it cannot read — by design, since that refusal is what
-    sends an agent to re-vendor. The Stop hook is the one user
-    that must never put the question: hook registrations fail open, so a raise
-    here stands the *whole* guard down, watch clause included, on any page a
-    little older than the checkout, and says nothing about it. Found by running
-    the guard against a real page from an earlier vendoring, where reading the
-    published version to settle threads loaded that page's registry."""
+    """Every Leaf composes a page's layer from the packages it selects, and refuses
+    a selection it cannot compose — by design, since that refusal is what sends an
+    agent to repair the page. The Stop hook is the one user that must never put the
+    question: hook registrations fail open, so a raise here stands the *whole*
+    guard down, watch clause included, on a page whose project package moved, and
+    says nothing about it. Found by running the guard against a real page, where
+    reading the published version to settle threads loaded that page's registry."""
     session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
     lease = leases_model.take_wait_lease(
@@ -617,11 +616,14 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
     receive_through(claimed, last_deliverable_seq(claimed))
-    registry = files_model.read_json(claimed / "registry.json")
-    del registry["$languages"]
-    cleanup_model.write_json(claimed / "registry.json", registry)
+    record = registry_storage.layer_record(claimed)
+    layer = claimed / schema_model.LAYER_FILE
+    layer.unlink()
+    registry_storage.LAYER.write(
+        layer, {**record, "packages": [*record["packages"], "./moved-package"]}
+    )
     # Without this the test passes for the wrong reason: it has to be a page
-    # whose registry the current layer really does refuse.
+    # whose layer the current Leaf really does refuse.
     with pytest.raises(registry_contract.RegistryError):
         registry_storage.load_registry(claimed)
 
@@ -1266,9 +1268,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
         "answer"
     ]
     told = [batch["handling"][ref] for ref in event["handling"]]
-    assert any(
-        "write the answer into the markup, and stamp a version" in text for text in told
-    )
+    assert any("such as a choice group marked `settled`" in text for text in told)
     receive_through(claimed, last_deliverable_seq(claimed))
 
     assert f"records action {picked['id']}" in _stop(capsys)
@@ -1387,9 +1387,12 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
     because `choose` happens to answer some other group: a layer answering the
     group only by its Done holds the tick the same way."""
     if declared == "done-only":
-        registry = files_model.read_json(claimed / "registry.json")
-        registry["lf-options"]["x-awaits"]["answered"] = {"answer": {}}
-        cleanup_model.write_json(claimed / "registry.json", registry)
+        declare_on_page(
+            claimed,
+            lambda registry: registry["lf-options"]["x-awaits"].update(
+                answered={"answer": {}}
+            ),
+        )
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)
@@ -1453,10 +1456,8 @@ QUEUE_PAGE = PAGE.replace(
 
 def test_a_finished_queue_owes_every_card_the_user_moved(page_dir):
     """Completing a queue owes every moved card, not just the final one."""
-    (page_dir / "registry.json").write_text(
-        json.dumps(
-            queue_board_registry(json.loads((page_dir / "registry.json").read_text()))
-        )
+    declare_on_page(
+        page_dir, lambda registry: registry.update(queue_board_registry(registry))
     )
     (page_dir / "index.html").write_text(QUEUE_PAGE)
     publish(page_dir)
@@ -1485,10 +1486,8 @@ def test_a_finished_queue_owes_every_card_the_user_moved(page_dir):
 
 def test_a_queue_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
     """A move leaving cards queued keeps the thread's obligation on the user."""
-    (page_dir / "registry.json").write_text(
-        json.dumps(
-            queue_board_registry(json.loads((page_dir / "registry.json").read_text()))
-        )
+    declare_on_page(
+        page_dir, lambda registry: registry.update(queue_board_registry(registry))
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1

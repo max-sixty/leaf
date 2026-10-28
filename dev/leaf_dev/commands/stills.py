@@ -1324,7 +1324,7 @@ def ship_answered(page: Page) -> None:
 
 def card_message_by_keyboard(page: Page) -> None:
     """The agent's question in a margin card, reached by Next on me (`m`), which
-    focuses the message, so its ring runs beside the card's sticky head."""
+    focuses the message, so its card wears the ring."""
     for _ in range(4):
         page.keyboard.press("m")
         settle(page)
@@ -1448,6 +1448,17 @@ def topic_contents(page: Page) -> None:
     sample = page.locator("#bg-topic-contents")
     sample.scroll_into_view_if_needed()
     page.evaluate("document.getElementById('bg-topic-contents').ready")
+
+
+def overflowing_tabs(page: Page) -> None:
+    """Reveal the far end of a boxed tab strip through its overflow arrow."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    strip = page.locator("#bg-rollout-tabs > .lf-tabstrip")
+    strip.scroll_into_view_if_needed()
+    strip.locator('.lf-tabstrip-scroll[data-to="end"] > span').click()
+    scroll_settled(page)
 
 
 def contents_over_reading(page: Page) -> None:
@@ -2196,6 +2207,19 @@ STATES = (
         touch=True,
     ),
     State("gallery-tabs", "developer/feature-gallery", at_rest),
+    State(
+        "gallery-tabs-overflow",
+        "developer/feature-gallery",
+        overflowing_tabs,
+        region="#bg-rollout-tabs",
+    ),
+    State(
+        "gallery-tabs-overflow-dark",
+        "developer/feature-gallery",
+        overflowing_tabs,
+        scheme="dark",
+        region="#bg-rollout-tabs",
+    ),
     State("gallery-tab-focus", "developer/feature-gallery", tab_by_keyboard),
     State("gallery-tab-hover", "developer/feature-gallery", tab_by_pointer),
     State(

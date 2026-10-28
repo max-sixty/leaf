@@ -11,6 +11,7 @@
    it goes through errors.js, which keeps it until the user has dealt with it. */
 import { el } from "./widget-elements.js";
 import { signal } from "/runtime/framework.js";
+import { ANNOUNCE } from "./widget-upgrade.js";
 
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
@@ -47,6 +48,9 @@ export function announce(msg) {
     liveEl.append(msg);
   }, 30);
 }
+
+// A widget's words for a listener (`announce`, widget-upgrade.js), said here.
+addEventListener(ANNOUNCE, (event) => announce(event.detail));
 
 // An undo ("Undid: Chose “Fast” · just now"), an arrival ("Updated to v3"): the
 // quiet words in the panel's seat. A widget's gesture is no notice, since the widget

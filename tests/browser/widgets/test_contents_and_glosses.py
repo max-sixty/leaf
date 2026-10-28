@@ -300,8 +300,24 @@ def test_contents_with_every_destination_hidden_returns_when_the_disclosure_open
     nav = page.get_by_role("navigation", name="On this page", include_hidden=True)
     expect(nav).to_be_hidden()
     expect(nav.locator("[aria-current]")).to_have_count(0)
+    page.evaluate("""() => {
+      window.firstContentsReveal = null;
+      const observer = new ResizeObserver(() => {
+        if (!document.querySelector('main > details').open) return;
+        const nav = document.querySelector('#contents');
+        firstContentsReveal = {
+          hidden: nav.querySelectorAll('[data-lf-toc-hidden]').length,
+          current: nav.querySelector('[aria-current]')?.textContent,
+        };
+        observer.disconnect();
+      });
+      observer.observe(document.querySelector('main'));
+    }""")
     page.get_by_text("Open the migration plan", exact=True).click()
     expect(nav).to_be_visible()
+    page.wait_for_function("firstContentsReveal !== null")
+    first_reveal = page.evaluate("firstContentsReveal")
+    assert first_reveal == {"hidden": 0, "current": "Migration plan"}
     expect(nav.locator(".lf-toc-start a")).to_have_attribute("aria-current", "location")
     expect(nav.locator("[data-lf-toc-hidden]")).to_have_count(0)
     page.get_by_text("Open the migration plan", exact=True).click()

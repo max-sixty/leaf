@@ -12,6 +12,7 @@ from interact_support import append_carried_log_record
 from PIL import Image, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    HOLD_MOTION,
     PANEL_PAGE,
     THREAD_DIFF_PAGE,
     live_url,
@@ -20,6 +21,7 @@ from render_cases_interaction import (
 from render_harness import (
     LONG_PAGE,
     example_media,
+    holding,
     leaf_page,
     open_page,
     resized,
@@ -116,6 +118,101 @@ def test_thread_actions_share_consistently_sized_message_headers(
             geometry
         )
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
+
+
+def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve):
+    """A margin card's heads end short of its edge, where the first message's head
+    leaves the thread's actions their room, so Copy at a later message's head end
+    stood mid-card. It stands at the card's edge, in the actions' column, and copies
+    the message's Markdown source; with nothing selected, the copy key in the thread
+    presses the Copy of the message whose words the user clicked."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Can it **wait**?", {"section": "lede"})
+    source = "Not safely:\n\n- setup runs **untrusted** code\n- `v2` is weeks away"
+    append_agent_reply(serve.page_dir, root, source)
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-margin-marker").first.click()
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    reply = card.locator(".lf-msg.agent")
+    # A press leaves focus on the first message's Copy, and its controls still leave
+    # with the pointer. While they show, a rule parts them from the thread's actions.
+    first = card.locator(".lf-msg.user")
+    first.hover()
+    first.locator(".lf-msg-copy").click()
+    shown = """message => [getComputedStyle(message, '::after').opacity,
+      ...[...message.querySelectorAll(':scope > .lf-msg-control')]
+        .map(control => getComputedStyle(control).opacity)]"""
+    assert first.evaluate(shown) == ["1", "1", "1"]
+    reply.locator(".lf-msg-text p").first.hover()
+    rendered(page)
+    assert first.evaluate("m => m.contains(document.activeElement)")
+    assert first.evaluate(shown) == ["0", "0", "0"]
+    # The hovered reply's Copy shows over its head row's cell in the actions' track.
+    assert reply.locator(".lf-msg-copy").evaluate(
+        """copy => { const box = copy.getBoundingClientRect();
+          return getComputedStyle(copy).opacity === '1' && copy.contains(
+            document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)); }"""
+    )
+    reply.locator(".lf-msg-text p").first.click()
+    rendered(page)
+    edges = card.evaluate(
+        """card => ({
+          copy: card.querySelector('.lf-msg.agent .lf-msg-copy').getBoundingClientRect().right,
+          close: card.closest('.lf-margin-preview').querySelector('.lf-margin-preview-close')
+            .getBoundingClientRect().right,
+        })"""
+    )
+    assert edges["copy"] == pytest.approx(edges["close"], abs=1), edges
+    page.keyboard.press("ControlOrMeta+c")
+    expect(reply.locator(".lf-msg-copy")).to_have_js_property("status", "success")
+    assert page.evaluate("navigator.clipboard.readText()") == source
+
+
+def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
+    """The last translated frame and rest keep Copy on the message's head line."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Opening turn.", {"section": "how-store"})
+    append_agent_reply(serve.page_dir, root, "A reply with words to copy. " * 8)
+    page = open_page(browser, url)
+    resized(page, 1200, 520)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    rendered(page)
+    page.keyboard.press("c")
+    page.keyboard.type("One more turn.")
+    rendered(page)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    pending = []
+    page.route("**/api/event", lambda route: pending.append(route))
+    try:
+        page.keyboard.press("ControlOrMeta+Enter")
+        holding(page, pending, 1, "the margin reply")
+        page.wait_for_function(
+            """() => __lfHeld.some(a => a.playState !== 'idle' &&
+              a.effect.target.matches('.lf-msg.agent') &&
+              a.effect.getKeyframes().some(k => '--lf-box-carry' in k))"""
+        )
+        page.evaluate(
+            """() => __lfHeld.filter(a => a.playState !== 'idle').forEach(a => {
+              a.currentTime = a.effect.getComputedTiming().endTime - 0.01;
+            })"""
+        )
+        message = page.locator(".lf-margin-preview .lf-msg.agent")
+        edges = """m => {
+          const box = m.getBoundingClientRect();
+          const copy = m.querySelector('.lf-msg-copy').getBoundingClientRect();
+          return {right: copy.right - box.right, top: copy.top - box.top};
+        }"""
+        moving = message.evaluate(edges)
+        assert moving == pytest.approx({"right": 0, "top": 0}, abs=1), moving
+        page.evaluate(
+            "() => __lfHeld.slice().filter(a => a.playState !== 'idle')"
+            ".forEach(a => a.finish())"
+        )
+        rendered(page)
+        assert message.evaluate(edges) == pytest.approx(moving, abs=1)
+    finally:
+        page.context.close()
 
 
 @pytest.mark.parametrize("surface", ["panel", "margin"])

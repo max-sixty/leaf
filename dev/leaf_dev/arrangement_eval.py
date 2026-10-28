@@ -8,8 +8,9 @@ pages/traces. The author checks its own work. One agent judges
 the final page and, for a decision task, its earlier usable controls; there is no
 second decision reader or repeated render/quality grader for every revision.
 
-Each revision is retained for investigation. Reports capture the final and
-predecision pages and retain native timing/token accounting. Optional eval-pairs
+Each phase retains its primary output, initialized pages and served addresses.
+The judge restores known page links in disposable copies; archived bytes stay exact.
+Reports capture the final and predecision pages and retain native timing/token accounting. Optional eval-pairs
 judges compare saved samples without rerunning their authors. The run centrally
 selects its viewports, defaulting to one fullscreen desktop for every case.
 """
@@ -20,15 +21,20 @@ import shutil
 import subprocess
 import tempfile
 import time
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
+from html import escape
 from pathlib import Path
+from urllib.parse import urldefrag
+
+import turbohtml
 
 from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.render_gate import command as render_command_model
 from leaf.service import requires_agent_attention
+from leaf.structure import source_index
 from leaf.thread import successful_replies
 from leaf.user_views import read_user_views
 from leaf_dev import ROOT, arrangement_plain, pane_readings
@@ -40,6 +46,8 @@ from leaf_dev.arms import (
     environment,
     now,
     observed_sum,
+    pages,
+    read_page_state,
     read_trace,
     resumed,
     run_agent,
@@ -236,6 +244,111 @@ def snapshot(page: Path, destination: Path) -> None:
         )
 
 
+def snapshot_phase(run: Run, phase: int) -> None:
+    """Retain primary output plus initialized pages, including the nested state home."""
+    main = run.directory / f"page-phase{phase}"
+    if not run.leaf_condition:
+        snapshot(run.authored_page, main)
+        return
+    initialized = set(pages(run.work))
+    found = initialized | ({run.authored_page} if run.authored_page.exists() else set())
+    archived = []
+    for index, page in enumerate(sorted(found)):
+        state = (
+            read_page_state(run.payload, run.state, page) if page in initialized else {}
+        )
+        destination = (
+            main
+            if page == run.authored_page
+            else main.with_name(f"{main.name}-pages") / f"{index}-{page.name}"
+        )
+        snapshot(page, destination)
+        archived.append(
+            {
+                "source": str(page),
+                "page": str(destination.relative_to(run.directory)),
+                "url": (state.get("server") or {}).get("url"),
+            }
+        )
+    main.with_name(f"{main.name}-pages.json").write_text(
+        json.dumps(archived, indent=2) + "\n"
+    )
+
+
+def rebase_page_links(source: str, addresses: dict[str, str]) -> str:
+    """Restore only known page links; keep prose, scripts and other URLs exact."""
+    tree = turbohtml.parse(source, scripting=True, source_locations=True)
+    index = source_index(source)
+    edits = []
+    for link in tree.find_all("a"):
+        href = link.attrs.get("href")
+        if not href:
+            continue
+        address, fragment = urldefrag(href)
+        if address not in addresses:
+            continue
+        location = link.source_location.attrs["href"]
+        target = addresses[address] + (f"#{fragment}" if fragment else "")
+        edits.append(
+            (
+                index(location.start_line, location.start_col),
+                index(location.end_line, location.end_col),
+                f'href="{escape(target, quote=True)}"',
+            )
+        )
+    for start, end, replacement in sorted(edits, reverse=True):
+        source = source[:start] + replacement + source[end:]
+    return source
+
+
+@contextmanager
+def restored_page(saved: dict):
+    """Serve a disposable phase, restoring links among its saved pages only.
+
+    The original archives and their events/revisions stay immutable. Rebased hrefs
+    are ordinary source edits in the disposable copies, activated by their Leaf.
+    """
+    original = Path(saved["page"])
+    manifest = original.with_name(f"{original.name}-pages.json")
+    archived = (
+        json.loads(manifest.read_text())
+        if manifest.exists()
+        else [{"page": original.name, "url": None}]
+    )
+    with (
+        tempfile.TemporaryDirectory(prefix="leaf-judge-") as temporary,
+        ExitStack() as stack,
+    ):
+        work = Path(temporary)
+        copies = {}
+        addresses = {}
+        for entry in archived:
+            source = original.parent / entry["page"]
+            copied = work / entry["page"]
+            shutil.copytree(source, copied)
+            url = stack.enter_context(
+                arrangement_plain.serving(copied)
+                if saved["condition"] == "html"
+                else serving(Path(saved["payload"]), work / "state", copied)
+            )
+            copies[source] = (copied, url)
+            if entry["url"]:
+                addresses[entry["url"]] = url
+        for copied, _ in copies.values():
+            document = copied / "index.html"
+            source = document.read_text()
+            restored = rebase_page_links(source, addresses)
+            if restored != source:
+                document.write_text(restored)
+                if saved["condition"] == "leaf":
+                    state = read_page_state(
+                        Path(saved["payload"]), work / "state", copied
+                    )
+                    if not state["source"]["live"]:
+                        raise RuntimeError(state["source"]["error"])
+        yield copies[original][1], addresses
+
+
 def latest_seq(page: Path) -> int:
     events = read_events(page) if (page / "events.jsonl").exists() else []
     return max((e["seq"] for e in events), default=0)
@@ -316,7 +429,7 @@ def author(run: Run, cwd: Path) -> None:
                 elif phase == 5:
                     live.send(CASES[run.subject].revision)
                 settled = live.settle(since, grace=GRACE, wake=WAKE, before=before)
-                snapshot(page, run.directory / f"page-phase{phase}")
+                snapshot_phase(run, phase)
                 if not settled or not (page / "index.html").exists():
                     break
                 if leaf and not live.url:
@@ -325,7 +438,8 @@ def author(run: Run, cwd: Path) -> None:
                     open_as_user(run, live.url)
     finally:
         if leaf:
-            run.leaf("server", "stop", str(page))
+            for found in pages(run.work):
+                run.leaf("server", "stop", str(found))
 
 
 def comment(run: Run, live: LiveSession):
@@ -474,7 +588,12 @@ def judge_pages(
                 json.dumps(
                     {
                         "browser": {
-                            "launchOptions": {"executablePath": shell_executable()}
+                            "launchOptions": {
+                                "executablePath": shell_executable(),
+                                # The judge's inherited sandbox already covers Chromium;
+                                # macOS refuses Chromium's nested sandbox initialization.
+                                "chromiumSandbox": False,
+                            }
                         }
                     }
                 )
@@ -492,19 +611,14 @@ def judge_pages(
                 *cli(),
             ]
             addresses = {}
+            restorations = {}
             for label, saved in pages.items():
-                temporary = stack.enter_context(
-                    tempfile.TemporaryDirectory(prefix="leaf-judge-")
+                addresses[label], restorations[label] = stack.enter_context(
+                    restored_page(saved)
                 )
-                copied = Path(temporary) / "page"
-                shutil.copytree(saved["page"], copied)
-                addresses[label] = stack.enter_context(
-                    arrangement_plain.serving(copied)
-                    if saved["condition"] == "html"
-                    else serving(
-                        Path(saved["payload"]), Path(temporary) / "state", copied
-                    )
-                )
+            (evidence / "restored-pages.json").write_text(
+                json.dumps(restorations, indent=2) + "\n"
+            )
             # Leaf's regions, read only where every page is Leaf's: a plain HTML page
             # has none, and a pair judge given measurements of one side only would
             # find measured defects on that side alone.
@@ -549,6 +663,7 @@ Task and criterion:
                     out=evidence / "stream.jsonl",
                     err=evidence / "err.txt",
                     harness="codex",
+                    dirs=[Path(sockets)],
                     model=JUDGE_MODELS["codex"],
                     env=variables,
                     limit=JUDGING_LIMIT,

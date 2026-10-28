@@ -20,6 +20,9 @@ from pathlib import Path
 
 def call_api(prompt: str, options: dict, context: dict) -> dict:
     config, metadata = options["config"], context["test"]["metadata"]
+    from leaf_dev.arms import MODELS
+
+    MODELS[config["harness"]] = config["model"]
     os.environ["CLAUDE_CONFIG_DIR"] = config["claude_config_dir"]
     samples = Path(config["samples"])
     samples.mkdir(parents=True, exist_ok=True)
@@ -35,7 +38,9 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
             work,
             metadata,
             harness=config["harness"],
+            condition=config["condition"],
             shots=Path(config["screenshots"]) / work.name,
+            viewports=tuple(config["viewports"]),
         )
         response.setdefault("metadata", {})["work"] = str(work)
         return response

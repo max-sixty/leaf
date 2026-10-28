@@ -1,6 +1,5 @@
 import { frameVisibility, nextRender, onFrameVisibility, readSampleVisibility, sizeObserver, watchFrame } from "./bundle-portable.js";
-import { inputInFrame, keeps, move } from "./bundle-dom-move.js";
-import { pageUrl, runtime } from "./bundle-layer-stack.js";
+import { inputInFrame, keeps, move, pageUrl, runtime } from "./bundle-layer-stack.js";
 import { recordInteraction, requestJson } from "./bundle-layer-client.js";
 import { aborted, widgetDescriptor } from "./bundle-data.js";
 import { frameView, layoutWindow, presented, watchRoom } from "./bundle-geometry.js";
@@ -49,15 +48,15 @@ const request = (url, body, headers = {}) => requestJson(url, {
 	body: JSON.stringify(body),
 	keepalive: true
 }, "sample");
-function mountSample(frame, { template, window: asWindow = false }) {
-	if (!template) throw new Error("a sample needs an authored template id");
+function mountSample(frame, { template, source, window: asWindow = false }) {
+	if (template == null === (source == null)) throw new Error("a sample needs either an authored template id or source document");
 	let revision = runtime.currentRevision;
 	let message;
 	for (let owner = frame.parentElement; owner; owner = owner.parentElement) {
 		const descriptor = widgetDescriptor(owner);
 		if (!descriptor) continue;
 		if (descriptor.document.kind === "page") revision = descriptor.document.revision;
-		else message = descriptor.document.message;
+		else if (source == null) message = descriptor.document.message;
 		break;
 	}
 	let current = null;
@@ -334,6 +333,7 @@ function mountSample(frame, { template, window: asWindow = false }) {
 			record("allocating");
 			const { url, page } = await request(pageUrl("api/samples"), {
 				template,
+				source,
 				message
 			}, revision ? { "Leaf-View-Revision": String(revision) } : {});
 			current = new URL(url, location.href).href;

@@ -233,6 +233,9 @@ interface WindowEventMap {
     error?: unknown;
     page?: boolean;
   }>;
+  /** A widget's words for a listener, which Leaf says in its live region
+   * (`widget-upgrade.js`, `announce`). */
+  "lf-announce": CustomEvent<string>;
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;

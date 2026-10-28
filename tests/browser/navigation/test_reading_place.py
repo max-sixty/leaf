@@ -39,6 +39,56 @@ from leaf.render_checks import rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
+def test_restoring_a_reading_start_paints_its_continuation_before_the_frame(
+    browser, serve
+):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Restore reading",
+                '<div id="reading" style="height:200px;overflow:auto">'
+                '<div style="height:1200px">Reading to restore</div></div>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const api = await window.__lfWidgetApi();
+      const host = document.querySelector('#reading');
+      const region = {id:'reading', host, body:host};
+      window.reading = {api, host, region, stop:api.registerReadingRegion(region)};
+    }""")
+    expect(page.locator("#reading")).to_have_attribute("data-lf-more-below", "")
+    page.evaluate("""() => {
+      const p = window.reading;
+      p.place = p.api.capturePlace(p.region);
+      p.host.scrollTop = p.host.scrollHeight;
+    }""")
+    expect(page.locator("#reading")).not_to_have_attribute("data-lf-more-below", "")
+    # A resize restoration happens after this frame's native scroll delivery.
+    # Read in its microtask checkpoint: waiting for a frame hides the stale cue.
+    restored = page.evaluate("""() => new Promise(resolve => {
+      const p = window.reading;
+      let started = false;
+      const observer = new ResizeObserver(() => {
+        if (!started) {
+          requestAnimationFrame(() => {started = true; p.host.style.height = '220px'});
+          return;
+        }
+        p.api.restorePlace(p.place, p.region);
+        queueMicrotask(() => {
+          observer.disconnect();
+          const result = {top:p.host.scrollTop,
+            more:p.host.hasAttribute('data-lf-more-below')};
+          p.stop();
+          resolve(result);
+        });
+      });
+      observer.observe(p.host);
+    })""")
+    assert restored == {"top": 0, "more": True}
+
+
 # Authored controls distinguish resuming Tab at the reading from restarting at the top.
 READING_CONTROLS_PAGE = LONG_PAGE.replace(
     '<h1 id="t">', '<button id="first-control">First control</button><h1 id="t">'

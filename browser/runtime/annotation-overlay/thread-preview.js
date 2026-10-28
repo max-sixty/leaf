@@ -300,9 +300,23 @@ export function createThreadPreview({
           let edge = 0;
           let height = above ? 12 : 0;
           const room = slotTop(transcript);
+          const top =
+            transcript.getBoundingClientRect().top + transcript.clientTop + room;
+          // A later message's controls stand in the actions' track at its head line
+          // (annotation-chrome.css), so while that line shares the actions' they
+          // stand aside.
+          for (const message of transcript.querySelectorAll(":scope > .lf-msg")) {
+            const head = message.querySelector(":scope > .lf-msg-head");
+            const box = head?.getBoundingClientRect();
+            keeps(
+              message,
+              "data-lf-beside-actions",
+              above && box && box.top < top + box.height && box.bottom > top
+                ? ""
+                : null,
+            );
+          }
           if (above) {
-            const top =
-              transcript.getBoundingClientRect().top + transcript.clientTop + room;
             for (const head of transcript.querySelectorAll(".lf-msg-head")) {
               const box = head.getBoundingClientRect();
               if (!box.height || box.bottom <= top) continue;

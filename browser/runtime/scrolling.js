@@ -29,7 +29,7 @@
    shadow root does not reach. */
 
 import { nextFrame, sizeObserver } from "./rendering.js";
-import { watchOwner } from "./arrivals.js";
+import { setScroll, watchOwner } from "./arrivals.js";
 
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI
@@ -111,7 +111,7 @@ export function stopScroll(boxes) {
     .map((box) => [box, moving.get(box)]);
   if (!stopped.length) return null;
   for (const [box] of stopped)
-    box.scrollTo({
+    setScroll(box, {
       left: box.scrollLeft,
       top: box.scrollTop,
       behavior: "instant",
@@ -249,9 +249,10 @@ export const SCROLL_SLACK = 2;
 // The end is a reading destination, rather than the pixel offset it occupies before
 // a box is resized.
 export const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= SCROLL_SLACK;
+/** @param {Element} box @param {ScrollBehavior} behavior */
 export const scrollToEnd = (box, behavior = "instant") => {
   if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
-  box.scrollTo({ top: scrollLimit(box), behavior });
+  setScroll(box, { top: scrollLimit(box), behavior });
 };
 
 // Apply a relative movement to the scroller the caller resolved. Keeping the box explicit
@@ -267,11 +268,12 @@ export const scrollToEnd = (box, behavior = "instant") => {
 // from where the box landed, each move's rounding would add to the last, and a line
 // would creep across the screen revision by revision, or frame by frame of a fold.
 const aims = new WeakMap();
+/** @param {Element} box @param {number} top @param {ScrollBehavior} behavior */
 export const moveScrollerBy = (box, top, behavior = "instant") => {
   const aim = box.scrollTop + top;
   if (Math.abs(top) >= 0.5) {
     if (behavior !== "instant" && reachable(box, top)) startScroll(box);
-    box.scrollBy({ top, behavior });
+    setScroll(box, { top: aim, behavior });
   }
   if (behavior === "instant" && Math.abs(aim - box.scrollTop) < 1)
     aims.set(box, { aim, at: box.scrollTop });

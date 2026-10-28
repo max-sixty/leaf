@@ -301,6 +301,7 @@ svg[data-lf-icon] {
    shown with them, to part the message's controls from the surface's. */
 .lf-msg::after {
   position: absolute;
+  z-index: 2;
   position-anchor: --lf-msg-head;
   inset-inline-start: calc(anchor(right) + var(--sp-2) / 2);
   inset-block-start: anchor(center);

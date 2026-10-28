@@ -3,7 +3,7 @@ import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, adm
 import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, agentName, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, live as live$1, loadShadowRules, marks, marksSheet, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, showsContents, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot } from "./bundle-passages.js";
-import { alreadyShown, copyControl, fitsWhole, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
+import { alreadyShown, copyControl, fitsWhole, landedBox, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { backgroundFlash, flashDuration, foldBlock, isCanonicalMediaUrl, motion, motionPlays, readAttachedMedia, scopedMediaUrl, scrollBehavior, writeAttachedMedia } from "./bundle-media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
@@ -4075,7 +4075,7 @@ var MessageEditor = class {
 		cancel.type = "button";
 		cancel.setAttribute("aria-label", "Discard");
 		cancel.title = "Discard";
-		cancel.append(iconElement("undo", "lf-msg-control-icon"));
+		cancel.append(iconElement("cross", "lf-msg-control-icon"));
 		actions.append(cancel);
 		this.foot = document.createElement("span");
 		this.foot.className = "lf-msg-edit-foot";
@@ -7011,7 +7011,6 @@ var ThreadView = class {
 		this.#replyShown = reply;
 		const marginControls = model.surface === "margin" ? this.#marginControls : null;
 		if (marginControls && prior) marginControls.anchor.presented(threadChange(prior, model)?.joined);
-		const settlementPlace = marginControls ? "margin" : "head";
 		const notice = this.#news;
 		if (model.news) notice.set(model.news);
 		const news = model.news ? notice.node : nothing;
@@ -7020,7 +7019,7 @@ var ThreadView = class {
 		keeps(this.node, "data-attempt", model.attempt || null);
 		keeps(this.node, "role", "group");
 		keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
-		const settlement = model.settlement ? this.#settlement(model, settlementPlace) : nothing;
+		const settlement = model.settlement ? this.#settlement(model) : nothing;
 		const threadActions = marginControls || model.settlement || model.news ? html`<span class="lf-thread-meta-actions">
             ${marginControls ? news : nothing} ${marginControls?.nav ?? nothing}
             ${marginControls?.expand ?? nothing}${settlement}
@@ -7140,17 +7139,16 @@ var ThreadView = class {
 	get progressOpen() {
 		return this.#transcript.progressOpen;
 	}
-	#settlement(model, place) {
+	#settlement(model) {
 		const state = model.settlement;
 		const reopen = state.kind === "unresolve";
-		const icon = place === "head" || place === "margin" && !model.resolved;
 		const word = reopen ? "Reopen" : "Resolve";
 		const label = reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
 		return html`<button
-      ${offeredAction(icon ? "symbol" : "word", reopen ? "lf-reopen" : "lf-resolve")}
+      ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve")}
       aria-busy=${state.pending ? "true" : nothing}
-      aria-label=${icon ? label : nothing}
-      title=${icon ? label : nothing}
+      aria-label=${label}
+      title=${label}
       ${commandsOn(`On a thread's ${word} button`, (button) => [{
 			id: reopen ? "thread.reopen" : "thread.resolve",
 			keys: PRESS,
@@ -7160,7 +7158,7 @@ var ThreadView = class {
 			run: this.#settle
 		}])}
     >
-      ${icon ? iconTemplate("check", "lf-action-icon") : state.label}
+      ${iconTemplate("check", "lf-action-icon")}
     </button>`;
 	}
 	#showNews() {
@@ -7997,7 +7995,7 @@ function scrollToFragment(element) {
 		block: "start"
 	});
 }
-function createAnchorTravel({ anchors, refreshThread, focusForNavigation, threadFocusTarget, announce }) {
+function createAnchorTravel({ anchors, refreshThread, focusForNavigation, threadFocusTarget, clearFor, announce }) {
 	let travelIntent = 0;
 	const retainTravel = (retained = retainUserIntent()) => {
 		const intent = ++travelIntent;
@@ -8031,6 +8029,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 			intent.handoff(() => {
 				const destination = resolve();
 				if (!destination?.where) return;
+				clearFor(destination, destination.scroll.length ? landedBox(destination.where) : null);
 				if (destination.focus) focusForNavigation(destination.focus, "move", { caret: destination.caret });
 				const current = resolve();
 				if (!current?.where) return;

@@ -382,6 +382,21 @@
       through.every((value) => withoutShift(value) === before)
     );
   };
+  // Reopening a menu during its closing fade retains the status nodes. holdMenu
+  // measures their fresh text without the previous opening's line limits, then
+  // restores the limits. Equal dimensions still required that layout read. Credit
+  // only removal/restoration of those limits, never a direct repeated assignment.
+  const menuMeasurement = ({ record, through }) =>
+    through.every((value) => value === null) &&
+    ((record.attributeName === "data-held" &&
+      record.oldValue === "" &&
+      is(record.target, "div.lf-fp-state")) ||
+      (record.attributeName === "style" &&
+        /^--lines: \d+$/.test(record.oldValue ?? "") &&
+        is(
+          record.target,
+          ".lf-fp-state > :is(span.lf-fp-summary, span.lf-fp-explain)",
+        )));
   const putBack = ({ record, through }) =>
     (record.attributeName === "tabindex" &&
       record.oldValue === null &&
@@ -390,7 +405,8 @@
       record.target.matches(".lf-margin-cluster") &&
       through.every((value) => sameTokens(tokens(value), tokens(record.oldValue)))) ||
     columnProbe({ record, through }) ||
-    nativeFocusGuard({ record, through });
+    nativeFocusGuard({ record, through }) ||
+    menuMeasurement({ record, through });
   // An element reference set through reflection (`ariaDetailsElements`, and the rest of
   // the aria-*Elements family) writes an empty attribute whatever the elements are, so
   // an empty value that stays empty says nothing about whether the relation changed.

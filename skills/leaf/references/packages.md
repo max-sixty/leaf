@@ -146,12 +146,14 @@ documents any further inputs it supports. No type or colour override may shrink 
 control below its touch target or focus clearance.
 
 A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path.
-Import Leaf only through `/runtime/widget-api.js`, and `runtime/` modules can add paths
-but not replace the kernel's. The Leaf serving a page supplies its runtime,
-`widget-api.js` and the kernel's `vendor/` modules included, so a vendored package runs
-against whichever Leaf serves its page, and a package's `vendor/` file at one of those
-paths replaces it there. Leaf keeps `widget-api.js`'s names and what they return across
-updates at one page protocol (`../../../src/leaf/layer-registry.md`, "Page protocol").
+Import Leaf only through `/runtime/widget-api.js`, or its portable part
+`/runtime/portable-api.js` (module-authoring.md, "A widget that also runs off Leaf"),
+and `runtime/` modules can add paths but not replace the kernel's. The Leaf serving a
+page supplies its runtime, `widget-api.js` and the kernel's `vendor/` modules included,
+so a vendored package runs against whichever Leaf serves its page, and a package's
+`vendor/` file at one of those paths replaces it there. Leaf keeps `widget-api.js`'s
+names and what they return across updates at one page protocol
+(`../../../src/leaf/layer-registry.md`, "Page protocol").
 
 Registries merge in order: kernel, `default`, then the selected packages in command
 order, and a later package wins a collision. A later package replaces an element or

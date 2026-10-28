@@ -801,7 +801,10 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     mid-word ("1 new re…"). The count says "+1" in the room the notice kept, so a
     reader with no tooltip knows more waits; the name doesn't repeat it."""
     url = serve(SEATED_OBLIGATION_PAGE)
-    root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
+    # An agent's opening message has no delivery receipt competing with the news.
+    root = panel_comment(
+        serve.page_dir, "Which job comes first?", {"section": "jobs"}, author="agent"
+    )
     page = open_page(browser, url)
     resized(page, 390, 900)
     thread = page.locator("#jobs .lf-page-thread")
@@ -809,13 +812,15 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     write(thread.locator("leaf-text"), "Start with the mounts.")
     rendered(page)
 
-    thread_model.post_reply(
-        serve.page_dir, {"responds": root}, "The mounts come first."
-    )
+    thread_model.post_reply(serve.page_dir, {"parent": root}, "The mounts come first.")
     told(page)
     notice = thread.get_by_role("button", name="1 new reply", exact=True)
     expect(notice).to_be_visible()
     rendered(page)
+    # Dropping a later fact must not cut a first fact that already fit.
+    assert notice.locator(":scope > span > span").evaluate(
+        "fact => fact.scrollWidth <= fact.clientWidth"
+    )
     width = notice.bounding_box()["width"]
     expect(notice.locator(":scope > span")).not_to_have_attribute(
         "data-lf-more", re.compile(".*")

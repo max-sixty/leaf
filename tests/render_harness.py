@@ -1814,6 +1814,15 @@ def open_threads(page):
     panel_settled(page, view="threads")
 
 
+def show_resolved(page):
+    """Open Threads and unfold its resolved threads (`leaf_dev.browser.show_resolved`),
+    returning their rows once the view's motion ends."""
+    open_threads(page)
+    rows = dev_browser.show_resolved(page)
+    panel_settled(page, view="threads")
+    return rows
+
+
 # How many open threads the page's reading holds, the number the Threads tab says
 # (thread/model.js, `threadCounts`): those not resolved, a bare reaction being no
 # thread; null until the saved inventory has arrived. It leaves the reading as

@@ -25,6 +25,7 @@ from render_harness import (
     panel_view,
     press_visible,
     scroll_settled,
+    show_resolved,
     write,
 )
 
@@ -42,19 +43,23 @@ PANEL_NEWS = ".lf-fp-controls .lf-thread-news"
 
 def thread_row(page, key):
     """The thread `key`'s row in the panel's Threads view, opening Threads where it is
-    not the view standing open. Its `.lf-fp-value` says the thread's state, less
-    Resolved under the Resolved heading that already says it. `key` may be the thread's
-    id: a thread this
+    not the view standing open, and unfolding Resolved for a resolved thread folded
+    there; a row the standing list holds in its place is drawn already. Its
+    `.lf-fp-value` says the thread's state. `key` may be the thread's id: a thread this
     tab started is keyed by the attempt that sent it (thread/model.js, `threadKey`)."""
-    key = page.evaluate(
+    key, resolved = page.evaluate(
         """async (id) => {
           const {readThreads} = await window.__lfWidgetApi();
-          return readThreads().threads.find((t) => t.id === id)?.key ?? id;
+          const thread = readThreads().threads.find((t) => t.id === id || t.key === id);
+          return [thread?.key ?? id, Boolean(thread?.resolved)];
         }""",
         key,
     )
     open_threads(page)
-    return page.locator(f'{panel_view("threads")} .lf-fp-thread[data-key="{key}"]')
+    row = page.locator(f'{panel_view("threads")} .lf-fp-thread[data-key="{key}"]')
+    if resolved and not row.count():
+        show_resolved(page)
+    return row
 
 
 def open_panel_thread(page, thread_id):
@@ -66,16 +71,20 @@ def open_panel_thread(page, thread_id):
     view = page.locator(f'{PANEL_THREAD}[data-thread="{thread_id}"]')
     if view.count():
         return view
-    key = page.evaluate(
+    key, resolved = page.evaluate(
         """async (id) => {
           const {readThreads} = await window.__lfWidgetApi();
-          return readThreads().threads.find((t) => t.id === id)?.key ?? null;
+          const thread = readThreads().threads.find((t) => t.id === id);
+          return [thread?.key ?? null, Boolean(thread?.resolved)];
         }""",
         thread_id,
     )
     assert key, f"the page holds no thread {thread_id}"
     open_threads(page)
-    page.locator(f'.lf-fp-thread[data-key="{key}"]').click()
+    row = page.locator(f'.lf-fp-thread[data-key="{key}"]')
+    if resolved and not row.count():
+        show_resolved(page)
+    row.click()
     expect(view).to_be_visible()
     panel_settled(page, view="thread")
     return view

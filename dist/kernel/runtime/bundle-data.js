@@ -1,7 +1,7 @@
 import { PAGE_PAINT_ATTRIBUTE, afterScript, bindQueuedWork, cancelRender, dataBody, frameFor, layoutChanged, measure, nextAnimation, nextFrame, nextRender, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, under, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
 import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, selectsAll, takesLetters, typesText, x } from "./bundle-dom-move.js";
 import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, html, inUi, isElementName, isReaction, keyed, lastMovedAt, layerRoot, live, loadShadowRules, marks, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, share, stateSpecs, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-layer-stack.js";
-import { LayerRefused, PRESS, PRESSABLE, actionTemplate, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, keys, labelOf, live as live$1, nameAction, namedAction, notice, offer, offered, offeredAction, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
+import { LayerRefused, PRESS, PRESSABLE, actionTemplate, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, keys, labelOf, live as live$1, notice, offer, offerAction, offered, offeredAction, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { clippedContents, clippedPlace, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
@@ -3548,9 +3548,8 @@ var MessageEditor = class {
 		this.input = offer(TEXT_FIELD);
 		this.input.name = "edit";
 		const actions = offer("span", "lf-msg-edit-actions");
-		const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
+		const cancel = offerAction("symbol", "lf-msg-control lf-msg-edit-cancel", void 0, { action: "discard" });
 		cancel.type = "button";
-		nameAction(cancel, "discard", { className: "lf-msg-control-icon" });
 		actions.append(cancel);
 		this.foot = document.createElement("span");
 		this.foot.className = "lf-msg-edit-foot";
@@ -3855,10 +3854,9 @@ var ReactionStripView = class {
 		this.#model = model;
 		this.node.classList.toggle("lf-open", model.latest);
 		render$1(html` <button
-          ${offered("lf-msg-control lf-react-trigger")}
+          ${offeredAction("symbol", "lf-msg-control lf-react-trigger", void 0, { action: "react" })}
           aria-expanded="false"
           aria-controls=${this.#paletteId}
-          ${namedAction("react", { className: "lf-msg-control-icon" })}
           @click=${() => this.#registration.toggle()}
         ></button>
         <span
@@ -4064,6 +4062,7 @@ function messageReading(message, { authoredRank = 0, reactions, workflows, leave
 			glyph: token?.glyph ?? "",
 			authored: message.body.kind === "authored"
 		}),
+		markdown: kind === "reaction" ? null : [message.text, message.markup].filter(Boolean).join("\n\n"),
 		authoredRank,
 		reactions
 	});
@@ -4072,6 +4071,7 @@ var MessageView = class {
 	#commands;
 	#model = null;
 	#reaction = null;
+	#copy = null;
 	#authored = null;
 	#authoredTake = 0;
 	#dressed = false;
@@ -4179,12 +4179,8 @@ var MessageView = class {
       </div>
     `;
 		const rewrite = model.editable && !editing ? html`<button
-            ${offered("lf-msg-control lf-msg-edit")}
+            ${offeredAction("symbol", "lf-msg-control lf-msg-edit", "Edit message", { action: "edit" })}
             tabindex="-1"
-            ${namedAction("edit", {
-			label: "Edit message",
-			className: "lf-msg-control-icon"
-		})}
             @click=${() => this.openEdit()}
           ></button>` : nothing;
 		render$1(html`
@@ -4196,6 +4192,7 @@ var MessageView = class {
           ${model.body.drawing ? html`<span class="lf-drawing-reference">Drawing comment</span>` : nothing}
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
+        ${model.markdown && !editing ? this.#copyControl(model.markdown) : nothing}
         ${strip} ${rewrite}
       `, this.node);
 		if (this.#authored && !this.#dressed) {
@@ -4235,6 +4232,20 @@ var MessageView = class {
 	}
 	get editing() {
 		return this.#editor !== null;
+	}
+	#copyControl(markdown) {
+		if (!this.#copy) {
+			this.#copy = copyControl("lf-msg-control lf-msg-copy", {
+				role: "symbol",
+				label: "Copy as Markdown",
+				success: "Message copied as Markdown",
+				error: "Message not copied · select its words to copy"
+			});
+			this.#copy.tabIndex = -1;
+			this.#copy.title = "Copy as Markdown";
+		}
+		if (this.#copy.value !== markdown) this.#copy.value = markdown;
+		return this.#copy;
 	}
 	#body(body) {
 		if (body.kind === "reaction") return html`<div class="lf-msg-text">

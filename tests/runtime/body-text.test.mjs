@@ -75,7 +75,7 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
   }
 });
 
-test("a copy of rendered Markdown reads back as Markdown that renders what was selected", async () => {
+test("a copy of rendered Markdown takes the source of the whole blocks it reaches", async () => {
   const { loadMarkdown, paintMarkdown, markdownSourceExcerpt } =
     await import("/runtime/markdown.js");
   await loadMarkdown();
@@ -99,64 +99,35 @@ test("a copy of rendered Markdown reads back as Markdown that renders what was s
     }
     throw new Error(words);
   };
+  const body = document.createElement("div");
   for (const [source, cases] of [
-    [
-      "Say **bold *it*** and [a link](https://x.y) `code` <https://a.b> end",
-      [
-        ["it", "***it***"],
-        // Within a block, the markers of every construct an end falls inside.
-        ["ld i", "**ld *i***"],
-        ["it and a", "***it*** and [a](https://x.y)"],
-        ["od", "`od`"],
-        // An address copies whole.
-        ["a.b", "<https://a.b>"],
-      ],
-    ],
     [
       "# Title\n\n- one\n- two **three**\n\n> quoted\n\nlast",
       [
-        ["itl", "itl"],
-        // A block covered whole takes its markers; a range across blocks takes them
-        // where it covers a block's first words.
+        // Within one block's words the browser's copy serves.
+        ["itl", null],
+        ["two th", null],
+        // A block covered whole, or blocks a range crosses, copy whole with markers.
         ["Title", "# Title"],
         ["two three", "- two **three**"],
-        ["ne\ntw", "ne\n- tw"],
-        ["one\ntwo th", "- one\n- two **th**"],
-        [
-          "Title\n\none\ntwo three\n\n\nquoted\n\nlast",
-          "# Title\n\n- one\n- two **three**\n\n> quoted\n\nlast",
-        ],
+        ["ne\ntw", "- one\n- two **three**"],
+        ["three\n\n\nquo", "- two **three**\n\n> quoted"],
       ],
     ],
     [
       "```js\nlet x = 1;\n```\n\nafter",
       [
-        ["x = 1", "x = 1"],
-        // A fence a range crosses goes whole.
-        ["1;\n\naft", "```js\nlet x = 1;\n```\n\naft"],
+        ["x = 1", null],
+        ["1;\n\naft", "```js\nlet x = 1;\n```\n\nafter"],
       ],
     ],
     [
-      "| A | B |\n|---|---|\n| c | d |\n| e | f |",
-      [
-        ["c", "c"],
-        ["d\n\n\ne", "| A | B |\n|---|---|\n| c | d |\n| e | f |"],
-      ],
-    ],
-    [
-      "> first line\n> second\n\n- one\n    - inner item\n\nsee [the docs][d] now\n\n[d]: https://x.y/docs",
-      [
-        // A line break keeps no container prefix.
-        ["linesec", "line\nsec"],
-        // A block taken whole loses the indent that would read as code.
-        ["inner item", "- inner item"],
-        // A reference link takes its address inline.
-        ["the docs", "[the docs](https://x.y/docs)"],
-        ["docs now", "[docs](https://x.y/docs) now"],
-      ],
+      // A nested block loses the indent that would read as code; a later fence's
+      // code keeps its own.
+      "- outer\n    - inner item\n\n```\nif x:\n    y\n```",
+      [["inner item", "- inner item"]],
     ],
   ]) {
-    const body = document.createElement("div");
     paintMarkdown(body, source);
     for (const [words, markdown] of cases)
       assert.equal(
@@ -165,21 +136,18 @@ test("a copy of rendered Markdown reads back as Markdown that renders what was s
         words,
       );
   }
+  const text = body.textContent;
+  const across = text.slice(text.indexOf("inner"), text.lastIndexOf("y") + 1);
+  assert.equal(
+    markdownSourceExcerpt(body, selecting(body, across)),
+    "- inner item\n\n```\nif x:\n    y\n```",
+  );
   // A triple click ends its range at the start of the next block, holding none of it.
-  const body = document.createElement("div");
   paintMarkdown(body, "Lead:\n\n- one\n- two");
   const range = document.createRange();
   range.setStart(body.querySelector("p").firstChild, 0);
   range.setEnd(body.querySelector("li").firstChild, 0);
   assert.equal(markdownSourceExcerpt(body, range), "Lead:");
-  // The first block's indent goes, and a later fence's code keeps its own.
-  paintMarkdown(body, "- outer\n  - inner\n\n```\nif x:\n    y\n```");
-  const text = body.textContent;
-  const nested = text.slice(text.indexOf("inner"), text.lastIndexOf("y") + 1);
-  assert.equal(
-    markdownSourceExcerpt(body, selecting(body, nested)),
-    "- inner\n\n```\nif x:\n    y\n```",
-  );
 });
 
 test("Markdown body readings share file dialect, safe destinations and native structure", async () => {

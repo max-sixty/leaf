@@ -270,144 +270,57 @@ export function markdownSourceOffset(body, node, offset) {
   return sourceEnd;
 }
 
-// The blocks an excerpt is cut at: those that hold words, a fence, and a table, whose
-// rows read as one only under its head. A fence or table a range crosses goes whole,
-// since part of one doesn't parse as the rest of it.
-const EXCERPT_BLOCKS = new Set([
+// The blocks a copy takes whole: each holds words, code, or rows that read as one only
+// under their head.
+const COPIED_BLOCKS = new Set([
   "paragraph_open",
   "heading_open",
   "fence",
   "code_block",
   "table_open",
 ]);
-const SOLID_BLOCKS = new Set(["fence", "code_block", "table_open"]);
-// An address is its own words, so part of one is a different address.
-const WHOLE_INLINE = new Set(["autolink", "linkify"]);
 
 // The Markdown a reader copies from the rendered `range` of `body`, which lies inside
-// it: the source between its ends, which renders what the range shows.
-// - Every inline construct an end falls inside keeps its markers, so part of
-//   `**a bold run**` still reads bold and part of a link's words keeps its address.
-// - A range covering all of one block's words takes the block whole, with its list,
-//   quote or heading markers. A range across blocks takes the block at each end from
-//   its line's start where it covers that block's first words, and to its end where it
-//   covers its last.
-// - A line break keeps no container prefix, which an excerpt cut inside a quote or
-//   list would misread; a reference link takes its address inline, since its
-//   definition stays behind; and a block taken whole loses its first line's indent,
-//   which would read as code once nothing stands around it.
+// it, or null where the browser's own copy serves. Markdown is copied in whole blocks:
+// the source lines of each block the range reaches, list, quote and heading markers
+// included, so the excerpt renders what was shown. A range within one block's words
+// copies as the browser would, the words with their formatting as HTML, since a cut
+// inside a block would have to mend every construct it crosses.
 export function markdownSourceExcerpt(body, range) {
   const source = body.dataset.lfSourceWords;
   const placed = placedMarkdownTokens(source);
-  let start = markdownSourceOffset(body, range.startContainer, range.startOffset);
-  let end = markdownSourceOffset(body, range.endContainer, range.endOffset);
-  const inline = placed.filter(({ token }) => !token.block);
-  const marked = inline.flatMap((placed) =>
-    placed.contentFrom != null
-      ? [placed]
-      : placed.token.type === "code_inline"
-        ? [
-            {
-              ...placed,
-              contentFrom: placed.from + placed.token.markup.length,
-              contentTo: placed.to - placed.token.markup.length,
-            },
-          ]
-        : // A reference link's opening records no span of its own: it is the `[`.
-          placed.token.type === "link_open"
-          ? [{ ...placed, contentFrom: placed.from + 1 }]
-          : [],
-  );
-  // An end on a construct's marker, or at the edge of its words, takes the marker.
-  // Inner constructs go first, so an end moved onto one's opening marker is then read
-  // against the construct around it.
-  for (const { token, from, contentFrom, contentTo, to } of marked.toReversed()) {
-    if (WHOLE_INLINE.has(token.markup)) {
-      if (from < start && start < to) start = from;
-      if (from < end && end < to) end = to;
-      continue;
-    }
-    if (from < start && start <= contentFrom) start = from;
-    else if (contentTo <= start && start < to) start = to;
-    if (contentTo <= end && end < to) end = to;
-    else if (from < end && end <= contentFrom) end = from;
-  }
-  const blocks = placed.filter(({ token }) => EXCERPT_BLOCKS.has(token.type));
+  const start = markdownSourceOffset(body, range.startContainer, range.startOffset);
+  const end = markdownSourceOffset(body, range.endContainer, range.endOffset);
+  const blocks = placed.filter(({ token }) => COPIED_BLOCKS.has(token.type));
+  // A block's words, without the markers around them.
   const words = (block) =>
-    inline.filter(({ from, to }) => from >= block.from && to <= block.to);
-  // A fence's code is no words, so no end covers them: a range inside one copies code.
-  const wordsFrom = (block) => words(block)[0]?.from ?? -Infinity;
-  const wordsTo = (block) => {
-    const held = words(block);
-    return held.length ? Math.max(...held.map(({ to }) => to)) : Infinity;
-  };
-  let first = blocks.findLast(({ from, to }) => from <= start && start < to);
+    placed.filter(
+      ({ token, words, from, to }) =>
+        !token.block && words && from >= block.from && to <= block.to,
+    );
+  const first = blocks.findLast(({ from, to }) => from <= start && start < to);
   let last = blocks.findLast(({ from, to }) => from < end && end <= to);
-  // An end at the edge of a block's words holds none of them, as where a triple click
-  // ends its range at the start of the next block.
-  if (first && last && first !== last && end <= wordsFrom(last)) {
-    last = blocks.findLast(({ to }) => to <= last.from) ?? last;
-    end = Math.min(end, last.to);
+  if (!first || !last) return null;
+  // A range ending where the next block's words begin, as a triple click's does,
+  // holds none of them.
+  if (first !== last && end <= (words(last)[0]?.from ?? last.from))
+    last = blocks.findLast(({ to }) => to <= last.from) ?? first;
+  if (first === last) {
+    const held = words(first);
+    if (
+      !held.length ||
+      start > held[0].from ||
+      end < Math.max(...held.map(({ to }) => to))
+    )
+      return null;
   }
-  if (first && last && first !== last && start >= wordsTo(first)) {
-    first = blocks.find(({ from }) => from >= first.to) ?? first;
-    start = Math.max(start, first.from);
-  }
-  const crosses =
-    first !== last ||
-    (first?.token.type === "table_open" && source.slice(start, end).includes("\n"));
-  const fromStart =
-    first &&
-    ((crosses && SOLID_BLOCKS.has(first.token.type)) || start <= wordsFrom(first));
-  const toEnd =
-    last && ((crosses && SOLID_BLOCKS.has(last.token.type)) || end >= wordsTo(last));
-  if (crosses ? fromStart : fromStart && toEnd) start = first.from;
-  if (crosses ? toEnd : fromStart && toEnd) end = last.to;
-  const cut = marked.filter(({ token }) => !WHOLE_INLINE.has(token.markup));
-  const closing = ({ token, contentTo, to }) =>
-    token.type === "link_open" && !source.startsWith("](", contentTo)
-      ? `](${token.attrGet("href")})`
-      : source.slice(contentTo, to);
-  const rewrites = [
-    ...inline
-      .filter(({ token }) => token.type === "softbreak" || token.type === "hardbreak")
-      .map(({ from, to }) => ({
-        from,
-        to,
-        text: source.slice(from, source.indexOf("\n", from) + 1),
-      })),
-    ...cut
-      .filter(({ token }) => token.type === "link_open")
-      .map((link) => ({ from: link.contentTo, to: link.to, text: closing(link) })),
-  ]
-    .filter(({ from, to }) => start <= from && to <= end)
-    .sort((a, b) => a.from - b.from);
-  const between = (a, b) => {
-    let text = "";
-    let at = a;
-    for (const { from, to, text: rewritten } of rewrites)
-      if (a <= from && to <= b) {
-        text += source.slice(at, from) + rewritten;
-        at = to;
-      }
-    return text + source.slice(at, b);
-  };
-  // The indent goes from the first block's lines only, since a later block's own,
-  // such as a fence's code, is its content.
-  const indent = start === first?.from ? /^[ \t]*/.exec(source.slice(start))[0] : "";
-  const head = indent ? Math.min(end, first.to) : start;
-  const excerpt = [
-    ...cut
-      .filter(({ contentFrom, contentTo }) => contentFrom < start && start < contentTo)
-      .map(({ from, contentFrom }) => source.slice(from, contentFrom)),
-    between(start, head).replace(new RegExp(`^[ \\t]{0,${indent.length}}`, "gm"), ""),
-    between(head, end),
-    ...cut
-      .filter(({ contentFrom, contentTo }) => contentFrom < end && end < contentTo)
-      .toReversed()
-      .map(closing),
-  ].join("");
-  return excerpt.replace(/^\n+/, "").trimEnd();
+  // A nested block's indent goes from its own lines, which would read as code with
+  // nothing around them; a later block's lines, such as a fence's code, keep theirs.
+  const indent = /^[ \t]*/.exec(source.slice(first.from))[0];
+  const head = source
+    .slice(first.from, Math.min(first.to, last.to))
+    .replace(new RegExp(`^[ \\t]{0,${indent.length}}`, "gm"), "");
+  return (head + source.slice(Math.min(first.to, last.to), last.to)).trim();
 }
 
 // A copy of words inside one surface painted from Markdown, as a thread message's words
@@ -416,7 +329,8 @@ export function markdownSourceExcerpt(body, range) {
 // editor gets the Markdown and a paste into a rich editor the formatting. Words painted
 // inline (`formatDeclaredMarkdown`) read their source as one line, which the block
 // parsing here would misread, so they copy as the browser would, as does a selection
-// reaching past the surface's words or made before the parser loads.
+// within one block's words (`markdownSourceExcerpt`), one reaching past the surface's
+// words, or one made before the parser loads.
 document.addEventListener("copy", (event) => {
   const selection = document.getSelection();
   if (!selection?.rangeCount || selection.isCollapsed || !markdownReady()) return;
@@ -430,9 +344,11 @@ document.addEventListener("copy", (event) => {
   const words = range.cloneRange();
   if (!body.contains(range.endContainer)) words.setEnd(body, body.childNodes.length);
   if (words.toString().trim() !== range.toString().trim()) return;
+  const markdown = markdownSourceExcerpt(body, words);
+  if (markdown === null) return;
   const rendered = document.createElement("div");
   rendered.append(words.cloneContents());
-  event.clipboardData.setData("text/plain", markdownSourceExcerpt(body, words));
+  event.clipboardData.setData("text/plain", markdown);
   event.clipboardData.setData("text/html", rendered.innerHTML);
   event.preventDefault();
 });

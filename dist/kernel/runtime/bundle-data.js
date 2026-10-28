@@ -2321,94 +2321,30 @@ function markdownSourceOffset(body, node, offset) {
 	}
 	return sourceEnd;
 }
-const EXCERPT_BLOCKS = /* @__PURE__ */ new Set([
+const COPIED_BLOCKS = /* @__PURE__ */ new Set([
 	"paragraph_open",
 	"heading_open",
 	"fence",
 	"code_block",
 	"table_open"
 ]);
-const SOLID_BLOCKS = /* @__PURE__ */ new Set([
-	"fence",
-	"code_block",
-	"table_open"
-]);
-const WHOLE_INLINE = /* @__PURE__ */ new Set(["autolink", "linkify"]);
 function markdownSourceExcerpt(body, range) {
 	const source = body.dataset.lfSourceWords;
 	const placed = placedMarkdownTokens(source);
-	let start = markdownSourceOffset(body, range.startContainer, range.startOffset);
-	let end = markdownSourceOffset(body, range.endContainer, range.endOffset);
-	const inline = placed.filter(({ token }) => !token.block);
-	const marked = inline.flatMap((placed) => placed.contentFrom != null ? [placed] : placed.token.type === "code_inline" ? [{
-		...placed,
-		contentFrom: placed.from + placed.token.markup.length,
-		contentTo: placed.to - placed.token.markup.length
-	}] : placed.token.type === "link_open" ? [{
-		...placed,
-		contentFrom: placed.from + 1
-	}] : []);
-	for (const { token, from, contentFrom, contentTo, to } of marked.toReversed()) {
-		if (WHOLE_INLINE.has(token.markup)) {
-			if (from < start && start < to) start = from;
-			if (from < end && end < to) end = to;
-			continue;
-		}
-		if (from < start && start <= contentFrom) start = from;
-		else if (contentTo <= start && start < to) start = to;
-		if (contentTo <= end && end < to) end = to;
-		else if (from < end && end <= contentFrom) end = from;
-	}
-	const blocks = placed.filter(({ token }) => EXCERPT_BLOCKS.has(token.type));
-	const words = (block) => inline.filter(({ from, to }) => from >= block.from && to <= block.to);
-	const wordsFrom = (block) => words(block)[0]?.from ?? -Infinity;
-	const wordsTo = (block) => {
-		const held = words(block);
-		return held.length ? Math.max(...held.map(({ to }) => to)) : Infinity;
-	};
-	let first = blocks.findLast(({ from, to }) => from <= start && start < to);
+	const start = markdownSourceOffset(body, range.startContainer, range.startOffset);
+	const end = markdownSourceOffset(body, range.endContainer, range.endOffset);
+	const blocks = placed.filter(({ token }) => COPIED_BLOCKS.has(token.type));
+	const words = (block) => placed.filter(({ token, words, from, to }) => !token.block && words && from >= block.from && to <= block.to);
+	const first = blocks.findLast(({ from, to }) => from <= start && start < to);
 	let last = blocks.findLast(({ from, to }) => from < end && end <= to);
-	if (first && last && first !== last && end <= wordsFrom(last)) {
-		last = blocks.findLast(({ to }) => to <= last.from) ?? last;
-		end = Math.min(end, last.to);
+	if (!first || !last) return null;
+	if (first !== last && end <= (words(last)[0]?.from ?? last.from)) last = blocks.findLast(({ to }) => to <= last.from) ?? first;
+	if (first === last) {
+		const held = words(first);
+		if (!held.length || start > held[0].from || end < Math.max(...held.map(({ to }) => to))) return null;
 	}
-	if (first && last && first !== last && start >= wordsTo(first)) {
-		first = blocks.find(({ from }) => from >= first.to) ?? first;
-		start = Math.max(start, first.from);
-	}
-	const crosses = first !== last || first?.token.type === "table_open" && source.slice(start, end).includes("\n");
-	const fromStart = first && (crosses && SOLID_BLOCKS.has(first.token.type) || start <= wordsFrom(first));
-	const toEnd = last && (crosses && SOLID_BLOCKS.has(last.token.type) || end >= wordsTo(last));
-	if (crosses ? fromStart : fromStart && toEnd) start = first.from;
-	if (crosses ? toEnd : fromStart && toEnd) end = last.to;
-	const cut = marked.filter(({ token }) => !WHOLE_INLINE.has(token.markup));
-	const closing = ({ token, contentTo, to }) => token.type === "link_open" && !source.startsWith("](", contentTo) ? `](${token.attrGet("href")})` : source.slice(contentTo, to);
-	const rewrites = [...inline.filter(({ token }) => token.type === "softbreak" || token.type === "hardbreak").map(({ from, to }) => ({
-		from,
-		to,
-		text: source.slice(from, source.indexOf("\n", from) + 1)
-	})), ...cut.filter(({ token }) => token.type === "link_open").map((link) => ({
-		from: link.contentTo,
-		to: link.to,
-		text: closing(link)
-	}))].filter(({ from, to }) => start <= from && to <= end).sort((a, b) => a.from - b.from);
-	const between = (a, b) => {
-		let text = "";
-		let at = a;
-		for (const { from, to, text: rewritten } of rewrites) if (a <= from && to <= b) {
-			text += source.slice(at, from) + rewritten;
-			at = to;
-		}
-		return text + source.slice(at, b);
-	};
-	const indent = start === first?.from ? /^[ \t]*/.exec(source.slice(start))[0] : "";
-	const head = indent ? Math.min(end, first.to) : start;
-	return [
-		...cut.filter(({ contentFrom, contentTo }) => contentFrom < start && start < contentTo).map(({ from, contentFrom }) => source.slice(from, contentFrom)),
-		between(start, head).replace(new RegExp(`^[ \\t]{0,${indent.length}}`, "gm"), ""),
-		between(head, end),
-		...cut.filter(({ contentFrom, contentTo }) => contentFrom < end && end < contentTo).toReversed().map(closing)
-	].join("").replace(/^\n+/, "").trimEnd();
+	const indent = /^[ \t]*/.exec(source.slice(first.from))[0];
+	return (source.slice(first.from, Math.min(first.to, last.to)).replace(new RegExp(`^[ \\t]{0,${indent.length}}`, "gm"), "") + source.slice(Math.min(first.to, last.to), last.to)).trim();
 }
 document.addEventListener("copy", (event) => {
 	const selection = document.getSelection();
@@ -2420,9 +2356,11 @@ document.addEventListener("copy", (event) => {
 	const words = range.cloneRange();
 	if (!body.contains(range.endContainer)) words.setEnd(body, body.childNodes.length);
 	if (words.toString().trim() !== range.toString().trim()) return;
+	const markdown = markdownSourceExcerpt(body, words);
+	if (markdown === null) return;
 	const rendered = document.createElement("div");
 	rendered.append(words.cloneContents());
-	event.clipboardData.setData("text/plain", markdownSourceExcerpt(body, words));
+	event.clipboardData.setData("text/plain", markdown);
 	event.clipboardData.setData("text/html", rendered.innerHTML);
 	event.preventDefault();
 });

@@ -1564,7 +1564,6 @@ _TEXT = {
         lambda v: "a stylesheet dependency must have CSS MIME type"
     ),
     "css-not-utf8": _captured(lambda v: "CSS is not UTF-8"),
-    "css-invalid": _captured(lambda v: f"invalid CSS: {v['error']}"),
     "css-url": _captured(lambda v: "CSS url() requires one literal URL"),
     "css-import": _captured(
         lambda v: "CSS @import requires a stylesheet with CSS MIME type"

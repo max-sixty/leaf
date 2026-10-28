@@ -279,6 +279,26 @@ def test_check_validates_each_sample_document(page_dir, markup, code, samples, h
     assert refused.samples == samples
 
 
+@pytest.mark.parametrize("holder", ["page", "message"])
+def test_a_sample_child_naming_a_missing_picture_is_refused_once(page_dir, holder):
+    """A page's capture reads its samples' children with it, and a message, which no
+    capture reads, asks of the children it carries at its own gate: either way a
+    picture the page directory lacks is refused, and by one of the two. The capture
+    names a file once however many documents name it; the message's gate names it in
+    each child that does."""
+    picture = '<img src="/media/0000000000000009.png" alt="shot">'
+    findings = sample_holder_findings(
+        page_dir,
+        holder,
+        f'<template id="practice" data-sample><p>{picture}</p>'
+        f'<template id="nested" data-sample><p>{picture}</p></template></template>',
+    )
+    missing = found(findings, "missing-media", ref="/media/0000000000000009.png")
+    assert [refused.samples for refused in missing] == (
+        [()] if holder == "page" else [("practice",), ("practice", "nested")]
+    )
+
+
 @pytest.mark.parametrize("poster", ["agent", "fixture"])
 def test_a_message_sample_cannot_select_the_thread_holding_it(page_dir, poster):
     """Its child would hold the same message and sample, whose child would too,
@@ -405,6 +425,25 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_di
     assert [f.values["sheet"] for f in found(findings, "css-syntax")] == [
         "page <style> (line 6)",
         "<p style> (line 11)",
+    ]
+
+
+def test_a_message_style_attribute_answers_to_the_same_syntax_check(page_dir):
+    """A message's style attribute is CSS the page delivers as well, which delivery
+    can't re-address while it holds a syntax error, and whose malformed rule Chrome
+    drops without a word, so the message door asks what the page door does."""
+    published(page_dir)
+    findings = command_findings(
+        "thread",
+        "create",
+        page_dir,
+        "--text",
+        "Look:",
+        "--markup",
+        '<p style="color: red; } }">Shown</p>',
+    )
+    assert [(f.code, f.values["sheet"]) for f in findings] == [
+        ("css-syntax", "<p style> (line 1)")
     ]
 
 

@@ -26,6 +26,7 @@ from .markup import (
     fragment_style_errors,
     id_errors,
     media_errors,
+    presentation_errors,
     text_media_errors,
 )
 
@@ -211,6 +212,9 @@ def message_markup_errors(
         + media_errors(frag, page_dir)
     ):
         return errs
+    # After the refusal of a <style>, so what remains is each style attribute.
+    if styles := presentation_errors(frag):
+        return styles
     if names := id_errors(frag):
         return names
     thread = thread_structure(events)
@@ -237,6 +241,8 @@ def message_markup_errors(
     # A live sample's child is a page of its own, built from this message once it is
     # logged. Imported here because checking a child calls this gate back for each
     # fixture message in its history.
-    from .source import sample_errors
+    from .source import message_sample_media_errors, sample_errors
 
-    return sample_errors(page_dir, page, events, frag, registry, contracts)
+    return sample_errors(
+        page_dir, page, events, frag, registry, contracts
+    ) + message_sample_media_errors(page_dir, frag)

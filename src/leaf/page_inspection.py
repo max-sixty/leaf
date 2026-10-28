@@ -152,7 +152,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
             )
 
     for path, resource in sorted(artifact.resources.items()):
-        owner = "page" if path.startswith(("/page/", "/media/")) else "layer"
+        owner = "page" if path.startswith("/page/") else "layer"
         if resource.mime == "application/javascript":
             scripts.append(
                 {

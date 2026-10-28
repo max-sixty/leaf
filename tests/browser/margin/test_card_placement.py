@@ -231,7 +231,8 @@ TIMES_WHOLE = """card => [...card.querySelectorAll('.lf-msg-head')]
 
 def test_a_cut_name_leaves_the_gap_before_the_time_clear(browser, serve):
     """A card held to 236px leaves the head of the user's message a few pixels for
-    "Me" beside its time and the room its controls keep. The name is cut, and the
+    "Me" beside its time and the room its controls keep while they show under the
+    pointer (controls.css). The name is cut, and the
     gap before the time stays its ground, unpainted: the browser keeps a cut name's
     first letter and draws its ellipsis after it, past the name's words, and where the
     gap was the name's padding that ellipsis stood flush against the time, reading
@@ -250,7 +251,7 @@ def test_a_cut_name_leaves_the_gap_before_the_time_clear(browser, serve):
     preview = page.locator(".lf-margin-preview")
     head = preview.locator(f'.lf-page-thread[data-thread="{root}"] .lf-msg-head').first
     expect(head.locator("b")).to_have_text("Me")
-    page.mouse.move(0, 0)
+    preview.locator(".lf-msg.user .lf-msg-text").first.hover()
     rendered(page)
     name = head.locator("b")
     assert name.evaluate("node => node.scrollWidth > node.clientWidth")

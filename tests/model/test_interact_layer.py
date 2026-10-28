@@ -2322,15 +2322,15 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
         "description": "A tinted aside for operational hazards.",
         "x-example": '<aside class="hazard">Deploys freeze Friday.</aside>',
     }
-    callout = {
-        "description": "project callout",
-        "x-example": '<aside class="callout">…</aside>',
+    sidenote = {
+        "description": "project sidenote",
+        "x-example": '<aside class="sidenote">…</aside>',
     }
     (layer / "registry.json").write_text(
         json.dumps(
             {
                 ".hazard": hazard,
-                ".callout": callout,
+                "aside.sidenote": sidenote,
                 # Adding one extension preserves the other keys of this fact map.
                 "$languages": {"paths": {"svelte": "javascript"}},
             }
@@ -2345,7 +2345,7 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
     registry = registry_storage.load_registry(page)
     shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())
     assert registry[".hazard"] == hazard
-    assert registry[".callout"] == callout
+    assert registry["aside.sidenote"] == sidenote
     assert set(shipped) <= set(registry)
     assert registry["$languages"]["paths"]["svelte"] == "javascript"
     assert set(shipped["$languages"]["paths"]) <= set(registry["$languages"]["paths"])

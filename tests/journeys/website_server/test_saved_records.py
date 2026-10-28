@@ -164,7 +164,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
             for key in publication["responses"]
             if key.startswith("revisions/r2-") and key.endswith("/leaf.js")
         ]
-        assert body(private_entry) == serving_runtime().resources({})["/leaf.js"].data
+        assert body(private_entry) == serving_runtime().resources({}, {})["/leaf.js"].data
         # Start a fresh filesystem from the same release image.
         replacement = tmp_path / "replacement"
         shutil.copytree(site, replacement, ignore=shutil.ignore_patterns("page"))

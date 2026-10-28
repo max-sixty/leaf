@@ -79,6 +79,37 @@ document.addEventListener(PAGE_INTERFACE, event => {
 )
 
 
+def test_playground_contributor_needs_no_scalar_control(browser, serve):
+    """Native preview inputs can own the whole configuration through contributors."""
+    start = CONTRIBUTOR_PAGE.index("  <lf-playground-control")
+    end = CONTRIBUTOR_PAGE.index("  <lf-playground-preview>")
+    source = (CONTRIBUTOR_PAGE[:start] + CONTRIBUTOR_PAGE[end:]).replace(
+        "${values.stream}", "checkout"
+    )
+    url = serve(source)
+    page = open_page(browser, url)
+    playground = page.locator("#query-config")
+    field = page.get_by_role("textbox", name="Region filter")
+
+    field.fill("us-east-1")
+    page.reload()
+    wait_until_ready(page)
+    expect(field).to_have_value("us-east-1")
+    playground.get_by_role("button", name="Reset", exact=True).click()
+    expect(field).to_have_value("eu-west-1")
+
+    field.fill("ap-south-1")
+    with sending(page, "the contributor-only configuration"):
+        playground.get_by_role("button", name="Use these settings").click()
+    assert actions(serve.page_dir)[-1]["detail"] == {
+        "values": {"filters": {"region": "ap-south-1"}},
+        "instruction": "Implement checkout alerts for region ap-south-1.",
+    }
+    playground.get_by_role("button", name="Undo choice").click()
+    expect(playground.get_by_role("button", name="Use these settings")).to_be_visible()
+    expect(field).to_have_value("ap-south-1")
+
+
 def test_playground_select_keeps_the_same_working_configuration(browser, serve):
     """Compact choices use the native picker and the playground's existing
     restoration and decision path, including withdrawal of a submitted choice."""
@@ -643,8 +674,8 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     """In a workspace too short for them, the preview and the controls scroll, and each
     shows over its own content that more is below: the preview's code cards fill it to
     its edge, and a cue painted under them showed nothing. Focus within a region lifts
-    its cue, and reaching the end removes it. The code comparison's controls fit beside
-    a one-row bar of actions, so the notification playground's longer list scrolls."""
+    its cue, and reaching the end removes it. The notification playground's long list
+    also exercises the controls' continuation cue."""
 
     def cue(page, body):
         """How many pixels of the box's bottom band the mark changes. It puts the mark
@@ -666,6 +697,16 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     assert preview.evaluate("el => el.scrollHeight > el.clientHeight + 1")
     expect(preview).to_have_attribute("data-lf-more-below", "")
     assert cue(page, preview) > 100
+    resized(page, 900, 600)
+    width = page.get_by_role("slider", name="Comparison viewport")
+    for _ in range(5):
+        width.press("ArrowLeft")
+    titles = page.locator("#code-reader-comparison .code-candidate-title")
+    expect(titles.nth(0)).to_be_in_viewport(ratio=1)
+    expect(titles.nth(1)).to_be_in_viewport(ratio=1)
+    assert titles.nth(0).bounding_box()["y"] == pytest.approx(
+        titles.nth(1).bounding_box()["y"], abs=1
+    )
 
     page = open_page(browser, serve(ROOT / "examples" / "notification-playground.html"))
     # Without a Controls label or a Starting points label over them, the list fits
@@ -864,7 +905,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
           return [style.borderBottomStyle, style.paddingBottom];
         }"""
     ) == ["solid", "14px"]
-    first_control = playground.locator("lf-playground-control").first
+    first_control = controls.locator("lf-playground-control").first
     control_box = first_control.bounding_box()
     controls_box = controls.bounding_box()
     assert control_box["y"] >= controls_box["y"] and (

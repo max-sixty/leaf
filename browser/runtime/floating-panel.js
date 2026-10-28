@@ -2026,6 +2026,7 @@ export function createFloatingPanel({
       row = null,
       opens = false,
       title = null,
+      current = false,
     } = {},
   ) =>
     html`<button
@@ -2034,6 +2035,7 @@ export function createFloatingPanel({
       data-row=${row ?? nothing}
       title=${title ?? nothing}
       class="lf-fp-face lf-fp-item"
+      aria-current=${current ? "true" : nothing}
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
       ?data-opens=${opens}
@@ -2255,9 +2257,12 @@ export function createFloatingPanel({
   }
   // Where the agent's latest save failed its check, first what the check found, which
   // its error points here to read (version.js, `holdFailedSave`); then the versions
-  // the picker lists, the one shown marked, each a press that travels there and says
-  // the note its stamp gave it after its name, cut to the row and whole on hover; with
-  // Compare where the picker offers it.
+  // the picker lists, each a press that travels there and says the note its stamp gave
+  // it after its name, cut to the row and whole on hover. A column at the rows' end
+  // holds Compare where the picker offers it and Showing for the version shown, so
+  // the two words line up and every version's press ends at the same edge. Showing
+  // stands beside the press rather than in it, as Compare does; the press carries it
+  // as `aria-current`.
   const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
@@ -2270,39 +2275,46 @@ export function createFloatingPanel({
             </div>`
           : nothing
       }
-      ${repeat(
-        versions,
-        (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
-        (entry) =>
-          html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
-            ${menuItem(
-              html`${entry.name}${
-                entry.note
-                  ? html`<span class="lf-fp-note">${entry.note}</span>`
+      <div class="lf-fp-versions" role="none">
+        ${repeat(
+          versions,
+          (entry) =>
+            `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
+          (entry) =>
+            html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
+              ${menuItem(
+                html`${entry.name}${
+                  entry.note
+                    ? html`<span class="lf-fp-note">${entry.note}</span>`
+                    : nothing
+                }`,
+                nothing,
+                () => showVersion(entry),
+                { title: entry.note, current: entry.current },
+              )}${
+                entry.current
+                  ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>`
                   : nothing
-              }`,
-              entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing,
-              () => showVersion(entry),
-              { title: entry.note },
-            )}${
-              entry.comparable
-                ? html`<button
-                    type="button"
-                    role="menuitem"
-                    class="lf-fp-face lf-fp-quiet lf-fp-compare"
-                    aria-pressed=${String(
-                      selection.on && selection.base === entry.version,
-                    )}
-                    aria-label=${`Compare with ${entry.name}`}
-                    @click=${() =>
-                      putAwayThen(() => versionPicker.compare(entry.version))}
-                  >
-                    Compare
-                  </button>`
-                : nothing
-            }
-          </div>`,
-      )}
+              }${
+                entry.comparable
+                  ? html`<button
+                      type="button"
+                      role="menuitem"
+                      class="lf-fp-face lf-fp-quiet lf-fp-compare"
+                      aria-pressed=${String(
+                        selection.on && selection.base === entry.version,
+                      )}
+                      aria-label=${`Compare with ${entry.name}`}
+                      @click=${() =>
+                        putAwayThen(() => versionPicker.compare(entry.version))}
+                    >
+                      Compare
+                    </button>`
+                  : nothing
+              }
+            </div>`,
+        )}
+      </div>
       ${
         versions.length
           ? nothing

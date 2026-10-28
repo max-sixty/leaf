@@ -26,9 +26,10 @@
    shows it in place of the title for the row ↑↓ selects, so the keyboard reaches it
    too. As a grey line under the title it made the catalog harder to scan for the few
    rows that have one, so that line shows only where there is no hover to raise the
-   tooltip. The meta line stacks every description's line, hidden, in the cell it
-   shows in, so it is as tall as the longest from opening and the results never move
-   under the walk.
+   tooltip. The meta line keeps one line, cutting a long description short, as the
+   selected row does, so the results never move under the walk; a screen reader hears
+   it whole. It once stacked every description, hidden, to stand as tall as the
+   longest, which left the resting count over a blank line or two.
 
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
@@ -212,7 +213,6 @@ const EMPTY_CATALOG = Object.freeze({
   total: 0,
   entries: Object.freeze([]),
   sections: Object.freeze([]),
-  describedMeta: Object.freeze([]),
 });
 /** @type {ReturnType<typeof captureCommandReferenceCatalog>} */
 let commandReferenceCatalog = EMPTY_CATALOG;
@@ -449,11 +449,6 @@ function captureCommandReferenceCatalog() {
     total: entries.length,
     entries: Object.freeze(entries),
     sections: Object.freeze(sections),
-    describedMeta: Object.freeze(
-      entries
-        .filter((entry) => entry.actionable && entry.description)
-        .map(selectionMeta),
-    ),
   });
 }
 
@@ -790,16 +785,11 @@ function commandReferenceTemplate() {
       >
     </label>
     ${commandReferenceSearch}
-    <div class="lf-command-reference-meta-box">
-      ${commandReferenceCatalog.describedMeta.map(
-        (text) => html`<span aria-hidden="true">${text}</span>`,
-      )}
-      <div
-        class="lf-command-reference-meta"
-        aria-live="polite"
-        .textContent=${commandReferenceView.metadata}
-      ></div>
-    </div>
+    <div
+      class="lf-command-reference-meta"
+      aria-live="polite"
+      .textContent=${commandReferenceView.metadata}
+    ></div>
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"

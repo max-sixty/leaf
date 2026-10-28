@@ -5,6 +5,9 @@
    face's `ch`. The rendered lines own the block's containment. */
 lf-code {
   contain: inline-size;
+  /* Its code block wears markup's reading face (`reading.css`) whatever look the page
+     takes, since the block's frame and type are the widget's own. */
+  --lf-reading-face: 1;
   --lf-code-gap: 8px;
   --lf-code-inset-inline: 14px;
   --lf-code-inset-block: 12px;

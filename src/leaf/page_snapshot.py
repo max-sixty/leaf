@@ -169,7 +169,7 @@ def capture_page_snapshot(
         data_resources = {
             url: capture_local_resource(page_dir, url) for url in sorted(data_urls)
         }
-        layer = served_layer(registry["$layer"])
+        layer = served_layer(registry["$layer"], page_dir)
         # Stored revisions take their held readings; a candidate the snapshot
         # captured is the checked document under its capture's vocabulary.
         readings = {
@@ -225,6 +225,7 @@ def capture_page_snapshot(
             revision=readings.__getitem__,
             registry=registry,
             stored_layer=lambda: layer,
+            serve_layer=lambda metadata: served_layer(metadata, page_dir),
             stored_data=lambda: data,
             bound_files=dict,
             versions=versions,

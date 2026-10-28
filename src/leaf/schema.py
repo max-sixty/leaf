@@ -676,6 +676,9 @@ MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
 FILE_BINDINGS_FILE = "files.json"
 DATA_DIR = "data"
+# The page's copies of the packages it selects by path (`vendoring`), which every
+# Leaf reading the page composes in place of a directory only `page init` could see.
+PACKAGES_DIR = "packages"
 # The diagnostic request and interaction trace (`interaction_log.py`).
 INTERACTIONS_FILE = "observations.jsonl"
 PREVIEW_FILE = "preview.json"
@@ -714,7 +717,7 @@ PAGE_STATE_FILES = (
     *SESSION_FILES,
 )
 PAGE_OWNED_FILES = ("index.html", *PAGE_STATE_FILES)
-PAGE_OWNED_DIRS = ("revisions", MEDIA_DIR, DATA_DIR, "page")
+PAGE_OWNED_DIRS = ("revisions", MEDIA_DIR, DATA_DIR, "page", PACKAGES_DIR)
 # A revision's and a version's file name, without `.html`.
 REVISION_NAME = r"r(?P<revision>[1-9][0-9]*)-[a-f0-9]{16}"
 VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"

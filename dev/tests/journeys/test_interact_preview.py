@@ -43,7 +43,6 @@ from leaf_dev.page_fixtures import read_fixture, record_run_context
 
 from leaf import cli as cli_model
 from leaf import codex_adapter, hosting, leases, server, service, state
-from leaf import layer as layer_model
 from leaf.harness import claim_harness
 from leaf.interaction_log import read_interactions
 from leaf.registry.storage import layer_record
@@ -639,7 +638,7 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
             pytest.fail("Committed package did not rebuild the watch subscription")
         else:
             installed = layer_record(page)
-            assert installed["packages"] == [selection]
+            assert installed["packages"] == ["./packages/package"]
             assert (page / "index.html").read_text() == original
             assert str(theme) in watched.paths
             assert any(
@@ -647,13 +646,11 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
             )
             theme.write_text(":root { --package-proof: 2; }")
             yield {str(theme)}
-            # The page composes the edited package; this process's held
-            # composition predates the edit, so compose it afresh.
-            assert layer_record(page)["packages"] == [selection]
-            composed = layer_model.compose_layer(
-                layer_model.checked_layer_inputs(layer_model.layer_inputs((selection,)))
+            # The page's copy of the package takes the edit.
+            assert (
+                "--package-proof: 2"
+                in (page / "packages" / "package" / "theme.css").read_text()
             )
-            assert "--package-proof: 2" in composed.top_files["theme.css"].decode()
 
     monkeypatch.setattr(
         preview,

@@ -208,7 +208,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     package = ROOT / "docs" / "package"
     assert (
         stylesheet(package / "theme.css", package).rstrip()
-        in selected(layer_record(page)).top_files["theme.css"].decode()
+        in selected(layer_record(page), page).top_files["theme.css"].decode()
     )
     watched = preview.watch_paths(source, ROOT, [])
     assert str(ROOT / "docs" / "layer.json") in watched.paths

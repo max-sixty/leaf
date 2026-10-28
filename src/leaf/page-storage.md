@@ -34,6 +34,11 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
   Every Leaf that reads the page composes its registry, theme, instructions, widgets
   and package modules from it; none of them is a file in the page.
 
+- `packages/<name>/` — the page's copy of each package it selects by path, which
+  `layer.json` names as `./packages/<name>` (`vendoring`). A path names a directory
+  relative to where `page init` ran, so init copies the package's layer files here,
+  and every reader composes the copy. The next `page init --package` replaces it.
+
 - `page/` — the page's own browser-ready modules, styles, assets, `page/registry.json`
   and `page/widgets/`. These are candidate inputs only: each revision captures every
   file here but hidden ones (`revision_artifact.page_files`), and delivery reads the

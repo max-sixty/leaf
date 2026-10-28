@@ -16,6 +16,7 @@ import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool, _retire
 from interact_support import (
+    COMMAND_HUB_PACKAGE,
     COMPOSITE_TIMEOUT,
     PAGE,
     PLUGIN_ROOT,
@@ -93,13 +94,13 @@ STORAGE_FILES, STORAGE_DIRECTORIES = storage_contract()
 
 def layer_files(page: Path) -> dict[str, bytes]:
     """The files the layer `page` selects serves, by rooted path."""
-    return registry_storage.selected(registry_storage.layer_record(page)).files
+    return registry_storage.selected(registry_storage.layer_record(page), page).files
 
 
 def layer_instructions(page: Path) -> dict[str, bytes]:
     """The instructions the layer `page` selects composes, by file name."""
     record = registry_storage.layer_record(page)
-    return registry_storage.selected(record).directory_files["instructions"]
+    return registry_storage.selected(record, page).directory_files["instructions"]
 
 
 def test_cli_help_groups_commands_with_complete_summaries(regtest):
@@ -1037,12 +1038,17 @@ def test_claude_and_codex_read_the_same_repository_skills():
 
 
 def test_the_selected_layer_holds_its_packages_but_not_the_runtime(page_dir):
-    """A page records its selection alone, and the layer composed from it carries the
-    selected packages' files beside the core's, but none of the runtime's."""
+    """A page records its selection, with a copy of the package it selects by path,
+    and the layer composed from it carries the selected packages' files beside the
+    core's, but none of the runtime's."""
     assert sorted(path.name for path in page_dir.iterdir()) == [
         "events.jsonl",
         "index.html",
         "layer.json",
+        "packages",
+    ]
+    assert [path.name for path in (page_dir / "packages").iterdir()] == [
+        COMMAND_HUB_PACKAGE.name
     ]
     files = layer_files(page_dir)
     assert "/theme.css" in files
@@ -1857,14 +1863,6 @@ PLAIN_PAGE = (
 )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "every reader now composes the layer from layer.json, and resolves a"
-        " project-relative package against its own working directory, so a page"
-        " selecting one is refused away from the project it was initialized in"
-    ),
-)
 def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
     tmp_path, monkeypatch
 ):
@@ -1892,7 +1890,7 @@ def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
     with pytest.raises(Refused):
-        layer_model.resolve_packages(("./.leaf",))
+        layer_model.resolve_packages(("./.leaf",), Path.cwd())
 
     with preview_server(page, structure_model.SourceDocument(PLAIN_PAGE), 1) as url:
         assert url.startswith("http://127.0.0.1:")
@@ -2807,7 +2805,7 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
 
     assert result.exit_code == 0, result.output
     registry = registry_storage.load_registry(page)
-    assert registry["$layer"]["packages"] == ["./first", "./second"]
+    assert registry["$layer"]["packages"] == ["./packages/first", "./packages/second"]
     assert registry["lf-shared"]["description"] == "second"
     assert layer_files(page)["/widgets/shared.js"] == b"// second\n"
     theme = layer_files(page)["/theme.css"].decode()
@@ -3217,7 +3215,10 @@ def test_package_init_creates_independently_selectable_packages(tmp_path, monkey
     )
     assert initialized.exit_code == 0, initialized.output
     registry = registry_storage.load_registry(page)
-    assert registry["$layer"]["packages"] == [str(callout), str(accent)]
+    assert registry["$layer"]["packages"] == [
+        "./packages/callout",
+        "./packages/accent",
+    ]
     assert "lf-callout" in registry
     assert "/widgets/lf-callout.js" in layer_files(page)
 
@@ -3795,7 +3796,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
 
     assert initialized.exit_code == 0, initialized.output
     registry = registry_storage.load_registry(page)
-    assert registry["$layer"]["packages"] == ["./solo", "./night"]
+    assert registry["$layer"]["packages"] == ["./packages/solo", "./packages/night"]
     assert "lf-solo" in registry
     assert "/widgets/lf-solo.js" in layer_files(page)
     assert "/widgets/ready.js" in layer_files(page)
@@ -3823,8 +3824,8 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert revendored.exit_code == 0, revendored.output
     assert registry_storage.load_registry(page)["$layer"]["packages"] == [
-        "./solo",
-        "./night",
+        "./packages/solo",
+        "./packages/night",
     ]
 
 
@@ -3844,7 +3845,7 @@ def test_page_owned_pr_brief_composes_its_data_contract(tmp_path, monkeypatch):
     assert initialized.exit_code == 0, initialized.output
     registry = registry_storage.load_registry(page)
     widget = registry["lf-pr-brief"]
-    assert registry["$layer"]["packages"] == [selection]
+    assert registry["$layer"]["packages"] == ["./packages/pr-walkthrough.page"]
     assert widget["x-data"] == {
         "request": {
             "contract": "pull-request",
@@ -4019,7 +4020,7 @@ def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatc
     assert bundled_registry["$layer"]["packages"] == ["diagram"]
     assert "lf-diagram" not in local_registry
     assert "lf-local" in local_registry
-    assert local_registry["$layer"]["packages"] == ["./diagram"]
+    assert local_registry["$layer"]["packages"] == ["./packages/diagram"]
 
 
 def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):

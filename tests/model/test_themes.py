@@ -36,7 +36,7 @@ def catalogue(tmp_path, *, default="editorial"):
 
 def served_theme(page: Path) -> str:
     """The theme sheet the layer `page` selects serves (`registry.storage.selected`)."""
-    return selected(layer_record(page)).files["/theme.css"].decode()
+    return selected(layer_record(page), page).files["/theme.css"].decode()
 
 
 def test_an_installed_theme_keeps_the_files_its_sheet_imports(tmp_path):

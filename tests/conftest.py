@@ -299,7 +299,8 @@ def initialized_page(_page_pool, tmp_path):
                 step(target)
 
         resolved = tuple(
-            root.resolve() for root in layer_model.resolve_packages(packages)
+            root.resolve()
+            for root in layer_model.resolve_packages(packages, Path.cwd())
         )
         if any(root.is_relative_to(own) for root in resolved):
             initialize(destination)

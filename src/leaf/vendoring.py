@@ -1,7 +1,12 @@
 """Page initialization, and the layer record that selects a page's packages.
 
 A page records its selection (`registry.storage.LAYER`); every Leaf that reads it
-composes the layer itself (`layer.selected_layer`). Changing the selection, or
+composes the layer itself (`layer.selected_layer`). A package selected by name is the
+reading Leaf's, bundled or installed on its machine. A package selected by path is
+copied into the page's `packages/` and recorded as that copy, since the path names a
+directory relative to where `page init` ran, which no other reader can find: the
+Codex adapter, a server started elsewhere, or the website's container. Edits to it
+reach the page at the next `page init --package`. Changing the selection, or
 taking the page to this Leaf's page protocol, refreshes an active revision from
 valid source before returning, so deliveries use the new vocabulary without needing
 a browser or state read first. Invalid source keeps its last good revision and
@@ -10,7 +15,9 @@ reports its check errors. A page with no active revision stays unactivated.
 
 from __future__ import annotations
 
+import re
 import secrets
+import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
@@ -21,9 +28,9 @@ from .harness import Harness, session_harness
 from .hosting import restarting_server
 from .layer import (
     checked_layer_inputs,
+    compose_layer,
     input_paths,
     layer_inputs,
-    selected_layer,
 )
 from .leases import lock_is_held, page_locked
 from .locations import first_overlap, located, path_is_within
@@ -31,7 +38,11 @@ from .refusals import Refused
 from .registry.kernel import kernel_protocol
 from .registry.storage import LAYER, layer_record
 from .schema import (
+    HTML_NAME,
     LAYER_FILE,
+    PACKAGE_DIRS,
+    PACKAGE_FILES,
+    PACKAGES_DIR,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     SERVER_LOCK,
@@ -208,7 +219,7 @@ def start_throwaway_page(page_dir: Path, packages: tuple[str, ...]) -> None:
     """Start a page in an empty directory selecting `packages`, for a reading Leaf
     takes and then deletes, as `package check --render` does with a package's
     worked examples."""
-    _write_record(page_dir, _record(packages, None, None))
+    LAYER.write(page_dir / LAYER_FILE, _record(packages, None, None))
     start_log(page_dir)
 
 
@@ -250,7 +261,7 @@ def _init_page(
         # A page's claim lives outside its directory. Recreating a deleted path
         # creates a new page, so it must not inherit the deleted page's owner.
         remove_claim(claim_path(page_dir))
-        _write_record(page_dir, plan.record)
+        _write_record(page_dir, plan)
         start_log(page_dir)
         return []
     # The page lock serializes this operation with other inits; an existing
@@ -263,7 +274,7 @@ def _init_page(
         plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
         if not plan.changed:
             return []
-        _write_record(page_dir, plan.record)
+        _write_record(page_dir, plan)
         checked = check_source(page_dir, page.events)
         if checked.revision.active:
             activate_checked_source(page, checked)
@@ -272,9 +283,11 @@ def _init_page(
 
 class _PagePlan(NamedTuple):
     """An admitted init, decided before anything is written: the record it writes,
-    and whether that differs from the page's."""
+    the package directories it copies into the page, by the name of each copy, and
+    whether either differs from the page's."""
 
     record: dict
+    copies: dict[str, Path]
     changed: bool
 
 
@@ -299,16 +312,68 @@ def _plan_page(
         if (refusal := write_refusal(page_dir)) and refusal.code == "newer-layer":
             raise Refused(str(refusal))
     previous = None if fresh else layer_record(page_dir)
-    if selected is None:
-        selected = tuple(previous["packages"]) if previous else ()
     captured_theme = selected_theme(page_dir, theme, fresh=fresh)
-    inputs = layer_inputs(with_theme(selected, captured_theme))
+    # A selection the caller names resolves where they run; the page's own, against
+    # the copies it holds.
+    named = selected is not None
+    if not named:
+        selected = tuple(previous["packages"]) if previous else ()
+    inputs = layer_inputs(
+        with_theme(selected, captured_theme), Path.cwd() if named else page_dir
+    )
     _refuse_package_target(page_dir, inputs)
     roots = checked_layer_inputs(inputs)
     _refuse_input_destination_overlap(roots, page_dir.resolve())
-    selected_layer(selected, captured_theme["name"] if captured_theme else None)
-    record = _record(selected, captured_theme, previous)
-    return _PagePlan(record, record != previous)
+    compose_layer(roots)
+    copies = _copies(selected) if named else {}
+    record = _record(
+        tuple(
+            f"./{PACKAGES_DIR}/{copies[value].name}" if value in copies else value
+            for value in selected
+        ),
+        captured_theme,
+        previous,
+    )
+    copied = {root.name: root for root in copies.values()}
+    changed = record != previous or any(
+        _package_files(root) != _package_files(page_dir / PACKAGES_DIR / name)
+        for name, root in copied.items()
+    )
+    return _PagePlan(record, copied, changed)
+
+
+def _copies(selected: tuple[str, ...]) -> dict[str, Path]:
+    """The package directory each path in `selected` names, resolved against the
+    working directory, refusing two whose copies in the page would share a name."""
+    copies = {}
+    for value in selected:
+        if re.fullmatch(HTML_NAME, value):
+            continue
+        root = Path(value).expanduser().resolve()
+        if other := next(
+            (seen for seen, held in copies.items() if held.name == root.name), None
+        ):
+            raise Refused(
+                f"packages {other!r} and {value!r} share the directory name "
+                f"{root.name!r}; a page keeps each package it selects by path under "
+                f"{PACKAGES_DIR}/ by that name"
+            )
+        copies[value] = root
+    return copies
+
+
+def _package_files(root: Path) -> dict[str, bytes]:
+    """The files of package `root` a layer composes (`layer.checked_inputs`)."""
+    files = {}
+    for name in PACKAGE_FILES:
+        if (root / name).is_file():
+            files[name] = (root / name).read_bytes()
+    for sub in PACKAGE_DIRS:
+        if (root / sub).is_dir():
+            for path in sorted((root / sub).rglob("*")):
+                if path.is_file():
+                    files[path.relative_to(root).as_posix()] = path.read_bytes()
+    return files
 
 
 def _record(
@@ -329,14 +394,39 @@ def _record(
     return {**record, "generation": secrets.token_hex(16)}
 
 
-def _write_record(page_dir: Path, record: dict) -> None:
-    LAYER.write(page_dir / LAYER_FILE, record)
+def _write_record(page_dir: Path, plan: _PagePlan) -> None:
+    """Write `plan`'s copies into the page, removing those it no longer selects,
+    then its record."""
+    held = page_dir / PACKAGES_DIR
+    kept = {
+        Path(value).name
+        for value in plan.record["packages"]
+        if value.startswith(f"./{PACKAGES_DIR}/")
+    }
+    for copy in held.iterdir() if held.is_dir() else ():
+        if copy.name not in kept:
+            shutil.rmtree(copy)
+    for name, root in plan.copies.items():
+        target = held / name
+        if root == target.resolve():
+            continue
+        staged = held / f".{name}.staged"
+        shutil.rmtree(staged, ignore_errors=True)
+        for path, data in _package_files(root).items():
+            (staged / path).parent.mkdir(parents=True, exist_ok=True)
+            (staged / path).write_bytes(data)
+        shutil.rmtree(target, ignore_errors=True)
+        staged.rename(target)
+    if held.is_dir() and not any(held.iterdir()):
+        held.rmdir()
+    LAYER.write(page_dir / LAYER_FILE, plan.record)
 
 
 def _refuse_input_destination_overlap(roots: list[Path], page_target: Path) -> None:
+    # The page's own package copies are inputs `_write_record` writes.
     destinations = [
         *(page_target / name for name in PAGE_OWNED_FILES),
-        *(page_target / sub for sub in PAGE_OWNED_DIRS),
+        *(page_target / sub for sub in PAGE_OWNED_DIRS if sub != PACKAGES_DIR),
     ]
     if overlap := first_overlap(located(input_paths(roots)), located(destinations)):
         package, destination = overlap

@@ -1942,7 +1942,7 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
         for entry in schema_model.BUNDLED_PACKAGES.iterdir()
         if entry.is_dir() and entry != schema_model.DEFAULT_PACKAGE
     )
-    resolved = layer_model.resolve_packages(tuple(packages))
+    resolved = layer_model.resolve_packages(tuple(packages), Path.cwd())
     assert resolved == [schema_model.BUNDLED_PACKAGES / name for name in packages]
     assert layer_model.checked_inputs(resolved) == resolved
 

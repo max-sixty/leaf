@@ -28,6 +28,9 @@ leaf package run NAME SCRIPT [ARGS]...
 `--package` takes a bare name, which selects an installed or bundled package, or a
 path relative to the project or starting with `~`, such as `./.leaf` or
 `'~/.config/leaf'`. Absolute paths are refused, since the page's registry is public.
+`page init` copies a package selected by path into the page's `packages/`, so the
+page reads the same wherever it is served; run `page init --package` again to take
+in edits to the package.
 
 `leaf package install SOURCE` checks the directory and copies it into
 `~/.local/state/leaf/packages/`, so `--package NAME` selects it from any project on this

@@ -38,6 +38,8 @@ class PageRead:
     revision: Callable[[int], SourceReading]
     registry: dict | None
     stored_layer: Callable[[], dict]
+    # The layer a revision's `$layer` selects, as served (`storage.served_layer`).
+    serve_layer: Callable[[dict], dict]
     stored_data: Callable[[], dict]
     # Each file binding's stamp (`file_bindings.binding_stamps`); a capture binds none.
     bound_files: Callable[[], dict[str, str]]
@@ -130,12 +132,14 @@ def read_page(
         revisions=revisions,
         revision=lambda revision: read_revision(page_dir, revision),
         registry=registry,
+        serve_layer=lambda metadata: served_layer(metadata, page_dir),
         stored_layer=lambda: served_layer(
             registry["$layer"]
             if active is not None and registry is not None
             else layer_metadata(page_dir)
             if layer_identity is None
-            else layer_identity
+            else layer_identity,
+            page_dir,
         ),
         stored_data=lambda: read_data(page_dir, registry),
         bound_files=lambda: binding_stamps(page_dir),

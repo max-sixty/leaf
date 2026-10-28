@@ -28,7 +28,7 @@ from .registry.storage import LAYER
 from .revision_artifact import Disposable, RevisionArtifact
 from .revisioning import activate_source
 from .sample_content import initial_sample_events
-from .schema import LAYER_FILE
+from .schema import LAYER_FILE, PACKAGES_DIR
 from .structure import SourceDocument
 from .thread_context import thread_structure
 
@@ -123,6 +123,9 @@ class Samples:
                     "protocol": kernel_protocol(),
                 },
             )
+            # The layer names the parent's copies of the packages it selects by path.
+            if (parent / PACKAGES_DIR).is_dir():
+                shutil.copytree(parent / PACKAGES_DIR, child / PACKAGES_DIR)
             # Message attachments are content-addressed page data, not necessarily
             # dependencies of the authored revision. Preserve those bytes too.
             if (parent / "media").is_dir():

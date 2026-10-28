@@ -180,6 +180,8 @@ class RevisionArtifact:
     html: bytes
     resources: Mapping[str, Resource]
     manifest: bytes
+    # The page whose package copies the manifest's layer names (`vendoring`).
+    page_dir: Path
 
     @cached_property
     def digest(self) -> str:
@@ -193,6 +195,7 @@ class RevisionArtifact:
         return revision_vocabulary(
             json.loads(self.manifest),
             declarations.data if declarations is not None else None,
+            self.page_dir,
         )
 
     @cached_property
@@ -682,12 +685,12 @@ class _ResourceCapture:
             pending.extend(reversed(edges))
 
 
-def _layer_files(registry: dict) -> Mapping[str, bytes]:
+def _layer_files(registry: dict, page_dir: Path) -> Mapping[str, bytes]:
     """The files of the layer `registry`'s `$layer` selects, which the delivering Leaf
     serves beside the revision (`runtime_selection.executing`): a document may name
     one, such as the layer's icon, without the revision capturing it."""
     layer = registry.get("$layer")
-    return selected(layer).files if layer else {}
+    return selected(layer, page_dir).files if layer else {}
 
 
 def _capture_artifact(
@@ -768,7 +771,7 @@ def _capture_artifact(
             if reference is None or reference[0] in resources:
                 continue
             if not reference[0].startswith(("/page/", "/media/")) and (
-                reference[0] in _layer_files(registry)
+                reference[0] in _layer_files(registry, page_dir)
             ):
                 continue
             entries.append(resolve_dependency(specifier, "/index.html"))
@@ -889,7 +892,9 @@ def _capture_artifact(
             },
         }
     )
-    return RevisionArtifact(document.data, MappingProxyType(resources), manifest)
+    return RevisionArtifact(
+        document.data, MappingProxyType(resources), manifest, page_dir
+    )
 
 
 def artifact_name(revision: int, artifact: RevisionArtifact) -> str:
@@ -1293,6 +1298,7 @@ def _bundle_vocabulary(bundle: Path) -> dict:
     return revision_vocabulary(
         json.loads((bundle / "manifest.json").read_bytes()),
         declarations.read_bytes() if declarations.is_file() else None,
+        bundle.parent.parent,
     )
 
 
@@ -1308,7 +1314,9 @@ def _materialize(path: Path, bundle: Path) -> RevisionArtifact:
         for logical, record in manifest["resources"].items()
     }
     html = path.read_bytes()
-    artifact = RevisionArtifact(html, MappingProxyType(resources), manifest_bytes)
+    artifact = RevisionArtifact(
+        html, MappingProxyType(resources), manifest_bytes, bundle.parent.parent
+    )
     if not path.stem.endswith(artifact.digest.removeprefix("sha256:")[:16]):
         raise artifact_error("manifest-digest", bundle)
     return artifact

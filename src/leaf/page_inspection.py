@@ -78,7 +78,9 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
     resources = {
         **{
             path: running[path]
-            for path in selected(json.loads(artifact.manifest)["layer"]).files
+            for path in selected(
+                json.loads(artifact.manifest)["layer"], artifact.page_dir
+            ).files
         },
         **artifact.resources,
     }

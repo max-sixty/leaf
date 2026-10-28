@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from functools import cache, cached_property
 from pathlib import Path
 
+from .files import file_stamp
 from .findings import Finding
 from .locations import first_overlap, located
 from .machine import package_store
@@ -48,13 +49,14 @@ def named_package(name: str) -> Path | None:
     return bundled if bundled.is_dir() else None
 
 
-def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
-    """Resolve recorded package selections without changing their order.
+def resolve_packages(selected: tuple[str, ...], base: Path) -> list[Path]:
+    """Resolve package selections without changing their order.
 
     A bare name selects an installed or bundled package. Other relative paths
-    are project-relative. A `~` path stays portable across the user's machines.
-    Absolute paths are not recorded because
-    `$layer.packages` is part of the page's public vendored registry.
+    resolve against `base`: the working directory of the `page init` naming them, or
+    the page directory for the copies its record names (`vendoring`). A `~` path
+    stays portable across the user's machines. Absolute paths are refused because
+    `$layer.packages` is served with the page.
     """
     packages = []
     for value in selected:
@@ -72,21 +74,24 @@ def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
         if package_path.is_absolute():
             raise Refused(
                 f"package {value!r} is absolute; use a bundled name, "
-                "explicit project-relative path, or ~ path so the vendored registry "
+                "explicit project-relative path, or ~ path so the page "
                 "does not publish a machine path"
             )
         root = package_path.expanduser()
         if not root.is_absolute():
-            root = Path.cwd() / root
+            root = base / root
         if not (root.exists() or root.is_symlink()):
             raise Refused(f"package {value!r} is not a directory")
         packages.append(root)
     return packages
 
 
-def layer_inputs(selected: tuple[str, ...] = ()) -> list[Path]:
-    """The kernel, bundled default, and explicitly selected packages, in order."""
-    return [ASSETS, DEFAULT_PACKAGE, *resolve_packages(selected)]
+def layer_inputs(
+    selected: tuple[str, ...] = (), base: Path | None = None
+) -> list[Path]:
+    """The kernel, bundled default, and explicitly selected packages, in order, a
+    path selection resolving against `base` or else the working directory."""
+    return [ASSETS, DEFAULT_PACKAGE, *resolve_packages(selected, base or Path.cwd())]
 
 
 def checked_inputs(inputs: list[Path]) -> list[Path]:
@@ -430,26 +435,31 @@ class LayerComposition:
         }
 
 
-def selected_layer(packages: tuple[str, ...], theme: str | None) -> LayerComposition:
-    """The layer this Leaf composes for a page that selects `packages` and the
-    personal `theme`, the package composed last: its core and bundled packages and
-    the user's installed ones, as this process first read them.
+def selected_layer(
+    packages: tuple[str, ...], theme: str | None, page_dir: Path
+) -> LayerComposition:
+    """The layer this Leaf composes for the page at `page_dir` that selects
+    `packages` and the personal `theme`, the package composed last: its core and
+    bundled packages, the user's installed ones, as this process first read them,
+    and the copies the page holds of packages it selects by path.
 
     A page records only its selection (`registry.storage.LAYER`), so every Leaf
     that serves, checks or exports it composes its own layer, the way it supplies
     its own runtime (`runtime_selection`). Held for the process, since a plugin
     update may replace the tree under a running server, which keeps answering with
     the bytes it started with. Held by the package roots the selection resolves to
-    rather than its spelling, since a project-relative path names another directory
-    from another working directory, and an installed name another snapshot after
-    `package install`."""
+    rather than its spelling, since a page's own copy is another directory in another
+    page, and an installed name another snapshot after `package install`; and a
+    page's copy by its stamp too, since its next `page init` replaces it in place."""
     if theme is not None:
         packages = (*(name for name in packages if name != theme), theme)
-    return _composed(tuple(layer_inputs(packages)))
+    inputs = tuple(layer_inputs(packages, page_dir))
+    copies = tuple(file_stamp(root) for root in inputs if root.is_relative_to(page_dir))
+    return _composed(inputs, copies)
 
 
 @cache
-def _composed(inputs: tuple[Path, ...]) -> LayerComposition:
+def _composed(inputs: tuple[Path, ...], copies: tuple) -> LayerComposition:
     return compose_layer(checked_layer_inputs(list(inputs)))
 
 

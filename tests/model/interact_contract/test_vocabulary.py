@@ -57,7 +57,9 @@ def test_page_registry_composes_declarations_and_implementations_independently(
     layer_before = deepcopy(layer)
     page_before = deepcopy(declarations)
     widget_paths = {
-        *registry_storage.layer_widgets(registry_storage.layer_record(page_dir)),
+        *registry_storage.layer_widgets(
+            registry_storage.layer_record(page_dir), page_dir
+        ),
         "widgets/lf-local.js",
         "page/widgets/lf-page-only.js",
         "page/widgets/lf-tabs.js",
@@ -97,7 +99,9 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
     }
     member = {**deepcopy(layer["lf-old"]), "x-retired-when": "reject"}
     widget_paths = set(
-        registry_storage.layer_widgets(registry_storage.layer_record(page_dir))
+        registry_storage.layer_widgets(
+            registry_storage.layer_record(page_dir), page_dir
+        )
     )
 
     composed = registry_page.compose_page_registry(
@@ -131,7 +135,9 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
         },
     }
     widget_paths = set(
-        registry_storage.layer_widgets(registry_storage.layer_record(page_dir))
+        registry_storage.layer_widgets(
+            registry_storage.layer_record(page_dir), page_dir
+        )
     )
 
     composed = registry_page.compose_page_registry(

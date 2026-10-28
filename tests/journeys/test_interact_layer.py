@@ -432,7 +432,7 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
     assert initialized.exit_code == 0, initialized.output
 
     def composed(page):
-        return selected(layer_record(page))
+        return selected(layer_record(page), page)
 
     assert composed(page) == composed(baseline)
     assert load_registry(page)["$layer"]["packages"] == []
@@ -590,7 +590,7 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     )
     assert vendored.exit_code == 0, vendored.output
     assert load_registry(page)["lf-installed"]["description"] == "Replacement snapshot."
-    theme = selected(layer_record(page)).top_files["theme.css"].decode()
+    theme = selected(layer_record(page), page).top_files["theme.css"].decode()
     assert "lf-installed { color: purple; }" in theme
     (source / "theme.css").write_text(".bad { color red; }\n")
     refused = runner.invoke(cli_model.cli, ["package", "install", str(source)])
@@ -640,7 +640,7 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
         ],
     )
     assert initialized.exit_code == 0, initialized.output
-    widgets = selected(layer_record(page)).directory_files["widgets"]
+    widgets = selected(layer_record(page), page).directory_files["widgets"]
     assert widgets["lf-risk-note.js"].decode() == module
     (page / "index.html").write_text(
         PAGE.replace(
@@ -804,7 +804,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
         cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
-    layer = selected(layer_record(page))
+    layer = selected(layer_record(page), page)
     # The package's rule reaches the page confined to the package's own widget.
     assert "@scope (:is(lf-callout)) to (" in layer.top_files["theme.css"].decode()
     assert load_registry(page)["lf-callout"] == entry
@@ -858,12 +858,12 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert plain_registry["$layer"]["packages"] == []
     assert packaged_registry["$layer"]["packages"] == ["diagram"]
     diagram = "widgets/lf-diagram.js"
-    assert diagram not in layer_widgets(layer_record(plain))
-    assert diagram in layer_widgets(layer_record(composed))
+    assert diagram not in layer_widgets(layer_record(plain), plain)
+    assert diagram in layer_widgets(layer_record(composed), composed)
     revendor = runner.invoke(cli_model.cli, ["page", "init", str(composed)])
     assert revendor.exit_code == 0, revendor.output
     assert load_registry(composed)["$layer"]["packages"] == ["diagram"]
-    assert diagram in layer_widgets(layer_record(composed))
+    assert diagram in layer_widgets(layer_record(composed), composed)
     removed = runner.invoke(
         cli_model.cli, ["page", "init", "--no-packages", str(composed)]
     )
@@ -871,7 +871,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     removed_registry = load_registry(composed)
     assert removed_registry["$layer"]["packages"] == []
     assert "lf-diagram" not in removed_registry
-    assert diagram not in layer_widgets(layer_record(composed))
+    assert diagram not in layer_widgets(layer_record(composed), composed)
 
 
 def _replying_after(page, server, edit):

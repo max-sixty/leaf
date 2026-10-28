@@ -96,7 +96,7 @@ def page_instructions(
         registry, entries, contracts
     )
     parts: dict[str, list[str]] = {}
-    layer = selected(layer_record(page_dir))
+    layer = selected(layer_record(page_dir), page_dir)
     for name, data in sorted(layer.directory_files[INSTRUCTIONS_DIR].items()):
         text = data.decode("utf-8").strip()
         if text:

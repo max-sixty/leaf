@@ -30,11 +30,14 @@ reading it returns is caused by the markup and the log the test wrote and by
 nothing else on the machine.
 """
 
+from pathlib import Path
+
 from interact_support import ModelPage, model_layer, served_state_error, served_thread
 
 from leaf.event_contracts import admitted_event
 from leaf.files import document_descriptor, version_descriptors
 from leaf.passages import SourceReading
+from leaf.registry.storage import served_layer
 from leaf.served_state.context import PageRead
 from leaf.served_state.page import read_served_page
 from leaf.structure import SourceDocument
@@ -165,6 +168,8 @@ def served_reading(
             revision=readings.__getitem__,
             registry=registry,
             stored_layer=lambda: registry["$layer"],
+            # The fixture selects no package, so no page directory resolves one.
+            serve_layer=lambda metadata: served_layer(metadata, Path()),
             stored_data=lambda: data,
             bound_files=dict,
             versions=tuple(version_descriptors(log, parsed)),

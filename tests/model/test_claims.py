@@ -436,18 +436,18 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
     page = tmp_path / "concurrent-page"
     reached_layer = threading.Event()
     resume = threading.Event()
-    original_selected_layer = vendoring_model.selected_layer
+    original_compose_layer = vendoring_model.compose_layer
 
     # Held where init composes the selection under the page lock, which runs on
-    # every init: the composition itself is kept for the process.
-    def held_selected_layer(*selection):
+    # every init.
+    def held_compose_layer(*roots):
         reached_layer.set()
         assert resume.wait(timeout=STATED_TIMEOUT), (
             "the concurrent init never released its peer"
         )
-        return original_selected_layer(*selection)
+        return original_compose_layer(*roots)
 
-    monkeypatch.setattr(vendoring_model, "selected_layer", held_selected_layer)
+    monkeypatch.setattr(vendoring_model, "compose_layer", held_compose_layer)
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(vendoring_model.cmd_init, page)
     try:

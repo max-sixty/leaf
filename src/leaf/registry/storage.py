@@ -74,45 +74,48 @@ def layer_record(page_dir: Path) -> dict | None:
     return LAYER.read(page_dir / LAYER_FILE)
 
 
-def selected(record: dict):
-    """The layer `record` selects, as this Leaf composes it (`layer.selected_layer`),
-    refused as a registry fault where a selected package is gone or invalid."""
+def selected(record: dict, page_dir: Path):
+    """The layer `record` selects for the page at `page_dir`, as this Leaf composes
+    it (`layer.selected_layer`), refused as a registry fault where a selected package
+    is gone or invalid."""
     from leaf.layer import selected_layer
 
     theme = record["theme"]["name"] if record["theme"] else None
     try:
-        return selected_layer(tuple(record["packages"]), theme)
+        return selected_layer(tuple(record["packages"]), theme, page_dir)
     except Refused as error:
         raise RegistryError(
             Finding("layer-unavailable", values={"error": str(error)})
         ) from None
 
 
-def layer_vocabulary(record: dict) -> dict:
+def layer_vocabulary(record: dict, page_dir: Path) -> dict:
     """The vocabulary of the layer `record` selects, with the selection and the
     generation the browser speaks under `$layer`, held with the composition, since
     an action POST asks for the whole vocabulary before it can check a press."""
     metadata = layer_metadata_of(record)
-    readings = selected(record).readings
+    layer = selected(record, page_dir)
     key = ("layer", json.dumps(metadata, sort_keys=True))
-    if key not in readings:
-        readings[key] = {**selected(record).registry, "$layer": metadata}
-    return readings[key]
+    if key not in layer.readings:
+        layer.readings[key] = {**layer.registry, "$layer": metadata}
+    return layer.readings[key]
 
 
-def layer_widgets(record: dict) -> list[str]:
+def layer_widgets(record: dict, page_dir: Path) -> list[str]:
     """The page-root-relative widget entry modules the selected layer serves."""
     return sorted(
         f"widgets/{name}"
-        for name in selected(record).directory_files["widgets"]
+        for name in selected(record, page_dir).directory_files["widgets"]
         if re.fullmatch(r"lf-[^/]*\.js", name)
     )
 
 
-def revision_vocabulary(manifest: dict, declarations: bytes | None) -> dict:
-    """The vocabulary this Leaf reads a revision in: the declarations it captured,
-    `declarations`, over the layer its `manifest` selects, with the page widgets it
-    captured. Every revision selecting the same layer and declaring the same shares
+def revision_vocabulary(
+    manifest: dict, declarations: bytes | None, page_dir: Path
+) -> dict:
+    """The vocabulary this Leaf reads a revision of the page at `page_dir` in: the
+    declarations it captured, `declarations`, over the layer its `manifest` selects,
+    with the page widgets it captured. Every revision selecting the same layer and declaring the same shares
     one read-only reading."""
     widgets = tuple(
         implementation["path"].lstrip("/")
@@ -120,25 +123,25 @@ def revision_vocabulary(manifest: dict, declarations: bytes | None) -> dict:
         if implementation["owner"] == "page"
     )
     layer = manifest["layer"]
-    readings = selected(layer).readings
+    readings = selected(layer, page_dir).readings
     key = ("revision", json.dumps(layer, sort_keys=True), declarations, widgets)
     if key not in readings:
-        readings[key] = _revision_vocabulary(layer, declarations, widgets)
+        readings[key] = _revision_vocabulary(layer, declarations, widgets, page_dir)
     return readings[key]
 
 
 def _revision_vocabulary(
-    record: dict, declarations: bytes | None, widgets: tuple[str, ...]
+    record: dict, declarations: bytes | None, widgets: tuple[str, ...], page_dir: Path
 ) -> dict:
     from .page import compose_page_registry
 
     # The selected layer was validated where it was composed, so a revision
     # declaring nothing over it is not validated again.
-    vocabulary = layer_vocabulary(record)
+    vocabulary = layer_vocabulary(record, page_dir)
     return compose_page_registry(
         vocabulary,
         json.loads(declarations) if declarations else {},
-        [*layer_widgets(record), *widgets],
+        [*layer_widgets(record, page_dir), *widgets],
         validated=vocabulary,
     ).registry
 
@@ -154,7 +157,7 @@ def load_registry(page_dir: Path):
         return None
     if refusal := incompatible_layer(page_dir, record):
         raise IncompatibleLayer(refusal)
-    return layer_vocabulary(record)
+    return layer_vocabulary(record, page_dir)
 
 
 def read_page_registry(page_dir: Path):
@@ -180,9 +183,9 @@ def read_page_registry(page_dir: Path):
     record = layer_record(page_dir)
     key = (
         file_stamp(page_dir / LAYER_FILE),
-        # The composition the record selects, which another working directory or
-        # package install resolves to other roots (`layer.selected_layer`).
-        selected(record) if record else None,
+        # The composition the record selects, which a package install resolves to
+        # other roots (`layer.selected_layer`).
+        selected(record, page_dir) if record else None,
         file_stamp(page_dir / "page" / "registry.json"),
         widgets,
         active,
@@ -195,7 +198,10 @@ def read_page_registry(page_dir: Path):
         return compose_candidate(
             page_dir,
             layer,
-            [*layer_widgets(layer_record(page_dir)), *(path for path, _ in widgets)],
+            [
+                *layer_widgets(layer_record(page_dir), page_dir),
+                *(path for path, _ in widgets),
+            ],
             validated=read_revision(page_dir, active).registry if active else None,
         )
 
@@ -252,15 +258,15 @@ def layer_metadata_of(record: dict) -> dict:
     }
 
 
-def served_layer(metadata: dict) -> dict:
-    """`metadata` as the served state names the layer a page is read under: with the
-    fingerprint of the layer this Leaf composes for it, and this Leaf as its
-    producer, the one the leaf's menu shows (`runtime/page-about.js`)."""
+def served_layer(metadata: dict, page_dir: Path) -> dict:
+    """`metadata` as the served state names the layer the page at `page_dir` is read
+    under: with the fingerprint of the layer this Leaf composes for it, and this Leaf
+    as its producer, the one the leaf's menu shows (`runtime/page-about.js`)."""
     from leaf.layer import running_leaf
 
     return {
         **metadata,
-        "fingerprint": selected(metadata).fingerprint,
+        "fingerprint": selected(metadata, page_dir).fingerprint,
         "producer": running_leaf(),
     }
 

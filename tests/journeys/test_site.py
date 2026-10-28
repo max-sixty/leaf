@@ -334,7 +334,11 @@ def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeyp
     context_theme = layer_model.stylesheet(package / "theme.css", package).rstrip()
     for source in site_build.published_page_sources():
         record = layer_record(site / "examples" / source.stem)
-        theme = selected(record).top_files["theme.css"].decode()
+        theme = (
+            selected(record, site / "examples" / source.stem)
+            .top_files["theme.css"]
+            .decode()
+        )
         assert context_theme not in theme, source
 
 

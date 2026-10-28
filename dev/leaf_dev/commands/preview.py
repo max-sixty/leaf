@@ -75,7 +75,7 @@ from leaf.file_changes import FileChanges
 from leaf.locations import canonical_path
 from leaf.publishing import authored_digest, authored_files, write_authored_files
 from leaf.refusals import Refused
-from leaf.schema import LAYER_FILE
+from leaf.schema import LAYER_FILE, PACKAGES_DIR
 from leaf_dev import ROOT
 from leaf_dev.commands.distribution import compiler_root, current_kernel
 from leaf_dev.example_data import (
@@ -451,6 +451,20 @@ class PreviewService:
         )
 
 
+def source_roots(source: Path, page: Path, runtime: Path) -> list[Path]:
+    """The package roots the source's selection names, where `page init` runs from
+    (`leaf`), whose edits reach the page as copies at its next init, with the theme
+    the page captured."""
+    from leaf.layer import layer_inputs
+    from leaf.registry.storage import layer_record
+    from leaf.themes import with_theme
+
+    layer = layer_record(page)
+    return layer_inputs(
+        with_theme(tuple(source_packages(source)), layer["theme"]), runtime
+    )
+
+
 def serving_identity(runtime: Path) -> str:
     """What a page server of `runtime` serves: its serving code and runtime, and
     every input of a layer it composes (`runtime_selection.LAYER_SOURCES`)."""
@@ -537,6 +551,8 @@ def refresh_preview(
                 candidate = Path(raw) / "page"
                 candidate.mkdir()
                 shutil.copyfile(page / LAYER_FILE, candidate / LAYER_FILE)
+                if (page / PACKAGES_DIR).is_dir():
+                    shutil.copytree(page / PACKAGES_DIR, candidate / PACKAGES_DIR)
                 if (page / "media").is_dir():
                     shutil.copytree(page / "media", candidate / "media")
                 # Media's ordinary CLI door needs an initialized, isolated log.
@@ -788,10 +804,7 @@ def serve_preview(
     handshake=None,
 ) -> None:
     """Build this slot's page, serve it, and follow its inputs until stopped."""
-    from leaf.layer import layer_inputs
-    from leaf.registry.storage import layer_record
     from leaf.server import PREVIEW
-    from leaf.themes import with_theme
 
     loaded = worker_identity(runtime)
     # Fixture progress is distinct from the page's own authored inputs: an agent
@@ -846,8 +859,7 @@ def serve_preview(
         )
         with service.starting() as url:
             pass
-        layer = layer_record(page)
-        roots = layer_inputs(with_theme(tuple(layer["packages"]), layer["theme"]))
+        roots = source_roots(source, page, runtime)
         watched = watch_paths(source, runtime, roots)
         changes = watch_changes(watched)
         if handshake is not None and not handshake.announce({"url": url}):
@@ -907,8 +919,7 @@ def serve_preview(
             # Init can commit a selection even when the following source stamp
             # refuses. Follow the installed layer after every attempt, so that
             # its newly selected packages remain observable while source is fixed.
-            layer = layer_record(page)
-            roots = layer_inputs(with_theme(tuple(layer["packages"]), layer["theme"]))
+            roots = source_roots(source, page, runtime)
             try:
                 rebuilt = watch_paths(source, runtime, roots)
             except (ValueError, OSError) as error:

@@ -208,8 +208,9 @@ def executing(artifact: RevisionArtifact) -> RevisionArtifact:
     if executed is None:
         layer = {
             path: Resource(data, resource_type(path))
-            for path, data in selected(json.loads(artifact.manifest)["layer"])
-            .files.items()
+            for path, data in selected(
+                json.loads(artifact.manifest)["layer"], artifact.page_dir
+            ).files.items()
         }
         layer["/registry.json"] = Resource(
             json_bytes(artifact.registry), "application/json"
@@ -219,4 +220,3 @@ def executing(artifact: RevisionArtifact) -> RevisionArtifact:
             resources=MappingProxyType(runtime.resources(layer, artifact.resources)),
         )
     return executed
-

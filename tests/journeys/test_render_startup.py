@@ -140,7 +140,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     expect(
         panel_menu(ordinary).locator('.lf-fp-item[data-row="preview"]')
     ).to_have_count(0)
-    layer = served_layer(load_registry(serve.page_dir)["$layer"])
+    layer = served_layer(load_registry(serve.page_dir)["$layer"], serve.page_dir)
     producer = layer.get("producer", {})
     identity = (
         producer["commit"][:8]

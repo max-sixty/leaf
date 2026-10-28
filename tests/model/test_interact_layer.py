@@ -1656,10 +1656,6 @@ PRESS_FAMILIES = {
         {"lf-file-editor-retry", "lf-file-editor-conflict"},
         "a file editor's status in its tone, accent or warning, the header's height",
     ),
-    "message controls": (
-        {"lf-msg-control"},
-        "a duplicate of the symbol face until message-copy-markdown builds it by role",
-    ),
 }
 
 

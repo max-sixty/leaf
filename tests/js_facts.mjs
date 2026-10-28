@@ -650,7 +650,7 @@ function presses() {
           ...givenLater(bindingOf(node)),
         ]);
       }
-      if (name === "copyControl") {
+      if (name === "copyControl" && node.callee.type === "Identifier") {
         const role = args[1]?.properties?.some(
           (p) => p.key?.name === "role" && words(p.value, parents).length > 0,
         );

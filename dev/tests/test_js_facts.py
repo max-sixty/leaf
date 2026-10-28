@@ -47,7 +47,8 @@ def test_dynamic_import_with_rejection_handler(tmp_path, handlers):
 # taken for a class, a `className` given to another block's `button`, spacing or a
 # bound role that hid a press, a `>` inside a quoted attribute that ended the tag; a
 # `className` on a parameter given to an unrelated `button`, a family name joined to
-# more text, an escaped quote read raw, and Lit's `classMap` unread.
+# more text, an escaped quote read raw, and Lit's `classMap` unread; and a method
+# named after `copyControl` taken for it.
 PRESSES = """\
 { html`<button class="own-face" title="lf-react">`; }
 { offer("button", "own-face", "lf-react"); }
@@ -67,6 +68,7 @@ PRESSES = """\
 { html`<button class="lf-react${suffix}">`; }
 { html`<button title=\\"a > b\\" class="lf-react">`; }
 { html`<button class=${classMap({ "lf-react": true, "lf-off": false, own: on })}>`; }
+{ class M { #copyControl() { return copyControl("lf-x", { role: "symbol" }); } go() { this.#copyControl(); } } }
 """
 # Each line's press: the kind it is read as, how a role dresses it, and its classes.
 READ = [
@@ -88,6 +90,7 @@ READ = [
     ("template", None, []),
     ("template", None, ["lf-react"]),
     ("template", None, ["lf-react", "own"]),
+    ("copy control", "role in its options", ["lf-x"]),
 ]
 
 

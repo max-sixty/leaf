@@ -98,7 +98,6 @@ export { obligationActions } from "./application.js";
 export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";
-export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
   placePageThreads,

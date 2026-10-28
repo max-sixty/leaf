@@ -351,9 +351,15 @@
     const { offerActionElement } = actionOffers(tools);
     const previousRef = (node) => {
       if (node)
-        drawing.previous = offerActionElement(node, "symbol", "lf-timeline-previous", void 0, {
-          action: "previous"
-        });
+        drawing.previous = offerActionElement(
+          node,
+          "symbol",
+          "lf-timeline-previous",
+          void 0,
+          {
+            action: "previous"
+          }
+        );
     };
     const nextRef = (node) => {
       if (node)

@@ -417,7 +417,9 @@
         presetButtons.set(preset, button);
       }
       const actions = node("div", "lf-playground-actions");
-      reset = offerAction("symbol", "lf-playground-reset", void 0, { action: "reset" });
+      reset = offerAction("symbol", "lf-playground-reset", void 0, {
+        action: "reset"
+      });
       instruction = node("div", "lf-playground-instruction");
       instruction.id = `${host.id}-instruction`;
       instruction.popover = "auto";

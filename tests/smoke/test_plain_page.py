@@ -18,6 +18,7 @@ composes into a page loads as well as any other.
 import http.server
 import json
 from dataclasses import dataclass
+from typing import Literal
 
 import pytest
 from interact_support import running_http_server
@@ -33,15 +34,15 @@ from leaf.schema import BROWSER_DIRS
 @dataclass(frozen=True)
 class Portable:
     """A widget that loads and draws with no Leaf runtime: the bundled package that
-    ships it, one authored occurrence that draws, what it draws, inside it, and whether
-    the host's box sets that drawing's height, as a chart's does, rather than its
-    content."""
+    ships it, one authored occurrence that draws, what it draws, inside it, and which of
+    the drawing's sides the host's box sets: both, as a chart's are; its width, as a
+    code block's is; or neither, as a diagram keeps its natural size."""
 
     tag: str
     package: str
     markup: str
     drawn: str
-    fills_height: bool
+    sized: Literal["box", "width", "natural"]
 
 
 PORTABLE = [
@@ -55,7 +56,7 @@ PORTABLE = [
         '  marks: [Plot.barY([{team: "backend", n: 12}, {team: "frontend", n: 19}],'
         ' {x: "team", y: "n"})],\n}\n</pre></lf-chart>',
         "svg[role=img]",
-        fills_height=True,
+        sized="box",
     ),
     Portable(
         "lf-code",
@@ -64,7 +65,20 @@ PORTABLE = [
         '    if temp &lt; 0:\n        return "steel"\n</pre></lf-code>',
         # Its lines, coloured, the highlighted one among them.
         "pre:has(> .lf-code-line.hi [data-lf-syn])",
-        fills_height=False,
+        sized="width",
+    ),
+    Portable(
+        "lf-diagram",
+        "diagram",
+        # The host reserves the diagram's room, as Leaf's stylesheet does from the
+        # height an occurrence states, so the drawing arriving moves nothing below it.
+        '<lf-diagram id="lf-diagram" parts="all" style="height: 240px"><pre>\n'
+        "flowchart TD\n"
+        "  accTitle: Checkout\n  accDescr: A cart reaches payment.\n"
+        "  Cart([Cart]) --&gt; Pay{Paid?}\n</pre></lf-diagram>",
+        # Its named boxes.
+        'svg:has(g.pele-node[data-id="Cart"]):has(g.pele-node[data-id="Pay"])',
+        sized="natural",
     ),
 ]
 
@@ -152,15 +166,21 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
                 expect(drawn).to_be_visible()
                 box = drawn.bounding_box()
                 room = page.locator(f"#{widget.tag}").bounding_box()
-                # Drawn for the room the host gave it, not at a size of its own.
-                assert box["width"] == pytest.approx(room["width"], abs=1), (box, room)
-                if widget.fills_height:
+                assert box["width"] > 0 and box["height"] > 0, box
+                # Drawn for the room the host gave it, or at its own size inside it.
+                if widget.sized == "natural":
+                    assert box["width"] <= room["width"], (box, room)
+                    assert box["height"] <= room["height"], (box, room)
+                else:
+                    assert box["width"] == pytest.approx(room["width"], abs=1), (
+                        box,
+                        room,
+                    )
+                if widget.sized == "box":
                     assert box["height"] == pytest.approx(room["height"], abs=1), (
                         box,
                         room,
                     )
-                else:
-                    assert box["height"] > 0, box
         # Leaf binds a widget's keys, adds its Copy control and writes its quiet words
         # from declarations only Leaf reads.
         assert (

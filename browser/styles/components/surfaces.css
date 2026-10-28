@@ -432,7 +432,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   button.lf-icon-action,
   .lf-compose-submit,
   .lf-compose-dictate,
-  .lf-msg-control,
   .lf-thread-notice:is(button),
   button.lf-mark-action,
   button.lf-fp-face
@@ -579,8 +578,9 @@ summary {
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;
-  /* A message's controls, one group at its head's end (controls.css). */
-  --lf-msg-control-size: 26px;
+  /* A message's controls, symbols as tall as the thread's own, one group at its
+     head's end (controls.css). */
+  --lf-msg-control-size: var(--lf-icon-action-face);
   --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
   --lf-msg-edit-gap: 4px;
   /* The room a held-news notice keeps at its end for the count of facts it drops

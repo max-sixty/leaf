@@ -80,15 +80,11 @@
    A surface places and reveals them without restating their ink, border or fill.
    Margin reactions wear the margin-entry family (theme.css); response actions keep
    an opaque resting surface because they float over page content. */
-.lf-msg-control {
-  color: var(--muted);
-  border: 1px solid transparent;
-  background: transparent;
-}
-.lf-msg-control:is(:hover, [data-lf-focus], [aria-expanded="true"]) {
-  color: var(--ink-2);
-  border-color: var(--border-2);
+/* A message's controls are symbols (`.lf-icon-action`, below), as the thread's own
+   are beside them; one whose picker is open keeps the chip while the picker shows. */
+.lf-msg-control[aria-expanded="true"] {
   background: var(--chip);
+  color: var(--ink);
 }
 .lf-react {
   display: inline-flex;
@@ -176,6 +172,14 @@
 .lf-msg-controls:empty {
   display: none;
 }
+/* Under a finger, with no hover to hide it, Copy would stand on every message for
+   good, and a head is too narrow for two controls at the aim floor, so it is left out
+   there, and a finger copies a message's words by selecting them. */
+@media (pointer: coarse), (hover: none) {
+  .lf-msg-copy {
+    display: none;
+  }
+}
 .lf-msg-control {
   appearance: none;
   z-index: 2;
@@ -187,7 +191,7 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--r);
-  opacity: 0;
+  opacity: var(--lf-msg-offered, 0);
   cursor: pointer;
 }
 /* Every Leaf icon (icons.js) is drawn the same way, whatever class its caller places it
@@ -210,9 +214,44 @@ svg[data-lf-icon] {
   inline-size: 16px;
   block-size: 16px;
 }
-.lf-msg:is(:hover, [data-lf-focus-within]) .lf-msg-control,
-.lf-msg-control[data-lf-focus] {
-  opacity: 1;
+/* A message offers its controls while the pointer is over it, the keyboard's cue is
+   inside it or one of its pickers is open, and not for a press's focus alone: a pressed
+   Copy keeps focus, and its message's controls stayed lit while the pointer read the
+   next message. Whatever else stands with them reads the same switch. */
+.lf-msg:is(
+  :hover,
+  [data-lf-focus-visible-within],
+  :has(.lf-msg-control[aria-expanded="true"])
+) {
+  --lf-msg-offered: 1;
+}
+/* Where a thread's own controls (Expand, Resolve, Close) follow its first message's
+   on that message's head line, a rule stands in the gap between them while the
+   message's show: the controls before it act on the message, those after it on the
+   whole thread. An open rewrite's Discard and Save take the thread's place past the
+   gap (response.css), so the rule leaves with it. */
+:is(.lf-thread-content, .lf-page-thread):has(
+    > :is(.lf-thread-controls, .lf-margin-thread-controls)
+  )
+  > .lf-thread-transcript
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint):not(
+    :has(> .lf-msg-body > .lf-msg-editor)
+  )
+  > .lf-msg-head
+  > .lf-msg-controls {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset-inline-start: calc(100% + var(--sp-2) / 2);
+    inset-block-start: 50%;
+    translate: -50% -50%;
+    inline-size: 1px;
+    block-size: 16px;
+    background: var(--border-2);
+    opacity: var(--lf-msg-offered, 0);
+    pointer-events: none;
+  }
 }
 .lf-react-strip {
   display: flex;
@@ -276,8 +315,8 @@ svg[data-lf-icon] {
   font-size: 16px;
 }
 @media (hover: none) {
-  .lf-msg-control {
-    opacity: 1;
+  .lf-msg {
+    --lf-msg-offered: 1;
   }
 }
 .lf-msg-meta {

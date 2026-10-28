@@ -4,7 +4,7 @@
    message's other controls at its head (messages.js), which draws `trigger`. */
 import { html, ref, render, repeat } from "/runtime/framework.js";
 import { HOLDS_WORD } from "../held-word.js";
-import { namedAction, offered } from "../widget-elements.js";
+import { offered, offeredAction } from "../widget-elements.js";
 
 let ordinal = 0;
 export class ReactionStripView {
@@ -56,10 +56,11 @@ export class ReactionStripView {
 
   // The list's trigger, which registers the strip once it is drawn.
   trigger = html`<button
-    ${offered("lf-msg-control lf-react-trigger")}
+    ${offeredAction("symbol", "lf-msg-control lf-react-trigger", undefined, {
+      action: "react",
+    })}
     aria-expanded="false"
     aria-controls=${this.#paletteId}
-    ${namedAction("react", { className: "lf-msg-control-icon" })}
     @click=${() => this.#registration.toggle()}
     ${ref((trigger) => {
       if (trigger)

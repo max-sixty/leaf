@@ -7020,7 +7020,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             ></button>` : nothing}<button
         type="button"
         ${offeredAction("symbol", `lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}`, thread.resolved ? "Reopen" : "Resolve thread", { action: thread.resolved ? "reopen" : "resolve" })}
-        aria-disabled=${String(!(thread.resolved ? thread.offers.reopen : thread.offers.resolve))}
         @click=${() => {
 			if (!thread.resolved) dismissReply(thread.key);
 			settleThread({
@@ -7793,6 +7792,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		const restoreFocus = holdFocus(dialog);
 		place$1.around(() => presentSheet());
 		restoreFocus?.(dialogSearch);
+		paintKeysWithin(dialog);
 	}
 	function presentSheet() {
 		const query = dialogSearch.value.trim().toLocaleLowerCase();

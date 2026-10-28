@@ -607,6 +607,9 @@ def test_page_map_filtering_keeps_search_and_close_in_place(browser, serve, view
             expect(search).to_be_focused()
         expect(groups).to_have_count(count)
         rendered(page)
+        assert search.get_attribute("aria-keyshortcuts") == (
+            "ArrowDown Enter" if count else None
+        )
         assert search_field.bounding_box() == before["search"]
         assert close.bounding_box() == before["close"]
         assert dialog.bounding_box()["y"] == top

@@ -1383,29 +1383,25 @@ def test_send_grows_thread_around_the_words(
     if not long and not touch and not again:
         card.locator('leaf-text[name="reply"]').click()
         page.keyboard.insert_text("The same placement works for a reply.")
-        painted_growth = size == (900, 600) and not options
-        if painted_growth:
+        check_reply_growth = size == (900, 600) and not options
+        if check_reply_growth:
             rendered(page)
-            # Layout Instability compares painted frames; a RAF measurement can
-            # catch an intermediate height the browser never actually displayed. The
-            # card grows up from its foot here, so its painted top rises. Its source
-            # rect is the card's visual rect, which takes in the ink below its box, so
-            # that rect's height need not change while the card's does.
+            # Read the card's border box, not Layout Instability's attribution:
+            # the moving surface may be attributed to its shadow-bearing ground,
+            # whose visual-overflow rectangle need not move with the card's edge.
             card.evaluate("""card => {
-              const growth = [];
-              const record = entries => {
-                for (const entry of entries) for (const source of entry.sources) {
-                  if (source.node !== card || !source.previousRect.height) continue;
-                  const before = source.previousRect.top, after = source.currentRect.top;
-                  if (Math.abs(after - before) > 0.75) growth.push({before, after});
-                }
+              const frames = [];
+              const sample = () => {
+                const {top, bottom} = card.getBoundingClientRect();
+                frames.push({top, bottom});
+                window.__replyFrame = requestAnimationFrame(sample);
               };
-              const observer = new PerformanceObserver(list => record(list.getEntries()));
-              observer.observe({type: 'layout-shift'});
+              sample();
               window.__replyGrowth = () => {
-                record(observer.takeRecords());
-                observer.disconnect();
-                return growth;
+                cancelAnimationFrame(window.__replyFrame);
+                const {top, bottom} = card.getBoundingClientRect();
+                frames.push({top, bottom});
+                return frames;
               };
             }""")
         with sending(page, "reply"):
@@ -1414,9 +1410,18 @@ def test_send_grows_thread_around_the_words(
         expect(
             card.get_by_text("The same placement works for a reply.")
         ).to_be_visible()
-        if painted_growth:
-            growth = page.evaluate("window.__replyGrowth()")
-            assert len(growth) == 1 and growth[0]["after"] < growth[0]["before"], growth
+        if check_reply_growth:
+            frames = page.evaluate("window.__replyGrowth()")
+            assert frames[-1]["top"] < frames[0]["top"] - 0.75, frames
+            assert [frame["bottom"] for frame in frames] == pytest.approx(
+                [frames[0]["bottom"]] * len(frames), abs=0.75
+            ), frames
+            changes = [
+                after["top"] - before["top"]
+                for before, after in zip(frames, frames[1:])
+                if abs(after["top"] - before["top"]) > 0.75
+            ]
+            assert len(changes) == 1 and changes[0] < 0, frames
 
         # The first sent message, subsequent turns, metadata and the empty reply
         # share one reading edge, both during the handoff and after reopening.

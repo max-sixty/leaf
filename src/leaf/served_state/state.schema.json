@@ -208,6 +208,10 @@
           "description": "When that turn opened or was last renewed, or null where nothing claims the page.",
           "type": ["string", "null"]
         },
+        "turn_seen": {
+          "description": "When the claimant's harness last ran a Leaf hook for its session (`leases.hooks_ran_at`), or null where no active claim names one.",
+          "type": ["string", "null"]
+        },
         "turn_takes_input": {
           "description": "Whether an open turn of the claimant's takes new input before it ends (`Harness.turn_takes_input`).",
           "type": "boolean"
@@ -310,6 +314,7 @@
         "claim_turn",
         "turn_closed",
         "turn_opened",
+        "turn_seen",
         "turn_takes_input",
         "input_wakes",
         "session_cwd",

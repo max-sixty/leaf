@@ -1,7 +1,8 @@
 """The agent-harness hooks Leaf registers, and the part of each that reads no page.
 
 Every hook marks that it ran for its session (`leases.mark_hooks`), evidence
-that its harness supports hook delivery (`Harness.hooks_carry`). An explicit
+that its harness supports hook delivery (`Harness.hooks_carry`) and, by when it last
+ran, that an open turn still works (`activity.claimant_turn`). An explicit
 `leaf wait` always prints the envelope; it does not depend on another hook
 running after it. SessionEnd retires the harness instance without reading pages;
 persisted desktop chats retain their generation across instance unloads.
@@ -81,6 +82,12 @@ def cmd_hook(harness: str, payload: dict) -> None:
     """Answer one hook of `harness`, the name its registration passes."""
     started = time.monotonic()
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
+    if not sid:
+        return
+    # Capability evidence for hook transport, and evidence that an open turn still
+    # works, a worker's steps included. An explicit wait carries its own input even
+    # if later hooks fail.
+    mark_hooks(sid)
     if (
         harness == "claude-code"
         and event == "PostToolBatch"
@@ -89,12 +96,6 @@ def cmd_hook(harness: str, payload: dict) -> None:
         # Claude Code's tool hooks name the parent session even inside a worker;
         # agent_id is its native subagent/teammate identity. Only the parent
         # receives the input its session claimed.
-        return
-    if sid:
-        # Capability evidence for hook transport and open-turn activity. An
-        # explicit wait carries its own input even if later hooks fail.
-        mark_hooks(sid)
-    if not sid:
         return
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")

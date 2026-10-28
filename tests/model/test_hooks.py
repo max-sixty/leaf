@@ -9,7 +9,7 @@ import re
 import shutil
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -23,6 +23,7 @@ from interact_support import (
     append_carried_log_record,
     continued,
     declare_idle,
+    declare_work,
     declared,
     delivered,
     delivered_ref,
@@ -40,6 +41,7 @@ from interact_support import (
     yaml_document,
 )
 
+from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
@@ -1011,6 +1013,45 @@ def test_a_step_opens_a_claude_code_turn_no_prompt_hook_named(claimed, capsys):
     assert cleanup_model.session_record("s1")["turn"] == "p11"
     hook("Stop", "p11")
     assert cleanup_model.session_record("s1")["turn_closed"] is not None
+
+
+def test_a_long_step_keeps_its_line_while_its_turn_runs_tools(claimed, capsys):
+    """A start stands for as long as its turn is seen working, however long the step
+    it names takes, so the status keeps the agent's line through a long stretch of
+    tool calls rather than stalling once the line is a quarter of an hour old. The
+    hook after each batch of tool calls shows the turn still working, and the turn,
+    not the start's age, says whether the work goes on."""
+
+    def hook(event: str) -> None:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": event, "session_id": "s1", "prompt_id": "p1"},
+        )
+        capsys.readouterr()
+
+    hook("UserPromptSubmit")
+    long_ago = (
+        datetime.now().astimezone()
+        - activity_model.WORKING_GRACE
+        - timedelta(minutes=1)
+    )
+    cleanup_model.write_session(
+        {**cleanup_model.session_record("s1"), "turn_opened": long_ago.isoformat()}
+    )
+    mark = cleanup_model.session_file("s1", cleanup_model.HOOKS_SUFFIX)
+    os.utime(mark, (long_ago.timestamp(), long_ago.timestamp()))
+    long_ago = long_ago.isoformat(timespec="seconds")
+    declare_work(
+        claimed, "running the browser suite", ts=long_ago, session="s1", turn="p1"
+    )
+    assert activity_reading(claimed)["kind"] != "working"
+
+    hook("PostToolBatch")
+    activity = activity_reading(claimed)
+    assert (activity["kind"], activity["detail"]) == (
+        "working",
+        "running the browser suite",
+    )
 
 
 def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(

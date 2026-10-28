@@ -18,6 +18,7 @@ import os
 import signal
 import sys
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO
 
@@ -247,8 +248,9 @@ def adapter_lease_path(session_id: str) -> Path:
 
 
 def mark_hooks(session_id: str) -> None:
-    """Record that the harness ran a Leaf hook for this session. The mark stands for
-    the session's life, and its SessionEnd hook removes it."""
+    """Record that the harness ran a Leaf hook for this session, and when: every hook
+    touches the mark (`hooks_ran_at`). The mark stands for the session's life, and its
+    SessionEnd hook removes it."""
     session_file(session_id, HOOKS_SUFFIX).touch()
 
 
@@ -280,7 +282,18 @@ def hooks_ran(session_id: str) -> bool:
     can carry input carries it only where they run: a session launched without the
     plugin's hooks, with hooks disabled, or whose hooks read another state home
     never marks this one."""
-    return session_file(session_id, HOOKS_SUFFIX).exists()
+    return hooks_ran_at(session_id) is not None
+
+
+def hooks_ran_at(session_id: str) -> str | None:
+    """When the harness last ran a Leaf hook for this session, or None before the
+    first. Claude Code runs one after every batch of the turn's tool calls, so a turn
+    that keeps working keeps moving this (`activity.claimant_turn`)."""
+    try:
+        moment = session_file(session_id, HOOKS_SUFFIX).stat().st_mtime
+    except FileNotFoundError:
+        return None
+    return datetime.fromtimestamp(moment).astimezone().isoformat()
 
 
 def adapter_is_live(session_id: str) -> bool:

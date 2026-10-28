@@ -153,8 +153,8 @@ Remove), and each result shown as the user would meet it, such as a capture of t
 interface with the change applied beside today's, or a request the service would
 then refuse (`authoring-on-me.md`, "What a question holds").
 
-A start lasts only for the turn that wrote it.
-Within a long turn a start goes stale after about 15 minutes. The status shows the item you started last, so
+A start lasts only for the turn that wrote it, and stands for as long as that turn
+runs. The status shows the item you started last, so
 start the one that best describes what is running. While a worker produces an
 update's answer, start that update before you end your turn; the Stop hook lets a
 turn end over an update it started. In the next turn, start the item again or answer

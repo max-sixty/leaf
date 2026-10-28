@@ -55,6 +55,13 @@ const plainTools = (host) => ({
   offerElement,
   offerActionElement,
   offerAction,
+  // A selectable offer's keys are Leaf's (widget-elements.js), so off Leaf it is
+  // neither a button nor a tab stop; the pointer still presses it.
+  selectableOfferElement(node, role, cls) {
+    if (cls) node.classList.add(...cls.split(" ").filter(Boolean));
+    node.removeAttribute("tabindex");
+  },
+  generatedElement: (node) => node,
   authoredBody(node) {
     node.append(...host.childNodes);
     return node;

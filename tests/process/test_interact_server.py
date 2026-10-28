@@ -1635,7 +1635,7 @@ def test_state_validation_follows_css_edits_and_recovers_cached_readings(
     assert json.loads(body)["state"]["events"][-1]["text"] == comment["text"]
     assert len(parsed) == parsed_count, "a new event reparsed unchanged CSS"
 
-    path.write_text(source.replace("--probe-width: 700px", "--probe-width  700px"))
+    path.write_text(source.replace("--probe-width: 700px", "--probe-width: 700px ]"))
     assert (
         "page <style> (line 5) syntax error"
         in json.loads(fetch(f"{server}/api/state")[1])["source_error"]

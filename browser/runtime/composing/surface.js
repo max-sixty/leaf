@@ -132,7 +132,6 @@ export function createResponseSurface({
   landIn,
   threadHere,
   threadAtCurrentLocation,
-  replyThreadAtCurrentLocation,
   threadTarget,
   currentTarget,
   markAt,
@@ -1238,7 +1237,6 @@ export function createResponseSurface({
 
     const inline = threadHere();
     const threadId = threadAtCurrentLocation();
-    const replyId = replyThreadAtCurrentLocation();
     const target = threadId && threadTarget(threadId);
     const inlineBox = inline && threadInput(inline);
     const said =
@@ -1246,7 +1244,6 @@ export function createResponseSurface({
     const subject =
       threadId &&
       (!here || (target && under(target, heldObligation() ?? here.element)));
-    const replySubject = subject && replyId;
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // current target. Read both page and thread location before choosing the aim.
     // After the user lands elsewhere, Comment names that new place;
@@ -1276,7 +1273,7 @@ export function createResponseSurface({
           landIn(said);
         },
       };
-    if (replySubject)
+    if (subject)
       return {
         ...commenting("thread"),
         box: null,

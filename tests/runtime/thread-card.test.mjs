@@ -4,8 +4,18 @@ import { effect } from "/runtime/framework.js";
 import { ThreadView } from "/runtime/thread/thread-card.js";
 import { commandDeclarationsWithin } from "/runtime/keyboard/scopes.js";
 
+// Every card draws its reply box; this stands in for the box's input wiring, which
+// composing-input.test.mjs covers.
+const wireInput = () =>
+  Object.assign(() => {}, {
+    value: () => "",
+    button: null,
+    load() {},
+    cancelDictation() {},
+  });
+
 test("a thread card's output updates its commands without invalidating its presenter", () => {
-  const view = new ThreadView({ reply: {}, reaction: {} });
+  const view = new ThreadView({ reply: { wireInput }, reaction: {} });
   const model = {
     key: "card-presentation",
     id: "card-presentation",
@@ -14,7 +24,6 @@ test("a thread card's output updates its commands without invalidating its prese
     messages: [],
     summaries: [],
     todos: [],
-    reply: false,
     working: null,
     news: null,
     settlement: { kind: "resolve", pending: false, label: "Resolve", word: "Resolve" },

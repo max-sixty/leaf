@@ -625,6 +625,48 @@ def test_a_reply_in_a_resolved_thread_reopens_it(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "reply"
 
 
+def test_a_reply_in_a_seat_s_resolved_thread_reopens_it(browser, serve):
+    """A resolved thread in a seat's Resolved disclosure keeps its reply box, which
+    says a reply reopens it. The thread stays in the disclosure while the user writes,
+    so the box doesn't move under them, and their reply brings it back among the open
+    ones."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "jobs"},
+            "text": "Is the retry budget per job?",
+        },
+    )["id"]
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+    )
+    page = open_page(browser, url)
+    resized(page, 1920, 900)
+    page.locator("#jobs .lf-resolved-summary").click()
+    thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    folded = page.locator(
+        f'#jobs .lf-resolved-threads .lf-page-thread[data-thread="{root}"]'
+    )
+    box = folded.locator(":scope > .lf-thread-reply leaf-text")
+    expect(box).to_be_visible()
+    expect(box).to_have_attribute("placeholder", re.compile("^Reply to reopen"))
+    box.click()
+    page.keyboard.type("Per attempt, then.")
+    rendered(page)
+    expect(folded).to_be_visible()
+    expect(box).to_be_focused()
+    with sending(page, "the reply"):
+        page.keyboard.press("Enter")
+    expect(thread).to_have_attribute("data-resolved", "false")
+    expect(folded).to_have_count(0)
+    expect(thread.locator(".lf-msg", has_text="Per attempt, then.")).to_be_visible()
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "reply"
+
+
 def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
     """New spoken content returns to Open Threads, including after a reload."""
     url = serve(LONG_PAGE, comments=1)

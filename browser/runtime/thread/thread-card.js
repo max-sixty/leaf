@@ -644,11 +644,13 @@ export class ThreadView {
 
   // A margin card's notice stands in its actions row, whose track takes its width from
   // the heads' track (annotation-chrome.css), so the notice takes only the room the
-  // heads leave beside each one's name and time, its padding and the Edit beside them
-  // included, and where that room is short of its first fact it says one count
-  // instead (held-news.js, `newsNotice`). The room is the notice's width and the
-  // narrowest head's spare width together, which the two tracks trade one for one, so
-  // drawing the notice at it changes nothing it was read from. A notice at a finger's
+  // heads leave beside each one's name and time, its padding and its controls' room
+  // included. A head holds that room whole only while its controls show (controls.css),
+  // so a pointer reaching for Edit would cut a name the fit left no room for. Where the
+  // room is short of its first fact the notice says one count instead (held-news.js,
+  // `newsNotice`). The room is the notice's width and the narrowest head's spare width
+  // together, which the two tracks trade one for one, so drawing the notice at it
+  // changes nothing it was read from. A notice at a finger's
   // floor can still leave a head short, and the head then gives up its name
   // (annotation-chrome.css): where less than an em of it would show, none does
   // (`data-lf-nameless`), so no sliver of a letter or an ellipsis stands against the
@@ -665,7 +667,7 @@ export class ThreadView {
       const time = head.querySelector(":scope > .lf-msg-meta > time");
       const need =
         parseFloat(style.paddingInlineStart) +
-        parseFloat(style.paddingInlineEnd) +
+        parseFloat(style.getPropertyValue("--lf-msg-control")) +
         wordsWidth(name) +
         (name && time ? parseFloat(style.columnGap) : 0) +
         wordsWidth(time);

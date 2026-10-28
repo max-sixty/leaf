@@ -167,14 +167,12 @@
 }
 /* A message offers its controls at its header's right edge and centre: Copy, which
    copies the message as Markdown, at the end, and before it the message's own: an
-   agent's reply its reactions, the user's own words their rewrite (below). The header
-   keeps their room at its end, beside any room another head control holds
-   (`--lf-msg-head-room`), so they cover none of the header's words, and they follow
-   that edge when thread actions narrow the header; the full-width message body does
-   not place them. They appear only for the message under pointer or focus.
-   A reply with no feedback keeps no row. The reaction picker is an overlaid menu below
-   its control; opening it never moves this message or the threads after it. At rest
-   only feedback already left earns flow space. */
+   agent's reply its reactions, the user's own words their rewrite (below). They follow
+   the header's end when thread actions narrow the header; the full-width message body
+   does not place them. They appear only for the message under pointer or focus
+   (`--lf-msg-offered`). A reply with no feedback keeps no row. The reaction picker is
+   an overlaid menu below its control; opening it never moves this message or the
+   threads after it. At rest only feedback already left earns flow space. */
 .lf-msg {
   anchor-scope: --lf-msg-head;
 }
@@ -185,11 +183,40 @@
    control's room from the first disclosure paint so its arrival moves no label. */
 .lf-msg:has(.lf-msg-control, > .lf-msg-head > .lf-progress-expand) > .lf-msg-head {
   --lf-msg-control: var(--lf-msg-control-width);
-  padding-inline-end: calc(var(--lf-msg-control) + var(--lf-msg-head-room, 0px));
+}
+/* The header's last box is its controls' room (`--lf-msg-control`), before any room
+   another head control holds (`--lf-msg-head-room`), so the controls cover none of its
+   words. The room counts in the header's size, so a card sized to its words is as wide
+   as with the room held. While the controls show the room stands whole; while they
+   hide it is the first thing a short header gives up, so the words run on into it,
+   and give it back, cut with their ellipsis, when the controls show again. The
+   controls stand at the header's end, so nothing moves either way. Its margin takes
+   back the header's gap before it (surfaces.css), so a room given up leaves no gap.
+   Holding the room whole for controls nobody could see cut a queued message's receipt
+   to "Qu…". Rejected: the controls covering the words' end on a ground, as an open
+   rewrite's pair does (response.css), which on a narrow header covered its time. */
+.lf-msg > .lf-msg-head::after {
+  content: "";
+  flex: 0 1e12 auto;
+  inline-size: var(--lf-msg-control);
+  min-inline-size: calc(var(--lf-msg-control) * var(--lf-msg-offered, 0));
+  margin-inline-start: calc(-1 * var(--sp-2));
+}
+/* The room stays whole where something shows in it whatever the pointer does, an open
+   rewrite's Discard and Save, or where something stands before it that the words would
+   otherwise run under: a notice of news (surfaces.css, `.lf-primary-news` and
+   `--lf-thread-message-control-room`). */
+.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head::after,
+.lf-msg > .lf-msg-head:has(> .lf-primary-news)::after,
+.lf-thread-content:has(> .lf-thread-controls)
+  > .lf-thread-transcript
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
+  > .lf-msg-head::after {
+  min-inline-size: var(--lf-msg-control);
 }
 /* Copy stands at the head's end on every message with words, and the message's own
    control just before it. That control comes and goes as the message changes, an
-   answer's reactions or the user's rewrite, so the head keeps room for both from the
+   answer's reactions or the user's rewrite, so the head's room is for both from the
    first paint and neither moves when it arrives; an open rewrite's Discard and Save
    stand in the same room. Under a finger, with no hover to hide it, Copy would stand on
    every message for good, two controls a head too narrow for them at the aim floor,
@@ -357,11 +384,13 @@ svg[data-lf-icon] {
 }
 /* Under a finger a message's control reaches the aim floor around its face
    (surfaces.css), and with no hover to reveal it, it stands on every message for good.
-   The common header row already holds its height; reserve its inline room here too. */
+   The common header row already holds its height; hold its inline room whole too. */
 @media (pointer: coarse), (hover: none) {
   .lf-msg:is(.agent, .user) > .lf-msg-head {
     --lf-msg-control: var(--lf-msg-control-width);
-    padding-inline-end: calc(var(--lf-msg-control) + var(--lf-msg-head-room, 0px));
+  }
+  .lf-msg:is(.agent, .user) > .lf-msg-head::after {
+    min-inline-size: var(--lf-msg-control);
   }
 }
 .lf-msg-meta {

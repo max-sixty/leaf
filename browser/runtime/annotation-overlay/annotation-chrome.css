@@ -782,7 +782,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     .lf-thread-transcript
     .lf-msg:not(:has(.lf-msg-control))
     > .lf-msg-head {
-    padding-inline-end: 0;
+    --lf-msg-control: 0px;
   }
   /* A later message's controls, its Edit and Copy and an open rewrite's Discard and
      Save, stand at the card's edge on its head line, in the track the actions keep
@@ -801,7 +801,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
        the message the controls' containing block. */
     position: relative;
     & > .lf-msg-head {
-      padding-inline-end: 0;
+      --lf-msg-control: 0px;
     }
     & > :is(.lf-msg-copy, .lf-msg-edit),
     & .lf-msg-edit-actions {

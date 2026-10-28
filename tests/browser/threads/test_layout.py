@@ -169,6 +169,47 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     assert page.evaluate("navigator.clipboard.readText()") == source
 
 
+# A head's delivery receipt beside its message's controls: whether it shows whole,
+# where it ends, and where the first of the controls showing starts.
+RECEIPT_BESIDE_CONTROLS = """message => {
+  const receipt = message.querySelector(':scope > .lf-msg-head .lf-msg-sending');
+  const shown = [...message.querySelectorAll(':scope > .lf-msg-control')]
+    .filter((control) => getComputedStyle(control).opacity === '1')
+    .map((control) => control.getBoundingClientRect().left);
+  return {
+    whole: receipt.scrollWidth <= receipt.clientWidth,
+    end: receipt.getBoundingClientRect().right,
+    controls: shown.length ? Math.min(...shown) : null,
+  };
+}"""
+
+
+def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
+    """A message's Edit and Copy show only under the pointer or focus, and its head
+    keeps their room only while they show: a card's head that kept it at rest read
+    "Me just now · Qu…" beside room for controls nobody could see. At rest the user's
+    queued message says its whole receipt; under the pointer the receipt is cut short
+    of the controls, which cover none of it."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
+    # The margin at this width caps the card short of the head's words and controls.
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-margin-marker").first.click()
+    message = page.locator(".lf-margin-preview .lf-msg.user").first
+    expect(message.locator(".lf-msg-sending")).to_contain_text("Queued")
+    page.mouse.move(0, 0)
+    rendered(page)
+    rest = message.evaluate(RECEIPT_BESIDE_CONTROLS)
+    assert rest["whole"] and rest["controls"] is None, rest
+    message.locator(".lf-msg-text").hover()
+    rendered(page)
+    offered = message.evaluate(RECEIPT_BESIDE_CONTROLS)
+    assert not offered["whole"], offered
+    assert offered["controls"] is not None, offered
+    assert offered["end"] <= offered["controls"] + 0.5, offered
+
+
 def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
     """The last translated frame and rest keep Copy on the message's head line."""
     url = serve(PANEL_PAGE)

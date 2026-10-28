@@ -43,7 +43,7 @@ import { tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
-import { actionOffers } from "./icon-paths.js";
+import { actionName, actionOffers, showAction } from "./icon-paths.js";
 import { actionTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
 import { isNativeLayer } from "./shadow-tree.js";
@@ -279,6 +279,24 @@ const { offerAction, offerActionElement } = actionOffers({
 });
 export { offerAction };
 export const offeredAction = elementDirective("offeredAction", offerActionElement);
+
+// A press whose face its surface draws rather than a role, such as the floating
+// panel's or a message's controls, still takes its symbol and name from its action:
+// `nameAction(button, action, {label, title, className})`, or in a template
+// `<button class="…" ${namedAction(action)}></button>`. It shows `action`'s symbol
+// first and says the action's name as tooltip and accessible name unless `label` says
+// more, as a symbol role does, so the name and the symbol can't drift apart.
+/**
+ * @param {Element} control @param {string} action
+ * @param {{label?: string, title?: string, className?: string}} [options]
+ */
+export function nameAction(control, action, { label, title, className } = {}) {
+  const name = label ?? actionName(action);
+  keeps(control, "aria-label", name);
+  keeps(control, "title", title ?? name);
+  showAction(control, action, className);
+}
+export const namedAction = elementDirective("namedAction", nameAction);
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. Chromium does not begin text selection inside a form control, so those

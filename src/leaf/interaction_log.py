@@ -9,7 +9,7 @@ Each `leaf` command records how long it took in every page it acted on, one
 `leaf_command` observation as it exits (`record_command`), so a page says Leaf's own
 share of an agent's reply on any harness. A command acts on the pages it names: an
 initialized page as a `PAGE` argument (`cli.resolve_dir`; `page init`, which
-creates or re-vendors one, records nothing), an answer reference's page
+creates or re-initializes one, records nothing), an answer reference's page
 (`delivery.response_address`), or the pages a delivery it reads or acknowledges
 carries (`delivery.acting_on_delivery`); each notes its page (`acting_on`). A
 command that names none, as `leaf wait` watching every page a session owns,

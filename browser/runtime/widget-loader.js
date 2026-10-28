@@ -182,7 +182,7 @@ export async function importWidgets(scope) {
 // The upgrade lifecycle for the whole authored body, at startup: read it while it is
 // still what its author wrote, import what its tags declare, and paint its declared words.
 async function installDocument(scope) {
-  const presentation = attachApplicationPresentation("document:installation", scope);
+  const presentation = attachApplicationPresentation("document:installation");
   try {
     rememberPassageParts(scope);
     rememberAuthoredParents(scope);
@@ -224,7 +224,7 @@ async function installDocument(scope) {
 // application — that wait would be on a renderer whose turn cannot come until this one
 // returns, and a page that stops there has stopped answering with nothing said.
 export async function patchDocument(scope, patch) {
-  const presentation = attachApplicationPresentation("document:patch", scope);
+  const presentation = attachApplicationPresentation("document:patch");
   try {
     const { roots, widgets, ...result } = patch();
     await settle(presentation, scope, roots, () => whenWidgetsPresented(widgets));
@@ -241,7 +241,7 @@ export async function patchDocument(scope, patch) {
 // each caller owes: the whole application at startup, the widgets it brought for a patch.
 async function settle(presentation, scope, arrived, presented) {
   const painted = Promise.all(arrived.map(paintDeclaredWords));
-  const presenting = presentation.present(scope);
+  const presenting = presentation.present();
   presenting.resolve(painted);
   await presenting.ready;
   await presented();

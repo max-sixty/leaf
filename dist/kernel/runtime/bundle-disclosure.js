@@ -1316,7 +1316,7 @@ function standBlocks(state, blocks, out, line) {
 		if (prior && prior.to < from) gapLines(prior.to, from, gap);
 		else if (prior) named(from, `lf-face-gap-above ${gap}`);
 		let end = to;
-		while (token.type !== "blockquote_open" && end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;
+		while (end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;
 		before[level] = {
 			tag,
 			to: end

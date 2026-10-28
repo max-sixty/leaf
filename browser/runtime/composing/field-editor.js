@@ -190,11 +190,9 @@ function standBlocks(state, blocks, out, line) {
     const gap = `lf-ends-${prior?.tag} lf-starts-${tag}`;
     if (prior && prior.to < from) gapLines(prior.to, from, gap);
     else if (prior) named(from, `lf-face-gap-above ${gap}`);
-    // A block's reading can take in the blank lines after it, which part it from the
-    // next; a quote's own empty lines are its lines.
+    // A block's reading can take in the blank lines after it, which part it from the next.
     let end = to;
-    while (token.type !== "blockquote_open" && end > from && blank(end - 1))
-      end = state.doc.lineAt(end - 1).from;
+    while (end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;
     before[level] = { tag, to: end };
     before.length = level + 1;
     if (token.type === "paragraph_open" && level === 0)

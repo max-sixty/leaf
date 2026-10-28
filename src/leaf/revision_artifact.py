@@ -49,7 +49,6 @@ from functools import cache, cached_property, lru_cache, partial
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 
-import turbohtml
 from pywhatwgurl import URL
 
 from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
@@ -241,11 +240,6 @@ class RevisionArtifact:
     def executable(self) -> str:
         """The captured module graph's executable identity."""
         return json.loads(self.manifest)["executable"]
-
-    @cached_property
-    def widgets(self) -> dict:
-        """What each declared widget in this revision's page was written as."""
-        return json.loads(self.manifest)["widgets"]
 
 
 def dependency_reference(
@@ -940,37 +934,12 @@ def _capture_artifact(
             }
         )
     )
-    # What each declared widget in the authored page was written as, one digest per id.
-    # A user's open document keeps the widgets a revision did not rewrite, and only
-    # the capture still holds the markup to say which those are: after upgrade a
-    # controller owns every widget's children, so the page cannot answer for itself.
-    # Digested from the parsed tree before delivery rewrites resource URLs, so two
-    # revisions of one widget differ only where its author changed it.
-    main = document.tree.select_one("main")
-    widgets = {}
-    unnamed: dict[str, int] = {}
-    for element in main.descendants if main is not None else ():
-        if not isinstance(element, turbohtml.Element):
-            continue
-        if not registry.get(element.tag, {}).get("x-upgrade"):
-            continue
-        # An unnamed widget is as much the user's as a named one. Without a key it
-        # could never answer that its markup was unchanged, so every revision rebuilt
-        # it and took whatever the user had open in it; `page-authoring.md` never
-        # asked an author to name one, and the shipped examples do not.
-        name = element.attrs.get("id")
-        if not name:
-            seen = unnamed.get(element.tag, 0)
-            unnamed[element.tag] = seen + 1
-            name = f"{element.tag}#{seen}"
-        widgets[name] = _digest(element.html.encode("utf-8"))
     manifest = _canonical_json(
         {
             "html": _digest(document.data),
             "title": document.authoring.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
-            "widgets": widgets,
             "public_modules": list(PUBLIC_MODULES),
             "layer": layer,
             "declarations": dict(declaration_sources or {}),

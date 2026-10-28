@@ -384,40 +384,6 @@ def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch)
     assert synced == []
 
 
-def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir):
-    """One digest per declared widget, over what its author wrote.
-
-    A user's open document keeps the widgets a revision did not rewrite, and only the
-    capture still holds the markup to say which those are: after upgrade a controller
-    owns every widget's children. Digested from the parsed tree, so two revisions of one
-    widget differ where the author changed it and nowhere else.
-    """
-    document = FLOW_PAGE
-
-    def activate():
-        (page_dir / "index.html").write_text(document)
-        activated = revisioning_model.activate_source(page_dir)
-        assert activated.error is None, activated.error
-        return artifact_model.read_artifact(page_dir, activated.revision)
-
-    base = activate()
-    # Every element the vocabulary says carries a module, named the way its author named
-    # it or, where they named nothing, by its tag and place among the others of that tag.
-    # An unnamed widget is as much the user's as a named one; without a key it could
-    # never answer that its markup was unchanged, so every revision rebuilt it.
-    assert set(base.widgets) == {"flow", "lf-options#0"}
-
-    document = document.replace("The cutoff lives in", "The cutoff now lives in")
-    reworded = activate()
-    assert reworded.digest != base.digest, "the prose edit made no new revision"
-    assert reworded.widgets == base.widgets
-
-    document = document.replace("Ship dark.", "Ship it dark.")
-    rewritten = activate()
-    assert rewritten.widgets["lf-options#0"] != base.widgets["lf-options#0"]
-    assert rewritten.widgets["flow"] == base.widgets["flow"]
-
-
 def test_a_revision_holds_every_page_file_with_its_served_type(page_dir):
     """Page code fetches files by URLs it computes, which no capture can read, so a
     revision holds all of `page/`, each typed as an ordinary site would serve it.

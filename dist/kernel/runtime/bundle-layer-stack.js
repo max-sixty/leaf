@@ -1246,7 +1246,7 @@ function createSemanticApplication({ presentation } = {}) {
 	const drawn = /* @__PURE__ */ new Set();
 	let publicationDepth = 0;
 	let activePresentation = null;
-	if (presentation) presentation.seal(presentation.begin(initial.semanticEpoch));
+	if (presentation) presentation.seal(presentation.begin());
 	function derive(document, state, unresolved, settled, markingRead, phase, hostAvailable) {
 		const receipts = state?.browser.receipts ?? [];
 		const local = unresolved.filter((entry) => DRAWN_LOCALLY.has(entry.state));
@@ -1437,7 +1437,7 @@ function createSemanticApplication({ presentation } = {}) {
 		next.data = share(prior.data, next.data);
 		next.outputs = share(prior.outputs, next.outputs);
 		next.semanticEpoch = prior.semanticEpoch + Number(next.effective !== prior.effective || next.data !== prior.data || next.outputs !== prior.outputs || next.phase !== prior.phase || next.document.revision !== prior.document.revision);
-		if (presentation) activePresentation = presentation.begin(next.semanticEpoch);
+		if (presentation) activePresentation = presentation.begin();
 		publicationDepth += 1;
 		try {
 			return publisher.publish(next);
@@ -1693,331 +1693,139 @@ function createSemanticApplication({ presentation } = {}) {
 //#region runtime/framework/presentation.js
 function describeFailure(reason) {
 	const message = reason instanceof Error ? reason.message : String(reason);
-	if (!(reason instanceof AggregateError) || reason.errors.length === 0) return message;
-	return `${message}: ${reason.errors.map(describeFailure).join("; ")}`;
+	return reason instanceof AggregateError && reason.errors.length ? `${message}: ${reason.errors.map(describeFailure).join("; ")}` : message;
 }
 function createPresentationCoordinator({ reportFailure }) {
 	const changes = Z(0);
-	const changed = () => {
-		changes.value = changes.peek() + 1;
-	};
-	let document = null;
-	let documentGeneration = 0;
-	let semanticEpoch = -1;
-	let presentedEpoch = -1;
-	let barrier = null;
-	let waiters = [];
-	let regionWaiters = [];
-	const rendererGenerations = /* @__PURE__ */ new Map();
+	let wake = Promise.withResolvers();
+	let publication = null;
+	let sealed = false;
 	const regions = /* @__PURE__ */ new Map();
-	const validEpoch = (epoch) => {
-		if (!Number.isSafeInteger(epoch) || epoch < 0) throw new TypeError("presentation epoch must be a non-negative safe integer");
-	};
-	function resolveWaiters() {
-		const remaining = [];
-		for (const waiter of waiters) if (document === null || !Object.is(waiter.document, document)) waiter.resolve("superseded");
-		else if (presentedEpoch >= waiter.semanticEpoch) waiter.resolve("presented");
-		else remaining.push(waiter);
-		waiters = remaining;
+	const pending = (wanted = regions.keys()) => [...wanted].filter((key) => {
+		const record = regions.get(key);
+		return record && !record.complete;
+	});
+	function changed() {
+		const previous = wake;
+		wake = Promise.withResolvers();
+		previous.resolve();
+		changes.value = changes.peek() + 1;
 	}
-	function regionOutcome(waiter) {
-		if (waiter.cancelled?.()) return "superseded";
-		if (document === null || !Object.is(waiter.document, document)) return "superseded";
-		if (semanticEpoch > waiter.semanticEpoch) return "superseded";
-		if (semanticEpoch < waiter.semanticEpoch || !barrier?.sealed) return null;
-		return [...waiter.regions].some((region) => barrier?.members.get(region)?.commit === null) ? null : "presented";
-	}
-	function resolveRegionWaiters() {
-		const remaining = [];
-		for (const waiter of regionWaiters) {
-			const outcome = regionOutcome(waiter);
-			if (outcome) waiter.resolve(outcome);
-			else remaining.push(waiter);
-		}
-		regionWaiters = remaining;
-	}
-	function completeBarrier() {
-		if (!barrier || barrier.completed || !barrier.sealed) return;
-		if ([...barrier.members.values()].some((member) => member.commit === null)) return;
-		barrier.completed = true;
-		presentedEpoch = barrier.publication.semanticEpoch;
-		resolveWaiters();
-	}
-	function begin(nextDocument, nextSemanticEpoch) {
-		validEpoch(nextSemanticEpoch);
-		const replacingDocument = document === null || !Object.is(document, nextDocument);
-		if (!replacingDocument && nextSemanticEpoch < semanticEpoch) throw new RangeError("presentation epochs cannot decrease within one document");
-		if (!replacingDocument && nextSemanticEpoch === semanticEpoch) {
-			if (!barrier) throw new Error("the active document has no presentation barrier");
-			return barrier.publication;
-		}
-		if (replacingDocument) {
-			document = nextDocument;
-			documentGeneration += 1;
-			semanticEpoch = nextSemanticEpoch;
-			presentedEpoch = -1;
-			regions.clear();
-			rendererGenerations.clear();
-			resolveWaiters();
-		} else semanticEpoch = nextSemanticEpoch;
-		const publication = Object.freeze({
-			document: nextDocument,
-			semanticEpoch: nextSemanticEpoch
-		});
-		const members = /* @__PURE__ */ new Map();
-		for (const [region, record] of regions) {
-			let commit = record.commit;
-			if (commit !== null) {
-				commit = Object.freeze({
-					...commit,
-					semanticEpoch: nextSemanticEpoch
-				});
-				record.commit = commit;
-			}
-			members.set(region, {
-				record,
-				ticket: record.ticket,
-				commit,
-				retired: false
-			});
-		}
-		barrier = {
-			publication,
-			members,
-			sealed: false,
-			completed: false
-		};
-		resolveRegionWaiters();
+	function begin() {
+		for (const [region, record] of regions) if (!record.active) regions.delete(region);
+		publication = Object.freeze({});
+		sealed = false;
 		changed();
 		return publication;
 	}
-	function seal(publication) {
-		if (!barrier || barrier.publication !== publication) return false;
-		barrier.sealed = true;
-		completeBarrier();
-		resolveRegionWaiters();
+	function seal(value) {
+		if (value !== publication) return false;
+		sealed = true;
 		changed();
 		return true;
 	}
-	function currentTicket(ticket) {
-		const record = ticket.record;
-		return ticket.documentGeneration === documentGeneration && regions.get(record.region) === record && record.ticket === ticket;
-	}
-	function finish(ticket, status, proof) {
-		if (!currentTicket(ticket) || document === null) return;
-		const record = ticket.record;
-		const commit = Object.freeze({
-			document,
-			semanticEpoch,
-			region: record.region,
-			renderer: record.renderer,
-			rendererGeneration: record.rendererGeneration,
-			ticketGeneration: ticket.ticketGeneration,
-			value: ticket.value,
-			status,
-			proof
-		});
-		record.ticket = null;
-		record.commit = commit;
-		const member = barrier?.members.get(record.region);
-		if (member?.record === record && member.ticket === ticket) {
-			member.ticket = null;
-			member.commit = commit;
-			completeBarrier();
-			resolveRegionWaiters();
-		}
-		changed();
-	}
-	function attach(region, renderer) {
-		if (document === null || barrier === null) throw new Error("begin a presentation publication before attaching a renderer");
+	function attach(region) {
+		if (!publication) throw new Error("begin a presentation publication before attaching a renderer");
 		const record = {
-			region,
-			renderer,
-			rendererGeneration: (rendererGenerations.get(region) ?? 0) + 1,
-			ticketGeneration: 0,
-			ticket: null,
-			commit: null
+			complete: false,
+			active: true,
+			latest: null,
+			release: null
 		};
-		rendererGenerations.set(region, record.rendererGeneration);
 		regions.set(region, record);
-		barrier.completed = false;
-		barrier.members.set(region, {
-			record,
-			ticket: null,
-			commit: null,
-			retired: false
-		});
+		const active = () => record.active && regions.get(region) === record;
 		changed();
-		let latest = null;
-		const present = (value, failSoft) => {
-			const { promise: completion, resolve, reject } = Promise.withResolvers();
-			const superseded = latest;
-			latest = () => queueMicrotask(() => resolve(void 0));
-			const ready = (async () => {
-				if (regions.get(region) !== record) {
-					await completion.catch(() => void 0);
-					return;
-				}
-				const ticket = {
-					documentGeneration,
-					record,
-					ticketGeneration: ++record.ticketGeneration,
-					value
-				};
-				record.ticket = ticket;
-				record.commit = null;
-				const presentingBarrier = barrier;
-				const member = presentingBarrier?.members.get(region);
-				if (presentingBarrier && member?.record === record) {
-					presentingBarrier.completed = false;
-					member.ticket = ticket;
-					member.commit = null;
-					member.retired = false;
-				}
-				resolveRegionWaiters();
+		function present(failSoft) {
+			const completion = Promise.withResolvers();
+			const previous = record.release;
+			record.release = () => queueMicrotask(() => completion.resolve(void 0));
+			const ticket = {};
+			if (active()) {
+				record.latest = ticket;
+				record.complete = false;
 				changed();
+			}
+			const current = () => active() && record.latest === ticket;
+			const ready = (async () => {
 				try {
-					finish(ticket, "committed", await completion);
+					await completion.promise;
 				} catch (reason) {
-					const superseded = !currentTicket(ticket);
-					if (superseded && regions.get(record.region) !== record) return;
-					let proof;
-					let reported = reason;
+					if (!active()) return;
 					let recovered = false;
+					let failure = reason;
 					if (failSoft) try {
-						proof = failSoft(reason);
+						failSoft(reason);
 						recovered = true;
 					} catch (fallbackError) {
-						if (fallbackError !== reason) reported = new AggregateError([reason, fallbackError], "presentation and fail-soft failed");
+						if (fallbackError !== reason) failure = new AggregateError([reason, fallbackError], "presentation and fail-soft failed");
 					}
-					reportFailure(reported);
-					if (superseded) return;
-					if (recovered) finish(ticket, "failed", proof);
-					else throw reported;
+					reportFailure(failure);
+					if (!current()) return;
+					if (!recovered) throw failure;
+				}
+				if (current()) {
+					record.complete = true;
+					changed();
 				}
 			})();
-			ready.catch(() => void 0);
-			superseded?.();
+			ready.catch(() => {});
+			previous?.();
 			return Object.freeze({
-				resolve,
-				reject,
+				resolve: completion.resolve,
+				reject: completion.reject,
 				ready
 			});
-		};
-		const disconnect = () => {
-			latest?.();
-			latest = null;
-			if (regions.get(region) !== record) return;
-			regions.delete(region);
-			const retiringBarrier = barrier;
-			const member = retiringBarrier?.members.get(region);
-			if (!retiringBarrier || member?.record !== record || retiringBarrier.completed) return;
-			member.ticket = null;
-			member.commit = null;
-			member.retired = true;
+		}
+		function disconnect() {
+			record.release?.();
+			record.release = null;
+			if (!active()) return;
+			if (!sealed || pending().length) record.complete = false;
+			record.active = false;
 			queueMicrotask(() => {
-				if (barrier !== retiringBarrier || retiringBarrier.completed || retiringBarrier.members.get(region) !== member || !member.retired) return;
-				retiringBarrier.members.delete(region);
-				completeBarrier();
-				resolveRegionWaiters();
+				if (regions.get(region) !== record) return;
+				regions.delete(region);
 				changed();
 			});
-		};
+		}
 		return Object.freeze({
 			present,
 			disconnect
 		});
 	}
-	function committed(region, renderer, value) {
-		const record = regions.get(region);
-		return record && record.renderer === renderer && record.commit !== null && Object.is(record.commit.value, value) ? record.commit : null;
-	}
-	function whenPresented(targetDocument, targetSemanticEpoch) {
-		validEpoch(targetSemanticEpoch);
-		if (document === null || !Object.is(targetDocument, document)) return Promise.resolve("superseded");
-		const repairingCurrentEpoch = targetSemanticEpoch === semanticEpoch && barrier !== null && !barrier.completed;
-		if (presentedEpoch >= targetSemanticEpoch && !repairingCurrentEpoch) return Promise.resolve("presented");
-		return new Promise((resolve) => {
-			waiters.push({
-				document: targetDocument,
-				semanticEpoch: targetSemanticEpoch,
-				resolve
-			});
-		});
-	}
-	async function whenCurrentPresented(current) {
+	const currentRegionsPresented = (wanted) => sealed && !pending(wanted).length;
+	const currentPresented = () => currentRegionsPresented();
+	const whenCurrentPresented = () => whenCurrentRegionsPresented();
+	async function whenCurrentRegionsPresented(wanted, current = () => true) {
 		for (;;) {
-			const target = current();
-			await whenPresented(target.document, target.semanticEpoch);
-			if (currentPresented(current)) return "presented";
-		}
-	}
-	function currentPresented(current) {
-		const latest = current();
-		const reading = read();
-		return Object.is(reading.document, latest.document) && reading.semanticEpoch === latest.semanticEpoch && reading.presentedEpoch >= latest.semanticEpoch && reading.sealed && reading.pending.length === 0;
-	}
-	function currentRegionsPresented(current, wanted) {
-		const target = current();
-		return target !== null && regionOutcome({
-			...target,
-			regions: new Set(wanted),
-			resolve: () => {}
-		}) === "presented";
-	}
-	async function whenCurrentRegionsPresented(current, regions) {
-		const wanted = [...new Set(regions)];
-		for (;;) {
-			const target = current();
-			if (target === null) return "superseded";
-			await new Promise((resolve) => {
-				const waiter = {
-					...target,
-					regions: new Set(wanted),
-					cancelled: () => current() === null,
-					resolve
-				};
-				const outcome = regionOutcome(waiter);
-				if (outcome) resolve(outcome);
-				else regionWaiters.push(waiter);
-			});
-			const latest = current();
-			if (latest === null) return "superseded";
-			const outcome = regionOutcome({
-				...latest,
-				regions: new Set(wanted),
-				resolve: () => {}
-			});
-			if (outcome === "presented") return outcome;
+			const next = wake.promise;
+			if (!current()) return "superseded";
+			if (currentRegionsPresented(wanted)) return "presented";
+			await next;
 		}
 	}
 	function read() {
 		return Object.freeze({
-			document,
-			semanticEpoch,
-			presentedEpoch,
-			sealed: barrier?.sealed ?? false,
-			pending: Object.freeze(barrier ? [...barrier.members].filter(([, member]) => member.commit === null).map(([region]) => region) : [])
+			sealed,
+			pending: Object.freeze(pending())
 		});
 	}
 	return Object.freeze({
 		begin,
 		seal,
 		attach,
-		committed,
-		whenPresented,
 		whenCurrentPresented,
 		currentPresented,
 		whenCurrentRegionsPresented,
 		currentRegionsPresented,
+		read,
 		subscribe: (callback) => changes.subscribe(() => d(() => {
 			try {
 				callback();
 			} catch (reason) {
 				reportFailure(reason);
 			}
-		})),
-		read
+		}))
 	});
 }
 function createPresentationSchedule(bindJob) {
@@ -2114,7 +1922,7 @@ function createPresentationSchedule(bindJob) {
 				claimed,
 				value,
 				dom,
-				presentation: handle.present(value, failSoft)
+				presentation: handle.present(failSoft)
 			};
 		}
 		async function run({ claimed, value, presentation, dom }) {
@@ -2164,12 +1972,11 @@ const tick = (version) => {
 
 //#endregion
 //#region runtime/semantic-state.js
-const documentToken = Object.freeze({});
 let reportPresentationFailure = (reason) => console.error("leaf: presentation failed", reason);
 const presentation = createPresentationCoordinator({ reportFailure: (reason) => reportPresentationFailure(reason) });
 const schedule = createPresentationSchedule(bindQueuedWork);
 const applicationState = createSemanticApplication({ presentation: {
-	begin: (semanticEpoch) => presentation.begin(documentToken, semanticEpoch),
+	begin: () => presentation.begin(),
 	seal: (publication) => presentation.seal(publication)
 } });
 const readApplication = applicationState.read;
@@ -2179,10 +1986,10 @@ const agentName = () => agent() || "the agent";
 const pageClaimed = readPart((root) => root.authoritative?.claim_session != null);
 const projectView = applicationState.projectView;
 const selectWidgets = applicationState.selectWidgets;
-const attachApplicationPresentation = (region, renderer) => presentation.attach(region, renderer);
+const attachApplicationPresentation = (region) => presentation.attach(region);
 const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
 const widgetRegions = (widget) => ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
-const attachWidgetPresentation = (widget, kind, renderer) => presentation.attach(widgetRegion(widget, kind), renderer);
+const attachWidgetPresentation = (widget, kind) => presentation.attach(widgetRegion(widget, kind));
 const widgetCommits = /* @__PURE__ */ new Map();
 const documentCommits = /* @__PURE__ */ new Map();
 const currentWidgetParents = readPart((root) => root.effective.widgetParents);
@@ -2213,7 +2020,7 @@ const PRESENTATION_DOM = Object.freeze({
 	obligations: () => documentCommits.get("obligations")?.() ?? []
 });
 const documentPresenters = [];
-const applicationPresenter = ({ region, renderer = document, after, reading, paint, failSoft }) => {
+const applicationPresenter = ({ region, after, reading, paint, failSoft }) => {
 	const revision = Z(0);
 	const selected = J(() => {
 		revision.value;
@@ -2230,7 +2037,7 @@ const applicationPresenter = ({ region, renderer = document, after, reading, pai
 		following = [];
 	};
 	const presenter = schedule.presenter({
-		attach: () => presentation.attach(region, renderer),
+		attach: () => presentation.attach(region),
 		after,
 		paint: (value, current) => {
 			owed = false;
@@ -2302,22 +2109,11 @@ const presentDocument = () => W(() => {
 	return schedule.passed();
 });
 const whenDocumentPresented = () => schedule.passed();
-const currentEpoch = () => d(() => readApplication().semanticEpoch);
-const currentApplicationPresentation = () => ({
-	document: documentToken,
-	semanticEpoch: currentEpoch()
-});
-const whenApplicationPresented = () => presentation.whenCurrentPresented(currentApplicationPresentation);
-const applicationPresented = () => presentation.currentPresented(currentApplicationPresentation);
-const whenWidgetsPresented = (widgets) => presentation.whenCurrentRegionsPresented(() => ({
-	document: documentToken,
-	semanticEpoch: currentEpoch()
-}), widgets.flatMap(widgetRegions));
-const whenApplicationRegionsPresented = (regions, current) => presentation.whenCurrentRegionsPresented(() => current() ? {
-	document: documentToken,
-	semanticEpoch: currentEpoch()
-} : null, regions);
-const applicationRegionsPresented = (regions) => presentation.currentRegionsPresented(currentApplicationPresentation, regions);
+const whenApplicationPresented = () => presentation.whenCurrentPresented();
+const applicationPresented = () => presentation.currentPresented();
+const whenWidgetsPresented = (widgets) => presentation.whenCurrentRegionsPresented(widgets.flatMap(widgetRegions));
+const whenApplicationRegionsPresented = (regions, current) => presentation.whenCurrentRegionsPresented(regions, current);
+const applicationRegionsPresented = (regions) => presentation.currentRegionsPresented(regions);
 const projectionRegionsPresented = (widgets) => applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
 const watchPresentation = presentation.subscribe;
 const readApplicationPresentation = presentation.read;

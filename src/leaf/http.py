@@ -926,7 +926,6 @@ class PageEndpoint:
             revision,
             version,
             executable=artifact.executable,
-            widgets=artifact.widgets,
             resources=artifact.resources,
             registry=artifact.registry,
             delivery=self._delivery(artifact, revision),

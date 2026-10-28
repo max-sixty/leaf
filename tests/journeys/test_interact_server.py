@@ -1,6 +1,5 @@
 """HTTP event and service-address tests."""
 
-import html
 import http.client
 import http.cookiejar
 import http.cookies
@@ -166,13 +165,9 @@ def test_server_round_trip(server, page_dir):
     status = arrived.status
     assert status == 200 and b"lf-options" in body
     artifact = artifact_model.read_artifact(page_dir, 2)
-    widgets = html.escape(
-        json.dumps(artifact.widgets, separators=(",", ":")), quote=True
-    )
     marker = (
         '<meta name="lf-revision" content="2" data-lf-runtime>'
         f'<meta name="lf-executable" content="{artifact.executable}" data-lf-runtime>'
-        f'<meta name="lf-widgets" content="{widgets}" data-lf-runtime>'
         '<meta name="lf-version" content="1" data-lf-runtime>'
     ).encode()
     artifact_root = (
@@ -580,13 +575,9 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     body = fetch(f"{server}/")[1].decode()
 
     artifact = artifact_model.read_artifact(page_dir, 1)
-    widgets = html.escape(
-        json.dumps(artifact.widgets, separators=(",", ":")), quote=True
-    )
     marker = (
         '<meta name="lf-revision" content="1" data-lf-runtime>'
         f'<meta name="lf-executable" content="{artifact.executable}" data-lf-runtime>'
-        f'<meta name="lf-widgets" content="{widgets}" data-lf-runtime>'
         '<meta name="lf-version" content="1" data-lf-runtime>'
     )
     assert body.count(marker) == 1

@@ -79,7 +79,6 @@ def test_a_published_document_names_its_page_to_a_crawler(
         1,
         1,
         executable="sha256:executable",
-        widgets={},
         resources=resources,
         registry={},
         delivery=replace(delivery, head=addition),

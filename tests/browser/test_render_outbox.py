@@ -143,14 +143,15 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     # Observe the instant after the immutable rejection publishes and seals, before
     # its queued imperative application. A later settled read cannot see an overclaim.
     page.evaluate("""async () => {
-      const {watchSemantic, readApplication, readApplicationPresentation} =
+      const {watchSemantic, readApplication, readApplicationPresentation, applicationPresented} =
         await window.__lfCheckApi();
       let previous = readApplication().effective.thread.all.length;
       watchSemantic(root => {
           const count = root.effective.thread.all.length;
           if (previous > 0 && count === 0) queueMicrotask(() => {
-            const {semanticEpoch, presentedEpoch, pending} = readApplicationPresentation();
-            window.rejectionPresentation = {semanticEpoch, presentedEpoch, pending};
+            window.rejectionPresentation = {
+              ...readApplicationPresentation(), presented: applicationPresented(),
+            };
           });
           previous = count;
         });
@@ -161,7 +162,8 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     round_trip(page)
     page.wait_for_function("window.rejectionPresentation !== undefined")
     reading = page.evaluate("window.rejectionPresentation")
-    assert reading["presentedEpoch"] < reading["semanticEpoch"], reading
+    assert reading["sealed"] is True, reading
+    assert reading["presented"] is False, reading
     assert "thread" in reading["pending"], reading
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
 

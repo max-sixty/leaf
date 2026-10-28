@@ -446,9 +446,8 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
       pair of lines and around both ends. Those nodes all read alike and outnumber the
       lines; one of them taking a line's pairing would put the rewrite in the wrong line
       or rebuild the fragment whole.
-    - An unnamed widget is as much the user's as a named one. The digests each capture
-      records key it by its tag and place among the others of that tag; without that
-      key every revision would rebuild it, taking whatever the user had open in it.
+    - An unnamed widget is as much the user's as a named one. Unchanged authored
+      markup keeps its node and whatever the user had open in it.
     - A widget that arrives alone inside an exhibit is told the parent it will stand
       under, so it arrives quoted, its actions closed, rather than open to a decision
       against material the page declares as evidence.
@@ -735,13 +734,21 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     """A widget renders from its authored markup, so a rewritten one cannot be put right
     from outside it: it leaves, and its replacement arrives through capture and upgrade
     like any new element. The question beside it that the revision did not touch is the
-    same element it always was, still holding the user's focus."""
+    same element it always was, still holding the user's focus. Its image, SVG link,
+    custom media attribute, inline CSS and module carry different delivery roots in
+    each revision; none changes its authored
+    identity, and parser-time initial-render marks must not make it look rewritten."""
     first = leaf_page(
         "Widgets first",
         """
 <lf-ask id="wd-store-ask"><h2>Which store?</h2>
 <lf-options id="wd-store" choose>
-  <lf-option id="wd-keep">Keep the store</lf-option>
+  <lf-option id="wd-keep">Keep the store
+  <img src="/page/held.svg" alt="Leaf" data-evidence="/media/051bee487bfb5d13.png">
+  <svg width="16" height="16"><image width="16" height="16" xlink:href="/page/held.svg"></image></svg>
+  <style>#wd-keep { --held-image: url("/page/held.svg"); }</style>
+  <script type="module">if (false) import("/runtime/widget-api.js");</script>
+</lf-option>
   <lf-option id="wd-drop">Drop the store</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="wd-when-ask"><h2>Which schedule?</h2>
@@ -764,7 +771,17 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
             '<lf-ask id="wd-when-ask">',
         )
     )
-    page = open_page(browser, live_url(serve(first)))
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                first,
+                page_files={
+                    "held.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"></svg>'
+                },
+            )
+        ),
+    )
     mark = page.locator("#wd-keep .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()

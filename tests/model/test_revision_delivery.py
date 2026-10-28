@@ -161,7 +161,6 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
         1,
         None,
         executable="sha256:fixture",
-        widgets={},
         resources=resources,
         registry=registry,
         delivery=Delivery(
@@ -670,7 +669,6 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
         1,
         None,
         executable="sha256:fixture",
-        widgets={},
         resources={},
         registry={},
         delivery=Delivery(
@@ -733,7 +731,6 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         1,
         None,
         executable="sha256:fixture",
-        widgets={},
         resources={"/media/a.png": png(1200, 750), "/media/b.png": png(1100, 800)},
         registry=registry,
         delivery=Delivery(address=ADDRESS),

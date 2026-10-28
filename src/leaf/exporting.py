@@ -329,7 +329,6 @@ def export_document(
         revision,
         version,
         executable=artifact.executable,
-        widgets=artifact.widgets,
         resources=resources,
         registry=artifact.registry,
         delivery=Delivery(
@@ -376,7 +375,6 @@ def export_document(
         revision,
         version,
         executable=artifact.executable,
-        widgets=artifact.widgets,
         resources=resources,
         registry=artifact.registry,
         delivery=Delivery(

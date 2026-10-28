@@ -1186,6 +1186,82 @@ def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
         assert all(a >= b - 0.5 for a, b in zip(insets(clip), cut)), (clip, rest)
 
 
+# The words of `node`, or of the editor `node` hosts, grouped into the lines they stand on.
+WORD_LINES = """node => {
+  const root = window.editorRoots.get(node)?.querySelector('.cm-content') ?? node;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const lines = [];
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    for (const word of text.data.matchAll(/\\S+/g)) {
+      const range = document.createRange();
+      range.setStart(text, word.index);
+      range.setEnd(text, word.index + word[0].length);
+      const top = range.getClientRects()[0].top;
+      const line = lines.find(line => Math.abs(line.top - top) < 4);
+      if (line) line.words.push(word[0]);
+      else lines.push({top, words: [word[0]]});
+    }
+  }
+  return lines.map(line => line.words.join(' '));
+}"""
+
+
+@pytest.mark.parametrize("touch", [False, True], ids=["mouse", "touch"])
+def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
+    browser, serve, touch
+):
+    """The card's reply box is the comment box the card grew from, and ends its words,
+    on every line, where the card's messages end theirs, so a reply breaks each line
+    where it did as it was typed."""
+    context = browser.new_context(has_touch=touch, is_mobile=touch)
+    page = open_page(
+        browser,
+        serve(PAGE),
+        context=context,
+        init_script="""
+      window.editorRoots = new WeakMap();
+      const attach = Element.prototype.attachShadow;
+      Element.prototype.attachShadow = function(options) {
+        const root = attach.call(this, options);
+        if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+        return root;
+      };
+    """,
+    )
+    STEP.open(page, touch)
+    page.keyboard.insert_text(COMMENT)
+    if touch:
+        page.locator(".lf-fab-bar").get_by_role(
+            "button", name="Comment", exact=True
+        ).tap()
+    else:
+        page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
+    reply = card.locator(".lf-thread-reply leaf-text")
+    if touch:
+        reply.tap()
+    else:
+        reply.click()
+    page.keyboard.insert_text(
+        "Name the runner in the step itself, since the manifest the supervisor reads "
+        "is written later and a reviewer reading this list cannot see it yet. Say "
+        "whether a failed run keeps its workspace for inspection, and who removes it "
+        "once the inspection is over, so the next job never starts on its leftovers."
+    )
+    rendered(page)
+    typed = reply.evaluate(WORD_LINES)
+    messages = card.locator(".lf-msg.user")
+    with sending(page, "reply"):
+        if touch:
+            card.locator(".lf-thread-reply .lf-compose-submit").tap()
+        else:
+            page.keyboard.press("Enter")
+    expect(messages).to_have_count(2)
+    rendered(page)
+    assert messages.last.locator(".lf-msg-text").evaluate(WORD_LINES) == typed
+
+
 @pytest.mark.parametrize(
     "size,at,long,touch,again,options,engine",
     [

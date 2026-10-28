@@ -836,7 +836,9 @@ def test_words_a_modal_a_timer_closes_still_fail(browser, press):
     )
     page.locator("#field").fill("Keep my words")
     if press == "outside-blocked":
-        page.locator("dialog").evaluate("dialog => { dialog.closedBy = 'closerequest'; }")
+        page.locator("dialog").evaluate(
+            "dialog => { dialog.closedBy = 'closerequest'; }"
+        )
         page.mouse.move(1, 1)
     if press == "inside":
         box = page.locator("dialog").bounding_box()

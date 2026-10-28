@@ -31,7 +31,7 @@ export {
   styleMap,
   unsafeHTML,
 } from "/vendor/lit.js";
-export { whileConnected, frameFor } from "./arrivals.js";
+export { whileConnected, frameFor, setScroll } from "./arrivals.js";
 export {
   afterScript,
   cancelRender,

@@ -29,6 +29,7 @@
    the turn the user was reading, even when it is not the latest one. A thread opened
    for reading, on a card or in the panel's view, shows its first unread turn, else
    its latest (`showReturnTurn`). */
+import { setScroll } from "../arrivals.js";
 import {
   seenRect,
   showsContents,
@@ -315,7 +316,10 @@ export function followBoxGrowth(input) {
   const grew = height - (rowHeights.get(input) ?? height);
   rowHeights.set(input, height);
   const by = Math.max(0, Math.min(grew, covered(reply)));
-  if (by) scrollerFor(reply).scrollBy({ top: by, behavior: "instant" });
+  if (by) {
+    const box = scrollerFor(reply);
+    setScroll(box, { top: box.scrollTop + by });
+  }
   // A row pins only at its scroller's foot, so one the user scrolled past is brought back.
   if (!onScreen(reply)) revealWritingArea(held, input, reply);
 }

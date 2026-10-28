@@ -1,4 +1,4 @@
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, announceScroll, fragmentId, layoutChanged, nativeLayerHolding, nextFrame, nextRender, pagePresented, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, shadowHost, sizeObserver, skipped, under, upFrom, visualPartAdmission, watchArrivals, watchOwner, watchScrolls, whileConnected } from "./bundle-portable.js";
+import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, fragmentId, layoutChanged, nativeLayerHolding, nextFrame, nextRender, pagePresented, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, setScroll, shadowHost, sizeObserver, skipped, under, upFrom, visualPartAdmission, watchArrivals, watchOwner, watchScrolls, whileConnected } from "./bundle-portable.js";
 import { J, LENT_REACH_STOP, PRESSES, TEXT_BLOCK, TEXT_BOX, WORKS, Z, anchorKey, applicationPresented, deepFocus, documentChanged, hostIn, inUi, isElementName, keeps, layoutPx, marks, move, onCurrentLocation, pressing, registry, shadowRootsIn, tabStops, tagsDeclaring, tick, uiInside, wearsLentStop } from "./bundle-layer-stack.js";
 import { PRESSABLE, repaintPage, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { clamp, clippedContents, headerCuts, landingBand, nearObserver, nearWindow, overlaps, scrollContainer, scrollsBy, scrollsContent, shownBox, shownParts, shownRect, userScrollport } from "./bundle-geometry.js";
@@ -794,7 +794,7 @@ ended.set(pageScroller, pageScroller.scrollTop);
 function stopScroll(boxes) {
 	const stopped = [...boxes].filter((box) => moving.has(box)).map((box) => [box, moving.get(box)]);
 	if (!stopped.length) return null;
-	for (const [box] of stopped) box.scrollTo({
+	for (const [box] of stopped) setScroll(box, {
 		left: box.scrollLeft,
 		top: box.scrollTop,
 		behavior: "instant"
@@ -872,22 +872,19 @@ const scrollLimit = (box) => Math.max(0, (riding.has(box) ? laidOutHeight(box) :
 const SCROLL_SLACK = 2;
 const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= 2;
 const scrollToEnd = (box, behavior = "instant") => {
-	const before = box.scrollTop;
 	if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
-	box.scrollTo({
+	setScroll(box, {
 		top: scrollLimit(box),
 		behavior
 	});
-	if (behavior === "instant" && box.scrollTop !== before) announceScroll(box);
 };
 const aims = /* @__PURE__ */ new WeakMap();
 const moveScrollerBy = (box, top, behavior = "instant") => {
-	const before = box.scrollTop;
 	const aim = box.scrollTop + top;
 	if (Math.abs(top) >= .5) {
 		if (behavior !== "instant" && reachable(box, top)) startScroll(box);
-		box.scrollBy({
-			top,
+		setScroll(box, {
+			top: aim,
 			behavior
 		});
 	}
@@ -896,7 +893,6 @@ const moveScrollerBy = (box, top, behavior = "instant") => {
 		at: box.scrollTop
 	});
 	else aims.delete(box);
-	if (behavior === "instant" && box.scrollTop !== before) announceScroll(box);
 };
 const aimedTop = (box) => {
 	const kept = aims.get(box);

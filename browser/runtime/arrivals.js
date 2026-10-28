@@ -272,8 +272,21 @@ export function watchArrivalsIn(stage) {
 // the browser sends its scroll event, so dependent paint cannot wait on that event.
 const scrollListeners = new Set();
 const SCROLL = { capture: true, passive: true };
-export function announceScroll(box) {
+function announceScroll(box) {
   for (const listener of scrollListeners) listener(box);
+}
+// Complete a scroll write and publish the position that will paint. Native scroll
+// events arrive too late for writes in an animation frame or resize delivery.
+/** @param {Element} box @param {ScrollToOptions} options */
+export function setScroll(box, options) {
+  const { scrollTop, scrollLeft } = box;
+  const { behavior = "instant" } = options;
+  box.scrollTo({ ...options, behavior });
+  if (
+    behavior === "instant" &&
+    (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft)
+  )
+    announceScroll(box);
 }
 const heardIn = (stage) => (event) => {
   if (event.target.getRootNode() !== stage) return;

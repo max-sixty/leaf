@@ -59,6 +59,7 @@
  * as the visible landmarks. It is independent of the viewport, so scrolling through a tall landing
  * does not turn a later passage into the navigation step's original arrival.
  */
+import { setScroll } from "./arrivals.js";
 import {
   clippedContents,
   landingBand,
@@ -698,7 +699,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
     if (view.end) {
       scrollToEnd(box);
     } else if (view.start && sameScroller(view, box)) {
-      box.scrollTo({ top: 0, behavior: "instant" });
+      setScroll(box, { top: 0, behavior: "instant" });
     } else {
       const boxTop = landingBand(box).top;
       // Restoration keeps the reader's disclosures and chosen views: a landmark
@@ -722,13 +723,13 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
           // A section containing the scroller cannot align its contents by its
           // outer rectangle. Keep the old offset only where it still fits.
           if (under(box, section))
-            box.scrollTo({
+            setScroll(box, {
               top: rawOffsetFits(view, box) ? view.y : 0,
               behavior: "instant",
             });
           else moveScrollerBy(box, shownBox(section).top - boxTop - view.sectionTop);
         } else if (rawOffsetFits(view, box))
-          box.scrollTo({ top: view.y, behavior: "instant" });
+          setScroll(box, { top: view.y, behavior: "instant" });
       }
     }
   }

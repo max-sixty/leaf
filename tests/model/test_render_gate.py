@@ -100,6 +100,7 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
     assert spill.values["past"] == 1560
     assert str(spill) == (
         "at 1560–1600px wide, <pre> is set 1560px past the column, out in the margin"
+        '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column'
     )
     squeezed = render_gate_readings.squeezed_table_advice(readings)
     assert [(f.at, f.widths, f.values["scrolls"], f.severity) for f in squeezed] == [
@@ -129,7 +130,7 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     )
     assert str(finding) == (
         "[dark] <div id=wide> is set 74px past the column, out in the margin"
-        " (at 540x720)"
+        '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column (at 540x720)'
     )
     assert json.loads(json.dumps(finding.json())) == {
         "code": "past-column",

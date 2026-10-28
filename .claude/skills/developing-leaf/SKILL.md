@@ -51,12 +51,12 @@ handing it over. Whoever reviews it, you or an independent reviewer, first uses 
 live candidate cold for the user's task, before reading its code or the author's
 account, reaching each result by every route Leaf gives to it and capturing each state
 those routes leave. A reviewer's brief gives the task and the candidate and asks for
-that pass before any code review. Then give those captures and the user's request, and
-nothing else, to a fresh agent, and ask what looks wrong. An agent that has driven,
-measured or read the change sees the screen through that work and misses flaws a first
-look catches. For a theme or shared-control change, also run `/ui-sweep`
-(`../ui-sweep/SKILL.md`), whose "Review a design system" section covers it and whose
-"External review" section says when to use the skills below.
+that pass before any code review. An agent that has driven, measured or read the
+change sees the screen through that work and misses flaws a first look catches; a
+fresh agent given only the captures and the user's request, and asked what looks
+wrong, is one way to get that look. For a theme or shared-control change, also run
+`/ui-sweep` (`../ui-sweep/SKILL.md`), whose "Review a design system" section covers it
+and whose "External review" section says when to use the skills below.
 
 ### External UI skills
 

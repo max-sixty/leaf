@@ -73,7 +73,8 @@ while its runtime comes from the Leaf serving it, so the contract covers what cr
 Leaf versions: the kernel event records and their ownership; what a page sends, which
 vendored package modules build through the runtime; the declarations a vendored
 registry makes, such as its x-state verbs; the public package API vendored modules
-call, `runtime/widget-api.js`, including what its readers such as `readObligations`
+call, `runtime/widget-api.js` and the part of it any document loads,
+`runtime/portable-api.js`, including what its readers such as `readObligations`
 return; and the records Leaf keeps outside a page. The served state is not part of it,
 since the runtime that reads it comes from the Leaf that serves it. A page carries the number in the `$events` it was vendored with, which no
 layer can change. Every page server and the append door refuse a page, or a revision,
@@ -106,7 +107,7 @@ draft as they stood at the current number, and `build/browser/protocol.mjs` comp
 each build against it (its header says in which direction for each schema). It refuses
 a change to what a page sends, to an event record, or a verb's tightening, until the
 change takes what it took or the number moves. The public package API has no schema
-there, so whoever removes or renames a `widget-api.js` export, or changes what one
+there, so whoever removes or renames an export of either module, or changes what one
 returns incompatibly, bumps the number. A passing comparison doesn't judge that, nor
 whether a bump chosen by hand was needed.
 `served_state/state.schema.json` declares the served state and the `/api/view` answer

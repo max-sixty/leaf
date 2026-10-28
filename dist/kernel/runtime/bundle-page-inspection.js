@@ -1,6 +1,6 @@
 import { closeLayer, currentLocationIn, focusDestination, handBack, openLayer, openerOf } from "./bundle-dom-move.js";
+import { closeNativeLayer, guard, html, nothing, offlineInteractive, pageUrl, render, runtime, showNativeLayer } from "./bundle-layer-stack.js";
 import { closeControl, el, iconTemplate, offerAction, offeredAction, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
-import { closeNativeLayer, guard, html, nothing, offlineInteractive, pageUrl, render, runtime, showNativeLayer } from "./bundle-geometry.js";
 import { chromeForeground, pageControls } from "./bundle-content-layout.js";
 import { copyControl, retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
 import { scrollBehavior } from "./bundle-media.js";

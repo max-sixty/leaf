@@ -1,0 +1,3 @@
+import { PendingTaskEvent, afterScript, bodyText, cancelAnimation, cancelRender, dataBody, failSoft, frameFor, inBaseLayer, measure, nextAnimation, nextFrame, nextRender, once, placesFailure, reportFailure, sizeObserver, whileConnected } from "./bundle-portable.js";
+
+export { PendingTaskEvent, afterScript, bodyText, cancelAnimation, cancelRender, dataBody, failSoft, frameFor, inBaseLayer, measure, nextAnimation, nextFrame, nextRender, once, placesFailure, reportFailure, sizeObserver, whileConnected };

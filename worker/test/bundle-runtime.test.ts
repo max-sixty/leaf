@@ -39,7 +39,13 @@ describe("published runtime bundle", () => {
         join(layer, "runtime", "url.js"),
         'export const moduleUrl = import.meta . url; export const prose = "import.meta.url";',
       );
-      for (const entry of ["layer-client", "media", "widget-api", "check-api"]) {
+      for (const entry of [
+        "layer-client",
+        "media",
+        "widget-api",
+        "portable-api",
+        "check-api",
+      ]) {
         await writeFile(
           join(layer, "runtime", `${entry}.js`),
           `export const revision = "${revision}";`,

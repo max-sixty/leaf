@@ -845,6 +845,16 @@ def drop_locator(session_id: str, name: str) -> None:
         partition.rmdir()
 
 
+def worker_tool_batch(harness: str, payload: dict) -> bool:
+    """A Claude Code worker's batch names its parent's session but receives none
+    of that session's input. Both the standalone gate and the full hook skip it."""
+    return (
+        harness == "claude-code"
+        and payload.get("hook_event_name") == "PostToolBatch"
+        and bool(payload.get("agent_id"))
+    )
+
+
 def main() -> None:
     payload = json.load(sys.stdin)
     if payload.get("hook_event_name") == "SessionEnd":
@@ -856,7 +866,9 @@ if __name__ == "__main__":
     # with -S, so no site packages load. A hook it skips takes about 25 ms in
     # place of about 70 for starting the package (measured on macOS). Only status
     # 3 skips the hook; any failure runs it whole.
-    if sys.argv[1:] == ["hook-gate"]:
+    if len(sys.argv) == 3 and sys.argv[1] == "hook-gate":
         payload = json.load(sys.stdin)
+        if worker_tool_batch(sys.argv[2], payload):
+            sys.exit(3)
         sys.exit(0 if held_claims(payload.get("session_id") or "") else 3)
     main()

@@ -443,10 +443,10 @@ instruction diagnostic do not establish that rendered behavior.
 
 Every provider runs in a fresh workspace outside the repository, under a home of its
 own using only the host's login, so runs spend the signed-in accounts'
-usage and never an API key. Authoring agents write scratch files in `/tmp` under
-names their task suggests, so on macOS a Claude Code child runs under a sandbox
-profile that refuses those writes outside its own directories (`private_tmp` in `dev/leaf_dev/arms.py`); its own
-`TMPDIR` takes them. Eval defaults to serial provider calls and assertions for
+usage and never an API key. On macOS, native authoring sessions use
+`authoring_sandbox` in `dev/leaf_dev/arms.py` to isolate shared `/tmp` content and
+host plugin payloads; their own `TMPDIR` holds scratch files. Read-only probes use
+their provider's restrictions. Eval defaults to serial provider calls and assertions for
 browser load. The decision round's user agent drives the page with the pinned
 Playwright CLI from development dependencies. Native Codex probes install the complete arm through the
 host Codex CLI's plugin installer in that home, and use the same CLI to run the

@@ -173,7 +173,7 @@ CONTROL_STABILITY_PAGE = leaf_page(
 <lf-ask id="stable-options-decision"><h2>Which control should stay?</h2>
 <lf-options id="stable-options" choose>
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
-  <lf-option id="stable-choice-b" for="control-target">Keep B</lf-option>
+  <lf-option id="stable-choice-b" for="stable-tabs">Keep B</lf-option>
 </lf-options></lf-ask>
 <lf-tabs id="stable-tabs">
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
@@ -226,6 +226,8 @@ CONTROL_ARCHETYPES = (
         "target": '[data-lf-margin-for="stable-suggestion"] > .lf-margin-more',
     },
     {
+        # Different destinations keep the reference beside the pick visible;
+        # a shared destination intentionally has no reference to hold still.
         "name": "option-pick",
         "target": "#stable-choice-a .lf-pick",
     },
@@ -1596,9 +1598,6 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 expect(
                     page.locator("#pr-exact-patch .lf-diff-line > [data-line]:focus")
                 ).to_have_count(1)
-                # The landing then scrolls the page smoothly, which no animation
-                # `page_at_rest` waits on stands for.
-                scroll_settled(page)
             page_at_rest(page)
             if surface := RING_SCOPE_SURFACE.get(scope):
                 assert page.locator(surface).count() == 1, (

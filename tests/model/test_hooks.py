@@ -11,6 +11,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
@@ -1805,6 +1806,17 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
     receipt's locks only until CONFIRM_WITHIN, hands over the pages it recorded, and
     leaves the input of a page still locked then pending for a later hook."""
     monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", 2.0)
+    # Only lock waits advance this clock: page preparation must not spend the
+    # budget before the test reaches the contended receipt lock.
+    elapsed = 0.0
+
+    def advance(seconds):
+        nonlocal elapsed
+        elapsed += seconds
+
+    clock = SimpleNamespace(monotonic=lambda: elapsed, sleep=advance)
+    for module in (hooks_model, hook_transport_model, cleanup_model):
+        monkeypatch.setattr(module, "time", clock)
     sibling = tmp_path / "sibling"  # after `claimed` in the walk's path order
     vendoring_model.cmd_init(sibling)
     service_model.claim_page(sibling)
@@ -1824,11 +1836,10 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
         hook_transport_model, "freeze_delivery", freeze_then_lock_sibling
     )
     try:
-        started = time.monotonic()
         hooks_model.cmd_hook(
             "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
         )
-        assert time.monotonic() - started < 2 * hook_transport_model.CONFIRM_WITHIN
+        assert elapsed == pytest.approx(hook_transport_model.CONFIRM_WITHIN)
         _, envelope, *_ = continued(capsys.readouterr().out).split("\n")
         assert [batch["page"] for batch in json.loads(envelope)["batches"]] == [
             str(claimed.resolve())
@@ -1841,7 +1852,7 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
     # Past the deadline even a free lock is not taken, so nothing is confirmed late.
     with (
         pytest.raises(TimeoutError),
-        service_model.PageTransaction(sibling, deadline=time.monotonic()),
+        service_model.PageTransaction(sibling, deadline=clock.monotonic()),
     ):
         pass
 

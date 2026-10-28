@@ -953,6 +953,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
           }
         }"""
     )
+    margins_laid_out(page)
     for target in ("first", "second"):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         action_order = [
@@ -971,6 +972,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
         expect(item.locator(".lf-margin-more")).to_be_hidden()
         primary = item.locator('[data-lf-margin-entry-key="save"]')
         primary.focus()
+        expect(primary).to_be_focused()
         expect(page.locator(f'.lf-target-trace[data-for="{target}"]')).to_be_visible()
         primary.hover()
         label = item.locator('[data-lf-margin-entry-key="save"] .lf-margin-entry-label')

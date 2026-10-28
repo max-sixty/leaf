@@ -58,7 +58,7 @@ import { keeps } from "./keeps.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { plainPress } from "./pointer.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
-import { namedAction, offer, offered } from "./widget-elements.js";
+import { offer, offered, offeredAction } from "./widget-elements.js";
 import { html, live, nothing, render } from "/runtime/framework.js";
 
 const PLAYER = PAGE_PAINT_ATTRIBUTE.player;
@@ -97,14 +97,15 @@ export function paintRecordingControls(video, bar, enterFullScreen) {
   keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
   render(
     html`<button
-        ${offered("lf-video-play")}
-        tabindex="-1"
-        aria-label=${!video.paused ? "Pause recording" : "Play recording"}
-      >
-        ${actionTemplate("play", "lf-video-icon")}${actionTemplate(
-          "pause",
-          "lf-video-icon",
+        ${offeredAction(
+          "symbol",
+          "lf-video-play",
+          !video.paused ? "Pause recording" : "Play recording",
+          { action: "play" },
         )}
+        tabindex="-1"
+      >
+        ${actionTemplate("pause", "lf-action-icon")}
       </button>
       <input
         ${offered("lf-video-time")}
@@ -124,12 +125,10 @@ export function paintRecordingControls(video, bar, enterFullScreen) {
       ${
         enterFullScreen
           ? html`<button
-              ${offered("lf-video-full-screen")}
-              tabindex="-1"
-              ${namedAction("expand", {
-                label: "Full screen",
-                className: "lf-video-icon",
+              ${offeredAction("symbol", "lf-video-full-screen", "Full screen", {
+                action: "expand",
               })}
+              tabindex="-1"
             ></button>`
           : nothing
       }`,

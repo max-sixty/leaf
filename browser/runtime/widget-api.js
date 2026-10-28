@@ -31,13 +31,7 @@ export {
   signal,
 } from "/runtime/framework.js";
 export { move } from "./dom-move.js";
-export {
-  actionElement,
-  actionTemplate,
-  iconElement,
-  iconTemplate,
-  showAction,
-} from "./icons.js";
+export { actionTemplate, iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { LeafElement } from "./leaf-element.js";
 export { quoted } from "./widget-descriptors.js";
@@ -126,13 +120,7 @@ export { isNativeLayer } from "./shadow-tree.js";
 export { HOLDS_WORD } from "./held-word.js";
 // `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
 export { PRESS, cycledRow, labelOf, rowArrows } from "./keyboard/bindings.js";
-export {
-  commandScope,
-  commandsOn,
-  keys as commands,
-  paintKeys,
-  saying,
-} from "./keyboard/scopes.js";
+export { commandScope, commandsOn, saying } from "./keyboard/scopes.js";
 // The claim of a scope standing over the page: every key but the command reference's.
 export { allButCommandReference } from "./keyboard/register.js";
 export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
@@ -210,7 +198,6 @@ export {
   deferredArrival,
   whileInterfaceConnected,
 } from "./presentation.js";
-export { quietWord } from "./declared-words.js";
 export { copyBlock } from "./code-copy.js";
 export { copyControl } from "./copy-control.js";
 export { retainUserIntent } from "./user-intent.js";
@@ -218,15 +205,8 @@ export { retainUserIntent } from "./user-intent.js";
 // and whether a click came from the keyboard rather than a pointer.
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 export { onUserInput } from "./focus.js";
-export { keepView, openingView, tabStore } from "./storage.js";
-export {
-  ensureSyntaxLanguage,
-  highlightBlocks,
-  langForPath,
-  synNodes,
-  syntax,
-  tokenLines,
-} from "./syntax.js";
+export { keepView, openingView } from "./storage.js";
+export { highlightBlocks, langForPath } from "./syntax.js";
 export {
   saidAt,
   readHistory,
@@ -236,14 +216,14 @@ export {
 } from "./reports.js";
 // The one watcher of the page's readings (module-reading.md, "Page readings").
 export {
-  LAYOUT,
   PRESSABLE,
   dragging,
   el,
   generated,
   generatedElement,
-  layoutChanged,
   motionPreview,
+  nameAction,
+  namedAction,
   offer,
   offerAction,
   offered,

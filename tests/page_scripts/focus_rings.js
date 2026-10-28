@@ -254,9 +254,18 @@
       // wherever there is one, so every box this reading already measured is measured the
       // same way: the two carriers are on different boxes in this layer, and where a box
       // ever wears both, the outline is the one the layer's own rules put there.
-      const w = outlined || cast;
-      const grow = outlined ? outlined + (parseFloat(cs.outlineOffset) || 0) : cast;
+      //
+      // Both are in the box's own pixels, which a scaled box, such as a film's terminal
+      // drawn in an SVG's foreignObject, shows smaller on screen. offsetWidth is the
+      // unscaled width in whole pixels, so a difference of a pixel or less is its rounding.
       const b = pseudo ? rectangles[index] : el.getBoundingClientRect();
+      const scale =
+        !pseudo && Math.abs(b.width - el.offsetWidth) > 1
+          ? b.width / el.offsetWidth
+          : 1;
+      const w = (outlined || cast) * scale;
+      const grow =
+        (outlined ? outlined + (parseFloat(cs.outlineOffset) || 0) : cast) * scale;
       const ring = {
         top: b.top - grow,
         left: b.left - grow,
@@ -645,18 +654,32 @@
       // screenshot and reports a run the ring's colour doesn't cover.
       //
       // Only the layer's own ring is read, whose colour is known; a rounded ring's
-      // corners curve off the run's line, so the run is read short of them.
+      // corners curve off the run's line, so the run is read short of them. A ring
+      // the screenshot can't show in its known colour is left to the reading above:
+      // one faded with its box, as a disabled control is at reduced opacity; one scaled,
+      // whose band lands on fractional pixels and blends with its ground; and an inline
+      // box's split over lines, whose fragments each wear their own ring rather than
+      // the one rectangle the runs follow.
       const runs = [];
-      if (here) {
+      let opacity = 1;
+      for (let a = el; a; a = flatParent(a)) opacity *= +getComputedStyle(a).opacity;
+      if (here && opacity === 1 && scale === 1 && el.getClientRects().length === 1) {
         const radius = Math.max(
           ...["TopLeft", "TopRight", "BottomLeft", "BottomRight"].map(
             (corner) => parseFloat(cs[`border${corner}Radius`]) || 0,
           ),
         );
         const end = radius + grow + w + 1;
+        // A press of the box's own standing in front is chrome seated on its border on
+        // purpose, as a draft's toolbar and a code block's Copy are, so the ring under
+        // it is not read; the box's other contents, such as a card message's sticky
+        // head, are, since nothing makes their cover deliberate.
         const exposed = (x, y) => {
           const front = document.elementsFromPoint(x, y)[0];
-          return !front || front === el || holds(el, front) || holds(front, el);
+          if (!front || front === el) return true;
+          const press = front.closest("button, a[href]");
+          if (press && press !== el && holds(el, press)) return false;
+          return holds(el, front) || holds(front, el);
         };
         for (const [side, line, horizontal] of [
           ["top", ring.top + w / 2, true],

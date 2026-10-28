@@ -19,6 +19,7 @@ from leaf.revision_artifact import (
     capture_local_resource,
     read_artifact,
     resource_dependencies,
+    rewrite_css,
 )
 from leaf.revision_delivery import (
     Delivery,
@@ -374,6 +375,17 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
     assert not any(
         token.type == "error" for token in tinycss2.parse_stylesheet(delivered)
     )
+
+
+def test_an_unavailable_url_drops_its_declaration_beside_one_the_browser_drops():
+    """A sheet the capture accepts may hold a declaration the browser ignores; omitting
+    an unavailable URL beside it keeps the rest of the rule instead of failing."""
+    rewritten = rewrite_css(
+        'main { broken; background: url("x.png"); color: red }', lambda url: None
+    )
+
+    assert "color: red" in rewritten
+    assert "x.png" not in rewritten
 
 
 def test_capture_delivery_and_export_read_one_set_of_stylesheet_urls(tmp_path):

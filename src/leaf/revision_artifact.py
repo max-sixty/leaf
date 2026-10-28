@@ -550,6 +550,10 @@ def _rewrite_parsed(source: str, targets: dict, declarations: bool) -> str:
     def available(entries):
         kept = []
         for entry in entries:
+            # A declaration the browser drops, such as `broken;`, parses as an error
+            # node, which can't be serialized; drop it as the browser does.
+            if entry.type == "error":
+                continue
             if entry.type == "declaration" or (
                 entry.type == "at-rule" and entry.lower_at_keyword == "import"
             ):

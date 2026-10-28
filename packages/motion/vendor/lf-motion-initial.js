@@ -108,7 +108,7 @@
     retry: { name: "Retry", icon: "retry" },
     save: { name: "Save", icon: "save" },
     send: { name: "Send", icon: "send" },
-    show: { name: "Show on page", icon: "locate" },
+    show: { name: "Show", icon: "locate" },
     start: { name: "Start", icon: "start" },
     suggest: { name: "Suggest", icon: "edit" },
     undo: { name: "Undo", icon: "undo" },
@@ -120,6 +120,10 @@
     if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
     return named.icon;
   };
+  var actionName = (action) => {
+    actionIcon(action);
+    return ACTIONS[action].name;
+  };
   var SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
   function actionFace(role, label, action) {
     if (!SYMBOLIC.has(role)) {
@@ -128,8 +132,8 @@
       return label;
     }
     if (action === void 0) throw new TypeError(`A ${role} names the action it shows`);
-    actionIcon(action);
-    return label ?? ACTIONS[action].name;
+    const name = actionName(action);
+    return label ?? name;
   }
   function showAction(control, action, className = "lf-action-icon") {
     const icon = actionIcon(action);

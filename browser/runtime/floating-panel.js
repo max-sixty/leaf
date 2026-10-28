@@ -166,7 +166,7 @@ import {
   repeat,
   signal,
 } from "/runtime/framework.js";
-import { el, offeredAction, reveal } from "./widget-elements.js";
+import { el, namedAction, offeredAction, reveal } from "./widget-elements.js";
 import { actionTemplate, iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";
 import { keeps, keepsHidden, layoutPx } from "./keeps.js";
@@ -423,17 +423,17 @@ export function createFloatingPanel({
           : "lf-fp-on-user"
       }`}
       ?data-due=${!exit && onUser > 0}
-      aria-label=${exit ? exit.label : onUserName}
-      title=${exit ? exit.label : onUserName}
+      ${namedAction(exit ? (exit.action ?? "close") : "on-me", {
+        label: exit ? exit.label : onUserName,
+      })}
       ?disabled=${Boolean(exit?.disabled)}
       @mousedown=${exit ? (event) => event.preventDefault() : nothing}
       @click=${exit ? () => exit.press() : pressMark}
     >
       ${
         exit
-          ? actionTemplate(exit.action ?? "close", "lf-action-icon")
-          : html`${actionTemplate("on-me", "lf-action-icon")}<span class="lf-fp-num"
-                >${onUser || ""}</span
+          ? nothing
+          : html`<span class="lf-fp-num">${onUser || ""}</span
               ><span class="lf-fp-news lf-unread-dot" ?hidden=${!news}></span>`
       }
     </button>`;
@@ -3224,7 +3224,7 @@ export function createFloatingPanel({
     const show = arrivesAt(item)
       ? html`<button
           type="button"
-          ${offeredAction("symbol", "lf-fp-show", "Show", { action: "show" })}
+          ${offeredAction("symbol", "lf-fp-show", undefined, { action: "show" })}
           @click=${() => {
             const route = trail.value.at(-1);
             void queueActions.open(queueItemKey(item)).then((arrived) => {
@@ -3309,12 +3309,9 @@ export function createFloatingPanel({
       answers = html`<button
         type="button"
         class="lf-fp-face lf-fp-answer"
-        aria-label="Done"
-        title="Done"
+        ${namedAction("done")}
         @click=${() => queueActions.done(queueItemKey(item))}
-      >
-        ${actionTemplate("done", "lf-action-icon")}
-      </button>`;
+      ></button>`;
     else if (inWords && thread) {
       discussHere = false;
       answers = html`<button

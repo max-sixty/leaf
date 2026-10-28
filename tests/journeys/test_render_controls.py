@@ -173,7 +173,7 @@ CONTROL_STABILITY_PAGE = leaf_page(
 <lf-ask id="stable-options-decision"><h2>Which control should stay?</h2>
 <lf-options id="stable-options" choose>
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
-  <lf-option id="stable-choice-b" for="control-target">Keep B</lf-option>
+  <lf-option id="stable-choice-b" for="stable-tabs">Keep B</lf-option>
 </lf-options></lf-ask>
 <lf-tabs id="stable-tabs">
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
@@ -226,6 +226,8 @@ CONTROL_ARCHETYPES = (
         "target": '[data-lf-margin-for="stable-suggestion"] > .lf-margin-more',
     },
     {
+        # Different destinations keep the reference beside the pick visible;
+        # a shared destination intentionally has no reference to hold still.
         "name": "option-pick",
         "target": "#stable-choice-a .lf-pick",
     },

@@ -147,6 +147,8 @@ interface HTMLElement {
     readonly count: number;
     observe(read: (event: Event) => void): () => boolean;
   };
+  /** The errors and rejections raised before the runtime listened (prepaint.js). */
+  lfEarlyFaults?: { take(): (ErrorEvent | PromiseRejectionEvent)[] };
   /** The exception behind the first startup fault, kept before modules load. */
   lfStartupException?: { name: string; message: string; stack?: string } | null;
   lfStorage?: {

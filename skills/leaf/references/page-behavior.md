@@ -1,10 +1,11 @@
 # Page behavior
 
-Write page behavior in an inline `<script type="module">` or in modules under `page/`,
-referenced as `/page/…`. Load a library that ships only as a classic script with
-`<script defer src>`. Relative imports stay within `page/`. A module imports Leaf's helpers
-from `/runtime/widget-api.js`. For floating placement that native layout cannot
-express, import the bundled Floating UI library from `/vendor/floating-ui.esm.js`.
+Write page behavior as you would on any web page: in a `<script>`, inline or a file
+under `page/` referenced as `/page/…`, or one from another server. A script that
+imports is a module (`type="module"`), and its relative imports stay within `page/`. A
+module imports Leaf's helpers from `/runtime/widget-api.js`. For floating placement
+that native layout cannot express, import the bundled Floating UI library from
+`/vendor/floating-ui.esm.js`.
 Each revision saves every file under `page/` with the markup, except hidden ones, so
 page code can fetch any of them, such as JSON, CSV, text, images, fonts or wasm. Name a
 file relative to the module that fetches it, `fetch(new URL("./data.json",

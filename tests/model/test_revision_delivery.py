@@ -26,6 +26,7 @@ from leaf.revision_delivery import (
     DeliveryAddress,
     compose_document,
     deliver_resource,
+    early_scripts,
     json_script,
     mark_declared,
     rebase_document,
@@ -652,6 +653,28 @@ def test_inert_json_cannot_end_or_reshape_its_script_element():
 
     assert "<" not in serialized
     assert json.loads(serialized)["said"] == hostile
+
+
+@pytest.mark.parametrize(
+    "script, early",
+    [
+        ("<script>window.x = 1;</script>", True),
+        ('<script src="/page/a.js"></script>', True),
+        ('<script defer src="/page/a.js"></script>', False),
+        ('<script defer async src="/page/a.js"></script>', True),
+        ("<script defer>window.x = 1;</script>", True),
+        ('<script type="module">window.x = 1;</script>', False),
+        ('<script type="module" async src="/page/a.js"></script>', True),
+        ('<script type="application/json">{}</script>', False),
+    ],
+)
+def test_a_document_says_when_a_script_can_run_before_the_runtime(script, early):
+    """The runtime's module runs once the document has parsed, ahead of later modules
+    and deferred files, so only a script the parser runs or one marked async can
+    change the page before the runtime reads it, and only then does it read the
+    delivered source (`runtime/version.js`, `servedReading`)."""
+    document = SourceDocument(f"<html><head></head><body><main>{script}</main></body>")
+    assert bool(early_scripts(document)) is early
 
 
 @pytest.mark.parametrize("explicit_html", [True, False])

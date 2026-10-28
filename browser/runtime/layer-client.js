@@ -410,7 +410,7 @@ export function exceptionText(reason, context = "") {
   return `${context}: ${summary}${message === undefined ? "" : `\n${evidence}`}`;
 }
 
-window.addEventListener("error", (e) => {
+const heardError = (e) => {
   // A widget's own failure, which it shows where it stands and dispatches
   // (`reportFailure`, widget-upgrade.js), named for the widget it happened in.
   const failure = failureOf(e);
@@ -427,7 +427,15 @@ window.addEventListener("error", (e) => {
   reportPageError(
     e.error?.stack ? e.error : `${e.message} (${e.filename}:${e.lineno})`,
   );
-});
-window.addEventListener("unhandledrejection", (e) => {
-  reportPageError(e.reason);
-});
+};
+const heardRejection = (e) => reportPageError(e.reason);
+window.addEventListener("error", heardError);
+window.addEventListener("unhandledrejection", heardRejection);
+// What the page threw before this module listened, which the prepaint kept from the
+// document's first script. Reported once the served document has said which revision
+// it is (leaf.js), so each report names it as a later one does.
+const earlyFaults = document.documentElement.lfEarlyFaults.take();
+export function reportEarlyFaults() {
+  for (const event of earlyFaults.splice(0))
+    (event.type === "error" ? heardError : heardRejection)(event);
+}

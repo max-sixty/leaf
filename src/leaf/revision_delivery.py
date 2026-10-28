@@ -709,8 +709,33 @@ def delivery_prelude(
     return (
         runtime_element("meta", {"charset": "utf-8"})
         + delivery_identity(revision, version, executable, widgets)
+        + early_scripts(document)
         + viewport
     )
+
+
+def early_scripts(document: SourceDocument) -> str:
+    """Say whether any of the page's scripts can run before the runtime reads it.
+
+    The runtime's module runs once the document has parsed, ahead of every later
+    module and deferred classic file. A classic script the parser runs where it
+    stands, or any script marked `async`, can run first and change `main` before the
+    runtime reads it, so the runtime then reads the authored page from the delivered
+    source rather than from the live document (`runtime/version.js`,
+    `servedReading`). A page without one carries no mark and costs that read nothing.
+    """
+    for script in [
+        *document.authoring.inline_scripts,
+        *document.authoring.external_scripts,
+    ]:
+        attrs = script["attrs"]
+        deferred = "async" not in attrs and ("defer" in attrs and "src" in attrs)
+        kind = script_kind(attrs)
+        if (kind == "classic" and not deferred) or (
+            kind == "module" and "async" in attrs
+        ):
+            return runtime_element("meta", {"name": "lf-early-scripts", "content": ""})
+    return ""
 
 
 @dataclass(frozen=True)

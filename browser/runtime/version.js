@@ -70,7 +70,14 @@ import {
   sizeObserver,
 } from "./rendering.js";
 import { frameFor } from "./arrivals.js";
-import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
+import {
+  LIVE_ROOT,
+  layerRoot,
+  offlineInteractive,
+  pageUrl,
+  revisionLabel,
+  runtime,
+} from "./context.js";
 import {
   documentWidgetDigests,
   servedExecutable,
@@ -95,7 +102,7 @@ import {
 } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusedInView } from "./user-place.js";
-import { patchTree, patchRetains } from "./dom-children.js";
+import { matchNodes, patchTree, patchRetains } from "./dom-children.js";
 import { move } from "./dom-move.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 import { commandSteps } from "./keyboard/control-keys.js";
@@ -272,6 +279,62 @@ let initialDocument = (() => {
     pairs: main ? pairSources(source, main, new WeakMap()) : new WeakMap(),
   };
 })();
+// Page code that can run before this module, a classic script the parser runs where it
+// stands or any script marked async, may already have changed main, and the copy above
+// would hold what that code wrote as though the author had. Delivery marks such a
+// document (`revision_delivery.early_scripts`), and its baseline is then read from the
+// source it was delivered as: the document's own bytes, which the browser keeps from the
+// navigation (documents are answered `no-cache`, which `force-cache` reads without
+// asking the server again), parsed as another version's document is
+// (`authoredDocument`). The copy still knows which live node each authored node became
+// through whatever a producer rearranged, so the source is matched with it as a patch
+// matches two revisions (`matchNodes`). A node a script made matches no source, and
+// stands for nothing authored, as a module's output does; a source node a script
+// removed stands for no live node. An answer for another revision, as when the live
+// root has moved on and the browser kept nothing, leaves the copy as the baseline,
+// which the arriving revision replaces. Startup waits for this read before the
+// controller takes the baseline (leaf.js).
+const revisionOf = (doc) =>
+  doc.querySelector('meta[name="lf-revision"][data-lf-runtime]')?.content;
+async function servedReading() {
+  const [navigation] = performance.getEntriesByType("navigation");
+  const response = await fetch(navigation?.name ?? location.href, {
+    cache: "force-cache",
+  });
+  if (!response.ok) throw new Error(`the page's source answered ${response.status}`);
+  const doc = new DOMParser().parseFromString(await response.text(), "text/html");
+  const source = pageDocument(restoreInitialSource(doc));
+  const copy = initialDocument.source;
+  if (revisionOf(doc) !== revisionOf(document) || !source || !copy) return;
+  const pairs = new WeakMap();
+  const children = (node) => [
+    ...(node.localName === "template" ? node.content : node).childNodes,
+  ];
+  const align = (served, copied) => {
+    const live = initialDocument.pairs.get(copied);
+    if (live) pairs.set(served, live);
+    for (const [node, match] of matchNodes(children(copied), children(served)))
+      align(node, match);
+  };
+  align(source, copy);
+  const head = matchNodes([...document.head.children], [...doc.head.children]);
+  initialDocument = {
+    authoredBodyAttributes: authoredAttributes(doc.body),
+    authoredHeadNodes: new Set(
+      [...head].filter(([node]) => versionedHeadNode(node)).map(([, live]) => live),
+    ),
+    authoredHtmlAttributes: authoredAttributes(doc.documentElement),
+    source,
+    pairs,
+  };
+}
+export const servedRead =
+  document.querySelector('meta[name="lf-early-scripts"][data-lf-runtime]') &&
+  !offlineInteractive
+    ? servedReading().catch((error) =>
+        reportPageError(error, "couldn't read the page's source"),
+      )
+    : Promise.resolve();
 
 // ---------- the version picker ----------
 // Version facts are selectors of the accepted application reading.

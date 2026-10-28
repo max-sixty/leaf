@@ -269,8 +269,8 @@ SCRIPT_WORDS = leaf_page(
 <p id="cloned">Words a script copies.</p>
 <p id="outro">The last authored paragraph.</p>
 """,
-    head="""<script type="module">
-import { html, render } from "/runtime/widget-api.js";
+)
+SCRIPT_WRITES = """
 document.getElementById("readout").textContent = "42 items counted by the script.";
 const cloned = document.getElementById("cloned");
 const copy = cloned.cloneNode(true);
@@ -279,31 +279,49 @@ cloned.replaceWith(copy);
 const added = document.createElement("p");
 added.textContent = "A paragraph the script appended.";
 document.getElementById("tally").append(added);
-render(html`<ul><li>Item alpha</li><li>Item beta</li></ul>`,
-  document.getElementById("listed"));
-</script>""",
-)
+"""
+# The same writes from a module, which runs after the runtime has read the page, and
+# from a classic script the parser runs before the runtime's module does.
+SCRIPTED = {
+    "module": SCRIPT_WORDS.replace(
+        "</head>",
+        '<script type="module">\nimport { html, render } from "/runtime/widget-api.js";'
+        f"{SCRIPT_WRITES}"
+        "render(html`<ul><li>Item alpha</li><li>Item beta</li></ul>`,"
+        ' document.getElementById("listed"));\n</script>\n</head>',
+    ),
+    "classic": SCRIPT_WORDS.replace(
+        "</main>",
+        f"</main>\n<script>{SCRIPT_WRITES}"
+        'document.getElementById("listed").innerHTML ='
+        ' "<ul><li>Item alpha</li><li>Item beta</li></ul>";\n</script>',
+    ),
+}
 
 
+@pytest.mark.parametrize("script", SCRIPTED)
 def test_the_diff_marks_what_the_author_changed_and_no_word_a_script_wrote(
-    browser, serve
+    browser, serve, script
 ):
     """A plain page script writes words into the page without marking them: a
-    readout's `textContent`, a paragraph it appends, a list lit-html renders. None of
+    readout's `textContent`, a paragraph it appends, a list it renders. None of
     them is in either version's source, so the arriving version tints only the blocks
-    the author changed, and comparing versions marks only those, on the version that
-    arrived live and on a fresh load of it.
+    the author changed and leaves the script's words standing, and comparing versions
+    marks only those, on the version that arrived live and on a fresh load of it. A
+    classic script has written them before the runtime runs, which then reads the
+    authored page from its source, so its words are treated as a module's are.
 
     The author rewrote the readout's placeholder too, so it is marked. On the fresh
     load the words it shows are the script's, so it offers no inline diff, which would
     paint the source's words over the script's, while the rewritten closing paragraph
     offers one. A paragraph holding a gloss is one block, so rewording the words around
     the gloss marks it; a paragraph the script swapped for a copy is found by its id."""
-    url = live_url(serve(SCRIPT_WORDS))
+    source = SCRIPTED[script]
+    url = live_url(serve(source))
     page = open_page(browser, url)
     stamp_page(
         serve.page_dir,
-        SCRIPT_WORDS.replace("Counting…", "Tallying…")
+        source.replace("Counting…", "Tallying…")
         .replace("The last authored paragraph.", "The closing authored paragraph.")
         .replace("Plain words around", "Reworded words around")
         .replace("Words a script copies.", "Reworded words a script copies."),
@@ -320,6 +338,10 @@ def test_the_diff_marks_what_the_author_changed_and_no_word_a_script_wrote(
         }"""
     ).json_value()
     assert tinted == ["readout", "glossed", "cloned", "outro"]
+    expect(page.locator("#tally > p:not([id])")).to_have_text(
+        "A paragraph the script appended."
+    )
+    expect(page.locator("#listed li")).to_have_count(2)
     fresh = open_page(browser, url)
     for shown in (page, fresh):
         compare_with(shown, 1)

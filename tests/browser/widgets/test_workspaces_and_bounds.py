@@ -218,14 +218,31 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     expect(queue).to_have_attribute("data-lf-more-below", "")
     queue.evaluate("el => el.scrollTop = el.scrollHeight")
     expect(queue).not_to_have_attribute("data-lf-more-below", "")
-    queue.evaluate(
-        """el => {
-          const more = document.createElement('div');
-          more.style.height = '200px';
-          el.append(more);
-          el.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}));
-        }"""
+    # Resizing existing content adds unread room without a scroll event. Its cue
+    # must accompany that layout, before a later animation frame can repair it.
+    grew = queue.evaluate(
+        """el => new Promise(resolve => {
+          const content = el.querySelector(':scope > div');
+          let growing = false;
+          const sizes = new ResizeObserver(() => {
+            if (!growing) {
+              requestAnimationFrame(() => {
+                growing = true;
+                content.style.height = '1300px';
+              });
+              return;
+            }
+            queueMicrotask(() => {
+              sizes.disconnect();
+              resolve({more: el.hasAttribute('data-lf-more-below'),
+                       remaining: el.scrollHeight - el.clientHeight - el.scrollTop});
+            });
+          });
+          sizes.observe(content);
+        })"""
     )
+    assert grew["remaining"] > 100, grew
+    assert grew["more"], grew
     expect(queue).to_have_attribute("data-lf-more-below", "")
 
     # A window too short to hold the regions hands the scroll to the page, and the
@@ -1014,6 +1031,31 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     page.wait_for_function(at_end)
     page.evaluate(rebuild, 90)
     page.wait_for_function(at_end)
+
+    # The bound follows its end during resize delivery. Its continuation cue reads
+    # that final position in the same paint, even if reach observed the old one first.
+    resized_end = page.locator("#feed").evaluate(
+        """el => new Promise(resolve => {
+          let shrinking = false;
+          const sizes = new ResizeObserver(() => {
+            if (!shrinking) {
+              requestAnimationFrame(() => {
+                shrinking = true;
+                el.style.maxHeight = '200px';
+              });
+              return;
+            }
+            queueMicrotask(() => {
+              sizes.disconnect();
+              resolve({more: el.hasAttribute('data-lf-more-below'),
+                       remaining: el.scrollHeight - el.clientHeight - el.scrollTop});
+            });
+          });
+          sizes.observe(el);
+        })"""
+    )
+    assert resized_end["remaining"] <= 2, resized_end
+    assert not resized_end["more"], resized_end
 
     page.locator("#feed").evaluate("feed => feed.scrollTop = 200")
     page.wait_for_function("() => document.getElementById('feed').scrollTop === 200")

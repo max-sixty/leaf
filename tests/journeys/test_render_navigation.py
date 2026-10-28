@@ -9,7 +9,6 @@ import re
 import pytest
 from interact_support import append_carried_log_record
 from leaf_dev.browser import show_resolved
-from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
@@ -1808,10 +1807,10 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
 # document and its open shadow roots; live samples run their own runtime in an opaque
 # frame and take no part.
 _SWEPT = (
-    "button:visible, [role=button]:visible, [role=tab]:visible, [role=radio]:visible, "
-    "[role=checkbox]:visible, input[type=checkbox]:visible, input[type=radio]:visible, "
-    "summary:visible, :is(textarea, input[type=search], input[type=text], "
-    "input:not([type])):not(:disabled, [readonly]):visible"
+    "button, [role=button], [role=tab], [role=radio], "
+    "[role=checkbox], input[type=checkbox], input[type=radio], "
+    "summary, :is(textarea, input[type=search], input[type=text], "
+    "input:not([type])):not(:disabled, [readonly])"
 )
 _FILLS = ("review", "", "a b c", "zzzz")
 _SWEEP_STEPS = 40
@@ -1822,20 +1821,40 @@ _DESCRIBE = """element => {
     || element.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 40);
   return `${element.localName}${id}${classes} [${label}]`;
 }"""
-_CONTROL = (
-    """element => [("""
+# Choose, scroll and measure in one browser task: neither a node handle nor an
+# ordinal in a changing control list identifies a later pointer destination.
+_SWEEP_POINT = (
+    """(elements, fraction) => {
+  const visible = elements.filter(element =>
+    element.checkVisibility({visibilityProperty: true}));
+  if (!visible.length) throw new Error('the sweep has no visible controls');
+  const element = visible[Math.floor(fraction * visible.length)];
+  element.scrollIntoView({block: 'nearest', inline: 'nearest', behavior: 'instant'});
+  const rect = element.getBoundingClientRect();
+  return [Math.max(0, Math.min(innerWidth - 1, rect.x + rect.width / 2)),
+          Math.max(0, Math.min(innerHeight - 1, rect.y + rect.height / 2)),
+          ("""
     + _DESCRIBE
-    + """)(element), element.localName === 'textarea'
-  || (element.localName === 'input' && !['checkbox', 'radio'].includes(element.type))]"""
+    + """)(element)];
+}"""
 )
+_FOCUSED_INPUT = """() => {
+  let element = document.activeElement;
+  while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+  return element?.matches('textarea:not(:disabled, [readonly]), '
+    + 'input:is([type=search], [type=text], :not([type])):not(:disabled, [readonly])');
+}"""
 # Each element's painted keys and availability, held in the page as a Map keyed by
-# the element, so the reading after the repaint is compared node by node.
+# the element, so the reading after the repaint is compared node by node. Hidden
+# controls have no accessible keys; a native close can hide them before its deferred
+# close event refreshes their attributes. Compare the controls a reader can use.
 _PAINTED_KEYS = """() => {
   const painted = new Map();
   const walk = root => {
     for (const element of root.querySelectorAll('*')) {
-      painted.set(element, [element.getAttribute('aria-disabled'),
-                            element.getAttribute('aria-keyshortcuts')]);
+      if (element.checkVisibility())
+        painted.set(element, [element.getAttribute('aria-disabled'),
+                              element.getAttribute('aria-keyshortcuts')]);
       if (element.shadowRoot) walk(element.shadowRoot);
     }
   };
@@ -1917,35 +1936,22 @@ def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, ex
     example's name, and after each step forces a repaint of every element's keys. Any
     attribute that repaint changes was stale. The keys themselves still work, since a
     press reads the rows afresh, so no other test fails on such a row. A page change
-    reshuffles the steps; the failure names the step and the control pressed."""
+    reshuffles the steps; the failure names the step, pointer aim and typed words."""
     rng = random.Random(example.stem)
     page = open_page(browser, serve(example), init_script=_FULLSCREEN_REQUESTS)
     stale = [{"step": "arrival", **finding} for finding in _stale_keys(page)]
     for step in range(_SWEEP_STEPS):
-        # Handles rather than a locator's nth, so a page that changes between the
-        # reading and the input still takes the input on the control it chose.
-        controls = page.locator(_SWEPT).element_handles()
-        if not controls:
-            break
-        control = rng.choice(controls)
-        did, fillable = control.evaluate(_CONTROL)
-        if fillable:
-            control.fill(rng.choice(_FILLS), force=True)
-            did = f"fill {did}"
-        else:
-            try:
-                control.click(force=True)
-            except PlaywrightError as error:
-                # A pointer cannot reach a control that fixed chrome holds outside the
-                # viewport, or one that scrolling it into view hides, as a virtualized
-                # list does to a row it recycles.
-                if not any(
-                    reason in error.message
-                    for reason in ("outside of the viewport", "not visible")
-                ):
-                    raise
-                continue
-            did = f"press {did}"
+        x, y, target = page.locator(_SWEPT).evaluate_all(_SWEEP_POINT, rng.random())
+        page.mouse.click(x, y)
+        did = f"press at ({x:.0f}, {y:.0f}), aimed at {target}"
+        # Type through actual focus, including inside an open shadow root. A press
+        # may replace the control or focus something other than the original aim.
+        if page.evaluate(_FOCUSED_INPUT):
+            value = rng.choice(_FILLS)
+            page.keyboard.press("ControlOrMeta+a")
+            page.keyboard.press("Backspace")
+            page.keyboard.insert_text(value)
+            did += f", fill {value!r}"
         if rng.random() < 0.15:
             page.keyboard.press("Escape")
             did += ", then Escape"

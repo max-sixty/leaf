@@ -1,6 +1,5 @@
 import { nextRender } from "./bundle-portable.js";
-import { closeLayer, focusDestination, focused, handBack, keeps, keepsHidden, keepsText } from "./bundle-dom-move.js";
-import { runtime } from "./bundle-layer-stack.js";
+import { closeLayer, focusDestination, focused, handBack, keeps, keepsHidden, keepsText, runtime } from "./bundle-layer-stack.js";
 import { el, notice, paintKeys, raiseError } from "./bundle-layer-client.js";
 import { clamp, layoutWindow } from "./bundle-geometry.js";
 import { pageImage } from "./bundle-page-image.js";

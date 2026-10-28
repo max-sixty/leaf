@@ -496,7 +496,7 @@ function createPlayground(host, tools) {
             role="region"
             aria-label="Instruction to agent"
           >
-            <div class="lf-playground-actions">
+            <footer class="lf-playground-actions">
               <button ${resetOffer}></button>
               <button
                 ${revealOffer}
@@ -533,7 +533,7 @@ function createPlayground(host, tools) {
                     >`
                   : nothing
               }
-            </div>
+            </footer>
           </div>
         </div>
       </div>`;

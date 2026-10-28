@@ -1,6 +1,5 @@
-import { LAYOUT, afterScript, cancelAnimation, cancelRender, nativeLayerHolding, nextAnimation, nextFrame, nextRender, renderedOrder, renderedUnder, sizeObserver, skipped, tabStore, under } from "./bundle-portable.js";
-import { TEXT_FIELD, Z, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, onCurrentLocation, onPressAway, onUserInput, pressLed, ringBox, roomPx, rove, tabStops, visibleFocus } from "./bundle-dom-move.js";
-import { bareReaction, hostIn, html, render, sameAnchor, turns } from "./bundle-layer-stack.js";
+import { LAYOUT, afterScript, cancelAnimation, cancelRender, nativeLayerHolding, nextAnimation, nextFrame, nextRender, renderedOrder, renderedUnder, setScroll, sizeObserver, skipped, tabStore, under } from "./bundle-portable.js";
+import { TEXT_FIELD, Z, bareReaction, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, hostIn, html, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, onCurrentLocation, onPressAway, onUserInput, pressLed, render, ringBox, roomPx, rove, sameAnchor, tabStops, turns, visibleFocus } from "./bundle-layer-stack.js";
 import { PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
@@ -57,7 +56,9 @@ function surfaceGrip({ surface, bounds, dropped }) {
 			x: (spot.x - placed.x) / scale.x,
 			y: (spot.y - placed.y) / scale.y
 		};
-		const translate = `${layoutPx(offset.x)} ${layoutPx(offset.y)}`;
+		const xShift = layoutPx(offset.x);
+		const yShift = layoutPx(offset.y);
+		const translate = xShift === "0px" && yShift === "0px" ? "" : `${xShift} ${yShift}`;
 		if (surface.style.translate !== translate) surface.style.translate = translate;
 	}
 	const frame = () => {
@@ -337,16 +338,18 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 				let edge = 0;
 				let height = above ? 12 : 0;
 				const room = slotTop(transcript);
-				if (above) {
-					const top = transcript.getBoundingClientRect().top + transcript.clientTop + room;
-					for (const head of transcript.querySelectorAll(".lf-msg-head")) {
-						const box = head.getBoundingClientRect();
-						if (!box.height || box.bottom <= top) continue;
-						if (box.top <= top) edge = box.bottom - top;
-						else {
-							height = Math.min(height, box.top - top - edge);
-							break;
-						}
+				const top = transcript.getBoundingClientRect().top + transcript.clientTop + room;
+				for (const message of transcript.querySelectorAll(":scope > .lf-msg")) {
+					const box = message.querySelector(":scope > .lf-msg-head")?.getBoundingClientRect();
+					keeps(message, "data-lf-beside-actions", above && box && box.top < top + box.height && box.bottom > top ? "" : null);
+				}
+				if (above) for (const head of transcript.querySelectorAll(".lf-msg-head")) {
+					const box = head.getBoundingClientRect();
+					if (!box.height || box.bottom <= top) continue;
+					if (box.top <= top) edge = box.bottom - top;
+					else {
+						height = Math.min(height, box.top - top - edge);
+						break;
 					}
 				}
 				const card = transcript.parentElement;
@@ -2797,7 +2800,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		fabInput.addEventListener("input", () => {
 			if (beforeInputScroll === null) return;
 			if (pageScroller.scrollTop !== beforeInputScroll) {
-				pageScroller.scrollTo({
+				setScroll(pageScroller, {
 					top: beforeInputScroll,
 					behavior: "instant"
 				});

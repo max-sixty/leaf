@@ -193,6 +193,8 @@ ignore_names = [
   "do_*",
   "list_directory",
   "log_message",
+  "protocol_version",
+  "close_connection",
   "daemon_threads",
   "handlers",
   # urllib.request calls this HTTPRedirectHandler override by name.

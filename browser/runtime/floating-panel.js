@@ -3453,14 +3453,15 @@ export function createFloatingPanel({
   // run, from what stands before it. One keyed list of rules, headings and items, so an
   // item that moves to another group, as one whose place leaves the page does, keeps
   // its node, and the focus and drawing in it. `line` draws an item, given the group it
-  // stands in.
+  // stands in. A rule belongs to its group, so replacing the group's first item
+  // does not replace the rule and make the keyed renderer move surviving cards.
   function groupedItems(groups, line) {
     const rows = [];
     let running = false;
     for (const group of groups) {
       const headed = group.headed !== false;
       if (rows.length && (headed || !running))
-        rows.push({ key: `rule:${queueItemKey(group.items[0])}`, rule: true });
+        rows.push({ key: `rule:${group.key}`, rule: true });
       running = !headed;
       if (headed) rows.push({ key: group.key, group });
       for (const item of group.items)
@@ -3849,9 +3850,8 @@ export function createFloatingPanel({
     if (!thread) return {};
     // Resolve is the check a thread card's head draws, and Reopen in its place is the
     // same check drawn done, so the agent settling the thread moves nothing beside it.
-    // Resolve says it is unavailable while a settling is pending rather than leaving
-    // the tab order, so the user who pressed it, or `r` on it, stays on it;
-    // the action itself refuses a press meanwhile (thread/actions.js, `settle`).
+    // A press while one is in flight sends the opposite settlement after it, as a
+    // card's does (thread/thread-card.js, `threadReading`).
     // Resolving leaves the reply's editing place, as a card's Resolve does, keeping
     // its draft (thread/replies.js), so the thread shows its way back instead.
     // A thread about an element an agent sent in a message stands in that message
@@ -3917,9 +3917,6 @@ export function createFloatingPanel({
           `lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}`,
           thread.resolved ? "Reopen" : "Resolve thread",
           { action: thread.resolved ? "reopen" : "resolve" },
-        )}
-        aria-disabled=${String(
-          !(thread.resolved ? thread.offers.reopen : thread.offers.resolve),
         )}
         @click=${() => {
           if (!thread.resolved) dismissReply(thread.key);

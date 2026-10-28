@@ -34,7 +34,6 @@
 import {
   PendingTaskEvent,
   bodyText,
-  frameFor,
   whileConnected,
   failSoft,
   inBaseLayer,
@@ -126,13 +125,13 @@ customElements.define(
         this.paint(Plot, body);
         this.classList.add("lf-rendered");
         // Only the width is watched, and only when it lands on a new whole pixel; the
-        // height is the first drawing's and stays. The redraw is scheduled after ResizeObserver
-        // delivery, so the layout a paint reads never lands inside the delivery cycle
-        // that asked for it, which the browser reports as undelivered notifications.
+        // height is the first drawing's and stays. Draw during resize delivery so
+        // labels fit the new width in the same paint. The fixed drawing height
+        // keeps this redraw from resizing the host it watches.
         // A failed redraw ends the watch: the failure replaced the drawing, and a
         // chart that returns to the page keeps showing it rather than drawing again.
         let stop;
-        const paint = frameFor(this, () => {
+        const paint = () => {
           if (!this.clientWidth || Math.round(this.clientWidth) === this.drawn) return;
           try {
             this.paint(Plot, body);
@@ -140,7 +139,7 @@ customElements.define(
             stop();
             failSoft(this, err, source);
           }
-        });
+        };
         stop = whileConnected(this, () => {
           const watching = sizeObserver(paint);
           watching.observe(this);

@@ -77,6 +77,7 @@
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
+  setScroll,
   actionTemplate,
   agentName,
   PRESS,
@@ -96,7 +97,6 @@ import {
   keeps,
   layoutChanged,
   listWalkPosition,
-  frameFor,
   whileConnected,
   offer,
   generated,
@@ -623,8 +623,10 @@ export class TabSet extends LeafElement {
         @click=${() => {
           const strip = this.#strip;
           const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
-          strip.scrollBy({
-            left: ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
+          setScroll(strip, {
+            left:
+              strip.scrollLeft +
+              ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
             behavior: scrollBehavior(),
           });
         }}
@@ -681,21 +683,19 @@ export class TabSet extends LeafElement {
   // The open tab stays in the row as the strip's width changes, and not only when a
   // tab opens: a narrowed window, a panel opening beside the page, or a side list's
   // column turning into a row would otherwise leave the open tab past the edge. It
-  // scrolls after the observer's delivery, since the scroll shows or hides an edge
-  // press, which the browser would otherwise report as a size change it could not
-  // deliver.
+  // follows the size delivery before the resized strip paints.
   #watchStrip() {
     const stripSize = sizeObserver(this.#positionStrip);
     stripSize.observe(this.#strip);
     return stripSize;
   }
 
-  #positionStrip = frameFor(this, () => {
+  #positionStrip = () => {
     this.#stopSelectionMotion();
     this.#syncRegions();
     this.#declareHeader();
     this.#showTab(this.#buttons.get(this.#active.value));
-  });
+  };
 
   #stopSelectionMotion = () => {
     keeps(this.#strip, "data-lf-selection-travel", null);
@@ -774,7 +774,7 @@ export class TabSet extends LeafElement {
     } catch {
       // An unreadable place is no place.
     }
-    pageScroller.scrollTo({
+    setScroll(pageScroller, {
       top: place ? start : Math.min(from, start),
       behavior: "instant",
     });

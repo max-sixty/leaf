@@ -16,7 +16,7 @@
  * travel asks for it, rather than detaching. A label reader can
  * name an absent part in Threads without changing the visual's state. */
 
-import { under, upFrom } from "./shadow.js";
+import { under, upFrom } from "./shadow-tree.js";
 import { layoutChanged } from "./widget-upgrade.js";
 
 const registrations = new WeakMap();

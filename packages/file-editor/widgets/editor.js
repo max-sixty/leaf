@@ -1,7 +1,12 @@
 /** CodeMirror owns editing, selection, history and conflict presentation.
  * The surrounding widget alone owns file revisions and disk writes.
  */
-import { langForPath, leafEditorView, sizeObserver } from "/runtime/widget-api.js";
+import {
+  setScroll,
+  langForPath,
+  leafEditorView,
+  sizeObserver,
+} from "/runtime/widget-api.js";
 import * as codemirror from "/vendor/codemirror.esm.js";
 import {
   ChangeSet,
@@ -312,8 +317,7 @@ export function createEditor(
     connect() {
       if (view) return;
       view = new LeafEditorView({ state: retained, parent });
-      view.scrollDOM.scrollTop = scroll.top;
-      view.scrollDOM.scrollLeft = scroll.left;
+      setScroll(view.scrollDOM, { top: scroll.top, left: scroll.left });
       resize?.observe(view.scrollDOM);
     },
     disconnect,

@@ -3495,7 +3495,6 @@ function paintBarReactions(anchor) {
 	for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
 		const inForce = by.get(chip.dataset.token)?.inForce;
 		keeps(chip, "aria-pressed", String(Boolean(inForce)));
-		keeps(chip, "aria-busy", String(Boolean(inForce?.pending)));
 	}
 }
 function createReactionController({ marginEntryChoices, marginEntryContextContains, openMarginEntryOptions, designModeActive, hideComposer, syncResponseOptions, fabAnchorAt, fabReturnPlaces, fabTargetAt, hasPageSelectionTarget, showFab, showFabOptions, updateFab, currentLocationThread, currentTarget }) {

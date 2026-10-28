@@ -6581,7 +6581,10 @@ function threadTodos(todos, done) {
 	return html`<ul class="lf-thread-todos">
     ${todos.map((todo) => html`<li class="lf-thread-todo">
           <span class="lf-thread-todo-title">To-do · ${todo.title}</span
-          ><button ${offeredAction("word")} @click=${() => done(todo.id)}>Done</button>
+          ><button
+            ${offeredAction("symbol", "", void 0, { action: "done" })}
+            @click=${() => done(todo.id)}
+          ></button>
         </li>`)}
   </ul>`;
 }

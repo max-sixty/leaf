@@ -4,16 +4,30 @@
     "x-instructions": "Copy the current markup verbatim into lf-old and put the proposed markup in lf-new. Both slots replace, lf-new alone inserts, and lf-old alone deletes; a change to a widget also uses its complete old and new markup. Suggestions cannot nest, contain a draft, or appear in a reply. Set `resolves` to the comment whose thread should close when the user accepts. To withdraw an undecided suggestion, replace the whole `lf-suggestion` with `lf-old`'s contents. Keeping `lf-new`'s contents instead would accept it without the user's decision.",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-      "resolves": { "type": "string", "pattern": "^[a-z0-9]+$" },
-      "restated": { "type": "boolean" }
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "resolves": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+$"
+      },
+      "restated": {
+        "type": "boolean"
+      }
     },
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
     "x-inline": true,
     "x-upgrade": true,
-    "x-awaits": { "value": "decide", "answered": { "decide": {} }, "all": "accept" },
+    "x-awaits": {
+      "value": "decide",
+      "answered": {
+        "decide": {}
+      },
+      "all": "accept"
+    },
     "x-withdrawn-as": "reject",
     "x-word": "module",
     "x-state": {
@@ -21,7 +35,11 @@
         "decides": true,
         "detail": {
           "type": "object",
-          "properties": { "outcome": { "enum": ["accept", "reject"] } },
+          "properties": {
+            "outcome": {
+              "enum": ["accept", "reject"]
+            }
+          },
           "required": ["outcome"],
           "additionalProperties": false
         },
@@ -35,7 +53,10 @@
     "x-instructions": "Copy the current markup verbatim, including its ids. Omit this slot for an insertion.",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
     },
     "additionalProperties": false,
     "x-owners": ["lf-suggestion"],
@@ -49,7 +70,10 @@
     "x-instructions": "Omit this slot for a deletion.",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
     },
     "additionalProperties": false,
     "x-owners": ["lf-suggestion"],
@@ -220,26 +244,6 @@
     "description": "A compact native radio or checkbox with a clickable label. The label supplies the hit area and focus ring; the native mark shows selection without a surrounding box. Group radios by name. The page or widget owns changes to its value.",
     "x-example": "<label class=\"choice\"><input type=\"radio\" name=\"detail\" value=\"summary\" checked>Summary</label>\n<label class=\"choice\"><input type=\"radio\" name=\"detail\" value=\"full\">Full detail</label>"
   },
-  ".eyebrow": {
-    "description": "A small-caps label above a heading.",
-    "x-example": "<p class=\"eyebrow\">design proposal</p>\n<h1>Widgets</h1>"
-  },
-  ".lede": {
-    "description": "The opening paragraph, set slightly larger.",
-    "x-example": "<p class=\"lede\">One paragraph saying what this page decides.</p>"
-  },
-  ".tag": {
-    "description": "An inline chip label. Add `ok`, `warn` or `danger` to draw it in that status tone.",
-    "x-example": "<span class=\"tag\">experimental</span>"
-  },
-  ".callout": {
-    "description": "An aside set off from the prose by a tint, for something the user must not miss; a note they can skip goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when it reports a status, as `class=\"callout warn\"` for a paused release; the tint and the title take the tone, and the prose keeps the body's ink. The title is a `<strong>` written as the callout's first child; one opening a paragraph stays in the body's ink. In a flow wider than the column, such as a sidebar page's body, it keeps the prose width; one holding a wide chart or table takes `data-width`.",
-    "x-example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
-  },
-  "section.panel": {
-    "description": "A titled region on a sidebar page (`<main class=\"layout-sidebar\">`) holding one thing, such as a table, a log or a list of steps, under a short heading that names it. The heading and spacing group the region without an enclosing card; its contents keep their own visual structure.",
-    "x-example": "<section class=\"panel\" id=\"checks\">\n  <h2>Checks</h2>\n  <table>…</table>\n</section>"
-  },
   "aside.sidebar": {
     "description": "Page-level supporting material in the left margin, such as local navigation, a compact legend, or reference facts the user needs throughout a long page. Write one, as a direct child of `main` near the start of the page; a note on one paragraph is an `aside.sidenote` instead. On a wide screen, the first sidebar of a column page sits left of the prose and stays in view, and with a mouse or trackpad an `lf-toc` there shows as a thin spine in the margin whose labels open over the page. Where the window has no room beside the column, in print, and for any second sidebar, it stays in the flow where it was written. Keep its content readable at about 240px wide.",
     "x-example": "<aside class=\"sidebar\" id=\"page-route\">\n  <nav aria-label=\"On this page\"><strong>On this page</strong><ol><li><a href=\"#prepare\">Prepare</a></li><li><a href=\"#move\">Move</a></li></ol></nav>\n</aside>"
@@ -248,29 +252,9 @@
     "description": "A note in the page's right margin, such as a caveat or a source, that the reader can skip without leaving the column. Write it just before the paragraph, list or block it annotates; it then sits level with that block's first line, or above a heading it precedes. A note inside a section, tab panel or disclosure still reaches the margin. Inside a box that clips, such as an `lf-options` group, a board or a table, it is not drawn at all, and `page check --render` fails the version. Where the window has no room beside the column, and in print, the note is a small indented block where it was written, so it must make sense there too. Keep a note to a few lines. The margin fits about fifty-six characters a line, and a long note pushes the next one below its own block. Put longer material in the column as a paragraph.",
     "x-example": "<aside class=\"sidenote\" id=\"logout-frequency\">Support runs \"log out all devices\" during account-takeover response, about twice a month.</aside>\n<p>Logout must revoke immediately, which rules out any store whose invalidation is eventually consistent.</p>"
   },
-  ".facts": {
-    "description": "A grid of labels and values for summary facts, written as a definition list. As a direct child of an `lf-option` titled with a `<strong>`, it floats right as a narrow column where the option is wide enough, so the options' figures line up.",
-    "x-example": "<dl class=\"facts\">\n  <dt>Owner</dt><dd>payments</dd>\n  <dt>Rollout</dt><dd>behind a flag</dd>\n</dl>"
-  },
-  ".metric": {
-    "description": "A metric tile: one figure under the label that names it, with an optional change beside the figure in a `<small>`, written as a one-term definition list. A row of them goes in a `layout-tiles` block. It is set as type under a hairline rather than as a card; restyle it through the theme's tokens.",
-    "x-example": "<div class=\"layout-tiles\">\n  <dl class=\"metric\" id=\"open-failures\">\n    <dt>open failures</dt>\n    <dd><strong>2</strong> <small>change: -1</small></dd>\n  </dl>\n  <dl class=\"metric\" id=\"duration\">\n    <dt>sample duration</dt>\n    <dd><strong>4 min</strong></dd>\n  </dl>\n</div>"
-  },
-  "ol.steps": {
-    "description": "An ordered procedure with numbered markers.",
-    "x-example": "<ol class=\"steps\">\n  <li>Backfill the new store.</li>\n  <li>Verify counts, then flip reads.</li>\n</ol>"
-  },
-  "svg.drawing": {
-    "description": "A schematic the page draws itself as inline SVG, such as a layout or a mechanism, inside a `<figure>`, with `role=\"img\"` and a `<title>` stating its point. Paint its marks with these classes, whose colors follow the theme: `.frame` and `.frame-head` for a window or pane and its header; `.box`, with `.hot` for the one that matters; `.line` (`.soft`) for a line of text; `.highlight`; `.ghost` for where something would go; `.guide` and `.dim` for alignment and dimension lines; `.arrow`, with `.tip` (`.hot`) on its marker; `.mark` for an accent dot and `.glyph` for the character on it; and `.ok`, `.warn` and `.danger` fills. Text is muted; `.strong`, `.small` and `.mono` restyle it. Without a `width`, the drawing fills its figure; give a thumbnail one. For a mark particular to the subject, add a page-local class that uses the same tokens.",
-    "x-example": "<figure id=\"sidebar-width\">\n  <svg class=\"drawing\" viewBox=\"0 0 320 120\" role=\"img\" aria-labelledby=\"sidebar-width-t\">\n    <title id=\"sidebar-width-t\">The sidebar takes 240px left of the column</title>\n    <rect class=\"frame\" x=\"4\" y=\"4\" width=\"312\" height=\"112\" rx=\"6\"/>\n    <rect class=\"box hot\" x=\"16\" y=\"20\" width=\"72\" height=\"84\" rx=\"3\"/>\n    <rect class=\"line\" x=\"104\" y=\"24\" width=\"180\" height=\"6\" rx=\"3\"/>\n    <rect class=\"line soft\" x=\"104\" y=\"38\" width=\"150\" height=\"6\" rx=\"3\"/>\n    <text class=\"strong\" x=\"52\" y=\"66\" text-anchor=\"middle\">240</text>\n  </svg>\n  <figcaption>In a narrow window the sidebar returns to the column.</figcaption>\n</figure>"
-  },
   "table": {
     "description": "Rows of one shape compared column by column, such as runs per configuration. Columns size to their content, and a table wider than the measure wraps its cells, or scrolls inside itself once they can wrap no further, so set no widths or wrapping on it or its cells. Put identifiers such as test names and paths in `<code>`, which can break inside a cell; a bare identifier is one unbreakable word that holds its column wide and squeezes the others. `page check --render` warns when a table scrolls sideways while one of its cells wraps. A bare `<th>` is a column heading, drawn as a small muted label; `<th scope=\"row\">` names a row, in bold at the body's size. Add a `<caption>` when the section's heading doesn't say what the columns mean. For a few headline figures, put each figure in its own `dl` inside a `layout-tiles` block instead, and for alternatives the user picks between, use `lf-options`.",
     "x-example": "<table id=\"tiers\">\n  <caption>Ceilings per plan, and what each is counted against.</caption>\n  <thead><tr><th>Plan</th><th class=\"num\">A minute</th><th>Counted against</th></tr></thead>\n  <tbody>\n    <tr><th scope=\"row\">Free</th><td class=\"num\">60</td><td>the token</td></tr>\n    <tr><th scope=\"row\">Team</th><td class=\"num\">600</td><td>the token</td></tr>\n  </tbody>\n</table>"
-  },
-  "td.num": {
-    "description": "A table cell holding a quantity, right-aligned so the figures in a column line up on their last digit. Put `class=\"num\"` on the column's heading cell too, or the heading sits left of its figures. Add the class to each such cell yourself. Leaf doesn't infer it, since \"60\" and \"60 sessions\" look alike.",
-    "x-example": "<tr><th scope=\"row\">Enterprise</th><td class=\"num\">6,000</td><td class=\"num\">12,000</td></tr>"
   },
   "details": {
     "description": "Native disclosure with a clickable <summary>; find-in-page reaches the collapsed content. `page-authoring.md`, ‘Reading cost’, owns when to use one.",

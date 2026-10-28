@@ -38,7 +38,7 @@
     "runtime/check-api.js": "07a72270e421e1e5f74a5d3eef39acfc7ce3bc1c7fe7725ed392a2109a857a74",
     "runtime/chrome.js": "3f1e3eb9fb8288f7751a330b7ffd7f92e1e363eadb6483d076a305b5fe3bfba2",
     "runtime/code-copy.js": "6907275772a85eb0cc582d435cd55df71ec2258ff3241b57959ac4761f840e17",
-    "runtime/color-scheme.js": "da7a32876aea0b92a0f64226c55fc1661a99ba4841ff413a9200cc0beb5a8b69",
+    "runtime/color-scheme.js": "c90648b942064c9e33568e0314b36c1a784db88ecc5a53a346d0299ba419dfbb",
     "runtime/composing/aim.js": "3d500d0567bd299914446e1d8dace7fe6d9d1aa560ca84c328541a440751e6d0",
     "runtime/composing/capture.js": "07ea311b9e97536fd5c3735206881aed3bcb094d3d089af86748dddacfe92c7a",
     "runtime/composing/current-target.js": "f94aafcf5a7df363b914d0b06f6406dc119d786f593df91ef34b1b1c6b4d0608",

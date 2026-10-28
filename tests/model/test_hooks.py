@@ -41,6 +41,7 @@ from interact_support import (
     working,
     yaml_document,
 )
+from interact_support import declare as declare_status
 
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
@@ -1051,6 +1052,13 @@ def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
     mark = cleanup_model.session_file("s1", cleanup_model.REMINDED_SUFFIX)
     os.utime(mark, (stood.timestamp(), stood.timestamp()))
     assert "reading the traces" in hook("PostToolBatch")
+
+    # A page put down to wait for the user shows no working line, so however long it
+    # has waited, there is nothing to renew.
+    declare_status(claimed, ts=stood.isoformat(timespec="seconds"), session="s1")
+    assert activity_reading(claimed)["kind"] != "working"
+    os.utime(mark, (stood.timestamp(), stood.timestamp()))
+    assert hook("PostToolBatch") == ""
 
 
 def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(

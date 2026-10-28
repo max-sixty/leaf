@@ -86,11 +86,14 @@ names the refusal and records no pickup there.
 
 While the agent works, the page's status shows the line it last started. A tool
 boundary reminds the agent once that line has stood `STATUS_RENEWAL` without renewal,
-and again each `STATUS_RENEWAL` after, so the agent restates it as its work moves on
-or carries on where it still holds (`status_reminders`). Whether the work has moved
-on is the agent's judgement; the hook only says how long the line has stood. This
-was the user's choice (28 October 2026) over Leaf reading the turn's liveness, or
-its current step, from the hooks itself.
+and again each `STATUS_RENEWAL` after, to restate it, in new words where its work
+has moved on (`status_reminders`). A restatement renews the line even where its
+words stay, so a working status is never more than an interval old while the agent
+runs tools. Only a working status, at a tool boundary, is reminded: a turn waiting
+on the user or between turns runs none, and a closed or listening page shows no
+line to renew. Whether the work has moved on is the agent's judgement; the hook only
+says how long the line has stood. This was the user's choice (28 October 2026) over
+Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
@@ -168,9 +171,9 @@ def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
         if source:
             lines.append(
                 f"Leaf: your status on {plan.page} has read "
-                f'"{activity["detail"]}" for {minutes} min. If your work has moved '
-                f"on, restate it with `leaf task start {plan.page} {source['item']} "
-                '--text "<what you are doing now>"`; if it still holds, carry on.'
+                f'"{activity["detail"]}" for {minutes} min. Restate it with '
+                f'`leaf task start {plan.page} {source["item"]} --text "<what you '
+                'are doing now>"`, in new words if your work has moved on.'
             )
         else:
             lines.append(

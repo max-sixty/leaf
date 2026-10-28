@@ -211,8 +211,8 @@ export function createThreadLanding() {
  * box, as a resolved card doesn't, it reopens the thread into the box instead. The
  * platform's copy key with nothing selected presses Copy on the message the user is in,
  * else on the thread's latest, the keyboard's route to what Copy gives a pointer; with
- * words selected it keeps the browser's copy, which is Markdown too (markdown.js). Absent
- * a thread, the reference describes the open state users first meet. */
+ * words selected it keeps the browser's copy. Absent a thread, the reference describes
+ * the open state users first meet. */
 export function declareThreadKeys(landIn, threadHere) {
   pageScope("thread", {
     title: "In a thread",

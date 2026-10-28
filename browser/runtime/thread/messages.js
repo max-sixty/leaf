@@ -92,8 +92,6 @@ function proseReading(message) {
       markdown,
       html,
       mediaHtml,
-      // What the words render from, which a copy of part of them reads back.
-      source: pasted.text,
       plainText: renderedWords(html + mediaHtml),
     });
     renderedProse.set(key, reading);
@@ -320,7 +318,6 @@ export function messageReading(
       text: message.text ?? "",
       html: prose?.html ?? "",
       mediaHtml: prose?.mediaHtml ?? "",
-      source: prose?.source ?? "",
       plainText: prose?.plainText ?? message.text ?? "",
       drawing: Boolean(message.drawing),
       token: message.token ?? null,
@@ -646,11 +643,7 @@ export class MessageView {
       </div>`;
     if (body.kind === "suggestion")
       return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;
-    return html`<div
-        class="lf-msg-text"
-        data-lf-source-words=${body.source}
-        .innerHTML=${body.html}
-      ></div>
+    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>
       ${
         body.mediaHtml
           ? html`<div class="lf-msg-media" .innerHTML=${body.mediaHtml}></div>`

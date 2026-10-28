@@ -183,8 +183,7 @@
    first paint and neither moves when it arrives; an open rewrite's Discard and Save
    stand in the same room. Under a finger, with no hover to hide it, Copy would stand on
    every message for good, two controls a head too narrow for them at the aim floor,
-   so it is left out there: a finger copies a message by selecting its words, and that
-   copy is Markdown too (markdown.js). */
+   so it is left out there, and a finger copies a message's words by selecting them. */
 @media (hover: hover) and (pointer: fine) {
   .lf-msg:has(> .lf-msg-copy, > .lf-msg-body > .lf-msg-editor) > .lf-msg-head {
     --lf-msg-control: var(--lf-msg-controls-width);

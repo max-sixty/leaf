@@ -2317,49 +2317,6 @@ function markdownSourceOffset(body, node, offset) {
 	}
 	return sourceEnd;
 }
-const COPIED_BLOCKS = /* @__PURE__ */ new Set([
-	"paragraph_open",
-	"heading_open",
-	"fence",
-	"code_block",
-	"table_open"
-]);
-function markdownSourceExcerpt(body, range) {
-	const source = body.dataset.lfSourceWords;
-	const placed = placedMarkdownTokens(source);
-	const start = markdownSourceOffset(body, range.startContainer, range.startOffset);
-	const end = markdownSourceOffset(body, range.endContainer, range.endOffset);
-	const blocks = placed.filter(({ token }) => COPIED_BLOCKS.has(token.type));
-	const words = (block) => placed.filter(({ token, words, from, to }) => !token.block && words && from >= block.from && to <= block.to);
-	const first = blocks.findLast(({ from, to }) => from <= start && start < to);
-	let last = blocks.findLast(({ from, to }) => from < end && end <= to);
-	if (!first || !last) return null;
-	if (first !== last && end <= (words(last)[0]?.from ?? last.from)) last = blocks.findLast(({ to }) => to <= last.from) ?? first;
-	if (first === last) {
-		const held = words(first);
-		if (!held.length || start > held[0].from || end < Math.max(...held.map(({ to }) => to))) return null;
-	}
-	const indent = /^[ \t]*/.exec(source.slice(first.from))[0];
-	return (source.slice(first.from, Math.min(first.to, last.to)).replace(new RegExp(`^[ \\t]{0,${indent.length}}`, "gm"), "") + source.slice(Math.min(first.to, last.to), last.to)).trim();
-}
-document.addEventListener("copy", (event) => {
-	const selection = document.getSelection();
-	if (!selection?.rangeCount || selection.isCollapsed || !markdownReady()) return;
-	const range = selection.getRangeAt(0);
-	const start = range.startContainer;
-	const body = (start instanceof Element ? start : start.parentElement)?.closest("[data-lf-source-words]:not([data-lf-markdown-words])");
-	if (!body) return;
-	const words = range.cloneRange();
-	if (!body.contains(range.endContainer)) words.setEnd(body, body.childNodes.length);
-	if (words.toString().trim() !== range.toString().trim()) return;
-	const markdown = markdownSourceExcerpt(body, words);
-	if (markdown === null) return;
-	const rendered = document.createElement("div");
-	rendered.append(words.cloneContents());
-	event.clipboardData.setData("text/plain", markdown);
-	event.clipboardData.setData("text/html", rendered.innerHTML);
-	event.preventDefault();
-});
 const markdownReady = () => render !== escapedSource;
 const WEB_PROTOCOLS = /* @__PURE__ */ new Set([
 	"http:",
@@ -4025,7 +3982,6 @@ function proseReading(message) {
 			markdown,
 			html,
 			mediaHtml,
-			source: pasted.text,
 			plainText: renderedWords(html + mediaHtml)
 		});
 		renderedProse.set(key, reading);
@@ -4164,7 +4120,6 @@ function messageReading(message, { authoredRank = 0, reactions, workflows, leave
 			text: message.text ?? "",
 			html: prose?.html ?? "",
 			mediaHtml: prose?.mediaHtml ?? "",
-			source: prose?.source ?? "",
 			plainText: prose?.plainText ?? message.text ?? "",
 			drawing: Boolean(message.drawing),
 			token: message.token ?? null,
@@ -4359,11 +4314,7 @@ var MessageView = class {
         <span class="lf-react-said">${`${body.glyph} ${body.token}`.trim()}</span>
       </div>`;
 		if (body.kind === "suggestion") return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;
-		return html`<div
-        class="lf-msg-text"
-        data-lf-source-words=${body.source}
-        .innerHTML=${body.html}
-      ></div>
+		return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>
       ${body.mediaHtml ? html`<div class="lf-msg-media" .innerHTML=${body.mediaHtml}></div>` : nothing}`;
 	}
 	commit() {

@@ -88,6 +88,18 @@ PORTABLE = [
         sized="natural",
     ),
     Portable(
+        "lf-timeline",
+        "timeline",
+        '<lf-timeline id="lf-timeline" aria-label="Deploy order">'
+        '<lf-lane label="Build"><lf-event id="compile" at="0" end="4000" '
+        'label="Compile"></lf-event><lf-event id="artifact" at="4000" '
+        'label="Artifact ready"></lf-event></lf-lane></lf-timeline>',
+        # Its transport, its symbols drawn, and a row per step.
+        ".lf-timeline-view:has(.lf-timeline-next > svg[data-lf-icon])"
+        ":has(.lf-timeline-steps > li:nth-child(2))",
+        sized="width",
+    ),
+    Portable(
         "lf-motion",
         "motion",
         '<lf-motion id="lf-motion" duration="300" aria-label="Travel study">'
@@ -206,8 +218,23 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
                         box,
                         room,
                     )
-        # A widget's own buttons work without Leaf: Play runs the study's clock to its
-        # end, drawing each frame.
+        # A widget's own buttons work without Leaf: Next steps the timeline, and Play
+        # runs the study's clock to its end, drawing each frame.
+        current = page.locator("#lf-timeline [aria-current=step]")
+        page.locator("#lf-timeline .lf-timeline-next").click()
+        expect(current).to_contain_text("Artifact ready")
+        # Previous and Next are native buttons: Tab reaches each, and Enter and Space
+        # press them, with no key of Leaf's.
+        previous = page.locator("#lf-timeline .lf-timeline-previous")
+        previous.focus()
+        page.keyboard.press("Enter")
+        expect(current).to_contain_text("Compile")
+        page.keyboard.press("Tab")
+        expect(page.locator("#lf-timeline .lf-timeline-next")).to_be_focused()
+        page.keyboard.press("Space")
+        expect(current).to_contain_text("Artifact ready")
+        page.keyboard.press("Shift+Tab")
+        expect(previous).to_be_focused()
         page.evaluate(
             """() => { window.drawnAt = [];
             document.querySelector("#lf-motion").renderFrame = (t) => drawnAt.push(t); }"""

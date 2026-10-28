@@ -52,6 +52,14 @@
      at the user's current position.
    - `run` performs one result. A run-less row names a press it does not make: the
      platform's own on a link, or one another scope's row already runs.
+   - `lands(from)` says where the user stands once the register has run the row for a
+     key, a reference pick or a click on its `control` (a margin entry's activation
+     keeps its own focus handling): `from` is the element the press came from (where
+     the user was for a key or a pick, the button for a click), and an element it
+     returns is put under the user as a move (`focusDestination(to, "move")`); null leaves them where
+     they are. It is called synchronously after the run, so it reads the state the
+     run left. A row that carries the user somewhere declares it rather than moving
+     focus in its own `run`.
    - `keep` is the step a close request, such as Android's back gesture, takes in
      place of `run`, on a row whose `run` throws away words the user wrote and hasn't
      sent, such as an editor's Discard: it closes the same way without losing them,
@@ -644,6 +652,8 @@ export function checked(rows, where, ready) {
     named(row);
     if (row.decision && row.control == null)
       throw new Error(`leaf: ${row.id} is a Decision command with no control`);
+    if (row.lands !== undefined && typeof row.lands !== "function")
+      throw new TypeError(`leaf: ${row.id} lands must be a function`);
     if (row.native && !row.run)
       throw new Error(
         `leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`,

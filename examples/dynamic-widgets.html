@@ -4,9 +4,8 @@
     <title>Dynamic widgets: an early experiment</title>
     <meta
       name="description"
-      content="One request, three ways to build a widget. Try recorded Luna outputs using composed Leaf components, direct markup and generated HTML. An early attempt that needs work."
+      content="Type one request and compare live Leaf component composition with generated HTML, using the same model. An early attempt at dynamic widgets that needs work."
     />
-    <script type="module" src="/page/frames.js"></script>
     <style>
       .experiment-status {
         color: var(--accent);
@@ -14,68 +13,101 @@
         text-transform: uppercase;
         letter-spacing: 0.09em;
       }
-      .request {
-        margin-block: 24px;
-        padding: 16px 20px;
-        border-inline-start: 3px solid var(--accent);
-        background: var(--card);
-        font-size: var(--t-5);
-        line-height: 1.6;
-      }
-      lf-tab > .request:first-child {
-        margin-block-start: 0;
-      }
-      .run-note {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        gap: 0.4em;
-        color: var(--muted);
-        font-size: var(--t-5);
-        margin-block: 20px 6px;
-      }
-      lf-tab > .run-note:first-child {
-        margin-block-start: 0;
-      }
-      .run-note strong {
-        color: var(--ink);
-        font-variant-numeric: tabular-nums;
-      }
-      .approach-note {
-        color: var(--ink-2);
-        font-size: var(--t-5);
-        margin-block: 0 24px;
-      }
-      .generated-frame {
-        width: 100%;
-        height: 900px;
-        border: 0;
-        display: block;
-        background: white;
-        color-scheme: light;
-      }
       .source-details {
         margin-block: 24px;
       }
-      lf-tab > .source-details:last-child {
-        margin-block-end: 0;
+      lf-generated-document[data-part="request"] lf-text-document {
+        --lf-bound: 12rem;
       }
       .source-details pre {
         white-space: pre-wrap;
         overflow-wrap: anywhere;
         font-size: var(--t-6);
       }
-      .experiment-notes {
-        margin-top: 40px;
-        border-top: 1px solid var(--border-2);
-        padding-top: 24px;
+      lf-widget-builder {
+        display: block;
+        margin-block: 28px 48px;
       }
-      .experiment-notes > h2:first-child {
-        margin-block-start: 0;
+      lf-widget-builder label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 8px;
       }
-      .experiment-notes p {
-        color: var(--ink-2);
+      lf-widget-builder textarea {
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 100px;
+        resize: vertical;
+        padding: 12px;
+        font: inherit;
+        color: var(--ink);
+        background: var(--card);
+        border: 1px solid var(--border-2);
+        border-radius: 8px;
+      }
+      .builder-actions {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-block: 12px;
+      }
+      .builder-status {
+        color: var(--muted);
         font-size: var(--t-5);
+      }
+      .builder-help {
+        color: var(--muted);
+        font-size: var(--t-6);
+      }
+      .builder-preview {
+        position: relative;
+      }
+      .builder-preview iframe {
+        width: 100%;
+        height: 260px;
+        border: 0;
+        display: block;
+      }
+      .live-comparison {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 28px;
+        align-items: start;
+      }
+      .comparison-lane {
+        min-width: 0;
+      }
+      .comparison-lane h2 {
+        font-size: var(--t-4);
+        margin-block: 12px 6px;
+      }
+      .lane-status {
+        margin-block: 20px 4px;
+        font-variant-numeric: tabular-nums;
+      }
+      .lane-metrics {
+        min-height: 3em;
+      }
+      @media (max-width: 740px) {
+        .live-comparison {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      .builder-preview iframe[data-staging] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .builder-error {
+        color: var(--ink);
+        border-inline-start: 3px solid var(--accent);
+        padding-inline-start: 12px;
+      }
+      .builder-empty {
+        color: var(--muted);
+        padding-block: 24px;
       }
     </style>
   </head>
@@ -86,1101 +118,141 @@
       </p>
       <h1 id="experiment-title">From a request to a widget</h1>
       <p class="lede" id="experiment-lede">
-        One goal, three ways to build an interface.
+        One request. Two ways to build it. Try both.
       </p>
-      <p id="experiment-scope">
-        An early attempt at dynamic widgets that needs work. Try these saved Luna
-        outputs; this example does not generate live.
-      </p>
-      <lf-tabs id="widget-tasks">
-        <lf-tab id="task-tabs" label="Storage plans"
-          ><blockquote class="request" id="request-tabs">
-            Help me choose between two storage plans. Local storage works offline and
-            includes 10 GB at no monthly cost. Cloud storage syncs across devices and
-            includes 100 GB for $8 per month. Make the differences easy to understand
-            and compare.
-          </blockquote>
-          <lf-tabs id="approaches-tabs">
-            <lf-tab id="approach-tabs-spec" label="Compose components">
-              <p class="run-note">
-                <strong>3.63 s</strong> to source <span>·</span>
-                <strong>177</strong> output tokens
-              </p>
-              <p class="approach-note">
-                Luna chooses from a small component catalog. A deterministic compiler
-                supplies the markup.
-              </p>
-              <lf-sample id="sample-tabs-spec" interactive label="Recorded Luna output"
-                ><h2>Choose a storage plan</h2>
-                <p>
-                  The main trade-off is offline access at no monthly cost versus more
-                  space that syncs across devices.
+      <p id="experiment-scope">An early attempt at dynamic widgets that needs work.</p>
+      <lf-widget-builder id="widget-builder" aria-label="Create a widget">
+        <form id="widget-form">
+          <label for="widget-request">What would you like to make?</label>
+          <textarea id="widget-request" name="request" required maxlength="8000">
+Help me choose a storage plan and keep my decision. Local works offline with 10 GB for free. Cloud syncs across devices with 100 GB for $8 per month. Make the tradeoffs easy to compare.</textarea>
+          <div class="builder-actions">
+            <button class="button primary" type="submit" id="widget-generate">
+              Create widgets
+            </button>
+            <span class="builder-status" id="widget-status" role="status"
+              >Ready when you are.</span
+            >
+          </div>
+        </form>
+        <p class="builder-help" id="widget-help">
+          Both start together using the connected agent’s model (Luna on Codex). Compare
+          the time, output size and working result. Requires a live Leaf page claimed by
+          an agent.
+        </p>
+        <div class="live-comparison" data-width="wide">
+          <section class="comparison-lane" id="live-leaf" data-approach="leaf">
+            <h2>Compose Leaf components</h2>
+            <p class="builder-help">
+              Luna chooses and configures existing controls. Leaf supplies their
+              behavior and styling.
+            </p>
+            <p class="lane-status">
+              <strong data-part="status" role="status">Ready when you are.</strong>
+              <span data-part="clock" aria-hidden="true"></span>
+            </p>
+            <p class="builder-help lane-metrics" data-part="metrics">
+              Time and output tokens will appear here.
+            </p>
+            <p class="builder-error" data-part="error" role="alert" hidden></p>
+            <lf-sample id="live-leaf-sample" interactive label="Live result">
+              <div class="builder-preview" data-part="preview">
+                <p class="builder-empty" data-part="empty">
+                  Your widget will appear here.
                 </p>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Feature</th>
-                      <th>Local storage</th>
-                      <th>Cloud storage</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Storage</td>
-                      <td>10 GB</td>
-                      <td>100 GB</td>
-                    </tr>
-                    <tr>
-                      <td>Monthly cost</td>
-                      <td>$0</td>
-                      <td>$8 per month</td>
-                    </tr>
-                    <tr>
-                      <td>Works offline</td>
-                      <td>Yes</td>
-                      <td>Not specified</td>
-                    </tr>
-                    <tr>
-                      <td>Syncs across devices</td>
-                      <td>Not specified</td>
-                      <td>Yes</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <h3>Quick guide</h3>
-                <p>
-                  Choose local storage if offline access and avoiding a monthly fee
-                  matter most. Choose cloud storage if you need 10× the space and want
-                  files synced across devices.
-                </p></lf-sample
-              >
-              <details class="source-details">
-                <summary>Generated source and prompt</summary>
-                <h3>First generated source</h3>
-                <pre><code>{
-  &quot;components&quot;: [
-    {
-      &quot;type&quot;: &quot;text&quot;,
-      &quot;style&quot;: &quot;heading&quot;,
-      &quot;text&quot;: &quot;Choose a storage plan&quot;
-    },
-    {
-      &quot;type&quot;: &quot;text&quot;,
-      &quot;style&quot;: &quot;paragraph&quot;,
-      &quot;text&quot;: &quot;The main trade-off is offline access at no monthly cost versus more space that syncs across devices.&quot;
-    },
-    {
-      &quot;type&quot;: &quot;table&quot;,
-      &quot;headers&quot;: [
-        &quot;Feature&quot;,
-        &quot;Local storage&quot;,
-        &quot;Cloud storage&quot;
-      ],
-      &quot;rows&quot;: [
-        [
-          &quot;Storage&quot;,
-          &quot;10 GB&quot;,
-          &quot;100 GB&quot;
-        ],
-        [
-          &quot;Monthly cost&quot;,
-          &quot;$0&quot;,
-          &quot;$8 per month&quot;
-        ],
-        [
-          &quot;Works offline&quot;,
-          &quot;Yes&quot;,
-          &quot;Not specified&quot;
-        ],
-        [
-          &quot;Syncs across devices&quot;,
-          &quot;Not specified&quot;,
-          &quot;Yes&quot;
-        ]
-      ]
-    },
-    {
-      &quot;type&quot;: &quot;text&quot;,
-      &quot;style&quot;: &quot;subheading&quot;,
-      &quot;text&quot;: &quot;Quick guide&quot;
-    },
-    {
-      &quot;type&quot;: &quot;text&quot;,
-      &quot;style&quot;: &quot;paragraph&quot;,
-      &quot;text&quot;: &quot;Choose local storage if offline access and avoiding a monthly fee matter most. Choose cloud storage if you need 10× the space and want files synced across devices.&quot;
-    }
-  ]
-}</code></pre>
-                <h3>Prompt sent with the output schema</h3>
-                <pre>
-Return {components:[...]}, choosing a composition from the available component formats to serve the user&#x27;s goal:
-text {type:&quot;text&quot;,style:&quot;heading&quot;|&quot;subheading&quot;|&quot;paragraph&quot;,text}
-options {type:&quot;options&quot;,id,items:[{id,text}]} (mutually exclusive choices)
-board {type:&quot;board&quot;,id,columns:[{id,label,cards:[{id,title,text}]}]}
-chart {type:&quot;chart&quot;,id,label,xLabel,yLabel,rows:[{category,value}]} (this format renders a bar chart with numeric labels)
-tabs {type:&quot;tabs&quot;,id,tabs:[{id,label,components:[...]}]}
-draft {type:&quot;draft&quot;,id,text} (editable Markdown)
-table {type:&quot;table&quot;,headers:[string],rows:[[string]]}
-All shown keys are required by the format. Text is literal, not markup. Assign unique IDs yourself and preserve the user&#x27;s facts. Choose the components, organization and wording; the compiler supplies their installed behavior and presentation.
-
-USER REQUEST:
-Help me choose between two storage plans. Local storage works offline and includes 10 GB at no monthly cost. Cloud storage syncs across devices and includes 100 GB for $8 per month. Make the differences easy to understand and compare.</pre>
-              </details></lf-tab
-            >
-            <lf-tab id="approach-tabs-markup" label="Write Leaf markup">
-              <p class="run-note">
-                <strong>5.88 s</strong> to source <span>·</span>
-                <strong>325</strong> output tokens
-              </p>
-              <p class="approach-note">
-                Luna writes the markup; Leaf supplies the styling and behavior.
-              </p>
-              <lf-sample
-                id="sample-tabs-markup"
-                interactive
-                label="Recorded Luna output"
-                ><section>
-                  <h2>Choose a storage plan</h2>
-                  <p>
-                    Both plans store your files. The main trade-off is paying for more
-                    space and automatic access across devices.
-                  </p>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th scope="col">Feature</th>
-                        <th scope="col">Local storage</th>
-                        <th scope="col">Cloud storage</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <th scope="row">Storage</th>
-                        <td>10 GB</td>
-                        <td>100 GB</td>
-                      </tr>
-                      <tr>
-                        <th scope="row">Monthly cost</th>
-                        <td>$0</td>
-                        <td>$8</td>
-                      </tr>
-                      <tr>
-                        <th scope="row">Works offline</th>
-                        <td>Yes</td>
-                        <td>Not specified</td>
-                      </tr>
-                      <tr>
-                        <th scope="row">Syncs across devices</th>
-                        <td>Not specified</td>
-                        <td>Yes</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <h3>Quick guide</h3>
-                  <ul>
-                    <li>
-                      Choose local storage if offline access and no monthly cost matter
-                      most, and 10 GB is enough.
-                    </li>
-                    <li>
-                      Choose cloud storage if you want 100 GB and syncing across devices
-                      for $8 per month.
-                    </li>
-                  </ul>
-                </section></lf-sample
-              >
-              <details class="source-details">
-                <summary>Generated source and prompt</summary>
-                <h3>First generated source</h3>
-                <pre><code>&lt;section&gt;
-  &lt;h2&gt;Choose a storage plan&lt;/h2&gt;
-  &lt;p&gt;Both plans store your files. The main trade-off is paying for more space and automatic access across devices.&lt;/p&gt;
-  &lt;table&gt;
-    &lt;thead&gt;
-      &lt;tr&gt;&lt;th scope=&quot;col&quot;&gt;Feature&lt;/th&gt;&lt;th scope=&quot;col&quot;&gt;Local storage&lt;/th&gt;&lt;th scope=&quot;col&quot;&gt;Cloud storage&lt;/th&gt;&lt;/tr&gt;
-    &lt;/thead&gt;
-    &lt;tbody&gt;
-      &lt;tr&gt;&lt;th scope=&quot;row&quot;&gt;Storage&lt;/th&gt;&lt;td&gt;10 GB&lt;/td&gt;&lt;td&gt;100 GB&lt;/td&gt;&lt;/tr&gt;
-      &lt;tr&gt;&lt;th scope=&quot;row&quot;&gt;Monthly cost&lt;/th&gt;&lt;td&gt;$0&lt;/td&gt;&lt;td&gt;$8&lt;/td&gt;&lt;/tr&gt;
-      &lt;tr&gt;&lt;th scope=&quot;row&quot;&gt;Works offline&lt;/th&gt;&lt;td&gt;Yes&lt;/td&gt;&lt;td&gt;Not specified&lt;/td&gt;&lt;/tr&gt;
-      &lt;tr&gt;&lt;th scope=&quot;row&quot;&gt;Syncs across devices&lt;/th&gt;&lt;td&gt;Not specified&lt;/td&gt;&lt;td&gt;Yes&lt;/td&gt;&lt;/tr&gt;
-    &lt;/tbody&gt;
-  &lt;/table&gt;
-  &lt;h3&gt;Quick guide&lt;/h3&gt;
-  &lt;ul&gt;
-    &lt;li&gt;Choose local storage if offline access and no monthly cost matter most, and 10 GB is enough.&lt;/li&gt;
-    &lt;li&gt;Choose cloud storage if you want 100 GB and syncing across devices for $8 per month.&lt;/li&gt;
-  &lt;/ul&gt;
-&lt;/section&gt;</code></pre>
-                <h3>Prompt sent with the output schema</h3>
-                <pre>
-Return {&quot;markup&quot;:string} containing a Leaf markup fragment for the supplied main element. No document wrapper, CSS, JavaScript, or new widgets.
-Installed Leaf component API (choose the composition that serves the user&#x27;s goal):
-lf-options id choose contains lf-option id with each alternative&#x27;s content. The choose attribute enables selection; chosen marks an authored selection.
-lf-board id contains lf-column id label, containing lf-card id. Cards may contain a strong title and ordinary descriptive markup.
-lf-tabs id contains lf-tab id label, containing ordinary markup. The first tab is initially shown.
-lf-draft id contains pre with a leading newline and HTML-escaped Markdown. Leaf supplies editing and recorded state.
-lf-chart id contains pre with an HTML-escaped Plot options object expression. Plot and width are in scope; the object requires ariaLabel. Leaf calls Plot.plot itself and supplies chart dimensions. Include the data in the expression and use Leaf theme colors such as var(--series-1).
-Ordinary headings, paragraphs, sections and tables supply surrounding content. Assign unique IDs yourself. This path composes installed behavior; it does not introduce CSS, JavaScript modules or new widgets.
-
-USER REQUEST:
-Help me choose between two storage plans. Local storage works offline and includes 10 GB at no monthly cost. Cloud storage syncs across devices and includes 100 GB for $8 per month. Make the differences easy to understand and compare.
-
-These examples illustrate API syntax, not a required design or component selection.
-Literal Leaf API examples (replace IDs, text and data for the task):
-```html
-&lt;lf-options id=&quot;delivery&quot; choose&gt;
-  &lt;lf-option id=&quot;standard&quot;&gt;Standard delivery&lt;/lf-option&gt;
-  &lt;lf-option id=&quot;express&quot;&gt;Express delivery&lt;/lf-option&gt;
-&lt;/lf-options&gt;
-&lt;lf-chart id=&quot;volumes&quot;&gt;&lt;pre&gt;
-({ariaLabel:&quot;Orders by month&quot;,x:{label:&quot;Month&quot;},y:{label:&quot;Orders&quot;,grid:true},marks:[Plot.barY([{category:&quot;Jan&quot;,value:4},{category:&quot;Feb&quot;,value:6}],{x:&quot;category&quot;,y:&quot;value&quot;,fill:&quot;var(--series-1)&quot;}),Plot.text([{category:&quot;Jan&quot;,value:4},{category:&quot;Feb&quot;,value:6}],{x:&quot;category&quot;,y:&quot;value&quot;,text:&quot;value&quot;,dy:-10})]})
-&lt;/pre&gt;&lt;/lf-chart&gt;
-```
-The boolean `choose` attribute enables Leaf&#x27;s selection controls. The chart&#x27;s pre contains a Plot options object expression; Leaf calls Plot.plot itself. ariaLabel belongs inside that object.
-</pre>
-              </details></lf-tab
-            >
-            <lf-tab id="approach-tabs-standalone" label="Generate HTML">
-              <p class="run-note">
-                <strong>17.00 s</strong> to source <span>·</span>
-                <strong>2,278</strong> output tokens
-              </p>
-              <p class="approach-note">
-                Luna writes the HTML, CSS and JavaScript. This preview has its own
-                temporary state.
-              </p>
-              <lf-sample
-                id="sample-tabs-standalone"
-                interactive
-                label="Recorded Luna output"
-                ><iframe
-                  title="Storage plans: generated HTML"
-                  srcdoc='&lt;!doctype html&gt;&lt;html lang="en"&gt;&lt;head&gt;&lt;meta name="viewport" content="width=device-width,initial-scale=1"&gt;&lt;title&gt;Storage plans&lt;/title&gt;&lt;style&gt;* { box-sizing: border-box; }
-.storage-compare { --ink:#172a3a; --muted:#687886; --line:#dce5e8; --teal:#087f78; --wash:#f4f8f7; max-width: 980px; margin: 0 auto; padding: clamp(1.25rem, 5vw, 3.5rem); color:var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-.compare-header { max-width:650px; margin:0 auto 2rem; text-align:center; }
-.eyebrow { margin:0 0 .55rem; color:var(--teal); font-size:.75rem; font-weight:800; letter-spacing:.13em; text-transform:uppercase; }
-.compare-header h1 { margin:0; font-size:clamp(1.9rem, 5vw, 3rem); letter-spacing:-.045em; line-height:1.08; }
-.intro { margin:.9rem 0 0; color:var(--muted); font-size:1.05rem; line-height:1.55; }
-.plans { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1.1rem; }
-.plan-card { display:flex; flex-direction:column; padding:clamp(1.25rem,3vw,2rem); border:1px solid var(--line); border-radius:20px; background:#fff; box-shadow:0 10px 30px rgba(27,57,69,.045); transition:border-color .2s, box-shadow .2s, transform .2s; }
-.plan-card.is-selected { border-color:var(--teal); box-shadow:0 0 0 3px rgba(8,127,120,.14), 0 14px 34px rgba(27,57,69,.08); transform:translateY(-2px); }
-.cloud-card { background:linear-gradient(145deg,#f7fcfb,#fff 58%); }
-.plan-topline { display:flex; align-items:center; gap:.65rem; margin-bottom:1.1rem; }
-.plan-icon { display:grid; width:2.5rem; height:2.5rem; place-items:center; border-radius:12px; background:#edf3f5; color:#466070; font-size:1.3rem; }
-.cloud-icon { background:#e0f3f0; color:var(--teal); }
-.plan-label { color:var(--muted); font-size:.8rem; font-weight:700; }
-.plan-card h2 { margin:0; font-size:1.45rem; letter-spacing:-.025em; }
-.plan-description { min-height:3.1em; margin:.55rem 0 1.1rem; color:var(--muted); line-height:1.55; }
-.price { margin:0; padding:1rem 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
-.price strong { font-size:2.3rem; letter-spacing:-.06em; }
-.price span { color:var(--muted); font-size:.95rem; }
-.features { display:grid; gap:.85rem; margin:1.25rem 0 1.5rem; padding:0; list-style:none; color:#405361; }
-.features li { display:flex; align-items:center; gap:.55rem; line-height:1.4; }
-.features strong { color:var(--ink); }
-.feature-check,.feature-dash { display:inline-grid; flex:0 0 1.2rem; place-items:center; font-weight:800; }
-.feature-check { color:var(--teal); }
-.feature-dash { color:#9aa9b1; }
-.select-plan { width:100%; margin-top:auto; padding:.82rem 1rem; border:1px solid #b8c9cf; border-radius:10px; background:#fff; color:var(--ink); font:inherit; font-size:.95rem; font-weight:750; cursor:pointer; transition:background .15s,color .15s,border-color .15s; }
-.select-plan:hover { border-color:var(--teal); background:var(--wash); }
-.select-plan:focus-visible { outline:3px solid #76c8c1; outline-offset:3px; }
-.is-selected .select-plan { border-color:var(--teal); background:var(--teal); color:#fff; }
-.decision-note { display:flex; align-items:flex-start; gap:.75rem; margin-top:1.2rem; padding:1rem 1.1rem; border:1px solid #d8ebe8; border-radius:14px; background:#f5fbfa; color:#405361; }
-.note-mark { display:grid; flex:0 0 1.35rem; width:1.35rem; height:1.35rem; place-items:center; border-radius:50%; background:#d8efec; color:var(--teal); font-size:.82rem; font-weight:800; }
-.decision-note p { margin:0; font-size:.9rem; line-height:1.55; }
-.decision-note strong { color:var(--ink); }
-.selection-status { min-height:1.25rem; margin:.65rem 0 0; color:var(--teal); font-size:.9rem; font-weight:700; text-align:center; }
-@media (max-width:620px) { .storage-compare { padding:1.4rem 1rem; } .plans { grid-template-columns:1fr; gap:.85rem; } .plan-description { min-height:0; } .plan-card { border-radius:16px; } }
-@media (prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none !important; scroll-behavior:auto !important; } }&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;main&gt;&lt;section class="storage-compare" aria-labelledby="compare-title"&gt;
-  &lt;header class="compare-header"&gt;
-    &lt;p class="eyebrow"&gt;Storage, made simple&lt;/p&gt;
-    &lt;h1 id="compare-title"&gt;Choose the plan that fits how you store&lt;/h1&gt;
-    &lt;p class="intro"&gt;Compare what you get, then pick the option that suits your files and devices.&lt;/p&gt;
-  &lt;/header&gt;
-
-  &lt;div class="plans" role="group" aria-label="Storage plans"&gt;
-    &lt;article class="plan-card" data-plan="local"&gt;
-      &lt;div class="plan-topline"&gt;&lt;span class="plan-icon" aria-hidden="true"&gt;▣&lt;/span&gt;&lt;span class="plan-label"&gt;On this device&lt;/span&gt;&lt;/div&gt;
-      &lt;h2&gt;Local storage&lt;/h2&gt;
-      &lt;p class="plan-description"&gt;Keep your files right here, available even when you’re offline.&lt;/p&gt;
-      &lt;p class="price"&gt;&lt;strong&gt;$0&lt;/strong&gt;&lt;span&gt; / month&lt;/span&gt;&lt;/p&gt;
-      &lt;ul class="features"&gt;
-        &lt;li&gt;&lt;span class="feature-check" aria-hidden="true"&gt;✓&lt;/span&gt;&lt;strong&gt;10 GB&lt;/strong&gt; of storage&lt;/li&gt;
-        &lt;li&gt;&lt;span class="feature-check" aria-hidden="true"&gt;✓&lt;/span&gt;Works offline&lt;/li&gt;
-        &lt;li&gt;&lt;span class="feature-dash" aria-hidden="true"&gt;—&lt;/span&gt;Stays on one device&lt;/li&gt;
-      &lt;/ul&gt;
-      &lt;button class="select-plan" type="button" data-choice="local" aria-pressed="false"&gt;Choose Local&lt;/button&gt;
-    &lt;/article&gt;
-
-    &lt;article class="plan-card cloud-card" data-plan="cloud"&gt;
-      &lt;div class="plan-topline"&gt;&lt;span class="plan-icon cloud-icon" aria-hidden="true"&gt;☁&lt;/span&gt;&lt;span class="plan-label"&gt;Across your devices&lt;/span&gt;&lt;/div&gt;
-      &lt;h2&gt;Cloud storage&lt;/h2&gt;
-      &lt;p class="plan-description"&gt;Sync your files so they’re available across your devices.&lt;/p&gt;
-      &lt;p class="price"&gt;&lt;strong&gt;$8&lt;/strong&gt;&lt;span&gt; / month&lt;/span&gt;&lt;/p&gt;
-      &lt;ul class="features"&gt;
-        &lt;li&gt;&lt;span class="feature-check" aria-hidden="true"&gt;✓&lt;/span&gt;&lt;strong&gt;100 GB&lt;/strong&gt; of storage&lt;/li&gt;
-        &lt;li&gt;&lt;span class="feature-check" aria-hidden="true"&gt;✓&lt;/span&gt;Syncs across devices&lt;/li&gt;
-        &lt;li&gt;&lt;span class="feature-dash" aria-hidden="true"&gt;—&lt;/span&gt;Requires a connection to sync&lt;/li&gt;
-      &lt;/ul&gt;
-      &lt;button class="select-plan" type="button" data-choice="cloud" aria-pressed="false"&gt;Choose Cloud&lt;/button&gt;
-    &lt;/article&gt;
-  &lt;/div&gt;
-
-  &lt;aside class="decision-note" aria-live="polite"&gt;
-    &lt;span class="note-mark" aria-hidden="true"&gt;i&lt;/span&gt;
-    &lt;p&gt;&lt;strong&gt;Quick guide:&lt;/strong&gt; Local is a no-cost fit for offline access on one device. Cloud gives you 10× the space and sync across devices for $8/month.&lt;/p&gt;
-  &lt;/aside&gt;
-  &lt;p class="selection-status" id="selection-status" aria-live="polite"&gt;&lt;/p&gt;
-&lt;/section&gt;&lt;/main&gt;&lt;script&gt;const planButtons = document.querySelectorAll(&#x27;.storage-compare .select-plan&#x27;);
-const planCards = document.querySelectorAll(&#x27;.storage-compare .plan-card&#x27;);
-const status = document.querySelector(&#x27;#selection-status&#x27;);
-
-planButtons.forEach((button) =&gt; {
-  button.addEventListener(&#x27;click&#x27;, () =&gt; {
-    const choice = button.dataset.choice;
-    planCards.forEach((card) =&gt; {
-      const selected = card.dataset.plan === choice;
-      card.classList.toggle(&#x27;is-selected&#x27;, selected);
-      card.querySelector(&#x27;.select-plan&#x27;).setAttribute(&#x27;aria-pressed&#x27;, String(selected));
-    });
-    status.textContent = choice === &#x27;local&#x27;
-      ? &#x27;Local storage selected: 10 GB, offline access, and no monthly cost.&#x27;
-      : &#x27;Cloud storage selected: 100 GB, device syncing, and $8 per month.&#x27;;
-  });
-});&lt;/script&gt;&lt;script&gt;new ResizeObserver(()=&gt;parent.postMessage({type:&#x27;dynamic-widget-height&#x27;,height:document.body.getBoundingClientRect().height+16},&#x27;*&#x27;)).observe(document.body);&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;'
-                  sandbox="allow-scripts"
-                  class="generated-frame"
-                ></iframe
-              ></lf-sample>
-              <details class="source-details">
-                <summary>Generated source and prompt</summary>
-                <h3>First generated source</h3>
-                <pre><code>/* HTML */
-&lt;section class=&quot;storage-compare&quot; aria-labelledby=&quot;compare-title&quot;&gt;
-  &lt;header class=&quot;compare-header&quot;&gt;
-    &lt;p class=&quot;eyebrow&quot;&gt;Storage, made simple&lt;/p&gt;
-    &lt;h1 id=&quot;compare-title&quot;&gt;Choose the plan that fits how you store&lt;/h1&gt;
-    &lt;p class=&quot;intro&quot;&gt;Compare what you get, then pick the option that suits your files and devices.&lt;/p&gt;
-  &lt;/header&gt;
-
-  &lt;div class=&quot;plans&quot; role=&quot;group&quot; aria-label=&quot;Storage plans&quot;&gt;
-    &lt;article class=&quot;plan-card&quot; data-plan=&quot;local&quot;&gt;
-      &lt;div class=&quot;plan-topline&quot;&gt;&lt;span class=&quot;plan-icon&quot; aria-hidden=&quot;true&quot;&gt;▣&lt;/span&gt;&lt;span class=&quot;plan-label&quot;&gt;On this device&lt;/span&gt;&lt;/div&gt;
-      &lt;h2&gt;Local storage&lt;/h2&gt;
-      &lt;p class=&quot;plan-description&quot;&gt;Keep your files right here, available even when you’re offline.&lt;/p&gt;
-      &lt;p class=&quot;price&quot;&gt;&lt;strong&gt;$0&lt;/strong&gt;&lt;span&gt; / month&lt;/span&gt;&lt;/p&gt;
-      &lt;ul class=&quot;features&quot;&gt;
-        &lt;li&gt;&lt;span class=&quot;feature-check&quot; aria-hidden=&quot;true&quot;&gt;✓&lt;/span&gt;&lt;strong&gt;10 GB&lt;/strong&gt; of storage&lt;/li&gt;
-        &lt;li&gt;&lt;span class=&quot;feature-check&quot; aria-hidden=&quot;true&quot;&gt;✓&lt;/span&gt;Works offline&lt;/li&gt;
-        &lt;li&gt;&lt;span class=&quot;feature-dash&quot; aria-hidden=&quot;true&quot;&gt;—&lt;/span&gt;Stays on one device&lt;/li&gt;
-      &lt;/ul&gt;
-      &lt;button class=&quot;select-plan&quot; type=&quot;button&quot; data-choice=&quot;local&quot; aria-pressed=&quot;false&quot;&gt;Choose Local&lt;/button&gt;
-    &lt;/article&gt;
-
-    &lt;article class=&quot;plan-card cloud-card&quot; data-plan=&quot;cloud&quot;&gt;
-      &lt;div class=&quot;plan-topline&quot;&gt;&lt;span class=&quot;plan-icon cloud-icon&quot; aria-hidden=&quot;true&quot;&gt;☁&lt;/span&gt;&lt;span class=&quot;plan-label&quot;&gt;Across your devices&lt;/span&gt;&lt;/div&gt;
-      &lt;h2&gt;Cloud storage&lt;/h2&gt;
-      &lt;p class=&quot;plan-description&quot;&gt;Sync your files so they’re available across your devices.&lt;/p&gt;
-      &lt;p class=&quot;price&quot;&gt;&lt;strong&gt;$8&lt;/strong&gt;&lt;span&gt; / month&lt;/span&gt;&lt;/p&gt;
-      &lt;ul class=&quot;features&quot;&gt;
-        &lt;li&gt;&lt;span class=&quot;feature-check&quot; aria-hidden=&quot;true&quot;&gt;✓&lt;/span&gt;&lt;strong&gt;100 GB&lt;/strong&gt; of storage&lt;/li&gt;
-        &lt;li&gt;&lt;span class=&quot;feature-check&quot; aria-hidden=&quot;true&quot;&gt;✓&lt;/span&gt;Syncs across devices&lt;/li&gt;
-        &lt;li&gt;&lt;span class=&quot;feature-dash&quot; aria-hidden=&quot;true&quot;&gt;—&lt;/span&gt;Requires a connection to sync&lt;/li&gt;
-      &lt;/ul&gt;
-      &lt;button class=&quot;select-plan&quot; type=&quot;button&quot; data-choice=&quot;cloud&quot; aria-pressed=&quot;false&quot;&gt;Choose Cloud&lt;/button&gt;
-    &lt;/article&gt;
-  &lt;/div&gt;
-
-  &lt;aside class=&quot;decision-note&quot; aria-live=&quot;polite&quot;&gt;
-    &lt;span class=&quot;note-mark&quot; aria-hidden=&quot;true&quot;&gt;i&lt;/span&gt;
-    &lt;p&gt;&lt;strong&gt;Quick guide:&lt;/strong&gt; Local is a no-cost fit for offline access on one device. Cloud gives you 10× the space and sync across devices for $8/month.&lt;/p&gt;
-  &lt;/aside&gt;
-  &lt;p class=&quot;selection-status&quot; id=&quot;selection-status&quot; aria-live=&quot;polite&quot;&gt;&lt;/p&gt;
-&lt;/section&gt;
-
-/* CSS */
-* { box-sizing: border-box; }
-.storage-compare { --ink:#172a3a; --muted:#687886; --line:#dce5e8; --teal:#087f78; --wash:#f4f8f7; max-width: 980px; margin: 0 auto; padding: clamp(1.25rem, 5vw, 3.5rem); color:var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; }
-.compare-header { max-width:650px; margin:0 auto 2rem; text-align:center; }
-.eyebrow { margin:0 0 .55rem; color:var(--teal); font-size:.75rem; font-weight:800; letter-spacing:.13em; text-transform:uppercase; }
-.compare-header h1 { margin:0; font-size:clamp(1.9rem, 5vw, 3rem); letter-spacing:-.045em; line-height:1.08; }
-.intro { margin:.9rem 0 0; color:var(--muted); font-size:1.05rem; line-height:1.55; }
-.plans { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1.1rem; }
-.plan-card { display:flex; flex-direction:column; padding:clamp(1.25rem,3vw,2rem); border:1px solid var(--line); border-radius:20px; background:#fff; box-shadow:0 10px 30px rgba(27,57,69,.045); transition:border-color .2s, box-shadow .2s, transform .2s; }
-.plan-card.is-selected { border-color:var(--teal); box-shadow:0 0 0 3px rgba(8,127,120,.14), 0 14px 34px rgba(27,57,69,.08); transform:translateY(-2px); }
-.cloud-card { background:linear-gradient(145deg,#f7fcfb,#fff 58%); }
-.plan-topline { display:flex; align-items:center; gap:.65rem; margin-bottom:1.1rem; }
-.plan-icon { display:grid; width:2.5rem; height:2.5rem; place-items:center; border-radius:12px; background:#edf3f5; color:#466070; font-size:1.3rem; }
-.cloud-icon { background:#e0f3f0; color:var(--teal); }
-.plan-label { color:var(--muted); font-size:.8rem; font-weight:700; }
-.plan-card h2 { margin:0; font-size:1.45rem; letter-spacing:-.025em; }
-.plan-description { min-height:3.1em; margin:.55rem 0 1.1rem; color:var(--muted); line-height:1.55; }
-.price { margin:0; padding:1rem 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
-.price strong { font-size:2.3rem; letter-spacing:-.06em; }
-.price span { color:var(--muted); font-size:.95rem; }
-.features { display:grid; gap:.85rem; margin:1.25rem 0 1.5rem; padding:0; list-style:none; color:#405361; }
-.features li { display:flex; align-items:center; gap:.55rem; line-height:1.4; }
-.features strong { color:var(--ink); }
-.feature-check,.feature-dash { display:inline-grid; flex:0 0 1.2rem; place-items:center; font-weight:800; }
-.feature-check { color:var(--teal); }
-.feature-dash { color:#9aa9b1; }
-.select-plan { width:100%; margin-top:auto; padding:.82rem 1rem; border:1px solid #b8c9cf; border-radius:10px; background:#fff; color:var(--ink); font:inherit; font-size:.95rem; font-weight:750; cursor:pointer; transition:background .15s,color .15s,border-color .15s; }
-.select-plan:hover { border-color:var(--teal); background:var(--wash); }
-.select-plan:focus-visible { outline:3px solid #76c8c1; outline-offset:3px; }
-.is-selected .select-plan { border-color:var(--teal); background:var(--teal); color:#fff; }
-.decision-note { display:flex; align-items:flex-start; gap:.75rem; margin-top:1.2rem; padding:1rem 1.1rem; border:1px solid #d8ebe8; border-radius:14px; background:#f5fbfa; color:#405361; }
-.note-mark { display:grid; flex:0 0 1.35rem; width:1.35rem; height:1.35rem; place-items:center; border-radius:50%; background:#d8efec; color:var(--teal); font-size:.82rem; font-weight:800; }
-.decision-note p { margin:0; font-size:.9rem; line-height:1.55; }
-.decision-note strong { color:var(--ink); }
-.selection-status { min-height:1.25rem; margin:.65rem 0 0; color:var(--teal); font-size:.9rem; font-weight:700; text-align:center; }
-@media (max-width:620px) { .storage-compare { padding:1.4rem 1rem; } .plans { grid-template-columns:1fr; gap:.85rem; } .plan-description { min-height:0; } .plan-card { border-radius:16px; } }
-@media (prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none !important; scroll-behavior:auto !important; } }
-
-/* JS */
-const planButtons = document.querySelectorAll(&#x27;.storage-compare .select-plan&#x27;);
-const planCards = document.querySelectorAll(&#x27;.storage-compare .plan-card&#x27;);
-const status = document.querySelector(&#x27;#selection-status&#x27;);
-
-planButtons.forEach((button) =&gt; {
-  button.addEventListener(&#x27;click&#x27;, () =&gt; {
-    const choice = button.dataset.choice;
-    planCards.forEach((card) =&gt; {
-      const selected = card.dataset.plan === choice;
-      card.classList.toggle(&#x27;is-selected&#x27;, selected);
-      card.querySelector(&#x27;.select-plan&#x27;).setAttribute(&#x27;aria-pressed&#x27;, String(selected));
-    });
-    status.textContent = choice === &#x27;local&#x27;
-      ? &#x27;Local storage selected: 10 GB, offline access, and no monthly cost.&#x27;
-      : &#x27;Cloud storage selected: 100 GB, device syncing, and $8 per month.&#x27;;
-  });
-});</code></pre>
-                <h3>Prompt sent with the output schema</h3>
-                <pre>
-Return {&quot;html&quot;:string,&quot;css&quot;:string,&quot;js&quot;:string}. HTML is a fragment inside host main; CSS and JavaScript are separate files. No document/main wrapper, script/style tags or inline handlers; attach listeners in js.
-Return separate html, css, js string fields. html is a body fragment; put styling in css and behavior in js. No inline scripts, style elements or event-handler attributes: the host CSP refuses them. Use ordinary HTML/CSS/JavaScript without Leaf tags, imports or network dependencies. Design the presentation and interactions around the user&#x27;s goal, preserving their facts. Make the result accessible and usable at narrow widths.
-
-USER REQUEST:
-Help me choose between two storage plans. Local storage works offline and includes 10 GB at no monthly cost. Cloud storage syncs across devices and includes 100 GB for $8 per month. Make the differences easy to understand and compare.</pre>
-              </details></lf-tab
-            >
-          </lf-tabs></lf-tab
-        >
-        <lf-tab id="task-decision" label="Release rollout"
-          ><blockquote class="request" id="request-decision">
-            Help me decide how to roll out a software update. We could release to 5% of
-            users today, release to everyone today, or postpone for more review. A small
-            release limits initial exposure. I want to weigh the tradeoffs and record a
-            decision I can revisit.
-          </blockquote>
-          <lf-tabs id="approaches-decision">
-            <lf-tab id="approach-decision-spec" label="Compose components">
-              <p class="run-note">
-                <strong>6.88 s</strong> to source <span>·</span>
-                <strong>333</strong> output tokens
-              </p>
-              <p class="approach-note">
-                Luna chooses from a small component catalog. A deterministic compiler
-                supplies the markup.
-              </p>
-              <lf-sample
-                id="sample-decision-spec"
-                interactive
-                label="Recorded Luna output"
-                ><h2>Software update rollout decision</h2>
-                <p>
-                  Compare the three options, then record your choice and the conditions
-                  that would make you revisit it.
+              </div>
+            </lf-sample>
+            <details class="source-details">
+              <summary>Request, instructions and generated source</summary>
+              <h3>Preview’s request</h3>
+              <lf-generated-document id="leaf-request" data-part="request">
+                <lf-text-document
+                  id="leaf-request-document"
+                  for="leaf-request"
+                  label="Request"
+                  preview="markdown"
+                ></lf-text-document>
+              </lf-generated-document>
+              <h3>Instructions</h3>
+              <lf-generated-document id="leaf-instructions" data-part="instructions">
+                <lf-text-document
+                  id="leaf-instructions-document"
+                  for="leaf-instructions"
+                  label="Instructions"
+                  preview="markdown"
+                ></lf-text-document>
+              </lf-generated-document>
+              <h3>Model output · component JSON</h3>
+              <pre
+                id="leaf-code"
+              ><code data-part="code" class="language-json">No generation yet.</code></pre>
+              <h3>Compiled Leaf source · HTML</h3>
+              <pre
+                id="leaf-compiled"
+              ><code data-part="compiled" class="language-html">No generation yet.</code></pre>
+            </details>
+          </section>
+          <section class="comparison-lane" id="live-html" data-approach="html">
+            <h2>Generate HTML</h2>
+            <p class="builder-help">
+              Luna writes the markup, styling and behavior from scratch.
+            </p>
+            <p class="lane-status">
+              <strong data-part="status" role="status">Ready when you are.</strong>
+              <span data-part="clock" aria-hidden="true"></span>
+            </p>
+            <p class="builder-help lane-metrics" data-part="metrics">
+              Time and output tokens will appear here.
+            </p>
+            <p class="builder-error" data-part="error" role="alert" hidden></p>
+            <lf-sample id="live-html-sample" interactive label="Live result">
+              <div class="builder-preview" data-part="preview">
+                <p class="builder-empty" data-part="empty">
+                  Your widget will appear here.
                 </p>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Option</th>
-                      <th>Potential upside</th>
-                      <th>Tradeoff / risk</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Release to 5% today</td>
-                      <td>
-                        Limits initial exposure while getting real-world feedback.
-                      </td>
-                      <td>
-                        Some users receive the update today; issues may still affect
-                        that initial group.
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Release to everyone today</td>
-                      <td>Makes the update available to all users right away.</td>
-                      <td>Exposes the full user base if a problem is found.</td>
-                    </tr>
-                    <tr>
-                      <td>Postpone for more review</td>
-                      <td>Creates time for additional checks before release.</td>
-                      <td>Delays availability and may not surface every issue.</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <lf-options id="decision-spec-rollout-choice" choose
-                  ><lf-option id="decision-spec-five-percent"
-                    >Release to 5% of users today</lf-option
-                  ><lf-option id="decision-spec-everyone"
-                    >Release to everyone today</lf-option
-                  ><lf-option id="decision-spec-postpone"
-                    >Postpone for more review</lf-option
-                  ></lf-options
-                >
-                <h3>Decision to revisit</h3>
-                <lf-draft id="decision-spec-decision-record">
-                  <pre>
-## Decision
-[Record the selected option and date]
-
-## Why
-[What tradeoffs or evidence mattered most?]
-
-## Check before proceeding
-[What must be true before rollout, if anything?]
-
-## Revisit if
-[What signal, issue, or new information would change this decision?]
-
-## Review date
-[When will we check the decision again?]</pre>
-                </lf-draft></lf-sample
-              >
-              <details class="source-details">
-                <summary>Generated source and prompt</summary>
-                <h3>First generated source</h3>
-                <pre><code>{
-  &quot;components&quot;: [
-    {
-      &quot;type&quot;: &quot;text&quot;,
-      &quot;style&quot;: &quot;heading&quot;,
-      &quot;text&quot;: &quot;Software update rollout decision&quot;
-    },
-    {
-      &quot;type&quot;: &quot;text&quot;,
-      &quot;style&quot;: &quot;paragraph&quot;,
-      &quot;text&quot;: &quot;Compare the three options, then record your choice and the conditions that would make you revisit it.&quot;
-    },
-    {
-      &quot;type&quot;: &quot;table&quot;,
-      &quot;headers&quot;: [
-        &quot;Option&quot;,
-        &quot;Potential upside&quot;,
-        &quot;Tradeoff / risk&quot;
-      ],
-      &quot;rows&quot;: [
-        [
-          &quot;Release to 5% today&quot;,
-          &quot;Limits initial exposure while getting real-world feedback.&quot;,
-          &quot;Some users receive the update today; issues may still affect that initial group.&quot;
-        ],
-        [
-          &quot;Release to everyone today&quot;,
-          &quot;Makes the update available to all users right away.&quot;,
-          &quot;Exposes the full user base if a problem is found.&quot;
-        ],
-        [
-          &quot;Postpone for more review&quot;,
-          &quot;Creates time for additional checks before release.&quot;,
-          &quot;Delays availability and may not surface every issue.&quot;
-        ]
-      ]
-    },
-    {
-      &quot;type&quot;: &quot;options&quot;,
-      &quot;id&quot;: &quot;rollout-choice&quot;,
-      &quot;items&quot;: [
-        {
-          &quot;id&quot;: &quot;five-percent&quot;,
-          &quot;text&quot;: &quot;Release to 5% of users today&quot;
-        },
-        {
-          &quot;id&quot;: &quot;everyone&quot;,
-          &quot;text&quot;: &quot;Release to everyone today&quot;
-        },
-        {
-          &quot;id&quot;: &quot;postpone&quot;,
-          &quot;text&quot;: &quot;Postpone for more review&quot;
-        }
-      ]
-    },
-    {
-      &quot;type&quot;: &quot;text&quot;,
-      &quot;style&quot;: &quot;subheading&quot;,
-      &quot;text&quot;: &quot;Decision to revisit&quot;
-    },
-    {
-      &quot;type&quot;: &quot;draft&quot;,
-      &quot;id&quot;: &quot;decision-record&quot;,
-      &quot;text&quot;: &quot;## Decision\n[Record the selected option and date]\n\n## Why\n[What tradeoffs or evidence mattered most?]\n\n## Check before proceeding\n[What must be true before rollout, if anything?]\n\n## Revisit if\n[What signal, issue, or new information would change this decision?]\n\n## Review date\n[When will we check the decision again?]&quot;
-    }
-  ]
-}</code></pre>
-                <h3>Prompt sent with the output schema</h3>
-                <pre>
-Return {components:[...]}, choosing a composition from the available component formats to serve the user&#x27;s goal:
-text {type:&quot;text&quot;,style:&quot;heading&quot;|&quot;subheading&quot;|&quot;paragraph&quot;,text}
-options {type:&quot;options&quot;,id,items:[{id,text}]} (mutually exclusive choices)
-board {type:&quot;board&quot;,id,columns:[{id,label,cards:[{id,title,text}]}]}
-chart {type:&quot;chart&quot;,id,label,xLabel,yLabel,rows:[{category,value}]} (this format renders a bar chart with numeric labels)
-tabs {type:&quot;tabs&quot;,id,tabs:[{id,label,components:[...]}]}
-draft {type:&quot;draft&quot;,id,text} (editable Markdown)
-table {type:&quot;table&quot;,headers:[string],rows:[[string]]}
-All shown keys are required by the format. Text is literal, not markup. Assign unique IDs yourself and preserve the user&#x27;s facts. Choose the components, organization and wording; the compiler supplies their installed behavior and presentation.
-
-USER REQUEST:
-Help me decide how to roll out a software update. We could release to 5% of users today, release to everyone today, or postpone for more review. A small release limits initial exposure. I want to weigh the tradeoffs and record a decision I can revisit.</pre>
-              </details></lf-tab
-            >
-            <lf-tab id="approach-decision-markup" label="Write Leaf markup">
-              <p class="run-note">
-                <strong>4.39 s</strong> to source <span>·</span>
-                <strong>362</strong> output tokens
-              </p>
-              <p class="approach-note">
-                Luna writes the markup; Leaf supplies the styling and behavior.
-              </p>
-              <lf-sample
-                id="sample-decision-markup"
-                interactive
-                label="Recorded Luna output"
-                ><section>
-                  <h2>Choose a rollout plan</h2>
-                  <p>
-                    A 5% release limits initial exposure while we monitor the update.
-                    Weigh that added caution against the speed of a full release or the
-                    assurance of another review.
-                  </p>
-                  <lf-options id="decision-markup-rollout-plan" choose>
-                    <lf-option id="decision-markup-rollout-five-percent"
-                      ><strong>Release to 5% today</strong>
-                      <p>
-                        Limit initial exposure and monitor for problems before
-                        expanding. Slower reach; requires watching results and deciding
-                        when to scale up.
-                      </p></lf-option
-                    >
-                    <lf-option id="decision-markup-rollout-everyone"
-                      ><strong>Release to everyone today</strong>
-                      <p>
-                        Make the update available to all users immediately. Fastest
-                        rollout, but any issue could affect the full user base.
-                      </p></lf-option
-                    >
-                    <lf-option id="decision-markup-rollout-postpone"
-                      ><strong>Postpone for more review</strong>
-                      <p>
-                        Gain time to investigate or test further. Delays the update and
-                        does not guarantee that review will uncover every issue.
-                      </p></lf-option
-                    >
-                  </lf-options>
-                  <h3>Decision to revisit</h3>
-                  <p>
-                    Record the option selected above and why. Revisit after reviewing
-                    early rollout signals or completing additional review.
-                  </p>
-                  <lf-draft id="decision-markup-rollout-decision">
-                    <pre>
-## Rollout decision
-
-**Selected plan:**
-
-**Why this plan:**
-
-**What would change my mind:**
-
-**Signals or review to revisit:**
-
-**Revisit date:**
-</pre>
-                  </lf-draft>
-                </section></lf-sample
-              >
-              <details class="source-details">
-                <summary>Generated source and prompt</summary>
-                <h3>First generated source</h3>
-                <pre><code>&lt;section&gt;
-  &lt;h2&gt;Choose a rollout plan&lt;/h2&gt;
-  &lt;p&gt;A 5% release limits initial exposure while we monitor the update. Weigh that added caution against the speed of a full release or the assurance of another review.&lt;/p&gt;
-  &lt;lf-options id=&quot;rollout-plan&quot; choose&gt;
-    &lt;lf-option id=&quot;rollout-five-percent&quot;&gt;&lt;strong&gt;Release to 5% today&lt;/strong&gt;&lt;p&gt;Limit initial exposure and monitor for problems before expanding. Slower reach; requires watching results and deciding when to scale up.&lt;/p&gt;&lt;/lf-option&gt;
-    &lt;lf-option id=&quot;rollout-everyone&quot;&gt;&lt;strong&gt;Release to everyone today&lt;/strong&gt;&lt;p&gt;Make the update available to all users immediately. Fastest rollout, but any issue could affect the full user base.&lt;/p&gt;&lt;/lf-option&gt;
-    &lt;lf-option id=&quot;rollout-postpone&quot;&gt;&lt;strong&gt;Postpone for more review&lt;/strong&gt;&lt;p&gt;Gain time to investigate or test further. Delays the update and does not guarantee that review will uncover every issue.&lt;/p&gt;&lt;/lf-option&gt;
-  &lt;/lf-options&gt;
-  &lt;h3&gt;Decision to revisit&lt;/h3&gt;
-  &lt;p&gt;Record the option selected above and why. Revisit after reviewing early rollout signals or completing additional review.&lt;/p&gt;
-  &lt;lf-draft id=&quot;rollout-decision&quot;&gt;&lt;pre&gt;
-## Rollout decision
-
-**Selected plan:**
-
-**Why this plan:**
-
-**What would change my mind:**
-
-**Signals or review to revisit:**
-
-**Revisit date:**
-&lt;/pre&gt;&lt;/lf-draft&gt;
-&lt;/section&gt;</code></pre>
-                <h3>Prompt sent with the output schema</h3>
-                <pre>
-Return {&quot;markup&quot;:string} containing a Leaf markup fragment for the supplied main element. No document wrapper, CSS, JavaScript, or new widgets.
-Installed Leaf component API (choose the composition that serves the user&#x27;s goal):
-lf-options id choose contains lf-option id with each alternative&#x27;s content. The choose attribute enables selection; chosen marks an authored selection.
-lf-board id contains lf-column id label, containing lf-card id. Cards may contain a strong title and ordinary descriptive markup.
-lf-tabs id contains lf-tab id label, containing ordinary markup. The first tab is initially shown.
-lf-draft id contains pre with a leading newline and HTML-escaped Markdown. Leaf supplies editing and recorded state.
-lf-chart id contains pre with an HTML-escaped Plot options object expression. Plot and width are in scope; the object requires ariaLabel. Leaf calls Plot.plot itself and supplies chart dimensions. Include the data in the expression and use Leaf theme colors such as var(--series-1).
-Ordinary headings, paragraphs, sections and tables supply surrounding content. Assign unique IDs yourself. This path composes installed behavior; it does not introduce CSS, JavaScript modules or new widgets.
-
-USER REQUEST:
-Help me decide how to roll out a software update. We could release to 5% of users today, release to everyone today, or postpone for more review. A small release limits initial exposure. I want to weigh the tradeoffs and record a decision I can revisit.
-
-These examples illustrate API syntax, not a required design or component selection.
-Literal Leaf API examples (replace IDs, text and data for the task):
-```html
-&lt;lf-options id=&quot;delivery&quot; choose&gt;
-  &lt;lf-option id=&quot;standard&quot;&gt;Standard delivery&lt;/lf-option&gt;
-  &lt;lf-option id=&quot;express&quot;&gt;Express delivery&lt;/lf-option&gt;
-&lt;/lf-options&gt;
-&lt;lf-chart id=&quot;volumes&quot;&gt;&lt;pre&gt;
-({ariaLabel:&quot;Orders by month&quot;,x:{label:&quot;Month&quot;},y:{label:&quot;Orders&quot;,grid:true},marks:[Plot.barY([{category:&quot;Jan&quot;,value:4},{category:&quot;Feb&quot;,value:6}],{x:&quot;category&quot;,y:&quot;value&quot;,fill:&quot;var(--series-1)&quot;}),Plot.text([{category:&quot;Jan&quot;,value:4},{category:&quot;Feb&quot;,value:6}],{x:&quot;category&quot;,y:&quot;value&quot;,text:&quot;value&quot;,dy:-10})]})
-&lt;/pre&gt;&lt;/lf-chart&gt;
-```
-The boolean `choose` attribute enables Leaf&#x27;s selection controls. The chart&#x27;s pre contains a Plot options object expression; Leaf calls Plot.plot itself. ariaLabel belongs inside that object.
-</pre>
-              </details></lf-tab
-            >
-            <lf-tab id="approach-decision-standalone" label="Generate HTML">
-              <p class="run-note">
-                <strong>41.20 s</strong> to source <span>·</span>
-                <strong>4,449</strong> output tokens
-              </p>
-              <p class="approach-note">
-                Luna writes the HTML, CSS and JavaScript. This preview has its own
-                temporary state.
-              </p>
-              <lf-sample
-                id="sample-decision-standalone"
-                interactive
-                label="Recorded Luna output"
-                ><iframe
-                  title="Release rollout: generated HTML"
-                  srcdoc='&lt;!doctype html&gt;&lt;html lang="en"&gt;&lt;head&gt;&lt;meta name="viewport" content="width=device-width,initial-scale=1"&gt;&lt;title&gt;Release rollout&lt;/title&gt;&lt;style&gt;:root{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#182520;background:#f5f7f4;font-synthesis:none}*{box-sizing:border-box}.rollout{max-width:1080px;margin:0 auto;padding:24px 32px 28px}.topbar{display:flex;align-items:center;justify-content:space-between;padding:4px 0 30px;border-bottom:1px solid #e1e8e2}.brand{display:flex;align-items:center;gap:10px;font-weight:650;font-size:13px;letter-spacing:.01em}.brand-mark{display:grid;place-items:center;width:27px;height:27px;border-radius:8px;color:#fff;background:#21654b;font-size:17px}.status-pill{display:flex;align-items:center;gap:8px;border:1px solid #e1e8e2;background:#fff;border-radius:999px;padding:7px 11px;color:#64716a;font-size:11px}.status-dot{width:7px;height:7px;border-radius:50%;background:#74a88c}.intro{padding:38px 0 30px}.eyebrow{margin:0 0 9px;color:#708078;font-size:10px;font-weight:750;letter-spacing:.14em}.intro .eyebrow{color:#398063}.intro h1{margin:0;font-size:clamp(28px,4vw,42px);letter-spacing:-.045em;line-height:1.13;font-weight:680}.lede{margin:12px 0 0;color:#65736b;font-size:14px;line-height:1.6}.workspace{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(280px,.8fr);gap:20px;align-items:start}.choices-panel,.decision-panel{background:#fff;border:1px solid #e5ebe6;border-radius:14px;padding:23px;box-shadow:0 4px 18px rgba(28,57,42,.035)}.section-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}.section-heading h2{font-size:17px;letter-spacing:-.025em;margin:0}.section-heading .eyebrow{margin-bottom:6px}.step-label{font-size:10px;color:#7e8b83;background:#f3f6f3;border-radius:99px;padding:6px 9px}.choice-list{margin:0;padding:0;border:0;display:grid;gap:9px}.choice-card{display:flex;align-items:center;gap:12px;border:1px solid #e5ebe6;border-radius:10px;padding:14px 13px;cursor:pointer;transition:border-color .16s,background .16s,box-shadow .16s}.choice-card:hover{border-color:#a8c8b5}.choice-card:has(input:checked){border-color:#3b8664;background:#f5faf6;box-shadow:0 0 0 1px #3b8664}.choice-card input{position:absolute;opacity:0;width:1px;height:1px}.choice-card:focus-within{outline:3px solid #b8d8c4;outline-offset:2px}.radio-ui{width:17px;height:17px;flex:0 0 17px;border:1.5px solid #b8c3bb;border-radius:50%;position:relative}.choice-card:has(input:checked) .radio-ui{border-color:#32805c}.choice-card:has(input:checked) .radio-ui:after{content:"";position:absolute;inset:3px;border-radius:50%;background:#32805c}.choice-copy{display:grid;gap:4px;min-width:0}.choice-title{font-size:13px;font-weight:650}.choice-desc{font-size:11px;line-height:1.5;color:#748078}.choice-tag{margin-left:auto;white-space:nowrap;font-size:9px;font-weight:700;border-radius:99px;padding:6px 8px}.tag-cautious{background:#eaf4ed;color:#397457}.tag-fast{background:#edf2fa;color:#56709c}.tag-review{background:#f6f1e7;color:#8d7441}.tradeoffs{margin-top:20px;border-top:1px solid #edf0ed;padding-top:17px}.tradeoff-heading{display:flex;gap:10px;align-items:flex-start;margin-bottom:12px}.spark{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#eff6f1;color:#3f8663}.tradeoff-heading h3{font-size:12px;margin:0 0 3px}.tradeoff-heading p{font-size:10px;color:#7b8780;margin:0}.tradeoff-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.tradeoff-item{display:flex;gap:8px;align-items:flex-start;padding:11px 9px;background:#f8faf8;border-radius:8px;min-height:72px}.trade-icon{font-size:15px;width:19px;text-align:center}.exposure{color:#418265}.timing{color:#7284a1}.confidence{color:#aa8951}.tradeoff-item div{display:grid;gap:4px}.tradeoff-item strong{font-size:10px}.tradeoff-item div span{font-size:9px;line-height:1.4;color:#7b8780}.decision-panel{padding:23px}.panel-note{margin:-6px 0 19px;color:#718078;font-size:11px;line-height:1.55}.field-label{display:block;margin:0 0 7px;font-size:11px;font-weight:650}.textarea,.decision-panel textarea{font:inherit}.decision-panel textarea{width:100%;resize:vertical;border:1px solid #dfe7e1;border-radius:8px;padding:11px;font-size:11px;line-height:1.5;color:#24332b;background:#fcfdfc;min-height:98px}.decision-panel textarea::placeholder{color:#a3ada6}.decision-panel textarea:focus,.date-wrap:focus-within{outline:3px solid #d3e8d9;border-color:#5a9875}.checkpoint-label{margin-top:16px}.date-wrap{display:flex;gap:9px;align-items:center;border:1px solid #dfe7e1;border-radius:8px;padding:0 10px;color:#7c8c81}.date-wrap input{width:100%;min-width:0;border:0;background:transparent;padding:10px 0;color:#33443a;font:inherit;font-size:11px;outline:0}.save-button{width:100%;margin-top:17px;display:flex;align-items:center;justify-content:center;gap:10px;border:0;border-radius:8px;background:#21654b;color:#fff;padding:12px 15px;font:inherit;font-size:12px;font-weight:650;cursor:pointer;transition:background .15s,opacity .15s}.save-button:hover:not(:disabled){background:#174e39}.save-button:disabled{opacity:.45;cursor:not-allowed}.save-hint{text-align:center;color:#86928a;font-size:10px;margin:9px 0 0}.saved-record{margin-top:18px;background:#edf6ef;border:1px solid #cce1d1;border-radius:12px;padding:17px 20px;display:flex;align-items:center;gap:14px}.saved-record[hidden]{display:none}.saved-icon{display:grid;place-items:center;width:32px;height:32px;flex:0 0 32px;border-radius:50%;background:#d8ecdd;color:#28704c;font-weight:750}.saved-copy{min-width:0;flex:1}.saved-copy .eyebrow{margin-bottom:4px;color:#438060}.saved-copy h2{font-size:14px;margin:0 0 4px}.saved-copy p:last-child{font-size:11px;color:#66776d;margin:0;line-height:1.45}.edit-button{border:1px solid #c4d9ca;border-radius:7px;padding:8px 11px;background:#fff;color:#286044;font:inherit;font-size:10px;font-weight:650;cursor:pointer}.edit-button:hover{background:#f7fbf8}footer{display:flex;justify-content:space-between;gap:16px;margin-top:30px;padding-top:15px;border-top:1px solid #e1e8e2;color:#89958d;font-size:10px}.footer-mark{letter-spacing:.1em;font-size:9px}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media(max-width:760px){.rollout{padding:18px 18px 24px}.intro{padding:30px 0 24px}.workspace{grid-template-columns:1fr;gap:14px}.tradeoff-grid{grid-template-columns:1fr}.tradeoff-item{min-height:unset}.choice-card{align-items:flex-start}.choice-tag{font-size:8px;padding:5px 7px}}@media(max-width:420px){.rollout{padding:14px 13px 20px}.choices-panel,.decision-panel{padding:17px}.choice-card{gap:9px;padding:12px 10px}.choice-desc{font-size:10px}.choice-tag{display:none}.status-pill{font-size:10px}.saved-record{align-items:flex-start;flex-wrap:wrap}.edit-button{margin-left:46px}footer{flex-direction:column;gap:7px}}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;main&gt;&lt;section class="rollout" aria-labelledby="page-title"&gt;
-  &lt;header class="topbar"&gt;
-    &lt;div class="brand"&gt;&lt;span class="brand-mark" aria-hidden="true"&gt;↗&lt;/span&gt;&lt;span&gt;Release planning&lt;/span&gt;&lt;/div&gt;
-    &lt;span class="status-pill"&gt;&lt;span class="status-dot" aria-hidden="true"&gt;&lt;/span&gt;Decision workspace&lt;/span&gt;
-  &lt;/header&gt;
-
-  &lt;div class="intro"&gt;
-    &lt;p class="eyebrow"&gt;ROLLOUT DECISION · 01&lt;/p&gt;
-    &lt;h1 id="page-title"&gt;How should we ship this update?&lt;/h1&gt;
-    &lt;p class="lede"&gt;Choose a rollout path, make the tradeoffs explicit, and save a decision you can revisit.&lt;/p&gt;
-  &lt;/div&gt;
-
-  &lt;div class="workspace"&gt;
-    &lt;section class="choices-panel" aria-labelledby="options-heading"&gt;
-      &lt;div class="section-heading"&gt;
-        &lt;div&gt;&lt;p class="eyebrow"&gt;YOUR OPTIONS&lt;/p&gt;&lt;h2 id="options-heading"&gt;Pick a rollout path&lt;/h2&gt;&lt;/div&gt;
-        &lt;span class="step-label"&gt;1 of 2&lt;/span&gt;
-      &lt;/div&gt;
-      &lt;fieldset class="choice-list"&gt;
-        &lt;legend class="sr-only"&gt;Select a rollout option&lt;/legend&gt;
-        &lt;label class="choice-card"&gt;
-          &lt;input type="radio" name="rollout" value="5% today"&gt;
-          &lt;span class="radio-ui" aria-hidden="true"&gt;&lt;/span&gt;
-          &lt;span class="choice-copy"&gt;&lt;span class="choice-title"&gt;Start with 5% today&lt;/span&gt;&lt;span class="choice-desc"&gt;Limit initial exposure while you observe the release before expanding.&lt;/span&gt;&lt;/span&gt;
-          &lt;span class="choice-tag tag-cautious"&gt;Staged&lt;/span&gt;
-        &lt;/label&gt;
-        &lt;label class="choice-card"&gt;
-          &lt;input type="radio" name="rollout" value="Everyone today"&gt;
-          &lt;span class="radio-ui" aria-hidden="true"&gt;&lt;/span&gt;
-          &lt;span class="choice-copy"&gt;&lt;span class="choice-title"&gt;Release to everyone today&lt;/span&gt;&lt;span class="choice-desc"&gt;Make the update available to all users at once; widest immediate exposure.&lt;/span&gt;&lt;/span&gt;
-          &lt;span class="choice-tag tag-fast"&gt;Fastest&lt;/span&gt;
-        &lt;/label&gt;
-        &lt;label class="choice-card"&gt;
-          &lt;input type="radio" name="rollout" value="Postpone for review"&gt;
-          &lt;span class="radio-ui" aria-hidden="true"&gt;&lt;/span&gt;
-          &lt;span class="choice-copy"&gt;&lt;span class="choice-title"&gt;Postpone for more review&lt;/span&gt;&lt;span class="choice-desc"&gt;Take additional time to review before choosing a release path.&lt;/span&gt;&lt;/span&gt;
-          &lt;span class="choice-tag tag-review"&gt;More review&lt;/span&gt;
-        &lt;/label&gt;
-      &lt;/fieldset&gt;
-
-      &lt;div class="tradeoffs" aria-live="polite"&gt;
-        &lt;div class="tradeoff-heading"&gt;&lt;span class="spark" aria-hidden="true"&gt;✳&lt;/span&gt;&lt;div&gt;&lt;h3&gt;Tradeoffs to weigh&lt;/h3&gt;&lt;p id="tradeoff-hint"&gt;Select an option to see its considerations.&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;
-        &lt;div class="tradeoff-grid" id="tradeoff-content"&gt;
-          &lt;div class="tradeoff-item"&gt;&lt;span class="trade-icon exposure" aria-hidden="true"&gt;↘&lt;/span&gt;&lt;div&gt;&lt;strong&gt;Initial exposure&lt;/strong&gt;&lt;span&gt;How many users encounter the update right away?&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
-          &lt;div class="tradeoff-item"&gt;&lt;span class="trade-icon timing" aria-hidden="true"&gt;◷&lt;/span&gt;&lt;div&gt;&lt;strong&gt;Timing&lt;/strong&gt;&lt;span&gt;How quickly does the update reach users?&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
-          &lt;div class="tradeoff-item"&gt;&lt;span class="trade-icon confidence" aria-hidden="true"&gt;◎&lt;/span&gt;&lt;div&gt;&lt;strong&gt;Review opportunity&lt;/strong&gt;&lt;span&gt;How much time remains to assess before release?&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
-        &lt;/div&gt;
-      &lt;/div&gt;
-    &lt;/section&gt;
-
-    &lt;aside class="decision-panel" aria-labelledby="record-heading"&gt;
-      &lt;div class="section-heading"&gt;
-        &lt;div&gt;&lt;p class="eyebrow"&gt;MAKE IT REVISITABLE&lt;/p&gt;&lt;h2 id="record-heading"&gt;Record your decision&lt;/h2&gt;&lt;/div&gt;
-        &lt;span class="step-label"&gt;2 of 2&lt;/span&gt;
-      &lt;/div&gt;
-      &lt;p class="panel-note"&gt;Capture the reasoning and a point to check back. You can update this record later.&lt;/p&gt;
-      &lt;label class="field-label" for="reasoning"&gt;Why this path?&lt;/label&gt;
-      &lt;textarea id="reasoning" rows="4" placeholder="What matters most in this decision? What would change your mind?"&gt;&lt;/textarea&gt;
-      &lt;label class="field-label checkpoint-label" for="checkpoint"&gt;Revisit this decision&lt;/label&gt;
-      &lt;div class="date-wrap"&gt;&lt;span aria-hidden="true"&gt;▦&lt;/span&gt;&lt;input id="checkpoint" type="date" aria-label="Date to revisit this decision"&gt;&lt;/div&gt;
-      &lt;button class="save-button" id="save-decision" type="button" disabled&gt;Save decision &lt;span aria-hidden="true"&gt;→&lt;/span&gt;&lt;/button&gt;
-      &lt;p class="save-hint" id="save-hint"&gt;Choose a rollout path to continue.&lt;/p&gt;
-    &lt;/aside&gt;
-  &lt;/div&gt;
-
-  &lt;section class="saved-record" id="saved-record" aria-live="polite" hidden&gt;
-    &lt;div class="saved-icon" aria-hidden="true"&gt;✓&lt;/div&gt;
-    &lt;div class="saved-copy"&gt;&lt;p class="eyebrow"&gt;DECISION SAVED&lt;/p&gt;&lt;h2 id="saved-choice"&gt;&lt;/h2&gt;&lt;p id="saved-details"&gt;&lt;/p&gt;&lt;/div&gt;
-    &lt;button class="edit-button" id="edit-decision" type="button"&gt;Edit decision&lt;/button&gt;
-  &lt;/section&gt;
-  &lt;footer&gt;&lt;span&gt;Keep the decision visible. Revisit it as context changes.&lt;/span&gt;&lt;span class="footer-mark"&gt;RELEASE NOTES &lt;span aria-hidden="true"&gt;·&lt;/span&gt; 01&lt;/span&gt;&lt;/footer&gt;
-&lt;/section&gt;&lt;/main&gt;&lt;script&gt;(() =&gt; {
-  const radios = Array.from(document.querySelectorAll(&#x27;input[name="rollout"]&#x27;));
-  const reasoning = document.getElementById(&#x27;reasoning&#x27;);
-  const checkpoint = document.getElementById(&#x27;checkpoint&#x27;);
-  const saveButton = document.getElementById(&#x27;save-decision&#x27;);
-  const saveHint = document.getElementById(&#x27;save-hint&#x27;);
-  const record = document.getElementById(&#x27;saved-record&#x27;);
-  const savedChoice = document.getElementById(&#x27;saved-choice&#x27;);
-  const savedDetails = document.getElementById(&#x27;saved-details&#x27;);
-  const tradeoffHint = document.getElementById(&#x27;tradeoff-hint&#x27;);
-  const editButton = document.getElementById(&#x27;edit-decision&#x27;);
-  const tradeoffs = {
-    &#x27;5% today&#x27;: { hint: &#x27;A smaller first release trades reach for a more limited initial exposure.&#x27;, exposure: &#x27;Begins with a smaller share of users.&#x27;, timing: &#x27;Starts today; broader availability can come later.&#x27;, review: &#x27;Creates a chance to observe before expanding.&#x27; },
-    &#x27;Everyone today&#x27;: { hint: &#x27;A full release trades a faster, wider launch for broader initial exposure.&#x27;, exposure: &#x27;The update reaches all users at once.&#x27;, timing: &#x27;Fastest path to full availability.&#x27;, review: &#x27;Less opportunity to assess before broad release.&#x27; },
-    &#x27;Postpone for review&#x27;: { hint: &#x27;More review trades speed for additional time before a release decision.&#x27;, exposure: &#x27;No new users encounter the update today.&#x27;, timing: &#x27;Availability is delayed.&#x27;, review: &#x27;Provides more time to assess before choosing a path.&#x27; }
-  };
-  function selectedValue() { const selected = radios.find(radio =&gt; radio.checked); return selected ? selected.value : &#x27;&#x27;; }
-  function refresh() {
-    const value = selectedValue();
-    saveButton.disabled = !value;
-    saveHint.textContent = value ? &#x27;Add context if useful, then save your decision.&#x27; : &#x27;Choose a rollout path to continue.&#x27;;
-    if (value) {
-      const data = tradeoffs[value];
-      tradeoffHint.textContent = data.hint;
-      const descriptions = document.querySelectorAll(&#x27;.tradeoff-item div span&#x27;);
-      descriptions[0].textContent = data.exposure;
-      descriptions[1].textContent = data.timing;
-      descriptions[2].textContent = data.review;
-    } else {
-      tradeoffHint.textContent = &#x27;Select an option to see its considerations.&#x27;;
-      const defaults = [&#x27;How many users encounter the update right away?&#x27;, &#x27;How quickly does the update reach users?&#x27;, &#x27;How much time remains to assess before release?&#x27;];
-      document.querySelectorAll(&#x27;.tradeoff-item div span&#x27;).forEach((item, index) =&gt; item.textContent = defaults[index]);
-    }
-  }
-  radios.forEach(radio =&gt; radio.addEventListener(&#x27;change&#x27;, refresh));
-  saveButton.addEventListener(&#x27;click&#x27;, () =&gt; {
-    const value = selectedValue();
-    if (!value) return;
-    const reason = reasoning.value.trim();
-    const date = checkpoint.value;
-    savedChoice.textContent = value;
-    const details = [];
-    if (reason) details.push(reason);
-    if (date) details.push(`Revisit on ${new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { year: &#x27;numeric&#x27;, month: &#x27;long&#x27;, day: &#x27;numeric&#x27; })}.`);
-    if (!details.length) details.push(&#x27;No additional reasoning or revisit date recorded.&#x27;);
-    savedDetails.textContent = details.join(&#x27; &#x27;);
-    record.hidden = false;
-    saveHint.textContent = &#x27;Saved for this session. Edit any time to revisit.&#x27;;
-    saveButton.textContent = &#x27;Update decision →&#x27;;
-  });
-  editButton.addEventListener(&#x27;click&#x27;, () =&gt; {
-    record.hidden = true;
-    document.getElementById(&#x27;record-heading&#x27;).scrollIntoView({ behavior: &#x27;smooth&#x27;, block: &#x27;center&#x27; });
-    reasoning.focus({ preventScroll: true });
-  });
-  refresh();
-})();&lt;/script&gt;&lt;script&gt;new ResizeObserver(()=&gt;parent.postMessage({type:&#x27;dynamic-widget-height&#x27;,height:document.body.getBoundingClientRect().height+16},&#x27;*&#x27;)).observe(document.body);&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;'
-                  sandbox="allow-scripts"
-                  class="generated-frame"
-                ></iframe
-              ></lf-sample>
-              <details class="source-details">
-                <summary>Generated source and prompt</summary>
-                <h3>First generated source</h3>
-                <pre><code>/* HTML */
-&lt;section class=&quot;rollout&quot; aria-labelledby=&quot;page-title&quot;&gt;
-  &lt;header class=&quot;topbar&quot;&gt;
-    &lt;div class=&quot;brand&quot;&gt;&lt;span class=&quot;brand-mark&quot; aria-hidden=&quot;true&quot;&gt;↗&lt;/span&gt;&lt;span&gt;Release planning&lt;/span&gt;&lt;/div&gt;
-    &lt;span class=&quot;status-pill&quot;&gt;&lt;span class=&quot;status-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;Decision workspace&lt;/span&gt;
-  &lt;/header&gt;
-
-  &lt;div class=&quot;intro&quot;&gt;
-    &lt;p class=&quot;eyebrow&quot;&gt;ROLLOUT DECISION · 01&lt;/p&gt;
-    &lt;h1 id=&quot;page-title&quot;&gt;How should we ship this update?&lt;/h1&gt;
-    &lt;p class=&quot;lede&quot;&gt;Choose a rollout path, make the tradeoffs explicit, and save a decision you can revisit.&lt;/p&gt;
-  &lt;/div&gt;
-
-  &lt;div class=&quot;workspace&quot;&gt;
-    &lt;section class=&quot;choices-panel&quot; aria-labelledby=&quot;options-heading&quot;&gt;
-      &lt;div class=&quot;section-heading&quot;&gt;
-        &lt;div&gt;&lt;p class=&quot;eyebrow&quot;&gt;YOUR OPTIONS&lt;/p&gt;&lt;h2 id=&quot;options-heading&quot;&gt;Pick a rollout path&lt;/h2&gt;&lt;/div&gt;
-        &lt;span class=&quot;step-label&quot;&gt;1 of 2&lt;/span&gt;
-      &lt;/div&gt;
-      &lt;fieldset class=&quot;choice-list&quot;&gt;
-        &lt;legend class=&quot;sr-only&quot;&gt;Select a rollout option&lt;/legend&gt;
-        &lt;label class=&quot;choice-card&quot;&gt;
-          &lt;input type=&quot;radio&quot; name=&quot;rollout&quot; value=&quot;5% today&quot;&gt;
-          &lt;span class=&quot;radio-ui&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;
-          &lt;span class=&quot;choice-copy&quot;&gt;&lt;span class=&quot;choice-title&quot;&gt;Start with 5% today&lt;/span&gt;&lt;span class=&quot;choice-desc&quot;&gt;Limit initial exposure while you observe the release before expanding.&lt;/span&gt;&lt;/span&gt;
-          &lt;span class=&quot;choice-tag tag-cautious&quot;&gt;Staged&lt;/span&gt;
-        &lt;/label&gt;
-        &lt;label class=&quot;choice-card&quot;&gt;
-          &lt;input type=&quot;radio&quot; name=&quot;rollout&quot; value=&quot;Everyone today&quot;&gt;
-          &lt;span class=&quot;radio-ui&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;
-          &lt;span class=&quot;choice-copy&quot;&gt;&lt;span class=&quot;choice-title&quot;&gt;Release to everyone today&lt;/span&gt;&lt;span class=&quot;choice-desc&quot;&gt;Make the update available to all users at once; widest immediate exposure.&lt;/span&gt;&lt;/span&gt;
-          &lt;span class=&quot;choice-tag tag-fast&quot;&gt;Fastest&lt;/span&gt;
-        &lt;/label&gt;
-        &lt;label class=&quot;choice-card&quot;&gt;
-          &lt;input type=&quot;radio&quot; name=&quot;rollout&quot; value=&quot;Postpone for review&quot;&gt;
-          &lt;span class=&quot;radio-ui&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;
-          &lt;span class=&quot;choice-copy&quot;&gt;&lt;span class=&quot;choice-title&quot;&gt;Postpone for more review&lt;/span&gt;&lt;span class=&quot;choice-desc&quot;&gt;Take additional time to review before choosing a release path.&lt;/span&gt;&lt;/span&gt;
-          &lt;span class=&quot;choice-tag tag-review&quot;&gt;More review&lt;/span&gt;
-        &lt;/label&gt;
-      &lt;/fieldset&gt;
-
-      &lt;div class=&quot;tradeoffs&quot; aria-live=&quot;polite&quot;&gt;
-        &lt;div class=&quot;tradeoff-heading&quot;&gt;&lt;span class=&quot;spark&quot; aria-hidden=&quot;true&quot;&gt;✳&lt;/span&gt;&lt;div&gt;&lt;h3&gt;Tradeoffs to weigh&lt;/h3&gt;&lt;p id=&quot;tradeoff-hint&quot;&gt;Select an option to see its considerations.&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;
-        &lt;div class=&quot;tradeoff-grid&quot; id=&quot;tradeoff-content&quot;&gt;
-          &lt;div class=&quot;tradeoff-item&quot;&gt;&lt;span class=&quot;trade-icon exposure&quot; aria-hidden=&quot;true&quot;&gt;↘&lt;/span&gt;&lt;div&gt;&lt;strong&gt;Initial exposure&lt;/strong&gt;&lt;span&gt;How many users encounter the update right away?&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
-          &lt;div class=&quot;tradeoff-item&quot;&gt;&lt;span class=&quot;trade-icon timing&quot; aria-hidden=&quot;true&quot;&gt;◷&lt;/span&gt;&lt;div&gt;&lt;strong&gt;Timing&lt;/strong&gt;&lt;span&gt;How quickly does the update reach users?&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
-          &lt;div class=&quot;tradeoff-item&quot;&gt;&lt;span class=&quot;trade-icon confidence&quot; aria-hidden=&quot;true&quot;&gt;◎&lt;/span&gt;&lt;div&gt;&lt;strong&gt;Review opportunity&lt;/strong&gt;&lt;span&gt;How much time remains to assess before release?&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
-        &lt;/div&gt;
-      &lt;/div&gt;
-    &lt;/section&gt;
-
-    &lt;aside class=&quot;decision-panel&quot; aria-labelledby=&quot;record-heading&quot;&gt;
-      &lt;div class=&quot;section-heading&quot;&gt;
-        &lt;div&gt;&lt;p class=&quot;eyebrow&quot;&gt;MAKE IT REVISITABLE&lt;/p&gt;&lt;h2 id=&quot;record-heading&quot;&gt;Record your decision&lt;/h2&gt;&lt;/div&gt;
-        &lt;span class=&quot;step-label&quot;&gt;2 of 2&lt;/span&gt;
-      &lt;/div&gt;
-      &lt;p class=&quot;panel-note&quot;&gt;Capture the reasoning and a point to check back. You can update this record later.&lt;/p&gt;
-      &lt;label class=&quot;field-label&quot; for=&quot;reasoning&quot;&gt;Why this path?&lt;/label&gt;
-      &lt;textarea id=&quot;reasoning&quot; rows=&quot;4&quot; placeholder=&quot;What matters most in this decision? What would change your mind?&quot;&gt;&lt;/textarea&gt;
-      &lt;label class=&quot;field-label checkpoint-label&quot; for=&quot;checkpoint&quot;&gt;Revisit this decision&lt;/label&gt;
-      &lt;div class=&quot;date-wrap&quot;&gt;&lt;span aria-hidden=&quot;true&quot;&gt;▦&lt;/span&gt;&lt;input id=&quot;checkpoint&quot; type=&quot;date&quot; aria-label=&quot;Date to revisit this decision&quot;&gt;&lt;/div&gt;
-      &lt;button class=&quot;save-button&quot; id=&quot;save-decision&quot; type=&quot;button&quot; disabled&gt;Save decision &lt;span aria-hidden=&quot;true&quot;&gt;→&lt;/span&gt;&lt;/button&gt;
-      &lt;p class=&quot;save-hint&quot; id=&quot;save-hint&quot;&gt;Choose a rollout path to continue.&lt;/p&gt;
-    &lt;/aside&gt;
-  &lt;/div&gt;
-
-  &lt;section class=&quot;saved-record&quot; id=&quot;saved-record&quot; aria-live=&quot;polite&quot; hidden&gt;
-    &lt;div class=&quot;saved-icon&quot; aria-hidden=&quot;true&quot;&gt;✓&lt;/div&gt;
-    &lt;div class=&quot;saved-copy&quot;&gt;&lt;p class=&quot;eyebrow&quot;&gt;DECISION SAVED&lt;/p&gt;&lt;h2 id=&quot;saved-choice&quot;&gt;&lt;/h2&gt;&lt;p id=&quot;saved-details&quot;&gt;&lt;/p&gt;&lt;/div&gt;
-    &lt;button class=&quot;edit-button&quot; id=&quot;edit-decision&quot; type=&quot;button&quot;&gt;Edit decision&lt;/button&gt;
-  &lt;/section&gt;
-  &lt;footer&gt;&lt;span&gt;Keep the decision visible. Revisit it as context changes.&lt;/span&gt;&lt;span class=&quot;footer-mark&quot;&gt;RELEASE NOTES &lt;span aria-hidden=&quot;true&quot;&gt;·&lt;/span&gt; 01&lt;/span&gt;&lt;/footer&gt;
-&lt;/section&gt;
-
-/* CSS */
-:root{font-family:Inter,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;color:#182520;background:#f5f7f4;font-synthesis:none}*{box-sizing:border-box}.rollout{max-width:1080px;margin:0 auto;padding:24px 32px 28px}.topbar{display:flex;align-items:center;justify-content:space-between;padding:4px 0 30px;border-bottom:1px solid #e1e8e2}.brand{display:flex;align-items:center;gap:10px;font-weight:650;font-size:13px;letter-spacing:.01em}.brand-mark{display:grid;place-items:center;width:27px;height:27px;border-radius:8px;color:#fff;background:#21654b;font-size:17px}.status-pill{display:flex;align-items:center;gap:8px;border:1px solid #e1e8e2;background:#fff;border-radius:999px;padding:7px 11px;color:#64716a;font-size:11px}.status-dot{width:7px;height:7px;border-radius:50%;background:#74a88c}.intro{padding:38px 0 30px}.eyebrow{margin:0 0 9px;color:#708078;font-size:10px;font-weight:750;letter-spacing:.14em}.intro .eyebrow{color:#398063}.intro h1{margin:0;font-size:clamp(28px,4vw,42px);letter-spacing:-.045em;line-height:1.13;font-weight:680}.lede{margin:12px 0 0;color:#65736b;font-size:14px;line-height:1.6}.workspace{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(280px,.8fr);gap:20px;align-items:start}.choices-panel,.decision-panel{background:#fff;border:1px solid #e5ebe6;border-radius:14px;padding:23px;box-shadow:0 4px 18px rgba(28,57,42,.035)}.section-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}.section-heading h2{font-size:17px;letter-spacing:-.025em;margin:0}.section-heading .eyebrow{margin-bottom:6px}.step-label{font-size:10px;color:#7e8b83;background:#f3f6f3;border-radius:99px;padding:6px 9px}.choice-list{margin:0;padding:0;border:0;display:grid;gap:9px}.choice-card{display:flex;align-items:center;gap:12px;border:1px solid #e5ebe6;border-radius:10px;padding:14px 13px;cursor:pointer;transition:border-color .16s,background .16s,box-shadow .16s}.choice-card:hover{border-color:#a8c8b5}.choice-card:has(input:checked){border-color:#3b8664;background:#f5faf6;box-shadow:0 0 0 1px #3b8664}.choice-card input{position:absolute;opacity:0;width:1px;height:1px}.choice-card:focus-within{outline:3px solid #b8d8c4;outline-offset:2px}.radio-ui{width:17px;height:17px;flex:0 0 17px;border:1.5px solid #b8c3bb;border-radius:50%;position:relative}.choice-card:has(input:checked) .radio-ui{border-color:#32805c}.choice-card:has(input:checked) .radio-ui:after{content:&quot;&quot;;position:absolute;inset:3px;border-radius:50%;background:#32805c}.choice-copy{display:grid;gap:4px;min-width:0}.choice-title{font-size:13px;font-weight:650}.choice-desc{font-size:11px;line-height:1.5;color:#748078}.choice-tag{margin-left:auto;white-space:nowrap;font-size:9px;font-weight:700;border-radius:99px;padding:6px 8px}.tag-cautious{background:#eaf4ed;color:#397457}.tag-fast{background:#edf2fa;color:#56709c}.tag-review{background:#f6f1e7;color:#8d7441}.tradeoffs{margin-top:20px;border-top:1px solid #edf0ed;padding-top:17px}.tradeoff-heading{display:flex;gap:10px;align-items:flex-start;margin-bottom:12px}.spark{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#eff6f1;color:#3f8663}.tradeoff-heading h3{font-size:12px;margin:0 0 3px}.tradeoff-heading p{font-size:10px;color:#7b8780;margin:0}.tradeoff-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.tradeoff-item{display:flex;gap:8px;align-items:flex-start;padding:11px 9px;background:#f8faf8;border-radius:8px;min-height:72px}.trade-icon{font-size:15px;width:19px;text-align:center}.exposure{color:#418265}.timing{color:#7284a1}.confidence{color:#aa8951}.tradeoff-item div{display:grid;gap:4px}.tradeoff-item strong{font-size:10px}.tradeoff-item div span{font-size:9px;line-height:1.4;color:#7b8780}.decision-panel{padding:23px}.panel-note{margin:-6px 0 19px;color:#718078;font-size:11px;line-height:1.55}.field-label{display:block;margin:0 0 7px;font-size:11px;font-weight:650}.textarea,.decision-panel textarea{font:inherit}.decision-panel textarea{width:100%;resize:vertical;border:1px solid #dfe7e1;border-radius:8px;padding:11px;font-size:11px;line-height:1.5;color:#24332b;background:#fcfdfc;min-height:98px}.decision-panel textarea::placeholder{color:#a3ada6}.decision-panel textarea:focus,.date-wrap:focus-within{outline:3px solid #d3e8d9;border-color:#5a9875}.checkpoint-label{margin-top:16px}.date-wrap{display:flex;gap:9px;align-items:center;border:1px solid #dfe7e1;border-radius:8px;padding:0 10px;color:#7c8c81}.date-wrap input{width:100%;min-width:0;border:0;background:transparent;padding:10px 0;color:#33443a;font:inherit;font-size:11px;outline:0}.save-button{width:100%;margin-top:17px;display:flex;align-items:center;justify-content:center;gap:10px;border:0;border-radius:8px;background:#21654b;color:#fff;padding:12px 15px;font:inherit;font-size:12px;font-weight:650;cursor:pointer;transition:background .15s,opacity .15s}.save-button:hover:not(:disabled){background:#174e39}.save-button:disabled{opacity:.45;cursor:not-allowed}.save-hint{text-align:center;color:#86928a;font-size:10px;margin:9px 0 0}.saved-record{margin-top:18px;background:#edf6ef;border:1px solid #cce1d1;border-radius:12px;padding:17px 20px;display:flex;align-items:center;gap:14px}.saved-record[hidden]{display:none}.saved-icon{display:grid;place-items:center;width:32px;height:32px;flex:0 0 32px;border-radius:50%;background:#d8ecdd;color:#28704c;font-weight:750}.saved-copy{min-width:0;flex:1}.saved-copy .eyebrow{margin-bottom:4px;color:#438060}.saved-copy h2{font-size:14px;margin:0 0 4px}.saved-copy p:last-child{font-size:11px;color:#66776d;margin:0;line-height:1.45}.edit-button{border:1px solid #c4d9ca;border-radius:7px;padding:8px 11px;background:#fff;color:#286044;font:inherit;font-size:10px;font-weight:650;cursor:pointer}.edit-button:hover{background:#f7fbf8}footer{display:flex;justify-content:space-between;gap:16px;margin-top:30px;padding-top:15px;border-top:1px solid #e1e8e2;color:#89958d;font-size:10px}.footer-mark{letter-spacing:.1em;font-size:9px}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media(max-width:760px){.rollout{padding:18px 18px 24px}.intro{padding:30px 0 24px}.workspace{grid-template-columns:1fr;gap:14px}.tradeoff-grid{grid-template-columns:1fr}.tradeoff-item{min-height:unset}.choice-card{align-items:flex-start}.choice-tag{font-size:8px;padding:5px 7px}}@media(max-width:420px){.rollout{padding:14px 13px 20px}.choices-panel,.decision-panel{padding:17px}.choice-card{gap:9px;padding:12px 10px}.choice-desc{font-size:10px}.choice-tag{display:none}.status-pill{font-size:10px}.saved-record{align-items:flex-start;flex-wrap:wrap}.edit-button{margin-left:46px}footer{flex-direction:column;gap:7px}}
-
-/* JS */
-(() =&gt; {
-  const radios = Array.from(document.querySelectorAll(&#x27;input[name=&quot;rollout&quot;]&#x27;));
-  const reasoning = document.getElementById(&#x27;reasoning&#x27;);
-  const checkpoint = document.getElementById(&#x27;checkpoint&#x27;);
-  const saveButton = document.getElementById(&#x27;save-decision&#x27;);
-  const saveHint = document.getElementById(&#x27;save-hint&#x27;);
-  const record = document.getElementById(&#x27;saved-record&#x27;);
-  const savedChoice = document.getElementById(&#x27;saved-choice&#x27;);
-  const savedDetails = document.getElementById(&#x27;saved-details&#x27;);
-  const tradeoffHint = document.getElementById(&#x27;tradeoff-hint&#x27;);
-  const editButton = document.getElementById(&#x27;edit-decision&#x27;);
-  const tradeoffs = {
-    &#x27;5% today&#x27;: { hint: &#x27;A smaller first release trades reach for a more limited initial exposure.&#x27;, exposure: &#x27;Begins with a smaller share of users.&#x27;, timing: &#x27;Starts today; broader availability can come later.&#x27;, review: &#x27;Creates a chance to observe before expanding.&#x27; },
-    &#x27;Everyone today&#x27;: { hint: &#x27;A full release trades a faster, wider launch for broader initial exposure.&#x27;, exposure: &#x27;The update reaches all users at once.&#x27;, timing: &#x27;Fastest path to full availability.&#x27;, review: &#x27;Less opportunity to assess before broad release.&#x27; },
-    &#x27;Postpone for review&#x27;: { hint: &#x27;More review trades speed for additional time before a release decision.&#x27;, exposure: &#x27;No new users encounter the update today.&#x27;, timing: &#x27;Availability is delayed.&#x27;, review: &#x27;Provides more time to assess before choosing a path.&#x27; }
-  };
-  function selectedValue() { const selected = radios.find(radio =&gt; radio.checked); return selected ? selected.value : &#x27;&#x27;; }
-  function refresh() {
-    const value = selectedValue();
-    saveButton.disabled = !value;
-    saveHint.textContent = value ? &#x27;Add context if useful, then save your decision.&#x27; : &#x27;Choose a rollout path to continue.&#x27;;
-    if (value) {
-      const data = tradeoffs[value];
-      tradeoffHint.textContent = data.hint;
-      const descriptions = document.querySelectorAll(&#x27;.tradeoff-item div span&#x27;);
-      descriptions[0].textContent = data.exposure;
-      descriptions[1].textContent = data.timing;
-      descriptions[2].textContent = data.review;
-    } else {
-      tradeoffHint.textContent = &#x27;Select an option to see its considerations.&#x27;;
-      const defaults = [&#x27;How many users encounter the update right away?&#x27;, &#x27;How quickly does the update reach users?&#x27;, &#x27;How much time remains to assess before release?&#x27;];
-      document.querySelectorAll(&#x27;.tradeoff-item div span&#x27;).forEach((item, index) =&gt; item.textContent = defaults[index]);
-    }
-  }
-  radios.forEach(radio =&gt; radio.addEventListener(&#x27;change&#x27;, refresh));
-  saveButton.addEventListener(&#x27;click&#x27;, () =&gt; {
-    const value = selectedValue();
-    if (!value) return;
-    const reason = reasoning.value.trim();
-    const date = checkpoint.value;
-    savedChoice.textContent = value;
-    const details = [];
-    if (reason) details.push(reason);
-    if (date) details.push(`Revisit on ${new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { year: &#x27;numeric&#x27;, month: &#x27;long&#x27;, day: &#x27;numeric&#x27; })}.`);
-    if (!details.length) details.push(&#x27;No additional reasoning or revisit date recorded.&#x27;);
-    savedDetails.textContent = details.join(&#x27; &#x27;);
-    record.hidden = false;
-    saveHint.textContent = &#x27;Saved for this session. Edit any time to revisit.&#x27;;
-    saveButton.textContent = &#x27;Update decision →&#x27;;
-  });
-  editButton.addEventListener(&#x27;click&#x27;, () =&gt; {
-    record.hidden = true;
-    document.getElementById(&#x27;record-heading&#x27;).scrollIntoView({ behavior: &#x27;smooth&#x27;, block: &#x27;center&#x27; });
-    reasoning.focus({ preventScroll: true });
-  });
-  refresh();
-})();</code></pre>
-                <h3>Prompt sent with the output schema</h3>
-                <pre>
-Return {&quot;html&quot;:string,&quot;css&quot;:string,&quot;js&quot;:string}. HTML is a fragment inside host main; CSS and JavaScript are separate files. No document/main wrapper, script/style tags or inline handlers; attach listeners in js.
-Return separate html, css, js string fields. html is a body fragment; put styling in css and behavior in js. No inline scripts, style elements or event-handler attributes: the host CSP refuses them. Use ordinary HTML/CSS/JavaScript without Leaf tags, imports or network dependencies. Design the presentation and interactions around the user&#x27;s goal, preserving their facts. Make the result accessible and usable at narrow widths.
-
-USER REQUEST:
-Help me decide how to roll out a software update. We could release to 5% of users today, release to everyone today, or postpone for more review. A small release limits initial exposure. I want to weigh the tradeoffs and record a decision I can revisit.</pre>
-              </details></lf-tab
-            >
-          </lf-tabs></lf-tab
-        ></lf-tabs
-      >
-      <section class="experiment-notes" id="experiment-notes">
-        <h2>What this experiment tells us</h2>
-        <p>
-          A component catalog can reduce the amount a model writes. Direct markup leaves
-          more composition to the model. Generating all the code gives it control over
-          appearance and behavior, with more code to get right.
+              </div>
+            </lf-sample>
+            <details class="source-details">
+              <summary>Request, instructions and generated source</summary>
+              <h3>Preview’s request</h3>
+              <lf-generated-document id="html-request" data-part="request">
+                <lf-text-document
+                  id="html-request-document"
+                  for="html-request"
+                  label="Request"
+                  preview="markdown"
+                ></lf-text-document>
+              </lf-generated-document>
+              <h3>Instructions</h3>
+              <lf-generated-document id="html-instructions" data-part="instructions">
+                <lf-text-document
+                  id="html-instructions-document"
+                  for="html-instructions"
+                  label="Instructions"
+                  preview="markdown"
+                ></lf-text-document>
+              </lf-generated-document>
+              <h3>Model output · HTML</h3>
+              <pre
+                id="html-code"
+              ><code data-part="code" class="language-html">No generation yet.</code></pre>
+              <h3>CSS</h3>
+              <pre
+                id="html-css"
+              ><code data-part="css" class="language-css">No generation yet.</code></pre>
+              <h3>JavaScript</h3>
+              <pre
+                id="html-js"
+              ><code data-part="js" class="language-javascript">No generation yet.</code></pre>
+            </details>
+          </section>
+        </div>
+        <p class="builder-help" id="comparison-limit">
+          The component catalog includes choices, tabs, boards, charts, editable drafts,
+          text and tables. Unsupported behavior is reported as a limitation. “Ready”
+          means rendered, not independently tested. Each run starts fresh.
         </p>
-        <p>
-          These are individual first attempts from Luna, standard service, medium
-          reasoning. “To source” measures elapsed time from submission to the complete
-          response, including setup wait. Output tokens include the JSON response
-          format. This is not time to a verified working widget or a general speed
-          ranking.
-        </p>
-        <p>
-          Some native Leaf runs encountered local harness failures after generation.
-          Their original source is shown unchanged and checked separately; those failed
-          checks and automatic retries are excluded from the first-attempt source
-          figures. No model-generated fix is presented as a first attempt.
-        </p>
-        <p>
-          Rendering checks detect empty output, overflow and script errors; they do not
-          prove the result solves the request. Look for missing facts, invented
-          assumptions and interactions that do not help. Leaf choices use this page’s
-          history and Undo; generated HTML keeps its state only inside its preview.
-        </p>
-      </section>
+      </lf-widget-builder>
     </main>
   </body>
 </html>

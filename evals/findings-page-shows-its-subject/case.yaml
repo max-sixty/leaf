@@ -13,10 +13,13 @@
 # The relationship/consequence rubrics below passed saved HEAD 0/1 and the revised
 # authoring workflow 2/2 on saved output; these are content regrades, not an
 # estimate of reliability. Earlier rubric scores remain in scratch.
+# A later paired run graded equivalent computed outcomes differently by format.
+# Rendered review and Opus accepted both. The clarified consequence criterion passed
+# both saved pages and rejected benefits-only and false-measurement controls.
 description: CSS cascade survey
 metadata:
-  purpose: "Show the subject: a findings page whose request names no form shows what its
-    findings are about in a picture on the page, not only in prose, tables and code."
+  purpose: "Show the subject: a findings page presents cascade precedence and proposed
+    override consequences in an inspectable arrangement and concrete outcomes."
   authoring: true
   tags:
     - drawing
@@ -88,25 +91,20 @@ assert:
       Find the obligation deciding whether theme packages get their own tier. Pass only
       if the comparison makes the alternatives' consequences inspectable: where theme
       rules would gain authority and what changes or stays the same for the page's
-      appearance. A representation of tier placement and reach can do this, as can
-      concrete current/proposed visual results with nearby text locating the authority
-      change and its limits. The comparison may be shared or sit inside the options;
+      appearance. Show either current and proposed tier arrangements with their reach,
+      or the same concrete case's current and proposed outcomes, such as one rule's
+      computed result under each, with nearby text locating the authority change and
+      its limits. The comparison may be shared or sit inside the options;
       it need not repeat a tier stack in each. Descriptions of benefits or CSS syntax
       alone do not show the result. Preserve the distinction between observed current
       behavior and an illustrative, unimplemented proposal.
 variants:
   next-opportunities:
+    description: Diagnostics report continuation
     # From session 01a166a1-4914-7ee0-8926-080b8cf24446. The source agent appended
     # prose-only proposals to an existing diagnostics report after reading guidance.
     # This seeded continuation preserves that report and synthesizes its research
     # notes; it is not a full trace replay of the source's code investigation.
-    # On 2026-10-24, the same fixture/request/rubrics passed HEAD Sol 0/1 and the
-    # revised content model Sol 0/1, Opus 1/1. Preserved standalone experiments
-    # established the context contrast; they are not additional recurring cases.
-    # A later fresh-context workflow produced an adequate Sol continuation, but
-    # an early read of an older scratch artifact limits that causal comparison.
-    # Subsequent structural cuts again produced prose-only continuations. Rendered
-    # review matters: scores can miss useful specimens or accept misleading ones.
     metadata:
       authoring: false
       executor: leaf_dev.usability_eval

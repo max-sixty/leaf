@@ -223,7 +223,8 @@ export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./ke
 // the page has presented.
 export { leafEditorView } from "./editor-view.js";
 
-// Optional child runtimes are loaded only by packages that mount a sample.
+// Render a declared template or a generated document as an isolated live Leaf page.
+// The returned host owns readiness, Reset and disposal (live-samples.md).
 export async function mountSample(frame, options) {
   const owner = await import("./sample.js");
   return owner.mountSample(frame, options);
@@ -239,5 +240,3 @@ export { tally, tallyWords } from "./obligations/tally.js";
 // The page node the user's current location stands for, through a margin entry or a
 // thread card, as `lf-deck` asks whether the user is on its open card.
 export { placeOf } from "./current-target.js";
-// The time axis the Playwright timeline and lf-timeline both draw on.
-export { assignRows, axisTicks, textWidth } from "./time-axis.js";

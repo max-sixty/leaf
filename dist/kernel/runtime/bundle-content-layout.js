@@ -1,4 +1,4 @@
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, fragmentId, layoutChanged, nativeLayerHolding, nextFrame, nextRender, pagePresented, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, shadowHost, sizeObserver, skipped, under, upFrom, visualPartAdmission, watchArrivals, watchOwner, whileConnected } from "./bundle-portable.js";
+import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, fragmentId, layoutChanged, nativeLayerHolding, nextFrame, nextRender, pagePresented, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, setScroll, shadowHost, sizeObserver, skipped, under, upFrom, visualPartAdmission, watchArrivals, watchOwner, watchScrolls, whileConnected } from "./bundle-portable.js";
 import { J, LENT_REACH_STOP, PRESSES, TEXT_BLOCK, TEXT_BOX, WORKS, Z, anchorKey, applicationPresented, deepFocus, documentChanged, hostIn, inUi, isElementName, keeps, layoutPx, marks, move, onCurrentLocation, pressing, registry, shadowRootsIn, tabStops, tagsDeclaring, tick, uiInside, wearsLentStop } from "./bundle-layer-stack.js";
 import { PRESSABLE, repaintPage, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { clamp, clippedContents, headerCuts, landingBand, nearObserver, nearWindow, overlaps, scrollContainer, scrollsBy, scrollsContent, shownBox, shownParts, shownRect, userScrollport } from "./bundle-geometry.js";
@@ -793,7 +793,7 @@ ended.set(pageScroller, pageScroller.scrollTop);
 function stopScroll(boxes) {
 	const stopped = [...boxes].filter((box) => moving.has(box)).map((box) => [box, moving.get(box)]);
 	if (!stopped.length) return null;
-	for (const [box] of stopped) box.scrollTo({
+	for (const [box] of stopped) setScroll(box, {
 		left: box.scrollLeft,
 		top: box.scrollTop,
 		behavior: "instant"
@@ -872,7 +872,7 @@ const SCROLL_SLACK = 2;
 const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= 2;
 const scrollToEnd = (box, behavior = "instant") => {
 	if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
-	box.scrollTo({
+	setScroll(box, {
 		top: scrollLimit(box),
 		behavior
 	});
@@ -882,8 +882,8 @@ const moveScrollerBy = (box, top, behavior = "instant") => {
 	const aim = box.scrollTop + top;
 	if (Math.abs(top) >= .5) {
 		if (behavior !== "instant" && reachable(box, top)) startScroll(box);
-		box.scrollBy({
-			top,
+		setScroll(box, {
+			top: aim,
 			behavior
 		});
 	}
@@ -954,20 +954,20 @@ function returnStop(el, authored) {
 }
 const sideways = /* @__PURE__ */ new Map();
 const downwards = /* @__PURE__ */ new Map();
-const readingScrolled = (event) => paintReadingReach(event.currentTarget);
-const sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget, true);
+watchScrolls((box) => {
+	if (downwards.has(box)) paintReadingReach(box);
+	if (sideways.has(box)) paintSidewaysReach(box, true);
+});
 function reachReadingScroller(el, paintContinuation) {
 	el.classList.toggle("scroll", true);
 	downwards.set(el, paintContinuation);
 	sweep(el);
 	paintReach();
 	watchReach(el);
-	el.addEventListener("scroll", readingScrolled, { passive: true });
 	paintReadingReach(el);
 	return () => {
 		downwards.delete(el);
 		if (!watched(el)) unwatchReach(el);
-		el.removeEventListener("scroll", readingScrolled);
 		afterScript(() => {
 			if (!downwards.has(el)) {
 				keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
@@ -977,15 +977,11 @@ function reachReadingScroller(el, paintContinuation) {
 	};
 }
 const readingPaints = /* @__PURE__ */ new Set();
-let readingPaintQueued = false;
 function paintReadingReach(el) {
 	readingPaints.add(el);
-	if (readingPaintQueued) return;
-	readingPaintQueued = true;
-	nextRender(paintReadingReachNow);
+	afterScript(paintReadingReachNow);
 }
 function paintReadingReachNow() {
-	readingPaintQueued = false;
 	const pending = [...readingPaints];
 	readingPaints.clear();
 	for (const el of pending) {
@@ -1068,7 +1064,7 @@ function forgetSurface(el) {
 		mayScroll.delete(el);
 		if (!claimedStops.has(el)) returnStop(el, authored);
 	}
-	if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
+	sideways.delete(el);
 	waiting.delete(el);
 	keeps(el, PAGE_PAINT_ATTRIBUTE.scrolls, null);
 	keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, null);
@@ -1086,7 +1082,6 @@ function classify(el, style) {
 	asked.add(el);
 	paintSlot(el, style);
 	if (!userScrollport(style.overflowX) && sideways.delete(el)) {
-		el.removeEventListener("scroll", sidewaysScrolled);
 		keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, null);
 		keeps(el, PAGE_PAINT_ATTRIBUTE.moreBefore, null);
 		keeps(el, PAGE_PAINT_ATTRIBUTE.moreAfter, null);
@@ -1100,10 +1095,7 @@ function classify(el, style) {
 		return;
 	}
 	if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX)) {
-		if (!sideways.has(el)) {
-			watchReach(el);
-			el.addEventListener("scroll", sidewaysScrolled, { passive: true });
-		}
+		if (!sideways.has(el)) watchReach(el);
 		sideways.set(el, style.direction);
 	}
 	if (!mayScroll.has(el)) {
@@ -1159,7 +1151,7 @@ function paintSidewaysReach(el, readStyle = false) {
 function gone(el) {
 	if (el.isConnected) return false;
 	mayScroll.delete(el);
-	if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
+	sideways.delete(el);
 	downwards.delete(el);
 	waiting.delete(el);
 	if (queried.delete(el)) queries.unobserve(el);

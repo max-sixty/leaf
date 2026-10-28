@@ -19,11 +19,11 @@ judge: |-
   Use the page as that user would, at each of the three viewports. Read it from the
   top, scroll through it, and open the disclosures, tabs, items and controls the
   request needs; operate the controls the user would. Then select a sentence of the
-  page's text, comment on it through the page's comment route, and read the page
-  with that thread showing.
+  page's text, comment on it through the page's comment route, and move between
+  reading the page and using that thread through the available controls.
 
   List every defect this user would notice: text they can't read at that size,
-  content cut off or out of reach, something drawn on top of something else, a
+  content cut off or out of reach, overlap that obstructs the requested reading or interaction, a
   control they can't operate, a widget that draws broken or empty, space wasted so
   that what they came for falls out of view, a fact the request supplied that the
   page states wrongly or leaves out, or a decision they couldn't answer where they

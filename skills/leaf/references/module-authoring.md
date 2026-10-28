@@ -60,7 +60,8 @@ ignores:
   and keyboard routes"). A plain page binds none and advertises none. A button that must
   work off Leaf makes its own press, from its own click listener: its row names it as
   `control` and has no `run`, and the widget draws it `aria-disabled` while the press
-  can't act, which is the availability Leaf reads.
+  can't act, which is the availability Leaf reads. Where a key leaves the user is the
+  row's `lands(from)` (`module-input.md`, "Command rows"), which only Leaf calls.
 - A Copy control: a block's `data-lf-copy` and `lfCopy()` (`module-reading.md`,
   "Code"), and a quiet word: `data-lf-quiet` (`module-scroll-and-motion.md`,
   "Notices and spoken words"). Leaf finds these in the page and in the shadow stages
@@ -75,8 +76,8 @@ ignores:
 - Working state in `tabStore`, which keeps nothing on a plain page: a read there
   answers null.
 
-`lf-chart` and `lf-code` in the default package, `lf-diagram` and `lf-motion` are the
-worked examples.
+`lf-chart` and `lf-code` in the default package, `lf-diagram`, `lf-motion` and
+`lf-timeline` are the worked examples.
 
 ## What a behavior module owes
 

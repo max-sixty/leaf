@@ -7,7 +7,7 @@ Leaf updates and resuming a page.
 ## Exported files
 
 When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the main
-skill's "Review an important page in the browser" and "Stamp a record" steps), since
+skill's "Publish and review" section), since
 only a stamped version exports, then
 run:
 

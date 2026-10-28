@@ -568,10 +568,12 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         # A refused import loads nothing, so what it names is neither read nor
         # refused again.
         ('@import url("./missing.json");', "css-import", sheet),
-        ("@import url(a b);", "css-invalid", sheet),
-        ("main { background: url(a b); }", "css-invalid", sheet),
+        ("@import url(a b);", "css-syntax", sheet),
+        ("main { background: url(a b); }", "css-syntax", sheet),
         # A parse tinycss2 can't serialize is refused, not a crash of the check.
-        ("main { color: red; } }", "css-invalid", sheet),
+        ("main { color: red; } }", "css-syntax", sheet),
+        # An unterminated string in url() is one syntax error, not a refused URL.
+        ('main { background: url("x.svg }', "css-syntax", sheet),
         (
             'main { background: url("../../private.svg"); }',
             "dependency-outside-page",
@@ -588,7 +590,9 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         assert refused.error, css
         assert refused.revision == previous and not refused.created
         _, findings = check_findings(page_dir)
-        assert [(f.code, f.values["file"]) for f in findings] == [(code, file)], css
+        assert [
+            (f.code, f.values.get("file", f.values.get("sheet"))) for f in findings
+        ] == [(code, file)], css
 
 
 def test_one_check_reports_every_capture_problem(page_dir, tmp_path):
@@ -619,9 +623,14 @@ def test_one_check_reports_every_capture_problem(page_dir, tmp_path):
 
     assert status == 1
     assert sorted(
-        (f.code, f.values["file"], f.values.get("specifier")) for f in findings
+        (
+            f.code,
+            f.values.get("file", f.values.get("sheet")),
+            f.values.get("specifier"),
+        )
+        for f in findings
     ) == [
-        ("css-invalid", "/page/style.css", None),
+        ("css-syntax", "/page/style.css", None),
         ("dependency-outside-page", "/page/style.css", "../../private.svg"),
         ("dependency-symlink", "/page/escape.js", None),
         ("dependency-unreadable", "/page/missing.js", None),
@@ -632,6 +641,45 @@ def test_one_check_reports_every_capture_problem(page_dir, tmp_path):
     ]
     refused = revisioning_model.activate_source(page_dir)
     assert refused.error == "; ".join(map(str, findings))
+
+
+def test_one_check_reports_markup_and_capture_problems_each_once(page_dir):
+    """A markup error doesn't hold back what the capture finds, so an author repairs
+    both from one check. Where the two read the same thing, one of them reports it:
+    the document's own CSS is the markup check's, and a /media/ file the page won't
+    answer is the capture's, whether markup or a stylesheet names it."""
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "style.css").write_text(
+        'p { background: url("/media/0000000000000002.png"); }'
+    )
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</head>",
+            '<style>p { color: "unterminated\n; }</style>'
+            '<link rel="stylesheet" href="/page/style.css">'
+            '<script type="module" src="/page/missing.js"></script></head>',
+        ).replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><p id="twice">One</p><p id="twice">Two</p>'
+            '<img src="/media/0000000000000001.png" alt="missing">'
+            '<img src="/media/shot.png" alt="unserved">',
+        )
+    )
+
+    status, findings = check_findings(page_dir)
+
+    assert status == 1
+    assert sorted(
+        (f.code, f.values.get("file") or f.values.get("ref") or f.values.get("sheet"))
+        for f in findings
+    ) == [
+        ("css-syntax", "page <style> (line 5)"),
+        ("dependency-unreadable", "/page/missing.js"),
+        ("duplicate-ids", None),
+        ("missing-media", "/media/0000000000000001.png"),
+        ("missing-media", "/media/0000000000000002.png"),
+        ("unserved-media", "/media/shot.png"),
+    ]
 
 
 def test_an_image_loads_from_any_server(page_dir):

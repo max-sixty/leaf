@@ -109,6 +109,11 @@ control's ring shows. `fitsWhole(target)` says whether the target and those marg
 fit, so a widget can bring in a heading or label with an item where there is room, and
 the item alone where there is not.
 
+To set a box's scroll position, use `setScroll(box, {top, left, behavior})`, also
+available from `portable-api.js`. It defaults to `instant` and updates Leaf's scroll
+readers before that position paints, including writes during resize delivery. Smooth
+scrolling reports its positions through the browser's scroll events.
+
 `scrollLimit(box)` is how far a box scrolls down, and `atScrollEnd(box)` whether it is
 there. `landingInsets(scroller)` reads a scroller's `scroll-padding`.
 `shownWindow({within, gap, across})` is the window's visible rectangle clear of Leaf's

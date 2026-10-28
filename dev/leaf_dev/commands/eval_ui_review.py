@@ -45,7 +45,12 @@ MODELS = {
 CASES = {
     "timeline": "recording-times",
     "shift": "recording-stepping",
+    "edge": "message-copy-placement",
+    "cover": "later-message-controls",
+    "press": "controls-after-a-press",
 }
+# Families whose target needs an input after arrival, unobservable to no-tools discovery.
+TRANSITIONS = {"shift", "edge", "cover", "press"}
 
 
 def write_json(path, value):
@@ -113,6 +118,43 @@ def capture(browser, origin, variant, identity, output, mode, *, include_images=
         screenshot("After selecting the later t input marker")
         row.update(visible_anchors=visible, after=page.locator("#readout").inner_text())
         assert "1.650 s" in row["after"]
+    elif family in ("edge", "cover"):
+        agent, later = page.locator(".msg.agent"), page.locator(".msg.later.user")
+        agent.locator(".text li").first.hover()
+        screenshot("Pointer over the agent's reply")
+        later.locator(".text").hover()
+        screenshot("Pointer over the later reply from Me")
+        copy = later.locator(".copy")
+        reading = copy.evaluate(
+            """copy => {
+              const box = copy.getBoundingClientRect();
+              const close = document.querySelector('.actions .close').getBoundingClientRect();
+              return {
+                opacity: getComputedStyle(copy).opacity,
+                edge_gap: close.right - box.right,
+                hit: copy.contains(document.elementFromPoint(
+                  box.x + box.width / 2, box.y + box.height / 2)),
+              };
+            }"""
+        )
+        assert reading["opacity"] == "1"
+        defect = variant.endswith("defect")
+        if family == "edge":
+            assert (reading["edge_gap"] > 60) == defect, reading
+        else:
+            assert abs(reading["edge_gap"]) < 1 and reading["hit"] != defect, reading
+        row.update(reading)
+    elif family == "press":
+        first, agent = page.locator(".msg.first"), page.locator(".msg.agent")
+        first.locator(".text").hover()
+        screenshot("Pointer over the first message")
+        first.locator(".copy").click()
+        screenshot("After pressing Copy on the first message")
+        agent.locator(".text li").first.hover()
+        screenshot("After moving the pointer onto the agent's reply")
+        shown = first.locator(".copy").evaluate("c => getComputedStyle(c).opacity")
+        assert (shown == "1") == variant.endswith("defect"), shown
+        row.update(first_copy_opacity_after_leaving=shown)
     else:
         widget = page.locator("lf-trace")
         image = widget.locator("img")
@@ -405,7 +447,7 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
                             "privateVariant": variant,
                             "mode": mode,
                             "noToolsTargetUnobservable": mode == "discovery"
-                            and family == "shift",
+                            and family in TRANSITIONS,
                         },
                     }
                 )

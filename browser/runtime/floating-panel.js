@@ -81,7 +81,9 @@
  *   the foot: a tall view opening on what it holds with nothing naming it. It lasts
  *   while it is
  *   used: Escape or a press on the page puts it away, Escape once the caret has
- *   left the field, since the caret is the innermost thing open. A thread's view
+ *   left the field, since the caret is the innermost thing open, and travel to a
+ *   place on the page it would stand over once landed puts it away, so an `m` walk
+ *   from a thread's view shows the next stop (`clearFor`). A thread's view
  *   also goes when a route, such as the `t` walk, opens a thread's card on the page,
  *   so one thread stands open (`reveal`; the user chose this on 23 October, after a
  *   walk left the panel's thread under the card it opened). A card's Open in panel
@@ -186,6 +188,7 @@ import {
   todoLabel,
   workflowLabel,
   workflowStep,
+  workflowVoice,
 } from "./thread/workflow.js";
 import {
   messageReading,
@@ -254,11 +257,17 @@ import { rowWalk } from "./walk-position.js";
 import { excerptWords } from "./words.js";
 import { holdRendering, nextRender, sizeObserver } from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
-import { scrollIntoView } from "./landing-scroll.js";
+import { landedBox, scrollIntoView } from "./landing-scroll.js";
 import { gesturedOn, newsNotice } from "./thread/held-news.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
-import { declareOccluder, declareWindowChrome } from "./geometry.js";
+import {
+  coveredShare,
+  declareOccluder,
+  declareWindowChrome,
+  placeHolder,
+  showsContents,
+} from "./geometry.js";
 import { registerReadingRegion } from "./reading-regions.js";
 import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
@@ -869,6 +878,9 @@ export function createFloatingPanel({
     const [error] = sayable();
     if (error) return { says: "error", words: error.message, voice: "leaf" };
     const thread = key ? threadByKey(key) : null;
+    // A retained field can repaint between a thread leaving the reading and its
+    // route being retired. Its native row survives that interval, not its turn.
+    if (key && !thread) return { says: "absent", words: "" };
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
     if (
@@ -924,7 +936,13 @@ export function createFloatingPanel({
       : walk.kind === "thread" && walk.target === thread?.id
         ? `${walk.position} of ${walk.total}`
         : walk.text;
-    return [threadAttention(thread)?.label, position].filter(Boolean).join(" · ");
+    // A walk gone on to the page, leaving the thread's view open above the stop it
+    // reached (`clearFor`), names that stop alone: the user is at it now, not at this
+    // thread's turn.
+    const away = Boolean(position) && !currentLocationIn(host);
+    return [away ? null : threadAttention(thread, agentName())?.label, position]
+      .filter(Boolean)
+      .join(" · ");
   }
   // Where the words go, as the focused field's placeholder says it; the thread's own
   // name already heads its view.
@@ -1150,13 +1168,12 @@ export function createFloatingPanel({
   // me mark's dot counts it: the user chose (2026-10-25) that a resolved thread's unread
   // reply says nothing new. Rows name attention and drafts, and resolution where no
   // Resolved heading over them says it already.
-  const threadStatus = (thread, { headed }) =>
-    [
-      thread.resolved ? !headed && "Resolved" : threadAttention(thread)?.label,
-      draftHasContent(replyContext(thread.key)) && "Draft",
-    ]
-      .filter(Boolean)
-      .join(" · ");
+  const threadStatus = (thread, { headed }) => {
+    const attention = thread.resolved ? null : threadAttention(thread, agentName());
+    const word = thread.resolved ? !headed && "Resolved" : attention?.label;
+    const draft = draftHasContent(replyContext(thread.key)) && "Draft";
+    return html`${word ? html`<span data-voice=${attention?.voice ?? "agent"}>${word}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+  };
   const rows = () => pageControls();
 
   // ---------- the views ----------
@@ -1716,7 +1733,7 @@ export function createFloatingPanel({
         outlet.querySelectorAll(`.lf-msg[data-message], ${WORKING}`)
       ),
     ]
-      .filter((node) => node.checkVisibility())
+      .filter((node) => showsContents(node))
       .map((node) => node.dataset.message ?? FACE + node.dataset.face);
     const before = drawnThread?.key === top.thread ? drawnThread : null;
     const msgs = threadByKey(top.thread)?.msgs ?? [];
@@ -2478,7 +2495,7 @@ export function createFloatingPanel({
         data-key=${thread.key}
         ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
-        ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
+        ?data-yours=${threadAttention(thread, agentName())?.kind === "needs_user"}
         @click=${() => open({ view: "thread", thread: thread.key })}
       >
         <span class="lf-fp-news-mark"
@@ -3019,8 +3036,9 @@ export function createFloatingPanel({
           since: item.todo.running?.ts ?? item.todo.ts,
         }
       : {
-          word: workflowLabel(item.workflow),
-          line: workflowStep(item.workflow),
+          word: workflowLabel(item.workflow, agentName()),
+          voice: workflowVoice(item.workflow),
+          line: workflowStep(item.workflow, agentName()),
           since: item.workflow?.ts ?? null,
         };
   // A press on a line opens its card, or folds it; the view keeps its height where the
@@ -3149,7 +3167,9 @@ export function createFloatingPanel({
     const show = arrivesAt(item)
       ? html`<button
           type="button"
-          class="lf-fp-face lf-fp-quiet lf-fp-show"
+          class="lf-fp-face lf-fp-icon-btn lf-fp-show"
+          aria-label="Show"
+          title="Show"
           @click=${() => {
             const route = trail.value.at(-1);
             void queueActions.open(queueItemKey(item)).then((arrived) => {
@@ -3157,7 +3177,7 @@ export function createFloatingPanel({
             });
           }}
         >
-          Show
+          ${iconTemplate("locate", "lf-action-icon")}
         </button>`
       : nothing;
     let answers;
@@ -3182,10 +3202,12 @@ export function createFloatingPanel({
           gesture
             ? html`<button
                 type="button"
-                class="lf-fp-face lf-fp-quiet"
+                class="lf-fp-face lf-fp-icon-btn"
+                aria-label="Undo"
+                title="Undo"
                 @click=${() => withdraw(gesture)}
               >
-                Undo
+                ${iconTemplate("undo", "lf-action-icon")}
               </button>`
             : nothing
         }${
@@ -3321,7 +3343,7 @@ export function createFloatingPanel({
     if (list === "agent") {
       const work = workOn(item);
       end = html`<span class="lf-fp-value"
-        >${work.word}${
+        ><span data-voice=${work.voice ?? "agent"}>${work.word}</span>${
           work.since
             ? html` <span class="lf-fp-age">${shortAgo(work.since)}</span>`
             : nothing
@@ -3820,7 +3842,9 @@ export function createFloatingPanel({
         onPageSeat
           ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-quiet"
+              class="lf-fp-face lf-fp-icon-btn lf-fp-on-page"
+              aria-label=${inMessage ? "Show in message" : "Show on page"}
+              title=${inMessage ? "Show in message" : "Show on page"}
               ?disabled=${!thread.anchor}
               ?data-unoffered=${!thread.anchor}
               @click=${() => {
@@ -3844,7 +3868,7 @@ export function createFloatingPanel({
                 );
               }}
             >
-              ${inMessage ? "Show in message" : "Show on page"}
+              ${iconTemplate("locate", "lf-action-icon")}
             </button>`
           : nothing
       }<button
@@ -4414,6 +4438,27 @@ export function createFloatingPanel({
       if (trail.value.length) close();
     },
   );
+  // Travel to a place on the page (anchor-travel.js, `arrive`) shows it, so the view
+  // open above the row gives way where it would stand over any of that place once
+  // landed (`landed`, landing-scroll.js `landedBox`; geometry.js, `coveredShare`), as
+  // it gives way to a press on the page: a long thread's view covers most of the
+  // window, and a place at the page's foot can't be scrolled above even a short one. A
+  // view the landing clears stays, so a link followed from a thread's view leaves the
+  // thread open for Back to return to. On me stays too where it lists the item travel
+  // lands on (`onMe.lists`), since its card shows that item, ringed where the `m` walk
+  // reached it (`walkedStop`); a thread On me doesn't list, as `t` reaches, has no card
+  // there. A Tab onto a page stop the view would stand over clears it the same way,
+  // since the ring the user follows would stand under it. What the panel holds is its
+  // own to show.
+  const standsOver = (where, landed) =>
+    trail.value.length > 0 && coveredShare(opened, where, landed) > 0;
+  function clearFor({ where, focus }, landed) {
+    if (doors.queue.shows() && onMe.lists(focus ?? placeHolder(where))) return;
+    if (standsOver(where, landed)) close();
+  }
+  onCurrentLocation((node, cause) => {
+    if (cause === "step" && node && standsOver(node, landedBox(node))) close();
+  });
 
   // The doors to the panel's views and to Versions, as Go-to's named destinations
   // (keyboard/go-to-sequence.js) and version travel (`g V`, version.js) press them:
@@ -4602,6 +4647,7 @@ export function createFloatingPanel({
     mount,
     open,
     close,
+    clearFor,
     pageComment,
     searchPage,
     doors,

@@ -339,7 +339,6 @@ customElements.define('{tag}', class extends HTMLElement {{
     pulse.ends = [];
     pulse.addEventListener('animationend', event => pulse.ends.push(event.pseudoElement));
     const button = document.createElement('button'); button.textContent = 'Choose';
-    button.style.transition = 'background-color 30s linear';
     button.onclick = () => button.classList.toggle('chosen');
     const nodes = [pulse, button];
     {stage};

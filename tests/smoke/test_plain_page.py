@@ -43,7 +43,9 @@ PORTABLE = [
     Portable(
         "lf-chart",
         "default",
-        '<lf-chart id="lf-chart" data-lf-height="240"><pre>\n{\n'
+        # The host holds the chart's box, as Leaf's stylesheet does from the height it
+        # paints, so the drawing arriving moves nothing below it.
+        '<lf-chart id="lf-chart" data-lf-height="240" style="height: 240px"><pre>\n{\n'
         '  ariaLabel: "Merged by team: backend 12, frontend 19",\n'
         '  marks: [Plot.barY([{team: "backend", n: 12}, {team: "frontend", n: 19}],'
         ' {x: "team", y: "n"})],\n}\n</pre></lf-chart>',

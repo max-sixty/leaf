@@ -136,9 +136,12 @@ function verticalTravel(box, movement) {
 		moved: local * scale
 	};
 }
-function scrollIntoReadingBand(where, holder, block, behavior) {
+function readingBandMoves(where, holder, block) {
 	const [box, ...around] = scrollersOf(holder);
-	if (!box) return;
+	if (!box) return {
+		moves: [],
+		moved: 0
+	};
 	const rect = destinationBox(where);
 	const margin = topMargin(where, box);
 	let { top, bottom } = rect;
@@ -148,19 +151,39 @@ function scrollIntoReadingBand(where, holder, block, behavior) {
 		bottom += scrollMargin(where, "Bottom");
 	}
 	let { local, moved } = verticalTravel(box, placementBy(where, block, box, margin));
-	if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
+	const moves = [{
+		box,
+		local,
+		moved
+	}];
 	let inner = box;
 	for (const outer of around) {
 		top -= moved;
 		bottom -= moved;
 		const band = landingBand(outer);
-		if (!band) return;
+		if (!band) break;
 		band.top = Math.max(band.top, readingTop(inner, outer));
 		if (block === "start") bottom = Math.min(bottom, top + band.bottom - band.top);
 		({local, moved} = verticalTravel(outer, nearestScrollBy(top, bottom, band.top, band.bottom)));
-		if (Math.abs(moved) >= 1) land(outer, { top: local }, behavior);
+		moves.push({
+			box: outer,
+			local,
+			moved
+		});
 		inner = outer;
 	}
+	return {
+		moves,
+		moved: moves.reduce((sum, move) => sum + move.moved, 0)
+	};
+}
+function landedBox(where) {
+	const rect = destinationBox(where);
+	const { moved } = readingBandMoves(where, holderOf(where), "center");
+	return new DOMRect(rect.x, rect.y - moved, rect.width, rect.height);
+}
+function scrollIntoReadingBand(where, holder, block, behavior) {
+	for (const { box, local, moved } of readingBandMoves(where, holder, block).moves) if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
 }
 function scrollIntoView(where, { alignment = where, behavior = "auto", block = "start", within = null } = {}) {
 	if (!where) return;
@@ -258,4 +281,4 @@ function copyControl(className, { label = "", success, error, icon = "copy", rol
 }
 
 //#endregion
-export { alreadyShown, copyControl, fitsWhole, landingRoom, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView };
+export { alreadyShown, copyControl, fitsWhole, landedBox, landingRoom, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView };

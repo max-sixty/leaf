@@ -532,19 +532,20 @@ function rightCover() {
 const PAST = Symbol("past");
 const clipsPast = (surfaces) => /* @__PURE__ */ new Map([[PAST, new Set(surfaces)]]);
 const clipsPastSurfaces = () => clipsPast(occluders);
-function hides(surface, where) {
+function coveredShare(surface, where, landed = null) {
 	const holder = placeHolder(where);
-	if (!holder || !occluders.has(surface) || !standsNow(surface)) return false;
-	if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;
-	const box = placeBox(where);
-	const { left, top, right, bottom } = clippedPlace(where, clipsPast([surface]), box) ?? box;
+	if (!holder || !occluders.has(surface) || !standsNow(surface)) return 0;
+	if (under(holder, surface) || under(surface, holder)) return 0;
+	if (stackLevel(holder) >= stackLevel(surface)) return 0;
+	const box = landed ?? placeBox(where);
+	const { left, top, right, bottom } = landed ?? clippedPlace(where, clipsPast([surface]), box) ?? box;
 	const over = restingBox(surface);
-	const across = Math.min(right, over.right) - Math.max(left, over.left);
+	const across = Math.max(0, Math.min(right, over.right) - Math.max(left, over.left));
 	const room = shownWindow({ viewport: "layout" });
-	if (over.top <= room.top + 1 && over.bottom >= room.bottom - 1) return across > (right - left) / 2;
-	const down = Math.min(bottom, over.bottom) - Math.max(top, over.top);
-	return across > 0 && down > 0 && across * down > (right - left) * (bottom - top) / 2;
+	if (over.top <= room.top + 1 && over.bottom >= room.bottom - 1) return across / (right - left || 1);
+	return across * Math.max(0, Math.min(bottom, over.bottom) - Math.max(top, over.top)) / ((right - left) * (bottom - top) || 1);
 }
+const hides = (surface, where) => coveredShare(surface, where) > .5;
 const underOccluder = (where) => [...occluders].some((surface) => hides(surface, where));
 const placeHolder = (where) => where instanceof Range ? where.startContainer instanceof Element ? where.startContainer : where.startContainer.parentElement : where;
 const placeBox = (where) => where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
@@ -604,4 +605,4 @@ function uncovered(rect, box) {
 }
 
 //#endregion
-export { clamp, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, declareOccluder, declareWindowChrome, frameView, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, inWindowChrome, intersect, landingBand, landingInsets, layoutWindow, nearObserver, nearWindow, nearestScrollBy, overlaps, overlapsAcross, paintClips, placeBox, placeHolder, presented, rightCover, scrollContainer, scrollsBy, scrollsContent, seenRect, shellRight, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, slotTop, stackLevel, startsAt, stuckBox, underOccluder, union, userScrollport, visibleBand, watchRoom, whenNone, windowChromeBoxes };
+export { clamp, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, coveredShare, declareOccluder, declareWindowChrome, frameView, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, inWindowChrome, intersect, landingBand, landingInsets, layoutWindow, nearObserver, nearWindow, nearestScrollBy, overlaps, overlapsAcross, paintClips, placeBox, placeHolder, presented, rightCover, scrollContainer, scrollsBy, scrollsContent, seenRect, shellRight, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, slotTop, stackLevel, startsAt, stuckBox, underOccluder, union, userScrollport, visibleBand, watchRoom, whenNone, windowChromeBoxes };

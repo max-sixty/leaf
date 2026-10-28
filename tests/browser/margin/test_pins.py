@@ -17,9 +17,11 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    painted_words,
     pane_scroll_behavior,
     panel_control,
     panel_field,
+    press_visible,
     regions_side_by_side,
     resized,
     write,
@@ -88,23 +90,15 @@ def test_a_pin_stands_by_its_run_of_text_rather_than_over_it(browser, serve):
     reading = page.evaluate(
         """() => {
           const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
-          const words = [];
-          for (const node of document.querySelectorAll('#p, #p *'))
-            for (const text of node.childNodes)
-              if (text.nodeType === Node.TEXT_NODE && text.data.trim()) {
-                const range = document.createRange();
-                range.selectNodeContents(text);
-                words.push(...[...range.getClientRects()]
-                  .filter((box) => box.width > 2 && box.height > 2).map(edges));
-              }
           const entries = [...document.querySelectorAll(
             '[data-lf-margin-for="s"] .lf-margin-entry')]
             .filter((entry) => entry.checkVisibility())
             .map((entry) => edges(entry.getBoundingClientRect()));
-          return {words, entries,
+          return {entries,
             parts: [...document.getElementById('s').getClientRects()].map(edges)};
         }"""
     )
+    reading["words"] = painted_words(page, "#p")
     # Accept and Reject.
     assert len(reading["entries"]) == 2, reading["entries"]
     for entry in reading["entries"]:
@@ -127,21 +121,8 @@ def test_a_pin_stands_by_its_run_of_text_rather_than_over_it(browser, serve):
 
 
 PIN_READING = """async (id) => {
-  const {shownParts} = await window.__lfWidgetApi();
+  const {shownParts} = await window.__lfCheckApi();
   const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
-  const words = [];
-  const walk = document.createTreeWalker(document.querySelector('main'),
-    NodeFilter.SHOW_TEXT);
-  for (let text = walk.nextNode(); text; text = walk.nextNode()) {
-    // A pending suggestion's "proposed deletion" is said only to a screen reader,
-    // clipped to nothing on screen, though its text node still reports a line box.
-    if (!text.data.trim() || !text.parentElement.checkVisibility()
-      || text.parentElement.closest('.lf-quiet')) continue;
-    const range = document.createRange();
-    range.selectNodeContents(text);
-    words.push(...[...range.getClientRects()]
-      .filter((box) => box.width > 2 && box.height > 2).map(edges));
-  }
   const parts = shownParts(document.getElementById(id))
     .flatMap((el) => [...el.getClientRects()])
     .filter((box) => box.width && box.height).map(edges);
@@ -149,13 +130,13 @@ PIN_READING = """async (id) => {
   const entries = [...row.querySelectorAll('.lf-margin-entry')]
     .filter((entry) => entry.checkVisibility())
     .map((entry) => edges(entry.getBoundingClientRect()));
-  return {words, parts, entries, carrier: edges(row.getBoundingClientRect())};
+  return {parts, entries, carrier: edges(row.getBoundingClientRect())};
 }"""
 
 
 def pin_reading(page, target):
-    """Read target parts, allocated carrier and buttons."""
-    return page.evaluate(PIN_READING, target)
+    """Read target parts, allocated carrier and buttons, and the words `main` paints."""
+    return {**page.evaluate(PIN_READING, target), "words": painted_words(page, "main")}
 
 
 def pin_distance(carrier, parts):
@@ -514,7 +495,7 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
 
     toggle = panel_control(page, "command:annotations.toggle", at="annotate")
     expect(toggle).to_contain_text("Hide annotations")
-    toggle.tap()
+    press_visible(page, toggle, touch=True)
     expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
@@ -523,7 +504,7 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
 
     toggle = panel_control(page, "command:annotations.toggle", at="annotate")
     expect(toggle).to_contain_text("Show annotations")
-    toggle.tap()
+    press_visible(page, toggle, touch=True)
     expect(page.locator("html")).not_to_have_attribute(
         "data-lf-annotations", re.compile(".*")
     )
@@ -563,7 +544,7 @@ def test_the_panel_says_the_annotations_are_hidden_while_they_are(browser, serve
         "data-lf-annotations", re.compile(".*")
     )
     # The notice saying the annotations are shown passes, and the status stands alone.
-    expect(field).to_have_attribute("data-says", "status", timeout=8000)
+    expect(field).to_have_attribute("data-says", "status")
     expect(field).not_to_have_attribute("placeholder", re.compile("Annotations"))
 
 
@@ -747,7 +728,6 @@ def test_a_pin_by_a_card_full_of_controls_stands_on_it_clear_of_them(browser, se
         action = page.locator(identity)
         action.tap()
         expect(action).to_have_text("Opened")
-    context.close()
 
 
 @pytest.mark.parametrize("viewport", list(pin_cases.VIEWPORTS))
@@ -771,4 +751,38 @@ def test_each_pin_case_seats_its_pins_by_their_targets_clear_of_what_they_hide(
         for case in pin_cases.CASES
     }
     assert not {name: faults for name, faults in found.items() if faults}
-    context.close()
+
+
+def test_pin_cover_leaves_hidden_panel_contents_unmeasured(browser, serve):
+    """A full-width hidden panel in the pin's band must not cost descendant layout."""
+    source = leaf_page(
+        "Hidden cover",
+        '<div id="subject" style="position:relative"><section hidden="until-found" style="position:absolute;inset:0">'
+        "Hidden text.<div data-cover-probe><p>Hidden words beside the pin.</p></div>"
+        "</section><h1>Shown title</h1></div>",
+        layout="sidebar",
+    )
+    page = open_page(
+        browser,
+        serve(source, events=[_comment_on("subject")]),
+        init_script="""(() => {
+          window.hiddenCoverReads = [];
+          const ranges = Range.prototype.getClientRects;
+          Range.prototype.getClientRects = function (...args) {
+            if (this.startContainer.parentElement?.closest('[hidden="until-found"]') &&
+                new Error().stack.includes('margin-layout')) hiddenCoverReads.push('text');
+            return ranges.apply(this, args);
+          };
+          const rect = Element.prototype.getBoundingClientRect;
+          Element.prototype.getBoundingClientRect = function (...args) {
+            if (this.hasAttribute('data-cover-probe') &&
+                new Error().stack.includes('margin-layout')) hiddenCoverReads.push('rect');
+            return rect.apply(this, args);
+          };
+        })()""",
+    )
+    margins_laid_out(page)
+    expect(
+        page.locator('.lf-margin-cluster[data-lf-margin-for="subject"]')
+    ).to_have_attribute("data-lf-place", "pin")
+    assert page.evaluate("hiddenCoverReads") == []

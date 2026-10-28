@@ -19,6 +19,7 @@ from render_harness import (
     panel_menu,
     panel_settled,
     panel_view,
+    press_visible,
     resized,
     scroll_settled,
     select,
@@ -252,6 +253,15 @@ def test_a_new_reading_passage_ends_a_travel_group(
     scroll_settled(page)
     assert page.evaluate("history.length") == entries + 2
 
+    if focusable:
+        # Keep the card in its closing frame through Forward: a painted but inert
+        # card is already put away, so history must return through its page target.
+        page.locator(".lf-margin-preview").evaluate("""preview => {
+          preview.addEventListener('transitionrun', event => {
+            if (event.propertyName === 'opacity' && preview.inert)
+              preview.getAnimations().forEach(animation => animation.pause());
+          });
+        }""")
     page.go_back()
     page.wait_for_function("top => Math.abs(scrollY-top) <= 2", arg=chosen_top)
     if focusable:
@@ -261,10 +271,16 @@ def test_a_new_reading_passage_ends_a_travel_group(
             "() => getSelection().focusNode?.parentElement.closest('#elsewhere')"
         )
     page.wait_for_function("navigation.transition === null")
+    if focusable:
+        page.wait_for_function("""() => {
+          const preview = document.querySelector('.lf-margin-preview');
+          return preview.inert && preview.getAnimations().some(a => a.playState === 'paused');
+        }""")
     page.go_forward()
+    page.wait_for_function("navigation.transition === null")
     # A margin card that has closed on Back returns through its source; one still
     # the current location returns focus to its card. Both are the second thread's working place.
-    page.wait_for_function(
+    assert page.evaluate(
         "id => document.activeElement.id === 'second' || "
         "document.activeElement.closest('[data-thread]')?.dataset.thread === id",
         arg=roots[1],
@@ -340,6 +356,8 @@ def test_same_passage_and_controls_keep_a_mixed_travel_group(
     entries = page.evaluate("history.length")
     page.keyboard.press("t")
     expect(page.locator(f'.lf-margin-preview [data-thread="{root}"]')).to_be_focused()
+    # Card focus precedes the passage's smooth scroll; observe its arrival first.
+    expect(page.locator("#first-reading span")).to_be_in_viewport()
     scroll_settled(page)
     expect(page.locator("#first-reading span")).to_be_visible()
     assert page.locator("#first-reading span").evaluate(
@@ -830,7 +848,7 @@ def test_align_current_item_keeps_obligation_control_heading_selection_and_histo
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     page.get_by_role("combobox", name="Search commands").fill("g z")
-    alignment = reference.locator('tr[data-lf-command="reading.align.top"]')
+    alignment = reference.locator('[role=row][data-lf-command="reading.align.top"]')
     expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
     alignment.get_by_role("button").click()
     expect(reference).to_be_hidden()
@@ -920,8 +938,11 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
     page.evaluate("scrollBy(0,-160)")
     control = panel_control(page, ALIGN_ROW, at="navigate")
     expect(control).to_be_enabled()
-    control.tap()
-    _expect_aligned(page, "#align-ask")
+    press_visible(page, control, touch=True)
+    # Returning focus from the menu can align before the current-location paint
+    # supplies its scroll margin, just as activation from the command reference does.
+    # Both landings must clear the pinned band.
+    _expect_aligned(page, "#align-ask", exact_margin=False)
     page.locator("#align-heading").focus()
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()
@@ -1403,8 +1424,8 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     write(editor, "Words about the violet subject")
     page.keyboard.press("Escape")
     page.locator("#away").scroll_into_view_if_needed()
-    page.locator(".lf-fp-threads").tap()
-    panel_settled(page, view="threads")
+    page.locator(".lf-fp-on-user").tap()
+    panel_settled(page, view="queue")
     page.keyboard.press("g")
     page.keyboard.press("v")
     page.wait_for_function(
@@ -1416,8 +1437,8 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     page.wait_for_function(
         "expected => getSelection().toString() === expected", arg=selected
     )
-    # The command closes the borrowed menu and keeps its Threads view open.
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    # The command closes the borrowed menu and keeps the On view open.
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "queue")
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")

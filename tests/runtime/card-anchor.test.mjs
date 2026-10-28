@@ -4,7 +4,7 @@ import { CardAnchor } from "/runtime/thread/card-anchor.js";
 import { threadChange } from "/runtime/thread/held-news.js";
 import { inputCount, onUserInput } from "/runtime/focus.js";
 
-const beside = { side: "right", floored: false, adopted: false, fresh: false };
+const beside = { side: "right", adopted: false, fresh: false };
 
 // The browser owns these measurements; this suite exercises the conversation's
 // choice of what to preserve, independently of Floating UI and browser layout.
@@ -113,8 +113,10 @@ test("native and restored writing reclaim the reply without comparing draft hist
   field.value = "Words restored after refusal";
   assert.equal(place(), "top");
   assert.equal(anchor.newsMoves(new Set(["answer"])), true);
-  assert.equal(place({ ...beside, floored: true }), "foot");
-  assert.equal(place({ ...beside, side: "bottom", floored: true }), "top");
+  // Written in beside its subject, the card rises from the top it holds; under its
+  // subject it only grows down.
+  assert.equal(anchor.prepare(beside).rises, true);
+  assert.equal(anchor.prepare({ ...beside, side: "bottom" }).rises, false);
   field.value = "";
   anchor.presented(new Set(["sent turn"]));
   assert.equal(place(), "top");

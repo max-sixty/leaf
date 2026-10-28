@@ -4,6 +4,7 @@
    An unallocated document has no view to report; normal observation resumes when
    its viewport has room. A document id is deliberately not stored: duplicated tabs
    must never share a lease. */
+import { pageIdentity } from "./page-identity.js";
 import { darkPreference, shownScheme } from "./color-scheme.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { layoutWindow, seenRect, shownWindow, watchRoom } from "./geometry.js";
@@ -52,6 +53,7 @@ function context() {
   const clips = new Map();
   return {
     session,
+    identity: pageIdentity(),
     sequence: ++sequence,
     visible: document.visibilityState !== "hidden",
     revision: runtime.currentRevision,
@@ -81,6 +83,7 @@ function readChecks(view) {
   );
   return {
     sequence: view.sequence,
+    identity: view.identity,
     revision: view.revision,
     through_seq: view.through_seq,
     viewport: view.viewport,

@@ -101,7 +101,10 @@
   // Each authored widget's border box as the page first paints it: the whole authored
   // document laid out under the theme, with the prepaint's `data-lf-interactive` on
   // the root and nothing upgraded. The element is kept, so a reading taken once the
-  // page presents measures the same node (`changedBoxes` in widgets.js).
+  // page presents measures the same node (`changedBoxes` in widgets.js). `stated` is
+  // whether a stylesheet gave the box its height, rather than its content: a computed
+  // `block-size` other than `auto`, which only the typed object model reports, since
+  // `getComputedStyle` answers with the used height either way.
   let firstBoxes = Object.freeze([]);
 
   const preUpgradeFindings = () => {
@@ -110,7 +113,9 @@
         .filter((element) => element.localName.startsWith("lf-"))
         .map((element) => {
           const { width, height } = element.getBoundingClientRect();
-          return Object.freeze({ element, width, height });
+          const stated =
+            String(element.computedStyleMap().get("block-size")) !== "auto";
+          return Object.freeze({ element, width, height, stated });
         }),
     );
     const main = document.querySelector("body > main");

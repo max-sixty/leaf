@@ -1,12 +1,16 @@
 """Visual review keeps readable evidence and stable controls in its dashboard."""
 
+import json
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
+from render_cases_navigation import source_revision
 from render_harness import (
     CORPUS_SOURCES,
     example_media,
+    expect_on_me,
     expect_panel_says,
     leaf_page,
     open_page,
@@ -25,7 +29,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 VISUAL_REVIEW_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
 )
-SELECTED = '.lf-vr-case[aria-hidden="false"]'
+SELECTED = ".lf-vr-case:not([hidden])"
 
 
 def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
@@ -66,7 +70,7 @@ def test_visual_review_cases_are_independent_on_me_obligations(browser, serve):
     widget = page.locator("#visual-review-run")
     case = widget.locator(SELECTED)
     count = page.locator(".lf-fp-on-user")
-    expect(count).to_have_attribute("aria-label", "On me: 3")
+    expect_on_me(page, 3)
     first = "open-mobile-package-catalog"
     second = "keep-mobile-destinations"
     third = "check-desktop-navigation"
@@ -82,9 +86,9 @@ def test_visual_review_cases_are_independent_on_me_obligations(browser, serve):
     with sending(page, "approve one independent case"):
         page.keyboard.press("a")
     expect(case.get_by_role("checkbox", name="Looks right")).to_be_checked()
-    expect(count).to_have_attribute("aria-label", "On me: 2")
+    expect_on_me(page, 2)
     undo(page)
-    expect(count).to_have_attribute("aria-label", "On me: 3")
+    expect_on_me(page, 3)
     expect(case.get_by_role("checkbox", name="Looks right")).not_to_be_checked()
 
     # The On me row uses the same destination, even while another case is shown.
@@ -104,7 +108,7 @@ def test_visual_review_cases_are_independent_on_me_obligations(browser, serve):
     expect(case).to_have_attribute("data-lf-datum", first)
     with sending(page, "hand feedback on this case to the agent"):
         page.keyboard.press("Enter")
-    expect(count).to_have_attribute("aria-label", "On me: 2")
+    expect_on_me(page, 2)
     case.get_by_role("checkbox", name="Looks right").focus()
     page.keyboard.press("m")
     expect(case).to_have_attribute("data-lf-datum", second)
@@ -124,7 +128,7 @@ def test_on_me_materializes_a_frozen_review_at_its_requested_case(browser, serve
     )
     page = open_page(browser, url)
     count = page.locator(".lf-fp-on-user")
-    expect(count).to_have_attribute("aria-label", "On me: 6")
+    expect_on_me(page, 6)
     count.click()
     card = page.locator(
         '.lf-fp-on-item[data-obligation="widget:reply-review:keep-mobile-destinations"]'
@@ -168,6 +172,8 @@ def test_visual_review_keeps_the_dashboard_stable_while_inspecting(
       return {decision: box('.lf-vr-decision').y, evidence: box('.lf-vr-evidence').y};
     }"""
     baseline = case.evaluate(reading)
+    # The header names size and browser; Capture details holds the rest.
+    expect(case.locator(".lf-vr-evidence-note")).to_have_text("390 × 844 · Chromium")
     buttons = widget.locator(".lf-vr-case-button")
     expect(buttons).to_have_count(3)
     for button in buttons.all():
@@ -280,6 +286,13 @@ def test_visual_review_ignores_a_late_load_from_superseded_evidence(browser, ser
             ),
         )
         told(page)
+        # The case's article follows its case by id into the run it now shows.
+        case = page.locator('#visual-run [data-lf-datum="changed"]')
+        expect(case).to_have_attribute(
+            "data-lf-source-revision", source_revision(serve.page_dir, "docs-run")
+        )
+        expect(case).to_have_attribute("data-lf-identity", "changed")
+        assert json.loads(case.get_attribute("data-lf-origin"))["path"] == ["cases", 0]
         shot = page.locator("#visual-run lf-shot")
         expect(shot).to_have_attribute("before", "/media/1111111111111110.svg")
         images = shot.locator("img")

@@ -6,15 +6,16 @@
    Comment gestures. They pass a stable target from `aimTargetAt` or the visual provider
    into this surface. A whole item or picture names its authored id, while a visual part
    adds its declared token. Comment opens the compact field; Other responses opens an
-   anchored picker, reached by its button, Tab from the field, or `e` while the field
-   stands unfocused. Escape closes the picker; Escape from the field hides the draft.
-   The same anchor resolves both states against the target's geometry.
+   anchored picker, reached by the ⋯ in the empty field's corner, Tab from the field,
+   or `e` while the field stands unfocused. Escape closes the picker; Escape from the
+   field hides the draft. The same anchor resolves both states against the target's
+   geometry.
    An active quoted draft whose words change stays beside its containing subject; this is
    placement only and never changes the quote recorded by its eventual send.
 
    The bar a selection or keyboard-selected addressable raises is `.lf-fab-bar`: the
-   durable, compact `.lf-fab-input` beside its Other responses control
-   (composing/selection.js). An explicit addressable target
+   durable, compact `.lf-fab-input`, whose corner holds its Other responses control
+   until the draft has words (composing/selection.js). An explicit addressable target
    opens and focuses that field. On desktop, selecting a passage leaves the field open
    but unfocused. Selection observed outside a completed page gesture, and selection on
    touch screens, is offered in the floating panel's page field instead, whose
@@ -49,7 +50,7 @@
    the selection composer (composing/selection.js) from them and its own bar commands.
    Its constructor binds no document listeners; mount installs the selection gesture
    lifecycle and field-focus tracking after all capabilities have been composed. */
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 import { addressableWord } from "../addressable-names.js";
 import {
   anchoringIsReady,
@@ -111,7 +112,6 @@ import {
   focusDestination,
   focused,
   closeLayer,
-  currentLocationIn,
   onPressAway,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
@@ -913,9 +913,13 @@ export function createResponseSurface({
       !reactionContextContains(target)
     );
   }
+  // The press goes away as it completes, after its own focus change has placed the user
+  // where it landed, so the bar lets go only of a user it still holds: one who pressed
+  // its subject, or anything else that takes focus, stays there.
   function standDown() {
     if (composerOpen) composer.hideComposer();
-    if (fabAnchor.value) letGoOfFab();
+    if (fabAnchor.value)
+      closeLayer(() => showFab(null), fabBar.contains(fabFocused()) && letGo);
     // The armed react press goes with the bar it was armed on.
     setReact(false);
   }
@@ -1211,31 +1215,32 @@ export function createResponseSurface({
     title: `comment on the ${word}`,
   });
   function commentDestination() {
+    // The panel's field quotes the selected words, and a press there does what c does,
+    // so the field carries c's badge.
     if (offeredSelection)
       return {
         ...commenting("selection"),
-        box: null,
+        box: pageComment.box,
         go: commentOnOfferedSelection,
       };
     const here = currentTarget();
     const anchor = fabAnchorAt();
-    // The thread the user is at continues where it is about what they stand on: they
-    // are in it, or its target lies within the element they stand at — the obligation holding
-    // focus, answered or not, else the element itself — as an obligation's options group does
-    // when the user holds one of its marks. A card showing an enclosing block's thread is
-    // about that block, so an element inside it, such as an obligation in a commented task,
+    // The thread drawn with the user's place (`threadHere`), such as the card beside it,
+    // is one place with it, so its reply box is where c writes, even where the thread is
+    // about a block enclosing what they stand on: the box they see is the one c names,
+    // rather than a new thread on the obligation the card stands beside, which closed the
+    // card they were reading. That thread starts from `s`, which chooses an element.
+    // An undrawn thread continues only where it is about what they stand on: its target
+    // lies within the element they stand at — the obligation holding focus, answered or
+    // not, else the element itself — as an obligation's options group does when the user
+    // holds one of its marks. So with no card shown, an element inside a commented block
     // takes a thread of its own, and a selection still starts one on its words.
 
     const inline = threadHere();
     const threadId = threadAtCurrentLocation();
     const replyId = replyThreadAtCurrentLocation();
     const target = threadId && threadTarget(threadId);
-    const inlineBox =
-      inline &&
-      (!here ||
-        currentLocationIn(inline) ||
-        (target && under(target, heldObligation() ?? here.element))) &&
-      threadInput(inline);
+    const inlineBox = inline && threadInput(inline);
     const said =
       currentLocationThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject =
@@ -1320,6 +1325,8 @@ export function createResponseSurface({
     // The surfaces name the destination in front of the user rather than the capability:
     // "Comment" covered all four and so promised none of them.
     title: () => commentDestination().title,
+    // It goes to the destination it names, revealing a box off screen.
+    travels: true,
     // A selection made before the anchor pass has run can't be quoted yet, and commenting
     // on the page instead is not what the user asked for — so the press waits, and the
     // row's own liveness is where that is said rather than a refusal inside run that no

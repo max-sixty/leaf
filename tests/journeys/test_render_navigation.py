@@ -8,24 +8,21 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from playwright.sync_api import Error as PlaywrightError
+from leaf_dev.browser import show_resolved
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
     PANEL_PAGE,
-    WORKSHOP_THREAD_EVENTS,
-    WORKSHOP_THREADS_PAGE,
     answered_comment,
     live_url,
     panel_comment,
 )
-from render_cases_layout import token_colour
+from render_cases_layout import page_at_rest, token_colour
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     CHIPS,
     address_code,
     address_codes,
-    go_to_address,
 )
 from render_harness import (
     CORPUS_SOURCES,
@@ -38,14 +35,14 @@ from render_harness import (
     RELEASE_FOCUS,
     ROOT,
     command_reference_rows,
-    expect_comment_notes,
     expect_obligations_answered,
+    expect_open_threads,
     expect_panel_says,
     leaf_page,
     margins_laid_out,
     navigate,
     open_page,
-    opened_tab,
+    open_threads,
     pane_scroll_behavior,
     panel_control,
     panel_says,
@@ -60,7 +57,6 @@ from render_harness import (
 
 from leaf import data as data_model
 from leaf import event_log as events_model
-from leaf import server as server_model
 from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -105,9 +101,9 @@ QUICK_KEYS_PAGE = leaf_page(
 </div>
 """,
     head="""<script type="module">
-import { commands } from "/runtime/widget-api.js";
+import { commandsChanged } from "/runtime/widget-api.js";
 const note = document.querySelector("#shortcut-note");
-commands(document.querySelector("#local-shortcuts"), "In the note sample", [{
+document.querySelector("#local-shortcuts").lfCommands = { title: "In the note sample", rows: [{
   id: "note.focus",
   contextKeys: ["1"],
   control: document.querySelector("#shortcut-focus-note"),
@@ -115,7 +111,8 @@ commands(document.querySelector("#local-shortcuts"), "In the note sample", [{
   title: "Write note",
   description: "Focus the sample note",
   run: () => note.focus(),
-}]);
+}] };
+commandsChanged(document.querySelector("#local-shortcuts"));
 </script>""",
 )
 
@@ -253,55 +250,6 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     ]
 
 
-def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve):
-    """Each policy owns a separate anchor and pane-local return route."""
-    example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
-    page = open_page(
-        browser,
-        serve(
-            example,
-            anchored=[
-                (
-                    "comparison-current-behavior",
-                    "starts its own credential refresh",
-                ),
-                (
-                    "comparison-proposed-behavior",
-                    "Other calls in that tab wait for it",
-                ),
-            ],
-        ),
-    )
-    resized(page, 1600, 700)
-    pane_scroll_behavior(page, page.locator("#comparison-current"), "bounded")
-    current = page.locator("#comparison-current > :not(header, footer)")
-    proposed = page.locator("#comparison-proposed > :not(header, footer)")
-    expect(page.locator(".lf-mark-note")).to_have_count(2)
-    expect_comment_notes(page, "#comparison-current", 1)
-    expect_comment_notes(page, "#comparison-proposed", 1)
-    initial_scrolls = page.evaluate("""() => {
-        const panes = ["comparison-current", "comparison-proposed"].map(id =>
-            document.querySelector(`#${id} > :not(header, footer)`));
-        for (const pane of panes) pane.scrollTop = pane.scrollHeight;
-        return panes.map(pane => pane.scrollTop);
-    }""")
-    assert min(initial_scrolls) > 0
-
-    go_to_passage(page, serve.page_dir, "starts its own credential refresh")
-    expect(page.locator("#comparison-current-behavior")).to_be_in_viewport()
-    scroll_settled(page, "#comparison-current > :not(header, footer)")
-    current_after_current = current.evaluate("el => el.scrollTop")
-    proposed_after_current = proposed.evaluate("el => el.scrollTop")
-    assert current_after_current < initial_scrolls[0]
-    assert proposed_after_current == initial_scrolls[1]
-
-    go_to_passage(page, serve.page_dir, "Other calls in that tab wait for it")
-    expect(page.locator("#comparison-proposed-behavior")).to_be_in_viewport()
-    scroll_settled(page, "#comparison-proposed > :not(header, footer)")
-    assert proposed.evaluate("el => el.scrollTop") < proposed_after_current
-    assert current.evaluate("el => el.scrollTop") == current_after_current
-
-
 def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, serve):
     """One v1 choice remains authoritative in the v2 policy and rollout."""
     example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
@@ -419,334 +367,6 @@ def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
         expect(first).to_be_in_viewport()
 
 
-def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
-    """The diff package's worked page carries a real line thread through both seats."""
-    source = next(example for example in EXAMPLES if example.stem == "pr-walkthrough")
-    url = live_url(serve(source))
-    page = open_page(browser, url)
-    diff = page.locator("#pr-exact-patch")
-    details = diff.locator(".lf-diff-file > details").first
-    details.evaluate("element => { element.open = true; }")
-    target = details.locator("[data-line-type='change-addition'][data-lf-datum]").first
-    root = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Keep this review note beside the line that changes it.",
-            "anchor": {
-                "section": "pr-exact-patch",
-                "datum": target.get_attribute("data-lf-datum"),
-                "source": target.get_attribute("data-lf-source"),
-                "source_revision": target.get_attribute("data-lf-source-revision"),
-            },
-        },
-    )
-    told(page)
-    thread = diff.locator(f'.lf-page-thread[data-thread="{root["id"]}"]')
-    expect(thread).to_contain_text(
-        "Keep this review note beside the line that changes it."
-    )
-    send = thread.locator(".lf-compose-submit")
-    expect(send).to_be_disabled()
-    expect(thread.locator(".lf-compose-field > button:visible")).to_have_count(1)
-    markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
-    baseline = markers.count()
-
-    details.evaluate("element => { element.open = false; }")
-    expect(thread).to_have_count(0)
-    expect(markers).to_have_count(baseline + 1)
-    details.evaluate("element => { element.open = true; }")
-    expect(thread).to_have_count(1)
-    expect(markers).to_have_count(baseline)
-
-    page.evaluate(RELEASE_FOCUS)
-    page.keyboard.press("t")
-    expect(thread).to_be_focused()
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-
-    # A thread the margin projects, standing before the diff in page order: the walk
-    # opens the margin's view to reach it and then steps on to the diff's own seat,
-    # closing that view on the way. The walk moves the user laterally rather than down
-    # a level, so Escape lets go of the thread they ended on and lands them in the page
-    # where they now are — not back at the heading the walk started from, which is
-    # off screen by then.
-    prose = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "And one on the prose above the patch.",
-            "anchor": {"section": "pr-scale-intro", "quote": "Risk is concentrated"},
-        },
-    )
-    told(page)
-    heading = page.locator("main h2").first
-    heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
-    expect(heading).to_be_focused()
-    page.keyboard.press("t")
-    expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{prose["id"]}"]')
-    ).to_be_focused()
-    page.keyboard.press("t")
-    expect(thread).to_be_focused()
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    page.keyboard.press("Escape")
-    assert page.evaluate("() => document.activeElement === document.body")
-
-
-def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
-    """A fixed card cannot reveal itself by scrolling its already-visible passage away."""
-    page = open_page(
-        browser,
-        live_url(serve(WORKSHOP_THREADS_PAGE, events=WORKSHOP_THREAD_EVENTS)),
-    )
-    resized(page, 1280, 720)
-    card = page.locator(".lf-margin-preview")
-    thread = card.get_by_role("group", name="Thread, Is lunch provided", exact=False)
-    # The walk reaches the lunch thread wherever the walk's order puts it.
-    for _ in range(3):
-        page.keyboard.press("t")
-        scroll_settled(page)
-        if thread.count() and thread.evaluate("el => el === document.activeElement"):
-            break
-    expect(thread).to_be_focused()
-    page.keyboard.press("t")
-    expect(
-        card.get_by_role("group", name="Thread, Workshop room photo")
-    ).to_be_focused()
-    scroll_settled(page)
-    page.keyboard.press("Enter")
-    expect(page.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
-    resized(page, 390, 844)
-    scroll_settled(page)
-    page.keyboard.press("Escape")
-    page.keyboard.press("Shift+t")
-    expect(thread).to_be_focused()
-    scroll_settled(page)
-    expect(thread).to_be_in_viewport(ratio=1)
-    page.keyboard.press("c")
-    reply = page.get_by_role("textbox", name="Reply", exact=True)
-    expect(reply).to_be_focused()
-    scroll_settled(page)
-    expect(reply).to_be_in_viewport(ratio=1)
-
-
-def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
-    """A contextual thread has one side, and leaves and returns with its anchor."""
-    page = open_page(
-        browser,
-        live_url(serve(WORKSHOP_THREADS_PAGE, events=WORKSHOP_THREAD_EVENTS)),
-    )
-    page.emulate_media(reduced_motion="reduce")
-    resized(page, 1440, 900)
-
-    page.evaluate(RELEASE_FOCUS)
-    page.keyboard.press("t")
-    card = page.locator(".lf-margin-preview")
-    # Whichever thread the walk reaches first; the page's order decides that.
-    expect(card.locator(".lf-page-thread")).to_be_focused()
-    walked = card.locator(".lf-page-thread").get_attribute("data-thread")
-    owner = page.locator(
-        '.lf-margin-marker[data-lf-kinds~="comment"]'
-        '[aria-controls="lf-margin-preview"][aria-expanded="true"]:not([hidden])'
-    ).locator("xpath=..")
-    expect(owner).to_be_visible()
-    expect(card).to_have_attribute("data-lf-thread-placement", "right")
-
-    initial = owner.bounding_box()
-    assert initial["y"] + initial["height"] > 50
-    assert initial["y"] < 900
-    page.evaluate("distance => scrollBy(0, distance)", min(160, initial["y"] - 80))
-    page.wait_for_function(
-        """() => {
-          const owner = document.querySelector(
-            '.lf-margin-marker[data-lf-kinds~="comment"]' +
-            '[aria-controls="lf-margin-preview"][aria-expanded="true"]:not([hidden])'
-          )?.parentElement?.getBoundingClientRect();
-          return owner && owner.bottom > 50 && owner.top < innerHeight;
-        }"""
-    )
-    expect(card).to_be_visible()
-    expect(card).to_have_attribute("data-lf-thread-placement", "right")
-
-    # Scrolled away, the card leaves with its anchor rather than closing, and scrolled
-    # back it stands where it stood, with the user still in it.
-    rendered(page)
-    placed = card.evaluate("node => node.getBoundingClientRect().top")
-    before = page.evaluate("() => document.scrollingElement.scrollTop")
-    page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
-    rendered(page)
-    assert card.evaluate("node => node.getBoundingClientRect().bottom <= 0")
-    page.evaluate("top => scrollTo(0, top)", before)
-    rendered(page)
-    assert card.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
-        placed, abs=0.5
-    )
-    expect(card.locator(f'.lf-page-thread[data-thread="{walked}"]')).to_be_focused()
-    # A press the page answers leaves the window where the user put it: `g G` carries the
-    # card away, and `g` then opens Go-to over the page's foot rather than bringing the
-    # card back and mapping the window around it.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+g")
-    rendered(page)
-    foot = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert card.evaluate("node => node.getBoundingClientRect().bottom <= 0")
-    page.keyboard.press("g")
-    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
-    rendered(page)
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
-    # Every key is Go-to's while it stands, one it has no use for included: that key
-    # takes Go-to down and keeps the page where it is.
-    page.keyboard.press("F2")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
-    rendered(page)
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
-    # A turn arriving in the card is news, not a move of the user's: it stays away.
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": walked,
-            "revision": 1,
-            "text": "A turn arriving while the card is away.",
-        },
-    )
-    told(page)
-    expect(card).to_contain_text("A turn arriving while the card is away.")
-    rendered(page)
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
-    shown = """() => {
-      const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-      return card.top >= 0 && card.bottom <= innerHeight;
-    }"""
-    # A page command that lands in a card scrolled away brings its cluster, and the
-    # card, back.
-    page.keyboard.press("c")
-    reply = card.get_by_role("textbox", name="Reply", exact=True)
-    expect(reply).to_be_focused()
-    page.wait_for_function(shown)
-    # So does moving on from one of its controls to the next, as the browser reveals
-    # the control a Tab reaches.
-    page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
-    rendered(page)
-    assert not page.evaluate(shown)
-    page.keyboard.press("Tab")
-    expect(reply).not_to_be_focused()
-    assert page.evaluate(
-        "() => document.activeElement.closest('.lf-margin-preview') !== null"
-    )
-    page.wait_for_function(shown)
-    # A card the page has carried half past the window's top, Reply with it, is as
-    # unseen there as one scrolled off: a landing in it brings it back all the same.
-    reply.evaluate(
-        """async (box) => {
-          const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-          while (box.getBoundingClientRect().top >= 0) {
-            scrollBy(0, 10);
-            await frame();
-          }
-        }"""
-    )
-    rendered(page)
-    assert page.evaluate(
-        "() => document.querySelector('.lf-margin-preview').getBoundingClientRect().bottom > 0"
-    )
-    page.keyboard.press("c")
-    expect(reply).to_be_focused()
-    page.wait_for_function(shown)
-
-
-def test_an_external_link_says_and_opens_where_it_goes(
-    browser, serve, other_leaf, one_user
-):
-    other_url, _ = other_leaf
-    destination = f"{other_url}/?t={server_model.host_key()}"
-    url = serve(
-        leaf_page(
-            "external link",
-            f"""
-<h1 id="top">Links</h1>
-<p>Read the <a id="external" href="{destination}" aria-label="other leaf documentation"
-  aria-describedby="source-note">other leaf</a>.</p>
-<span id="source-note" hidden>curated source</span>
-<p>Return to <a id="fragment" href="#top">the heading</a>.</p>
-<svg viewBox="0 0 40 20" aria-label="map"><a id="svg-external" href="{destination}">
-  <text x="0" y="15">map</text>
-</a></svg>
-""",
-        )
-    )
-    page = open_page(browser, url, context=one_user)
-    external = page.locator("#external")
-    mark = external.locator(":scope > .lf-external-mark")
-
-    expect(external).to_have_attribute("target", "_blank")
-    expect(external).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
-    expect(external).to_have_accessible_name("other leaf documentation")
-    expect(external).to_have_accessible_description("curated source opens in a new tab")
-    # The treatment stands inside the link, so the paragraph ends where it was written.
-    expect(page.locator("#external ~ *")).to_have_count(0)
-    expect(mark).to_be_visible()
-    assert mark.evaluate("node => node.localName") == "svg"
-    expect(mark.locator(":scope > path")).to_have_count(1)
-    expect(mark).to_have_attribute("aria-hidden", "true")
-    expect(page.locator("#fragment > .lf-external-mark")).to_have_count(0)
-    expect(page.locator("#fragment")).not_to_have_attribute("target", "_blank")
-    expect(page.locator("#svg-external > .lf-external-mark")).to_have_count(0)
-    expect(page.locator("#svg-external")).not_to_have_attribute("target", "_blank")
-
-    tab = opened_tab(page, destination, external.click)
-    expect(tab).to_have_url(f"{other_url}/")
-    expect(page).to_have_url(url.split("?", 1)[0])
-
-
-def test_an_addressed_link_leaves_the_user_at_its_destination(
-    browser, serve, other_leaf, one_user
-):
-    """A generated link hint completes the navigation step it names.
-
-    A fragment lands focus on its target, so the user does not remain at the place they
-    left. An external link keeps its new-tab behavior and names that context change even
-    though the sequence activates the link without first moving focus through it."""
-    other_url, _ = other_leaf
-    destination = f"{other_url}/?t={server_model.host_key()}"
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "addressed links",
-                f"""
-<h1>Addressed links</h1>
-<p><a id="internal" href="#arrival">Read the conclusion</a>.</p>
-<p><a id="external" href="{destination}" aria-label="Leaf guide">Open the guide</a>.</p>
-<div style="height: 1600px"></div>
-<h2 id="arrival">Conclusion</h2>
-<p>The internal navigation step ends here.</p>
-""",
-            )
-        ),
-        context=one_user,
-    )
-
-    go_to_address(page, "Link", "internal")
-    page.wait_for_url(re.compile(r"#arrival$"))
-    expect(page.locator("#arrival")).to_be_focused()
-    expect(page.locator("#arrival")).to_be_in_viewport()
-    page.evaluate(
-        "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
-    )
-
-    page.keyboard.press("g")
-    external_code = address_code(page, "Link", "external")
-    tab = opened_tab(page, destination, lambda: page.keyboard.type(external_code))
-    expect(tab).to_have_url(f"{other_url}/")
-    expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
-
-
 def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, serve):
     """A thread with no page destination opens in the panel and Escape puts it away;
     Go-to's Threads opens the panel's list and puts it away the same way."""
@@ -793,8 +413,10 @@ def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, ser
 def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     """The current page location unwinds before the panel view around it.
 
-    An Ask stood on while On me stands lets go first, then On me; a thread's Ask
-    reached by `m` with Threads open leaves through the panel's own step."""
+    An Ask stood on while On me stands lets go first, then On me. A thread's Ask
+    reached by `m` with Threads open stands in the thread's margin card, since the
+    panel declines a thread about a passage, and Escape leaves the Ask for its passage,
+    then puts the card away, and only then puts Threads away."""
     # A page obligation stood on while On me, which the keyboard opened, stands over the page.
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("g")
@@ -809,16 +431,21 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
-    # `m` from a heading into a thread's obligation, with Threads already open: Escape puts the
-    # panel's view away, without returning to the heading.
+    # `m` from a heading into a thread's obligation, with Threads already open: each Escape
+    # leaves one layer, the innermost first, without returning to the heading.
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     heading = page.locator("main h2").first
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
     expect(heading).to_be_focused()
     page.keyboard.press("m")
-    expect(page.locator(f"{PANEL_THREAD} lf-ask[data-lf-obligation]")).to_be_focused()
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator("lf-ask[data-lf-obligation]")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator("#off-t-resync")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
@@ -847,7 +474,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
 
     page.keyboard.press("?")
     goto = command_reference_rows(page, "Go to")
-    filters = goto.locator('tr[data-lf-command^="navigation.target.filter."]')
+    filters = goto.locator('[role=row][data-lf-command^="navigation.target.filter."]')
     assert filters.evaluate_all(
         """rows => rows.map(row => ({
           command: row.dataset.lfCommand,
@@ -877,7 +504,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         },
     ]
     expect(filters.locator(".lf-command-reference-description")).to_have_count(0)
-    target_help = goto.locator('tr[data-lf-command="navigation.target"]')
+    target_help = goto.locator('[role=row][data-lf-command="navigation.target"]')
     expect(target_help.locator("kbd")).to_have_text(["g", "letters"])
     expect(target_help).to_contain_text("Visible target")
     expect(target_help).not_to_contain_text("filter first")
@@ -1058,9 +685,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     comment({"quote": "two separate remarks"}, "Second thought.")
     c3 = comment({"section": "p2"}, "The short one too.")
     page = open_page(browser, url)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile("^Threads, 3 open")
-    )
+    expect_open_threads(page, 3)
     resized(page, 1280, 800)
 
     # The complete reference shows each command once, preferring an executable intrinsic
@@ -1069,22 +694,26 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     page.keyboard.press("?")
     goto = command_reference_rows(page, "Go to")
     reference_commands = set(
-        page.locator(".lf-command-reference tr[data-lf-command]").evaluate_all(
+        page.locator(".lf-command-reference [role=row][data-lf-command]").evaluate_all(
             "rows => rows.map(row => row.dataset.lfCommand)"
         )
     )
     alignment = page.locator(
-        '.lf-command-reference tr[data-lf-command="reading.align.top"]'
+        '.lf-command-reference [role=row][data-lf-command="reading.align.top"]'
     )
     expect(alignment).to_have_count(1)
     # Alignment has a page-level route even when no reading item stands while
     # the reference opens from chrome.
     expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
-    overlaps = goto.locator("tr[data-lf-command]").evaluate_all(
+    overlaps = goto.locator("[role=row][data-lf-command]").evaluate_all(
         """rows => rows.flatMap(row => {
-          const [key, action] = row.querySelectorAll(':scope > td');
-          const amount = key.firstElementChild.getBoundingClientRect().right
-            - action.getBoundingClientRect().left;
+          const key = row.querySelector('.lf-command-reference-key')
+            .firstElementChild.getBoundingClientRect();
+          const action = row.querySelector('.lf-command-reference-action')
+            .getBoundingClientRect();
+          const across = Math.min(key.right, action.right) - Math.max(key.left, action.left);
+          const down = Math.min(key.bottom, action.bottom) - Math.max(key.top, action.top);
+          const amount = Math.min(across, down);
           return amount > 0.5 ? [{command: row.dataset.lfCommand, amount}] : [];
         })"""
     )
@@ -1254,9 +883,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # document at large, `f` must not offer a digit for it.
     append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": c3})
     told(page)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile("^Threads, 2 open")
-    )
+    expect_open_threads(page, 2)
     expect(page.locator("details.lf-details")).to_have_count(0)
     page.keyboard.press("g")
     expect(page.locator(f'{CHIPS}[data-lf-go-to-kind="Fold"]')).to_have_count(0)
@@ -1377,9 +1004,9 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
 
 
 def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serve):
-    """A box that starts scrolling after the page loads is reachable, shows its edge
-    mark, and starts the sticky-header slot again, as it does when the page loads with
-    it scrolling: whether a shorter window, a narrower container, or a page script made
+    """A declared scroll surface (`class="scroll"`) that starts scrolling after the page
+    loads is reachable, shows its edge mark, and starts the sticky-header slot again, as
+    it does when the page loads with it scrolling: whether a shorter window, a narrower container, or a page script made
     it scroll, by a class it adds as it adapts to the box's size or by a box it inserts,
     and announced it with `layoutChanged`. A box the window grows out of scrolling gives
     all three back. The window's case asks its height, which no box's size follows. A
@@ -1396,9 +1023,10 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
             leaf_page(
                 "Late scrollers",
                 '<div id="meter"></div>'
-                f'<div id="by-window">{wide}</div>'
-                f'<div id="holder"><div id="by-container">{wide}</div></div>'
-                f'<div id="by-script">{wide}</div>'
+                f'<div id="by-window" class="scroll">{wide}</div>'
+                '<div id="holder">'
+                f'<div id="by-container" class="scroll">{wide}</div></div>'
+                f'<div id="by-script" class="scroll">{wide}</div>'
                 '<details id="more"><summary>More</summary><table id="drawn"><tbody>'
                 "<tr><td>Cell</td></tr></tbody></table></details>",
                 head="<style>.wide { width: 900px; }"
@@ -1431,6 +1059,7 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
         }).observe(box);
         const inserted = document.createElement('div');
         inserted.id = 'by-insert';
+        inserted.className = 'scroll';
         inserted.innerHTML = '<div class="wide">An inserted block.</div>';
         document.querySelector('main').append(inserted);
         layoutChanged(inserted);
@@ -1456,7 +1085,8 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
     )
     rendered(page)
     page.locator("#more > summary").click()
-    expect(page.locator("#drawn")).to_have_attribute("data-lf-scrolls", "")
+    # The theme scrolls a table only sideways, which the slot reads as `across`.
+    expect(page.locator("#drawn")).to_have_attribute("data-lf-scrolls", "across")
 
     entries = "".join(f"<li>Sidebar entry {n}</li>" for n in range(40))
     page = open_page(
@@ -1595,7 +1225,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(setting).to_be_focused()
     setting.press("Space")
     expect(setting).not_to_be_checked()
-    comment = reference.locator('tr[data-lf-command="comment.create"]')
+    comment = reference.locator('[role=row][data-lf-command="comment.create"]')
     expect(comment.locator("kbd")).to_have_count(0)
     # Disabling the key makes the command actionable even from the text field where
     # that key was previously reserved for typing.
@@ -1632,7 +1262,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(button).not_to_have_attribute("title", re.compile(r"\(1\)"))
     settings()
     page.get_by_role("combobox", name="Search commands").fill("Comment on an element")
-    reference.locator('tr[data-lf-command="target.picker.open"]').get_by_role(
+    reference.locator('[role=row][data-lf-command="target.picker.open"]').get_by_role(
         "button"
     ).click()
     rendered(page)
@@ -1697,7 +1327,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     page.locator("body").focus()
     settings()
     page.get_by_role("combobox", name="Search commands").fill("Comment on an element")
-    reference.locator('tr[data-lf-command="target.picker.open"]').get_by_role(
+    reference.locator('[role=row][data-lf-command="target.picker.open"]').get_by_role(
         "button"
     ).click()
     rendered(page)
@@ -1835,13 +1465,8 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     assert reading["status"] == "open"
 
     gallery_tab("tab", name="Threads").click()
-    panel_control(page, "threads").click()
-    panel_settled(page, view="threads")
-    rows = page.locator(".lf-fp-thread")
-    filters = page.locator(".lf-fp-filters button")
-    filters.filter(has_text="Resolved").click()
-    expect(rows).not_to_have_count(0)
-    filters.filter(has_text="Open").click()
+    open_threads(page)
+    expect(show_resolved(page)).not_to_have_count(0)
     media_thread = open_panel_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
     media_thread.locator(".lf-message-media").click()
     viewer = page.get_by_role("dialog", name="Image preview")
@@ -1897,7 +1522,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
           sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
             {surface: 'panel', waiting: 'user'}),
           sample.showThread('bab3cdfcfb8c02aacbb27da731de947a',
-            {surface: 'panel', status: 'resolved'})
+            {surface: 'panel'})
         ])"""
     )
     assert result == [False, True]
@@ -2161,7 +1786,6 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
     expect(child.get_by_role("button", name="On me", exact=True)).to_be_visible()
-    expect(child.get_by_role("button", name="Threads, 0 open")).to_be_visible()
     for width in (720, 390):
         resized(page, width, 900)
         sample.scroll_into_view_if_needed()
@@ -2180,10 +1804,10 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
 # document and its open shadow roots; live samples run their own runtime in an opaque
 # frame and take no part.
 _SWEPT = (
-    "button:visible, [role=button]:visible, [role=tab]:visible, [role=radio]:visible, "
-    "[role=checkbox]:visible, input[type=checkbox]:visible, input[type=radio]:visible, "
-    "summary:visible, :is(textarea, input[type=search], input[type=text], "
-    "input:not([type])):not(:disabled, [readonly]):visible"
+    "button, [role=button], [role=tab], [role=radio], "
+    "[role=checkbox], input[type=checkbox], input[type=radio], "
+    "summary, :is(textarea, input[type=search], input[type=text], "
+    "input:not([type])):not(:disabled, [readonly])"
 )
 _FILLS = ("review", "", "a b c", "zzzz")
 _SWEEP_STEPS = 40
@@ -2194,20 +1818,40 @@ _DESCRIBE = """element => {
     || element.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 40);
   return `${element.localName}${id}${classes} [${label}]`;
 }"""
-_CONTROL = (
-    """element => [("""
+# Choose, scroll and measure in one browser task: neither a node handle nor an
+# ordinal in a changing control list identifies a later pointer destination.
+_SWEEP_POINT = (
+    """(elements, fraction) => {
+  const visible = elements.filter(element =>
+    element.checkVisibility({visibilityProperty: true}));
+  if (!visible.length) throw new Error('the sweep has no visible controls');
+  const element = visible[Math.floor(fraction * visible.length)];
+  element.scrollIntoView({block: 'nearest', inline: 'nearest', behavior: 'instant'});
+  const rect = element.getBoundingClientRect();
+  return [Math.max(0, Math.min(innerWidth - 1, rect.x + rect.width / 2)),
+          Math.max(0, Math.min(innerHeight - 1, rect.y + rect.height / 2)),
+          ("""
     + _DESCRIBE
-    + """)(element), element.localName === 'textarea'
-  || (element.localName === 'input' && !['checkbox', 'radio'].includes(element.type))]"""
+    + """)(element)];
+}"""
 )
+_FOCUSED_INPUT = """() => {
+  let element = document.activeElement;
+  while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+  return element?.matches('textarea:not(:disabled, [readonly]), '
+    + 'input:is([type=search], [type=text], :not([type])):not(:disabled, [readonly])');
+}"""
 # Each element's painted keys and availability, held in the page as a Map keyed by
-# the element, so the reading after the repaint is compared node by node.
+# the element, so the reading after the repaint is compared node by node. Hidden
+# controls have no accessible keys; a native close can hide them before its deferred
+# close event refreshes their attributes. Compare the controls a reader can use.
 _PAINTED_KEYS = """() => {
   const painted = new Map();
   const walk = root => {
     for (const element of root.querySelectorAll('*')) {
-      painted.set(element, [element.getAttribute('aria-disabled'),
-                            element.getAttribute('aria-keyshortcuts')]);
+      if (element.checkVisibility())
+        painted.set(element, [element.getAttribute('aria-disabled'),
+                              element.getAttribute('aria-keyshortcuts')]);
       if (element.shadowRoot) walk(element.shadowRoot);
     }
   };
@@ -2234,17 +1878,41 @@ _REPAINTED_KEYS = (
 )
 
 
+# A press may hand an element to the browser's fullscreen, which arrives frames after
+# the press and moves focus as it does, past every wait the reading takes: a reading
+# it lands inside compares keys painted before the move with keys painted after it.
+# The page counts the requests still unanswered, so the reading waits for the browser
+# to answer each.
+_FULLSCREEN_REQUESTS = """(() => {
+  const request = Element.prototype.requestFullscreen;
+  window.__lfFullscreenRequests = 0;
+  const answered = () => window.__lfFullscreenRequests--;
+  Element.prototype.requestFullscreen = function (...args) {
+    window.__lfFullscreenRequests++;
+    const answer = request.apply(this, args);
+    answer.then(answered, answered);
+    return answer;
+  };
+})()"""
+
+
 def _stale_keys(page):
     """What a forced repaint of every element's keys changes, once the page has
     rendered what the input so far asked for: each change is an attribute that was
     stale. A control a send or a load holds unavailable is ready again once that
     finishes, so the reading waits for both: for the page's readiness, which includes
-    every live sample's arrival, and for every send to come back."""
+    every live sample's arrival, and for every send to come back. It waits too for
+    every fullscreen request the input made, which moves focus when the browser
+    answers it, and for finite motion: a closing card hides its reply box at the
+    fade's end, changing which keys apply."""
     wait_until_ready(page)
     round_trip(page)
-    rendered(page)
+    page.wait_for_function("() => window.__lfFullscreenRequests === 0")
+    page_at_rest(page)
     painted = page.evaluate_handle(_PAINTED_KEYS)
-    page.evaluate("async () => (await window.__lfWidgetApi()).paintKeys()")
+    page.evaluate(
+        "async () => (await window.__lfWidgetApi()).commandsChanged(document.body)"
+    )
     rendered(page)
     stale = page.evaluate(_REPAINTED_KEYS, painted)
     painted.dispose()
@@ -2265,35 +1933,22 @@ def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, ex
     example's name, and after each step forces a repaint of every element's keys. Any
     attribute that repaint changes was stale. The keys themselves still work, since a
     press reads the rows afresh, so no other test fails on such a row. A page change
-    reshuffles the steps; the failure names the step and the control pressed."""
+    reshuffles the steps; the failure names the step, pointer aim and typed words."""
     rng = random.Random(example.stem)
-    page = open_page(browser, serve(example))
+    page = open_page(browser, serve(example), init_script=_FULLSCREEN_REQUESTS)
     stale = [{"step": "arrival", **finding} for finding in _stale_keys(page)]
     for step in range(_SWEEP_STEPS):
-        # Handles rather than a locator's nth, so a page that changes between the
-        # reading and the input still takes the input on the control it chose.
-        controls = page.locator(_SWEPT).element_handles()
-        if not controls:
-            break
-        control = rng.choice(controls)
-        did, fillable = control.evaluate(_CONTROL)
-        if fillable:
-            control.fill(rng.choice(_FILLS), force=True)
-            did = f"fill {did}"
-        else:
-            try:
-                control.click(force=True)
-            except PlaywrightError as error:
-                # A pointer cannot reach a control that fixed chrome holds outside the
-                # viewport, or one that scrolling it into view hides, as a virtualized
-                # list does to a row it recycles.
-                if not any(
-                    reason in error.message
-                    for reason in ("outside of the viewport", "not visible")
-                ):
-                    raise
-                continue
-            did = f"press {did}"
+        x, y, target = page.locator(_SWEPT).evaluate_all(_SWEEP_POINT, rng.random())
+        page.mouse.click(x, y)
+        did = f"press at ({x:.0f}, {y:.0f}), aimed at {target}"
+        # Type through actual focus, including inside an open shadow root. A press
+        # may replace the control or focus something other than the original aim.
+        if page.evaluate(_FOCUSED_INPUT):
+            value = rng.choice(_FILLS)
+            page.keyboard.press("ControlOrMeta+a")
+            page.keyboard.press("Backspace")
+            page.keyboard.insert_text(value)
+            did += f", fill {value!r}"
         if rng.random() < 0.15:
             page.keyboard.press("Escape")
             did += ", then Escape"

@@ -1,5 +1,5 @@
-import { shownParts, TEXT_BOX } from "/runtime/widget-api.js";
-import { shownBox, userScrollport } from "/runtime/check-api.js";
+import { TEXT_BOX } from "/runtime/widget-api.js";
+import { shownBox, shownParts, userScrollport } from "/runtime/check-api.js";
 import { at, place, unique } from "./locate.js";
 
 // An overlay that takes no presses at rest, such as the contents map's spine, stands
@@ -7,6 +7,25 @@ import { at, place, unique } from "./locate.js";
 // it has at rest is not the room it shows in.
 export const restsOverPage = (style) =>
   style.position === "fixed" && style.pointerEvents === "none";
+
+// The axes on which a box clips what it holds and offers the user no way in, asked of
+// the overflow value per axis rather than of the scroll extent. A box that clips
+// always has something to scroll, which is what clipping means, so
+// `scrollWidth > clientWidth` is true of exactly the boxes in question and would wave
+// every one of them through. What separates a board, whose columns run past it and are
+// reached by dragging, from a group that swallowed its own pick marks is whether the
+// box offers the user a way in: auto and scroll do, hidden and clip do not. Paint
+// containment clips both axes while `overflow` computes `visible` (MISPLACED_BOXES
+// reads the same fact for its ancestors), and it denies the way in exactly where the
+// axis has no scroller of its own.
+export function sealedAxes(style) {
+  const contained = /paint|strict|content/.test(style.contain);
+  const sealed = (overflow) =>
+    overflow === "hidden" ||
+    overflow === "clip" ||
+    (contained && !userScrollport(overflow));
+  return { across: sealed(style.overflowX), down: sealed(style.overflowY) };
+}
 
 // A control drawn where no user can reach it. `TINY_BOXES` asks whether a widget got a
 // box at all; this asks the question one level down, of the chrome inside it, and the
@@ -60,23 +79,7 @@ export function clippedControls() {
     // every control below the fold as hidden by the page it is on.
     for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
       const s = getComputedStyle(a);
-      // Asked of the overflow value, per axis, and not of the scroll extent. A
-      // box that clips always has something to scroll — that is what clipping
-      // means — so `scrollWidth > clientWidth` is true of exactly the boxes this
-      // is about and would wave every one of them through. What separates a
-      // board, whose columns run past it and are reached by dragging, from a
-      // group that swallowed its own pick marks is whether the box offers the
-      // user a way in: auto and scroll do, hidden and clip do not. Paint
-      // containment clips both axes while `overflow` computes `visible`
-      // (MISPLACED_BOXES reads the same fact for its ancestors), and it denies
-      // the way in exactly where the axis has no scroller of its own.
-      const contained = /paint|strict|content/.test(s.contain);
-      const scrollX = userScrollport(s.overflowX);
-      const scrollY = userScrollport(s.overflowY);
-      const across =
-        s.overflowX === "hidden" || s.overflowX === "clip" || (contained && !scrollX);
-      const down =
-        s.overflowY === "hidden" || s.overflowY === "clip" || (contained && !scrollY);
+      const { across, down } = sealedAxes(s);
       if (across || down) {
         const f = a.getBoundingClientRect();
         const lost = Math.round(

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .refusals import Refused
 from .registry.contract import is_element_name
-from .registry.storage import read_page_registry
+from .registry.storage import layer_record, require_candidate, selected
 from .schema import INSTRUCTIONS_DIR
 from .structure import SourceDocument
 
@@ -37,7 +37,14 @@ def instruction_selection(
     while pending:
         name = pending.pop()
         if name not in declarations:
-            raise Refused(f"unknown instructions vocabulary entry {name!r}")
+            # Authors land here asking for a Layout class, which the page's CSS
+            # provides and page-layout.md describes, outside the registry.
+            raise Refused(
+                f"unknown instructions vocabulary entry {name!r}: the page's registry"
+                " declares no element or idiom by that name (its keys list the"
+                " vocabulary); Layout classes such as `layout-tiles` aren't entries,"
+                " and page-layout.md describes them"
+            )
         if name in selected_entries:
             continue
         selected_entries.add(name)
@@ -84,20 +91,16 @@ def page_instructions(
     contracts: Collection[str] = (),
 ) -> dict[str, str]:
     """Compose shared and selected instructions by their declared audience."""
-    vocabulary = read_page_registry(page_dir)
-    if vocabulary is None:
-        raise Refused(f"no registry.json in {page_dir}; run `leaf page init` first")
-    registry = vocabulary.registry
+    registry = require_candidate(page_dir).registry
     selected_entries, selected_contracts = instruction_selection(
         registry, entries, contracts
     )
     parts: dict[str, list[str]] = {}
-    directory = page_dir / INSTRUCTIONS_DIR
-    if directory.is_dir():
-        for path in sorted(directory.iterdir()):
-            text = path.read_text(encoding="utf-8").strip()
-            if text:
-                parts.setdefault(path.stem, []).append(text)
+    layer = selected(layer_record(page_dir), page_dir)
+    for name, data in sorted(layer.directory_files[INSTRUCTIONS_DIR].items()):
+        text = data.decode("utf-8").strip()
+        if text:
+            parts.setdefault(Path(name).stem, []).append(text)
     for contract in selected_contracts:
         declaration = registry["$data"]["contracts"][contract]
         for audience, text in sorted(declaration.get("instructions", {}).items()):

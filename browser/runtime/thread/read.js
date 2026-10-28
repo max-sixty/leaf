@@ -31,7 +31,7 @@
    that thread's first, share the same exact-message arrival. Ordinary `u` remains
    paired with `d` in whichever reading region the user is in. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 import {
   layoutWindow,
   presented,
@@ -178,6 +178,7 @@ export function createReadTracking({ markRead, openThread }) {
     keys: ["u"],
     title: "first unread",
     touch: false,
+    travels: true,
     when: () => actionableUnread().length > 0,
     run: () => void firstUnread(),
   };

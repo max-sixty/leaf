@@ -8,7 +8,7 @@
 import { runtime } from "./context.js";
 import { isElementName } from "./registry-contract.js";
 
-// The vocabulary, vendored per page: which tags a module upgrades, and which of their
+// The vocabulary, composed per page: which tags a module upgrades, and which of their
 // attributes are words the page says. Empty only during the real fetch interval, when
 // the already-wired chrome can legitimately be used; a failed fetch still rejects
 // startup rather than becoming an empty vocabulary.
@@ -40,7 +40,7 @@ function freeze(value) {
 }
 
 let stateIndex;
-/** @param {import("../framework/domain.ts").StateRecord} record */
+/** @param {import("../types/domain.js").StateRecord} record */
 const recordSlot = (record) =>
   JSON.stringify([record.kind, "attr" in record ? record.attr : null]);
 function indexedState() {
@@ -69,7 +69,7 @@ function indexedState() {
 }
 
 export const stateSpecs = () => indexedState().specs;
-/** @param {import("../framework/domain.ts").StateRecord} record */
+/** @param {import("../types/domain.js").StateRecord} record */
 export const recordedWidgetSelector = (record) =>
   indexedState().recordSelectors.get(recordSlot(record)) ?? "";
 

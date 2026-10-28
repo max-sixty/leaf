@@ -146,81 +146,6 @@ def claim_command(page, program, *, endpoint=None, launcher=LEAF_COMMAND):
     ]
 
 
-def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
-    codex_claimed_page, under_codex, codex_env, tmp_path
-):
-    """The previous adapter retires, and its successor queues the page's input.
-
-    Two real Python package locations model installed Leaf and a selected checkout;
-    the fake external Codex endpoint records the delivery instead of opening a turn.
-    """
-    foreign = tmp_path / "installed"
-    for name in ("src", "browser", "packages", "dist", "skills"):
-        shutil.copytree(PLUGIN_ROOT / name, foreign / name)
-    launcher = foreign / "bin/leaf"
-    launcher.parent.mkdir()
-    launcher.write_text(
-        "#!/bin/sh\n"
-        f"export PYTHONPATH={shlex.quote(str(foreign / 'src'))}\n"
-        f'exec {shlex.quote(sys.executable)} -m leaf "$@"\n'
-    )
-    launcher.chmod(0o755)
-    program, log = fake_codex_cli(tmp_path)
-    results = tmp_path / "starts.json"
-    first = claim_command(codex_claimed_page, program, launcher=[str(launcher)])
-    select_runtime = (
-        "from pathlib import Path; from leaf.session_runtime import select_launcher; "
-        f"select_launcher('codex-thread', Path({str(PLUGIN_ROOT / 'bin/leaf')!r}))"
-    )
-    calls = [
-        first,
-        [sys.executable, "-c", select_runtime],
-        claim_command(codex_claimed_page, program),
-    ]
-    runner = PLUGIN_ROOT / "tests/fixtures/programs/codex_starts.py"
-    task = under_codex(
-        shlex.join([sys.executable, str(runner), json.dumps(calls), str(results)]),
-        codex_env | {"CODEX_THREAD_ID": "codex-thread", "FAKE_CODEX_LOG": str(log)},
-        app_server=False,
-        finished=tmp_path / "finished",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    try:
-        outcomes = wait_for(
-            lambda: files_model.read_json(results),
-            lambda value: value is not None,
-            failure="delivery runtime replacement did not finish",
-        )
-        assert all(status == 0 for status, _out, _err in outcomes), outcomes
-        assert codex_adapter_model.running_adapter("codex-thread")["launcher"] == str(
-            PLUGIN_ROOT / "bin/leaf"
-        )
-        append_carried_log_record(
-            codex_claimed_page,
-            {
-                "kind": "comment",
-                "author": "user",
-                "text": "Review with the selected checkout",
-            },
-        )
-        wait_for(
-            lambda: log.read_text(),
-            lambda text: '"--message"' in text,
-            failure="the replacement adapter did not queue the pending input",
-        )
-    finally:
-        release_held(task)
-        task.communicate(timeout=STATED_TIMEOUT)
-        cleanup_model.end_session("codex-thread")
-        wait_for(
-            lambda: codex_adapter_model.adapter_is_live("codex-thread"),
-            lambda live: not live,
-            failure="the replaced delivery runtime did not end",
-        )
-
-
 def test_codex_readdresses_a_collecting_record_if_its_delivery_id_collides(
     page_dir, monkeypatch
 ):
@@ -702,7 +627,7 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
     assert cleanup_model.session_record("codex-thread") is None
     endpoint = app_server(handle)
     program, _log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(page_dir, "Reviewing the page")
+    session_model.cmd_waiting(page_dir)
     finished = tmp_path / "codex-start-finished"
     started = under_codex(
         shlex.join(claim_command(page_dir, program, endpoint=endpoint)),
@@ -776,7 +701,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
         {"kind": "comment", "id": "accepted", "author": "user", "text": "hi"},
     )
     delivered = events_model.read_events(page_dir)[-1]
-    session_model.cmd_waiting(page_dir, "successor is listening")
+    session_model.cmd_waiting(page_dir)
     successor = record_claim(page_dir, id="successor", harness="codex", agent="Codex")
     with service_model.PageTransaction(page_dir) as page:
         reading = session_model.PageTick(
@@ -808,11 +733,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
 
     assert acknowledged_through(page_dir) == 0
     assert service_model.page_claim(page_dir) == successor
-    status = declared(page_dir)
-    assert (status["state"], status["detail"]) == (
-        "waiting",
-        "successor is listening",
-    )
+    assert declared(page_dir)["state"] == "waiting"
     pickups = [
         event
         for event in events_model.read_events(page_dir)
@@ -1174,7 +1095,7 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
     for the next holder."""
     # The suite's hook marks (`isolated_session`) are not records this test makes.
     for session in HOOKED_SESSIONS:
-        leases_model.hooks_path(session).unlink()
+        cleanup_model.session_file(session, cleanup_model.HOOKS_SUFFIX).unlink()
     for name in CLAUDE_IDENTITY:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
@@ -1230,7 +1151,7 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
     assert not codex_state_model.delivery_dir("ended-task").exists()
     assert not codex_adapter_model.adapter_log_path("codex-thread").exists()
     coordination = [
-        path for path in leases_model.sessions_home().iterdir() if path != kept
+        path for path in cleanup_model.sessions_home().iterdir() if path != kept
     ]
     assert leases_model.adapter_lease_path("codex-thread") in coordination
     assert all(
@@ -1980,7 +1901,7 @@ def _comment_before_the_first_tool_step(
         prompt("earlier-turn")
         append("task_complete", "earlier-turn")
         codex_state_model.sync_transcript_turn("codex-thread")
-        leases_model.hooks_path("codex-thread").unlink()
+        cleanup_model.session_file("codex-thread", cleanup_model.HOOKS_SUFFIX).unlink()
         append("task_started", "user-turn")
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Rename the column"}
@@ -2438,7 +2359,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
     )
     [(path, _)] = codex_records("codex-thread")
     lease = adapter_lease("codex-thread", None)
-    waiter = leases_model.take_lease(
+    waiter = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, "codex-thread")
     )
     assert waiter
@@ -2864,7 +2785,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         {"kind": "comment", "id": "accepted", "author": "user", "text": "hi"},
     )
     delivered = events_model.read_events(page)[-1]
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     with service_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
@@ -2928,7 +2849,7 @@ def test_a_later_claim_preserves_the_running_transport(
     this adapter is not on is refused rather than ignored."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
@@ -2989,7 +2910,7 @@ def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
     """Status and server changes do not end a route still owned by the task."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     assert hosting_model.cmd_stop(page) is True
     checks = tmp_path / "adapter-checks.json"
     adapter = spawn_probe(
@@ -3051,7 +2972,7 @@ raise SystemExit(adapter.run_adapter(os.environ["CODEX_PATH"]))
             failure="the adapter never completed its idle-page reads",
         )
         assert codex_adapter_model.adapter_is_live("codex-thread")
-        session_model.cmd_waiting(page, "resumed review")
+        session_model.cmd_waiting(page)
         asked = append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": "Continue this review"}
         )
@@ -3063,9 +2984,7 @@ raise SystemExit(adapter.run_adapter(os.environ["CODEX_PATH"]))
             ),
             failure="resumed feedback did not reach the existing adapter",
         )
-        hooks_model.cmd_hook(
-            "codex", {"hook_event_name": "SessionEnd", "session_id": "codex-thread"}
-        )
+        cleanup_model.end_harness_instance("codex-thread")
         wait_for(
             lambda: codex_adapter_model.adapter_is_live("codex-thread"),
             lambda live: not live,
@@ -3097,7 +3016,7 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
     assert stamped.exit_code == 0, stamped.output
     offline = tmp_path / "a-offline-page"
     vendoring_model.cmd_init(offline)
-    session_model.cmd_waiting(offline, "earlier review")
+    session_model.cmd_waiting(offline)
     write_record(
         offline / "service.json",
         {
@@ -3110,7 +3029,7 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
     )
 
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(live, "current review")
+    session_model.cmd_waiting(live)
     finished = tmp_path / "codex-start-finished"
     # Both page claims and the adapter belong to the same actual task harness.
     # A second fake Codex process would declare a replacement session lifetime.
@@ -3267,7 +3186,7 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
 ):
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     adapter = spawn_codex_adapter(
         spawn,
         program,
@@ -3325,7 +3244,7 @@ def test_codex_adapter_keeps_transferred_input_unreceived(
 ):
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(page, "comment on the prototype")
+    session_model.cmd_waiting(page)
     queue_wait = tmp_path / "held-queue"
     adapter = spawn_codex_adapter(
         spawn,

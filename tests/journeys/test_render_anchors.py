@@ -1,12 +1,18 @@
 """Selection, passage, syntax, and version-travel tests."""
 
-import json
 import re
 from html import escape
 
 import pytest
+from browser.test_render_anchors import (
+    DIFF_EMPTY_CONTEXT_MARKUP,
+    DIFF_INERT_SOURCE,
+    DIFF_MIXED_RENAME_SOURCE,
+    DIFF_PATCH_CASES,
+)
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, record_claim, wait_for
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
@@ -16,13 +22,13 @@ from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
-    EXAMPLES,
     INLINE_PAGE,
     PANEL_THREAD,
     PASSAGE_SOURCES,
     RELEASE_FOCUS,
     command_reference_rows,
     compare_with,
+    consume_browser_errors,
     expect_panel_offers,
     expect_panel_says,
     leaf_page,
@@ -46,6 +52,7 @@ from leaf import event_log as events_model
 from leaf import passages as passages_model
 from leaf import service as service_model
 from leaf import structure as structure_model
+from leaf.registry.storage import read_page_registry
 from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -54,9 +61,7 @@ from browser.test_render_anchors import open_selected_comment
 from browser.threads import open_panel_thread
 
 from journeys import (
-    detached_threads,
     first_thread_quote,
-    listed_threads,
 )
 
 
@@ -245,7 +250,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     # regression that detaches ordinary file-readable prose must fail this sweep.
     passages = passages_model.page_passages(
         structure_model.SourceDocument((serve.page_dir / "index.html").read_text()),
-        json.loads((serve.page_dir / "registry.json").read_text()),
+        read_page_registry(serve.page_dir).registry,
     )
     for anchor in result["nonexact"]:
         located = {key: value for key, value in anchor.items() if key != "detached"}
@@ -265,47 +270,6 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
         f"{len(result['astray'])} passages in {source.stem} painted outside what was "
         f"selected: {result['astray']}"
     )
-
-
-def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
-    """A block scrolling out of view gives the viewport its draft before it loses focus."""
-    source = next(source for source in EXAMPLES if source.stem == "live-progress")
-    page = open_page(browser, serve(source))
-    resized(page, 700, 850)
-    page.evaluate("""() => {
-        const range = document.createRange();
-        range.selectNodeContents(document.querySelector('#lp-k-checks'));
-        getSelection().removeAllRanges();
-        getSelection().addRange(range);
-        document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-    }""")
-    field = page.locator(".lf-fab-input")
-    page.keyboard.press("c")
-    expect(field).to_be_visible()
-    expect(field).to_be_focused()
-    label = field.get_attribute("aria-label")
-    assert label and label.startswith("Comment on “checks passing 4 of 5")
-    draft = "Why does the remaining check need a decision?"
-    write(field, draft)
-    resized(page, 420, 850)
-    expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", draft)
-
-    # Native End on macOS scrolls the page even from a text box. A smooth scroll can
-    # cross this narrow band in one frame or several; put that actual geometry on screen
-    # directly so the test cannot miss the point where the region no longer fits a field.
-    page.locator("#lp-status").evaluate(
-        "region => window.scrollTo(0, scrollY + region.getBoundingClientRect().bottom - 20)"
-    )
-    rendered(page)
-    assert page.locator("#lp-status").evaluate(
-        "region => Math.abs(region.getBoundingClientRect().bottom - 20) < 1"
-    )
-    expect(field).to_be_visible()
-    expect(field).to_be_focused()
-    expect(field).to_have_attribute("aria-label", label)
-    page.keyboard.type(" What must Finance decide?")
-    expect(field).to_have_js_property("value", draft + " What must Finance decide?")
 
 
 def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
@@ -406,7 +370,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
                     padding: getComputedStyle(pre).paddingTop,
                     frame: rect(pre.getBoundingClientRect()),
                     source: rect(range.getClientRects()[0]),
-                    button: rect(copy.shadowRoot.querySelector('button').getBoundingClientRect()),
+                    copy: rect(copy.getBoundingClientRect()),
                   };
                 }""",
                 pre_selector,
@@ -414,8 +378,9 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
 
         before = geometry()
         assert before["padding"] == "12px", before
-        frame, overlay = before["frame"], before["button"]
-        assert 0 <= overlay[1] - frame[1] <= 8, before
+        # Copy's toolbar stands on the block's top border, near its right edge.
+        frame, overlay = before["frame"], before["copy"]
+        assert overlay[1] + overlay[3] / 2 == pytest.approx(frame[1], abs=1), before
         assert 0 <= frame[0] + frame[2] - overlay[0] - overlay[2] <= 8, before
         if keyboard:
             # Enter on the source copies it, though the control stands outside
@@ -438,7 +403,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             button.hover()
         expect(control).to_have_css("opacity", "1")
         after = geometry()
-        for box in ("frame", "source", "button"):
+        for box in ("frame", "source", "copy"):
             assert after[box] == pytest.approx(before[box], abs=0.5), (before, after)
         if keyboard:
             page.keyboard.press("Enter")
@@ -560,9 +525,16 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(touch_pre).to_be_focused()
     expect(touch_pre).to_have_attribute("tabindex", "0")
     expect(touch_control).to_have_css("opacity", "1")
-    hit = touch_button.bounding_box()
-    assert hit and hit["width"] >= 44 and hit["height"] >= 44, hit
-    touch_button.tap()
+    # The face follows the block's line, and its reach meets a finger's floor: a tap
+    # inside that floor but beside the face still presses Copy.
+    face = touch_button.bounding_box()
+    floor = touch.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
+    )
+    assert face
+    touch.touchscreen.tap(
+        face["x"] + face["width"] / 2, face["y"] + face["height"] / 2 + floor / 2 - 2
+    )
     expect_panel_says(touch, "Code copied")
     copied(plain)
     assert touch_pre.bounding_box() == frame
@@ -639,12 +611,6 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         "(code, source) => code.textContent = source", fitting
     )
     assert touch_pre.evaluate("pre => pre.scrollWidth === pre.clientWidth")
-    # The old scroll-state container query's 8px bottom float can survive the
-    # text write for a rendering pass after the line itself stops overflowing.
-    # Take geometry only after that old scrollbar clearance has gone.
-    touch.wait_for_function(
-        "getComputedStyle(document.querySelector('#plain'), '::after').content === 'none'"
-    )
     frame = touch_pre.bounding_box()
     suffix_uncovered()
     touch_pre.tap(position={"x": 20, "y": 20})
@@ -674,89 +640,6 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     touch.locator("#title").tap()
     expect(numbered_pre).to_have_attribute("tabindex", "0")
     expect(numbered_control).to_have_css("opacity", "0")
-
-
-def test_a_revised_example_travels_between_its_own_versions(browser, serve):
-    """The corpus's own reading of version travel, on the one example that was revised.
-
-    Every other version fixture publishes a second version out of one markup string,
-    which is a page nobody wrote: the two documents differ by whatever the fixture
-    edited, and what a user would see marked is whatever that edit happened to be.
-    The shipped example is an authored pair — a proposal and the version that answered
-    a comment on it — so what the comparison marks here is what a revision is: the
-    paragraph rewritten around the sentence the user quoted, the paragraph and
-    step it grew, and the title and lede updated to state the exception. Everything
-    the revision left alone stays unmarked, including the
-    section the other thread stands on, and both threads stay attached because both
-    quotes survived.
-
-    That is also this file's floor for the corpus. The example sweeps serve the newest
-    version and never press anything, so with no reading here the picker could offer
-    a list nobody walks and a Compare control nobody presses on every page in examples/."""
-    example = next(p for p in EXAMPLES if p.stem == "log-retention")
-    page = open_page(browser, serve(example))
-
-    # Served at the newest version, with the earlier one under Versions.
-    versions = panel_menu(page, "versions")
-    expect(
-        versions.locator(".lf-fp-version[data-current] .lf-fp-item")
-    ).to_contain_text("v2")
-    expect(versions.locator(".lf-fp-version")).to_have_count(2)
-    page.locator(".lf-fp-leaf").click()
-
-    compare_with(page, 1)
-    expect(page.locator("main .lf-ins-block")).to_have_count(5)
-    marked = page.eval_on_selector_all(
-        "main .lf-ins-block", "els => els.map(e => e.id).sort()"
-    )
-    assert marked == [
-        "ret-cost-body",
-        "ret-cost-keep",
-        "ret-lede",
-        "ret-steps-carve",
-        "ret-title",
-    ], marked
-    # A Change margin entry's press says what it reached, in the notice slot: its target is
-    # usually on screen already, so the scroll moves nothing and a press that only spoke
-    # to the live region was, to a sighted user, a press that did nothing. What the
-    # press also discloses is the next test's; this one holds it to naming its target.
-    page.locator(
-        '.lf-margin-entry:has(svg[data-lf-icon="change"]):visible'
-    ).first.click()
-    expect_panel_says(page, " changed since v1")
-
-    # The threads the log opened, both still on their passages: one on a block the
-    # revision rewrote, one on a block it never touched.
-    listed = listed_threads(page)
-    assert len(listed) == 2, listed
-    assert detached_threads(page, listed) == set()
-    painted = re.sub(
-        r"\s",
-        "",
-        page.evaluate(
-            "() => [...CSS.highlights.get('lf-mark')].map(r => r.toString()).join('')"
-        ),
-    )
-    for quote in (
-        "Two years of incident write-ups name a log older than six weeks exactly twice.",
-        (
-            "Across eighteen months of query history, 90% of reads touch logs less than "
-            "a week old and 95% stay within 42 days."
-        ),
-    ):
-        assert re.sub(r"\s", "", quote) in painted, painted[:160]
-
-    # And the older document is a real destination, not just a row: choosing it pins
-    # the user to the virtual version address the picker named.
-    panel_menu(page, "versions").locator(
-        ".lf-fp-version:not([data-current]) > .lf-fp-item"
-    ).click()
-    page.wait_for_url(re.compile(r"/versions/v1\.html"))
-    expect(
-        panel_menu(page, "versions").locator(".lf-fp-version[data-current] .lf-fp-item")
-    ).to_contain_text("v1")
-    page.locator(".lf-fp-leaf").click()
-    expect(page.locator("#ret-cost-keep")).to_have_count(0)
 
 
 def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
@@ -821,6 +704,12 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
  def route(request):
 -    return f"legacy:{request.token.id}"
 +    return f"tok:{request.token.id}"
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1 +1 @@
+-Routes by legacy key.
++Routes by token.
 """
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)
@@ -1129,16 +1018,16 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     panel_status = panel_thread.locator(".lf-msg").first.locator(
         ":scope > .lf-msg-head .lf-msg-sending"
     )
-    expect(inline_status).to_have_text("Sent")
-    expect(panel_status).to_have_text("Sent")
+    expect(inline_status).to_have_text(re.compile(r"^Queued for "))
+    expect(panel_status).to_have_text(re.compile(r"^Queued for "))
     inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
     panel_status.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
     record_claim(serve.page_dir)
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, [root])
     told(page)
-    expect(inline_status).to_have_text("Delivered")
-    expect(panel_status).to_have_text("Delivered")
+    expect(inline_status).to_have_text("Got it")
+    expect(panel_status).to_have_text("Got it")
     expect(inline_status).to_have_attribute("data-identity-probe", "inline")
     expect(panel_status).to_have_attribute("data-identity-probe", "panel")
     reply = append_carried_log_record(
@@ -1206,6 +1095,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
             "start",
             str(serve.page_dir),
             question["id"],
+            "--text",
             "checking the inline placement",
         ],
     )
@@ -1231,10 +1121,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
             open_panel_thread(page, root["id"])
         expect(
             view.locator(f'.lf-msg[data-event="{question["id"]}"]').locator(line)
-        ).to_have_text("Working")
+        ).to_have_text("On it")
         expect(
             view.locator(f'.lf-msg[data-event="{followup["id"]}"]').locator(line)
-        ).to_have_text("Sent")
+        ).to_have_text(re.compile(r"^Queued for "))
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 
@@ -1265,3 +1155,167 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
         thread.get_by_role("button", name="Reopen", exact=True).click()
     expect(resolved).to_have_count(0)
     expect(thread.locator("leaf-text")).to_be_visible()
+
+
+def test_the_widget_reads_the_diff_patch_table(browser, serve):
+    """`diff_patch_cases.json` states what lf-diff can present, which it alone
+    judges. The widget draws each accepted patch, under the row's paths, as inline
+    text and as the manifest `patch_manifest.py` builds from it (whose paths
+    `test_interact_document.py` checks), and refuses each row with a `widget` message
+    without hiding evidence: inline, quoting the patch it could not draw, and in a
+    stored manifest, in the file it cannot draw. Every refusal reaches the author.
+    The same page draws the samples above, which the table's rows do not reach."""
+    accepted = [case for case in DIFF_PATCH_CASES if "files" in case]
+    refused = [case for case in DIFF_PATCH_CASES if "widget" in case]
+    # The manifest stores what it is given, so the widget alone refuses a stored
+    # file's patch, in that file. The producer groups repeated paths for the widget
+    # to judge; the contract itself refuses an empty manifest at `data set`.
+    stored = [case for case in refused if case["id"] != "empty"]
+    markup = "".join(
+        [
+            *(
+                f'<lf-diff id="text-{case["id"]}"><pre>{escape(case["patch"])}</pre></lf-diff>'
+                for case in [*accepted, *refused]
+            ),
+            *(
+                f'<lf-diff id="files-{case["id"]}" source="files-{case["id"]}"><pre></pre></lf-diff>'
+                for case in [*accepted, *stored]
+            ),
+            f'<lf-diff id="inert-diff"><pre>{escape(DIFF_INERT_SOURCE)}</pre></lf-diff>',
+            (
+                '<lf-diff id="mixed-rename-diff">'
+                f"<pre>{escape(DIFF_MIXED_RENAME_SOURCE)}</pre></lf-diff>"
+            ),
+            (
+                '<lf-diff id="final-empty-context-diff">'
+                f"<pre>{DIFF_EMPTY_CONTEXT_MARKUP}</pre></lf-diff>"
+            ),
+        ]
+    )
+    url = serve(leaf_page("diff patch table", f'<h1 id="cases">Cases</h1>{markup}'))
+    for case in [*accepted, *stored]:
+        data_model.cmd_data_set(
+            serve.page_dir, f"files-{case['id']}", patch_manifest(case["patch"])
+        )
+    page = open_page(browser, url)
+    rendered(page)
+    readings = page.locator("lf-diff").evaluate_all(
+        """hosts => Object.fromEntries(hosts.map(host => [host.id, {
+          rendered: host.classList.contains('lf-rendered'),
+          errors: [...new Set([...host.querySelectorAll('.lf-error'),
+            ...(host.shadowRoot?.querySelectorAll('.lf-error') ?? [])]
+            .map(box => box.firstChild?.textContent ?? null))],
+          source: host.querySelector('.lf-error pre')?.textContent ?? null,
+          files: [...(host.shadowRoot?.querySelectorAll('.lf-diff-path') ?? [])].map(
+            path => (path.querySelector('.lf-diff-destination-path') ?? path)
+              .textContent.replaceAll('\\u200b', '')),
+        }]))"""
+    )
+    for case in accepted:
+        for form in ("text", "files"):
+            reading = readings[f"{form}-{case['id']}"]
+            assert reading["rendered"] and not reading["errors"], (case["id"], reading)
+            assert reading["files"] == case["files"], (case["id"], reading)
+    for case in refused:
+        assert readings[f"text-{case['id']}"] == {
+            "files": [],
+            "rendered": False,
+            "errors": [f"<lf-diff> failed: {case['widget']}"],
+            "source": case["patch"].rstrip("\n") or None,
+        }, case["id"]
+    for case in stored:
+        reading = readings[f"files-{case['id']}"]
+        assert reading["rendered"], (case["id"], reading)
+        assert reading["errors"] == [
+            f"That file's diff cannot be shown: {case['widget']}"
+        ], (case["id"], reading)
+    # Each refusal reaches the author too, naming the diff that could not draw.
+    reported = consume_browser_errors(
+        page,
+        *(f'<lf-diff id="text-{case["id"]}"> failed: ' for case in refused),
+        *(f'<lf-diff id="files-{case["id"]}"> failed: ' for case in stored),
+    )
+    assert len(reported) == len(refused) + len(stored), reported
+
+    result = page.evaluate("""() => {
+      const host = document.querySelector('#inert-diff');
+      const added = [...host.shadowRoot.querySelectorAll('[data-line]')]
+        .find(line => line.dataset.lineType === 'change-addition');
+      return {
+        text: added.textContent,
+        images: host.shadowRoot.querySelectorAll('img').length,
+        handlers: host.shadowRoot.querySelectorAll('[onerror]').length,
+        executed: globalThis.__lfDiffPwned === 1,
+      };
+    }""")
+    assert result == {
+        "text": "<img src=x onerror=globalThis.__lfDiffPwned=1>",
+        "images": 0,
+        "handlers": 0,
+        "executed": False,
+    }
+
+    result = page.evaluate("""async () => {
+      const host = document.querySelector('#mixed-rename-diff');
+      const shadow = host.shadowRoot;
+      const renames = [...(shadow?.querySelectorAll('.lf-diff-metadata') ?? [])];
+      const rename = renames[0];
+      const quotedRename = renames[1];
+      const bomRename = renames[2];
+      const { says, wrote } = await window.__lfWidgetApi();
+      return {
+        rendered: host.classList.contains('lf-rendered'),
+        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        details: shadow?.querySelectorAll('details').length ?? 0,
+        diffs: shadow?.querySelectorAll('pre').length ?? 0,
+        renameCount: renames.length,
+        from: rename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        to: rename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
+        stat: rename?.querySelector('.lf-diff-stat')?.textContent ?? null,
+        generated: rename?.dataset.lfGen === '1',
+        saidOverride: rename?.hasAttribute('data-lf-said') ?? null,
+        quotedFrom:
+          quotedRename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        quotedTo: quotedRename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
+        bomFrom: bomRename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        bomTo: bomRename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
+        lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
+          .map(line => line.textContent),
+        saysRename: says(document).includes('old-name.js → new-name.js'),
+        wroteRename: wrote(document).includes('old-name.js → new-name.js'),
+      };
+    }""")
+    assert result == {
+        "rendered": True,
+        "error": None,
+        "details": 1,
+        "diffs": 1,
+        "renameCount": 3,
+        "from": "old-name.js",
+        "to": "new-name.js",
+        "stat": "renamed",
+        "generated": True,
+        "saidOverride": False,
+        "quotedFrom": "old\tname.js",
+        "quotedTo": "new\tname.js",
+        "bomFrom": "\ufeffold.js",
+        "bomTo": "\ufeffnew.js",
+        "lines": ["const value = 1;", "const value = 2;"],
+        "saysRename": True,
+        "wroteRename": False,
+    }
+
+    result = page.evaluate("""() => {
+      const host = document.querySelector('#final-empty-context-diff');
+      return {
+        rendered: host.classList.contains('lf-rendered'),
+        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        lines: [...(host.shadowRoot?.querySelectorAll('[data-line]') ?? [])]
+          .map(line => line.textContent),
+      };
+    }""")
+    assert result == {
+        "rendered": True,
+        "error": None,
+        "lines": ["visible", ""],
+    }

@@ -8,8 +8,9 @@
    The typing scope claims those text-editing keys, so a user reaches a surface's
    letters and walks from its list rather than from its composer.
 
-   Core registers scopes through internal `keys(el, title, rows)`; package widgets receive
-   the same register as `commands(el, title, rows)` in `connectedCallback`. A module
+   Core registers scopes through internal `keys(el, title, rows)`; a package widget
+   declares the same scope as data on its element, `lfCommands`, which this module reads
+   when the widget says it changed (`commandsChanged`, widget-upgrade.js). A module
    loaded on a page with no instance must contribute no scope or reference section. Runtime
    scopes live in `SCOPES`; `merge` is the only function that gathers scope sections.
    A scope may declare `ready` for incomplete inputs shared by its rows; a row or
@@ -30,7 +31,7 @@ import {
   directive,
   effect,
   nothing,
-} from "/vendor/browser-runtime.js";
+} from "/runtime/framework.js";
 import {
   activeRows,
   ariaShortcuts,
@@ -56,6 +57,7 @@ import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import { renderedParent, under } from "../shadow.js";
 import { repaint } from "../repaint.js";
 import { keeps } from "../keeps.js";
+import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
 
 // The scopes still owed a first paint. A declaration joins here and `reflectFirstScopes`
 // takes it out again, so one reading is owed per declaration whether that reading stands
@@ -639,6 +641,42 @@ export const commandsOn = directive(
     }
   },
 );
+
+// A package widget's keys are data on the element they apply in, `lfCommands`: the
+// scope's title, rows and options as `keys` takes them, or a `commandScope()` value. The
+// widget says when it sets or changes them, or anything its rows read, with
+// `commandsChanged` (widget-upgrade.js), so a page without Leaf, which hears nothing,
+// binds no key. A declaration other than the one standing stands in its place, and none
+// withdraws it; the same one standing means a row's reading moved, so every
+// presentation of the register reads its rows again (`paintKeys`). A malformed
+// declaration is refused where the widget made it, as `keys` refuses one: the refusal
+// goes back on the event, and `commandsChanged` throws it.
+const declared = new WeakMap();
+addEventListener(COMMANDS, (event) => {
+  const element = commandsChangedOn(event);
+  const declaration = element.lfCommands ?? null;
+  const standing = declared.get(element);
+  if (declaration === (standing?.declaration ?? null)) {
+    paintKeys();
+    return;
+  }
+  if (!declaration) {
+    declared.delete(element);
+    if (detachScope(element, standing.scope)) repaint();
+    return;
+  }
+  try {
+    const scope = attachScope(
+      element,
+      isCommandScope(declaration)
+        ? declaration.scope
+        : declaredScope(declaration.title, declaration.rows, declaration),
+    );
+    declared.set(element, { declaration, scope });
+  } catch (error) {
+    refuseCommands(event, error);
+  }
+});
 
 /** Declare a command scope that presentation owners attach to generated controls.
  *

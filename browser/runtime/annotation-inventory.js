@@ -12,6 +12,7 @@ import { KINDS } from "./contribution-model.js";
 import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
 import { marginInventory, threadMarks } from "./margin-model.js";
+import { agentName } from "./semantic-state.js";
 import { livePoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
@@ -33,6 +34,7 @@ import {
   strongestWorkflow,
   todoLabel,
   workflowLabel,
+  workflowVoice,
 } from "./thread/workflow.js";
 import { renderedOrder, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./current-target.js";
@@ -48,8 +50,10 @@ import {
 // What the inventory reads from the semantic root: the Questions, the workflows its
 // entries report, the shown revision and the agent's to-dos, and the projection whose
 // reported and overridden marks it lists once the projection's chrome has painted them.
-// Threads reach it through their presentation, which renders the annotations once it
-// commits.
+// What the thread pass decides about a thread reaches it as readings its paint follows:
+// where the thread is placed (`placedAt`) and whether a widget seats or holds it
+// (`claimed`, `heldOut`), so a pass that moves one repaints the margin, and one that
+// moves none leaves it.
 export const annotationSelection = (root) => ({
   projection: root.effective.projection,
   obligations: root.effective.obligations,
@@ -224,7 +228,7 @@ export function createAnnotationInventory({
   // so one reading of a receipt never names a different stage than its text does.
   function agentWorkflowFace(receipt) {
     if (!receipt) return null;
-    const label = workflowLabel(receipt);
+    const label = workflowLabel(receipt, agentName());
     if (!label) return null;
     return {
       kind:
@@ -320,18 +324,20 @@ export function createAnnotationInventory({
           // overlay. Margin and Page Map carry that reading rather than deriving another
           // answer from raw turn or workflow fields. Work decorates the thread control;
           // it never replaces the control's comment face or its disclosure action.
-          ...threadMarks(thread),
+          ...threadMarks(thread, agentName()),
           activate: () => openThread(id),
         },
         pointed,
       );
     }
 
-    // Only a widget obligation has a place on the page; the rest have no node.
-    for (const item of readObligations().user) {
+    // A widget's obligation and a to-do on the user have a place on the page
+    // (obligations/place.js); the rest have no node.
+    const placed = () =>
+      readObligations().user.filter((item) => obligationPlace(item).node);
+    for (const item of placed()) {
       const id = item.id;
       const target = obligationPlace(item).node;
-      if (!target) continue;
       add(groups, target, {
         kind: "on-me",
         id: `on-me:${id}`,
@@ -339,12 +345,13 @@ export function createAnnotationInventory({
         // there, since these are the obligations the user owes.
         text: "Waiting on me",
         // The marker's own label is the question, which says more than the kind its
-        // glyph already shows.
-        label: addressableLabel(target) || null,
+        // glyph already shows: a widget's name, or a to-do's title, which the element
+        // it is on does not say.
+        label:
+          (item.source.kind === "todo" ? item.prompt.text : addressableLabel(target)) ||
+          null,
         activate: () => {
-          const items = readObligations().user.filter(
-            (item) => item.source.kind === "widget",
-          );
+          const items = placed();
           const next = items.find((candidate) => candidate.id === id);
           if (next) goToObligation(next, items);
         },
@@ -376,7 +383,11 @@ export function createAnnotationInventory({
         kind: face.kind,
         id: `acknowledgment:${receipt.id}`,
         text: labelWords(`${face.text} · ${account}`),
-        workflowFace: Object.freeze({ ...KINDS[face.kind], label: face.text }),
+        workflowFace: Object.freeze({
+          ...KINDS[face.kind],
+          label: face.text,
+          voice: workflowVoice(receipt),
+        }),
         workflowReceipt: receipt,
         ...(face.context ? { context: face.context } : {}),
         activate: () =>

@@ -8,7 +8,6 @@ before reply:
     agent: Claude
     session: s1
     state: waiting
-    detail: ''
     id: event-2
     attention: false
     seq: 2
@@ -30,7 +29,6 @@ after reply:
     agent: Claude
     session: s1
     state: waiting
-    detail: ''
     id: event-4
     attention: false
     seq: 4

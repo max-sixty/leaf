@@ -68,11 +68,17 @@ def _findings_with_viewports(
 
 
 def _render_version_attempt(
-    browser, url: str, desktop: dict, served_timeout_ms: int | None = None
+    browser,
+    url: str,
+    desktop: dict,
+    served_timeout_ms: int | None = None,
+    *,
+    implementations=None,
+    declaration_sources=None,
 ) -> tuple[RenderReading, list, bool]:
     """Everything wrong with a served version that only a browser can see: a
-    console warning or error (a widget failing soft is one, since the page reports it),
-    a page error, an issue Chrome's DevTools raises, a request that 404s,
+    console error (a widget failing soft is one, since the page reports it),
+    a page error, a request that 404s,
     an upgrade module that never defines its declared element, an x-thread-seat whose module
     placed no matching page host, a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored
@@ -85,8 +91,8 @@ def _render_version_attempt(
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
     render() is relative, so a read's replay of the sender's own gesture moves the
-    page again (none of the three is CSS), a settled holder whose mark or still-showing
-    slot words disagree with the log's decision (read once: the palettes carry no
+    page again (none of the three is CSS), a settled holder whose mark or
+    still-showing slot words disagree with the log's decision (read once: the palettes carry no
     geometry between them), and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme,
     it reads, as advice, whether a widget declaring x-height drew at a height its first
@@ -94,13 +100,15 @@ def _render_version_attempt(
     360px to 1920px (`readings.sweep`), the geometry that moves with the window: the
     page scrolling sideways, content set past the column and out into the margin, a
     horizontal scrollbar with no room below what it scrolls, a control clipped out of
-    reach, words drawn on top of other words. There it also reads, as advice naming
+    reach, a box cutting off its own content where no scroll reaches it, words drawn on
+    top of other words. There it also reads, as advice naming
     the widths it spans, whether a drawing's fit to its box shrinks its labels past
     reading, and whether a table scrolls sideways with a cell in it wrapped. That pass
     also finds each width where the page's margin content changes (a sidebar,
     contents map or note first standing in the margin), and the gate renders the page
     there too, in the light scheme: what stands in the margin is layout, which the
-    scheme does not change. No failures is a pass.
+    scheme does not change. Console warnings and the issues Chrome's DevTools raises
+    are advice wherever they are read. No failures is a pass.
 
     The geometry has one reading (`readings.swept_faults`), reported by the runs of
     widths each fault stands across, and every render adds its samples to it. Each
@@ -166,7 +174,15 @@ def _render_version_attempt(
     def render(viewport, scheme, then):
         viewport_label = _viewport_label(viewport)
         found, found_notices, complete = _render_scheme(
-            browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=then
+            browser,
+            url,
+            scheme,
+            viewport,
+            served_timeout_ms,
+            opened_pages,
+            then=then,
+            implementations=implementations,
+            declaration_sources=declaration_sources,
         )
         failures.extend((finding, viewport_label) for finding in found)
         notices.extend((notice, viewport_label) for notice in found_notices)
@@ -197,6 +213,9 @@ def render_version(
     url: str,
     served_timeout_ms: int | None = None,
     desktop: dict = RENDER_VIEWPORT,
+    *,
+    implementations=None,
+    declaration_sources=None,
 ) -> RenderReading:
     """Read a version at the `desktop` window and a phone's, confirming a complete
     attempt that reports a ResizeObserver loop notice. Advice is the first attempt's:
@@ -221,7 +240,12 @@ def render_version(
     def attempt():
         try:
             return _render_version_attempt(
-                browser, url, desktop, served_timeout_ms=served_timeout_ms
+                browser,
+                url,
+                desktop,
+                served_timeout_ms=served_timeout_ms,
+                implementations=implementations,
+                declaration_sources=declaration_sources,
             )
         except PlaywrightError as error:
             failure = Finding("gate-failed", values={"error": str(error).strip()})

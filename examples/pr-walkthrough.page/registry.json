@@ -128,7 +128,8 @@
     "x-data": {
       "request": {
         "contract": "pull-request",
-        "source": "source"
+        "source": "source",
+        "property": "value"
       }
     },
     "x-upgrade": true,

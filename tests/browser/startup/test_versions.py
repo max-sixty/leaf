@@ -1,5 +1,5 @@
 """How the log and a new version's markup combine: restated widgets, user overrides,
-author moves the diff marks, and the decision a thread follows."""
+what the diff marks, and the decision a thread follows."""
 
 import re
 
@@ -19,15 +19,18 @@ from render_cases_navigation import (
     actions,
 )
 from render_harness import (
-    PANEL,
     RELEASE_FOCUS,
     compare_with,
     draft_control,
+    leaf_page,
     open_page,
+    open_threads,
     panel_menu,
     panel_settled,
     panel_view,
     round_trip,
+    show_resolved,
+    stamp_page,
     told,
     undo,
     wait_for_check_api,
@@ -46,14 +49,15 @@ DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 
 
 def expect_resolved(page, thread_id, resolved=True):
-    """Read whether the panel's Threads lists the thread `thread_id` under Resolved."""
-    if page.locator(PANEL).get_attribute("data-open") != "threads":
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button").filter(has_text="Resolved").click()
-    expect(
-        page.locator(f"{panel_view('threads')} .lf-fp-thread[data-key='{thread_id}']")
-    ).to_have_count(1 if resolved else 0)
+    """Read whether the panel's Threads lists the thread `thread_id` under Resolved,
+    rather than among the open threads."""
+    open_threads(page)
+    row = f"{panel_view('threads')} .lf-fp-thread[data-key='{thread_id}']"
+    if resolved:
+        show_resolved(page)
+        expect(page.locator(f"{row}[data-resolved]")).to_have_count(1)
+    else:
+        expect(page.locator(f"{row}:not([data-resolved])")).to_have_count(1)
 
 
 def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
@@ -254,6 +258,147 @@ def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
     ), "the card's passenger marked as its own move"
 
 
+SCRIPT_WORDS = leaf_page(
+    "Script words",
+    """
+<h1 id="title">Script words</h1>
+<p id="readout">Counting…</p>
+<section id="tally"><p id="tally-note">The script appends a paragraph here.</p></section>
+<div id="listed"></div>
+<p id="glossed">Plain words around a <lf-gloss id="term" tip="A term.">term</lf-gloss>.</p>
+<p id="cloned">Words a script copies.</p>
+<p id="outro">The last authored paragraph.</p>
+""",
+)
+SCRIPT_WRITES = """
+document.getElementById("readout").textContent = "42 items counted by the script.";
+const cloned = document.getElementById("cloned");
+const copy = cloned.cloneNode(true);
+copy.className = "copied";
+cloned.replaceWith(copy);
+const added = document.createElement("p");
+added.textContent = "A paragraph the script appended.";
+document.getElementById("tally").append(added);
+"""
+# The same writes from a module, which runs after the runtime has read the page, and
+# from a classic script the parser runs before the runtime's module does.
+SCRIPTED = {
+    "module": SCRIPT_WORDS.replace(
+        "</head>",
+        '<script type="module">\nimport { html, render } from "/runtime/widget-api.js";'
+        f"{SCRIPT_WRITES}"
+        "render(html`<ul><li>Item alpha</li><li>Item beta</li></ul>`,"
+        ' document.getElementById("listed"));\n</script>\n</head>',
+    ),
+    "classic": SCRIPT_WORDS.replace(
+        "</main>",
+        f"</main>\n<script>{SCRIPT_WRITES}"
+        'document.getElementById("listed").innerHTML ='
+        ' "<ul><li>Item alpha</li><li>Item beta</li></ul>";\n</script>',
+    ),
+}
+
+
+@pytest.mark.parametrize("script", SCRIPTED)
+def test_the_diff_marks_what_the_author_changed_and_no_word_a_script_wrote(
+    browser, serve, script
+):
+    """A plain page script writes words into the page without marking them: a
+    readout's `textContent`, a paragraph it appends, a list it renders. None of
+    them is in either version's source, so the arriving version tints only the blocks
+    the author changed and leaves the script's words standing, and comparing versions
+    marks only those, on the version that arrived live and on a fresh load of it. A
+    classic script writes them after the runtime has read the page, as a module does,
+    since delivery defers it.
+
+    The author rewrote the readout's placeholder too, so it is marked. On the fresh
+    load the words it shows are the script's, so it offers no inline diff, which would
+    paint the source's words over the script's, while the rewritten closing paragraph
+    offers one. A paragraph holding a gloss is one block, so rewording the words around
+    the gloss marks it; a paragraph the script swapped for a copy is found by its id."""
+    source = SCRIPTED[script]
+    url = live_url(serve(source))
+    page = open_page(browser, url)
+    stamp_page(
+        serve.page_dir,
+        source.replace("Counting…", "Tallying…")
+        .replace("The last authored paragraph.", "The closing authored paragraph.")
+        .replace("Plain words around", "Reworded words around")
+        .replace("Words a script copies.", "Reworded words a script copies."),
+        "reworded four paragraphs",
+    )
+    wait_for_revision(page, 2)
+    # The revision lands with the arrival tint on the blocks it changed, and only those.
+    tinted = page.wait_for_function(
+        """() => {
+          const tinted = [...document.querySelectorAll("main *")]
+            .filter((node) => node.getAnimations().length)
+            .map((node) => node.id || node.localName);
+          return tinted.length ? tinted : null;
+        }"""
+    ).json_value()
+    assert tinted == ["readout", "glossed", "cloned", "outro"]
+    expect(page.locator("#tally > p:not([id])")).to_have_text(
+        "A paragraph the script appended."
+    )
+    expect(page.locator("#listed li")).to_have_count(2)
+    fresh = open_page(browser, url)
+    for shown in (page, fresh):
+        compare_with(shown, 1)
+        marked = shown.locator("main .lf-ins-block")
+        expect(marked).to_have_count(4)
+        assert marked.evaluate_all("blocks => blocks.map(b => b.id)") == [
+            "readout",
+            "glossed",
+            "cloned",
+            "outro",
+        ]
+
+    def change(block):
+        return fresh.locator(
+            f'[data-lf-margin-for="{block}"] [data-lf-kinds~="change"]'
+        )
+
+    expect(fresh.locator("#readout")).to_have_text("42 items counted by the script.")
+    expect(change("outro")).to_have_attribute("aria-expanded", "false")
+    expect(change("readout")).not_to_have_attribute("aria-expanded", re.compile(".*"))
+
+
+KEPT_BOARD = leaf_page(
+    "Kept board",
+    """
+<h1 id="title">Kept board</h1>
+<lf-board id="board">
+  <lf-column id="col-todo" label="To do">
+    <lf-card id="card-x"><strong>Review</strong> Old words.</lf-card>
+    <lf-card id="card-y"><strong>Ship</strong> Steady words.</lf-card>
+  </lf-column>
+</lf-board>
+<p id="note">First note.</p>
+""",
+)
+
+
+def test_a_change_inside_a_widget_a_later_revision_kept_marks_its_block(browser, serve):
+    """Live revisions keep a widget the author left alone, controller and all. Its
+    blocks still stand for their live nodes afterwards, so a comparison reaching back
+    past that revision marks the card the author rewrote, not the whole board."""
+    url = live_url(serve(KEPT_BOARD))
+    page = open_page(browser, url)
+    second = KEPT_BOARD.replace("Old words.", "New words.")
+    stamp_page(serve.page_dir, second, "rewrote a card")
+    wait_for_revision(page, 2)
+    stamp_page(serve.page_dir, second.replace("First note.", "Second note."), "a note")
+    wait_for_revision(page, 3)
+    compare_with(page, 1)
+    marked = page.locator("main .lf-ins-block")
+    expect(marked).to_have_count(2)
+    assert marked.evaluate_all("blocks => blocks.map(b => b.id)") == [
+        "card-x",
+        "note",
+    ]
+
+
 def test_a_comparison_reads_nothing_from_a_server_running_another_runtime(
     browser, serve
 ):
@@ -405,6 +550,13 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     )
     told(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "reject")
+    # Threads was already open: incoming news keeps its rows in place until the
+    # reader asks to settle them. The row's reading changes before its section does.
+    row = page.locator(f"{panel_view('threads')} .lf-fp-thread[data-key='c1']")
+    expect(row).not_to_have_attribute("data-resolved", "")
+    notice = page.locator(".lf-fp-joined .lf-thread-news")
+    expect(notice).to_have_attribute("title", "1 thread reopened")
+    notice.click()
     expect_resolved(page, "c1", resolved=False)
     open_panel_thread(page, "c1")
     expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")

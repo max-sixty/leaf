@@ -3,6 +3,9 @@
 # #6's figure to the panel in their head. Their comment on it: "why no diagrams here?"
 # Written one section at a time, base 4c29f3003 and the glance test in SKILL.md's
 # page contract both drew it (6 of 6 each); the failure came in a whole page.
+# The spatial-sketch rubric accepts textual wireframes, but a saved 2026-10-24
+# sentence chain joined by arrows still passed 0/1: it described the movement
+# without showing the card, reply and later cards in space.
 description: view-draws-a-case-it-shares
 metadata:
   purpose:
@@ -37,8 +40,10 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Pass only if the section contains its own drawing (an inline `<svg>`, an
-      `<img>`, or an `lf-diagram`) of the thread panel's short card at the top of
-      the list, showing where the reply lands and what moves, or doesn't, under
-      at least one of the alternatives. Fail if the section explains the case only
-      in words, a table, or by pointing at #6's figure.
+      Pass only if the section contains its own concrete spatial sketch of the
+      thread panel's short card at the top of the list, showing where the reply
+      lands and what moves, or doesn't, under at least one alternative. Images,
+      SVG, diagrams, HTML arrangements and textual wireframes can qualify when
+      their spatial arrangement shows that result. Fail for descriptions, tables
+      or sentence chains joined by arrows that leave the geometry to imagine,
+      or for only pointing at #6's figure.

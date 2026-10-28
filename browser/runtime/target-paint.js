@@ -78,7 +78,7 @@ export function paintAim(element, surface = null) {
   aimStood = standOver(
     aimStand,
     placed,
-    getComputedStyle(surface ?? element).borderRadius,
+    shaped ? "0" : getComputedStyle(surface ?? element).borderRadius,
   );
   aimPlaced = placed;
   return placed.shown;

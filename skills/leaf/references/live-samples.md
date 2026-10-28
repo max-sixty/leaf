@@ -102,7 +102,7 @@ sample through the element's API:
   including Reset and reloads; reapply any view your controls chose there.
 - `await sample.showThread(id)` shows a thread by its root event id, as its marker
   would; `{surface: "panel"}` shows it in the sample's Leaf panel, or with no id the
-  panel's Threads, on its resolved threads with `status: "resolved"`. It returns false
+  panel's Threads. It returns false
   when a newer selection or Reset replaces it.
 
 Use these rather than clicking the sample's controls or reading its DOM. Write the

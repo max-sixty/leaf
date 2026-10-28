@@ -207,3 +207,88 @@ variants:
           Pass only if exactly one `lf-option` carries a `recommended` label, and it
           is the choice that adds 1280×720 with the width sweep. Fail if another
           option is marked recommended or none is.
+  # From session d9c4e332's overnight-work page. The session had listed the options to
+  # the user in chat as A, B and C with its pick first, then wrote the page's cards in
+  # the subject's order, keep-today first and its pick second, and kept "I'd take the
+  # first option" in the prose, which then named the option it argued against. No run
+  # reproduced a wrong pointer, since a run writes the prose and cards together, so this
+  # grades the habit that let it through: naming an option by position. Without the
+  # pasted earlier decision, in the recommended-first order and "first option" wording
+  # most local pages used before #3790, base did so in 3 of 8; with it, 5 of 8 and 4 of
+  # 8. The authoring-decisions.md sentence on naming an option by its title passed 8 of
+  # 8, every run reading that reference.
+  spine-pick:
+    metadata:
+      purpose:
+        "Asks: prose names an option by its title, so it still points at the card it
+        describes after the cards take a different order from an earlier listing."
+    vars:
+      prompt: |
+        You are working with the user on a Leaf page reporting an overnight run of
+        agents on Leaf's TODO list. Earlier in the conversation you told the user, in
+        chat:
+
+        > The contents-map item is blocked on a decision only you can make. Both
+        > agents found the same blocker: the core startup rule that hides Leaf's own
+        > interface until upgrade. On branch `grind/s-toc` the map is now laid out once
+        > the page has parsed, with a test that fails on main. Three options:
+        > - **A.** Let the contents map's spine show before upgrade (its labels stay
+        >   hidden). This is the one I'd pick.
+        > - **B.** Narrow the core rule so it hides only controls you can press.
+        > - **C.** Keep the rule and drop the TODO item.
+
+        An earlier decision on the page reads:
+
+        ```html
+        <lf-ask id="skill-ask">
+          <h2>Should the grind workflow become a skill?</h2>
+          <p>
+            Every agent tonight read the same brief, and three of its rules came from
+            friction an agent hit. No skill covers a batch of agents over the TODO
+            list; <code>hill-climb-ui</code> covers only the Leaf-versus-HTML loop. I'd
+            take the first option: the brief's lessons then reach the next run's planning
+            pass.
+          </p>
+          <lf-options id="skill-pick" choose>
+            <lf-option id="skill-add">
+              <small class="tag ok">recommended</small>
+              <strong>Add the grind workflow to <code>/developing-leaf</code></strong>
+              <p>I'd draft it on <code>todo-review</code> for your review.</p>
+            </lf-option>
+            <lf-option id="skill-keep"><strong>Keep the brief in <code>.tmp/</code></strong></lf-option>
+          </lf-options>
+        </lf-ask>
+        ```
+
+        Your notes:
+
+        - The TODO item is "Draw the contents map's spine in its first frame". The
+          core theme hides every `.lf-ui` element in `main` until upgrade
+          (`theme.css` ~914), and nothing can override that rule.
+        - Exempting the map is a package-level exemption (commit `83e21e1d8`). Labels,
+          the hover strip and the lens stay hidden until upgrade. The markers move by
+          at most 2px at upgrade. It stays local to the widget, and the map's links are
+          plain fragment links that work before upgrade.
+        - Narrowing the core rule makes decoration show before upgrade on every
+          widget, and changes a rule every widget relies on.
+        - Keeping the rule means the spine keeps appearing at upgrade.
+
+        Write the `lf-ask` that puts this decision on the page, with your
+        recommendation and its reason in the prose. The page directory is not
+        reachable from here, so reply with the section's HTML.
+    assert:
+      - type: llm-rubric
+        metric: names-options
+        value: |
+          Find every place in the section's prose, inside the cards and outside them,
+          that refers to one particular option. Pass only if each names the option by
+          its title or what choosing it does, such as "I'd exempt the map". Fail if any
+          names it by position or letter, such as "the first option", "the middle one",
+          "option 2" or "A", since the cards' order differs from the A, B, C list in
+          chat. Mentions of the options as a group, such as "three options", pass.
+      - type: llm-rubric
+        metric: recommendation-marked
+        value: |
+          Pass only if exactly one `lf-option` carries a `recommended` label, and it
+          is the option that lets the contents map show its spine before upgrade.
+          Fail if another option is marked recommended or none is.

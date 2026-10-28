@@ -1,8 +1,8 @@
 # Committed bundles
 
 This directory builds every browser file Leaf commits but doesn't write by hand: the
-framework compiled from `browser/framework/`, the third-party bundles, the stylesheets,
-the registry's runtime modules and the kernel in `dist/kernel/`. Installation, page init
+third-party bundles and stylesheets, the runtime's table of the bundles' grammars and
+the kernel in `dist/kernel/`. Installation, page init
 and export use the committed files and never run a compiler, and package authors write
 native JavaScript with no build.
 
@@ -13,8 +13,9 @@ committed bytes without writing.
 
 After `pnpm install --frozen-lockfile`, a build reproduces the committed bytes, so a
 diff after rebuilding means the lock, a build script, a runtime module or a registry
-input changed. A change to `browser/leaf.js`, or to a `.js` module under its
-`runtime/`, `vendor/` or `widgets/`, takes a rebuild in the same change. Resolve a
+input changed. A change to `browser/leaf.js`, to a `.js` module under its `runtime/`,
+`vendor/` or `widgets/`, or to the kernel registry `runtime/kernel-registry.json`,
+which the kernel compiles in, takes a rebuild in the same change. Resolve a
 kernel file that conflicts in a merge by merging `main` and rebuilding, never by hand.
 
 `package.json` pins each package an entry imports, and the lock pins the rest.

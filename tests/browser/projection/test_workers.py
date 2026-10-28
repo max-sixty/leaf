@@ -343,7 +343,14 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     assert report.exit_code == 0, report.output
     started = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(d), thread["id"], "checking the user's question"],
+        [
+            "task",
+            "start",
+            str(d),
+            thread["id"],
+            "--text",
+            "checking the user's question",
+        ],
     )
     assert started.exit_code == 0, started.output
     told(page)
@@ -873,7 +880,7 @@ def test_atlas_input_is_trimmed_before_it_enters_the_record(browser, serve):
     page = open_page(browser, url)
     draft = page.locator("#ledger-cargo")
     draft_control(page, "edit", "ledger-cargo").click()
-    editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
+    editor = draft.locator("leaf-text")
     write(
         editor,
         "ledger_id,customer_name,billing_email,amount\n7,Alice,a@example.test,42",

@@ -188,6 +188,15 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
             admit(run, page, move)
 
 
+def build_diagnostics_report(run: Run, page: Path) -> None:
+    run.leaf("page", "init", str(page), check=True)
+    (page / "index.html").write_text((FIXTURES / "diagnostics-report.html").read_text())
+    run.leaf(
+        "page", "stamp", str(page), "--text",
+        FIXTURE_INPUTS["diagnostics-report"]["stamp"], check=True,
+    )  # fmt: skip
+
+
 def said(html: str) -> dict[str, str]:
     """id → the words the element says, in Leaf's own reading of the markup: the
     text a user selects and an anchor quotes."""
@@ -349,6 +358,36 @@ def build_handoff(run: Run, page: Path) -> None:
     (page / "index.html").write_text((FIXTURES / "backfill.html").read_text())
 
 
+def build_cutover(run: Run, page: Path) -> None:
+    """A drafted status page nobody has checked, served or stamped, whose card grid
+    runs out of narrow windows and whose chart's labels shrink below reading size:
+    readings only `page check --render` takes."""
+    run.leaf("page", "init", str(page), check=True)
+    (page / "index.html").write_text((FIXTURES / "cutover.html").read_text())
+
+
+def render_findings(run: Run, page: Path, n: int) -> str | None:
+    """What a render pass run when the version went live would deliver: the
+    findings `page check --render` reports on the page as served and plain `page
+    check` doesn't, in the check's own words, or None where it reports none. Both
+    readings are kept beside the run."""
+    readings = {}
+    for name, flags in (("plain", ()), ("render", ("--render",))):
+        out = run.leaf("page", "check", str(page), *flags).stdout
+        readings[name] = json.loads(out[out.find('{"status"') :])
+    (run.dir / f"render-round-{n}.json").write_text(json.dumps(readings, indent=1))
+    plain = {(f["code"], f.get("text")) for f in readings["plain"]["findings"]}
+    found = [
+        f
+        for f in readings["render"]["findings"]
+        if (f["code"], f.get("text")) not in plain
+    ]
+    if not found:
+        return None
+    lines = "\n".join(f"- {f['severity']}: {f['text']}" for f in found)
+    return f"`leaf page check --render` on the version you handed over:\n{lines}"
+
+
 def build_mixed(run: Run, page: Path) -> None:
     """A stamped page another session handed over; its copy button's script
     throws on a click."""
@@ -436,12 +475,14 @@ def append_elided_history(run: Run, page: Path) -> None:
 
 
 BUILDERS = {
+    "diagnostics-report": build_diagnostics_report,
     "board": build_board,
     "constructs": build_constructs,
     "resume": build_resume,
     "package": build_package,
     "shared-source": build_shared_source,
     "handoff": build_handoff,
+    "cutover": build_cutover,
     "mixed": build_mixed,
     "elided": build_elided,
     "plan": build_plan,
@@ -587,9 +628,20 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 attempts.update(
                     move.get("attempt", attempt_key(posted, i))
                     for i, move in enumerate(case.rounds[posted])
-                    if move["kind"] != "error"
+                    if move["kind"] not in ("error", "render")
                 )
                 posted += 1
+                # A round that posted nothing, a render pass that found nothing, wakes
+                # no turn, so the session closes as it would after that turn's end.
+                if (
+                    not pending_events
+                    and posted == len(case.rounds)
+                    and {m["kind"] for m in case.rounds[-1]} == {"render"}
+                ):
+                    closing = threading.Timer(GRACE, live.close)
+                    deadlines.callback(closing.join)
+                    deadlines.callback(closing.cancel)
+                    closing.start()
                 live.note(
                     {
                         "type": "eval_post",
@@ -628,6 +680,12 @@ def post_round(
     served = page_state(run, page)
     html = (page / served["active"]["file"]).read_text()
     for i, move in enumerate(moves):
+        # A render pass's findings reach the agent as the page's error, the channel
+        # a failure the browser saw takes; a clean pass delivers nothing.
+        if move["kind"] == "render":
+            if (text := render_findings(run, page, n)) is None:
+                continue
+            move = {"kind": "error", "text": text.replace("{", "{{").replace("}", "}}")}
         event = dict(move)
         if move["kind"] != "error":
             event["attempt"] = move.get("attempt", attempt_key(n, i))
@@ -713,7 +771,7 @@ def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:
 
 
 def ignore(directory, names):
-    """Leave the vendored layer and service files out of a run's copy of a page."""
+    """Leave layer and service files out of a run's copy of a page."""
     return {
         n
         for n in names

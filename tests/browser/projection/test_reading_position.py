@@ -5,7 +5,7 @@ import json
 import re
 
 import pytest
-from interact_support import add_test_widget, append_carried_log_record, declare_work
+from interact_support import add_test_widget
 from playwright.sync_api import expect
 from render_cases_interaction import (
     BOXLESS_SECTION_PAGE,
@@ -13,7 +13,6 @@ from render_cases_interaction import (
     LIVE_READING,
     LIVE_V1,
     LIVE_V2,
-    SEATED_OBLIGATION_PAGE,
     WRAP_TOP,
     live_url,
 )
@@ -23,7 +22,6 @@ from render_harness import (
     leaf_page,
     open_page,
     pane_scroll_behavior,
-    panel_field,
     panel_menu,
     panel_settled,
     panel_view,
@@ -33,127 +31,11 @@ from render_harness import (
     stamp_page,
     told,
     wait_for_revision,
-    write,
 )
 
 from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-@pytest.mark.watch_shifts
-def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
-    """Live news keeps the user's simultaneous reading, editing, and pointer places.
-
-    At a phone's width, where the tall reply grows the most, the following passage and
-    editor are visible below the reply's insertion point.
-    Status paints immediately and a tall reply waits behind its fixed-row notice.
-    An unrelated source revision arrives while retaining the editor and restoring the
-    page's reading position. Opening the reply proves the notice held genuine growth.
-    """
-    source = SEATED_OBLIGATION_PAGE.replace(
-        "</main>",
-        '<p id="reading">The next passage remains where I am reading.</p>'
-        + "<p>Further context. "
-        + "Context. " * 300
-        + "</p></main>",
-    )
-    url = serve(source)
-    root = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "jobs"},
-            "text": "Which job comes first?",
-        },
-    )
-    page = open_page(browser, live_url(url))
-    resized(page, 390, 900)
-    thread = page.locator("#jobs .lf-page-thread")
-    editor = thread.locator("leaf-text")
-    words = "  Keep the middle of this unsent thought.  "
-    write(editor, words)
-    editor.evaluate("box => box.setSelectionRange(7, 17, 'backward')")
-    resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
-    reading = page.locator("#reading")
-    expect(reading).to_be_in_viewport()
-    target = resolve.bounding_box()
-    assert target
-    point = {
-        "x": target["x"] + target["width"] / 2,
-        "y": target["y"] + target["height"] / 2,
-    }
-    page.mouse.move(**point)
-    rendered(page)
-    # Keep Chrome's native clock and deliver news after its 500 ms input grace period.
-    page.wait_for_timeout(600)
-    place = reading.bounding_box()
-    box = editor.bounding_box()
-    assert place and box
-
-    def kept():
-        expect(editor).to_be_focused()
-        assert editor.evaluate(
-            "box => [box.value, box.selectionStart, box.selectionEnd, box.selectionDirection]"
-        ) == [words, 7, 17, "backward"]
-        assert reading.bounding_box() == pytest.approx(place, abs=0.5)
-        assert editor.bounding_box() == pytest.approx(box, abs=0.5)
-        assert resolve.bounding_box() == pytest.approx(target, abs=0.5)
-        assert resolve.evaluate(
-            "(node, p) => node.contains(document.elementFromPoint(p.x, p.y))", point
-        ), "arriving news took the resting pointer off Resolve"
-
-    declare_work(serve.page_dir, "Checking the order of these jobs", item=root["id"])
-    told(page)
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("Checking the order")
-    )
-    expect(
-        thread.get_by_role("button", name="Work in progress", exact=True)
-    ).to_be_visible()
-    expect(thread.locator(".lf-thread-working")).to_have_count(0)
-    rendered(page)
-    kept()
-
-    reply = "\n\n".join(["The first job needs a careful explanation."] * 12)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": root["id"],
-            "revision": 1,
-            "text": reply,
-        },
-    )
-    told(page)
-    notice = thread.get_by_role("button", name="1 new reply", exact=True)
-    expect(notice).to_be_visible()
-    expect(thread.locator(".lf-msg")).to_have_count(1)
-    rendered(page)
-    kept()
-
-    (serve.page_dir / "index.html").write_text(
-        source.replace(
-            "<title>seated question</title>", "<title>Jobs updated</title>"
-        ).replace('<h1 id="h">', '<p id="new-context">New context.</p><h1 id="h">')
-    )
-    told(page)
-    expect(page).to_have_title("Jobs updated")
-    expect(page.locator("#new-context")).to_have_count(1)
-    rendered(page)
-    kept()
-
-    # A press releases genuine growth; all preceding observations were made at rest.
-    notice.click()
-    expect(thread.locator(".lf-msg")).to_have_count(2)
-    expect(thread.locator(".lf-msg").last).to_contain_text(
-        "The first job needs a careful explanation."
-    )
-    rendered(page)
-    assert reading.bounding_box()["y"] > place["y"] + 100
 
 
 @pytest.mark.parametrize(
@@ -719,7 +601,11 @@ def test_revision_keeps_a_focused_control_visible_without_a_text_landmark(
 
 
 def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser, serve):
-    """An empty flow region does not displace the page reading that contains it."""
+    """An empty flow region does not displace the page reading that contains it.
+
+    The page is read a little past its top, so the title is its reading place; a page
+    at its very top would stay there, and the result the revision adds above the title
+    would push the title down."""
     content = """
 <h1 id="reading-title">The page landmark surrounding these controls remains stable.</h1>
 <lf-pane id="controls-pane" label="Controls">
@@ -729,6 +615,7 @@ def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser,
     """
     first = leaf_page("Empty active region continuity", content)
     page = open_page(browser, live_url(serve(first)))
+    page.evaluate("scrollTo({top: 20, behavior: 'instant'})")
     page.locator("#focused-control").focus()
     before = page.locator("#reading-title").evaluate(
         "heading => heading.getBoundingClientRect().top"
@@ -802,10 +689,9 @@ def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
         browser, serve(leaf_page("Reading the Question inventory", questions))
     )
     resized(page, 1200, 900)
-    # The walk starts from the Ask the reader stands at, the first, so it arrives at
-    # the second.
+    # With nothing focused, the walk enters the first Ask the reader sees.
     page.keyboard.press("m")
-    expect(page.locator("#ask-1")).to_be_focused()
+    expect(page.locator("#ask-0")).to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")

@@ -21,12 +21,14 @@ the agent confirms Codex hook input and a pointer it read with `leaf delivery ac
 A Pi hook's context is in the session once the hook returns, so the hook records
 the receipt as it hands the delivery over. Claude Code reads a hook's output only
 once the hook exits, and drops it if Escape lands first, so its hook records only
-the opened pickup, which the page shows as Delivered at once, and the turn's next
-hook confirms it (`confirm_turn`): a tool call or the turn's end means the model
-read the context (`Harness.commits_hook_context`). Until then the input is not
-deliverable; once the turn reads ended without that hook, or a prompt opens it
-again (`handed_into_turn`), it is again (`deliverable`), and that prompt, a waking
-watch or the server's nudge brings it back.
+the opened pickup, which the page shows as Delivered at once. The receipt follows
+once Claude Code's own record, its transcript, shows the handover in the model's
+context (`confirm_entered`, `Harness.commits_hook_context`), which every later
+hook checks first. Until then the input is not
+deliverable while its turn runs; once that turn reads ended, or a dropped prompt
+is submitted again as a new turn, what the transcript does not show is input
+again (`deliverable`), and that prompt, a waking watch or the server's nudge
+brings it back.
 
 A reply reservation lets a Codex App Server turn's final message become the reply
 to one delivered update. Freezing with `turn_replies` marks each reply answer
@@ -59,7 +61,6 @@ import secrets
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
-from datetime import datetime
 from pathlib import Path
 from typing import Literal
 from xml.etree import ElementTree
@@ -284,6 +285,11 @@ _DELIVERED_EVENT = {
                 "it was made on wrote them.",
                 {"type": "object", "additionalProperties": STRING},
             ),
+            "names": described(
+                "The name of each element in `says`, by id, in the gesture's own "
+                "document: its declared name or leading title, else its words.",
+                {"type": "object", "additionalProperties": STRING},
+            ),
             "was": described(
                 "On the user's rewrite of their own message, the words it replaced.",
                 STRING,
@@ -293,6 +299,18 @@ _DELIVERED_EVENT = {
                 "rewritten message is a suggestion, so its new text is the exact "
                 "replacement it proposes.",
                 {"type": "boolean"},
+            ),
+            "waiting": described(
+                "On a widget action, the obligations that still waited on the "
+                "user's words at capture in a thread about that widget's "
+                "obligations (`obligations.waiting_about`), which the action may "
+                "have settled: each obligation's `id` and the `text` that asked it.",
+                {
+                    "type": "array",
+                    "items": object_schema(
+                        {"id": STRING, "text": {"type": ["string", "null"]}}
+                    ),
+                },
             ),
             "answer": described(
                 "The response the event owed at capture "
@@ -476,7 +494,9 @@ def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
     return {"kind": "page"}
 
 
-def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
+def current_responses(
+    page_dir: Path, events: list[dict], reading=None
+) -> dict[str, dict]:
     """Map every event that owns an answer to its exact response address.
 
     The address is the owed answer `activity` derives from the input's obligation
@@ -486,10 +506,8 @@ def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     """
     from .served_state.context import read_page
 
-    return {
-        item["input"]: item["answer"]
-        for item in read_page(page_dir, events).work.obligations
-    }
+    reading = reading or read_page(page_dir, events)
+    return {item["input"]: item["answer"] for item in reading.work.obligations}
 
 
 def batch_data(
@@ -500,7 +518,9 @@ def batch_data(
     from it."""
     from .events import build_threads
     from .gesture_words import GestureWords, revisions_on_disk
+    from .obligations import waiting_about
     from .revision_artifact import active_enclosing
+    from .served_state.context import read_page
     from .thread_context import (
         batch_threads,
         thread_memberships,
@@ -519,8 +539,11 @@ def batch_data(
         thread_widgets(thread_structure(events), names),
         within,
     )
+    acted = any(event["kind"] == "action" for event in batch)
+    reading = read_page(page_dir, events) if responses is None or acted else None
     if responses is None:
-        responses = current_responses(page_dir, events)
+        responses = current_responses(page_dir, events, reading)
+    durable = reading.work.durable if acted else None
     revisions = {
         revision["id"]: revision
         for thread in build_threads(events, within).values()
@@ -544,6 +567,9 @@ def batch_data(
         # does not read is not read for its words at all.
         if registry is not None and (says := words.says(event)):
             entry["says"] = says
+            entry["names"] = {
+                identity: words.name(event, identity) for identity in says
+            }
         if revision := revisions.get(event["id"]):
             # The thread's digest already reads the new wording; the agent answering
             # a revision needs to see what it replaced, and whether those words are a
@@ -553,6 +579,19 @@ def batch_data(
                 entry["suggestion"] = True
         if (answer := responses.get(event["id"])) is not None:
             entry["answer"] = answer
+        if (
+            durable is not None
+            and event["kind"] == "action"
+            and (
+                waiting := waiting_about(
+                    event["widget"],
+                    durable.all_obligations["all"],
+                    durable.threads,
+                    durable.within,
+                )
+            )
+        ):
+            entry["waiting"] = waiting
         captured.append(entry)
     return {
         "page": str(page_dir),
@@ -841,8 +880,8 @@ def cmd_delivery_read(delivery_id: str, *, part: int = 1) -> dict:
 
 
 def cmd_delivery_ack(delivery_id: str) -> None:
-    """Accept the reader's attestation that every part reached its context. A page
-    the delivery names that has gone refuses it in the system's own words. A
+    """Accept the reader's attestation that every part reached its context. A
+    page the delivery names that has gone refuses it in the system's own words. A
     delivery an earlier turn already picked up is noted as a repeat
     (`earlier_pickup`)."""
     try:
@@ -971,7 +1010,8 @@ def record_pickup(
     the harness's context for the session: written into the conversation its model
     reads at its next step, whether or not that step has come, or, for a hook whose
     output the harness may still drop, handed over pending the receipt the turn's
-    next hook records (`confirm_turn`). A batch the harness holds to add later, as
+    the harness's record shows in the model's context (`confirm_entered`). A batch
+    the harness holds to add later, as
     a queue or a steer waiting behind a running tool, is not opened until it is
     added. ``failed`` means the harness
     gave up on the updates with the named ``failure`` and no answer is coming.
@@ -998,22 +1038,6 @@ def record_pickup(
         for event in pickups
         for event_id in event["events"]
     }
-    # Handing input into the claimant's turn counts from the turn's latest opening:
-    # a prompt that opened it again hands over anew what the hooks before it handed
-    # and no hook confirmed (`handed_into_turn`). Confirmed input it re-presents
-    # stays recorded once per turn.
-    if phase == "opened" and claim and (claim["id"], claim["turn"]) == (session, turn):
-        since = set(handed_into_turn(page.events, session, turn, claim["turn_opened"]))
-        unconfirmed = {
-            event["id"] for event in page.events if event["seq"] > page.cursor
-        }
-        picked = {
-            key
-            for key in picked
-            if key[1:] != (phase, session, turn)
-            or key[0] in since
-            or key[0] not in unconfirmed
-        }
     # The newest ref recorded for each input under each claim, the one `workflows`
     # binds.
     referenced = {
@@ -1068,14 +1092,15 @@ def deliverable(
 ) -> list[dict]:
     """The input a session of this Leaf may hand the page's owner, in log order: what
     the cursor has not passed, less what a hook handed into the owner's turn that is
-    still open, pending the receipt its next hook records (`awaiting_receipt`), and
+    still open, pending the receipt its harness's record confirms
+    (`awaiting_receipt`), and
     each update the cursor has passed that still owes an answer the owner holds no
     usable `answer.ref` for (`unreferenced`, which reads `obligations` where the
     caller has already folded the page).
 
-    A handover the turn never confirmed is input again once the turn reads ended:
-    Escape while Claude Code still ran a prompt hook dropped the prompt, Leaf's
-    context with it, so the update reached no model.
+    A handover the harness's record never showed in the model's context is input
+    again once its turn reads ended: Escape while Claude Code still ran a prompt hook
+    dropped the prompt, Leaf's context with it, so the update reached no model.
 
     The second kind is how a page that changed hands reaches its new owner: an
     update the previous owner received but did not answer advanced the cursor, and
@@ -1087,8 +1112,8 @@ def deliverable(
     (`event_contracts.write_refusal`), where `receive_batch` refuses its receipt.
     Handed over anyway, it stayed pending, so a watch woke its session on every pass
     and a Codex watch opened a turn for it each time. Its session's hooks and
-    commands re-vendor such a page before they read it (`vendoring.renew_layer`), so
-    input waits here only on a page whose re-vendor was refused, and the hooks name
+    commands renew such a page's layer before they read it (`vendoring.renew_layer`),
+    so input waits here only on a page whose renewal was refused, and the hooks name
     why (`hook_transport.remedies`).
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
@@ -1110,45 +1135,32 @@ def deliverable(
     return sorted([*owed, *pending], key=lambda event: event["seq"])
 
 
-def handed_into_turn(
-    events: list[dict], session: str, turn: str, opened: str | None
-) -> list[str]:
-    """The inputs a hook handed into `session`'s open turn `turn` since the turn
-    last opened, at `opened`, by its opened pickups (`record_pickup`).
-
-    A prompt into a turn no hook closed opens it again rather than minting another
-    (`state.prompt_turn`), and the hooks before that prompt are not this turn's:
-    Escape while a prompt hook runs drops the prompt, and Claude Code submits a
-    queued prompt, such as a watch's wake, again at once (measured at 2.1.308). So
-    what was handed before the latest opening and no hook confirmed is input again,
-    which that prompt hands over anew."""
-    if opened is None:
-        return []
-    since = datetime.fromisoformat(opened)
+def handed_into_turn(events: list[dict], session: str, turn: str) -> list[str]:
+    """The inputs a hook handed into `session`'s turn `turn`, by its opened pickups
+    (`record_pickup`). A prompt Escape dropped is submitted again as a turn of its
+    own (`ClaudeCodeHarness.hook_payload`), so what was handed into the dropped one
+    is no longer awaited."""
     return [
         event_id
         for pickup in pickup_receipts(events, phase="opened")
         if (pickup["session"], pickup["turn"]) == (session, turn)
-        and datetime.fromisoformat(pickup["ts"]) >= since
         for event_id in pickup["events"]
     ]
 
 
 def awaiting_receipt(page: PageTransaction) -> set[str]:
     """The updates past the page's cursor that a hook handed into its owner's open
-    turn (`handed_into_turn`), which the turn's next hook confirms
-    (`confirm_turn`). Empty once the turn reads ended, closed by a Stop hook that
-    did not confirm them or interrupted as its harness's record says
-    (`activity.claimant_turn`): those updates reached no model."""
+    turn (`handed_into_turn`), whose receipt waits for the harness's record of the
+    model's context (`confirm_entered`). Empty once the turn reads ended, closed by
+    a Stop hook or interrupted as its harness's record says
+    (`activity.claimant_turn`): what that record still lacks reached no model."""
     claim = page.active_claim
     if claim is None or claim["turn_closed"] is not None:
         return set()
     seqs = {event["id"]: event["seq"] for event in page.events}
     handed = {
         event_id
-        for event_id in handed_into_turn(
-            page.events, claim["id"], claim["turn"], claim["turn_opened"]
-        )
+        for event_id in handed_into_turn(page.events, claim["id"], claim["turn"])
         if seqs[event_id] > page.cursor
     }
     if not handed:
@@ -1159,29 +1171,44 @@ def awaiting_receipt(page: PageTransaction) -> set[str]:
     return handed if turn.ended is None else set()
 
 
-def confirm_turn(session_id: str) -> None:
-    """Confirm what this session's hooks handed into its open turn, on every page it
-    holds, as a later hook of that turn runs: the receipt through the newest such
-    update (`record_receipt`). The model has read the context a prompt or tool
-    boundary handed over once it calls a tool or ends its turn, which is when
-    Claude Code runs this session's PreToolUse, PostToolBatch and Stop hooks."""
+def confirm_entered(harness, payload: dict) -> None:
+    """Record the receipt of what this session's hooks handed over inline and its
+    harness's record, named in hook `payload`, shows in the model's context
+    (`Harness.entered_context`), on every page the session holds: the receipt of
+    the pending input before the first update that record does not show
+    (`record_receipt`), since the cursor passes every input before the position it
+    moves to. On a Claude Code that names no turn, an update handed into a prompt
+    Escape dropped still awaits its receipt when a later tool boundary's handover
+    reaches the model (`ClaudeCodeHarness.hook_payload`), and it stays input. Every
+    hook of a harness whose hooks don't commit their context runs this before it
+    reads the page, so the prompt a nudge wakes after an interrupt confirms what the
+    interrupted turn read before it hands anything over."""
     from .service import owned_pages
 
-    for page_dir in owned_pages(session_id):
+    entered = harness.entered_context(payload)
+    if not entered:
+        return
+    for page_dir in owned_pages(harness.session):
         try:
             with (
                 PageTransaction(page_dir) as page,
-                flocked(session_lock_path(session_id), deadline=page.deadline),
+                flocked(session_lock_path(harness.session), deadline=page.deadline),
             ):
-                record = session_record(session_id)
-                if page.claim_of(session_id) is None or record["turn_closed"]:
+                if page.claim_of(harness.session) is None:
                     continue
-                seqs = {event["id"]: event["seq"] for event in page.events}
-                handed = handed_into_turn(
-                    page.events, session_id, record["turn"], record["turn_opened"]
-                )
-                if handed:
-                    record_receipt(page, max(seqs[event_id] for event_id in handed))
+                shown = {
+                    event_id
+                    for pickup in pickup_receipts(page.events, phase="opened")
+                    if pickup["session"] == harness.session
+                    for event_id in pickup["events"]
+                    if event_id in entered
+                }
+                through = page.cursor
+                for event in unacknowledged(page.events, page.cursor):
+                    if event["id"] not in shown:
+                        break
+                    through = event["seq"]
+                record_receipt(page, through)
         except FileNotFoundError:
             continue
 
@@ -1227,13 +1254,13 @@ def receive_batch(
     The body records pickup and turn entry before this records the receipt, so
     interruption leaves input available for retry. Work remains separate. A hook
     whose harness may still drop its output hands the batch over without the
-    receipt (`confirm`), which the turn's next hook records (`confirm_turn`).
+    receipt (`confirm`), which follows the harness's record (`confirm_entered`).
     Current ownership authorizes the write, not capture-time ownership: the
     page is still the receiver's (`service.claim_names_session`), even between a
     restart's new generation and its claim, and an old envelope can be confirmed
     after ownership returns to its receiver. A receiver with no session takes
     receipt only while no session holds the page. Nor does one take it on a page
-    vendored at another protocol (`event_contracts.write_refusal`): its body could
+    at another protocol (`event_contracts.write_refusal`): its body could
     record no pickup there, and every transport retires a refused receipt rather
     than retrying it, leaving the input for a Leaf that can write the page.
     """
@@ -1280,8 +1307,8 @@ def record_receipt(page: PageTransaction, through: int) -> None:
 def receive_delivery(delivery_id: str) -> list[Path]:
     """Confirm a reader's complete input and record its entry into that turn.
 
-    Both explicit acknowledgement commands prove the consumer is running even
-    if its prompt hook failed. The canonical opener preserves known provider
+    The explicit acknowledgement command, `leaf delivery ack`, proves the
+    consumer is running even if its prompt hook failed. The canonical opener preserves known provider
     lifecycle authority. Pointer receipt also retains its origin's reservation,
     including the exact turn a Codex hook offered it to. Automatic hook and
     provider receipts observe an already-open turn through `receive` instead.
@@ -1315,19 +1342,18 @@ def receive_held(
     *,
     deadline: float | None = None,
     confirm: bool = True,
-) -> bool:
+) -> list[dict]:
     """Record each batch of a delivery its hook is handing to `session_id`'s open
-    turn, the lifecycle `expected` it planned under, as opened in it, and whether
-    every batch was. `confirm` also records the receipt, where the harness has the
-    context once the hook returns (`Harness.commits_hook_context`).
+    turn, the lifecycle `expected` it planned under, as opened in it, and return
+    the batches it recorded. `confirm` also records the receipt, where the harness
+    has the context once the hook returns (`Harness.commits_hook_context`).
 
     A refusal is the batch's own: a page that changed hands or went, a turn that
     ended or was replaced, a log this Leaf may not write
     (`layer.incompatible_layer`), or locks still held at `deadline`, for a hook
     that must exit by then for its handover to stand. The other batches are still
-    confirmed, and the hook hands the whole delivery to its reader to confirm
-    (`hook_transport.render`)."""
-    confirmed = True
+    recorded, and the hook hands only those over (`hook_transport.carry_turn`)."""
+    recorded = []
     for batch in payload["batches"]:
         try:
             receive_one(
@@ -1338,8 +1364,9 @@ def receive_held(
                 confirm=confirm,
             )
         except (FileNotFoundError, Refused, TimeoutError):
-            confirmed = False
-    return confirmed
+            continue
+        recorded.append(batch)
+    return recorded
 
 
 def receive_one(

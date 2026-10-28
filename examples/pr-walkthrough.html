@@ -130,6 +130,23 @@
           </ol>
         </aside>
 
+        <lf-ask id="pr-approval-decision">
+          <h2>Approve PR #3865?</h2>
+          <p id="pr-approval-premise">
+            Approval accepts revision <code>9ca8f78b</code> as it stands; the benchmark
+            and the dry-run gap become follow-up issues rather than blockers.
+          </p>
+          <lf-options id="pr-approval" choose>
+            <lf-option id="pr-approval-hold"
+              ><strong>Hold approval</strong> Ask for the selected-row benchmark before
+              this merges.</lf-option
+            >
+            <lf-option id="pr-approval-approve"
+              ><strong>Approve it</strong> File both follow-ups as issues.</lf-option
+            >
+          </lf-options>
+        </lf-ask>
+
         <section class="panel" id="pr-orientation">
           <h2>Review finding</h2>
           <div id="pr-agent-summary">
@@ -326,7 +343,7 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff view="patch" id="pr-key-hunk" data-height="521">
+          <lf-diff view="patch" id="pr-key-hunk">
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
 index b856171b57..cfa4f0448e 100644
@@ -583,7 +600,7 @@ index b856171b57..cfa4f0448e 100644
           </p>
           <lf-diff
             id="pr-exact-patch"
-            data-height="2108"
+            data-height="1697"
             source="pr-review-patch"
             collapsed
           >
@@ -595,7 +612,7 @@ index b856171b57..cfa4f0448e 100644
           <h2>Captured pull request</h2>
           <lf-pr-brief
             id="pr-reviewed-request"
-            data-height="959"
+            data-height="1037"
             source="pr-review-facts"
           ></lf-pr-brief>
         </section>
@@ -604,30 +621,30 @@ index b856171b57..cfa4f0448e 100644
           <h2>Review history</h2>
           <ol id="pr-review-chronology">
             <li id="pr-chronology-open">
-              <time>03:32 UTC</time> <small>observation</small>
+              <time>03:32 UTC</time> <small class="tag">observation</small>
               <strong>PR opened</strong> The first revision introduced the unified
               picker tab, shared diff preparation, and broad integration coverage.
             </li>
             <li id="pr-chronology-first-review">
-              <time>03:43 UTC</time> <small>warning</small>
+              <time>03:43 UTC</time> <small class="tag warn">warning</small>
               <strong>First review withheld approval</strong> It found divergent sparse
               handling, a predictable shared temp directory, startup-cost uncertainty,
               and documentation drift.
             </li>
             <li id="pr-chronology-temp-fix">
-              <time>04:13 UTC</time> <small>intervention</small>
+              <time>04:13 UTC</time> <small class="tag ok">intervention</small>
               <strong>Temp indexes became random, exclusive files</strong> Sparse
               registration and worktree-local temp-directory exclusion gained focused
               tests.
             </li>
             <li id="pr-chronology-race-fix">
-              <time>04:32 UTC</time> <small>intervention</small>
+              <time>04:32 UTC</time> <small class="tag ok">intervention</small>
               <strong>The index copy kept ownership of its pathname</strong> Writing
               through the still-open file closed the symlink race, and off-screen
               worktrees moved out of eager prewarm.
             </li>
             <li id="pr-chronology-final-review">
-              <time>04:57 UTC</time> <small>observation</small>
+              <time>04:57 UTC</time> <small class="tag">observation</small>
               <strong>Agent review recommends approval with follow-ups</strong> The
               shared <code>TempIndex</code> path and orchestration prose converged;
               selected-row latency and dry-run temp artifacts remained visible notes.

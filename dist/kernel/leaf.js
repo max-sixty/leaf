@@ -1,25 +1,18 @@
-import { aimLayer, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-target-paint.js";
-import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, hasUnread, html, itemNoun, itemOutcome, keyed, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
-import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
-import { EVERYTHING, LAYOUT, LINK, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, pagePresented, pageUpgraded, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, uploadMedia, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-layer-client.js";
-import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
-import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, syncLayoutRegion, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
-import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
-import { DRAWING_COORDINATE_LIMIT, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, beginRead, commandSteps, composerOpen, composerQuote, createAnchorTravel, createReactionController, createSelectionComposer, createThreadLanding, createVersionController, currentLocationThread, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, initializeServedDocument, keepPageRulesOffLayer, leavesBox, mountApplication, mountHistory, notifyDataSubscribers, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintCoreControls, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlace, readPlan, readQueues, returnPlace, sendReaction, textField, threadInput, versionPicker, versionsReading } from "./runtime/bundle-answer.js";
-import { chromeForeground, chromeRoot } from "./runtime/bundle-chrome.js";
-import { COLLAPSE, LEAF_SURFACE, TEXT_BLOCK, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
-import { ADDRESSABLE, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, resolveAnchor, resolvedInMessage, revealAddressed, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-css-anchors.js";
-import { fragmentId } from "./runtime/bundle-initial-render.js";
-import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
-import { copyControl } from "./runtime/bundle-copy-control.js";
-import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed, setChildren, watchDisclosures } from "./runtime/bundle-abort.js";
-import { motionEasing, motionPlays, motionTime, playMotion, reducedMotion, scrollBehavior } from "./runtime/bundle-motion.js";
-import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./runtime/bundle-media.js";
-import { KINDS, annotationItems, clearContributionControls, contributionHost, contributionItemKey, contributionReceipts, contributionSource, entryControls, registerContribution, spokenSubject, visibleContributionEntryLabel } from "./runtime/bundle-margin-model.js";
-import { PAGE_CONTROL_RANK, livePoint, openMarginContentLayout, pageControls, pageControlsChanged, placePoints, pointInto, railStands, registerPageControl, scheduleMarginContentLayout, visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
-import { pageImage, pageRenderer } from "./runtime/bundle-page-image2.js";
-import { shownScheme } from "./runtime/bundle-color-scheme.js";
-import { restoreUserView } from "./runtime/bundle-restore-state.js";
+import { LAYOUT, PAGE_PAINT_ATTRIBUTE, bindQueuedWork, byRenderedOrder, cancelRender, fragmentId, holdRendering, motionEasing, motionPlays, motionTime, nextFrame, nextRender, observePreparations, observeQueuedWork, pagePresented, pageUpgraded, playMotion, reducedMotion, renderedOrder, renderedUnder, renderingState, scrollBehavior, scrollGlides, scrolling, shadowHost, sizeObserver, skipped, tabStore, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
+import { CARET_KEYS, COLLAPSE, J, LitElement, MODIFIER_KEYS, PRESENTATION_DOM, PRESSES, SHARE_ROOT, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, WEBSITE_DELIVERY, WORKS, Z, agentName, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, closeLayer, closeNativeLayer, currentLocationIn, d, decisionFor, declareReading, deepFocus, dismissPopoversOutside, documentChanged, drawn, focusDestination, focusRevision, focused, guard, handBack, holdFocus, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keeps, keepsHidden, keepsText, keyed, layerLanding, layoutPx, letGo, live, marksSheet, move, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, q, readPart, ref, registry, release, releaseFocus, render, repeat, rove, runtime, runtimeResource, sameAnchor, selectsAll, shareUrl, showNativeLayer, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, typesText, watchLayerChanges, whenApplicationPresented, x } from "./runtime/bundle-layer-stack.js";
+import { EVERYTHING, LINK, PRESS, PRESSABLE, actionTemplate, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, namedAction, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
+import { ADDRESSABLE, JUST_NOW, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
+import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
+import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep, workflowVoice } from "./runtime/bundle-data.js";
+import { clamp, clippedContents, coveredShare, declareOccluder, declareWindowChrome, intersect, landingBand, layoutWindow, overlaps, overlapsAcross, placeHolder, presented, seenRect, shownBox, shownParts, shownRect, showsContents, stackLevel, startsAt, underOccluder, union, windowChromeBoxes } from "./runtime/bundle-geometry.js";
+import { LEAF_SURFACE, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
+import { copyControl, landedBox, landingRoom, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./runtime/bundle-copy-control.js";
+import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./runtime/media.js";
+import { DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, annotationItems, beginRead, clearContributionControls, composerOpen, composerQuote, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, declareThreadKeys, disclosed, entryControls, fabBar, fabInput, fabOptionsTrigger, inPageOrder, leavesBox, mountApplication, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerContribution, sendReaction, spokenSubject, textField, threadInput, visibleContributionEntryLabel, watchDisclosures } from "./runtime/bundle-disclosure.js";
+import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
+import { pageImage, pageRenderer } from "./runtime/bundle-page-image.js";
+import { pageIdentity, shownScheme } from "./runtime/bundle-page-identity.js";
+import { aimLayer, boxMotion, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
 import "/vendor/webawesome-chrome.js";
 
 //#region runtime/composing/drawing-geometry.js
@@ -28,7 +21,7 @@ const contentChildren = (root) => [...root.children].filter((child) => !leafSurf
 function captureDrawingFrame(target, hit) {
 	let source = hit;
 	while (source && !source.matches(INTRINSIC_VISUAL)) source = upFrom(source);
-	if (!source || !under(source, target)) return void 0;
+	if (!source || !under$1(source, target)) return void 0;
 	const path = [];
 	for (let node = source; node !== target;) {
 		const parent = node.parentNode;
@@ -175,177 +168,115 @@ function drawingThumbnail(drawing, target) {
 
 //#endregion
 //#region runtime/composing/input.js
-const inputDrafts = /* @__PURE__ */ new WeakMap();
-const MEDIA_SHELF_TAG = "leaf-attached-media-shelf";
-const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
-let thumbnailVersion = 0;
-var AttachedMediaShelf = class extends LitElement {
-	static properties = { model: { attribute: false } };
-	constructor() {
-		super();
-		this.model = {
-			drawing: null,
-			media: []
-		};
-		this.actions = null;
-		this.sent = false;
-		this.undoIcon = iconElement("undo", "lf-corner-mark-icon");
-		this.removeIcon = iconElement("cross", "lf-corner-mark-icon");
-		this.pictured = {
-			drawing: null,
-			target: null,
-			node: null
-		};
-	}
-	picture(drawing) {
-		if (!sameDrawing(drawing, this.pictured.drawing) || this.model.target !== this.pictured.target) {
-			const node = drawingThumbnail(drawing, this.model.target);
-			node.dataset.lfDrawingVersion = String(++thumbnailVersion);
-			this.pictured = {
-				drawing,
-				target: this.model.target,
-				node
-			};
-		}
-		return this.pictured.node;
-	}
+const INPUT_DRAFT = Symbol("composition draft");
+var CompositionField = class extends q(LitElement) {
 	createRenderRoot() {
 		return this;
 	}
-	present(model, actions) {
-		this.model = model;
-		this.actions = actions;
-		this.performUpdate();
-	}
-	updated() {
-		keepsHidden(this, !this.model.drawing && this.model.media.length === 0);
+	shouldUpdate() {
+		return this.isConnected || !this.hasUpdated;
 	}
 	render() {
-		const { drawing, media } = this.model;
-		const strokes = drawing?.strokes.length ?? 0;
-		return [drawing ? html`
-            <span class="lf-composer-media-item lf-composer-drawing">
-              <button
-                type="button"
-                class="lf-media-open lf-composer-media-open"
-                data-lf-media-canvas
-                aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
-                title="Inspect drawing"
-                @click=${(event) => {
-			const canvas = this.picture(drawing);
-			keeps(event.currentTarget, "data-lf-media-alt", canvas.dataset.lfDrawingContext === "ready" ? "Drawing over its frozen page context" : "Drawing");
-			keeps(event.currentTarget, "data-lf-media-caption", canvas.dataset.lfDrawingContext === "ready" ? "" : canvas.dataset.lfDrawingContext === "pending" ? "Drawing only; page preview was not ready when opened." : "Drawing only; page preview unavailable.");
-		}}
-              >
-                ${this.picture(drawing)}
-              </button>
-              <button
-                type="button"
-                class="lf-corner-mark lf-composer-drawing-undo"
-                aria-label="Undo last stroke"
-                title="Undo last stroke"
-                @mousedown=${(event) => event.preventDefault()}
-                @click=${() => this.actions.undoStroke()}
-              >
-                ${this.undoIcon}
-              </button>
-              <button
-                type="button"
-                class="lf-corner-mark"
-                aria-label="Remove drawing"
-                title="Remove drawing"
-                @mousedown=${(event) => event.preventDefault()}
-                @click=${() => this.actions.removeDrawing()}
-              >
-                ${this.removeIcon}
-              </button>
-            </span>
-          ` : null, media.map(({ index, url }) => {
-			const remove = html`<button
-          type="button"
-          class="lf-corner-mark lf-composer-media-remove"
-          aria-label=${`Remove attached image ${index + 1}`}
-          @click=${() => this.actions.removeMedia(index)}
-        >
-          ${iconTemplate("cross", "lf-corner-mark-icon")}
-        </button>`;
-			return this.sent ? html`<p class="lf-composer-media-item">
-              <button
-                type="button"
-                class="lf-media-open lf-message-media"
-                data-lf-media-url=${url}
-                aria-label=${`View attached image ${index + 1}`}
-              >
-                <img src=${url} alt="" /></button
-              >${remove}
-            </p>` : html`<span class="lf-composer-media-item">
-              <button
-                type="button"
-                class="lf-media-open lf-composer-media-open"
-                data-lf-media-url=${url}
-                aria-label=${`View attached image ${index + 1}`}
-              >
-                <img src=${url} alt="" /></button
-              >${remove}
-            </span>`;
-		})];
+		return super.render();
+	}
+	updated() {}
+	performUpdate() {
+		super.performUpdate();
 	}
 };
-if (!customElements.get(MEDIA_SHELF_TAG)) customElements.define(MEDIA_SHELF_TAG, AttachedMediaShelf);
-const draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
-const syncInput = (ta) => inputDrafts.get(ta)?.();
+customElements.define("leaf-composition-field", CompositionField);
+const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
+let thumbnailVersion = 0;
+function mediaTemplate({ drawing, target, media, sent, actions }) {
+	const strokes = drawing?.strokes.length ?? 0;
+	return [drawing ? html`
+          <span class="lf-composer-media-item lf-composer-drawing">
+            <button
+              type="button"
+              class="lf-media-open lf-composer-media-open lf-media-frame"
+              data-lf-media-canvas
+              aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
+              title="Inspect drawing"
+              @click=${(event) => {
+		const canvas = event.currentTarget.querySelector("canvas");
+		keeps(event.currentTarget, "data-lf-media-alt", canvas.dataset.lfDrawingContext === "ready" ? "Drawing over its frozen page context" : "Drawing");
+		keeps(event.currentTarget, "data-lf-media-caption", canvas.dataset.lfDrawingContext === "ready" ? "" : canvas.dataset.lfDrawingContext === "pending" ? "Drawing only; page preview was not ready when opened." : "Drawing only; page preview unavailable.");
+	}}
+            >
+              ${guard([JSON.stringify(drawing), target], () => {
+		const canvas = drawingThumbnail(drawing, target);
+		canvas.dataset.lfDrawingVersion = String(++thumbnailVersion);
+		return canvas;
+	})}
+            </button>
+            <button
+              ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
+              @mousedown=${(event) => event.preventDefault()}
+              @click=${actions.undoStroke}
+            ></button>
+            <button
+              ${offeredAction("mark", "lf-corner-mark", "Remove drawing", { action: "remove" })}
+              @mousedown=${(event) => event.preventDefault()}
+              @click=${actions.removeDrawing}
+            ></button>
+          </span>
+        ` : null, media.map(({ index, url }) => {
+		const remove = html`<button
+        ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
+        @click=${() => actions.removeMedia(index)}
+      ></button>`;
+		return sent ? html`<p class="lf-composer-media-item">
+            <button
+              type="button"
+              class="lf-media-open lf-message-media"
+              data-lf-media-url=${url}
+              aria-label=${`View attached image ${index + 1}`}
+            >
+              <img src=${url} alt="" /></button
+            >${remove}
+          </p>` : html`<span class="lf-composer-media-item">
+            <button
+              type="button"
+              class="lf-media-open lf-composer-media-open lf-media-frame"
+              data-lf-media-url=${url}
+              aria-label=${`View attached image ${index + 1}`}
+            >
+              <img src=${url} alt="" /></button
+            >${remove}
+          </span>`;
+	})];
+}
+const draftOf = (ta) => ta?.[INPUT_DRAFT]?.value() ?? ta?.value ?? "";
+const syncInput = (ta) => ta?.[INPUT_DRAFT]?.();
 const errorOver = (ta) => errorsReading().find((error) => error.subject === ta && !error.passed) ?? null;
-const standsAtItsBox = (error) => inputDrafts.has(error.subject) && !error.passed;
+const standsAtItsBox = (error) => Boolean(error.subject?.[INPUT_DRAFT]) && !error.passed;
 function createCompositionInputs({ uploadMedia, inputHint }) {
-	const inputPaints = /* @__PURE__ */ new WeakMap();
-	const stale = /* @__PURE__ */ new Set();
-	let paintedInput = null;
-	let paintedHintTarget = null;
-	const paintInputs = () => {
-		const held = focused();
-		const input = held && inputPaints.has(held) ? held : null;
+	const hintedBox = Z(null);
+	const hintLabel = Z("");
+	const publishInputHint = () => {
 		const hint = inputHint();
-		const hintedInput = hint?.box && inputPaints.has(hint.box) ? hint.box : null;
-		const boxes = /* @__PURE__ */ new Set([
-			...stale,
-			paintedInput,
-			input,
-			paintedHintTarget,
-			hintedInput
-		]);
-		stale.clear();
-		for (const ta of boxes) inputPaints.get(ta)?.(hint);
-		paintedInput = input;
-		paintedHintTarget = hintedInput;
+		hintedBox.value = hint?.box ?? null;
+		hintLabel.value = hint?.label ?? "";
 	};
-	const watched = /* @__PURE__ */ new WeakSet();
-	const unshown = sizeObserver((entries) => {
-		for (const { target } of entries) if (!target.isConnected || !target.checkVisibility()) passErrorsAt(target);
-	});
-	let errorsPainted = [];
-	x(() => {
-		const errors = errorsReading();
-		for (const { subject } of [...errorsPainted, ...errors]) if (inputPaints.has(subject)) stale.add(subject);
-		errorsPainted = errors;
-		d(repaint);
-	});
-	function wireInput(ta, { hint, hintParts = null, hintAside = () => "", accessibleName = null, save, send, sendBtn, sends, icon = "send", altBtn = null, altSend = null, allowsMedia = (() => true), busy = () => false, hasContent = (raw) => Boolean(raw), paint: paintOwn = () => {}, drawing = null, rows = [], submitIn = null, sentMedia = false }) {
-		const field = document.createElement("div");
-		field.className = "lf-compose-field";
+	function wireInput(ta, { hint, hintParts = null, hintLead = () => "", accessibleName = null, save, send, sendClass = "", sends, action: submitAction = "send", altLabel = null, altSend = null, allowsMedia = (() => true), busy = () => false, hasContent = (raw) => Boolean(raw), drawing = null, rows = [], submitIn = null, sentMedia = false }) {
+		const field = document.createElement("leaf-composition-field");
 		ta.before(field);
-		const visibleHint = document.createElement("span");
-		visibleHint.className = "lf-compose-placeholder";
-		visibleHint.slot = "placeholder";
-		const hintLabel = document.createElement("span");
-		const hintKey = document.createElement("kbd");
-		hintKey.className = "lf-key-badge";
-		const hintAsideWords = document.createElement("span");
-		hintAsideWords.className = "lf-compose-placeholder-aside";
-		visibleHint.append(hintLabel, hintKey, hintAsideWords);
-		field.append(ta);
-		(submitIn ?? field).append(sendBtn);
+		const focusedHere = J(() => {
+			focusRevision();
+			return focused() === ta;
+		});
+		const enteringHint = J(() => hintedBox.value === ta ? hintLabel.value : "");
+		const inputError = J(() => errorOver(ta));
+		const oneLine = ta.getAttribute("aria-multiline") === "false";
+		const sendBindings = () => oneLine ? ["Enter", "Mod+Enter"] : submitBindings();
+		const sendKey = () => spell(sendBindings()[0]);
+		const submitEnd = submitIn ? document.createComment("") : null;
+		if (submitIn) submitIn.append(submitEnd);
+		let sendBtn;
+		let mic;
+		let composing = false;
 		const Recognition = globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
-		const mic = Recognition && icon === "send" && !submitIn ? document.createElement("button") : null;
+		const offersDictation = Boolean(Recognition && submitAction === "send" && !submitIn);
 		let dictation = null;
 		let loadingDictation = false;
 		let dictationGeneration = 0;
@@ -353,47 +284,17 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		let stopDictationRevision = null;
 		const dictationPhase = () => loadingDictation ? "starting" : dictation?.phase ?? "idle";
 		const dictationStatus = () => loadingDictation ? "Starting microphone…" : loadingFailure || dictation?.status || "";
-		if (mic) {
-			mic.type = "button";
-			mic.className = "lf-btn lf-icon-action lf-compose-dictate";
-			mic.append(iconElement("microphone", "lf-action-icon"));
-			field.append(mic);
-		}
-		const cover = document.createElement("p");
-		cover.className = "lf-compose-error";
-		cover.setAttribute("aria-hidden", "true");
-		cover.hidden = true;
-		const coverWords = document.createElement("span");
-		cover.append(coverWords);
-		field.append(cover);
 		const uncover = () => {
 			passErrorsAt(ta);
 			const end = ta.value.length;
 			focusDestination(ta, "move", { caret: [end, end] });
 		};
-		cover.addEventListener("pointerdown", (event) => {
-			event.preventDefault();
-			uncover();
-		});
-		const held = () => busy() || errorOver(ta) !== null;
-		sendBtn.classList.add("lf-icon-action", "lf-compose-submit");
-		if (icon) sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
-		else {
-			const word = typeof sends === "function" ? sends() : sends;
-			sendBtn.replaceChildren(word.charAt(0).toUpperCase() + word.slice(1));
-		}
-		const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
-		mediaShelf.className = sentMedia ? "lf-msg-media" : "lf-composer-media scroll";
-		mediaShelf.sent = sentMedia;
-		mediaShelf.setAttribute("role", "group");
-		mediaShelf.setAttribute("aria-label", "Attachments");
-		if (sentMedia) field.append(mediaShelf);
-		else field.before(mediaShelf);
+		const held = () => busy() || inputError.value !== null;
+		let mediaShelf;
 		let attachedMedia = [];
 		const draftValue = () => writeAttachedMedia(ta.value, attachedMedia);
 		const removeMedia = (index) => {
 			attachedMedia.splice(index, 1);
-			renderMedia();
 			draftChanged();
 			rememberWriting(ta);
 			focusDestination(ta, "return");
@@ -415,10 +316,9 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 				media
 			};
 			attachedMedia = [...media];
-			renderMedia();
 			draftChanged();
 		};
-		const renderMedia = () => {
+		const recordMedia = () => {
 			const drawn = drawing?.read() ?? null;
 			const media = [...attachedMedia];
 			if (shelfSeen && !sameDrawing(drawn, shelfSeen.drawing)) {
@@ -433,24 +333,17 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 				drawing: drawn,
 				media
 			};
-			mediaShelf.present(Object.freeze({
-				drawing: drawn,
-				target: drawn ? drawing.target() : null,
-				media: attachedMedia.map((path, index) => Object.freeze({
-					index,
-					url: scopedMediaUrl(path)
-				}))
-			}), {
-				removeMedia,
-				undoStroke: () => {
-					drawing.undoStroke();
-					if (!drawing.read()) focusDestination(ta, "return");
-				},
-				removeDrawing: () => {
-					drawing.remove();
-					focusDestination(ta, "return");
-				}
-			});
+		};
+		const mediaActions = {
+			removeMedia,
+			undoStroke: () => {
+				drawing.undoStroke();
+				if (!drawing.read()) focusDestination(ta, "return");
+			},
+			removeDrawing: () => {
+				drawing.remove();
+				focusDestination(ta, "return");
+			}
 		};
 		const hydrate = (value) => {
 			cancelDictation();
@@ -459,7 +352,6 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			ta.value = restored.text;
 			ta.restartHistory();
 			shelfSeen = null;
-			renderMedia();
 		};
 		hydrate(ta.value);
 		const label = () => typeof hint === "function" ? hint() : hint;
@@ -471,91 +363,140 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const word = sendWord();
 			return word.charAt(0).toUpperCase() + word.slice(1);
 		};
-		if (altBtn) altBtn.title = altBtn.textContent;
 		let sending = false;
 		let uploading = false;
 		const canSend = () => !sending && !uploading && !held() && hasContent(draftValue());
-		const paint = (contextualHint) => {
-			const currentLocation = focused() === ta;
+		const watchError = sizeObserver(() => {
+			if (!ta.isConnected || !ta.checkVisibility()) passErrorsAt(ta);
+		});
+		let watchedError = false;
+		field.render = () => {
+			const hasWords = hasContent(draftValue());
 			const advertising = advertisesKeys();
-			const sendKeys = advertising ? submitLabel() : "";
-			const suffix = !advertising ? "" : currentLocation ? sendKeys : contextualHint?.box === ta ? contextualHint.label : "";
+			const sendKeys = advertising ? sendKey() : "";
+			const suffix = !advertising ? "" : focusedHere.value ? sendKeys : enteringHint.value;
 			const status = dictationStatus();
 			const word = status || label();
 			const placeholder = suffix && !status ? `${word} ${suffix}` : word;
 			if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
-			const parts = status ? null : hintParts?.();
-			if (hintParts) render(parts ?? word, hintLabel);
-			const aside = status ? "" : hintAside();
-			if (suffix && !status || parts !== null && parts !== void 0 || aside) {
-				if (!hintParts) keepsText(hintLabel, word);
-				keepsText(hintKey, suffix);
-				keepsText(hintAsideWords, aside);
-				if (visibleHint.parentNode !== ta) move(ta, visibleHint, null);
-			} else visibleHint.remove();
 			const ariaLabel = name();
 			if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
-			let error = errorOver(ta);
+			const parts = status ? null : hintParts?.();
+			const lead = status ? "" : hintLead();
+			render(suffix && !status || parts != null || lead ? html` <span class="lf-compose-placeholder" slot="placeholder">
+              <span class="lf-compose-placeholder-lead">${lead}</span
+              ><span>${parts ?? word}</span><kbd class="lf-key-badge">${suffix}</kbd>
+            </span>` : nothing, ta);
+			let error = inputError.value;
 			if (error && !(ta.isConnected && ta.checkVisibility())) {
 				passErrorsAt(ta);
 				error = null;
 			}
-			if (Boolean(error) !== watched.has(ta)) {
-				if (error) {
-					watched.add(ta);
-					unshown.observe(ta);
-				} else {
-					watched.delete(ta);
-					unshown.unobserve(ta);
-				}
+			if (Boolean(error) !== watchedError) {
+				watchedError = Boolean(error);
+				if (error) watchError.observe(ta);
+				else watchError.unobserve(ta);
 			}
-			keepsText(coverWords, error?.message ?? "");
-			keeps(cover, "title", error?.message ?? null);
-			keepsHidden(cover, !error);
 			const action = sendLabel();
-			keeps(sendBtn, "aria-label", action);
-			const newline = sendKeys === spell("Enter") ? ` · ${spell("Shift+Enter")} new line` : "";
-			keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})${newline}` : action);
-			keeps(sendBtn, "aria-disabled", !canSend());
-			if (altBtn) keeps(altBtn, "aria-disabled", !canSend());
-			if (mic) {
-				const phase = dictationPhase();
-				const live = phase === "starting" || phase === "listening";
-				const failed = loadingFailure || dictation?.failure;
-				const action = live ? "Stop dictation" : phase === "stopping" ? "Finishing dictation" : failed ? "Retry dictation" : "Dictate";
-				keeps(mic, "data-dictation", phase !== "idle" ? phase : failed && dictation?.failure?.error !== "no-speech" ? "failed" : null);
-				keeps(mic, "aria-label", action);
-				keeps(mic, "aria-pressed", live);
-				keeps(mic, "aria-description", status || null);
-				keeps(mic, "title", live || !status ? action : `${action} (${status})`);
-			}
+			const newline = sendKeys === spell("Enter") && !oneLine ? ` · ${spell("Shift+Enter")} new line` : "";
+			const phase = dictationPhase();
+			const live = phase === "starting" || phase === "listening";
+			const failed = loadingFailure || dictation?.failure;
+			const micShown = offersDictation && (phase !== "idle" || !hasWords);
+			const micAction = live ? "Stop dictation" : phase === "stopping" ? "Finishing dictation" : failed ? "Retry dictation" : "Dictate";
+			const submitControl = html`<button
+        type="button"
+        ${offered(`${sendClass} lf-compose-submit`)}
+        ${namedAction(submitAction, {
+				label: action,
+				title: sendKeys ? `${action} (${sendKeys})${newline}` : action
+			})}
+        aria-disabled=${String(!canSend())}
+        ?data-lf-empty=${!hasWords}
+        ?hidden=${micShown}
+        @mousedown=${keepEditing}
+        @click=${() => pressed(send)}
+      ></button>`;
+			if (submitIn) render(submitControl, submitIn, { renderBefore: submitEnd });
+			const drawn = drawing?.read() ?? null;
+			const media = mediaTemplate({
+				drawing: drawn,
+				target: drawn ? drawing.target() : null,
+				media: attachedMedia.map((path, index) => ({
+					index,
+					url: scopedMediaUrl(path)
+				})),
+				sent: sentMedia,
+				actions: mediaActions
+			});
+			const shelf = html`<div
+        class=${sentMedia ? "lf-msg-media" : "lf-composer-media scroll"}
+        role="group"
+        aria-label="Attachments"
+        ?hidden=${!drawn && attachedMedia.length === 0}
+        ${ref((node) => {
+				mediaShelf = node;
+			})}
+      >
+        ${media}
+      </div>`;
+			const dictationState = phase !== "idle" ? phase : failed && dictation?.failure?.error !== "no-speech" ? "failed" : nothing;
+			const dictationControl = offersDictation ? html`<button
+            type="button"
+            ${offered("lf-compose-dictate")}
+            ?hidden=${!micShown}
+            data-dictation=${dictationState}
+            ${namedAction("dictate", {
+				label: micAction,
+				title: live || !status ? micAction : `${micAction} (${status})`
+			})}
+            aria-pressed=${String(live)}
+            aria-description=${status || nothing}
+            @mousedown=${(event) => event.preventDefault()}
+          ></button>` : nothing;
+			const content = html`
+        ${ta}${sentMedia ? shelf : nothing} ${submitIn ? nothing : submitControl}
+        ${dictationControl}
+        <p
+          class="lf-compose-error"
+          aria-hidden="true"
+          ?hidden=${!error}
+          title=${error?.message ?? nothing}
+          @pointerdown=${(event) => {
+				event.preventDefault();
+				uncover();
+			}}
+        >
+          <span>${error?.message ?? ""}</span>
+        </p>
+      `;
+			const alternate = altLabel ? html`<button
+            type="button"
+            ${offeredAction("word", "lf-compose-alt")}
+            aria-disabled=${String(!canSend())}
+            title=${altLabel}
+            @mousedown=${keepEditing}
+            @click=${() => pressed(altSend)}
+          >
+            ${altLabel}
+          </button>` : nothing;
+			return html`${sentMedia ? nothing : shelf}
+        <div class="lf-compose-field" ?data-words=${hasWords}>${content}</div>
+        ${alternate}`;
 		};
-		inputPaints.set(ta, paint);
-		let visibilityQueued = false;
-		const paintSubmitVisibility = () => {
-			visibilityQueued = false;
-			if (mic) {
-				const shown = dictationPhase() !== "idle" || !hasContent(draftValue());
-				keepsHidden(mic, !shown);
-				keepsHidden(sendBtn, shown);
-				if (shown && focused() === sendBtn) focusDestination(ta, "return");
-				if (!shown && focused() === mic) focusDestination(ta, "return");
-			}
+		field.updated = () => d(() => {
+			if (sendBtn?.hidden && focused() === sendBtn) focusDestination(ta, "return");
+			if (mic?.hidden && focused() === mic) focusDestination(ta, "return");
 			paintKeysWithin(field);
 			if (submitIn) paintKeysWithin(submitIn);
-		};
+		});
 		const refresh = () => {
 			if (dictationPhase() === "idle") {
 				stopDictationRevision?.();
 				stopDictationRevision = null;
 			}
-			paintOwn();
-			if (drawing) renderMedia();
-			stale.add(ta);
-			if (!visibilityQueued) {
-				visibilityQueued = true;
-				queueMicrotask(paintSubmitVisibility);
-			}
+			recordMedia();
+			field.requestUpdate();
 		};
 		const draftChanged = () => {
 			save(draftValue());
@@ -579,8 +520,20 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			if (draftValue() !== value) hydrate(value);
 			refresh();
 		};
-		inputDrafts.set(ta, sync);
+		ta[INPUT_DRAFT] = sync;
 		refresh();
+		field.performUpdate();
+		sendBtn = (submitIn ?? field).querySelector(".lf-compose-submit");
+		mic = field.querySelector(".lf-compose-dictate");
+		sync.button = sendBtn;
+		whileConnected(field, (signal) => {
+			coarsePointer.addEventListener("change", refresh, { signal });
+			return () => {
+				watchError.disconnect();
+				watchedError = false;
+				passErrorsAt(ta);
+			};
+		});
 		const submit = async (sender) => {
 			if (sending || uploading || held()) return;
 			cancelDictation();
@@ -659,7 +612,6 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 				when: () => !mic.hidden && dictationPhase() !== "stopping" && !sending && !uploading && !held(),
 				run: () => void activateDictation()
 			}]);
-			mic.addEventListener("mousedown", (event) => event.preventDefault());
 			whileConnected(ta, (signal) => {
 				window.addEventListener("pagehide", cancelDictation, { signal });
 				return cancelDictation;
@@ -690,9 +642,9 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 					return false;
 				}
 				attachedMedia.push(...paths);
-				renderMedia();
 				draftChanged();
 				if (sentMedia) {
+					field.performUpdate();
 					const added = mediaShelf.lastElementChild;
 					const mayReveal = retainUserIntent();
 					added?.querySelector("img")?.decode().catch(() => {}).then(() => mayReveal() && scrollIntoView(added, { block: "nearest" }));
@@ -717,30 +669,25 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		}, { capture: true });
 		keys(ta, "In a text box", [{
 			id: "text.send",
-			keys: submitBindings,
-			label: submitLabel,
+			keys: sendBindings,
+			label: sendKey,
 			title: sends,
 			run: () => pressed(send)
 		}, ...rows]);
 		ta.addEventListener("lf-edit-return", (event) => {
-			if (submitBindings().includes("Enter")) event.preventDefault();
+			if (sendBindings().includes("Enter")) event.preventDefault();
 		});
-		let composing = false;
 		ta.addEventListener("compositionstart", () => composing = true);
 		ta.addEventListener("compositionend", () => composing = false);
 		const pressed = (sender) => {
-			if (errorOver(ta)) return uncover();
+			if (inputError.value) return uncover();
 			if (focused() !== ta) focusDestination(ta, "return");
 			submit(sender);
 		};
-		for (const [button, sender] of [[sendBtn, send], [altBtn, altSend]]) {
-			if (!button) continue;
-			button.addEventListener("mousedown", (event) => {
-				if (!composing) event.preventDefault();
-			});
-			button.addEventListener("click", () => pressed(sender));
-		}
 		return sync;
+		function keepEditing(event) {
+			if (!composing) event.preventDefault();
+		}
 		function cancelDictation() {
 			stopDictationRevision?.();
 			stopDictationRevision = null;
@@ -754,7 +701,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 	}
 	return {
 		wireInput,
-		paintInputs
+		publishInputHint
 	};
 }
 
@@ -1216,7 +1163,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 	}
 	function standDown() {
 		if (composerOpen) composer.hideComposer();
-		if (fabAnchor.value) letGoOfFab();
+		if (fabAnchor.value) closeLayer(() => showFab(null), fabBar.contains(fabFocused()) && letGo);
 		setReact(false);
 	}
 	const fabAnchorAt = () => fabAnchor.value;
@@ -1378,7 +1325,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 	function commentDestination() {
 		if (offeredSelection) return {
 			...commenting("selection"),
-			box: null,
+			box: pageComment.box,
 			go: commentOnOfferedSelection
 		};
 		const here = currentTarget();
@@ -1387,12 +1334,12 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		const threadId = threadAtCurrentLocation();
 		const replyId = replyThreadAtCurrentLocation();
 		const target = threadId && threadTarget(threadId);
-		const inlineBox = inline && (!here || currentLocationIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
+		const inlineBox = inline && threadInput(inline);
 		const said = currentLocationThread() ?? (inlineBox ? {
 			held: inline,
 			box: inlineBox
 		} : null);
-		const subject = threadId && (!here || target && under(target, heldObligation() ?? here.element));
+		const subject = threadId && (!here || target && under$1(target, heldObligation() ?? here.element));
 		const replySubject = subject && replyId;
 		if (anchor && (pageSelection() || fabHoldsCapturedPassage() || !said && !subject && (!here || here.element === fabTargetAt()))) return {
 			...commenting(anchor.quote ? "selection" : addressableWord(elementById(anchor.section)) || "element"),
@@ -1440,6 +1387,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		touch: false,
 		keys: ["c"],
 		title: () => commentDestination().title,
+		travels: true,
 		when: () => anchoringIsReady() || !pageSelection(),
 		run: () => {
 			const selection = pageSelection();
@@ -1582,6 +1530,11 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 	let releaseTimer = null;
 	let mounted = false;
 	const drawModeActive = () => drawModeOn;
+	function holdCompatibilityClick() {
+		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
+		releaseTimer = null;
+		claimThroughClick = true;
+	}
 	function releaseCompatibilityClickSoon() {
 		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
 		releaseTimer = setTimeout(() => {
@@ -1615,7 +1568,7 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 		}));
 		const nearest = Math.min(...near.map(({ distance }) => distance));
 		const close = near.filter(({ distance }) => distance <= nearest + NEAR_ENOUGH);
-		return close.filter(({ target }) => !close.some((other) => other.target.element !== target.element && under(other.target.element, target.element))).sort((a, b) => a.distance - b.distance)[0]?.target ?? null;
+		return close.filter(({ target }) => !close.some((other) => other.target.element !== target.element && under$1(other.target.element, target.element))).sort((a, b) => a.distance - b.distance)[0]?.target ?? null;
 	}
 	function targetAtPointer() {
 		const atPointer = pointer();
@@ -1716,11 +1669,21 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 		event.preventDefault();
 		event.stopImmediatePropagation();
 	}
+	function dropStroke() {
+		stroke = null;
+		shiftDrawingPaint();
+		announce("Stroke canceled. Draw mode is still on.");
+	}
 	function begin(event) {
-		if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
+		if (!drawModeOn) return;
+		if (!event.isPrimary) {
+			if (stroke) dropStroke();
+			return;
+		}
+		if (event.button !== 0) return;
 		const origin = event.composedPath()[0];
 		if (leafSurface(origin)) return;
-		claimThroughClick = true;
+		holdCompatibilityClick();
 		claimedPointer = event.pointerId;
 		claim(event);
 		const target = sessionTarget() ?? targetAtPointer();
@@ -1832,11 +1795,9 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 			return;
 		}
 		claim(event);
-		stroke = null;
 		claimedPointer = null;
 		releaseCompatibilityClickSoon();
-		shiftDrawingPaint();
-		announce("Stroke canceled. Draw mode is still on.");
+		dropStroke();
 	}
 	const compatibilityPress = (event) => {
 		if (claimThroughClick && !pressIsKeyboardActivation(event)) claim(event);
@@ -2663,6 +2624,7 @@ function createHintSession({ layer, walk: walkKey, read, identity, scene, layout
 			keys: ["Enter"],
 			description: choose.description,
 			title: choose.title,
+			travels: true,
 			when: () => at >= 0,
 			run: () => take(hinted()[at])
 		}];
@@ -2815,16 +2777,10 @@ function keyBadgePlacement() {
 	}
 	function paint(seats, chips) {
 		const { right, bottom } = layoutWindow();
-		const measured = chips.map(({ chip, owner, corner }) => {
-			const seat = seats.seat(owner);
-			if (chip.parentElement !== seat) setChildren(seat, [chip]);
-			return {
-				chip,
-				seat,
-				owner,
-				corner
-			};
-		});
+		const measured = chips.map((one) => ({
+			...one,
+			chip: one.seat.firstElementChild
+		}));
 		for (const one of measured) one.start = seats.boxAt(one.seat, one.corner);
 		const free = (box) => box.right > box.left && box.bottom > box.top && !kept.some((other) => overlaps(box, other));
 		const seated = [];
@@ -2885,18 +2841,14 @@ const pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
 const pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
-const matchStep = (icon, name) => {
-	const control = el("button", "lf-btn lf-icon-action lf-quiet-action lf-page-search-step");
-	control.type = "button";
+const matchStep = (action) => {
+	const control = offerAction("symbol", "lf-page-search-step", void 0, { action });
 	control.tabIndex = -1;
-	control.append(iconElement(icon, "lf-action-icon"));
-	control.setAttribute("aria-label", name);
-	control.title = name;
 	control.addEventListener("mousedown", (event) => event.preventDefault());
 	return control;
 };
-const previousMatchControl = matchStep("up", "Previous match");
-const nextMatchControl = matchStep("down", "Next match");
+const previousMatchControl = matchStep("previous-match");
+const nextMatchControl = matchStep("next-match");
 const pageSearchControls = [
 	pageSearchStatus,
 	previousMatchControl,
@@ -2930,6 +2882,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 		return visibleTargetParts(element).length > 0;
 	};
 	function firstShown(range, owner, reading) {
+		if (skipped(range.startContainer.parentElement)) return null;
 		const clip = reading.clipOver(owner);
 		if (!clip) return null;
 		return [...range.getClientRects()].map((box) => reading.clearPart(box, clip)).find((part) => reading.exposes(null, part)) ?? null;
@@ -3240,6 +3193,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 		}],
 		title: "search matches",
 		repeat: true,
+		travels: true,
 		when: () => Boolean(repeatedSearch),
 		run: (binding) => repeatSearch(binding === "n" ? 1 : -1)
 	};
@@ -3257,6 +3211,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 		keys: HINT_KEYS,
 		label: "a–z",
 		title: "type hint",
+		travels: true,
 		when: () => hints.candidates().length > 0,
 		run: hints.type
 	};
@@ -3284,6 +3239,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 				id: "page.search.match.select",
 				keys: ["Enter"],
 				title: "select match",
+				travels: true,
 				touch: false,
 				when: () => matches.value.length > 0,
 				run: chooseMatch
@@ -3305,6 +3261,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 				}],
 				title: "matches",
 				repeat: true,
+				travels: true,
 				when: () => matches.value.length > 0,
 				run: (binding) => moveMatch(binding === "Tab" ? 1 : -1)
 			},
@@ -3375,8 +3332,17 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 }
 
 //#endregion
+//#region runtime/obligations/view-elements.js
+const OBLIGATION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
+
+//#endregion
 //#region runtime/composing/current-target.js
-function createCurrentTarget({ isObligationControl, currentLocationIn }) {
+function frameHolding(node) {
+	const framed = readObligations().all.map((item) => obligationPlace(item)).filter(({ source, context }) => source && context && context !== source && under$1(node, context));
+	const frame = framed.reduce((inner, { context }) => inner && under$1(inner, context) ? inner : context, null);
+	return framed.some(({ source, context }) => context === frame && under$1(node, source)) ? null : frame;
+}
+function createCurrentTarget({ currentLocationIn }) {
 	return function currentTarget() {
 		const held = focused();
 		if (!held || held === document.body) return null;
@@ -3384,8 +3350,12 @@ function createCurrentTarget({ isObligationControl, currentLocationIn }) {
 		const place = placeOf(held);
 		if (!place || inChrome(place)) return null;
 		if (place !== held) return aimTargetAt(place);
-		const working = isObligationControl(held) ? currentLocationIn() : null;
-		return aimTargetAt(working ?? held);
+		const working = held.matches(":is(button[data-lf-offer], [data-lf-offer][tabindex])") ? currentLocationIn() : null;
+		if (working) return aimTargetAt(working);
+		const aim = aimTargetAt(held);
+		if (!aim || aim.anchor.datum || aim.anchor.visual || aim.element === held) return aim;
+		const frame = frameHolding(held);
+		return frame ? aimTargetAt(frame) : aim;
 	};
 }
 
@@ -3444,7 +3414,7 @@ function createAnchorPlacement() {
 		pendingPlaced = resolvedDraft;
 		const active = draft.open ? null : actionAnchor;
 		const action = active && !active.quote ? resolveAnchor(active) : null;
-		if (before.size !== placed.size || [...placed].some(([id, placement]) => !samePlacement(before.get(id), placement))) version.value += 1;
+		if (before.size !== placed.size || [...placed].some(([id, placement]) => !samePlacement(before.get(id), placement))) tick(version);
 		return {
 			readings,
 			draft: {
@@ -3476,13 +3446,13 @@ declareSide((node) => {
 	}
 	return null;
 });
-const same$3 = (left, right) => left.length === right.length && left.every((node, index) => node === right[index]);
+const same$2 = (left, right) => left.length === right.length && left.every((node, index) => node === right[index]);
 const authoredDetails = (element, value) => (value ?? "").split(/\s+/).filter(Boolean).map((id) => element.getRootNode().getElementById?.(id)).filter(Boolean);
 const written = (element) => element.getAttribute("aria-details") === "";
 function name(element, record) {
 	if (!written(element)) record.authored = element.getAttribute("aria-details");
 	const wanted = [...authoredDetails(element, record.authored), ...record.notes];
-	if (written(element) && same$3(element.ariaDetailsElements ?? [], wanted)) return;
+	if (written(element) && same$2(element.ariaDetailsElements ?? [], wanted)) return;
 	element.ariaDetailsElements = wanted;
 }
 function shelve(element, note) {
@@ -3755,7 +3725,7 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 						}
 					}, {
 						key: `reaction:${root.id}:remove`,
-						icon: "undo",
+						action: "undo",
 						label: `Undo ${root.token} reaction`,
 						rank: "secondary",
 						className: "lf-react-remove",
@@ -3985,13 +3955,13 @@ const TONE = {
 	closed: ""
 };
 const WORK_WORDS = {
-	working: "working",
-	thinking: "thinking",
-	tool: "using a tool",
-	awaiting_approval: "waiting for approval",
-	awaiting_input: "waiting for input",
-	awaiting_user: "waiting for me",
-	replying: "replying"
+	working: "Working on it",
+	thinking: "Thinking",
+	tool: "Using a tool",
+	awaiting_approval: "Need your approval",
+	awaiting_input: "Need your input",
+	awaiting_user: "Have a question for you",
+	replying: "Writing a reply"
 };
 const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
 const COUNT_PHRASES = {
@@ -4006,10 +3976,9 @@ function activityFacts({ activity }) {
 	const { counts } = activity;
 	return Object.freeze({
 		tone: TONE[activity.kind],
-		work: activity.observed_kind ? WORK_WORDS[activity.observed_kind] : "working",
+		work: WORK_WORDS[activity.observed_kind ?? "working"] + (activity.awaiting ? " in the terminal" : ""),
 		left: Boolean(activity.dropped),
 		silentSince: ago(activity.ts),
-		listening: Boolean(counts.pending || counts.queued),
 		waiting: Object.freeze(phrased(counts, ["queued", "pending"])),
 		owed: Object.freeze(phrased(counts, [
 			"active",
@@ -4019,12 +3988,12 @@ function activityFacts({ activity }) {
 	});
 }
 const after = (head, words, step = false) => !head ? words : step ? `${head} · ${words}` : `${head}${head.endsWith(".") ? "" : "."} ${words}`;
-const OFFLINE_LINE = "Server offline — reconnecting. Keep this page open so pending changes can send.";
-const KEY_REFUSED_LINE = "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.";
-const BROKEN_LINE = "Page couldn't apply current state — reload";
+const OFFLINE_LINE = "Lost the connection — reconnecting. Keep this page open so changes made here go through.";
+const KEY_REFUSED_LINE = "This tab lost access. Open the page's link again in a new tab, and keep this one open so changes made here go through.";
+const BROKEN_LINE = "Couldn't show the latest — reload";
 const publicationWords = (published) => [`${published.kind === "example" ? "This is an example on the Leaf website" : "This website is a Leaf page"}, and this copy is private to this browser. `, "Install Leaf"];
 function deliveredWords({ comments, answers }) {
-	if (comments + answers === 1) return comments ? "the comment" : "the answer";
+	if (comments + answers === 1) return comments ? "your comment" : "your answer";
 	const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
 	return [comments && counted(comments, "comment"), answers && counted(answers, "answer")].filter(Boolean).join(" and ");
 }
@@ -4034,47 +4003,40 @@ const appendWords = (parts, words, step = false) => {
 	const head = textOf(parts);
 	parts.push({ text: after(head, words, step).slice(head.length) });
 };
-function statusWords({ age, agent, dated, shortDate, detail, detailSource, handling, invite, kind, listening, overdue, saved, work }) {
+function statusWords({ age, dated, detail, detailSource, handling, invite, kind, overdue, saved, waits, work }) {
 	if (kind === "closed") return [
-		"Page closed",
-		"Page closed",
+		"Done with this page",
+		"Done with this page.",
 		""
 	];
 	if (kind === "unheld") {
-		const meanwhile = `${saved} It picks up again when a session does.`;
+		const meanwhile = `${saved} They're picked up next time.`;
 		return [
-			"No session",
-			`No session holds this page. ${meanwhile}`,
+			"Not on this page right now",
+			`Not on this page right now. ${meanwhile}`,
 			meanwhile
 		];
 	}
 	if (kind === "working") {
 		const delivered = deliveredWords(handling);
-		const said = detail ? [" — ", {
+		const sentence = detail ? [{
 			text: detail,
 			source: detailSource
-		}] : delivered ? [" — has " + delivered] : [];
+		}] : [];
+		const said = waits ? [work, ...detail ? [" — ", ...sentence] : []] : detail ? sentence : [delivered ? `Got ${delivered}` : work];
 		return [
-			[`${agent} ${work}${age && age !== "just now" ? " · " + age : ""}`, ...said],
-			detail || !delivered ? [`${agent} is ${work}`, ...said] : `${agent} has ${delivered} and hasn't said what it's doing yet`,
-			detail || !delivered ? "" : "It hasn't said what it's doing yet."
+			[...age && age !== "just now" ? [`${age} · `] : [], ...said],
+			said,
+			""
 		];
 	}
-	if (kind === "listening") {
-		const awaits = detail ? `${agent} awaits — ${detail}` : invite;
-		return listening ? [
-			`${agent} listening`,
-			`${agent} is listening${detail ? " — " + detail : ""}.`,
-			detail ? `It asked: ${detail}.` : ""
-		] : [
-			awaits,
-			awaits,
-			"",
-			Boolean(detail)
-		];
-	}
+	if (kind === "listening") return [
+		invite,
+		invite,
+		""
+	];
 	if (kind === "stalled") return [
-		shortDate,
+		dated,
 		[
 			dated,
 			...detail ? [": ", {
@@ -4093,14 +4055,15 @@ function statusWords({ age, agent, dated, shortDate, detail, detailSource, handl
 		] : [], saved]
 	];
 	return overdue ? [
-		`Nudge ${agent} in terminal`,
-		`${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
+		"Not answering — nudge the terminal",
+		`${dated}. ${saved} Nothing is answering them, so nudge the terminal.`,
 		`${dated}. ${saved} Nothing is answering them.`,
-		true
+		true,
+		"leaf"
 	] : [
-		`${agent} away`,
-		`${agent} isn't watching right now. ${saved} It picks them up next turn.`,
-		`${saved} It picks them up next turn.`
+		"Away",
+		`Away right now. ${saved} They're picked up next turn.`,
+		`${saved} They're picked up next turn.`
 	];
 }
 function pageStatus(state, { reach = "reached", fault = null } = {}) {
@@ -4108,6 +4071,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		kind: "broken",
 		tone: "blocked",
 		summary: BROKEN_LINE,
+		voice: "leaf",
 		explanation: BROKEN_LINE,
 		adds: "",
 		asks: true
@@ -4115,9 +4079,10 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	if (reach === "refused") return {
 		kind: "refused",
 		tone: "blocked",
-		summary: "Key refused — open Leaf's link in a new tab",
+		summary: "This tab lost access — open the link again",
+		voice: "leaf",
 		explanation: KEY_REFUSED_LINE,
-		adds: "Keep this tab open so pending changes can send.",
+		adds: "Keep this tab open so changes made here go through.",
 		asks: true
 	};
 	if (reach === "faulted") {
@@ -4125,43 +4090,43 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		return {
 			kind: "faulted",
 			tone: "blocked",
-			summary: "Server error — retrying",
-			explanation: `The server answered with an error: ${said}. Retrying.`,
-			adds: `It answered: ${said}. Retrying.`
+			summary: "Hit a problem — trying again",
+			voice: "leaf",
+			explanation: `Hit a problem: ${said}. Trying again.`,
+			adds: `${said}. Trying again.`
 		};
 	}
 	if (reach !== "reached") return {
 		kind: "unreachable",
 		tone: "blocked",
-		summary: "Server offline — reconnecting",
+		summary: "Lost the connection — reconnecting",
+		voice: "leaf",
 		explanation: OFFLINE_LINE,
 		adds: ""
 	};
-	const { activity, agent, publication = null } = state;
+	const { activity, publication = null } = state;
 	const onCall = Boolean(publication) && activity.kind !== "working";
 	const kind = onCall ? "listening" : activity.kind;
-	const detail = !onCall || activity.kind === "listening" ? activity.detail : "";
+	const detail = onCall ? "" : activity.detail;
 	const facts = activityFacts(state);
 	const saved = "Updates are saved.";
-	const checkedIn = facts.silentSince ? `${agent} last checked in ${facts.silentSince}` : `No check-in from ${agent} is recorded`;
-	const ended = `${agent}’s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
+	const checkedIn = facts.silentSince ? `Last checked in ${facts.silentSince}` : "Haven't checked in yet";
+	const ended = `Stopped${facts.silentSince ? " " + facts.silentSince : ""}`;
 	const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-	const [summaryWords, explanationWords, beyond, asked = false] = statusWords({
+	const [summaryWords, explanationWords, beyond, asked = false, voice = "agent"] = statusWords({
 		age,
-		agent,
 		dated: facts.left ? ended : checkedIn,
-		shortDate: facts.left ? ended : checkedIn,
 		detail,
 		detailSource: activity.detail_source,
 		handling: {
 			comments: activity.counts.handling_comments,
 			answers: activity.counts.handling - activity.counts.handling_comments
 		},
-		invite: publication ? `${agent} awaits — comment to revise this copy` : `${agent} awaits — select text to comment`,
+		invite: publication ? "Ready — comment to revise this copy" : "Ready — select text to comment",
 		kind,
-		listening: facts.listening,
 		overdue: activity.counts.overdue,
 		saved,
+		waits: Boolean(activity.awaiting),
 		work: facts.work
 	});
 	const summaryParts = textParts(summaryWords);
@@ -4176,7 +4141,6 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	if (facts.waiting.length && ["working", "listening"].includes(kind)) append(`${facts.waiting.join(" · ")}.`);
 	const actionableWork = activity.awaiting ? activity.observed_kind : null;
 	const waitsThere = Boolean(actionableWork) && kind === "working";
-	if (waitsThere) append("It waits in its own session, not on this page.");
 	return {
 		kind,
 		tone: TONE[kind],
@@ -4187,24 +4151,30 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		adds: textOf(addsParts),
 		addsParts,
 		asks: asked || waitsThere,
+		voice,
 		actionableWork,
 		publication
 	};
 }
+const TO_ANSWER = Object.freeze(["to answer", "to answer"]);
+const TODO = Object.freeze(["to-do", "to-dos"]);
 const QUEUE_WORDS = Object.freeze({
-	widget: ["to answer", "to answer"],
-	message: ["to answer", "to answer"],
+	widget: TO_ANSWER,
+	message: TO_ANSWER,
 	resend: ["update to send again", "updates to send again"],
 	answer: ["answer", "answers"],
 	reply: ["reply", "replies"],
-	todo: ["to-do", "to-dos"]
+	todo: TODO
 });
 function queueKinds(items) {
-	const byKind = /* @__PURE__ */ new Map();
-	for (const item of items) byKind.set(itemNoun(item), [...byKind.get(itemNoun(item)) ?? [], item]);
-	return [...byKind].map(([kind, all]) => {
-		const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-		return kind === "todo" ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" · ")})` : words;
+	const byWords = /* @__PURE__ */ new Map();
+	for (const item of items) {
+		const nouns = QUEUE_WORDS[itemNoun(item)];
+		byWords.set(nouns, [...byWords.get(nouns) ?? [], item]);
+	}
+	return [...byWords].map(([nouns, all]) => {
+		const words = `${all.length} ${nouns[all.length === 1 ? 0 : 1]}`;
+		return nouns === TODO ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" · ")})` : words;
 	});
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
@@ -4218,7 +4188,7 @@ const WITHOUT_QUEUES = /* @__PURE__ */ new Set([
 	"unreachable"
 ]);
 function statusModel(status, queues, agent) {
-	const { kind, tone, summary, asks = false, publication = null } = status;
+	const { kind, tone, summary, asks = false, voice = "agent", publication = null } = status;
 	let { explanation, adds } = status;
 	const explanationParts = [...status.explanationParts ?? textParts(explanation)];
 	const addsParts = [...status.addsParts ?? textParts(adds)];
@@ -4250,6 +4220,7 @@ function statusModel(status, queues, agent) {
 		explanationParts,
 		addsParts,
 		asks,
+		voice,
 		explanation,
 		adds,
 		publication: publicationModel
@@ -4259,9 +4230,9 @@ function leafRow(entry) {
 	const { kind, counts, detail } = entry.activity;
 	const facts = activityFacts(entry);
 	const stated = (word) => word + (detail ? " — " + detail : "");
-	const silence = `${facts.left ? "Left" : "Quiet"}${facts.silentSince ? ` (${facts.silentSince})` : ""}`;
-	const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
-	const primary = kind === "working" ? stated(work) : kind === "listening" ? facts.listening ? stated("Listening") : stated("Awaits") : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "No session" : "Closed";
+	const since = facts.silentSince ? ` ${facts.silentSince}` : "";
+	const silence = facts.left ? `Stopped${since}` : since ? `Last checked in${since}` : "Haven't checked in yet";
+	const primary = kind === "working" ? entry.activity.awaiting ? stated(facts.work) : detail || facts.work : kind === "listening" ? "Ready" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "Not on this page right now" : "Done with this page";
 	const line = facts.waiting.length ? `${primary} · ${facts.waiting.join(" · ")}` : primary;
 	return {
 		tone: facts.tone,
@@ -4271,11 +4242,12 @@ function leafRow(entry) {
 
 //#endregion
 //#region runtime/page-status.js
-const LOADING_LINE = "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds." + (WEBSITE_DELIVERY ? " Website examples can take longer to load their saved state than a usual Leaf page." : "");
+const LOADING_LINE = "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments go through once they have." + (WEBSITE_DELIVERY ? " Website examples can take longer to load their comments and choices than a usual Leaf page." : "");
 const LOADING = Object.freeze({
 	kind: "loading",
 	tone: "",
-	summary: "Loading saved state…",
+	summary: "Loading comments and choices…",
+	voice: "leaf",
 	explanation: LOADING_LINE,
 	adds: LOADING_LINE
 });
@@ -4408,11 +4380,10 @@ const QUALIFIER = "waiting on me";
 const WITHIN = "waiting on me here";
 const NOUNS = Object.freeze({
 	thread: "Thread",
-	widget: "Update",
-	page: "To-do"
+	subject: "Update"
 });
-const nounOf = (item, stop) => carriesObligation(item) ? obligationWord(item.obligation) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
-const stopOf = (item) => item.kind === "widget" && !(item.thread !== null && answeredInWords(item.obligation)) ? {
+const nounOf = (item, stop) => carriesObligation(item) ? obligationWord(item.obligation) : stop.kind === "subject" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
+const stopOf = (item) => carriesObligation(item) && (item.thread === null || item.kind === "widget") ? {
 	kind: "obligation",
 	id: item.id,
 	thread: item.thread,
@@ -4422,13 +4393,10 @@ const stopOf = (item) => item.kind === "widget" && !(item.thread !== null && ans
 	id: item.thread,
 	thread: item.thread,
 	message: answeredInWords(item.obligation) ? item.obligation.message : null
-} : item.subject.kind === "page" ? {
-	kind: "page",
-	id: "page",
-	thread: null
 } : {
-	kind: "widget",
-	id: item.subject.id,
+	kind: "subject",
+	id: item.subject.id ?? item.subject.kind,
+	subject: item.subject,
 	thread: null
 };
 const sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
@@ -4440,21 +4408,91 @@ function queueStop(item) {
 		noun: nounOf(item, stop)
 	};
 }
-const pageHead = () => [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ?? pageDocument() ?? document.body.firstElementChild;
-function createQueueWalk({ arriveAtRecord, arriveAtThread, threadHere, threadPlace, prepareNavigationStep, arrive, readableDestination, announce, actions }) {
-	const stopElement = (stop) => stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
+const ON_ME_GROUPINGS = Object.freeze([
+	"place",
+	"kind",
+	"plan"
+]);
+const chosenGrouping = userChoice("lf-on-me-grouping", ON_ME_GROUPINGS);
+const groupingLabel = (grouping) => grouping === "plan" ? `By ${agentName()}` : grouping === "kind" ? "By kind" : "By place";
+const namedIn = (step) => [...step.item ? [step.item.id] : [], ...step.steps.flatMap(namedIn)];
+const givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
+function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareNavigationStep, arrive, readableDestination, announce, actions }) {
+	const stopElement = (stop) => stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.thread !== null ? threadPlace(stop.thread) : subjectPlace(stop.subject);
 	const pagePlace = (stop) => {
 		const at = stopElement(stop);
 		return at?.isConnected && !inChrome(at) ? at : null;
 	};
 	const inWalkOrder = (items) => byRenderedOrder(items, (item) => pagePlace(queueStop(item)));
-	function stops() {
+	const grouping = () => chosenGrouping.read() ?? ((readPlan()?.steps ?? []).some(givesUser) ? "plan" : "place");
+	const itemHeading = (item) => {
+		const at = pagePlace(queueStop(item));
+		return at ? partOver(at) : null;
+	};
+	const itemPlace = (item) => {
+		const heading = itemHeading(item);
+		return heading ? addressableLabel(heading) : "";
+	};
+	const heldOnMe = () => {
+		const reading = readQueues();
+		return [...reading.on_user, ...reading.done.filter((item) => item.owner === "user")];
+	};
+	function onMeGroups(items, by = grouping(), carried = /* @__PURE__ */ new Set()) {
+		const keyed = new Map([...heldOnMe().filter((item) => !carried.has(item.id)), ...items].map((item) => [queueItemKey(item), item]));
+		const basis = inWalkOrder([...keyed.values()]);
+		const goals = by === "plan" ? readPlan()?.steps ?? [] : [];
+		const named = goals.map(namedIn);
+		const groupOf = (item) => {
+			if (by === "kind") return queueStop(item).noun;
+			if (by !== "plan") return itemHeading(item);
+			const at = named.findIndex((ids) => ids.includes(item.id));
+			return at < 0 ? goals.length : at;
+		};
+		const order = /* @__PURE__ */ new Map();
+		if (by === "plan") for (let at = 0; at <= goals.length; at += 1) order.set(at, at);
+		for (const item of basis) {
+			const group = groupOf(item);
+			if (!order.has(group)) order.set(group, order.size);
+		}
+		const stops = /* @__PURE__ */ new Map();
+		basis.forEach((item, at) => {
+			const key = queueStop(item).key;
+			if (!stops.has(key)) stops.set(key, {
+				at,
+				items: []
+			});
+			stops.get(key).items.push(item);
+		});
+		const shown = new Set(items.map(queueItemKey));
+		const groups = /* @__PURE__ */ new Map();
+		const leads = /* @__PURE__ */ new Set();
+		for (const stop of stops.values()) {
+			const listed = stop.items.filter((item) => shown.has(queueItemKey(item)));
+			if (!listed.length) continue;
+			leads.add(listed[0]);
+			const group = stop.items.map(groupOf).reduce((first, next) => order.get(next) < order.get(first) ? next : first);
+			const rank = by === "plan" && group < goals.length ? Math.min(...stop.items.map((item) => named[group].indexOf(item.id)).filter((at) => at >= 0)) : stop.at;
+			if (!groups.has(group)) groups.set(group, []);
+			groups.get(group).push({
+				rank,
+				items: listed
+			});
+		}
+		return [...groups.entries()].sort(([a], [b]) => order.get(a) - order.get(b)).map(([group, held]) => ({
+			key: by === "plan" ? `goal:${group}` : by === "kind" ? `kind:${group}` : group ?? "place",
+			title: by === "plan" ? group < goals.length ? goals[group].title ?? `Goal ${group + 1}` : "Not in the plan" : by === "kind" ? group : group ? addressableLabel(group) : "The whole page",
+			items: held.sort((a, b) => a.rank - b.rank).flatMap((stop) => stop.items),
+			leads
+		}));
+	}
+	function stopsAmong(items) {
 		const list = [];
 		const listed = /* @__PURE__ */ new Set();
-		for (const item of inWalkOrder(readQueues().on_user)) {
+		for (const item of items) {
 			const stop = queueStop(item);
-			if (listed.has(stop.key)) continue;
-			listed.add(stop.key);
+			const at = stop.kind === "obligation" && obligationPlace(stop.obligation).node || stop.key;
+			if (listed.has(at)) continue;
+			listed.add(at);
 			list.push({
 				...stop,
 				place: pagePlace(stop)
@@ -4462,35 +4500,29 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadHere, threadPla
 		}
 		return list;
 	}
+	const stops = () => stopsAmong(onMeGroups(readQueues().on_user).flatMap((group) => group.items));
 	function stopsWithin(region) {
 		const held = new Set(obligationsIn(region).map((item) => item.id));
-		return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
+		return stopsAmong(inWalkOrder(readQueues().on_user)).filter((stop) => stop.kind === "obligation" && held.has(stop.id));
 	}
 	const stopsOf = (region) => region ? stopsWithin(region) : stops();
 	function currentLocationStop(list, origin = currentLocationOrigin()) {
-		const held = threadHere();
-		const thread = drawnThreadId(held);
-		if (thread) {
-			const stop = list.find((candidate) => candidate.kind === "thread" && candidate.id === thread);
-			if (stop) return stop;
-		}
 		if (origin?.kind !== "current-location") return null;
-		const { place: here } = origin;
-		if (!here) return null;
-		const item = obligationHolding(readObligations().all, placeOf(here));
-		if (item) {
-			const stop = list.find((candidate) => candidate.kind === "obligation" && candidate.id === item.id);
-			if (stop) return stop;
-		}
+		const thread = drawnThreadId(threadIn(origin.node));
+		return thread && list.find((candidate) => candidate.kind === "thread" && candidate.id === thread) || placeStop(list, origin);
+	}
+	function placeStop(list, { place: here }) {
+		const listed = list.filter((stop) => stop.kind === "obligation");
+		const item = obligationHolding(listed.map((stop) => stop.obligation), placeOf(here), readObligations().all);
+		if (item) return listed.find((stop) => stop.id === item.id);
 		return list.findLast((stop) => {
-			if (stop.kind === "page") return stopElement(stop) === here;
-			if (stop.kind !== "widget") return false;
+			if (stop.kind !== "subject") return false;
 			const at = stopElement(stop);
-			return at && (at === here || under(here, at));
+			return at && under$1(here, at);
 		}) ?? null;
 	}
 	function step(list, dir, region, origin) {
-		if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
+		if (region && !under$1(origin.place, region)) return cycledRow(list, null, dir);
 		const currentLocation = currentLocationStop(list, origin);
 		if (currentLocation) return cycledRow(list, currentLocation, dir);
 		return stepFrom(list, origin, dir, (stop) => stop.place);
@@ -4586,17 +4618,20 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadHere, threadPla
 		title: "On me",
 		when: offered,
 		repeat: true,
+		travels: true,
 		run: (binding) => walk(binding === "m" ? 1 : -1)
 	});
 	pageScope("todo", {
 		title: "On a to-do waiting on me",
+		says: () => `To-do · ${doneTodo()?.obligation.prompt.text ?? ""}`,
 		ready: savedReadingSettled,
 		at: () => Boolean(doneTodo()),
 		rows: [{
 			id: "queue.todo.done",
 			keys: ["x"],
 			title: "done",
-			touch: false,
+			exit: true,
+			action: "done",
 			when: () => Boolean(doneTodo()),
 			run: () => {
 				const todo = doneTodo();
@@ -4621,14 +4656,16 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadHere, threadPla
 		const items = obligationsIn(within);
 		const kept = items.find((item) => item.id === wentTo);
 		const toward = dir < 0 ? -1 : 1;
-		if (under(here.place, within)) return walk(toward, within, here);
+		if (under$1(here.place, within)) return walk(toward, within, here);
 		if (kept) return walk(toward, within, {
+			node: obligationPlace(kept).source,
 			place: obligationPlace(kept).source,
 			kind: "current-location"
 		});
 		const clips = /* @__PURE__ */ new Map();
 		const shown = items.map((item) => obligationPlace(item).node).find((node) => node && seenRect(node, clips));
 		return shown ? walk(toward, within, {
+			node: shown,
 			place: shown,
 			kind: "at"
 		}) : walk(toward, within, here);
@@ -4637,7 +4674,17 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadHere, threadPla
 		mount,
 		arriveAtItem,
 		arrivesAt,
-		inWalkOrder,
+		onMe: Object.freeze({
+			groups: onMeGroups,
+			grouping,
+			choose: (value) => chosenGrouping.write(value),
+			place: itemPlace,
+			lists: (node) => Boolean(node && currentLocationStop(stops(), {
+				kind: "current-location",
+				node,
+				place: node
+			}))
+		}),
 		nextWithin
 	};
 }
@@ -4652,8 +4699,9 @@ const EMPTY = Object.freeze({
 const context = Z(EMPTY);
 let lastWalk = null;
 const statusContextReading = () => context.value;
+const stanceWords = (scope) => (scope ? word(scope.says ?? scope.title) : null) ?? null;
 const shownWalk = ({ walk }) => walk?.shown ? walk : null;
-const same$2 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.target === shownWalk(b)?.target;
+const same$1 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.target === shownWalk(b)?.target;
 function paintStatusContext(goToStatus) {
 	const position = walkPosition();
 	const goTo = goToStatus();
@@ -4670,416 +4718,10 @@ function paintStatusContext(goToStatus) {
 			...lastWalk,
 			shown: Boolean(position)
 		}) : null,
-		stance: word(innermostStance()?.scope.title) ?? null
+		stance: stanceWords(innermostStance()?.scope)
 	});
 	setNoticeContext(Boolean(goTo));
-	if (!same$2(next, context.peek())) context.value = next;
-}
-
-//#endregion
-//#region runtime/box-motion.js
-const near = (a, b) => Math.abs(a - b) < .5;
-const boxOf = (rect) => ({
-	left: rect.left,
-	top: rect.top,
-	right: rect.right,
-	bottom: rect.bottom
-});
-const width = (box) => box.right - box.left;
-const height = (box) => box.bottom - box.top;
-const same$1 = (a, b) => [
-	"left",
-	"top",
-	"right",
-	"bottom"
-].every((side) => near(a[side], b[side]));
-const between = (from, to, progress) => Object.fromEntries(Object.keys(to).map((side) => [side, from[side] + (to[side] - from[side]) * progress]));
-const shifted = (box, dx, dy) => ({
-	left: box.left + dx,
-	top: box.top + dy,
-	right: box.right + dx,
-	bottom: box.bottom + dy
-});
-const insetOf = ([top, right, bottom, left], radius = 0) => `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`;
-const clipFrame = (sides, radius = 0) => ({
-	clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
-	"--lf-box-cut": sides.map((side) => `${side}px`).join(" ")
-});
-const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
-const paints = (style) => !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
-	"Top",
-	"Right",
-	"Bottom",
-	"Left"
-].some((side) => Number.parseFloat(style[`border${side}Width`]) > 0);
-const rings = (style) => style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
-function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], observer, theirs }) {
-	let rests = null;
-	let motions = /* @__PURE__ */ new Map();
-	let running = [];
-	let shapeUntil = 1;
-	let rtl = false;
-	const interpolate = (from, to, progress) => {
-		const rect = between(from, to, progress);
-		const shape = Math.min(1, progress / shapeUntil);
-		const w = width(from) + (width(to) - width(from)) * shape;
-		const h = height(from) + (height(to) - height(from)) * shape;
-		if (rtl) rect.left = rect.right - w;
-		else rect.right = rect.left + w;
-		rect.top = rect.bottom - h;
-		return rect;
-	};
-	const translations = /* @__PURE__ */ new Map();
-	const restoreTranslations = (keep = /* @__PURE__ */ new Set()) => {
-		for (const [element, { value, priority }] of translations) {
-			if (keep.has(element)) continue;
-			element.style.setProperty("translate", value, priority);
-			translations.delete(element);
-		}
-	};
-	let observed = /* @__PURE__ */ new Set();
-	let wholes = /* @__PURE__ */ new WeakSet();
-	const insideWhole = (node) => {
-		for (let up = node.parentElement; up && up !== root; up = up.parentElement) if (wholes.has(up)) return true;
-		return false;
-	};
-	function carriedBy(progress) {
-		const offsets = /* @__PURE__ */ new Map();
-		const offset = (carrier) => {
-			if (!offsets.has(carrier)) {
-				const { from, to, carries: edge } = motions.get(carrier);
-				const now = between(from, to, progress);
-				offsets.set(carrier, [now[edge] - to[edge], now.top - to.top]);
-			}
-			return offsets.get(carrier);
-		};
-		return (element) => {
-			for (let up = element; up && up !== root; up = up.parentElement) if (motions.get(up)?.carries) return offset(up);
-			return [0, 0];
-		};
-	}
-	function read(element, into, carried) {
-		const style = getComputedStyle(element);
-		if (style.display === "contents") {
-			for (const child of element.children) read(child, into, carried);
-			return;
-		}
-		if (!element.checkVisibility()) return;
-		if (style.positionAnchor.startsWith("--")) return;
-		const [dx, dy] = carried(element);
-		const part = {
-			element,
-			style,
-			box: shifted(boxOf(element.getBoundingClientRect()), -dx, -dy),
-			window: style.position === "fixed",
-			parts: []
-		};
-		part.scrolls = /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`);
-		part.whole = element !== root && element.localName.includes("-") || element instanceof SVGElement || part.scrolls || element.childElementCount === 0 || [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.data.trim());
-		if (!part.whole) for (const child of element.children) read(child, part.parts, carried);
-		part.holdsWindow = part.parts.some((inner) => inner.window || inner.holdsWindow);
-		if (part.whole) wholes.add(element);
-		into.push(part);
-	}
-	function drawn(progress, carried) {
-		const at = /* @__PURE__ */ new Map();
-		for (const [element, rest] of rests) {
-			const moving = motions.get(element);
-			if (moving?.revealed && progress < 1) continue;
-			at.set(element, moving ? (element === box ? interpolate : between)(moving.from, moving.to, progress) : shifted(rest, ...carried(element)));
-		}
-		return at;
-	}
-	const arrived = /* @__PURE__ */ new Set();
-	let watching = 0;
-	const watch = () => {
-		watching ||= nextRender(() => {
-			watching = 0;
-			const parts = /* @__PURE__ */ new Set([
-				box,
-				...rests?.keys() ?? [],
-				...arrived
-			]);
-			arrived.clear();
-			for (const element of observed) if (!parts.has(element)) observer.unobserve(element);
-			for (const element of parts) if (!observed.has(element)) observer.observe(element);
-			observed = parts;
-		});
-	};
-	new MutationObserver((records) => {
-		for (const record of records) for (const node of record.type === "childList" ? record.addedNodes : [record.target]) if (node instanceof Element && !insideWhole(node)) arrived.add(node);
-		watch();
-	}).observe(root, {
-		subtree: true,
-		childList: true,
-		attributeFilter: ["hidden"]
-	});
-	function follow({ duration, easing }, compact = false) {
-		const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
-		const carried = carriedBy(progress);
-		const parts = [];
-		wholes = /* @__PURE__ */ new WeakSet();
-		read(root, parts, carried);
-		const next = /* @__PURE__ */ new Map();
-		const note = (part) => {
-			next.set(part.element, part.box);
-			part.parts.forEach(note);
-		};
-		parts.forEach(note);
-		watch();
-		if (rests?.size === next.size && [...next].every(([element, at]) => rests.has(element) && same$1(rests.get(element), at))) return;
-		for (const animation of running) animation.cancel();
-		running = [];
-		if (!next.has(box)) {
-			restoreTranslations();
-			rests = null;
-			motions = /* @__PURE__ */ new Map();
-			return;
-		}
-		const was = motionPlays() && rests ? drawn(progress, carried) : null;
-		const gesture = theirs();
-		const framed = new Set([...motions].filter(([, moving]) => moving.frames).map(([element]) => element));
-		const before = rests;
-		motions = /* @__PURE__ */ new Map();
-		rests = next;
-		const space = boxOf(room.getBoundingClientRect());
-		const outline = (at, grow, radius) => [[
-			at.top - space.top - grow,
-			space.right - at.right - grow,
-			space.bottom - at.bottom - grow,
-			at.left - space.left - grow
-		], radius + grow];
-		const boxAt = rests.get(box);
-		const boxRadius = radiusOf(getComputedStyle(box));
-		for (const [layer, reach] of surface()) keeps(layer, "style", `clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`);
-		if (!was?.has(box)) {
-			restoreTranslations();
-			return;
-		}
-		const boxFrom = was.get(box);
-		shapeUntil = compact ? .55 : 1;
-		rtl = getComputedStyle(box).direction === "rtl";
-		const start = (element, keyframes) => running.push(playMotion(element, keyframes, {
-			duration,
-			easing
-		}));
-		const contour = (from, to, grow, radius, compact = false) => {
-			const frames = [clipFrame(...outline(from, grow, radius))];
-			if (compact) frames.push({
-				...clipFrame(...outline(interpolate(from, to, shapeUntil), grow, radius)),
-				offset: shapeUntil
-			});
-			frames.push(clipFrame(...outline(to, grow, radius)));
-			return frames;
-		};
-		const hold = (element, property, value) => start(element, [{ [property]: value }, { [property]: value }]);
-		const translated = /* @__PURE__ */ new Set();
-		const move = (element, dx, dy) => {
-			const [carriedX, carriedY] = carriedBy(0)(element.parentElement);
-			dx -= carriedX;
-			dy -= carriedY;
-			if (!translations.has(element)) translations.set(element, {
-				value: element.style.getPropertyValue("translate"),
-				priority: element.style.getPropertyPriority("translate")
-			});
-			translated.add(element);
-			element.style.setProperty("translate", "var(--lf-box-carry)");
-			start(element, [{ "--lf-box-carry": `${dx}px ${dy}px` }, { "--lf-box-carry": "0px 0px" }]);
-		};
-		const cutFrom = (element, cut, radius = 0) => start(element, [clipFrame(cut, radius), clipFrame([
-			0,
-			0,
-			0,
-			0
-		], radius)]);
-		function carry(part, from) {
-			const dx = from.left - part.box.left;
-			const dy = from.top - part.box.top;
-			const [carriedX, carriedY] = carriedBy(0)(part.element.parentElement);
-			if (near(dx, carriedX) && near(dy, carriedY)) return;
-			motions.set(part.element, {
-				from,
-				to: part.box,
-				carries: "left"
-			});
-			move(part.element, dx, dy);
-		}
-		function carryContent(part, from) {
-			const to = part.box;
-			if (part.scrolls && !part.element.matches(TEXT_FIELD)) return grow(part, from);
-			let dx = rtl ? from.right - to.right : from.left - to.left;
-			let dy = from.top - to.top;
-			const end = width(to) - width(from);
-			const foot = height(to) - height(from);
-			const cut = rtl ? [
-				0,
-				0,
-				foot,
-				end
-			] : [
-				0,
-				end,
-				foot,
-				0
-			];
-			if (!part.element.matches(TEXT_FIELD) || !((rtl ? dx <= 0 : dx >= 0) && dy >= 0) && gesture !== "typing") {
-				motions.set(part.element, {
-					from,
-					to,
-					carries: rtl ? "right" : "left"
-				});
-				move(part.element, dx, dy);
-				cutFrom(part.element, cut, radiusOf(part.style));
-				return;
-			}
-			motions.set(part.element, {
-				from,
-				to
-			});
-			dx = rtl ? Math.min(0, dx) : Math.max(0, dx);
-			dy = Math.max(0, dy);
-			start(part.element, [{
-				"--lf-field-carry": `${dx}px ${dy}px`,
-				"--lf-field-cut": cut.map((side) => `${side}px`).join(" ")
-			}, {
-				"--lf-field-carry": "0px 0px",
-				"--lf-field-cut": "0px 0px 0px 0px"
-			}]);
-		}
-		function grow(part, from) {
-			const to = part.box;
-			motions.set(part.element, {
-				from,
-				to
-			});
-			cutFrom(part.element, [
-				from.top - to.top,
-				to.right - from.right,
-				to.bottom - from.bottom,
-				from.left - to.left
-			].map((inset) => Math.max(0, inset)), radiusOf(part.style));
-		}
-		function reveal(part, frame, siblings) {
-			const to = part.box;
-			if (part.holdsWindow) {
-				motions.set(part.element, {
-					from: to,
-					to,
-					revealed: true
-				});
-				for (const inner of part.parts) reveal(inner, frame, siblings);
-				return;
-			}
-			const carriedTo = shifted(to, ...carriedBy(0)(part.element.parentElement));
-			const side = (inset, beyond) => beyond ? 0 : Math.max(0, inset);
-			const from = [
-				side(frame.from.top - carriedTo.top, to.top < frame.to.top - .5),
-				side(carriedTo.right - frame.from.right, to.right > frame.to.right + .5),
-				side(carriedTo.bottom - frame.from.bottom, to.bottom > frame.to.bottom + .5),
-				side(frame.from.left - carriedTo.left, to.left < frame.to.left - .5)
-			];
-			const end = [
-				0,
-				0,
-				0,
-				0
-			];
-			const overlaps = (a, b, low, high) => a[low] < b[high] && b[low] < a[high];
-			for (const sibling of siblings) {
-				const moving = motions.get(sibling.element);
-				if (!moving || moving.revealed) continue;
-				const { from: then, to: at } = moving;
-				const across = overlaps(at, to, "top", "bottom");
-				const along = overlaps(at, to, "left", "right");
-				[
-					along && {
-						then: then.bottom - carriedTo.top,
-						rest: at.bottom - to.top
-					},
-					across && {
-						then: carriedTo.right - then.left,
-						rest: to.right - at.left
-					},
-					along && {
-						then: carriedTo.bottom - then.top,
-						rest: to.bottom - at.top
-					},
-					across && {
-						then: then.right - carriedTo.left,
-						rest: at.right - to.left
-					}
-				].forEach((reach, index) => {
-					if (reach && reach.rest <= .5 && reach.then > from[index]) {
-						from[index] = reach.then;
-						end[index] = reach.rest;
-					}
-				});
-			}
-			if (from.every((inset) => near(inset, 0))) return;
-			motions.set(part.element, {
-				from: to,
-				to,
-				revealed: true
-			});
-			start(part.element, [clipFrame(from), clipFrame(end)]);
-		}
-		function place(part, frame, siblings = []) {
-			const { element, style, box: to } = part;
-			const from = was.get(element);
-			if (!from) return reveal(part, frame, siblings);
-			const rest = before.get(element);
-			const sized = !framed.has(element) && near(width(rest), width(to)) && near(height(rest), height(to));
-			let within = frame;
-			if (element !== box && element !== root) {
-				const carries = gesture !== null;
-				if (sized && !part.holdsWindow) return carries ? carry(part, from) : reveal(part, frame, siblings);
-				if (part.whole) return carries ? carryContent(part, from) : grow(part, from);
-				if (!same$1(from, to)) within = {
-					from,
-					to
-				};
-				if (!sized && rings(style)) {
-					const offset = Number.parseFloat(style.outlineOffset);
-					const reach = Number.parseFloat(style.outlineWidth) + offset;
-					const radius = radiusOf(style);
-					keeps(ringLayer, "style", `background: ${style.outlineColor}`);
-					hold(element, "outlineColor", "transparent");
-					for (const [layer, grown] of [[ringLayer, reach], [ringFill, offset]]) start(layer, contour(from, to, grown, radius));
-				} else if (!sized && paints(style) && !part.holdsWindow) carries ? carryContent(part, from) : grow(part, from);
-				if (!same$1(from, to)) motions.set(element, {
-					...motions.get(element),
-					from,
-					to,
-					frames: true
-				});
-			}
-			const placed = [...part.parts].sort((a, b) => Number(!was.has(a.element)) - Number(!was.has(b.element)));
-			for (const inner of placed) place(inner, within, part.parts);
-		}
-		for (const part of parts) place(part, {
-			from: boxFrom,
-			to: boxAt
-		});
-		restoreTranslations(translated);
-		if (running.length === 0 && same$1(boxFrom, boxAt)) return;
-		motions.set(box, {
-			from: boxFrom,
-			to: boxAt
-		});
-		for (const [layer, reach] of surface()) start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
-		hold(box, "backgroundColor", "transparent");
-		hold(box, "overflow", "visible");
-		const animations = running;
-		animations.at(-1).onfinish = () => {
-			if (running === animations) restoreTranslations();
-		};
-	}
-	return {
-		follow,
-		forget() {
-			rests = null;
-		}
-	};
+	if (!same$1(next, context.peek())) context.value = next;
 }
 
 //#endregion
@@ -5087,21 +4729,14 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 const prefs = () => document.documentElement.lfChrome;
 const GROUPS = Object.freeze({
 	navigate: "Navigate",
-	annotate: "Annotations",
-	about: "About this page"
+	annotate: "Annotations"
 });
 const FOLD = "panel.floating.fold";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
-const listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key);
+const listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key) && (!entry.copies || canCopy());
 let copyRefused = false;
 const canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
-const groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.copies && !canCopy() ? "about" : entry.group;
-const FILTERS = Object.freeze([
-	"open",
-	"unread",
-	"drafts",
-	"resolved"
-]);
+const groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 function passing() {
@@ -5135,56 +4770,218 @@ var FloatingPanel = class extends LeafElement {
 	}
 };
 customElements.define("leaf-floating-panel", FloatingPanel);
-function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, inWalkOrder, withdraw, settlement, placedAt, openThreadSubject, annotationsHidden }) {
+function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, onMe, withdraw, settlement, placedAt, openThreadSubject, atLastResort, annotationsHidden }) {
 	const host = new FloatingPanel();
 	host.className = "lf-ui lf-floating-panel";
-	const ease = () => motionEasing("--lf-motion-panel-ease", host);
+	const ease = () => motionEasing("--lf-motion-box-ease", host);
 	const foldEase = () => motionEasing("--lf-motion-panel-fold-ease", host);
-	const resizeMs = () => motionTime("--lf-motion-panel-resize", host);
+	const resizeMs = () => motionTime("--lf-motion-box-resize", host);
 	const foldMs = () => motionTime("--lf-motion-panel-fold", host);
 	const viewResizeMs = () => motionTime("--lf-motion-disclosure", host);
 	const fadeMs = () => motionTime("--lf-motion-view-in", host);
 	const outMs = () => motionTime("--lf-motion-view-out", host);
 	host.setAttribute("role", "region");
 	host.setAttribute("aria-label", "Leaf");
-	const ground = el("div", "lf-ui lf-fp-ground");
-	ground.setAttribute("aria-hidden", "true");
-	const ring = el("div", "lf-fp-ring");
-	const fill = el("div", "lf-fp-fill");
-	const fieldRing = el("div", "lf-fp-field-ring");
-	const fieldFill = el("div", "lf-fp-fill");
-	ground.append(ring, fill, fieldRing, fieldFill);
-	const card = el("div", "lf-fp-card");
-	const inner = el("div", "lf-fp-inner");
-	const opened = el("div", "lf-fp-opened");
-	const head = el("div", "lf-fp-head");
-	const stage = el("div", "lf-fp-stage");
-	const controls = el("div", "lf-fp-controls");
-	opened.append(head, stage, controls);
-	const row = el("div", "lf-fp-row");
-	const menu = el("div", "lf-fp-menu scroll");
-	menu.id = "lf-fp-menu";
-	menu.setAttribute("role", "menu");
-	menu.setAttribute("aria-label", "Page");
-	const badge = el("span", "lf-fp-badge");
-	const newsDot = el("span", "lf-fp-news-dot");
-	for (const mark of [badge, newsDot]) mark.setAttribute("aria-hidden", "true");
-	const peek = el("div", "lf-fp-peek");
-	peek.id = "lf-fp-peek";
-	peek.setAttribute("role", "tooltip");
+	let expanded = false;
+	function panelTemplate(initial = false) {
+		const top = initial ? null : trail.value.at(-1) ?? null;
+		const search = initial ? null : activeSearch();
+		const searchMode = search ? pageSearch?.open ? "page" : "threads" : "";
+		const searchControls = search?.controls ?? [];
+		const searchLabel = !initial && pageSearch?.open ? "Search page" : "Search threads";
+		const thread = top ? threadOf(top)?.id ?? null : null;
+		const input = initial ? null : fieldInput();
+		const reading = initial ? null : fieldReading(top?.thread ?? null, input);
+		const selection = !search && reading?.says === "selection" && Boolean(draftOf(input));
+		const folded = !initial && prefs().rest === "mark" && !top && !menuOpen.value && !search;
+		const statusModel = initial ? {
+			summary: "Connecting…",
+			tone: ""
+		} : status();
+		const onUser = initial ? 0 : onUserCount();
+		const news = initial ? 0 : newCount();
+		const sayingNow = initial ? /* @__PURE__ */ new Set() : new Set(sayable().map((error) => error.id));
+		const unseen = !initial && errorsReading().some((error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error));
+		const viewControls = top ? controlsTemplate(top) : nothing;
+		const exit = initial ? null : fieldExit(search, top);
+		const closeAbove = expanded && exit?.press === close && viewControls !== nothing;
+		const quickHidden = initial || closeAbove || (search ? !exit : drafted && !seatHeld);
+		const notice = initial || search ? null : olderVersion();
+		const peek = initial ? null : peekPresentation();
+		const mode = search ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate("search", "lf-fp-mode-icon")}<span>${pageSearch?.open ? "page" : "threads"}</span>` : selection ? "Selection" : nothing;
+		const newsName = news ? `${news} ${news === 1 ? "thread" : "threads"} with news` : "";
+		const onUserName = [onUser ? `On me: ${onUser}` : "On me", newsName].filter(Boolean).join(", ");
+		const quick = html`<button
+      type="button"
+      class=${`lf-fp-face lf-fp-chip ${exit ? `lf-fp-exit${exit.press === close ? " lf-fp-close" : ""}` : "lf-fp-on-user"}`}
+      ?data-due=${!exit && onUser > 0}
+      ${namedAction(exit ? exit.action ?? "close" : "on-me", { label: exit ? exit.label : onUserName })}
+      ?disabled=${Boolean(exit?.disabled)}
+      @mousedown=${exit ? (event) => event.preventDefault() : nothing}
+      @click=${exit ? () => exit.press() : pressMark}
+    >
+      ${exit ? nothing : html`<span class="lf-fp-num">${onUser || ""}</span
+              ><span class="lf-fp-news lf-unread-dot" ?hidden=${!news}></span>`}
+    </button>`;
+		const roomLabel = expanded ? "Less room to write" : "More room to write";
+		return html`
+      <div class="lf-fp-card">
+        <div class="lf-fp-inner">
+          <div class="lf-fp-opened">
+            <div class="lf-fp-head">
+              ${top ? headTemplate(top) : nothing}${initial ? nothing : joinedTemplate()}
+            </div>
+            <div class="lf-fp-stage">
+              ${initial ? nothing : repeat([leaving, top].filter(Boolean), routeKey, (route) => html`<div
+                          class="lf-fp-view"
+                          tabindex="-1"
+                          data-view=${route.view}
+                          data-thread=${threadOf(route)?.id ?? nothing}
+                          ?data-lf-thread-view=${threadOf(route) !== null}
+                          ?data-lf-rises=${Boolean(route.thread)}
+                          ${ref(declareView)}
+                          style=${route === top && room !== null ? `height: ${room}px` : nothing}
+                          ?data-leaving=${route === leaving}
+                          @scroll=${sawAnswer}
+                        >
+                          ${viewOf(route).draw(route)}
+                        </div>`)}
+            </div>
+            <div
+              class="lf-fp-controls"
+              ?hidden=${viewControls === nothing}
+              ?data-named=${top?.view === "queue"}
+              data-thread=${thread ?? nothing}
+              ?data-lf-thread-view=${thread !== null}
+            >
+              ${viewControls}${closeAbove ? quick : nothing}
+            </div>
+          </div>
+          <div class="lf-fp-row">
+            <button
+              type="button"
+              ${offeredAction("symbol", "lf-fp-expand", roomLabel, { action: expanded ? "fit" : "expand" })}
+              aria-pressed=${String(expanded)}
+              @mousedown=${(event) => event.preventDefault()}
+              @click=${() => {
+			expanded = !expanded;
+			paint();
+		}}
+            ></button>
+            <button
+              type="button"
+              class="lf-fp-face lf-fp-leaf"
+              aria-haspopup="menu"
+              aria-controls="lf-fp-menu"
+              aria-describedby="lf-fp-peek"
+              aria-label=${`${folded ? "Unfold Leaf" : "Page menu"} · ${statusModel.summary}`}
+              aria-expanded=${folded ? nothing : String(!initial && menuOpen.value)}
+              @click=${pressLeaf}
+              @pointerenter=${() => showPeek(true)}
+              @pointerleave=${() => showPeek(false)}
+              @focus=${() => showPeek(leaf.matches(":focus-visible"))}
+              @blur=${() => showPeek(false)}
+            >
+              <span
+                class=${`lf-dot${statusModel.tone ? ` ${statusModel.tone}` : ""}`}
+              ></span>
+              <span
+                class="lf-fp-error-dot"
+                aria-hidden="true"
+                ?data-shown=${unseen}
+              ></span>
+              <span class="lf-fp-badge" aria-hidden="true" ?data-shown=${onUser > 0}
+                >${onUser || ""}</span
+              >
+              <span
+                class="lf-fp-news-dot lf-unread-dot"
+                aria-hidden="true"
+                ?data-shown=${news > 0}
+              ></span>
+            </button>
+            <div class="lf-fp-field">
+              <div class="lf-fp-editors" ?hidden=${Boolean(search)}>
+                ${initial ? nothing : top?.thread ? replyOutlet : pageEditor().box}
+              </div>
+              <div
+                class=${`lf-fp-search-surface${searchMode === "page" ? " lf-page-search" : ""}`}
+                role="search"
+                aria-label=${searchMode ? `Search ${searchMode}` : nothing}
+                ?hidden=${!searchMode}
+              >
+                ${initial ? nothing : pageSearch?.input ?? nothing}<input
+                  type="search"
+                  class="lf-fp-face lf-fp-search"
+                  name="thread-search"
+                  placeholder="Find a thread or message"
+                  aria-label="Find a thread or message"
+                  .value=${live(initial ? "" : query)}
+                  ?hidden=${searchMode !== "threads"}
+                  @input=${(event) => {
+			query = event.currentTarget.value;
+			refit();
+			paint();
+		}}
+                />
+              </div>
+              <span
+                class="lf-fp-mode"
+                ?hidden=${mode === nothing}
+                aria-label=${search ? searchLabel : nothing}
+                title=${search ? searchLabel : selection ? reading.words : nothing}
+                >${mode}</span
+              >
+              <div class="lf-fp-actions" ?hidden=${!searchControls.length}>
+                ${searchControls}
+              </div>
+            </div>
+            <div class="lf-fp-response"></div>
+            <div class="lf-fp-row-notice" ?hidden=${!notice}>
+              ${notice ? rowNoticeTemplate(notice) : nothing}
+            </div>
+            <div class="lf-fp-quick" ?hidden=${quickHidden}>
+              ${closeAbove ? nothing : quick}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="lf-fp-menu scroll"
+        id="lf-fp-menu"
+        role="menu"
+        aria-label="Page"
+        ?data-leaving=${!initial && Boolean(menuFade)}
+        ?inert=${!initial && Boolean(menuFade)}
+        data-level=${initial ? nothing : menuFade ? noChange : menuOpen.value && menuAt.value ? menuAt.value.view : nothing}
+        style=${initial ? nothing : menuFade ? noChange : menuOpen.value && menuRoom ? `height: ${menuRoom}px` : nothing}
+      >
+        ${initial ? nothing : menuFade ? noChange : menuOpen.value ? menuTemplate() : nothing}
+      </div>
+      <div
+        class="lf-fp-peek"
+        id="lf-fp-peek"
+        role="tooltip"
+        ?data-shown=${Boolean(peek?.shown)}
+      >
+        ${peek?.content ?? nothing}
+      </div>
+      <button
+        ${offeredAction("mark", "lf-corner-mark lf-fp-minimize", "Fold to the leaf", { action: "minimize" })}
+        tabindex="-1"
+        @click=${() => rows().find((entry) => entry.key === `command:${FOLD}`).press(null)}
+      ></button>
+    `;
+	}
+	render(panelTemplate(true), host);
+	const shell = (name) => host.querySelector(`.lf-fp-${name}`);
+	const card = shell("card");
+	const opened = shell("opened");
+	const stage = shell("stage");
+	const controls = shell("controls");
+	const row = shell("row");
+	const menu = shell("menu");
 	let peekAsked = false;
 	let peekReading = null;
-	inner.append(opened, row);
-	card.append(inner);
-	host.append(card, menu, peek);
-	const minimize = el("button", "lf-corner-mark lf-fp-minimize");
-	minimize.type = "button";
-	minimize.tabIndex = -1;
-	minimize.title = "Fold to the leaf";
-	minimize.setAttribute("aria-label", "Fold to the leaf");
-	minimize.append(iconElement("subtract", "lf-corner-mark-icon"));
-	minimize.addEventListener("click", () => rows().find((entry) => entry.key === `command:${FOLD}`).press(null));
-	host.append(minimize);
 	const CORNER = {
 		across: 64,
 		down: 24
@@ -5211,25 +5008,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return box.width > 0 && box.height > 0 ? [box] : [];
 	}, [row]);
 	declareOccluder(opened);
-	const leaf = el("button", "lf-fp-face lf-fp-leaf");
-	leaf.type = "button";
-	leaf.setAttribute("aria-haspopup", "menu");
-	leaf.setAttribute("aria-controls", menu.id);
-	leaf.setAttribute("aria-describedby", peek.id);
-	const mark = el("span", "lf-dot");
-	const errorDot = el("span", "lf-fp-error-dot");
-	errorDot.setAttribute("aria-hidden", "true");
-	leaf.append(mark, errorDot, badge, newsDot);
-	const field = el("div", "lf-fp-field");
-	const editorSeat = el("div", "lf-fp-editors");
-	const expand = el("button", "lf-fp-face lf-fp-expand");
-	expand.type = "button";
-	let expanded = false;
-	expand.addEventListener("mousedown", (event) => event.preventDefault());
-	expand.addEventListener("click", () => {
-		expanded = !expanded;
-		paint();
-	});
+	const leaf = shell("leaf");
+	const field = shell("field");
+	const editorSeat = shell("editors");
 	let long = false;
 	const lengthWatch = sizeObserver(() => {
 		const input = fieldInput();
@@ -5238,19 +5019,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		long = lines > 3.5;
 		markRoom();
 	});
-	let fieldRests = false;
-	const markRoom = () => keeps(host, "data-long", (long || expanded) && !fieldRests ? "" : null);
+	const markRoom = () => keeps(host, "data-long", (long || expanded) && !activeSearch() ? "" : null);
 	lengthWatch.observe(field);
-	const searchSurface = el("div", "lf-fp-search-surface");
-	searchSurface.setAttribute("role", "search");
-	const fieldMode = el("span", "lf-fp-mode");
-	const fieldActions = el("div", "lf-fp-actions");
-	field.append(editorSeat, searchSurface, fieldMode, fieldActions);
-	const rowNoticeSeat = el("div", "lf-fp-row-notice");
-	const quick = el("div", "lf-fp-quick");
-	const exitSeat = el("div", "lf-fp-exit-seat");
-	const responseSeat = el("div", "lf-fp-response");
-	row.append(leaf, field, responseSeat, rowNoticeSeat, quick, exitSeat);
+	const searchSurface = shell("search-surface");
+	const responseSeat = shell("response");
 	const CONNECTING = {
 		tone: "",
 		summary: "Connecting…",
@@ -5266,6 +5038,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		adds: "",
 		addsParts: [],
 		asks: false,
+		voice: "leaf",
 		publication: null
 	};
 	const status = () => statusReading() ?? CONNECTING;
@@ -5292,28 +5065,19 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const menuOpen = Z(false);
 	const menuAt = Z(null);
 	let menuRoom = null;
-	let filter = "open";
+	let menuFade = null;
+	let menuDrawn = false;
 	let query = "";
 	let searching = false;
+	const unfolded = /* @__PURE__ */ new Set();
 	let pageSearch = null;
-	const threadSearchInput = el("input", "lf-fp-face lf-fp-search");
-	searchSurface.prepend(threadSearchInput);
-	threadSearchInput.type = "search";
-	threadSearchInput.name = "thread-search";
-	threadSearchInput.placeholder = "Find a thread or message";
-	threadSearchInput.setAttribute("aria-label", "Find a thread or message");
-	threadSearchInput.addEventListener("input", () => {
-		query = threadSearchInput.value;
-		refit();
-		paint();
-	});
+	const threadSearchInput = shell("search");
 	const threadSearch = {
 		input: threadSearchInput,
 		controls: []
 	};
 	const activeSearch = () => pageSearch?.open ? pageSearch : searching && showing({ view: "threads" }) ? threadSearch : null;
 	function searchPage(search) {
-		if (pageSearch?.input !== search.input) searchSurface.prepend(search.input);
 		pageSearch = search;
 		paint();
 	}
@@ -5326,9 +5090,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	let writing = false;
 	let drafted = false;
+	let seatHeld = false;
 	let postureMoved = true;
 	let landing = null;
-	const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
+	const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg[data-message]").length ?? 0;
 	function sayable() {
 		const input = host.dataset.rest === "mark" ? null : fieldInput();
 		if (!input?.isConnected || draftOf(input) !== "") return [];
@@ -5341,20 +5106,27 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const [error] = sayable();
 		if (error) return {
 			says: "error",
-			words: error.message
+			words: error.message,
+			voice: "leaf"
 		};
 		const thread = key ? threadByKey(key) : null;
-		if (input === focused() && !thread?.resolved) return {
-			says: "destination",
-			words: whereTo(key)
+		if (key && !thread) return {
+			says: "absent",
+			words: ""
 		};
-		if (thread && !thread.resolved && !noticeReading().visible && !statusContextReading().goTo) return {
+		if (input === focused()) return {
+			says: "destination",
+			words: whereTo(thread)
+		};
+		if (thread && !noticeReading().visible && !statusContextReading().goTo) return {
 			says: "turn",
-			words: turnWords(thread)
+			words: "Reply",
+			offers: true
 		};
 		const stance = key ? null : statusContextReading().stance;
 		if (!key && selectedWords) return {
 			says: "selection",
+			offers: true,
 			words: [
 				stance,
 				navigationWords(),
@@ -5366,36 +5138,42 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			says: "notice",
 			words: stance ? `${stance} · ${notice.message}` : notice.message
 		};
-		if (thread?.resolved) return {
-			says: "turn",
-			words: "Resolved"
-		};
 		if (stance) return {
 			says: "stance",
 			words: annotationsHidden() ? `${stance} · ${HIDDEN}` : stance
 		};
 		if (!key) return {
 			says: "status",
-			words: hiddenLead() + status().summary
+			words: hiddenLead() + status().summary,
+			voice: status().voice
 		};
 		return {
 			says: "turn",
-			words: "Reply…"
+			words: "Reply",
+			offers: true
 		};
 	}
-	function turnWords(thread) {
-		const attention = threadAttention(thread);
-		return attention ? `Reply · ${attention.label}` : "Reply";
-	}
-	function passingAside(key, input) {
+	const spoken = ({ label, voice }) => html`<span data-voice=${voice ?? "agent"}>${label}</span>`;
+	function turnLead(key, input) {
+		if (fieldReading(key, input).says !== "turn") return "";
+		const thread = threadByKey(key);
 		const { walk } = statusContextReading();
-		if (!walk?.shown || fieldReading(key, input).says !== "turn") return "";
-		return walk.kind === "thread" && walk.target === threadByKey(key)?.id ? `${walk.position} of ${walk.total}` : walk.text;
+		const position = !walk?.shown ? "" : walk.kind === "thread" && walk.target === thread?.id ? `${walk.position} of ${walk.total}` : walk.text;
+		const attention = Boolean(position) && !currentLocationIn(host) ? null : thread.resolved ? {
+			label: "Resolved",
+			voice: "leaf"
+		} : threadAttention(thread, agentName());
+		if (!attention) return position;
+		return html`${spoken(attention)}${position ? ` · ${position}` : ""}`;
 	}
-	const whereTo = (key) => key ? "Reply in this thread" : "Comment on the page";
+	const whereTo = (thread) => !thread ? "Comment on the page" : thread.resolved ? "Reply to reopen" : "Reply in this thread";
 	function saying(key, input) {
 		const reading = fieldReading(key, input);
-		if (input) keeps(input, "data-says", reading.says);
+		if (input) {
+			keeps(input, "data-says", reading.says);
+			keeps(input, "data-voice", reading.voice === "leaf" ? "leaf" : null);
+			keeps(input, "data-offers", reading.offers ? "" : null);
+		}
 		return reading.words;
 	}
 	let general = null;
@@ -5403,11 +5181,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (general) return general;
 		const input = textField();
 		input.name = "comment";
-		const send = el("button", "lf-fp-face lf-fp-send");
-		send.type = "button";
 		const box = el("div", "lf-fp-box");
-		box.append(input, send);
+		box.append(input);
 		input.value = loadDraft("general") ?? "";
+		general = {
+			box,
+			input,
+			sync: null
+		};
 		const sync = wireInput(input, {
 			hint: () => saying(null, input),
 			hintParts: () => {
@@ -5416,7 +5197,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			},
 			accessibleName: () => general && fieldReading(null, input).says === "selection" ? "Comment on the selection" : "Comment on the page",
 			sends: "send",
-			sendBtn: send,
+			sendClass: "lf-fp-face lf-fp-send",
 			save: (text) => {
 				saveDraft(PAGE_DRAFT, text);
 				tellDraft(PAGE_DRAFT, text);
@@ -5424,6 +5205,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			},
 			send: (_text, raw, owns) => {
 				let flight = null;
+				streamSend();
 				const handle = sendMessage(PAGE_DRAFT, owns, (attempt) => flight = threadActions.create({
 					attempt,
 					text: raw
@@ -5452,22 +5234,18 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				open: writeOnPage
 			})
 		});
-		general = {
-			box,
-			input,
-			sync
-		};
+		general.sync = sync;
 		return general;
 	}
 	const replyOutlet = el("div", "lf-fp-reply");
-	const resolvedLine = el("p", "lf-fp-resolved");
 	const replyInput = () => replyOutlet.querySelector(`.lf-thread-reply ${TEXT_FIELD}`);
 	const replyOptions = /* @__PURE__ */ new Map();
 	const replyOptionsFor = (key) => {
 		if (!replyOptions.has(key)) replyOptions.set(key, {
 			hint: () => saying(key, replyInput()),
-			hintAside: () => passingAside(key, replyInput()),
+			hintLead: () => turnLead(key, replyInput()),
 			accessibleName: () => `Reply to ${threadTitle(key)}`,
+			sending: streamSend,
 			sent: () => {
 				room = null;
 				rewriting = false;
@@ -5482,7 +5260,22 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		});
 		return replyOptions.get(key);
 	};
-	const fieldInput = () => activeSearch() ? null : editorSeat.firstElementChild !== replyOutlet ? pageEditor().input : replyOutlet.hidden ? null : replyInput();
+	const fieldInput = () => {
+		if (activeSearch()) return null;
+		const top = trail.value.at(-1);
+		return top?.thread ? threadOf(top) ? replyInput() : null : pageEditor().input;
+	};
+	const fieldExit = (search, top) => search === threadSearch ? {
+		label: "Close search",
+		press: closeThreadSearch,
+		disabled: false,
+		action: null
+	} : top && !search ? {
+		label: "Close",
+		press: close,
+		disabled: false,
+		action: null
+	} : rows().find((entry) => entry.exit) ?? null;
 	function retype() {
 		postureMoved = true;
 		if (Boolean(draftOf(fieldInput())) !== drafted) paint();
@@ -5497,7 +5290,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	field.addEventListener("pointerup", (event) => {
 		const words = pressedWords;
 		pressedWords = null;
-		if (words && event.composedPath().includes(general?.input)) words.comment();
+		if (!words || !event.composedPath().includes(general?.input)) return;
+		claimReleaseClick();
+		words.comment();
 	});
 	field.addEventListener("pointercancel", () => {
 		pressedWords = null;
@@ -5517,27 +5312,24 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const queues = readQueues();
 		return queues.phase === "ready" ? queues.on_user.length : 0;
 	};
-	const threadStatus = (thread, shownBy) => {
-		const state = thread.resolved ? "Resolved" : threadAttention(thread)?.label;
-		const said = {
-			unread: "New",
-			resolved: "Resolved",
-			drafts: "Draft"
-		}[shownBy];
-		return [
-			hasUnread(thread) && "New",
-			state,
-			draftHasContent(replyContext(thread.key)) && "Draft"
-		].filter((word) => word && word !== said).join(" · ");
+	const threadStatus = (thread) => {
+		const attention = thread.resolved ? null : threadAttention(thread, agentName());
+		const word = thread.resolved ? "Resolved" : attention?.label;
+		const since = thread.resolved ? shortAgo(thread.resolved.ts) : "";
+		const draft = draftHasContent(replyContext(thread.key)) && "Draft";
+		return html`${word ? spoken({
+			label: word,
+			voice: attention?.voice
+		}) : nothing}${since ? html` <span class="lf-fp-age">${since}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
 	};
 	const rows = () => pageControls();
 	const VIEWS = Object.freeze({
 		threads: {
 			title: () => "Threads",
+			quiet: () => true,
 			draw: () => threadsView(),
 			controls: () => threadsControls(),
-			rows: ".lf-fp-thread",
-			mark: "threads"
+			rows: ".lf-fp-thread, .lf-fp-settled"
 		},
 		thread: {
 			key: (route) => `thread:${route.thread}`,
@@ -5546,20 +5338,22 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				const thread = threadOf(route);
 				return thread ? threadHeading(thread) : threadTitle(route.thread);
 			},
+			quiet: (route) => {
+				const thread = threadOf(route);
+				return thread?.title == null && !(thread && titlePending(thread));
+			},
 			draw: (route) => threadView(route.thread),
 			controls: (route) => threadControls(route),
 			nominate: (route, collection, parts) => nominateThread(route, collection, parts),
-			over: ["threads", "queue"],
-			mark: "threads"
+			over: ["threads", "queue"]
 		},
 		queue: {
 			title: () => tabLabel(queueTab),
-			quiet: true,
+			quiet: () => true,
 			draw: () => onView(),
 			controls: () => queueControls(),
 			nominate: (_route, collection, parts) => nominateAsked(collection, parts),
-			rows: ".lf-fp-on-item",
-			mark: "onUser"
+			rows: ".lf-fp-on-item[data-card], .lf-fp-on-line"
 		},
 		leaves: {
 			title: () => "All pages",
@@ -5648,50 +5442,32 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const fromThreads = trail.value.at(-2)?.view === "threads";
 		const at = openThreads().indexOf(thread);
 		const mayLand = retainUserIntent();
-		let mayRestore = () => false;
-		return {
-			optimistic: () => {
-				if (!mayLand() || trail.value.at(-1) !== route) return false;
-				const kept = openThreads();
-				const next = fromThreads ? kept[at] ?? kept[at - 1] : null;
-				if (next) {
-					open({
-						view: "thread",
-						thread: next.key
-					}, {
-						replace: true,
-						focus: false
-					});
-					const view = shownView();
-					if (view) focusDestination(view, "move");
-				} else back();
-				mayRestore = retainUserIntent();
-				return true;
-			},
-			reverse: (may = mayRestore) => {
-				if (!may() || !showing({ view: "threads" })) return;
-				const row = shownView()?.querySelector(`.lf-fp-thread[data-key="${CSS.escape(thread.key)}"]`);
-				if (row) focusDestination(row, "move");
-			}
+		return () => {
+			if (!mayLand() || trail.value.at(-1) !== route) return false;
+			const kept = openThreads();
+			const next = fromThreads ? kept[at] ?? kept[at - 1] : null;
+			if (next) {
+				open({
+					view: "thread",
+					thread: next.key
+				}, {
+					replace: true,
+					focus: false
+				});
+				const view = shownView();
+				if (view) focusDestination(view, "move");
+			} else back();
+			return true;
 		};
 	}
 	function reopenLanding() {
 		const route = trail.value.at(-1);
 		const mayLand = retainUserIntent();
-		let mayRestore = () => false;
-		return {
-			optimistic: () => {
-				const input = fieldInput();
-				if (!mayLand() || trail.value.at(-1) !== route || !input) return false;
-				focusDestination(input, "move");
-				mayRestore = retainUserIntent();
-				return true;
-			},
-			reverse: (may = mayRestore) => {
-				const view = shownView();
-				if (!may() || trail.value.at(-1) !== route || !view) return;
-				focusDestination(view, "return");
-			}
+		return () => {
+			const input = fieldInput();
+			if (!mayLand() || trail.value.at(-1) !== route || !input) return false;
+			focusDestination(input, "move");
+			return true;
 		};
 	}
 	function back() {
@@ -5699,11 +5475,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		trail.value = trail.value.slice(0, -1);
 		transition(before);
 	}
-	function close() {
+	function close({ handedOn = false } = {}) {
 		const before = trail.value.at(-1);
 		trail.value = [];
 		searching = false;
-		transition(before);
+		unfolded.clear();
+		transition(before, { handedOn });
 	}
 	function putAwayThen(run) {
 		const inside = currentLocationIn(host);
@@ -5765,55 +5542,26 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const following = boxMotion({
 		root: host,
 		box: card,
-		room: ground,
-		surface: () => {
-			const lift = getComputedStyle(ground);
-			const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach, part) => reach + part);
-			return [
-				[ground, shadowReach],
-				[ring, 1],
-				[fill, 0]
-			];
-		},
-		ring: [fieldRing, fieldFill],
-		observer: follow,
-		theirs: () => gesture
+		surface: "lf-ui lf-fp-ground",
+		lift: 2,
+		outset: 1,
+		observer: follow
 	});
-	let gesture = null;
-	let gestures = 0;
-	const beginGesture = (event) => {
-		if (![
-			"keydown",
-			"pointerdown",
-			"input",
-			"touchstart",
-			"click"
-		].includes(event.type)) return;
-		gesture = event.type === "input" ? "typing" : "press";
-		const own = ++gestures;
-		afterSettling(() => {
-			if (gestures === own) gesture = null;
-		});
-	};
-	onUserInput(beginGesture);
-	window.addEventListener("click", beginGesture, {
-		capture: true,
-		passive: true
-	});
+	const { ground } = following;
+	function streamSend() {
+		following.stream();
+	}
 	function followBox() {
 		const box = card.getBoundingClientRect();
 		setRuntimeRootStyle(document.documentElement, "--lf-panel-reach", layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0));
 		const compact = host.dataset.rest === "mark";
-		const duration = compact ? foldMs() : performance.now() < viewMovingUntil ? viewResizeMs() : resizeMs();
+		const duration = compact ? foldMs() : performance.now() < viewMovingUntil && following.theirs() !== "send" ? viewResizeMs() : resizeMs();
 		following.follow({
 			duration,
 			easing: compact ? foldEase() : ease()
 		}, compact);
 	}
-	addEventListener("resize", () => {
-		following.forget();
-		followBox();
-	});
+	addEventListener("resize", followBox);
 	let onPageSeat = false;
 	let unreadSeat = null;
 	function decideUnreadSeat() {
@@ -5827,7 +5575,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			if (unreadSeat) paint();
 		});
 	}
-	const unplaced = /* @__PURE__ */ new Set();
 	let room = null;
 	let drawnTop = null;
 	let stood = null;
@@ -5895,8 +5642,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return true;
 	}
 	let refitting = false;
+	let drawnSections = null;
+	let landingKeys = null;
 	function refit() {
 		room = null;
+		drawnSections = null;
 		viewMovingUntil = performance.now() + viewResizeMs();
 		if (refitting) return;
 		refitting = true;
@@ -5917,7 +5667,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			drawnThread = null;
 			return;
 		}
-		const keys = [...outlet.querySelectorAll(`.lf-msg[data-message], ${WORKING}`)].filter((node) => node.checkVisibility()).map((node) => node.dataset.message ?? FACE + node.dataset.face);
+		const keys = [...outlet.querySelectorAll(`.lf-msg[data-message], ${WORKING}`)].filter((node) => showsContents(node)).map((node) => node.dataset.message ?? FACE + node.dataset.face);
 		const before = drawnThread?.key === top.thread ? drawnThread : null;
 		const msgs = threadByKey(top.thread)?.msgs ?? [];
 		const message = (key) => msgs.find((each) => each.key === key);
@@ -6012,18 +5762,21 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 		return true;
 	}
-	function transition(before, { focus = true } = {}) {
+	function transition(before, { focus = true, handedOn = false } = {}) {
 		const after = trail.value.at(-1);
 		postureMoved = true;
 		const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
 		const reading = [before, after].some((route) => route?.thread);
 		if (after?.view !== "queue") {
 			seated = null;
+			openItem = null;
+			planShown = false;
 			seatHeights.clear();
 		}
 		const changed = (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
 		if (changed) {
 			room = null;
+			drawnSections = null;
 			rewriting = false;
 			pressed = null;
 			quoteExpanded = false;
@@ -6033,7 +5786,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			onPageSeat = false;
 			unreadSeat = null;
 		}
-		if (changed && before?.thread) dismissReply(threadByKey(before.thread)?.key ?? before.thread);
+		if (changed && before?.thread && !handedOn) dismissReply(threadByKey(before.thread)?.key ?? before.thread);
 		leaving = changed && before && after ? before : null;
 		if (changed) viewMovingUntil = performance.now() + outMs() + viewResizeMs();
 		paint();
@@ -6045,7 +5798,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			return;
 		}
 		const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
-		if (arriving) playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
+		if (arriving && following.theirs() !== "send") playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
 			duration: fadeMs(),
 			delay: leaving ? outMs() : 0,
 			easing: "linear"
@@ -6120,16 +5873,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			copy.addEventListener("wa-copy", () => putAwayThen(() => {}));
 			copy.addEventListener("wa-error", () => {
 				copyRefused = true;
-				showMenuAt({
-					view: "group",
-					group: "about"
-				});
+				putAwayThen(() => rows().find((row) => row.key === "inspection").press());
 			});
 			copyItems.set(entry.key, copy);
 		}
 		copy.value = entry.copies;
 		copy.disabled = entry.disabled;
-		render(menuItem(`Copy ${entry.label}`, html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`, () => {}, {
+		render(menuItem(`Copy ${entry.label}`, actionTemplate("copy", "lf-fp-copy-icon"), () => {}, {
 			disabled: entry.disabled,
 			role: menuOpen.value ? "menuitem" : null,
 			row: entry.key,
@@ -6250,38 +6000,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	const groupValue = (group) => group === "annotate" ? rows().find((entry) => entry.key === "command:annotations.toggle")?.label === "Show annotations" ? "Hidden" : "" : "";
 	function groupList(group) {
-		return rows().filter((entry) => groupOf(entry) === group && listed(entry)).map((entry) => entry.copies ? copyRow(entry) : rowFor(entry));
-	}
-	const copies = /* @__PURE__ */ new Map();
-	function copyFor(entry) {
-		if (!copies.has(entry.key)) copies.set(entry.key, copyControl("lf-fp-copy-press", {
-			label: `Copy ${entry.label}`,
-			success: `${capital(entry.label)} copied`,
-			error: `${capital(entry.label)} not copied · select it to copy`
-		}));
-		const copy = copies.get(entry.key);
-		copy.value = entry.copies;
-		copy.disabled = entry.disabled;
-		keepsHidden(copy, !canCopy());
-		return copy;
-	}
-	function copyRow(entry) {
-		const field = `lf-fp-copy-${entry.key}`;
-		return html`<div class="lf-fp-copy" role="none">
-      <label class="lf-fp-copy-label" for=${field}>${capital(entry.label)}</label>
-      <textarea
-        id=${field}
-        class="lf-fp-face lf-fp-copy-text"
-        readonly
-        wrap="off"
-        spellcheck="false"
-        rows=${Math.min(entry.copies.split("\n").length, 3)}
-        .value=${entry.copies}
-        @focus=${(event) => event.target.select()}
-      ></textarea
-      >${copyFor(entry)}
-      ${entry.value ? html`<p class="lf-fp-copy-note">${entry.value}</p>` : nothing}
-    </div>`;
+		return rows().filter((entry) => groupOf(entry) === group && listed(entry)).map(rowFor);
 	}
 	const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
 	function versionsList() {
@@ -6353,46 +6072,140 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	function shownThreads() {
 		const words = query.trim().toLowerCase();
-		const shown = threads().filter((thread) => {
-			if (words) return [
-				threadName(thread),
-				quoteReading(thread, { placedAt })?.label ?? "",
-				...thread.msgs.map((m) => m.text ?? "")
-			].join(" ").toLowerCase().includes(words);
-			if (filter === "unread") return hasUnread(thread);
-			if (filter === "drafts") return draftHasContent(replyContext(thread.key));
-			if (filter === "resolved") return thread.resolved;
-			return !thread.resolved;
-		});
+		const shown = words ? threads().filter((thread) => [
+			threadName(thread),
+			quoteReading(thread, { placedAt })?.label ?? "",
+			...thread.msgs.map(messageText),
+			...thread.summaries.map(messageText)
+		].join(" ").toLowerCase().includes(words)) : threads();
 		return inPageOrder(shown, placedAt);
 	}
+	function threadsListing() {
+		const searched = Boolean(query.trim());
+		const rows = [];
+		const joined = [];
+		for (const thread of shownThreads()) {
+			const now = searched ? "found" : thread.resolved ? "resolved" : "open";
+			const was = drawnSections ? drawnSections.get(thread.key) ?? null : now;
+			if (was === now || gesturedOn(thread)) rows.push({
+				thread,
+				section: now
+			});
+			else {
+				joined.push({
+					thread,
+					was,
+					now
+				});
+				if (was) rows.push({
+					thread,
+					section: was
+				});
+			}
+		}
+		return {
+			rows,
+			joined,
+			searched
+		};
+	}
+	function noteDrawnSections() {
+		drawnSections = showing({ view: "threads" }) && inventoried() ? new Map(threadsListing().rows.map(({ thread, section }) => [thread.key, section])) : null;
+	}
+	function joinedFacts(joined) {
+		const counted = (kind, one, many) => {
+			const count = joined.filter(({ was, now }) => (was === null ? "new" : now) === kind).length;
+			return count ? `${count} ${count === 1 ? one : many}` : null;
+		};
+		return [
+			counted("new", "new thread", "new threads"),
+			counted("open", "thread reopened", "threads reopened"),
+			counted("resolved", "thread resolved", "threads resolved"),
+			counted("found", "new match", "new matches")
+		].filter(Boolean);
+	}
+	const joinedNotice = newsNotice();
+	function showJoined() {
+		const { joined } = threadsListing();
+		const keys = new Set(joined.map(({ thread }) => thread.key));
+		const pressed = focused() === joinedNotice.node;
+		if (joined.every(({ now }) => now === "resolved") && !unfolded.has("resolved")) {
+			unfolded.add("resolved");
+			refit();
+		}
+		drawnSections = null;
+		landingKeys = keys;
+		paint();
+		landingKeys = null;
+		const row = threadRows().find((candidate) => keys.has(candidate.dataset.key));
+		if (!row) return null;
+		scrollIntoView(row, { block: "nearest" });
+		if (pressed) focusDestination(row, "move");
+		return null;
+	}
+	function joinedTemplate() {
+		if (!showing({ view: "threads" })) return nothing;
+		const facts = joinedFacts(threadsListing().joined);
+		if (!facts.length) return nothing;
+		joinedNotice.set({
+			parts: facts.map((fact, index) => index ? ` · ${fact}` : fact),
+			label: facts.join(" · "),
+			reopened: false,
+			open: showJoined
+		});
+		return html`<span class="lf-fp-joined"
+      ><span class="lf-fp-news-outlet">${joinedNotice.node}</span></span
+    >`;
+	}
+	function settledHeading(key, title, count) {
+		const open = unfolded.has(key);
+		return html`<h3 class="lf-label lf-fp-on-group lf-fp-settled-group">
+      <button
+        type="button"
+        class="lf-fp-face lf-fp-settled lf-disclosure-marker"
+        aria-expanded=${open ? "true" : "false"}
+        @click=${() => {
+			if (open) unfolded.delete(key);
+			else unfolded.add(key);
+			refit();
+			paint();
+		}}
+      >
+        <span class="lf-fp-label">${title}</span
+        ><span class="lf-fp-count">${count}</span>
+      </button>
+    </h3>`;
+	}
 	function threadsView() {
-		const shown = shownThreads();
-		const empty = query.trim() ? "Nothing matches." : {
-			open: "No open threads. Comment below to start one.",
-			unread: "All caught up.",
-			drafts: "No drafts.",
-			resolved: "No resolved threads."
-		}[filter];
-		return html`<div class="lf-fp-list">
-      ${shown.length ? repeat(shown, (thread) => thread.key, (thread) => html`<button
-                  type="button"
-                  class="lf-fp-face lf-fp-thread"
-                  data-key=${thread.key}
-                  ?data-unread=${hasUnread(thread)}
-                  ?data-resolved=${thread.resolved}
-                  ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
-                  @click=${() => open({
+		const { rows, searched } = threadsListing();
+		const listed = rows.filter(({ section }) => section !== "resolved").map(({ thread }) => thread);
+		const resolved = rows.filter(({ section }) => section === "resolved").map(({ thread }) => thread);
+		const row = (thread) => html`<button
+        type="button"
+        class="lf-fp-face lf-fp-thread"
+        data-key=${thread.key}
+        ?data-unread=${isNews(thread)}
+        ?data-resolved=${thread.resolved}
+        ?data-yours=${threadAttention(thread, agentName())?.kind === "needs_user"}
+        @click=${() => open({
 			view: "thread",
 			thread: thread.key
 		})}
-                >
-                  <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                  <span class="lf-fp-label">${threadHeading(thread)}</span>
-                  <span class="lf-fp-value"
-                    >${threadStatus(thread, query.trim() ? null : filter)}</span
-                  >
-                </button>`) : inventoried() ? html`<p class="lf-fp-empty">${empty}</p>` : nothing}
+      >
+        <span class="lf-fp-news-mark lf-unread-dot"
+          >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
+        >
+        <span class="lf-fp-label">${threadHeading(thread)}</span>
+        <span class="lf-fp-value">${threadStatus(thread)}</span>
+      </button>`;
+		const rowsOf = (threads) => repeat(threads, (thread) => thread.key, row);
+		return html`<div class="lf-fp-list">
+      ${listed.length ? rowsOf(listed) : inventoried() ? html`<p class="lf-fp-empty">
+                ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
+              </p>` : nothing}
+      ${resolved.length ? html`<hr class="lf-fp-on-rule" />
+              ${settledHeading("resolved", "Resolved", resolved.length)}
+              ${unfolded.has("resolved") ? rowsOf(resolved) : nothing}` : nothing}
       ${inventoried() ? nothing : html`<p class="lf-fp-empty">
               ${readThreads().phase === "offline" ? "Current threads are unavailable while the server is offline." : "Loading current threads…"}
             </p>`}
@@ -6442,8 +6255,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	};
 	const viewParts = Object.freeze({
 		reply: (view) => {
-			const thread = openIn(view);
-			return thread && replyAvailable(thread) ? replyInput() : null;
+			return openIn(view) ? replyInput() : null;
 		},
 		settlement: (view) => openIn(view) ? controls.querySelector(".lf-fp-settle") : null,
 		whole: (view) => openIn(view) ? openView() : null
@@ -6509,7 +6321,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function threadView(key) {
 		const thread = threadByKey(key);
 		if (!thread) return nothing;
-		return html`${quoteHead(thread)}
+		return html`${quoteHead(thread)}${threadTodos(thread.userTodos, (id) => queueActions.done(queueItemKey({
+			kind: "todo",
+			id
+		})))}
       <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${waiting?.key === key ? html`<div class="lf-fp-foot">
               <button
@@ -6523,23 +6338,44 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	let queueTab = "you";
 	let seated = null;
+	let openItem = null;
+	const carrying = /* @__PURE__ */ new Map();
 	const seatHeights = /* @__PURE__ */ new Map();
+	let planShown = false;
 	const QUEUE_TABS = Object.freeze({
 		you: "user",
 		agent: "agent"
 	});
-	const queueTabs = () => readPlan()?.steps.length || queueTab === "plan" ? [...Object.keys(QUEUE_TABS), "plan"] : Object.keys(QUEUE_TABS);
+	const AGENT_LAYOUTS = Object.freeze(["list", "summary"]);
+	const agentLayout = userChoice("lf-on-agent-layout", AGENT_LAYOUTS);
+	const layoutOf = () => agentLayout.read() ?? "list";
 	const chooseQueueTab = (tab) => {
 		if (tab === queueTab) return false;
 		queueTab = tab;
 		seated = null;
+		openItem = null;
 		seatHeights.clear();
 		refit();
+		fromTop = true;
 		return true;
 	};
+	let fromTop = false;
+	function showFromTop() {
+		if (!fromTop) return;
+		fromTop = false;
+		const view = shownView();
+		if (view && trail.value.at(-1)?.view === "queue") moveScrollerBy(view, -view.scrollTop);
+	}
 	function openOnMe() {
 		if (chooseQueueTab("you") && showing({ view: "queue" })) paint();
 		else open({ view: "queue" });
+	}
+	function pressMark() {
+		if (!onUserCount() && newCount()) {
+			query = "";
+			refit();
+			open({ view: "threads" });
+		} else openOnMe();
 	}
 	const queueLists = () => {
 		documentChanged();
@@ -6550,9 +6386,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			done: []
 		};
 		return {
-			you: inWalkOrder(reading.on_user),
-			agent: inWalkOrder(reading.on_agent),
-			done: inWalkOrder(reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab]))
+			you: reading.on_user,
+			agent: reading.on_agent,
+			done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab])
 		};
 	};
 	const answerGesture = (item) => {
@@ -6560,7 +6396,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (!id) return null;
 		return runtime.undo.find(({ event }) => event.id === id || event.attempt === id)?.event ?? null;
 	};
-	const tabLabel = (tab) => tab === "plan" ? "Plan" : tab === "agent" ? `On ${agentName()}` : "On me";
+	const tabLabel = (tab) => tab === "agent" ? `On ${agentName()}` : "On me";
 	const walkedStop = () => {
 		const { walk } = statusContextReading();
 		return walk?.shown && walk.kind === "queue" ? walk.target : null;
@@ -6577,6 +6413,22 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			within: view
 		});
 	}
+	const chooser = ({ label, values, name, current, choose }) => html`<span class="lf-fp-chooser" title=${`${label}: ${name(current)}`}
+      >${actionTemplate("arrange", "lf-action-icon")}<select
+        aria-label=${label}
+        .value=${live(current)}
+        @change=${(event) => {
+		choose(event.target.value);
+		refit();
+		fromTop = true;
+		paint();
+	}}
+      >
+        ${values.map((value) => html`<option value=${value} ?selected=${value === current}>
+              ${name(value)}
+            </option>`)}
+      </select></span
+    >`;
 	const PLAN_STATES = Object.freeze({
 		open: "Not started",
 		working: "Under way",
@@ -6590,17 +6442,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		failed: "cross",
 		dropped: "subtract"
 	});
-	const planItemIds = (steps) => steps.flatMap((step) => [...step.item ? [step.item.id] : [], ...planItemIds(step.steps)]);
-	function planPlace(id) {
-		for (const goal of readPlan()?.steps ?? []) {
-			const counted = goal.steps.filter((step) => step.state !== "dropped");
-			const index = counted.findIndex((step) => step.item?.id === id || planItemIds(step.steps).includes(id));
-			if (index < 0) continue;
-			const place = `step ${index + 1} of ${counted.length}`;
-			return goal.title ? `${goal.title} · ${place}` : capital(place);
-		}
-		return null;
-	}
+	const planProgress = () => {
+		const goals = readPlan()?.steps ?? [];
+		return goals.length ? {
+			done: goals.reduce((sum, goal) => sum + goal.done, 0),
+			total: goals.reduce((sum, goal) => sum + goal.total, 0)
+		} : null;
+	};
 	function planStep(step) {
 		const mark = PLAN_MARKS[step.state];
 		return html`<li class="lf-fp-plan-step" data-state=${step.state}>
@@ -6630,7 +6478,69 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             ${goal.steps.map(planStep)}
           </ol>
         </section>`);
-	function onItemCard(item, list) {
+	const planHead = ({ done, total }) => html`<button
+      type="button"
+      class="lf-fp-face lf-fp-plan-head"
+      aria-expanded=${String(planShown)}
+      @click=${() => {
+		planShown = !planShown;
+		refit();
+		fromTop = planShown;
+		paint();
+	}}
+    >
+      Plan ${done} of ${total}<span
+        class="lf-fp-plan-bar"
+        style=${`--lf-fp-plan-done: ${total ? 100 * done / total : 0}%`}
+      ></span>
+    </button>`;
+	const agentNoun = (item) => item.kind === "todo" ? "To-do" : capital(itemNoun(item));
+	const workOn = (item) => item.kind === "todo" ? {
+		word: todoLabel(item.todo.running),
+		line: item.todo.running?.text ?? "",
+		since: item.todo.running?.ts ?? item.todo.ts
+	} : {
+		word: workflowLabel(item.workflow, agentName()),
+		voice: workflowVoice(item.workflow),
+		line: workflowStep(item.workflow, agentName()),
+		since: item.workflow?.ts ?? null
+	};
+	let fitting = false;
+	function toggleItem(key) {
+		if (openItem) seatHeights.delete(openItem);
+		openItem = openItem === key ? null : key;
+		fitting = true;
+		paint();
+	}
+	function forgetOpened(items) {
+		if (openItem && !items.some((item) => queueItemKey(item) === openItem)) openItem = null;
+	}
+	function foldItem() {
+		const key = openItem;
+		toggleItem(key);
+		const line = shownView()?.querySelector(`.lf-fp-on-item[data-key="${CSS.escape(key)}"] .lf-fp-on-line`);
+		if (line) focusDestination(line, "return");
+	}
+	function fitOpened() {
+		if (!fitting) return;
+		fitting = false;
+		const view = shownView();
+		if (!view || room === null || trail.value.at(-1)?.view !== "queue") return;
+		const foot = view.getBoundingClientRect().bottom - Number.parseFloat(getComputedStyle(view).paddingBottom);
+		const card = view.querySelector(".lf-fp-on-item[data-open]");
+		const end = (card ?? view.lastElementChild)?.getBoundingClientRect().bottom;
+		const change = end === void 0 ? 0 : card ? Math.max(0, end - foot) : Math.min(0, end - foot);
+		if (change) {
+			room = Math.max(0, room + change);
+			viewMovingUntil = performance.now() + viewResizeMs();
+			paint();
+		}
+		if (card) scrollIntoView(card, {
+			block: "nearest",
+			within: view
+		});
+	}
+	function onItemCard(item, list, { card = false, says = null, group = null, leads = true, also = item.also } = {}) {
 		const record = carriesObligation(item) ? item.obligation : null;
 		const thread = item.thread ? threadByKey(item.thread) : null;
 		const inWords = record !== null && answeredInWords(record);
@@ -6642,67 +6552,87 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			workflows: []
 		}).body.plainText : record?.prompt?.text;
 		const prompt = said && said.trim() !== title.trim() ? said : "";
+		const carried = (also ?? []).flatMap((id) => {
+			const other = readObligations().all.find((candidate) => candidate.id === id);
+			const where = other?.thread ? threadByKey(other.thread) : null;
+			const asked = where?.msgs.find((candidate) => candidate.id === other.message);
+			return asked ? [{
+				record: other,
+				thread: where,
+				message: asked
+			}] : [];
+		});
+		const conversation = thread ?? carried[0]?.thread ?? null;
+		const waiting = carried.find(({ record: other }) => other.status === "open" && other.next_actor === "user");
 		const heading = thread && title === threadName(thread) ? threadHeading(thread) : title;
 		const answered = record && record.status !== "open";
 		const choices = record && !answered && record.source.kind === "widget" && !inWords ? obligationView.choicesOf(record) : null;
 		const gesture = answered ? answerGesture(record) : null;
-		const discuss = thread ? html`<button
+		const discuss = conversation ? html`<button
           type="button"
           class="lf-fp-face lf-fp-quiet"
           @click=${() => open({
 			view: "thread",
-			thread: thread.key
+			thread: conversation.key
 		})}
         >
           Discuss
         </button>` : nothing;
 		const show = arrivesAt(item) ? html`<button
           type="button"
-          class="lf-fp-face lf-fp-quiet lf-fp-show"
+          ${offeredAction("symbol", "lf-fp-show", void 0, { action: "show" })}
           @click=${() => {
 			const route = trail.value.at(-1);
 			queueActions.open(queueItemKey(item)).then((arrived) => {
 				if (arrived && trail.value.at(-1) === route) close();
 			});
 		}}
-        >
-          Show
-        </button>` : nothing;
+        ></button>` : nothing;
 		let answers;
 		let discussHere = true;
-		if (list === "done" && !record) answers = html`<span class="lf-fp-said"
-        >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
-      >`;
-		else if (list !== "you" && !answered) answers = html`<span class="lf-fp-said"
-        >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
-      >`;
+		if (list === "done" && !record) answers = card ? html`<span class="lf-fp-said"
+            >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
+          >` : nothing;
+		else if (list !== "you" && !answered) answers = html`<span class="lf-fp-said">${workOn(item).line}</span>`;
 		else if (answered) {
 			discussHere = false;
 			answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture ? html`<button
                 type="button"
-                class="lf-fp-face lf-fp-quiet"
+                ${offeredAction("symbol", "", void 0, { action: "undo" })}
                 @click=${() => withdraw(gesture)}
+              ></button>` : nothing}${waiting ? html`<button
+                type="button"
+                class="lf-fp-face lf-fp-answer"
+                @click=${() => open({
+				view: "thread",
+				thread: waiting.thread.key
+			})}
               >
-                Undo
+                Reply
               </button>` : nothing}`;
-		} else if (choices?.length) answers = html`${choices.map((choice) => html`<button
-            type="button"
-            class="lf-fp-face lf-fp-answer"
-            aria-pressed=${String(choice.chosen)}
-            @click=${() => {
-			choice.press();
-			paint();
-		}}
-          >
-            ${capital(choice.label)}
-          </button>`)}`;
+		} else if (choices?.length) answers = html`${choices.map((choice) => {
+			const told = Boolean(choice.description || choice.recommended);
+			return html`<button
+          type="button"
+          class="lf-fp-face lf-fp-answer"
+          ?data-told=${told}
+          aria-pressed=${String(choice.chosen)}
+          @click=${() => {
+				choice.press();
+				paint();
+			}}
+        >
+          ${told ? html`<span class="lf-fp-choice-name">${capital(choice.label)}</span>${choice.recommended ? html` <span class="lf-fp-choice-tag">recommended</span>` : nothing}${choice.description ? html`<span class="lf-fp-choice-says"
+                          >${choice.description}</span
+                        >` : nothing}` : capital(choice.label)}
+        </button>`;
+		})}`;
 		else if (item.offers?.done) answers = html`<button
         type="button"
         class="lf-fp-face lf-fp-answer"
+        ${namedAction("done")}
         @click=${() => queueActions.done(queueItemKey(item))}
-      >
-        Done
-      </button>`;
+      ></button>`;
 		else if (inWords && thread) {
 			discussHere = false;
 			answers = html`<button
@@ -6717,61 +6647,213 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       </button>`;
 		} else answers = nothing;
 		const key = queueItemKey(item);
+		const opened = openItem === key;
 		const stop = queueStop(item);
-		const about = queueTab === "you" ? [stop.noun, planPlace(item.id)].filter(Boolean) : [];
+		const kind = item.owner === "user" ? stop.noun : agentNoun(item);
+		const where = says === "place" ? "" : onMe.place(item);
+		const walked = leads && queueTab === "you" && walkedStop() === stop.key;
+		if (card) {
+			const about = [.../* @__PURE__ */ new Set([group, where])].filter(Boolean);
+			return html`<section
+        class="lf-fp-on-item"
+        data-card
+        data-list=${list}
+        data-key=${key}
+        data-obligation=${record?.id ?? nothing}
+        ?data-walked=${walked}
+        style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
+      >
+        ${about.length ? html`<p class="lf-fp-on-place">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
+                <div
+                  class="lf-fp-asked lf-fp-outlet"
+                  data-thread=${thread.key}
+                  data-message=${message.key}
+                ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
+                  <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}${carried.map(({ thread: where, message: asked }) => presentation?.primary !== false ? html`<div
+                class="lf-fp-asked lf-fp-outlet"
+                data-thread=${where.key}
+                data-message=${asked.key}
+              ></div>` : html`<p class="lf-fp-prompt">
+                ${messageReading(asked, {
+				reactions: [],
+				workflows: []
+			}).body.plainText}
+              </p>`)}
+        <div class="lf-fp-answers">
+          ${answers}${discussHere ? discuss : nothing}${show}
+        </div>
+      </section>`;
+		}
+		let end = nothing;
+		if (list === "agent") {
+			const work = workOn(item);
+			end = html`<span class="lf-fp-value"
+        ><span data-voice=${work.voice ?? "agent"}>${work.word}</span>${work.since ? html` <span class="lf-fp-age">${shortAgo(work.since)}</span>` : nothing}</span
+      >`;
+		} else if (list === "done" && !record) end = html`<span class="lf-fp-value"
+        >${itemOutcome(item)}${item.ended ? html` <span class="lf-fp-age">${shortAgo(item.ended)}</span>` : nothing}</span
+      >`;
+		else if (answered && !opened) end = html`<span class="lf-fp-value">${obligationEnding(record)}</span>`;
+		else if (where) end = html`<span class="lf-fp-value">${where}</span>`;
+		const name = heading || (thread ? threadHeading(thread) : queueTitle(item));
 		return html`<section
       class="lf-fp-on-item"
       data-list=${list}
       data-key=${key}
       data-obligation=${record?.id ?? nothing}
-      ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
-      style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
+      ?data-open=${opened}
+      ?data-walked=${walked}
+      style=${opened && seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
-              <div
-                class="lf-fp-asked lf-fp-outlet"
-                data-thread=${thread.key}
-                data-message=${message.key}
-              ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
-                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}
-      <div class="lf-fp-answers">
-        ${answers}${discussHere ? discuss : nothing}${show}
-      </div>
+      <button
+        type="button"
+        class="lf-fp-face lf-fp-item lf-fp-on-line"
+        aria-expanded=${String(opened)}
+        ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
+        @click=${() => toggleItem(key)}
+      >
+        <span class="lf-fp-value lf-fp-on-noun">${kind}</span
+        ><span class="lf-fp-on-says"
+          ><span class="lf-fp-label">${name}</span>${end}</span
+        >
+      </button>
+      ${opened ? html`<div class="lf-fp-on-body">
+              ${message ? html`<div
+                      class="lf-fp-asked lf-fp-outlet"
+                      data-thread=${thread.key}
+                      data-message=${message.key}
+                    ></div>` : prompt ? html`<p class="lf-fp-prompt">${prompt}</p>` : nothing}
+              <div class="lf-fp-answers">
+                ${answers}${discussHere ? discuss : nothing}${show}
+              </div>
+            </div>` : nothing}
     </section>`;
+	}
+	function groupedItems(groups, line) {
+		const rows = [];
+		let running = false;
+		for (const group of groups) {
+			const headed = group.headed !== false;
+			if (rows.length && (headed || !running)) rows.push({
+				key: `rule:${group.key}`,
+				rule: true
+			});
+			running = !headed;
+			if (headed) rows.push({
+				key: group.key,
+				group
+			});
+			for (const item of group.items) rows.push({
+				key: queueItemKey(item),
+				item,
+				group
+			});
+		}
+		return html`<div class="lf-fp-on-list">
+      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-label lf-fp-on-group">
+                  <span class="lf-fp-label">${row.group.title}</span
+                  ><span class="lf-fp-count"
+                    >${row.group.count ?? row.group.items.length}</span
+                  >
+                </h3>`)}
+    </div>`;
 	}
 	declareSide((node) => {
 		const part = [
 			openView(),
 			controls,
 			replyOutlet
-		].find((at) => at && under(node, at));
+		].find((at) => at && under$1(node, at));
 		const thread = part && openIn(part);
 		if (thread) return placedAt(thread.id)?.place ?? null;
-		const id = under(node, stage) ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.dataset.obligation : null;
+		const id = under$1(node, stage) ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.dataset.obligation : null;
 		const record = id && readObligations().all.find((item) => item.id === id);
 		return record ? obligationPlace(record).node : null;
 	}, { beside: true });
 	function onView() {
-		if (queueTab === "plan") {
-			const cards = planCards();
-			return cards.length ? cards : html`<p class="lf-fp-empty">No plan.</p>`;
-		}
 		const lists = queueLists();
+		return queueTab === "agent" ? workView(lists) : onMeView(lists);
+	}
+	function onMeView(lists) {
 		const all = [
 			...lists.you,
 			...lists.agent,
 			...lists.done
 		];
 		const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
-		const current = lists[queueTab].map(queueItemKey);
-		seated = [...(seated ?? []).filter((key) => byKey.has(key)), ...current.filter((key) => !(seated ?? []).includes(key))];
+		const current = lists.you.map(queueItemKey);
+		if (seated === null) carrying.clear();
+		for (const item of lists.you) {
+			const key = queueItemKey(item);
+			const elsewhere = new Set([...carrying].flatMap(([other, ids]) => other === key ? [] : ids));
+			carrying.set(key, [.../* @__PURE__ */ new Set([...carrying.get(key) ?? [], ...(item.also ?? []).filter((id) => !elsewhere.has(id))])]);
+		}
+		const carried = new Set((seated ?? []).flatMap((key) => carrying.get(key) ?? []));
+		seated = [...(seated ?? []).filter((key) => byKey.has(key)), ...current.filter((key) => !(seated ?? []).includes(key) && !carried.has(byKey.get(key).id))];
 		const listOf = (item) => lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
-		const items = inWalkOrder(seated.map((key) => byKey.get(key)));
-		const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
-		return html`${items.length ? repeat(items, queueItemKey, (item) => onItemCard(item, listOf(item))) : html`<p class="lf-fp-empty">
-            Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
-          </p>`}${finished.length ? html`<h3 class="lf-fp-on-done">Done</h3>
-            ${repeat(finished, queueItemKey, (item) => onItemCard(item, "done"))}` : nothing}`;
+		const items = seated.map((key) => byKey.get(key));
+		const grouping = onMe.grouping();
+		const says = grouping === "plan" ? null : grouping;
+		const held = new Set(seated.flatMap((key) => carrying.get(key) ?? []));
+		const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)) && !held.has(item.id));
+		const waits = (item) => lists.you.includes(item);
+		const groups = onMe.groups(items, grouping, held).map((group) => ({
+			...group,
+			headed: group.items.length > 1,
+			count: group.items.filter(waits).length
+		}));
+		return html`${items.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([...groups, ...finished.length ? [{
+			key: "done",
+			title: "Done",
+			items: finished
+		}] : []], (item, group) => group.key === "done" ? onItemCard(item, "done", { card: true }) : onItemCard(item, listOf(item), {
+			card: true,
+			says: group.headed ? says : null,
+			group: group.headed ? null : group.title,
+			leads: group.leads.has(item),
+			also: carrying.get(queueItemKey(item))
+		})))}`;
+	}
+	function workView(lists) {
+		const inHand = lists.agent.filter((item) => item.live);
+		const queued = lists.agent.filter((item) => !item.live);
+		const groups = [
+			{
+				key: "in-hand",
+				title: "In hand",
+				items: inHand
+			},
+			{
+				key: "queued",
+				title: "Up next",
+				items: queued
+			},
+			{
+				key: "done",
+				title: "Done",
+				items: lists.done
+			}
+		].filter((group) => group.items.length);
+		forgetOpened([...lists.agent, ...lists.done]);
+		return html`${planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on ${agentName()}.</p>`}${groupedItems(groups, (item, group) => onItemCard(item, group.key === "done" ? "done" : "agent"))}`}`;
+	}
+	function workSummary(inHand, queued, done) {
+		const work = inHand.map(workOn);
+		const since = work.map((each) => each.since).filter(Boolean).toSorted()[0];
+		const longest = since ? shortAgo(since) : "";
+		const held = inHand.length ? `Working on ${inHand.length}${longest && longest !== "now" ? `, the longest for ${longest}` : ""}` : "";
+		const waiting = queued.length ? `${queued.length} up next` : "";
+		const first = held && waiting ? `${held}; ${waiting}.` : held ? `${held}.` : waiting ? `${waiting[0].toUpperCase()}${waiting.slice(1)}.` : "Nothing to do right now.";
+		const now = work.find((each) => each.line && each.line !== each.word)?.line;
+		const progress = planProgress();
+		const [last] = done;
+		return html`<div class="lf-fp-work-summary">
+      <p>${first}${now ? ` Now: “${now}”.` : ""}</p>
+      ${progress ? html`<p>Plan: ${progress.done} of ${progress.total} steps.</p>` : nothing}${last ? html`<p>
+              Last done:
+              ${excerptWords(queueTitle(last), 60)}${last.ended ? `, ${ago(last.ended)}` : ""}.
+            </p>` : nothing}
+    </div>`;
 	}
 	function pagesView() {
 		const rows = leavesRows(runtime.state);
@@ -6825,7 +6907,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	const headTemplate = (top) => {
 		const view = viewOf(top);
-		return html`<h2 class=${view.quiet ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
+		return html`<h2 class=${view.quiet?.(top) ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
       ${(view.head ?? view.title)(top)}
     </h2>`;
 	};
@@ -6846,40 +6928,67 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       </div>
       <div class="lf-fp-aux">${aux}</div>`;
 	}
-	function threadsControls() {
-		const news = newCount();
-		return { aux: html`${tabs(FILTERS, filter, capital, (name) => {
-			filter = name;
+	function onTabs(current) {
+		const lists = queueLists();
+		return tabs([...Object.keys(QUEUE_TABS), "threads"], current, (tab) => tab === "threads" ? "Threads" : tabLabel(tab), onTab, (tab) => tab === "threads" ? openCount() : lists[tab].length);
+	}
+	function onTab(tab) {
+		if (tab === "threads") {
 			query = "";
-			paint();
-		}, (name) => name === "unread" ? news : name === "open" ? openCount() : null)}<button
-          type="button"
-          class="lf-fp-face lf-fp-icon-btn"
-          aria-label="Find a thread or message"
-          aria-pressed=${String(searching)}
-          @click=${() => {
-			if (!searching) {
-				findThreads();
-				return;
-			}
-			closeThreadSearch();
-		}}
-        >
-          ${iconTemplate("search", "lf-action-icon")}
-        </button>` };
+			open({ view: "threads" }, {
+				replace: true,
+				focus: false
+			});
+			return;
+		}
+		const turned = chooseQueueTab(tab);
+		if (!showing({ view: "queue" })) open({ view: "queue" }, {
+			replace: true,
+			focus: false
+		});
+		else if (turned) paint();
+	}
+	function threadsControls() {
+		return {
+			crumb: onTabs("threads"),
+			aux: html`<button
+        type="button"
+        ${offeredAction("symbol", "", "Find a thread or message", { action: "find" })}
+        aria-pressed=${String(searching)}
+        @click=${() => {
+				if (!searching) {
+					findThreads();
+					return;
+				}
+				closeThreadSearch();
+			}}
+      ></button>`
+		};
 	}
 	function queueControls() {
-		const lists = queueLists();
-		return { crumb: tabs(queueTabs(), queueTab, tabLabel, (tab) => {
-			chooseQueueTab(tab);
-			paint();
-		}, (tab) => tab === "plan" ? null : lists[tab].length) };
+		const progress = queueTab === "agent" ? planProgress() : null;
+		return {
+			crumb: onTabs(queueTab),
+			aux: queueTab === "you" ? chooser({
+				label: "Group On me",
+				values: ON_ME_GROUPINGS,
+				name: groupingLabel,
+				current: onMe.grouping(),
+				choose: onMe.choose
+			}) : html`${progress ? planHead(progress) : nothing}${chooser({
+				label: `Show On ${agentName()} as`,
+				values: AGENT_LAYOUTS,
+				name: capital,
+				current: layoutOf(),
+				choose: agentLayout.write
+			})}`
+		};
 	}
 	function threadControls(route) {
 		const thread = threadOf(route);
 		if (!thread) return {};
 		const inMessage = Boolean(placedAt(thread.id)?.message);
-		onPageSeat ||= Boolean(thread.anchor) && (inMessage || !unplaced.has(thread.key));
+		onPageSeat ||= Boolean(thread.anchor) && (inMessage || !atLastResort(thread.key));
 		const aux = html`${unreadSeat ? html`<button
               type="button"
               class="lf-fp-face lf-fp-next-unread"
@@ -6890,7 +6999,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               ${iconTemplate("down", "lf-action-icon")}Next unread
             </button>` : nothing}${onPageSeat ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-quiet"
+              ${offeredAction("symbol", "lf-fp-on-page", inMessage ? "Show in message" : "Show on page", { action: "show" })}
               ?disabled=${!thread.anchor}
               ?data-unoffered=${!thread.anchor}
               @click=${() => {
@@ -6907,14 +7016,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				intent
 			}));
 		}}
-            >
-              ${inMessage ? "Show in message" : "Show on page"}
-            </button>` : nothing}<button
+            ></button>` : nothing}<button
         type="button"
-        class="lf-fp-face lf-fp-icon-btn lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
-        aria-label=${thread.resolved ? "Reopen" : "Resolve thread"}
-        title=${thread.resolved ? "Reopen" : "Resolve thread"}
-        aria-disabled=${String(!(thread.resolved ? thread.offers.reopen : thread.offers.resolve))}
+        ${offeredAction("symbol", `lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}`, thread.resolved ? "Reopen" : "Resolve thread", { action: thread.resolved ? "reopen" : "resolve" })}
         @click=${() => {
 			if (!thread.resolved) dismissReply(thread.key);
 			settleThread({
@@ -6925,9 +7029,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				...settlement
 			}).catch(() => {});
 		}}
-      >
-        ${iconTemplate("check", "lf-action-icon")}
-      </button>`;
+      ></button>`;
 		return {
 			crumb: html`<span class="lf-fp-facts"
         >${keyed(thread.key, html`<span class="lf-fp-news-outlet"></span>`)}</span
@@ -6974,20 +7076,25 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		landReader();
 		seatOnItems();
+		fitOpened();
+		showFromTop();
 		landWalked();
 	}
 	const asked = /* @__PURE__ */ new WeakSet();
 	function seatOnItems() {
 		if (!showing({ view: "queue" })) return;
 		let draw = false;
-		for (const card of stage.querySelectorAll(".lf-fp-view:not([data-leaving]) .lf-fp-on-item[data-key]")) {
+		for (const card of stage.querySelectorAll(".lf-fp-view:not([data-leaving]) .lf-fp-on-item:is([data-card], [data-open])")) {
 			const outlet = card.querySelector(".lf-fp-asked:empty");
 			if (outlet) {
 				draw ||= !asked.has(outlet);
 				asked.add(outlet);
 			} else if (!seatHeights.has(card.dataset.key)) seatHeights.set(card.dataset.key, card.getBoundingClientRect().height);
 		}
-		if (draw) present({ release: true });
+		if (draw) present({ release: true }).then(() => {
+			fitting = true;
+			paint();
+		});
 	}
 	function landReader() {
 		const top = trail.value.at(-1);
@@ -7008,44 +7115,61 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		keeps(host, "data-rest", folded ? "mark" : "row");
 		keeps(host, "data-open", top ? top.view : null);
 		keeps(host, "data-menu", menuOpen.value ? "" : null);
-		keeps(mark, "class", `lf-dot${status().tone ? ` ${status().tone}` : ""}`);
-		keeps(leaf, "aria-label", folded ? `Unfold Leaf · ${status().summary}` : `Page menu · ${status().summary}`);
-		keeps(leaf, "aria-expanded", folded ? null : String(menuOpen.value));
-		const onUser = onUserCount();
-		const news = newCount();
-		keepsText(badge, onUser ? String(onUser) : "");
-		keeps(badge, "data-shown", onUser ? "" : null);
-		keeps(newsDot, "data-shown", news ? "" : null);
-		const sayingNow = new Set(sayable().map((error) => error.id));
-		const unseen = errorsReading().some((error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error));
-		keeps(errorDot, "data-shown", unseen ? "" : null);
-		render(menuOpen.value ? menuTemplate() : nothing, menu);
-		for (const copy of [...copyItems.values(), ...copies.values()]) if (!copy.isConnected) copy.remove();
-		keeps(menu, "data-level", menuOpen.value && menuAt.value ? menuAt.value.view : null);
-		keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+		if (menuOpen.value) {
+			if (menuFade) {
+				menuFade.cancel();
+				menuFade = null;
+			}
+		} else if (menuDrawn && !menuFade && motionPlays()) {
+			menu.setAttribute("data-leaving", "");
+			menuFade = playMotion(menu, [{ opacity: 1 }, { opacity: 0 }], {
+				duration: motionTime("--lf-motion-disclosure", menu),
+				easing: "linear"
+			});
+			menuFade?.finished.then(() => {
+				menuFade = null;
+				paint();
+			}, () => {});
+		}
+		menuDrawn = menuOpen.value;
+		const heldView = shownView();
+		const restoreFocus = heldView && holdFocus(heldView, { key: "data-key" });
+		const replying = Boolean(top?.thread);
+		const leavesReply = !replying && editorSeat.contains(replyOutlet);
+		const hadEditorFocus = currentLocationIn(editorSeat);
+		const heading = threadOf(top)?.id ?? null;
+		keeps(replyOutlet, "data-thread", heading);
+		keeps(replyOutlet, "data-lf-thread-view", heading === null ? null : "");
+		if (pageSearch) keepsHidden(pageSearch.input, !pageSearch.open);
+		if (searchSurface.hidden !== !search) postureMoved = true;
+		const input = fieldInput();
+		if (input) syncInput(input);
+		keeps(host, "data-writing", writing ? "" : null);
+		const exit = fieldExit(search, top);
+		const words = Boolean(draftOf(input));
+		if (postureMoved || !words) {
+			drafted = words;
+			seatHeld = Boolean(exit);
+		}
+		if (exit) seatHeld = true;
+		postureMoved = false;
+		keeps(host, "data-drafted", drafted ? "" : null);
+		keeps(host, "data-words", words ? "" : null);
+		if (!words) expanded = false;
+		markRoom();
+		keeps(host, "data-expanded", expanded ? "" : null);
+		const reading = fieldReading(replying ? top.thread : null, input);
+		keeps(host, "data-offers", !search && reading.offers ? "" : null);
+		keeps(host, "data-tone", status().tone || null);
+		keeps(host, "data-asks", status().asks ? "" : null);
+		render(panelTemplate(), host);
+		noteDrawnSections();
+		for (const copy of copyItems.values()) if (!copy.isConnected) copy.remove();
 		keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
 		if (menuOpen.value) {
 			const rows = menuRows();
 			rove(rows, rows.includes(focused()) ? focused() : rows[0]);
 		}
-		const views = [leaving, top].filter(Boolean);
-		const heldView = shownView();
-		const restoreFocus = heldView && holdFocus(heldView, { key: "data-key" });
-		const shows = (route) => threadOf(route)?.id ?? null;
-		render(repeat(views, routeKey, (route) => html`<div
-            class="lf-fp-view"
-            tabindex="-1"
-            data-view=${route.view}
-            data-thread=${shows(route) ?? nothing}
-            ?data-lf-thread-view=${shows(route) !== null}
-            ?data-lf-rises=${Boolean(route.thread)}
-            ${ref(declareView)}
-            style=${route === top && room !== null ? `height: ${room}px` : nothing}
-            ?data-leaving=${route === leaving}
-            @scroll=${sawAnswer}
-          >
-            ${viewOf(route).draw(route)}
-          </div>`), stage);
 		if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
 		drawnTop = top ? routeKey(top) : null;
 		regionViews();
@@ -7056,126 +7180,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			fitted = outlet;
 		}
 		const listed = listRows();
-		rove(listed, listed.includes(focused()) ? focused() : listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]);
-		render(top ? headTemplate(top) : nothing, head);
-		render(top ? controlsTemplate(top) : nothing, controls);
-		move(row, expand, leaf);
-		const heading = top ? shows(top) : null;
-		for (const drawing of [controls, replyOutlet]) {
-			keeps(drawing, "data-thread", heading);
-			keeps(drawing, "data-lf-thread-view", heading === null ? null : "");
-		}
-		const thread = threadOf(top);
-		const replying = Boolean(top?.thread);
-		if (threadSearchInput.value !== query) threadSearchInput.value = query;
-		keepsHidden(threadSearchInput, search !== threadSearch);
-		if (pageSearch) keepsHidden(pageSearch.input, !pageSearch.open);
-		if (search) {
-			const label = pageSearch?.open ? "Search page" : "Search threads";
-			keeps(searchSurface, "aria-label", label);
-			keeps(searchSurface, "class", `lf-fp-search-surface${pageSearch?.open ? " lf-page-search" : ""}`);
-		}
-		render(search?.controls ?? nothing, fieldActions);
-		keepsHidden(fieldActions, !search?.controls.length);
-		if (searchSurface.hidden !== !search) postureMoved = true;
-		keepsHidden(editorSeat, Boolean(search));
-		keepsHidden(searchSurface, !search);
-		const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
-		if (editorSeat.firstElementChild !== shown[0]) {
-			const had = currentLocationIn(editorSeat);
-			editorSeat.replaceChildren(...shown);
-			if (had && !replying && !search) focusDestination(leaf, "return");
-		}
+		rove(listed, listed.includes(focused()) ? focused() : listed.find((row) => landingKeys?.has(row.dataset.key)) ?? listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]);
+		if (leavesReply && hadEditorFocus && !search) focusDestination(leaf, "return");
 		if (caretToField && !replying && !search) {
 			caretToField = false;
 			focusDestination(pageEditor().input, "move");
 		}
-		const resting = Boolean(thread) && !replyAvailable(thread);
-		keepsHidden(resolvedLine, !resting);
-		keepsHidden(replyOutlet, resting);
-		const input = fieldInput();
-		if (input) syncInput(input);
-		keeps(host, "data-writing", writing ? "" : null);
-		const words = Boolean(draftOf(input));
-		if (postureMoved || !words) drafted = words;
-		postureMoved = false;
-		keeps(host, "data-drafted", drafted ? "" : null);
-		keeps(host, "data-words", words ? "" : null);
-		if (!words) expanded = false;
-		fieldRests = resting || Boolean(search);
-		markRoom();
-		keeps(host, "data-expanded", expanded ? "" : null);
-		keeps(expand, "aria-pressed", String(expanded));
-		keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");
-		keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
-		render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
-		const reading = fieldReading(replying ? top.thread : null, input);
-		keepsText(resolvedLine, reading.says === "notice" ? reading.words : "Resolved");
-		keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
-		keeps(host, "data-tone", status().tone || null);
-		keeps(host, "data-asks", status().asks ? "" : null);
-		const selection = !search && reading.says === "selection" && words;
-		const searchLabel = pageSearch?.open ? "Search page" : "Search threads";
-		render(search ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate("search", "lf-fp-mode-icon")}<span>${pageSearch?.open ? "page" : "threads"}</span>` : selection ? "Selection" : nothing, fieldMode);
-		keeps(fieldMode, "aria-label", search ? searchLabel : null);
-		keeps(fieldMode, "title", search ? searchLabel : selection ? reading.words : null);
-		keepsHidden(fieldMode, !search && !selection);
-		paintPeek();
-		const currentLocation = search ? null : olderVersion();
-		keepsHidden(rowNoticeSeat, !currentLocation);
-		render(currentLocation ? rowNoticeTemplate(currentLocation) : nothing, rowNoticeSeat);
-		const exit = search === threadSearch ? {
-			label: "Close search",
-			press: closeThreadSearch,
-			disabled: false
-		} : top && !search ? {
-			label: "Close",
-			press: close,
-			disabled: false
-		} : rows().find((entry) => entry.exit) ?? null;
-		render(exit ? html`<button
-            type="button"
-            class=${`lf-fp-face lf-fp-chip lf-fp-exit${exit.press === close ? " lf-fp-close" : ""}`}
-            aria-label=${exit.label}
-            title=${exit.label}
-            ?disabled=${exit.disabled}
-            @mousedown=${(event) => event.preventDefault()}
-            @click=${() => exit.press()}
-          >
-            ${iconTemplate("cross", "lf-action-icon")}
-          </button>` : nothing, exitSeat);
-		const pressedMark = viewOf(top)?.mark;
-		const onUserName = onUser ? `On me: ${onUser}` : "On me";
-		const threadsName = inventoried() ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}` : "Threads";
-		render(html`<button
-          type="button"
-          class="lf-fp-face lf-fp-chip lf-fp-on-user"
-          aria-pressed=${String(pressedMark === "onUser")}
-          ?data-due=${onUser > 0}
-          aria-label=${onUserName}
-          title=${onUserName}
-          @click=${openOnMe}
-        >
-          ${iconTemplate("inbox", "lf-action-icon")}<span class="lf-fp-num"
-            >${onUser || ""}</span
-          ></button
-        ><button
-          type="button"
-          class="lf-fp-face lf-fp-chip lf-fp-threads"
-          aria-pressed=${String(pressedMark === "threads")}
-          aria-label=${threadsName}
-          title=${threadsName}
-          @click=${() => {
-			filter = news && pressedMark !== "threads" ? "unread" : "open";
-			query = "";
-			refit();
-			open({ view: "threads" });
-		}}
-        >
-          ${iconTemplate("comment", "lf-action-icon")}<span class="lf-fp-num"
-            >${openCount() || ""}</span
-          ><span class="lf-fp-news" ?hidden=${!news}></span>
-        </button>`, quick);
 	}
 	function olderVersion() {
 		const { latest } = versionsReading();
@@ -7207,7 +7217,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       ${face}
     </button>`;
 	}
-	leaf.addEventListener("click", () => {
+	function pressLeaf() {
 		if (host.dataset.rest === "mark") {
 			prefs().setRest("row");
 			paint();
@@ -7218,9 +7228,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			const first = menu.querySelector("button");
 			if (first) focusDestination(first, "move");
 		}
-	});
+	}
 	const peekAsks = () => host.dataset.rest === "mark" && peekAsked;
-	function paintPeek() {
+	function peekPresentation() {
 		const folded = host.dataset.rest === "mark";
 		const notice = passing();
 		const telling = notice.visible && folded;
@@ -7229,18 +7239,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const asked = peekAsks();
 		if (!asked || !readingIsContinuous()) peekReading = null;
 		if (asked && !telling && pagePresented()) peekReading ??= parts;
-		render(telling ? notice.message : statusParts(peekReading ?? parts), peek);
-		keeps(peek, "data-shown", telling || asked ? "" : null);
+		return {
+			content: telling ? notice.message : statusParts(peekReading ?? parts),
+			shown: telling || asked
+		};
 	}
 	const showPeek = (on) => {
 		const before = peekAsks();
 		peekAsked = on;
-		if (peekAsks() !== before) paintPeek();
+		if (peekAsks() !== before) paint();
 	};
-	leaf.addEventListener("pointerenter", () => showPeek(true));
-	leaf.addEventListener("pointerleave", () => showPeek(false));
-	leaf.addEventListener("focus", () => showPeek(leaf.matches(":focus-visible")));
-	leaf.addEventListener("blur", () => showPeek(false));
 	pageRung("floating panel", () => {
 		if (focused()?.matches?.(".lf-fp-search")) return query ? {
 			root: host,
@@ -7269,6 +7277,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}
 		};
 		if (!trail.value.length) return null;
+		if (trail.value.at(-1).view === "queue" && currentLocationIn(host) && shownView()?.querySelector(".lf-fp-on-item[data-open]")) return {
+			root: host,
+			title: "fold item",
+			out: foldItem
+		};
 		return {
 			root: host,
 			title: `close ${titleOf(trail.value.at(-1)).toLowerCase()}`,
@@ -7359,13 +7372,19 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		run: () => setRest(prefs().rest === "mark" ? "row" : "mark")
 	});
 	let heldCurrentLocation = null;
+	holdPagePlace(() => currentLocationIn(host) ? heldCurrentLocation : null);
+	let pressedIn = false;
 	host.addEventListener("pointerdown", () => {
-		if (!currentLocationIn(host)) heldCurrentLocation = readPlace();
+		if (currentLocationIn(host)) return;
+		heldCurrentLocation = readPlace();
+		pressedIn = true;
+		setTimeout(() => pressedIn = false);
 	}, true);
 	onCurrentLocation((node, _cause, left) => {
 		if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu)) setMenu(false);
 		const inside = Boolean(node) && renderedUnder(node, host);
-		if (inside && left?.isConnected && !renderedUnder(left, host)) heldCurrentLocation = readPlace(left);
+		if (inside && !left && !pressedIn) heldCurrentLocation = null;
+		else if (inside && left?.isConnected && !renderedUnder(left, host)) heldCurrentLocation = readPlace(left);
 		const next = inside ? writing || node.localName === "leaf-text" : false;
 		if (next === writing && !inside) return;
 		writing = next;
@@ -7374,6 +7393,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	onPressAway((path) => (menuOpen.value || trail.value.length > 0) && !path.includes(host) && nativeModalAdmits(host), () => {
 		if (menuOpen.value) setMenu(false);
 		if (trail.value.length) close();
+	});
+	const standsOver = (where, landed) => trail.value.length > 0 && coveredShare(opened, where, landed) > 0;
+	function clearFor({ where, focus }, landed) {
+		if (doors.queue.shows() && onMe.lists(focus ?? placeHolder(where))) return;
+		if (standsOver(where, landed)) close();
+	}
+	onCurrentLocation((node, cause) => {
+		if (cause === "step" && node && standsOver(node, landedBox(node))) close();
 	});
 	function putVersionsAway() {
 		const inside = renderedUnder(focused(), menu);
@@ -7384,7 +7411,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		threads: {
 			shows: () => showing({ view: "threads" }),
 			press: () => {
-				filter = "open";
 				query = "";
 				refit();
 				open({ view: "threads" });
@@ -7403,7 +7429,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			press: () => versionsShown() ? putVersionsAway() : showMenuAt({ view: "versions" })
 		}
 	});
-	function showForSample({ thread, status }) {
+	function showForSample({ thread }) {
 		const wanted = thread ? threadByKey(thread) : null;
 		if (thread && !wanted) return Promise.resolve(false);
 		const top = trail.value.at(-1);
@@ -7417,7 +7443,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			focus: false
 		});
 		else {
-			filter = status === "resolved" ? "resolved" : "open";
 			query = "";
 			refit();
 			open({ view: "threads" }, {
@@ -7427,6 +7452,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			paint();
 		}
 		return present({ release: true }).then(() => true);
+	}
+	function openThread(id) {
+		const thread = threadByKey(id);
+		if (!thread) return;
+		open({
+			view: "thread",
+			thread: thread.key
+		}, { reopen: true });
 	}
 	function captureCurrentLocation() {
 		const top = trail.value.at(-1);
@@ -7492,11 +7525,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				const shown = threadOf(top)?.key === thread.key;
 				if (thread.anchor && !(part === "message" && shown)) {
 					if (!last) {
-						unplaced.delete(thread.key);
-						if (top?.thread) close();
+						if (shown) releaseReplies(replyOutlet);
+						if (top?.thread) close({ handedOn: shown });
 						return false;
 					}
-					unplaced.add(thread.key);
 				}
 				open({
 					view: "thread",
@@ -7509,22 +7541,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}
 		});
 		document.addEventListener(UPGRADE, () => paint(), { once: true });
-		x(() => {
-			const { visible } = noticeReading();
-			d(() => visible ? paint() : afterScript(paint));
-		});
-		x(() => {
-			errorsReading();
-			d(paint);
-		});
-		x(() => {
-			statusContextReading();
-			d(paint);
-		});
 		document.addEventListener("lf-chrome-preference", () => paint());
 		onReadingInterrupted(() => {
 			peekReading = null;
-			paintPeek();
+			paint();
 		});
 		paint();
 	}
@@ -7533,15 +7553,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		mount,
 		open,
 		close,
+		clearFor,
 		pageComment,
 		searchPage,
 		doors,
 		showForSample,
+		openThread,
 		captureCurrentLocation,
 		restoreCurrentLocation,
 		responseHome: responseSeat,
 		revealResponse: clearRow,
-		heldPlace: () => currentLocationIn(host) ? heldCurrentLocation : null,
 		hoveredThread: () => {
 			const row = threadRows().find((candidate) => candidate.matches(":hover"));
 			return row ? threadByKey(row.dataset.key)?.id ?? null : null;
@@ -7770,6 +7791,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		const restoreFocus = holdFocus(dialog);
 		place$1.around(() => presentSheet());
 		restoreFocus?.(dialogSearch);
+		paintKeysWithin(dialog);
 	}
 	function presentSheet() {
 		const query = dialogSearch.value.trim().toLocaleLowerCase();
@@ -7874,15 +7896,11 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 }
 
 //#endregion
-//#region runtime/obligations/view-elements.js
-const OBLIGATION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
-
-//#endregion
 //#region runtime/obligations/view.js
 function createObligationView({ prepareNavigationStep, arrive, openPageThread, focusForNavigation, presentedControl, announce, repaint }) {
 	const obligationNode = (item) => obligationPlace(item).node;
 	const sourceNode = (item) => obligationPlace(item).source;
-	const sourceOwner = (item) => item && elementById(item.source.id);
+	const sourceOwner = (item) => item?.source.kind === "widget" ? elementById(item.source.id) : null;
 	const hasObligation = (items, candidate) => Boolean(candidate && items.some((item) => item.id === candidate.id));
 	const unansweredIds = () => new Set(readObligations().unanswered.map(({ id }) => id));
 	const obligationNodes = (item) => ({
@@ -7972,7 +7990,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		return held === item || inChrome(held) && placeOf(held) === item || hasReviewedFocus() ? answered : null;
 	}
 	const currentLocationIn = () => obligationNode(currentLocationObligation());
-	const actionsFor = (source, owner = source) => decisionControls(commandsWithin(owner), `Obligation ${owner.id}`).filter(({ source: commandSource, control }) => ownedObligationControl(owner, commandSource) && (source === owner || under(control, source)) && control.getAttribute("aria-busy") !== "true");
+	const actionsFor = (source, owner = source) => decisionControls(commandsWithin(owner), `Obligation ${owner.id}`).filter(({ source: commandSource, control }) => ownedObligationControl(owner, commandSource) && (source === owner || under$1(control, source)) && control.getAttribute("aria-busy") !== "true");
 	const actionsOf = (item) => {
 		const source = item && sourceNode(item);
 		return source ? actionsFor(source, sourceOwner(item)) : [];
@@ -7980,18 +7998,24 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 	function choicesOf(item) {
 		const source = sourceNode(item);
 		if (!source) return null;
-		return actionsFor(source, sourceOwner(item)).map(({ id, label, control }) => Object.freeze({
+		return actionsFor(source, sourceOwner(item)).map(({ id, label, description, recommended, control }) => Object.freeze({
 			id,
 			label,
+			description,
+			recommended,
 			chosen: control.getAttribute("aria-pressed") === "true" || control.getAttribute("aria-checked") === "true" || control.localName === "input" && control.checked,
 			press: () => presentedActionControl(control).click()
 		}));
 	}
+	const answerableAt = (node) => {
+		const all = readObligations().all;
+		return obligationHolding(all.filter((item) => item.source.kind === "widget"), placeOf(node), all);
+	};
 	function obligationContext(origin) {
-		const record = obligationAt(readObligations().all, hostIn(origin, document));
+		const record = answerableAt(hostIn(origin, document));
 		let root = null;
 		for (let node = origin; record && node; node = upFrom(node)) {
-			if (obligationAt(readObligations().all, node)?.id !== record.id) break;
+			if (answerableAt(node)?.id !== record.id) break;
 			root = node;
 			if (node.hasAttribute("data-lf-thread-surface")) break;
 		}
@@ -8014,8 +8038,8 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 	function arrivalFocus(record, review = false) {
 		const item = obligationNode(record);
 		const source = sourceNode(record);
-		if (!item || !source) return null;
-		const target = [...item.getClientRects()].some((rect) => rect.width && rect.height) ? item : source.querySelector(":is(button[data-lf-offer], [data-lf-offer][tabindex])") ?? actionsFor(source, sourceOwner(record)).map(({ control }) => presentedActionControl(control))[0] ?? source;
+		if (!item) return null;
+		const target = !source || [...item.getClientRects()].some((rect) => rect.width && rect.height) ? item : source.querySelector(":is(button[data-lf-offer], [data-lf-offer][tabindex])") ?? actionsFor(source, sourceOwner(record)).map(({ control }) => presentedActionControl(control))[0] ?? source;
 		reviewedThrough = review ? target : null;
 		return target;
 	}
@@ -8030,9 +8054,8 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		const target = record && arrivalFocus(record);
 		if (target) focusForNavigation(target, "return");
 	}
-	const HEADING = "h1,h2,h3,h4,h5,h6";
 	function arrivalRegion(item, context, currentLocation) {
-		const declared = context && registry[context.localName]?.["x-awaits"]?.encloses;
+		const declared = context && registry[context.localName]?.["x-encloses"];
 		if (declared && context === currentLocation) return context;
 		const fits = (region) => {
 			if (!region) return false;
@@ -8043,12 +8066,11 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		const seenBy = (block) => hostIn(item, block.getRootNode());
 		const before = [...document.querySelectorAll(TEXT_BLOCK)].filter((block) => {
 			const from = seenBy(block);
-			return from && !inChrome(block) && showsWords(block) && !under(item, block) && block.parentElement && under(item, block.parentElement) && from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING;
+			return from && !inChrome(block) && showsWords(block) && !under$1(item, block) && block.parentElement && under$1(item, block.parentElement) && from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING;
 		});
-		const heading = before.findLast((block) => block.matches(HEADING));
 		return [
 			declared ? context : null,
-			heading,
+			partOver(item),
 			closestAcross(item, "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary") ?? before.at(-1)
 		].find(fits) ?? item;
 	}
@@ -8071,13 +8093,12 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		if (!mayArrive() || !target) return false;
 		const destination = () => {
 			const { node: target, source, context } = obligationPlace(next);
-			if (!target || !source) return null;
+			if (!target || !source && next.source.kind === "widget") return null;
 			const box = !inChrome(target) && scrollerFor(target);
 			return {
 				target,
-				source,
 				box,
-				region: box && arrivalRegion(source, context, target)
+				region: box && arrivalRegion(source ?? target, context, target)
 			};
 		};
 		const initial = destination();
@@ -8093,7 +8114,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 			const { target, box, region } = here;
 			return {
 				where: target,
-				reveal: next.source.id !== next.prompt.target ? [sourceNode(next)] : [],
+				reveal: next.source.id !== next.prompt.target ? [sourceNode(next)].filter(Boolean) : [],
 				focus: arrivalFocus(next, !unansweredIds().has(next.id)),
 				scroll: !box ? [{
 					at: target,
@@ -8112,7 +8133,8 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		});
 	}
 	function arriveAtRecord(next) {
-		if (next.source.kind !== "widget") return Promise.resolve(false);
+		const placed = next.thread === null && Boolean(obligationNode(next));
+		if (next.source.kind !== "widget" && !placed) return Promise.resolve(false);
 		const ready = arriveAtRecordNow(next);
 		ready.catch(() => {});
 		return ready;
@@ -8265,7 +8287,6 @@ function createCommandHints({ presentedControl }) {
 	function restoreBindingBadges(kept = /* @__PURE__ */ new Set()) {
 		for (const bindingBadge of [...wornBindingBadges.keys()]) if (!kept.has(bindingBadge)) restoreBindingBadge(bindingBadge);
 	}
-	const bindingChips = /* @__PURE__ */ new Map();
 	function withdrawRoutes(kept = /* @__PURE__ */ new Set()) {
 		for (const control of routedControls) {
 			if (kept.has(control)) continue;
@@ -8293,11 +8314,10 @@ function createCommandHints({ presentedControl }) {
 			routedControls.add(control);
 		}
 		withdrawRoutes(new Set(routes.map(({ control }) => control)));
-		const visualRoutes = routes.filter(({ bindingBadge }) => bindingBadge !== void 0);
+		const visualRoutes = advertisesKeys() ? routes.filter(({ bindingBadge }) => bindingBadge !== void 0) : [];
 		hasRoutes = visualRoutes.length > 0;
 		if (!visualRoutes.length) {
 			restoreBindingBadges();
-			bindingChips.clear();
 			seats.place([]);
 			return;
 		}
@@ -8306,6 +8326,7 @@ function createCommandHints({ presentedControl }) {
 		for (const { bindingBadge } of visualRoutes) if (bindingBadge) bindingBadgeClaims.set(bindingBadge, (bindingBadgeClaims.get(bindingBadge) ?? 0) + 1);
 		const lent = /* @__PURE__ */ new Set();
 		const worn = /* @__PURE__ */ new Set();
+		const faceBoxes = /* @__PURE__ */ new Map();
 		for (const { binding, control, bindingBadge } of visualRoutes) {
 			if (!bindingBadge?.isConnected || bindingBadgeClaims.get(bindingBadge) !== 1 || !placement.visibleBounds(control)) continue;
 			if (!wornBindingBadges.has(bindingBadge)) {
@@ -8322,32 +8343,40 @@ function createCommandHints({ presentedControl }) {
 			if (exposed) {
 				restoreStyle(bindingBadge, "opacity");
 				worn.add(bindingBadge);
-			} else bindingBadge.style.opacity = "0";
+			} else {
+				bindingBadge.style.opacity = "0";
+				if (box) faceBoxes.set(bindingBadge, bindingBadge.getBoundingClientRect());
+			}
 		}
 		restoreBindingBadges(lent);
 		const chips = [];
+		const moving = scrolling();
 		for (const { binding, control, bindingBadge } of visualRoutes) {
 			if (bindingBadge && worn.has(bindingBadge)) continue;
 			const presented = presentedControl(control) ?? control;
 			if (!presented.checkVisibility()) continue;
-			const box = placement.badgeBox(presented);
+			const face = bindingBadge && faceBoxes.get(bindingBadge);
+			const x = face && (face.left + face.right) / 2;
+			const y = face && (face.top + face.bottom) / 2;
+			const box = face ? {
+				left: x,
+				top: y,
+				right: x,
+				bottom: y
+			} : placement.badgeBox(presented);
 			if (!box) continue;
-			let chip = bindingChips.get(control);
-			if (!chip) {
-				chip = el("span", "lf-key-badge lf-command-binding-badge");
-				chip.setAttribute("aria-hidden", "true");
-				bindingChips.set(control, chip);
-			}
-			keepsText(chip, spell(binding));
+			const seat = moving ? seats.seated(presented) : seats.seat(presented);
+			if (!seat) continue;
+			render(html`<span class="lf-key-badge lf-command-binding-badge" aria-hidden="true"
+          >${spell(binding)}</span
+        >`, seat);
 			chips.push({
-				chip,
+				seat,
 				owner: presented,
 				corner: box
 			});
 		}
-		const seated = new Set(chips.map(({ chip }) => chip));
-		for (const control of [...bindingChips.keys()]) if (!seated.has(bindingChips.get(control))) bindingChips.delete(control);
-		if (scrolling()) seats.keepOnly(new Set(chips.map(({ owner }) => owner)));
+		if (moving) seats.keepOnly(new Set(chips.map(({ owner }) => owner)));
 		else placement.paint(seats, chips);
 	}
 	const scrollEnded = () => hasRoutes && repaint();
@@ -8362,7 +8391,6 @@ function createCommandHints({ presentedControl }) {
 		mounted = false;
 		hasRoutes = false;
 		clearProjections();
-		bindingChips.clear();
 		seats.clear();
 	}
 	return {
@@ -8589,61 +8617,20 @@ function createDesignMode({ pageGeometry, syncGeneral, composer, closePreview, m
 }
 
 //#endregion
-//#region runtime/page-layout.js
-function createPageLayout({ scheduleThreadPreviewPosition, syncReactLayout, refreshFab, pageShifted, repaintPage }) {
-	function syncLayout() {
-		syncLayoutRegion();
-		scheduleMarginContentLayout();
-		scheduleThreadPreviewPosition?.();
-		if (syncReactLayout()) return;
-		refreshFab();
-	}
-	let bodyContentWidth = 0;
-	let bodyContentHeight = 0;
-	const layoutSizes = sizeObserver(([{ contentRect }]) => {
-		const widthChanged = contentRect.width !== bodyContentWidth;
-		const moved = widthChanged || contentRect.height !== bodyContentHeight;
-		bodyContentWidth = contentRect.width;
-		bodyContentHeight = contentRect.height;
-		if (widthChanged) repaintPage();
-		else if (moved) pageShifted();
-	});
-	function mountLayoutObservers() {
-		addEventListener("resize", syncLayout);
-		layoutSizes.observe(document.body);
-	}
-	return {
-		syncLayout,
-		mountLayoutObservers
-	};
-}
-
-//#endregion
 //#region runtime/page-about.js
 registerPageControl({
 	key: "inspection",
 	rank: PAGE_CONTROL_RANK.inspection,
-	label: "Page diagnostics",
+	label: "About this page",
 	group: "page",
 	press: () => {
 		const intent = retainUserIntent();
-		import("./runtime/bundle-page-inspection.js").then(({ openPageInspection }) => openPageInspection(intent)).catch((error) => raiseError(`Page diagnostics could not open: ${error.message}. Open the menu to retry.`));
+		import("./runtime/bundle-page-inspection.js").then(({ openPageInspection }) => openPageInspection(intent)).catch((error) => raiseError(`About this page could not open: ${error.message}. Open the menu to retry.`));
 	}
 });
 const payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
 const payloadDateLines = (provenance) => ["committed", "installed"].filter((kind) => provenance[kind]).map((kind) => `${kind}: ${provenance[kind]}`);
 const shortCommit = (provenance) => provenance.commit ? `${provenance.commit.slice(0, 8)}${provenance.dirty ? "+" : ""}` : "unknown";
-const otherPayloadLines = (relation, provenance) => [
-	...provenance.commit ? [`${relation} commit: ${provenance.commit}`] : [],
-	...provenance.dirty !== void 0 ? [`${relation} dirty: ${provenance.dirty}`] : [],
-	...payloadDateLines(provenance).map((line) => `${relation} ${line}`)
-];
-const servedBy = (state) => state.leaf ? ` · served by ${shortCommit(state.leaf)}${payloadAge(state.leaf) ? ` · ${payloadAge(state.leaf)}` : ""}` : "";
-const pageUrl = () => {
-	const url = new URL(location.href);
-	url.searchParams.delete("t");
-	return String(url);
-};
 if (SHARE_ROOT) registerPageControl({
 	key: "share",
 	rank: PAGE_CONTROL_RANK.share,
@@ -8652,18 +8639,46 @@ if (SHARE_ROOT) registerPageControl({
 	copies: shareUrl,
 	group: "page"
 });
+function claimantValue(state) {
+	const { session_name: name, claim_session: id, session_cwd: cwd } = state;
+	const where = cwd ? cwd.split("/").findLast(Boolean) : null;
+	return [
+		name || id.slice(0, 8),
+		where,
+		state.session_alive === false && "ended"
+	].filter(Boolean).join(" · ");
+}
+function claimantDiagnostics(state) {
+	return [
+		"Agent session",
+		`agent: ${state.agent}`,
+		...state.session_name ? [`name: ${state.session_name}`] : [],
+		`id: ${state.claim_session}`,
+		...state.session_cwd ? [`directory: ${state.session_cwd}`] : [],
+		`running: ${state.session_alive !== false}`
+	].join("\n");
+}
+const claimed = () => Boolean(runtime.state?.claim_session);
+registerPageControl({
+	key: "claimant",
+	rank: PAGE_CONTROL_RANK.claimant,
+	label: "agent session",
+	value: () => claimed() ? claimantValue(runtime.state) : "",
+	copies: () => claimed() ? claimantDiagnostics(runtime.state) : "",
+	offered: claimed,
+	group: "page"
+});
 const preview = () => runtime.state?.preview ?? null;
 function previewLabel() {
-	const state = runtime.state;
-	const producer = state.layer.producer ?? {};
+	const producer = pageIdentity().layer.producer ?? {};
 	const stem = `${preview().interaction === "user" ? "User" : "Preview"} · ${preview().checkout}${producer.commit ? `@${producer.commit}` : ""}`;
 	const age = payloadAge(producer);
-	return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${servedBy(state)}`;
+	return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}`;
 }
 function previewDiagnostics() {
-	const state = runtime.state;
-	const producer = state.layer.producer ?? {};
-	const { example, checkout, interaction, started } = preview();
+	const identity = pageIdentity();
+	const producer = identity.layer.producer ?? {};
+	const { example, checkout, interaction, started } = identity.preview;
 	return [
 		"Leaf preview",
 		`example: ${example}`,
@@ -8672,14 +8687,13 @@ function previewDiagnostics() {
 		...producer.commit ? [`commit: ${producer.commit}`] : [],
 		...producer.dirty !== void 0 ? [`dirty: ${producer.dirty}`] : [],
 		...payloadDateLines(producer),
-		...state.leaf ? otherPayloadLines("served by", state.leaf) : [],
 		`started: ${started}`,
 		...runtimeLines(),
-		`layer generation: ${state.layer.generation}`,
-		...state.layer.fingerprint ? [`layer fingerprint: ${state.layer.fingerprint}`] : [],
-		...state.active ? [`revision: ${state.active.revision}`] : [],
-		`event sequence: ${state.events.at(-1)?.seq ?? 0}`,
-		`url: ${pageUrl()}`
+		`layer generation: ${identity.layer.generation}`,
+		...identity.layer.fingerprint ? [`layer fingerprint: ${identity.layer.fingerprint}`] : [],
+		...runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : [],
+		`event sequence: ${runtime.lastEventSeq ?? 0}`,
+		`url: ${identity.url}`
 	].join("\n");
 }
 registerPageControl({
@@ -8692,38 +8706,38 @@ registerPageControl({
 	group: "page"
 });
 function runtimeLines() {
-	return DELIVERY.runtime ? [`runtime: ${DELIVERY.runtime}`] : [];
+	const { delivery } = pageIdentity();
+	return delivery.runtime ? [`runtime: ${delivery.runtime}`] : [];
 }
-function layerIdentity(state) {
-	const producer = state.layer.producer ?? {};
-	const fingerprint = state.layer.fingerprint;
+function layerIdentity(identity) {
+	const producer = identity.layer.producer ?? {};
+	const fingerprint = identity.layer.fingerprint;
 	if (producer.commit) return shortCommit(producer);
 	return fingerprint ? `sha256:${fingerprint.replace(/^sha256:/, "").slice(0, 12)}` : null;
 }
 const layerShown = () => {
-	const state = runtime.state;
-	return Boolean(state && !state.preview && layerIdentity(state));
+	const identity = pageIdentity();
+	return Boolean(identity.layer && !identity.preview && layerIdentity(identity));
 };
 function layerNamed() {
-	const state = runtime.state;
-	const age = payloadAge(state.layer.producer ?? {});
-	return `Leaf ${layerIdentity(state)}${age ? ` · ${age}` : ""}${servedBy(state)}`;
+	const identity = pageIdentity();
+	const age = payloadAge(identity.layer.producer ?? {});
+	return `Leaf ${layerIdentity(identity)}${age ? ` · ${age}` : ""}`;
 }
 function layerDiagnostics() {
-	const state = runtime.state;
-	const producer = state.layer.producer ?? {};
-	const fingerprint = state.layer.fingerprint;
+	const identity = pageIdentity();
+	const producer = identity.layer.producer ?? {};
+	const fingerprint = identity.layer.fingerprint;
 	return [
 		"Leaf layer",
 		...producer.commit ? [`commit: ${producer.commit}`] : [],
 		...producer.dirty !== void 0 ? [`dirty: ${producer.dirty}`] : [],
 		...payloadDateLines(producer),
-		...state.leaf ? otherPayloadLines("served by", state.leaf) : [],
 		...fingerprint ? [`fingerprint: ${fingerprint}`] : [],
-		`generation: ${state.layer.generation}`,
+		`generation: ${identity.layer.generation}`,
 		...runtimeLines(),
-		...state.active ? [`revision: ${state.active.revision}`] : [],
-		`url: ${pageUrl()}`
+		...runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : [],
+		`url: ${identity.url}`
 	].join("\n");
 }
 registerPageControl({
@@ -9034,6 +9048,7 @@ function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations
 					title: "Put the focused thread at the bottom of its list"
 				}],
 				title: "thread top / bottom",
+				travels: true,
 				when: () => atGoToTargets() && Boolean(focusedThreadTarget()),
 				run: (binding) => {
 					const thread = focusedThreadTarget();
@@ -9061,6 +9076,7 @@ function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations
 				sequenceSteps: () => [...targetFilter ? [targetFilter.key] : [], ...hints.prefix() ? [...hints.prefix(), "…"] : ["letters"]],
 				completeSequenceSteps: () => [...targetFilter ? [targetFilter.key] : [], "letters"],
 				title: "visible target",
+				travels: true,
 				when: () => goToActive ? true : targetCapability(),
 				run: hints.type
 			},
@@ -9087,7 +9103,7 @@ function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations
 			...destinations.map((destination) => ({
 				...destination,
 				touch: false,
-				when: () => atGoToTargets() && live(destination),
+				when: () => atGoToTargets() && live$1(destination),
 				run: (binding) => {
 					setGoToSequence(false);
 					if (destination.run) destination.run(binding);
@@ -9108,6 +9124,7 @@ function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations
 					title: "Go to the bottom of the page"
 				}],
 				title: "top / bottom",
+				travels: true,
 				when: atGoToTargets,
 				run: (binding) => {
 					setGoToSequence(false);
@@ -9330,7 +9347,7 @@ function place(press) {
 		press: (held) => {
 			const current = presses.get(press.id);
 			if (current.row.retainCurrentLocation && held) returnPlace(held);
-			if (live(current.row)) invokePress(current);
+			if (live$1(current.row)) invokePress(current);
 		}
 	});
 	return press.id;
@@ -9345,15 +9362,16 @@ function placeStanceExit() {
 		rank: PAGE_CONTROL_RANK.exit,
 		exit: true,
 		label: () => stance?.label ?? "",
+		action: () => stance?.action ?? "close",
 		group: "page",
 		offered: () => Boolean(stance),
 		disabled: () => stance?.disabled ?? true,
 		press: () => {
-			if (stance && live(stance.press.row)) invokePress(stance.press);
+			if (stance && live$1(stance.press.row)) invokePress(stance.press);
 		}
 	});
 }
-const sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled;
+const sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled && a?.action === b?.action;
 const same = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled && a?.shortcut.join(" ") === b?.shortcut.join(" ");
 function paintTouchControls() {
 	const shown = new Set(touchPresses().map(place));
@@ -9363,7 +9381,8 @@ function paintTouchControls() {
 	const title = held && titleOf(held.exit);
 	const nextStance = held ? {
 		label: title[0].toUpperCase() + title.slice(1),
-		disabled: !live(held.exit),
+		action: held.exit.action ?? "close",
+		disabled: !live$1(held.exit),
 		press: {
 			id: held.exit.id,
 			row: held.exit,
@@ -9377,7 +9396,7 @@ function paintTouchControls() {
 		const next = shown.has(id) ? {
 			label: word(press.words),
 			shortcut: binding ? [spell(binding)] : [],
-			disabled: !live(press.row)
+			disabled: !live$1(press.row)
 		} : void 0;
 		if (same(next, faces.get(id))) continue;
 		changed = true;
@@ -9385,6 +9404,30 @@ function paintTouchControls() {
 		else faces.delete(id);
 	}
 	if (changed) pageControlsChanged();
+}
+
+//#endregion
+//#region runtime/keyboard/close-requests.js
+let watcher = null;
+let under = [];
+watchLayerChanges(() => repaint());
+function paintCloseRequests() {
+	if (!("CloseWatcher" in window)) return;
+	const step = escapeTakesAStep();
+	const top = nativeLayers().at(-1);
+	const coveredOver = Boolean(watcher) && top !== void 0 && !under.includes(top);
+	if (step === Boolean(watcher) && !coveredOver) return;
+	watcher?.destroy();
+	watcher = null;
+	if (!step) return;
+	const held = new window.CloseWatcher();
+	held.addEventListener("close", () => {
+		if (watcher === held) watcher = null;
+		answerCloseRequest();
+		repaint();
+	});
+	watcher = held;
+	under = nativeLayers();
 }
 
 //#endregion
@@ -9466,7 +9509,6 @@ let commandRoutesAtOpen = {
 	on: /* @__PURE__ */ new Map(),
 	off: /* @__PURE__ */ new Map()
 };
-let commandReferenceIsOpen = false;
 let commandReferenceInvoke = null;
 let commandReferenceCatalog = Object.freeze({
 	total: 0,
@@ -9510,7 +9552,7 @@ function captureCommandReferenceCatalog() {
 		const inScope = userIn(scope) || scope.liveInCommandReference;
 		return {
 			scope,
-			rows: scope.rows.filter(({ row }) => !inScope || (row.commandReferenceWhen ? row.commandReferenceWhen() : live(row))).map(({ row, sequence: prefix }) => {
+			rows: scope.rows.filter(({ row }) => !inScope || (row.commandReferenceWhen ? row.commandReferenceWhen() : live$1(row))).map(({ row, sequence: prefix }) => {
 				const sequence = [...word(prefix) ?? []];
 				const declared = [...allBindings(row)];
 				const shownBindings = declared.filter(bindingEnabled);
@@ -9740,33 +9782,34 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
         .textContent=${entry.title}
       ></button>` : entry.title;
 	const scope = promoted ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>` : nothing;
-	const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
-	const actionCell = html`<td role="gridcell">${actionBody}</td>`;
+	const actionCell = html`<div role="gridcell" class="lf-command-reference-action">${action}${scope}</div>`;
+	const descriptionCell = entry.description ? html`<div role="gridcell" id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</div>` : nothing;
 	return html`
-    <tr
+    <div
       id=${entry.rowId}
       role="row"
-      class=${entry.sequenceControl ? "lf-sequence-command" : ""}
+      class=${`lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`}
       data-lf-command=${entry.id}
       aria-selected=${entry.actionable ? String(selected) : nothing}
       ?hidden=${!shown}
     >
-      <td role="gridcell">
+      ${actionCell}
+      <div role="gridcell" class="lf-command-reference-key">
         ${entry.keySequence ? keySequenceTemplate(entry.keySequence, {
 		id: entry.keyId,
 		label: entry.keyLabel
 	}) : nothing}
-      </td>
-      ${actionCell}
-    </tr>
+      </div>
+      ${descriptionCell}
+    </div>
   `;
 }
 const headingRow = (id, title, hidden = false) => html`
-  <tbody ?hidden=${hidden}>
-    <tr role="row">
-      <th role="gridcell" colspan="2"><h3 class="lf-label" id=${id}>${title}</h3></th>
-    </tr>
-  </tbody>
+  <div role="rowgroup" ?hidden=${hidden}>
+    <div role="row">
+      <div role="gridcell"><h3 class="lf-label" id=${id}>${title}</h3></div>
+    </div>
+  </div>
 `;
 const commandReferenceItems = () => {
 	const visible = [];
@@ -9818,14 +9861,14 @@ const commandReferenceItems = () => {
 };
 function commandReferenceItemTemplate(item) {
 	if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
-	return html`<tbody
+	return html`<div
     role="rowgroup"
     aria-labelledby=${item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId}
     class=${item.promoted ? "lf-command-reference-binding-matches" : nothing}
     ?hidden=${item.hidden}
   >
     ${commandEntryTemplate(item.entry, item.promoted, !item.hidden)}
-  </tbody>`;
+  </div>`;
 }
 function commandReferenceTemplate() {
 	const items = commandReferenceItems();
@@ -9869,13 +9912,7 @@ function commandReferenceTemplate() {
       role="grid"
       aria-label="Command reference"
     >
-      <table role="presentation">
-        <colgroup>
-          <col class="lf-command-reference-key-column" />
-          <col />
-        </colgroup>
-        ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
-      </table>
+      ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
         <div class="lf-command-reference-empty" role="gridcell">
           No matching commands
@@ -9913,7 +9950,7 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
 });
 let commandReferenceReturn = null;
 function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
-	const fresh = open && !commandReferenceIsOpen;
+	const fresh = open && !commandReferenceDialog.open;
 	const preserveSelection = fresh && Boolean(pageSelection());
 	const handingBack = !open && restoreFocus && currentLocationIn(commandReferenceDialog);
 	const restore = handingBack ? commandReferenceReturn : null;
@@ -9933,7 +9970,6 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
 			})
 		};
 	}
-	commandReferenceIsOpen = open;
 	if (fresh) {
 		commandReferenceCatalog = captureCommandReferenceCatalog();
 		commandReferenceState = {
@@ -9955,7 +9991,6 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
 			body: results
 		});
 	}
-	commandReferenceDialog.classList.toggle("open", open);
 	if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
 	if (!open) {
 		stopReferenceReading?.();
@@ -9988,7 +10023,7 @@ function moveCommandReferenceSelection(dir) {
 	presentCommandReference();
 	const next = commandButton(nextId);
 	if (focusedId) focusDestination(next, "move");
-	scrollIntoView(next.closest("tr"), { block: "nearest" });
+	scrollIntoView(next.closest("[role=\"row\"]"), { block: "nearest" });
 	beginWalk("shortcut-command", "Command", () => {
 		const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
 		return listWalkPosition(commandReferenceView.visibleCommands.map(({ entry }) => entry.id), current);
@@ -10002,14 +10037,13 @@ function activateSelectedCommand() {
 	activateCommandEntry(record.entry);
 	return true;
 }
-const commandReferenceOpen = () => commandReferenceIsOpen;
 const openCommandReference = (invokeCommand, returnTo = null) => showCommandReference(true, true, invokeCommand, returnTo);
 const closeCommandReference = (restoreFocus = true) => showCommandReference(false, restoreFocus, null, null);
 pageScope("command reference", {
 	title: "In the command reference",
 	escape: "inner",
 	root: () => commandReferenceDialog,
-	at: () => commandReferenceOpen(),
+	at: () => commandReferenceDialog.open,
 	claims: EVERYTHING,
 	rows: [
 		{
@@ -10018,6 +10052,7 @@ pageScope("command reference", {
 			keys: ["ArrowDown"],
 			title: "choose next",
 			repeat: true,
+			travels: true,
 			runFromCommandReference: false,
 			commandReferenceWhen: () => true,
 			when: () => commandReferenceCommandActive(),
@@ -10029,6 +10064,7 @@ pageScope("command reference", {
 			keys: ["ArrowUp"],
 			title: "choose previous",
 			repeat: true,
+			travels: true,
 			runFromCommandReference: false,
 			commandReferenceWhen: () => true,
 			when: () => commandReferenceCommandActive(),
@@ -10087,13 +10123,13 @@ registerPageControl({
 //#endregion
 //#region runtime/navigation.js
 const openThreads = (placedAt) => inPageOrder(threadList().filter((thread) => !thread.resolved), placedAt).map((thread) => thread.id);
-const currentThread = (threads, threadHere) => {
-	const id = drawnThreadId(threadHere());
+const currentThread = (threads, origin) => {
+	const id = origin?.kind === "current-location" ? drawnThreadId(threadIn(origin.node)) : null;
 	return threads.includes(id) ? id : null;
 };
-const threadPosition = (threadHere, placedAt) => {
+const threadPosition = (placedAt) => {
 	const threads = openThreads(placedAt);
-	return listWalkPosition(threads, currentThread(threads, threadHere));
+	return listWalkPosition(threads, currentThread(threads, currentLocationOrigin()));
 };
 async function arriveAtThread(id, { openPageThread }, intent) {
 	return Boolean(await openPageThread(id, {
@@ -10102,17 +10138,17 @@ async function arriveAtThread(id, { openPageThread }, intent) {
 	}));
 }
 function stepThread(dir, destinations, placedAt) {
-	const { threadHere, threadAtCurrentLocation, threadPlace } = destinations;
+	const { threadAtCurrentLocation, threadPlace } = destinations;
 	const threads = openThreads(placedAt);
 	const origin = walkOrigin();
-	const current = currentThread(threads, threadHere);
-	const targetId = !current && origin.kind === "current-location" && threadAtCurrentLocation();
+	const current = currentThread(threads, origin);
+	const targetId = !current && origin.kind !== "enter" && threadAtCurrentLocation(origin.node);
 	const atTarget = targetId && threads.includes(targetId) ? targetId : null;
 	const next = current ? cycledRow(threads, current, dir) : atTarget ?? stepFrom(threads, origin, dir, threadPlace);
 	if (!next) return;
 	const ready = arriveAtThread(next, destinations, retainUserIntent()).then((arrived) => {
 		if (!arrived) return;
-		announce(beginWalk("thread", "Thread", () => threadPosition(threadHere, placedAt)) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length));
+		announce(beginWalk("thread", "Thread", () => threadPosition(placedAt)) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length));
 	});
 	ready.catch(() => {});
 	return ready;
@@ -10143,9 +10179,9 @@ const readingStep = (box, clips) => {
 const stepStart = () => {
 	const region = userReadingRegion();
 	const at = focused();
-	if (region && under(at, region.host) && !under(at, region.body)) {
+	if (region && under$1(at, region.host) && !under$1(at, region.body)) {
 		const containing = scrollersOf(at).next().value;
-		if (containing && under(containing, region.host) && containing.scrollHeight > containing.clientHeight && readingStep(containing, /* @__PURE__ */ new Map())) return containing;
+		if (containing && under$1(containing, region.host) && containing.scrollHeight > containing.clientHeight && readingStep(containing, /* @__PURE__ */ new Map())) return containing;
 	}
 	return effectiveScroller(region);
 };
@@ -10214,15 +10250,15 @@ function stopGlide(box) {
 	cancelRender(glide.raf);
 	setGlide(null);
 }
-function createNavigation({ threadDestinations, placedAt, heldPlace }) {
+function createNavigation({ threadDestinations, placedAt }) {
 	const currentItem = () => {
-		const at = heldPlace()?.focus?.deref() ?? focused();
+		const at = heldPagePlace() ?? focused();
 		const item = heldObligation(at);
-		if (item && under(at, item)) return item;
+		if (item && under$1(at, item)) return item;
 		const thread = closestAcross(at, THREAD);
 		if (thread) return thread;
 		const region = readingRegionFor(at) ?? userReadingRegion();
-		const inReading = (node) => !region || under(node, region.body);
+		const inReading = (node) => !region || under$1(node, region.body);
 		const place = placeOf(at);
 		const focusedItem = blockAt(place) ?? place;
 		if (focusedItem && inReading(focusedItem) && place !== region?.host && place !== region?.body) return focusedItem;
@@ -10239,6 +10275,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 		touch: "Align current item at top",
 		menu: "keys",
 		retainCurrentLocation: true,
+		travels: true,
 		run: () => {
 			const item = currentItem();
 			if (!item) return;
@@ -10265,6 +10302,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 		title: "threads",
 		when: () => openThreads(placedAt).length > 0,
 		repeat: true,
+		travels: true,
 		run: (binding) => walkThreads(binding === "t" ? 1 : -1)
 	});
 	document.addEventListener("lf-sample-step", (event) => {
@@ -10286,6 +10324,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 		}],
 		title: "page down / up",
 		repeat: true,
+		travels: true,
 		run: (binding) => move(binding === "d" ? .6 : -.6, "page")
 	});
 	pageCommand({
@@ -10303,6 +10342,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 		}],
 		title: "scroll down / up",
 		repeat: true,
+		travels: true,
 		run: (binding) => move(binding === "j" ? 60 : -60, "pixel")
 	});
 	const arriveAtThreadById = (id, message = null) => message ? threadDestinations.openPageThread(message, {
@@ -10319,582 +10359,613 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 
 //#endregion
 //#region leaf.js
-await document.documentElement.lfSample?.ready;
-initializeServedDocument();
-keepPageRulesOffLayer();
-holdArrivingBounds();
-const validationEntry = document.querySelector("script[data-lf-entry]");
-if (validationEntry) {
-	validationEntry.lfReadiness = pageReadiness;
-	validationEntry.lfRenderingState = renderingState;
-	validationEntry.lfObserveQueuedWork = observeQueuedWork;
-	validationEntry.lfObserveWidgetPreparations = observePreparations;
-	validationEntry.lfNativeLayers = nativeLayers;
-}
-const recoverComposer = retainUserIntent({ since: 0 });
-const overlaySelected = annotationMode === "overlay";
-const annotationRenderer = overlaySelected ? await import("./runtime/bundle-annotation-overlay.js") : null;
-if (validationEntry && annotationRenderer) validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
-annotationRenderer?.mountAnnotationControls();
-let app;
-let layout;
-let pageMapDialog;
-let items;
-let responseSurface;
-let drawing;
-let regionCapture;
-const replaceDrawing = (anchor, drawn) => {
-	responseSurface.setDraftDrawing(anchor, drawn);
-	drawingPaint.paint();
-};
-const drawingEdits = {
-	target: (anchor) => drawing.target(anchor),
-	undoStroke: (anchor) => drawing.undoStroke(anchor),
-	remove: (anchor) => drawing.removeDrawing(anchor),
-	replace: replaceDrawing
-};
-let aim;
-let targets;
-let reactions;
-let pageGeometry;
-let goToSequence;
-let floatingPanel;
-const navigation = createNavigation({
-	placedAt: (id) => anchorPlacement.placedAt(id),
-	heldPlace: () => floatingPanel?.heldPlace() ?? null,
-	threadDestinations: {
-		openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
-		scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
+async function boot() {
+	await document.documentElement.lfSample?.ready;
+	initializeServedDocument();
+	holdArrivingBounds();
+	const validationEntry = document.querySelector("script[data-lf-entry]");
+	if (validationEntry) {
+		validationEntry.lfReadiness = pageReadiness;
+		validationEntry.lfRenderingState = renderingState;
+		validationEntry.lfObserveQueuedWork = observeQueuedWork;
+		validationEntry.lfObserveWidgetPreparations = observePreparations;
+		validationEntry.lfNativeLayers = nativeLayers;
+	}
+	const recoverComposer = retainUserIntent({ since: 0 });
+	const arrivalUrl = new URL(location.href);
+	const threadArrival = retainUserIntent({ since: 0 });
+	const overlaySelected = annotationMode === "overlay";
+	const annotationRenderer = overlaySelected ? await import("./runtime/bundle-annotation-overlay.js") : null;
+	if (validationEntry && annotationRenderer) validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
+	annotationRenderer?.mountAnnotationControls();
+	let app;
+	let layout;
+	let pageMapDialog;
+	let items;
+	let responseSurface;
+	let drawing;
+	let regionCapture;
+	const replaceDrawing = (anchor, drawn) => {
+		responseSurface.setDraftDrawing(anchor, drawn);
+		drawingPaint.paint();
+	};
+	const drawingEdits = {
+		target: (anchor) => drawing.target(anchor),
+		undoStroke: (anchor) => drawing.undoStroke(anchor),
+		remove: (anchor) => drawing.removeDrawing(anchor),
+		replace: replaceDrawing
+	};
+	let aim;
+	let targets;
+	let reactions;
+	let pageGeometry;
+	let goToSequence;
+	let floatingPanel;
+	const navigation = createNavigation({
+		placedAt: (id) => anchorPlacement.placedAt(id),
+		threadDestinations: {
+			openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
+			scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
+			threadAtCurrentLocation: (node) => app.threadDestinations.threadAtCurrentLocation(node),
+			threadPlace: (...args) => app.threadDestinations.threadPlace(...args)
+		}
+	});
+	const hintChrome = { barriers: windowChromeBoxes };
+	const anchorPlacement = createAnchorPlacement();
+	const visualMarkPaint = annotationRenderer?.createVisualMarkPaint();
+	const anchorPaint = annotationRenderer?.createAnchorPaint({
+		targetPaint: visualMarkPaint,
+		pointer: pointerAt,
+		currentLocationThreadId,
+		currentLocationObligation: () => items.currentLocationIn(),
+		rowThread: () => floatingPanel?.hoveredThread() ?? null,
+		threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
+		marginThread: () => app?.overlay?.pointedThread() ?? null
+	});
+	const drawingPaint = createDrawingInk({ drawings: () => [...annotationRenderer?.postedDrawings(allThreads(), anchorPlacement) ?? [], ...drawing.drawings()] });
+	const designMode = createDesignMode({
+		pageGeometry: {
+			refreshAim: () => pageGeometry.refreshAim(),
+			pageShifted: () => pageGeometry.pageShifted()
+		},
+		syncGeneral: () => generalComment.sync(),
+		composer: {
+			showFab: (...args) => responseSurface.showFab(...args),
+			openComposer: (...args) => responseSurface.openComposer(...args)
+		},
+		closePreview: (...args) => app.overlay?.closePreview(...args),
+		marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
+		closeDrawMode: () => drawing.setDrawMode(false, { spoken: false }),
+		closeTargetPicker: () => targets.closeTargetPicker(),
+		closeReactionMode: () => reactions.setReact(false),
+		announce,
+		repaint
+	});
+	aim = createAim({
+		marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
+		refreshAim: () => pageGeometry.refreshAim(),
+		commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
+		drawModeActive: () => drawing.drawModeActive(),
+		designMode,
+		targetPicker: {
+			active: () => targets.choosing(),
+			choose: (...args) => targets.chooseTarget(...args)
+		}
+	});
+	pageGeometry = createPageGeometry({
+		refreshAnchorHover: anchorPaint?.refreshHover,
+		aim: {
+			isOn: aim.aimIsOn,
+			target: aim.aimedTarget
+		},
+		pointer: pointerAt,
+		designMode,
+		targetPaint: target_paint_exports,
+		visualMarkPaint,
+		shiftDrawings: drawingPaint.shifted,
+		queueLegend: designMode.queueLegend,
+		legendScrolled: designMode.legendScrolled,
+		activeActionAnchor: () => responseSurface.fabAnchorAt(),
+		refreshActionBar: () => responseSurface.refreshFab()
+	});
+	const focusForNavigation = (node, cause, options) => app?.overlay?.focusForNavigation ? app.overlay.focusForNavigation(node, cause, options) : focusDestination(node, cause, options);
+	const anchorTravel = createAnchorTravel({
+		anchors: anchorPlacement,
+		refreshThread: () => app.refreshThread(),
+		focusForNavigation,
+		threadFocusTarget: (id, options) => app.threadDestinations.threadFocusTarget(id, options),
+		clearFor: (destination, landed) => floatingPanel?.clearFor(destination, landed),
+		announce
+	});
+	const landing = createThreadLanding();
+	declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere());
+	const anchorControls = createAnchorControls({
+		commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
+		openThread: (...args) => app.threadDestinations.openPageThread(...args),
+		withdrawReaction: (...args) => app.withdraw(...args),
+		labelAnchor: anchorLabel,
+		invalidateThread: () => app.refreshThread(),
+		invalidatePageGeometry: pageGeometry.invalidate,
+		messageReferenceRoot: chromeRoot,
+		draftQuote: composerQuote,
+		focused,
+		paintKeys
+	});
+	const version = createVersionController({
+		compositionInput: fabInput,
+		openThread: (id, options) => app.threadDestinations.openPageThread(id, {
+			...options,
+			travel: false
+		}),
+		refreshThread: () => app.refreshThread(),
+		midComposition: (...args) => app.midComposition(...args),
+		hasPending: () => app.hasPending(),
+		readAndApply: (...args) => app.readAndApply(...args),
+		syncLayout: () => layout.syncLayout(),
+		captureRetainedCurrentLocation: () => ({
+			margin: app?.overlay?.captureCurrentLocation() ?? null,
+			panel: floatingPanel.captureCurrentLocation()
+		}),
+		restoreRetainedCurrentLocation: ({ margin, panel }) => {
+			const panelShown = floatingPanel.restoreCurrentLocation(panel);
+			return (app?.overlay?.restoreCurrentLocation(margin) ?? false) || panelShown;
+		},
+		captureObligationCurrentLocation: () => items.captureCurrentLocation(),
+		restoreObligationCurrentLocation: (currentLocation) => items.restoreCurrentLocation(currentLocation),
+		versions: { press: () => floatingPanel.doors.versions.press() }
+	});
+	const inputs = createCompositionInputs({
+		uploadMedia,
+		inputHint: () => responseSurface.commentHint()
+	});
+	app = mountApplication({
+		arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
+		nextObligationWithin: (options) => queueWalk.nextWithin(options),
+		threadAvailable: !offlineInteractive,
+		createEngagement,
+		targetPickerOpen: () => targets.targetPickerOpen(),
+		wireInput: inputs.wireInput,
+		anchorPlacement,
+		anchorPaint,
+		anchorControls,
+		drawingPaint,
+		pageGeometry,
+		anchorTravel,
+		readThreadDraft: () => ({
+			open: composerOpen,
+			anchor: pendingAnchor,
+			about: pendingAbout,
+			drawing: pendingDrawing
+		}),
+		activeActionAnchor: () => responseSurface.fabAnchorAt(),
+		compositionSurface: {
+			active: () => composerOpen && responseSurface?.fabAnchorAt() ? { anchor: responseSurface.fabAnchorAt() } : null,
+			node: () => fabBar,
+			open: (...args) => responseSurface.commentOnTarget(...args),
+			outlet: () => responseSurface?.fabInlineOutlet() ?? null,
+			seat: (...args) => responseSurface.seatFab(...args),
+			restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
+			finishPlacement: () => responseSurface?.finishPlacement()
+		},
+		landInThread: (...args) => landing.landInThread(...args),
+		landSent: (...args) => landing.landSent(...args),
+		registerReactSurface: (...args) => reactions.registerReactSurface(...args),
+		sendReaction,
+		createMarginProjection: annotationRenderer?.createMarginProjection,
+		annotationCommands: {
+			designModeActive: designMode.active,
+			pointerModeActive: () => designMode.active() || drawing.drawModeActive() || regionCapture.active(),
+			leavePageMap: (...args) => pageMapDialog.leavePageMap(...args),
+			openPageMap: (...args) => pageMapDialog.openPageMap(...args),
+			pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
+			renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
+			scrollThreadIntoView,
+			openInPanel: (id) => floatingPanel?.openThread(id),
+			goToObligation: (...args) => items.goToObligation(...args)
+		},
+		state: {
+			prepareActivation: (state) => version.prepareActivation(state),
+			acceptData,
+			notifyDataSubscribers
+		}
+	});
+	if (offlineInteractive) applicationState.setHostAvailable(false);
+	declareReading(landingPlace);
+	declareCurrentLocation({ pageState: () => Boolean(responseSurface.fabAnchorAt() || designMode.active() || drawing.drawModeActive() || app.overlay?.optionsRung()) });
+	pageMapDialog = createPageMapDialog({
+		inventory: app.annotations,
+		activeInAnnotations: app.overlay?.pageMapActive,
+		releaseAnnotations: app.overlay?.releaseForMap,
+		annotationFocus: app.overlay?.mapFocusTarget
+	});
+	items = createObligationView({
+		focusForNavigation,
+		presentedControl: app.overlay?.presentedControl,
+		prepareNavigationStep: anchorTravel.prepareNavigationStep,
+		arrive: anchorTravel.arrive,
+		openPageThread: app.threadDestinations.openPageThread,
+		announce,
+		repaint
+	});
+	const queueWalk = createQueueWalk({
+		actions: app.queueActions,
+		arriveAtRecord: items.arriveAtRecord,
+		arriveAtThread: navigation.arriveAtThread,
+		threadPlace: (id) => app.threadDestinations.threadPlace(id),
+		prepareNavigationStep: anchorTravel.prepareNavigationStep,
+		arrive: anchorTravel.arrive,
+		readableDestination: anchorTravel.readableDestination,
+		announce
+	});
+	const commandHints = createCommandHints({ presentedControl: (control) => app.overlay?.presentedControl(control) ?? control });
+	const currentTarget = createCurrentTarget({ currentLocationIn: items.currentLocationIn });
+	floatingPanel = createFloatingPanel({
+		wireInput: inputs.wireInput,
+		observeFeedback: app.read.observeFeedback,
+		firstUnread: app.read.firstUnread,
+		afterReadingPass: app.read.afterPass,
+		threadActions: app.threadActions,
+		registerChromeThreadPresentation: app.registerChromeThreadPresentation,
+		obligations: { choicesOf: items.choicesOf },
+		queueActions: app.queueActions,
+		arrivesAt: (item) => queueWalk.arrivesAt(item),
+		onMe: queueWalk.onMe,
+		withdraw: app.withdraw,
+		settlement: app.settlement,
+		placedAt: anchorPlacement.placedAt,
+		openThreadSubject: (id, options) => app.threadDestinations.openThreadSubject(id, options),
+		atLastResort: (key) => app.threadDestinations.atLastResort(key),
+		annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false
+	});
+	const generalComment = floatingPanel.pageComment;
+	const passageSelection = createPassageSelection({ restore: anchorTravel.restoreSelection });
+	responseSurface = createResponseSurface({
+		rememberSelection: passageSelection.remember,
+		createPlacement: annotationRenderer?.createFloatingResponsePlacement,
+		landIn: landing.landIn,
 		threadHere: () => app.threadDestinations.threadHere(),
 		threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
-		threadPlace: (...args) => app.threadDestinations.threadPlace(...args)
-	}
-});
-const hintChrome = { barriers: windowChromeBoxes };
-const anchorPlacement = createAnchorPlacement();
-const visualMarkPaint = annotationRenderer?.createVisualMarkPaint();
-const anchorPaint = annotationRenderer?.createAnchorPaint({
-	targetPaint: visualMarkPaint,
-	pointer: pointerAt,
-	currentLocationThreadId,
-	rowThread: () => floatingPanel?.hoveredThread() ?? null,
-	threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
-	marginThread: () => app?.overlay?.pointedThread() ?? null
-});
-const drawingPaint = createDrawingInk({ drawings: () => [...annotationRenderer?.postedDrawings(allThreads(), anchorPlacement) ?? [], ...drawing.drawings()] });
-const designMode = createDesignMode({
-	pageGeometry: {
-		refreshAim: () => pageGeometry.refreshAim(),
-		pageShifted: () => pageGeometry.pageShifted()
-	},
-	syncGeneral: () => generalComment.sync(),
-	composer: {
-		showFab: (...args) => responseSurface.showFab(...args),
-		openComposer: (...args) => responseSurface.openComposer(...args)
-	},
-	closePreview: (...args) => app.overlay?.closePreview(...args),
-	marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
-	closeDrawMode: () => drawing.setDrawMode(false, { spoken: false }),
-	closeTargetPicker: () => targets.closeTargetPicker(),
-	closeReactionMode: () => reactions.setReact(false),
-	announce,
-	repaint
-});
-aim = createAim({
-	marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
-	refreshAim: () => pageGeometry.refreshAim(),
-	commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
-	drawModeActive: () => drawing.drawModeActive(),
-	designMode,
-	targetPicker: {
-		active: () => targets.choosing(),
-		choose: (...args) => targets.chooseTarget(...args)
-	}
-});
-pageGeometry = createPageGeometry({
-	refreshAnchorHover: anchorPaint?.refreshHover,
-	aim: {
-		isOn: aim.aimIsOn,
-		target: aim.aimedTarget
-	},
-	pointer: pointerAt,
-	designMode,
-	targetPaint: target_paint_exports,
-	visualMarkPaint,
-	shiftDrawings: drawingPaint.shifted,
-	queueLegend: designMode.queueLegend,
-	legendScrolled: designMode.legendScrolled,
-	activeActionAnchor: () => responseSurface.fabAnchorAt(),
-	refreshActionBar: () => responseSurface.refreshFab()
-});
-const focusForNavigation = (node, cause, options) => app?.overlay?.focusForNavigation ? app.overlay.focusForNavigation(node, cause, options) : focusDestination(node, cause, options);
-const anchorTravel = createAnchorTravel({
-	anchors: anchorPlacement,
-	refreshThread: () => app.refreshThread(),
-	focusForNavigation,
-	threadFocusTarget: (id, options) => app.threadDestinations.threadFocusTarget(id, options),
-	announce
-});
-const landing = createThreadLanding();
-declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere());
-const anchorControls = createAnchorControls({
-	commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
-	openThread: (...args) => app.threadDestinations.openPageThread(...args),
-	withdrawReaction: (...args) => app.withdraw(...args),
-	labelAnchor: anchorLabel,
-	invalidateThread: () => app.refreshThread(),
-	invalidatePageGeometry: pageGeometry.invalidate,
-	messageReferenceRoot: chromeRoot,
-	draftQuote: composerQuote,
-	focused,
-	paintKeys
-});
-const version = createVersionController({
-	compositionInput: fabInput,
-	openThread: (id, options) => app.threadDestinations.openPageThread(id, {
-		...options,
-		travel: false
-	}),
-	refreshThread: () => app.refreshThread(),
-	midComposition: (...args) => app.midComposition(...args),
-	hasPending: () => app.hasPending(),
-	readAndApply: (...args) => app.readAndApply(...args),
-	syncLayout: () => layout.syncLayout(),
-	captureRetainedCurrentLocation: () => ({
-		margin: app?.overlay?.captureCurrentLocation() ?? null,
-		panel: floatingPanel.captureCurrentLocation()
-	}),
-	restoreRetainedCurrentLocation: ({ margin, panel }) => {
-		const panelShown = floatingPanel.restoreCurrentLocation(panel);
-		return (app?.overlay?.restoreCurrentLocation(margin) ?? false) || panelShown;
-	},
-	captureObligationCurrentLocation: () => items.captureCurrentLocation(),
-	restoreObligationCurrentLocation: (currentLocation) => items.restoreCurrentLocation(currentLocation),
-	versions: { press: () => floatingPanel.doors.versions.press() }
-});
-const inputs = createCompositionInputs({
-	uploadMedia,
-	inputHint: () => responseSurface.commentHint()
-});
-app = mountApplication({
-	arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
-	nextObligationWithin: (options) => queueWalk.nextWithin(options),
-	threadAvailable: !offlineInteractive,
-	createEngagement,
-	targetPickerOpen: () => targets.targetPickerOpen(),
-	wireInput: inputs.wireInput,
-	anchorPlacement,
-	anchorPaint,
-	anchorControls,
-	drawingPaint,
-	pageGeometry,
-	anchorTravel,
-	readThreadDraft: () => ({
-		open: composerOpen,
-		anchor: pendingAnchor,
-		about: pendingAbout,
-		drawing: pendingDrawing
-	}),
-	activeActionAnchor: () => responseSurface.fabAnchorAt(),
-	compositionSurface: {
-		active: () => composerOpen && responseSurface?.fabAnchorAt() ? { anchor: responseSurface.fabAnchorAt() } : null,
-		node: () => fabBar,
-		open: (...args) => responseSurface.commentOnTarget(...args),
-		outlet: () => responseSurface?.fabInlineOutlet() ?? null,
-		seat: (...args) => responseSurface.seatFab(...args),
-		restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
-		finishPlacement: () => responseSurface?.finishPlacement()
-	},
-	landInThread: (...args) => landing.landInThread(...args),
-	landSent: (...args) => landing.landSent(...args),
-	registerReactSurface: (...args) => reactions.registerReactSurface(...args),
-	sendReaction,
-	createMarginProjection: annotationRenderer?.createMarginProjection,
-	annotationCommands: {
+		replyThreadAtCurrentLocation: () => app.threadDestinations.replyThreadAtCurrentLocation(),
+		threadTarget: (id) => app.threadDestinations.threadTarget(id),
+		currentTarget,
+		markAt: anchorPaint?.markAt,
+		scrollToElement: anchorTravel.scrollToElement,
+		scrollToRange: anchorTravel.scrollToRange,
+		visualActionAnchor: anchorControls.visualActionAnchor,
 		designModeActive: designMode.active,
-		pointerModeActive: () => designMode.active() || drawing.drawModeActive() || regionCapture.active(),
-		leavePageMap: (...args) => pageMapDialog.leavePageMap(...args),
-		openPageMap: (...args) => pageMapDialog.openPageMap(...args),
-		pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
-		renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
-		scrollThreadIntoView,
-		goToObligation: (...args) => items.goToObligation(...args)
-	},
-	state: {
-		prepareActivation: (state) => version.prepareActivation(state),
-		acceptData,
-		notifyDataSubscribers
+		designTarget: designMode.target,
+		openOnDesign: designMode.open,
+		isReactArmed: () => reactions.isReactArmed(),
+		reactionContextContains: (...args) => reactions.reactionContextContains(...args),
+		reactionTokens,
+		setReact: (...args) => reactions.setReact(...args),
+		openPageThread: app.threadDestinations.openPageThread,
+		drawModeActive: () => drawing.drawModeActive(),
+		captureActive: () => regionCapture.active(),
+		refreshThread: app.refreshThread,
+		dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
+		pageComment: generalComment,
+		responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
+		revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
+		createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
+		landSent: landing.landSent,
+		wireInput: inputs.wireInput,
+		drawingEdits
+	});
+	reactions = createReactionController({
+		marginEntryChoices: app.overlay?.marginEntryChoices,
+		marginEntryContextContains: app.overlay?.marginEntryContextContains,
+		openMarginEntryOptions: app.overlay?.openMarginEntryOptions,
+		designModeActive: designMode.active,
+		hideComposer: responseSurface.hideComposer,
+		syncResponseOptions: responseSurface.syncResponseOptions,
+		fabAnchorAt: responseSurface.fabAnchorAt,
+		fabReturnPlaces: responseSurface.fabReturnPlaces,
+		fabTargetAt: responseSurface.fabTargetAt,
+		hasPageSelectionTarget: responseSurface.hasPageSelectionTarget,
+		showFab: responseSurface.showFab,
+		showFabOptions: responseSurface.showFabOptions,
+		updateFab: responseSurface.updateFab,
+		currentLocationThread,
+		currentTarget
+	});
+	targets = createTargetPicker({
+		scrollToRange: anchorTravel.scrollToRange,
+		hintChrome,
+		commentOnTarget: responseSurface.commentOnTarget,
+		updateFab: responseSurface.updateFab,
+		fabAnchorAt: responseSurface.fabAnchorAt,
+		pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
+		readTargets: () => designMode.active() ? designMode.targets() : aimTargets(),
+		armChanged: () => aim.armChanged(),
+		searchInPanel: floatingPanel.searchPage
+	});
+	drawing = createDrawingController({
+		anchors: {
+			aimTargetAt,
+			resolveAnchor
+		},
+		pageGeometry: { refreshAim: pageGeometry.refreshAim },
+		pointer: pointerAt,
+		visibleTargets: targets.visibleTargets,
+		anchoredDrawing: responseSurface.draftDrawing,
+		heldDrawings: responseSurface.heldDrawings,
+		watchHeldDrawings: responseSurface.watchHeldDrawings,
+		draftKey: responseSurface.draftKey,
+		openAnchoredDrawing: (anchor, drawing) => responseSurface.openComposer(anchor, "", {
+			carry: true,
+			drawing
+		}),
+		replaceDrawing,
+		setDesignMode: designMode.setActive,
+		closeTargetPicker: targets.closeTargetPicker,
+		closeReactionMode: () => reactions.setReact(false),
+		announce,
+		paintDrawings: drawingPaint.paint,
+		shiftDrawingPaint: drawingPaint.shifted,
+		repaint
+	});
+	regionCapture = createRegionCapture({
+		closeTargetPicker: targets.closeTargetPicker,
+		closeReactionMode: () => reactions.setReact(false),
+		parent: chromeForeground,
+		visibleTargets: targets.visibleTargets,
+		openComposerWithMedia: responseSurface.openComposerWithMedia
+	});
+	layout = createPageLayout({
+		scheduleThreadPreviewPosition: app.overlay?.scheduleThreadPreviewPosition,
+		syncReactLayout: reactions.syncReactLayout,
+		refreshFab: responseSurface.refreshFab,
+		pageShifted: pageGeometry.pageShifted,
+		repaintPage
+	});
+	if (document.documentElement.lfSample) {
+		let viewOperation;
+		onSampleNotice("cancel-view", () => viewOperation?.abort());
+		registerSampleCommand("thread", async ({ id, surface }) => {
+			viewOperation?.abort();
+			viewOperation = new AbortController();
+			const { signal } = viewOperation;
+			const retained = retainUserIntent({ available: () => !signal.aborted });
+			const intent = restrictUserIntent(retained, retained);
+			return afterPresentation(async () => {
+				if (!intent()) return false;
+				if (surface === "panel") {
+					let shown = null;
+					const show = () => shown = floatingPanel.showForSample({ thread: id });
+					if (!intent.handoff(show)) return false;
+					return await shown && intent.available();
+				}
+				return Boolean(await app.threadDestinations.openPageThread(id, {
+					focus: false,
+					travel: false,
+					intent
+				}));
+			});
+		});
 	}
-});
-if (offlineInteractive) applicationState.setHostAvailable(false);
-declareReading(landingPlace);
-declareCurrentLocation({ pageState: () => Boolean(responseSurface.fabAnchorAt() || designMode.active() || drawing.drawModeActive() || app.overlay?.optionsRung()) });
-pageMapDialog = createPageMapDialog({
-	inventory: app.annotations,
-	activeInAnnotations: app.overlay?.pageMapActive,
-	releaseAnnotations: app.overlay?.releaseForMap,
-	annotationFocus: app.overlay?.mapFocusTarget
-});
-items = createObligationView({
-	focusForNavigation,
-	presentedControl: app.overlay?.presentedControl,
-	prepareNavigationStep: anchorTravel.prepareNavigationStep,
-	arrive: anchorTravel.arrive,
-	openPageThread: app.threadDestinations.openPageThread,
-	announce,
-	repaint
-});
-const queueWalk = createQueueWalk({
-	actions: app.queueActions,
-	arriveAtRecord: items.arriveAtRecord,
-	arriveAtThread: navigation.arriveAtThread,
-	threadHere: () => app.threadDestinations.threadHere(),
-	threadPlace: (id) => app.threadDestinations.threadPlace(id),
-	prepareNavigationStep: anchorTravel.prepareNavigationStep,
-	arrive: anchorTravel.arrive,
-	readableDestination: anchorTravel.readableDestination,
-	announce
-});
-const commandHints = createCommandHints({ presentedControl: (control) => app.overlay?.presentedControl(control) ?? control });
-const currentTarget = createCurrentTarget({
-	isObligationControl: (node) => node?.matches?.(OBLIGATION_CONTROL),
-	currentLocationIn: items.currentLocationIn
-});
-floatingPanel = createFloatingPanel({
-	wireInput: inputs.wireInput,
-	observeFeedback: app.read.observeFeedback,
-	firstUnread: app.read.firstUnread,
-	afterReadingPass: app.read.afterPass,
-	threadActions: app.threadActions,
-	registerChromeThreadPresentation: app.registerChromeThreadPresentation,
-	obligations: { choicesOf: items.choicesOf },
-	queueActions: app.queueActions,
-	arrivesAt: (item) => queueWalk.arrivesAt(item),
-	inWalkOrder: (items) => queueWalk.inWalkOrder(items),
-	withdraw: app.withdraw,
-	settlement: app.settlement,
-	placedAt: anchorPlacement.placedAt,
-	openThreadSubject: (id, options) => app.threadDestinations.openThreadSubject(id, options),
-	annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false
-});
-const generalComment = floatingPanel.pageComment;
-const passageSelection = createPassageSelection({ restore: anchorTravel.restoreSelection });
-responseSurface = createResponseSurface({
-	rememberSelection: passageSelection.remember,
-	createPlacement: annotationRenderer?.createFloatingResponsePlacement,
-	landIn: landing.landIn,
-	threadHere: () => app.threadDestinations.threadHere(),
-	threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
-	replyThreadAtCurrentLocation: () => app.threadDestinations.replyThreadAtCurrentLocation(),
-	threadTarget: (id) => app.threadDestinations.threadTarget(id),
-	currentTarget,
-	markAt: anchorPaint?.markAt,
-	scrollToElement: anchorTravel.scrollToElement,
-	scrollToRange: anchorTravel.scrollToRange,
-	visualActionAnchor: anchorControls.visualActionAnchor,
-	designModeActive: designMode.active,
-	designTarget: designMode.target,
-	openOnDesign: designMode.open,
-	isReactArmed: () => reactions.isReactArmed(),
-	reactionContextContains: (...args) => reactions.reactionContextContains(...args),
-	reactionTokens,
-	setReact: (...args) => reactions.setReact(...args),
-	openPageThread: app.threadDestinations.openPageThread,
-	drawModeActive: () => drawing.drawModeActive(),
-	captureActive: () => regionCapture.active(),
-	refreshThread: app.refreshThread,
-	dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
-	pageComment: generalComment,
-	responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
-	revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
-	createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
-	landSent: landing.landSent,
-	wireInput: inputs.wireInput,
-	drawingEdits
-});
-reactions = createReactionController({
-	marginEntryChoices: app.overlay?.marginEntryChoices,
-	marginEntryContextContains: app.overlay?.marginEntryContextContains,
-	openMarginEntryOptions: app.overlay?.openMarginEntryOptions,
-	designModeActive: designMode.active,
-	hideComposer: responseSurface.hideComposer,
-	syncResponseOptions: responseSurface.syncResponseOptions,
-	fabAnchorAt: responseSurface.fabAnchorAt,
-	fabReturnPlaces: responseSurface.fabReturnPlaces,
-	fabTargetAt: responseSurface.fabTargetAt,
-	hasPageSelectionTarget: responseSurface.hasPageSelectionTarget,
-	showFab: responseSurface.showFab,
-	showFabOptions: responseSurface.showFabOptions,
-	updateFab: responseSurface.updateFab,
-	currentLocationThread,
-	currentTarget
-});
-targets = createTargetPicker({
-	scrollToRange: anchorTravel.scrollToRange,
-	hintChrome,
-	commentOnTarget: responseSurface.commentOnTarget,
-	updateFab: responseSurface.updateFab,
-	fabAnchorAt: responseSurface.fabAnchorAt,
-	pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
-	readTargets: () => designMode.active() ? designMode.targets() : aimTargets(),
-	armChanged: () => aim.armChanged(),
-	searchInPanel: floatingPanel.searchPage
-});
-drawing = createDrawingController({
-	anchors: {
-		aimTargetAt,
-		resolveAnchor
-	},
-	pageGeometry: { refreshAim: pageGeometry.refreshAim },
-	pointer: pointerAt,
-	visibleTargets: targets.visibleTargets,
-	anchoredDrawing: responseSurface.draftDrawing,
-	heldDrawings: responseSurface.heldDrawings,
-	watchHeldDrawings: responseSurface.watchHeldDrawings,
-	draftKey: responseSurface.draftKey,
-	openAnchoredDrawing: (anchor, drawing) => responseSurface.openComposer(anchor, "", {
-		carry: true,
-		drawing
-	}),
-	replaceDrawing,
-	setDesignMode: designMode.setActive,
-	closeTargetPicker: targets.closeTargetPicker,
-	closeReactionMode: () => reactions.setReact(false),
-	announce,
-	paintDrawings: drawingPaint.paint,
-	shiftDrawingPaint: drawingPaint.shifted,
-	repaint
-});
-regionCapture = createRegionCapture({
-	closeTargetPicker: targets.closeTargetPicker,
-	closeReactionMode: () => reactions.setReact(false),
-	parent: chromeForeground,
-	visibleTargets: targets.visibleTargets,
-	openComposerWithMedia: responseSurface.openComposerWithMedia
-});
-layout = createPageLayout({
-	scheduleThreadPreviewPosition: app.overlay?.scheduleThreadPreviewPosition,
-	syncReactLayout: reactions.syncReactLayout,
-	refreshFab: responseSurface.refreshFab,
-	pageShifted: pageGeometry.pageShifted,
-	repaintPage
-});
-if (document.documentElement.lfSample) {
-	let viewOperation;
-	onSampleNotice("cancel-view", () => viewOperation?.abort());
-	registerSampleCommand("thread", async ({ id, surface, status }) => {
-		viewOperation?.abort();
-		viewOperation = new AbortController();
-		const { signal } = viewOperation;
-		const retained = retainUserIntent({ available: () => !signal.aborted });
+	const writingResume = createWritingResume({
+		arriveEditor: anchorTravel.arriveEditor,
+		revealInThread: (context, intent) => app.threadDestinations.openThreadDraft(context, intent),
+		holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context)
+	});
+	const rewriteRestore = createRewriteRestore({
+		revealInThread: (context, intent) => app.threadDestinations.openThreadDraft(context, intent),
+		holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context)
+	});
+	goToSequence = createGoToSequence({
+		doors: floatingPanel.doors,
+		hintChrome,
+		openPageMap: (...args) => pageMapDialog.openPageMap(...args),
+		directDestinations: () => [
+			writingResume,
+			rewriteRestore,
+			passageSelection.command,
+			navigation.alignTop,
+			app.read.firstUnreadCommand,
+			version.PICKER
+		],
+		scrollToElement: anchorTravel.scrollToElement,
+		leavesOffered,
+		activateMarginEntry: app.overlay?.activateMarginEntry,
+		marginEntryKind: app.overlay?.marginEntryKind,
+		visibleMarginEntries: app.overlay?.visibleMarginEntries,
+		glideTo,
+		placeThreadEdge,
+		stopGlide
+	});
+	const currentLocationPainters = {
+		markHere: items.markHere,
+		paintCurrentLocation: anchorPaint?.paintCurrentLocation,
+		paintSelectedMarginEntries: () => app.overlay?.paintSelectedMarginEntries([{
+			kind: "on-me",
+			target: items.currentLocationIn()
+		}, {
+			kind: "comment",
+			target: anchorPlacement.placedAt(currentLocationThreadId())?.place
+		}]),
+		paintTouchControls,
+		paintCloseRequests,
+		paintStatusContext: () => paintStatusContext(goToSequence.goToStatus),
+		paintGoToHints: goToSequence.paintGoToHints,
+		paintTargetPickerHints: targets.paintTargetPickerHints,
+		paintCommandHints: commandHints.paint,
+		paintCoreControls,
+		publishInputHint: inputs.publishInputHint
+	};
+	if (!offlineInteractive) {
+		document.adoptedStyleSheets = [
+			...document.adoptedStyleSheets,
+			...annotationSheets,
+			chromeSheet,
+			marksSheet
+		];
+		chromeForeground.append(targetTraceLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
+		chromeRoot.append(legendRoot, ...visualMarkPaint ? [visualMarkPaint.layer] : [], drawingPaint.layer, fabBar, chromeForeground);
+		document.body.append(chromeRoot);
+		version.mount();
+		mountPageStatus();
+		floatingPanel.mount(chromeForeground);
+		responseSurface.mount();
+		holdToRead();
+		reactions.mount();
+		targets.mount();
+		drawing.mount();
+		aim.mount();
+		mountTargetPaint();
+		anchorPaint?.mount();
+		anchorControls.mount();
+		pageGeometry.mount();
+		pageMapDialog.mount(chromeForeground);
+		items.mount();
+		queueWalk.mount();
+		commandHints.mount();
+		app.mountAnnotations();
+		app.overlay?.mount();
+		chromeForeground.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
+		app.mountRead();
+		layout.mountLayoutObservers();
+		goToSequence.mountGoToSequence();
+		mountCommandReference({ beforeOpening: () => {
+			goToSequence.setGoToSequence(false);
+			reactions.setReact(false);
+		} });
+		watchDisclosures(document);
+		mountRepaint({
+			...currentLocationPainters,
+			reflectFirstScopes,
+			reflectKeys,
+			syncLayout: layout.syncLayout,
+			pageShifted: pageGeometry.pageShifted
+		});
+	} else {
+		document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
+		chromeRoot.append(mediaViewer);
+		document.body.append(chromeRoot);
+		mountRepaint({
+			publishInputHint: inputs.publishInputHint,
+			paintCloseRequests,
+			reflectFirstScopes,
+			reflectKeys
+		});
+	}
+	mountKeyboard({
+		goToSequenceActive: goToSequence.goToSequenceActive,
+		setGoToSequence: goToSequence.setGoToSequence,
+		reactArmed: reactions.isReactArmed,
+		setReact: reactions.setReact
+	});
+	let startupFailed = false;
+	window.addEventListener("lf-startup-failed", () => startupFailed = true, { once: true });
+	const initialStateRead = beginRead();
+	if (!offlineInteractive) {
+		restoreUserView({ setDesignMode: designMode.setActive });
+		annotationRenderer?.restoreAnnotations();
+		recoverComposer.handoff(releaseFocus);
+	}
+	mountHistory({
+		followFragment: anchorTravel.followFragment,
+		returnToFragment: anchorTravel.returnToFragment
+	});
+	const landFragment = version.aimArrival();
+	const { landArrival, savedView } = offlineInteractive ? {
+		landArrival: () => {},
+		savedView: null
+	} : version.installArrival();
+	const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
+	function threadRoute(url, returning = false) {
+		const id = url.searchParams.get("thread");
+		if (!id || fragmentTarget(url.hash)) return null;
+		const destination = app.threadDestinations.threadFocusTarget(id, { part: "thread" });
+		if (returning && destination && presented(destination)) return null;
+		const retained = returning ? retainUserIntent() : threadArrival;
 		const intent = restrictUserIntent(retained, retained);
-		return afterPresentation(async () => {
+		return async () => {
 			if (!intent()) return false;
-			if (surface === "panel") {
-				let shown = null;
-				const show = () => shown = floatingPanel.showForSample({
-					thread: id,
-					status
-				});
-				if (!intent.handoff(show)) return false;
-				return await shown && intent.available();
+			if (!threadNamed(id)) {
+				raiseError(`Thread ${id} is unavailable`);
+				return false;
 			}
-			return Boolean(await app.threadDestinations.openPageThread(id, {
-				focus: false,
-				travel: false,
+			const opened = await app.threadDestinations.openPageThread(id, {
+				part: "thread",
+				focus: !returning,
+				history: false,
 				intent
-			}));
+			});
+			if (opened && intent()) replaceEntry(url);
+			return Boolean(opened);
+		};
+	}
+	claimTraversals((url) => threadRoute(url, true));
+	if (arrivalUrl.searchParams.has("thread")) afterPresentation(() => threadRoute(arrivalUrl)?.());
+	async function presentPage() {
+		if (applicationState.read().phase === "waiting" || pagePresented() || startupFailed) return;
+		await whenApplicationPresented();
+		if (applicationState.read().phase === "waiting") return;
+		if (pagePresented()) return;
+		if (startupFailed) return;
+		markPagePresented();
+		if (!offlineInteractive) nextFrame(() => setTimeout(() => {
+			import("./runtime/bundle-user-view.js").then(({ observeUserView }) => observeUserView()).catch(() => {});
+		}, 0));
+		whenArrived().then(landFragment);
+		if (offlineInteractive) {
+			landFragment();
+			document.dispatchEvent(new Event(PRESENTATION));
+			return;
+		}
+		paintKeys();
+		repaint();
+		app.overlay?.flushLayout();
+		landFragment();
+		const arrival = landArrival();
+		document.dispatchEvent(new Event(PRESENTATION));
+		await arrival;
+		if (savedView && savedView.revision < runtime.currentRevision) notice(`Updated to ${runtime.currentLabel}`, { background: true });
+	}
+	async function startPage() {
+		const [upgraded] = await Promise.all([upgradeWidgets({ buildReactionBar: () => offlineInteractive ? void 0 : reactions.buildReactBar({
+			withdrawReaction: app.withdraw,
+			postReaction: app.post
+		}) }), offlineInteractive ? Promise.resolve() : loadIcon().catch((error) => reportPageError(error, "tab icon failed to load"))]);
+		if (!upgraded) return;
+		app.watchThreadSurfaces();
+		openMarginContentLayout({ onRead: annotationRenderer?.syncMarginContentLayout });
+		if (!offlineInteractive) {
+			layout.syncLayout();
+			items.buildBulkAnswers();
+			items.syncObligations();
+		}
+		await settlePageInterface();
+		landFragment();
+		setAnchoringReady(true);
+		try {
+			const draftOpened = !offlineInteractive && !threadRoute(arrivalUrl) && recoverComposer() && responseSurface.openDraft(savedComposer);
+			await app.presentThread();
+			await whenApplicationPresented();
+			if (draftOpened) await responseSurface.fabPositioned();
+		} catch (error) {
+			setAnchoringReady(false);
+			throw error;
+		}
+		markPageUpgraded();
+		anchorControls.publishVisualActions();
+		responseSurface.updateFab();
+		paintKeys();
+		app.startFeed(presentPage, initialStateRead);
+	}
+	startPage().catch((error) => {
+		const reason = `page failed to start: ${error?.message ?? error}`;
+		document.documentElement.lfDocumentLifetime.whenActive(`start ${reason}`, () => {
+			window.dispatchEvent(new CustomEvent("lf-startup-failed", { detail: {
+				reason,
+				error
+			} }));
+			reportPageError(error, "page failed to start");
+			applicationState.setReach("broken");
 		});
 	});
 }
-const writingResume = createWritingResume({
-	arriveEditor: anchorTravel.arriveEditor,
-	revealInThread: (context, intent) => app.threadDestinations.openThreadDraft(context, intent),
-	holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context)
-});
-goToSequence = createGoToSequence({
-	doors: floatingPanel.doors,
-	hintChrome,
-	openPageMap: (...args) => pageMapDialog.openPageMap(...args),
-	directDestinations: () => [
-		writingResume,
-		passageSelection.command,
-		navigation.alignTop,
-		app.read.firstUnreadCommand,
-		version.PICKER
-	],
-	scrollToElement: anchorTravel.scrollToElement,
-	leavesOffered,
-	activateMarginEntry: app.overlay?.activateMarginEntry,
-	marginEntryKind: app.overlay?.marginEntryKind,
-	visibleMarginEntries: app.overlay?.visibleMarginEntries,
-	glideTo,
-	placeThreadEdge,
-	stopGlide
-});
-const currentLocationPainters = {
-	markHere: items.markHere,
-	paintCurrentLocation: anchorPaint?.paintCurrentLocation,
-	paintSelectedMarginEntries: () => app.overlay?.paintSelectedMarginEntries([{
-		kind: "on-me",
-		target: items.currentLocationIn()
-	}, {
-		kind: "comment",
-		target: anchorPlacement.placedAt(currentLocationThreadId())?.place
-	}]),
-	paintTouchControls,
-	paintStatusContext: () => paintStatusContext(goToSequence.goToStatus),
-	paintGoToHints: goToSequence.paintGoToHints,
-	paintTargetPickerHints: targets.paintTargetPickerHints,
-	paintCommandHints: commandHints.paint,
-	paintCoreControls,
-	paintInputs: inputs.paintInputs
-};
-if (!offlineInteractive) {
-	document.adoptedStyleSheets = [
-		...document.adoptedStyleSheets,
-		...annotationSheets,
-		chromeSheet,
-		marksSheet
-	];
-	chromeForeground.append(targetTraceLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
-	chromeRoot.append(legendRoot, ...visualMarkPaint ? [visualMarkPaint.layer] : [], drawingPaint.layer, fabBar, chromeForeground);
-	document.body.append(chromeRoot);
-	version.mount();
-	mountPageStatus();
-	floatingPanel.mount(chromeForeground);
-	responseSurface.mount();
-	holdToRead();
-	reactions.mount();
-	targets.mount();
-	drawing.mount();
-	aim.mount();
-	mountTargetPaint();
-	anchorPaint?.mount();
-	anchorControls.mount();
-	pageGeometry.mount();
-	pageMapDialog.mount(chromeForeground);
-	items.mount();
-	queueWalk.mount();
-	commandHints.mount();
-	app.mountAnnotations();
-	app.overlay?.mount();
-	chromeForeground.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
-	app.mountRead();
-	layout.mountLayoutObservers();
-	goToSequence.mountGoToSequence();
-	mountCommandReference({ beforeOpening: () => {
-		goToSequence.setGoToSequence(false);
-		reactions.setReact(false);
-	} });
-	watchDisclosures(document);
-	mountRepaint({
-		...currentLocationPainters,
-		reflectFirstScopes,
-		reflectKeys,
-		syncLayout: layout.syncLayout,
-		pageShifted: pageGeometry.pageShifted
-	});
-} else {
-	document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
-	chromeRoot.append(mediaViewer);
-	document.body.append(chromeRoot);
-	mountRepaint({
-		paintInputs: inputs.paintInputs,
-		reflectFirstScopes,
-		reflectKeys
-	});
-}
-mountKeyboard({
-	goToSequenceActive: goToSequence.goToSequenceActive,
-	setGoToSequence: goToSequence.setGoToSequence,
-	reactArmed: reactions.isReactArmed,
-	setReact: reactions.setReact
-});
-let startupFailed = false;
-window.addEventListener("lf-startup-failed", () => startupFailed = true, { once: true });
-const initialStateRead = beginRead();
-if (!offlineInteractive) {
-	restoreUserView({ setDesignMode: designMode.setActive });
-	annotationRenderer?.restoreAnnotations();
-	recoverComposer.handoff(releaseFocus);
-}
-mountHistory({
-	followFragment: anchorTravel.followFragment,
-	returnToFragment: anchorTravel.returnToFragment
-});
-const landFragment = version.aimArrival();
-const { landArrival, savedView } = offlineInteractive ? {
-	landArrival: () => {},
-	savedView: null
-} : version.installArrival();
-const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
-async function presentPage() {
-	if (applicationState.read().phase === "waiting" || pagePresented() || startupFailed) return;
-	await whenApplicationPresented();
-	if (applicationState.read().phase === "waiting") return;
-	if (pagePresented()) return;
-	if (startupFailed) return;
-	markPagePresented();
-	if (!offlineInteractive) nextFrame(() => setTimeout(() => {
-		import("./runtime/bundle-user-view.js").then(({ observeUserView }) => observeUserView()).catch(() => {});
-	}, 0));
-	whenArrived().then(landFragment);
-	if (offlineInteractive) {
-		landFragment();
-		document.dispatchEvent(new Event(PRESENTATION));
-		return;
-	}
-	paintKeys();
-	repaint();
-	app.overlay?.flushLayout();
-	landFragment();
-	const arrival = landArrival();
-	document.dispatchEvent(new Event(PRESENTATION));
-	await arrival;
-	if (savedView && savedView.revision < runtime.currentRevision) notice(`Updated to ${runtime.currentLabel}`, { background: true });
-}
-async function startPage() {
-	const [upgraded] = await Promise.all([upgradeWidgets({ buildReactionBar: () => offlineInteractive ? void 0 : reactions.buildReactBar({
-		withdrawReaction: app.withdraw,
-		postReaction: app.post
-	}) }), offlineInteractive ? Promise.resolve() : loadIcon().catch((error) => reportPageError(error, "tab icon failed to load"))]);
-	if (!upgraded) return;
-	app.watchThreadSurfaces();
-	openMarginContentLayout({ onRead: annotationRenderer?.syncMarginContentLayout });
-	if (!offlineInteractive) {
-		layout.syncLayout();
-		items.buildBulkAnswers();
-		items.syncObligations();
-	}
-	await settlePageInterface();
-	landFragment();
-	setAnchoringReady(true);
-	try {
-		const draftOpened = !offlineInteractive && recoverComposer() && responseSurface.openDraft(savedComposer);
-		await app.presentThread();
-		await whenApplicationPresented();
-		if (draftOpened) await responseSurface.fabPositioned();
-	} catch (error) {
-		setAnchoringReady(false);
-		throw error;
-	}
-	markPageUpgraded();
-	anchorControls.publishVisualActions();
-	responseSurface.updateFab();
-	paintKeys();
-	app.startFeed(presentPage, initialStateRead);
-}
-startPage().catch((error) => {
-	const reason = `page failed to start: ${error?.message ?? error}`;
-	document.documentElement.lfDocumentLifetime.whenActive(`start ${reason}`, () => {
-		window.dispatchEvent(new CustomEvent("lf-startup-failed", { detail: {
-			reason,
-			error
-		} }));
-		reportPageError(error, "page failed to start");
-		applicationState.setReach("broken");
-	});
-});
+boot().catch(reportError);
 
 //#endregion

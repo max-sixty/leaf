@@ -119,6 +119,7 @@ export function rowWalk({
       routes: [route("ArrowUp", up), route("ArrowDown", down)],
       title: `walk the ${plural}`,
       repeat: true,
+      travels: scroll,
       run: (binding) =>
         land((list) =>
           clampedRow(list, focused(), binding === "ArrowDown" ? 1 : -1, 0),
@@ -129,6 +130,7 @@ export function rowWalk({
       keys: ["Home", "End"],
       routes: [route("Home", home), route("End", end)],
       title: `${home} / ${end}`,
+      travels: scroll,
       run: (binding) => land((list) => (binding === "Home" ? list[0] : list.at(-1))),
     },
   ];

@@ -1,5 +1,5 @@
 import { declarationFor, inChrome } from "/runtime/widget-api.js";
-import { upFrom } from "/runtime/check-api.js";
+import { authoredBody, servedElements, upFrom } from "/runtime/check-api.js";
 import { at, unique } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -11,7 +11,9 @@ const frames = (style) =>
 
 // Markup containers keep the page's boxes; member containers keep only declared
 // member hosts. Their other descendants are implementation layout. Generated
-// apparatus stays module-owned in either case, including across a shadow host.
+// apparatus stays module-owned in either case, including across a shadow host. A
+// markup container whose module moved its children into an authored body keeps the
+// page's boxes inside that body; the boxes it built around it are its own.
 const moduleOwnsBox = (el) => {
   for (
     let child = el, parent = upFrom(child);
@@ -20,7 +22,10 @@ const moduleOwnsBox = (el) => {
   ) {
     if (!declared(parent)) continue;
     const content = declarationFor(parent, "x-content");
-    if (content === "markup") return false;
+    if (content === "markup") {
+      const body = authoredBody(parent);
+      return body !== null && !body.contains(el);
+    }
     return (
       content !== "members" ||
       !(declarationFor(child, "x-owners") || []).includes(parent.localName)
@@ -256,21 +261,25 @@ export function splitEdges() {
 // read its structure: which child is first, last, or only, and what an `h2 + p` rule
 // finds next. An element the runtime adds beside the page's own changes those answers for
 // as long as it stands, so the page's own rules restyle and move its content, which
-// nothing Leaf draws may do (assets/AGENTS.md, "Space and scrolling"). What the runtime
+// nothing Leaf draws may do (browser/AGENTS.md, "Space and scrolling"). What the runtime
 // says about an element stands in the chrome instead (details-shelf.js).
 //
 // The page's own elements are the document tree under `main`, the authored content root.
 // A widget's own children are its module's to arrange, whether the layer declares it or
 // the page defines it, and so is everything inside one whose content is not the page's
-// markup or members; inside those containers, the page's elements are the page's again.
+// markup or members, or that its module built around the authored body holding them;
+// inside those containers and bodies, the page's elements are the page's again.
 // An inline box's children are its run of words, where the question is not which block
 // comes first or next, so a code block's highlighting or the mark ending a link's words
 // is not this.
 export function apparatusAmongAuthored() {
   const found = [];
+  // An element the page wrote stays the page's, whatever words a module fills it with.
+  const served = servedElements();
   for (const el of document.querySelectorAll(`main :is(${generated})`)) {
     const parent = el.parentElement;
     if (
+      served.has(el) ||
       parent.closest(generated) ||
       inChrome(parent) ||
       declared(parent) ||

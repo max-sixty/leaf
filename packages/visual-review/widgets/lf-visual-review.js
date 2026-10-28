@@ -2,23 +2,25 @@
  * The source owns cases and captures; Leaf owns approvals and discussion. The
  * dashboard derives its queue and counts from that state. Selection
  * is transient. lf-shot owns comparison controls, layout and capture scrolling;
- * the dashboard supplies capture metadata and retains case articles and threads. */
+ * the dashboard supplies capture metadata and retains case articles and threads.
+ * A case's header names only the capture size and browser, with Capture details
+ * holding the rest: on 2026-10-26 the user chose this over a line that also said the
+ * images were captured screenshots whose links don't work, which they show
+ * themselves. */
 import "/widgets/lf-shot.js";
 import {
   LeafElement,
   html,
-  iconTemplate,
   nothing,
   repeat,
   ref,
   live,
   generated,
   offered,
-  commands,
+  offeredAction,
   cycledRow,
   beginWalk,
   listWalkPosition,
-  paintKeys,
   holdFocus,
   focused,
   scrollIntoView,
@@ -29,30 +31,25 @@ import {
   showNativeLayer,
   closeNativeLayer,
   isNativeLayer,
-  projectData,
+  keeps,
   releaseOutlets,
   threadSurface,
   scopedMediaUrl,
-  describeDifference,
   whileConnected,
   registerReadingRegion,
   compoundReadingRegionId,
   preserveReadingRegions,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 // A popover's way out wears the face of every surface's close control in Leaf: the
 // cross, named for what it closes (runtime/widget-elements.js, `closeControl`).
 const closeButton = (popover, name) =>
   html`<button
-    type="button"
-    ${offered("lf-btn lf-icon-action lf-quiet-action")}
+    ${offeredAction("symbol", "", name, { title: `${name} (Esc)`, action: "close" })}
     popovertarget=${popover}
     popovertargetaction="hide"
-    aria-label=${name}
-    title=${`${name} (Esc)`}
-  >
-    ${iconTemplate("cross", "lf-action-icon")}
-  </button>`;
+  ></button>`;
 const fact = (name, value) =>
   html`<div>
     <dt ${generated({ says: true })}>${name}</dt>
@@ -72,9 +69,19 @@ customElements.define(
       return value.approved ? "Looks right" : "Unchecked";
     }
 
+    // The run, set by whoever hosts the widget: Leaf from the bound source (the
+    // registry's `x-data.run.property`), or null while that source has none.
+    static properties = { value: { attribute: false } };
+
+    constructor() {
+      super();
+      this.value = null;
+    }
+
     #entries = new Map();
-    #snapshot;
-    #projected;
+    // The run the last render reconciled, and the one whose cases were last marked.
+    #run;
+    #marked;
     #selected;
     #restoreFocus;
     #queue;
@@ -97,81 +104,72 @@ customElements.define(
     setup() {
       const selectedControl = (selector) => () =>
         this.#entries.get(this.#selected)?.article.querySelector(selector);
-      commands(this, "In a visual review", [
-        {
-          id: "visual.next-case",
-          title: "Next case",
-          keys: ["n"],
-          when: () => this.#entries.size > 1,
-          run: () => this.#step(1),
-        },
-        {
-          id: "visual.previous-case",
-          title: "Previous case",
-          keys: ["Shift+n"],
-          when: () => this.#entries.size > 1,
-          run: () => this.#step(-1),
-        },
-        {
-          id: "visual.approve",
-          title: "Toggle Looks right",
-          keys: ["a"],
-          decision: true,
-          control: selectedControl(".lf-vr-approval-input"),
-          when: () =>
-            Boolean(this.#selected) && this.controller.read().actions.review.available,
-          run: () =>
-            this.#review(
-              this.#entries.get(this.#selected).record,
-              !this.#approved(this.#selected),
-            ),
-        },
-        {
-          id: "visual.feedback",
-          title: "Add feedback",
-          keys: ["c"],
-          control: selectedControl(".lf-vr-feedback"),
-          when: () => Boolean(this.#selected),
-          run: () =>
-            threadSurface(this).open(this.#entries.get(this.#selected).article),
-        },
-        {
-          id: "visual.inspection",
-          title: "Capture details",
-          keys: ["i"],
-          control: selectedControl(".lf-vr-inspect"),
-          when: () => Boolean(this.#selected),
-          run: () => this.#inspection(),
-        },
-        {
-          id: "visual.next-remaining",
-          title: "Next unchecked case",
-          keys: [],
-          control: selectedControl(".lf-vr-next"),
-          when: () => Boolean(this.#nextUnchecked()),
-          run: () => this.#select(this.#nextUnchecked().id, true),
-        },
-      ]);
-      whileConnected(this, (signal) => {
-        this.addEventListener(
-          "lf-reveal",
-          (event) => {
-            const { target, mayReveal, present, replacedView } = event.detail;
-            if (!mayReveal()) return;
-            const entry = [...this.#entries.values()].find((item) =>
-              item.article?.contains(target),
-            );
-            if (!entry || entry.record.id === this.#selected) return;
-            replacedView();
-            present(this.#select(entry.record.id));
+      this.lfCommands = {
+        title: "In a visual review",
+        rows: [
+          {
+            id: "visual.next-case",
+            title: "Next case",
+            travels: true,
+            keys: ["n"],
+            when: () => this.#entries.size > 1,
+            run: () => this.#step(1),
           },
-          { signal },
-        );
-      });
+          {
+            id: "visual.previous-case",
+            title: "Previous case",
+            travels: true,
+            keys: ["Shift+n"],
+            when: () => this.#entries.size > 1,
+            run: () => this.#step(-1),
+          },
+          {
+            id: "visual.approve",
+            title: "Toggle Looks right",
+            keys: ["a"],
+            decision: true,
+            control: selectedControl(".lf-vr-approval-input"),
+            when: () =>
+              Boolean(this.#selected) &&
+              this.controller.read().actions.review.available,
+            run: () =>
+              this.#review(
+                this.#entries.get(this.#selected).record,
+                !this.#approved(this.#selected),
+              ),
+          },
+          {
+            id: "visual.feedback",
+            title: "Add feedback",
+            keys: ["c"],
+            control: selectedControl(".lf-vr-feedback"),
+            when: () => Boolean(this.#selected),
+            run: () =>
+              threadSurface(this).open(this.#entries.get(this.#selected).article),
+          },
+          {
+            id: "visual.inspection",
+            title: "Capture details",
+            keys: ["i"],
+            control: selectedControl(".lf-vr-inspect"),
+            when: () => Boolean(this.#selected),
+            run: () => this.#inspection(),
+          },
+          {
+            id: "visual.next-remaining",
+            title: "Next unchecked case",
+            keys: [],
+            control: selectedControl(".lf-vr-next"),
+            when: () => Boolean(this.#nextUnchecked()),
+            run: () => this.#select(this.#nextUnchecked().id, true),
+          },
+        ],
+      };
+      commandsChanged(this);
     }
 
-    #reconcile(snapshot) {
-      const records = snapshot?.value.cases ?? [];
+    #reconcile(run) {
+      const records = run?.cases ?? [];
       const ids = new Set(records.map((record) => record.id));
       for (const [id, entry] of this.#entries) {
         if (ids.has(id)) continue;
@@ -205,7 +203,7 @@ customElements.define(
         this.#selected = (
           records.find((record) => record.classification !== "clean") ?? records[0]
         )?.id;
-      this.#snapshot = snapshot;
+      this.#run = run;
     }
 
     #approved(id) {
@@ -214,7 +212,7 @@ customElements.define(
     // n and Shift+n walk the cases, coming round at either end, and say where the
     // landing stands among them as every walk does.
     #step(delta) {
-      const ids = () => this.#snapshot.value.cases.map((record) => record.id);
+      const ids = () => this.#run.cases.map((record) => record.id);
       this.#select(cycledRow(ids(), this.#selected, delta), true);
       beginWalk("visual-case", "Case", () => listWalkPosition(ids(), this.#selected));
     }
@@ -253,7 +251,7 @@ customElements.define(
       });
     }
     #nextUnchecked() {
-      const records = this.#snapshot?.value.cases ?? [];
+      const records = this.#run?.cases ?? [];
       const index = records.findIndex((record) => record.id === this.#selected);
       return [...records.slice(index + 1), ...records.slice(0, index)].find(
         (record) => !this.#approved(record.id),
@@ -261,9 +259,8 @@ customElements.define(
     }
 
     render() {
-      const snapshot = this.data("run");
-      if (snapshot !== this.#snapshot) this.#reconcile(snapshot);
-      const run = snapshot?.value;
+      const run = this.value;
+      if (run !== this.#run) this.#reconcile(run);
       if (!run)
         return html`<p class="lf-vr-empty" ${generated({ says: true })}>
           Waiting for visual evidence.
@@ -308,7 +305,7 @@ customElements.define(
                     <span class="lf-vr-case-label"
                       ><span class="lf-vr-case-name">${record.title}</span>
                       <span class="lf-vr-case-status" data-approved=${String(approved)}
-                        >${approved ? "Looks right" : "Unchecked"}</span
+                        >Looks right</span
                       ></span
                     >
                   </button>`;
@@ -334,19 +331,18 @@ customElements.define(
 
     updated(changed) {
       super.updated(changed);
-      this.classList.toggle("lf-rendered", Boolean(this.#snapshot));
-      if (this.#snapshot !== this.#projected) {
-        projectData(
-          this,
-          (this.#snapshot?.value.cases ?? []).map((record, index) => ({
-            node: this.#entries.get(record.id).article,
-            key: record.id,
-            identity: record.id,
-            label: record.title,
-            origin: { ...this.#snapshot.origin, path: ["cases", index] },
-          })),
-          { snapshot: this.#snapshot ?? null },
-        );
+      this.classList.toggle("lf-rendered", Boolean(this.#run));
+      if (this.#run !== this.#marked) {
+        // Each case's article is a datum on a Leaf page (`module-state.md`, "Marking
+        // drawn data"), following its case by id across runs.
+        for (const [index, record] of (this.#run?.cases ?? []).entries()) {
+          const { article } = this.#entries.get(record.id);
+          keeps(article, "data-lf-datum", record.id);
+          keeps(article, "data-lf-identity", record.id);
+          keeps(article, "data-lf-datum-label", record.title);
+          keeps(article, "data-lf-origin-path", JSON.stringify(["cases", index]));
+        }
+        this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.#run } }));
         for (const entry of this.#entries.values()) {
           const { shot, record } = entry;
           shot?.inspect({
@@ -370,7 +366,7 @@ customElements.define(
             () => {},
           );
         }
-        this.#projected = this.#snapshot;
+        this.#marked = this.#run;
       }
       threadSurface(this).update();
       this.#restoreFocus?.(() => {
@@ -382,7 +378,7 @@ customElements.define(
         return true;
       });
       this.#restoreFocus = null;
-      paintKeys();
+      commandsChanged(this);
     }
 
     #review(record, approved) {
@@ -397,7 +393,7 @@ customElements.define(
 
     #case(entry, approved, available) {
       const { record, before, after } = entry;
-      const run = this.#snapshot.value;
+      const run = this.#run;
       const threads = readThreads().threads.filter(
         (thread) =>
           thread.anchor?.section === this.id && thread.anchor.datum === record.id,
@@ -415,8 +411,10 @@ customElements.define(
       return html`<article
         class="lf-vr-case"
         id=${`${this.id}-${record.id}`}
-        aria-hidden=${record.id !== this.#selected ? "true" : "false"}
+        hidden=${record.id !== this.#selected ? "until-found" : nothing}
         ?inert=${record.id !== this.#selected}
+        @beforematch=${(event) =>
+          event.target === event.currentTarget && this.#select(record.id)}
         ${ref(entry.place)}
       >
         <div class="lf-vr-caption">
@@ -433,14 +431,11 @@ customElements.define(
                 @change=${(event) => this.#review(record, event.currentTarget.checked)}
               />Looks right</label
             >
-            <button type="button" ${offered("lf-btn lf-quiet-action lf-vr-feedback")}>
-              Add feedback
-            </button>
+            <button ${offeredAction("word", "lf-vr-feedback")}>Add feedback</button>
             ${
               threads.length
                 ? html`<button
-                      type="button"
-                      ${offered("lf-btn lf-quiet-action lf-vr-open-threads")}
+                      ${offeredAction("word", "lf-vr-open-threads")}
                       popovertarget=${`${this.id}-${record.id}-threads`}
                     >
                       ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
@@ -462,8 +457,7 @@ customElements.define(
                         (thread) => thread.key,
                         (thread) =>
                           html`<button
-                            type="button"
-                            ${offered("lf-btn lf-quiet-action lf-vr-thread-link")}
+                            ${offeredAction("word", "lf-vr-thread-link")}
                             @click=${(event) => {
                               closeNativeLayer(
                                 event.currentTarget.closest("[popover]"),
@@ -483,20 +477,18 @@ customElements.define(
                 : nothing
             }
           </div>
-          <button type="button" ${offered("lf-btn lf-quiet-action lf-vr-next")}>
+          <button ${offeredAction("word", "lf-vr-next")}>
             Next unchecked <span aria-hidden="true">→</span>
           </button>
         </div>
         <div class="lf-vr-evidence" data-lf-reading-role="pane" data-lf-generated>
           <header>
             <p class="lf-vr-evidence-note" ${generated({ says: true })}>
-              Captured screenshots · ${record.capture.viewport.width} ×
-              ${record.capture.viewport.height} · ${record.capture.browser}. Links
-              inside these images are not interactive.
+              ${record.capture.viewport.width} × ${record.capture.viewport.height} ·
+              ${record.capture.browser}
             </p>
             <button
-              type="button"
-              ${offered("lf-btn lf-quiet-action lf-vr-inspect")}
+              ${offeredAction("word", "lf-vr-inspect")}
               aria-controls=${`${this.id}-${record.id}-inspection`}
             >
               Capture details
@@ -540,10 +532,7 @@ customElements.define(
                 }
                 ${
                   entry.difference
-                    ? fact(
-                        "Full-frame difference",
-                        describeDifference(entry.difference),
-                      )
+                    ? fact("Full-frame difference", entry.difference.description)
                     : nothing
                 }
               </dl>

@@ -1,20 +1,29 @@
 """Boards: the column each card announces, keyboard moves that keep the card in view,
-grips, narrow and phone layouts, and releasing a detached board."""
+grips, narrow and phone layouts, releasing a detached board, and cards that show a
+section's answer."""
 
 import re
+from itertools import pairwise
 
 import pytest
+from interact_support import stamp
 from playwright.sync_api import expect
-from render_cases_interaction import HOLD_MOTION
+from render_cases_interaction import HOLD_MOTION, live_url
 from render_cases_widgets import SQUEEZED_BOARD_PAGE
 from render_harness import (
     BOARD_PAGE,
+    consume_browser_errors,
+    http_error_console,
     leaf_page,
     open_page,
     resized,
     scroll_settled,
     sending,
+    told,
+    undo,
 )
+
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -195,10 +204,16 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     )
 
 
+# The width at which the eight-column board stands wider than 640px, so it scrolls
+# sideways rather than stacking, and narrower than its columns' floor.
+SIDEWAYS = 720
+
+
 # Each scroller pairs with one motion setting: the board's own scrollport tracks the
-# card's FLIP, and the document follows a move made at once.
+# card's FLIP, and the document follows a move made at once. A column move on a
+# stacked board travels the document too, down to the column below.
 @pytest.mark.parametrize(
-    ("axis", "source", "key", "steps", "reduced_motion"),
+    ("axis", "source", "key", "steps", "reduced_motion", "width"),
     [
         pytest.param(
             "column",
@@ -206,18 +221,28 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
             "ArrowRight",
             4,
             "no-preference",
+            SIDEWAYS,
             id="columns",
         ),
-        pytest.param("row", TALL_BOARD_PAGE, "ArrowDown", 7, "reduce", id="rows"),
+        pytest.param("row", TALL_BOARD_PAGE, "ArrowDown", 7, "reduce", 390, id="rows"),
+        pytest.param(
+            "stacked",
+            SQUEEZED_BOARD_PAGE,
+            "ArrowRight",
+            4,
+            "no-preference",
+            390,
+            id="stacked",
+        ),
     ],
 )
 def test_a_keyboard_move_keeps_the_card_in_view(
-    browser, serve, reduced_motion, axis, source, key, steps
+    browser, serve, reduced_motion, axis, source, key, steps, width
 ):
     """A move and its Escape return keep the focused card on screen."""
     page = open_page(browser, serve(source))
     page.emulate_media(reduced_motion=reduced_motion)
-    resized(page, 390, 500)
+    resized(page, width, 500)
     board = page.locator("#crowd")
     card = page.locator("#sq-card-0")
     grip = card.locator(".lf-grip")
@@ -226,10 +251,19 @@ def test_a_keyboard_move_keeps_the_card_in_view(
         assert board.evaluate("el => el.scrollWidth > el.clientWidth"), (
             "the board fits, so the keyboard move has no hidden column to reveal"
         )
-    else:
+    elif axis == "row":
         assert page.locator("#sq-card-7").evaluate(
             "el => el.getBoundingClientRect().bottom > innerHeight"
         ), "the lane fits, so the row move has no hidden destination to reveal"
+    else:
+        assert board.evaluate(
+            """el => {
+              const [first, second] = [...el.querySelectorAll(':scope > lf-column')]
+                .map(column => column.getBoundingClientRect());
+              return second.top >= first.bottom
+                && el.querySelector('#sq-col-4').getBoundingClientRect().top > innerHeight;
+            }"""
+        ), "the board is not stacked past the window, so the move reveals nothing"
 
     def wait_for_placement(column, row):
         placement = """([column, row, axis]) => {
@@ -247,8 +281,8 @@ def test_a_keyboard_move_keeps_the_card_in_view(
         }"""
         where = [column, row, axis]
         page.wait_for_function(placement, arg=where)
-        # A move along the columns travels the board's own scrollport; a move down a
-        # column travels the document.
+        # A move along side-by-side columns travels the board's own scrollport; a move
+        # down a column, or along stacked columns, travels the document.
         if axis == "column":
             scroll_settled(page, scroller="#crowd", axis="x")
         else:
@@ -261,9 +295,7 @@ def test_a_keyboard_move_keeps_the_card_in_view(
         page.keyboard.press(key)
         # Each key gets its own rendered placement. Otherwise a later press can cancel
         # the prior FLIP before the test has exercised its scroll tracking.
-        wait_for_placement(
-            step if axis == "column" else 0, step if axis == "row" else 0
-        )
+        wait_for_placement(step if axis != "row" else 0, step if axis == "row" else 0)
 
     page.keyboard.press("Escape")
     wait_for_placement(0, 0)
@@ -275,7 +307,10 @@ def test_tabbing_to_a_grip_reveals_its_whole_card(browser, serve):
     """The browser scrolls a sideways board only far enough to show the focused 30px
     grip, which at a narrow width left the card's words cut off at the board's edge."""
     page = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
-    resized(page, 390, 500)
+    resized(page, SIDEWAYS, 500)
+    assert page.locator("#crowd").evaluate("el => el.scrollWidth > el.clientWidth"), (
+        "the board fits, so Tab has no hidden card to reveal"
+    )
     # A restored focus is not an arrival: it leaves the board where the user put it.
     assert page.evaluate(
         """() => {
@@ -308,6 +343,55 @@ def test_tabbing_to_a_grip_reveals_its_whole_card(browser, serve):
         "el => getComputedStyle(el).borderTopColor"
     )
     assert border != rest, (border, rest, accent)
+
+
+def test_on_a_stacked_board_a_vertical_step_past_a_column_s_end_enters_the_next(
+    browser, serve
+):
+    """Where the columns stack, the column below is the next slot the user sees, so Down
+    past a column's last card enters it at its top and Up past a first card enters the
+    column above at its end; side by side, the step past an end still does nothing."""
+    page = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 390, 500)
+    card = page.locator("#sq-card-0")
+    grip = card.locator(".lf-grip")
+
+    def placed(column, row):
+        expect(page.locator(f"#sq-col-{column} > #sq-card-0")).to_have_count(1)
+        assert (
+            card.evaluate(
+                "el => [...el.parentElement.querySelectorAll(':scope > lf-card')].indexOf(el)"
+            )
+            == row
+        )
+
+    grip.focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowDown")
+    placed(1, 0)
+    page.keyboard.press("ArrowDown")
+    placed(1, 1)
+    page.keyboard.press("ArrowDown")
+    placed(2, 0)
+    page.keyboard.press("ArrowUp")
+    placed(1, 1)
+    page.keyboard.press("ArrowUp")
+    placed(1, 0)
+    page.keyboard.press("ArrowUp")
+    placed(0, 0)
+    page.keyboard.press("ArrowUp")
+    placed(0, 0)
+    page.keyboard.press("Escape")
+    placed(0, 0)
+    expect(grip).to_be_focused()
+
+    resized(page, SIDEWAYS, 500)
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowDown")
+    placed(0, 0)
+    page.keyboard.press("Escape")
+    placed(0, 0)
 
 
 def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
@@ -605,35 +689,77 @@ def test_a_finger_s_taller_grip_leaves_the_blocks_under_a_title_their_width(
     assert measured["under"] == 0, measured
 
 
-def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable(
+def test_a_card_s_prose_starts_under_its_title_in_every_shape(browser, serve):
+    """Authors follow a card's title with a plain sentence, one holding an inline
+    element, or a paragraph, and each card reads alike: the title's margin set a
+    sentence holding an element 2px lower than a plain one, and a paragraph's margin
+    set it 13px lower."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "card shapes",
+                '<h1>Sprint</h1><lf-board id="shapes"><lf-column id="col" label="Now">'
+                '<lf-card id="plain"><strong>Plain</strong> The importer is wired.</lf-card>'
+                '<lf-card id="element"><strong>Element</strong> The <em>importer</em> '
+                "is wired.</lf-card>"
+                '<lf-card id="paragraph"><strong>Paragraph</strong>'
+                "<p>The importer is wired.</p></lf-card>"
+                "</lf-column></lf-board>",
+            )
+        ),
+    )
+    gaps = page.evaluate(
+        """() => Object.fromEntries(['plain', 'element', 'paragraph'].map((id) => {
+          const card = document.getElementById(id);
+          const title = card.querySelector(':scope > strong');
+          const walk = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+          walk.currentNode = title.lastChild;
+          let text = walk.nextNode();
+          while (!text.data.trim()) text = walk.nextNode();
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          return [id, range.getClientRects()[0].top - title.getBoundingClientRect().bottom];
+        }))"""
+    )
+    for shape in ("element", "paragraph"):
+        assert gaps[shape] == pytest.approx(gaps["plain"], abs=1), gaps
+
+
+def test_a_phone_board_stacks_its_columns_and_moves_a_card_by_its_destination_buttons(
     browser, serve
 ):
-    """A phone shows one readable column and moves a card without a distant drop target.
+    """A phone stacks the board's columns, each the board's width and its own height,
+    and moves a card without a distant drop target.
 
-    The desktop grid divided its wide target across every column even after the board
-    itself had narrowed to the page. On a phone that left most of a second column on
-    screen and squeezed the first into a narrow card. Wide columns then put the next
-    pointer drop target off screen, so the phone offers every other column on the card.
+    The board paged sideways here, one column wide with a sliver of the next as the
+    cue, which left one column on screen, every other behind a sideways swipe nothing
+    else on the page asks for, and each column stretched to the tallest one's height.
+    Stacked, every column is a scroll down away, and a card still cannot be dragged to a
+    distant column under a finger, so the phone offers every other column on the card
+    and a move follows the card to where it landed.
     """
     context = browser.new_context(
         viewport={"width": 390, "height": 900}, has_touch=True
     )
     page = open_page(browser, serve(SQUEEZED_BOARD_PAGE), context=context)
-    measured = page.locator("#crowd").evaluate(
-        """board => {
+    columns_of = """board => {
         const box = board.getBoundingClientRect();
         const columns = [...board.querySelectorAll(':scope > lf-column')]
-          .slice(0, 2).map(column => column.getBoundingClientRect());
+          .map(column => column.getBoundingClientRect());
         return {board: box, columns,
                 scrolls: board.scrollWidth > board.clientWidth};
     }"""
-    )
+    measured = page.locator("#crowd").evaluate(columns_of)
     board = measured["board"]
-    first, second = measured["columns"]
-    assert first["width"] > board["width"] * 0.85, measured
-    assert first["right"] <= board["right"] + 1, measured
-    assert first["right"] < second["left"] < board["right"], measured
-    assert measured["scrolls"], measured
+    columns = measured["columns"]
+    assert len(columns) == 8, measured
+    for column in columns:
+        assert abs(column["left"] - board["left"]) <= 1, measured
+        assert abs(column["right"] - board["right"]) <= 1, measured
+    for above, below in pairwise(columns):
+        assert above["bottom"] <= below["top"], measured
+    assert not measured["scrolls"], measured
 
     card = page.locator("#sq-card-0")
     expect(card.locator(".lf-grip")).to_be_visible()
@@ -643,25 +769,111 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
         to_lane_1.tap()
     expect(page.locator("#sq-col-1 > #sq-card-0")).to_have_count(1)
     expect(card.locator(".lf-grip")).to_be_focused()
-    # The card passes through the visible area while its move is still animating.
+    # The move carries the view to the card where it landed, among its new neighbours.
     page.wait_for_function(
         """() => {
           const moved = document.querySelector('#sq-card-0');
           if (moved.getAnimations().length) return false;
-          const board = document.querySelector('#crowd').getBoundingClientRect();
           const card = moved.getBoundingClientRect();
-          return card.left >= board.left - 1 && card.right <= board.right + 1;
+          return card.top >= 0 && card.bottom <= innerHeight;
         }"""
     )
-    moved = card.bounding_box()
-    board = page.locator("#crowd").bounding_box()
-    assert moved and board
-    assert board["x"] <= moved["x"] and moved["x"] + moved["width"] <= (
-        board["x"] + board["width"] + 1
-    )
+    # Each column is its own height: the emptied lane stands at its floor above the lane
+    # now holding two cards.
+    after = page.locator("#crowd").evaluate(columns_of)
+    emptied, filled = after["columns"][:2]
+    assert emptied["height"] < filled["height"], after
+    assert emptied["bottom"] <= filled["top"], after
 
     to_lane_0 = card.get_by_role("button", name="Move Perch 0 to Lane 0")
     expect(to_lane_0).to_be_visible()
     with sending(page, "the phone return move"):
         to_lane_0.tap()
     expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
+
+
+ANSWERS_BOARD_PAGE = leaf_page(
+    "proposals",
+    """
+<h1 id="t">Proposals</h1>
+<section id="rail-section">
+  <h2>Keep the rail beside the text</h2>
+  <lf-options id="rail" choose>
+    <lf-option id="rail-next" value="next">Next</lf-option>
+    <lf-option id="rail-later" value="later" chosen>Later</lf-option>
+  </lf-options>
+</section>
+<lf-board id="plan">
+  <lf-column id="col-open" label="Undecided"></lf-column>
+  <lf-column id="col-next" label="Next" value="next"></lf-column>
+  <lf-column id="col-later" label="Later" value="later">
+    <lf-card id="card-rail" shows="rail"><strong>Keep the rail</strong></lf-card>
+  </lf-column>
+</lf-board>
+""",
+)
+
+
+def test_a_section_and_a_board_answer_one_decision(browser, serve):
+    """The card shows the section's answer and changes it through the section's own
+    command, so a pick and a drop are one fact at one coordinate, and both views follow
+    its undo, its refusal and a version's retraction (`shown_answers.py`)."""
+    page = open_page(browser, live_url(serve(ANSWERS_BOARD_PAGE)))
+    grip = page.locator("#card-rail .lf-grip")
+
+    def stands(column, option):
+        expect(page.locator(f"#{column} > #card-rail")).to_have_count(1)
+        chosen = page.locator("#rail > lf-option[chosen]")
+        if option:
+            expect(chosen).to_have_attribute("id", option)
+        else:
+            expect(chosen).to_have_count(0)
+
+    def drop(key):
+        grip.focus()
+        for press in ("Enter", key, "Enter"):
+            page.keyboard.press(press)
+
+    def picks():
+        return [
+            (event["widget"], event["action"], event["detail"])
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "action"
+        ]
+
+    with sending(page, "the pick"):
+        page.locator("#rail-next").click()
+    stands("col-next", "rail-next")
+    with sending(page, "the drop"):
+        drop("ArrowLeft")
+    stands("col-open", None)
+    assert picks() == [
+        ("rail", "choose", {"value": ["rail-next"]}),
+        ("rail", "choose", {"value": []}),
+    ]
+
+    page.locator("#rail-section").scroll_into_view_if_needed()
+    undo(page)
+    stands("col-next", "rail-next")
+
+    (serve.page_dir / "index.html").write_text(
+        ANSWERS_BOARD_PAGE.replace(
+            '<lf-options id="rail" choose>', '<lf-options id="rail" choose restated>'
+        )
+    )
+    assert stamp(serve.page_dir, "Ask again").exit_code == 0
+    told(page)
+    stands("col-later", "rail-later")
+
+    def refuse(route):
+        attempt = route.request.post_data_json["attempt"]
+        body = {"ok": False, "attempt": attempt, "error": "refused", "final": True}
+        route.fulfill(status=400, json=body)
+
+    page.route("**/api/event", refuse)
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        drop("ArrowLeft")
+    stands("col-later", "rail-later")
+    page.unroute("**/api/event")
+    consume_browser_errors(page, http_error_console(400))
+    assert len(picks()) == 2

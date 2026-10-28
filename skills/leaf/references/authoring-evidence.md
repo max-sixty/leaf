@@ -10,6 +10,12 @@ measurement, and plain HTML for numbers with no repeatable source.
 
 ## Interactive and visual evidence
 
+For an existing interface, capture the relevant panel, card or menu with enough
+surrounding background to preserve its whole shadow. Crop or mark the capture so
+the eye lands on the point, cutting through background rather than text. Use
+`lf-shot` for before-and-after captures and a table for captures that vary along
+other axes ("Source files and media").
+
 Use `lf-diagram` for Mermaid syntax rendered by Pele. It ships in the `diagram`
 package, so create the page with `leaf page init --package diagram <page>`.
 `page check --render` reports
@@ -29,8 +35,14 @@ where they differ. The idiom's classes use theme tokens, so the drawing follows 
 and dark schemes; an SVG file added with `leaf page media` can't. Use the
 `<figcaption>` for what the drawing can't show.
 
-Use `lf-chart` for quantities, not Mermaid's charts. A few numbers the sentence can
-carry belong in prose.
+Use `lf-chart` for quantities, not Mermaid's charts. Keep a few numbers in prose
+when a sentence explains them clearly.
+
+Use `lf-timeline` for an order of events between actors that you describe, such as a
+race between two jobs, rather than drawing one in `svg.drawing`: it places every label
+clear of bars, other labels and the playhead, and the reader steps through the events
+with the keyboard or a finger. It ships in the `timeline` package. A recorded browser
+journey belongs in `lf-trace` instead (below).
 
 A user can comment on a whole drawing. To let them comment on one part, give the part
 an id: in an inline `<svg>`, put an `id` on each `<g>` holding a shape and its label,
@@ -84,16 +96,21 @@ and every thread that quotes it. To keep evidence exactly as it was reviewed, gi
 its own source id, such as `pr-patch-8f61c2a` for one commit's patch, and never write to
 that id again. Evidence that should follow later `data set` calls shares one id.
 
-Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for images,
-video and audio; never inline media bytes. To let the reader zoom into an image, link it
+Run `leaf page media <page> <file>…`, naming each file as its own argument as a glob
+such as `shots/*.png` does, and use each printed `/media/…` `path` for images, video
+and audio; never inline media bytes. To let the reader zoom into an image, link it
 to its own media URL: `<a href="/media/…"><img src="/media/…" alt="…"></a>`.
+The theme gives every image a thin outline and shadow, so its boundary remains visible
+when the image and page have the same background colour. To remove that treatment,
+for example from a badge or transparent logo, give the image
+`box-shadow: none; border-radius: 0` in the page's CSS.
 
 Keep each capture in its own image file; never join captures into one. Where captures
 vary along named axes, such as the moment in an interaction, the case, the window width
 or the colour scheme, put them in a `<table>` with one linked capture per cell, a
 `<th scope="col">` naming each column's value and a `<th scope="row">` naming each
-row's, so each axis is labelled once. Captures that show what each option of a decision
-gives stand in their options instead (`authoring-decisions.md`). Place captures the
+row's, so each axis is labelled once. Put captures of each option's outcome inside that
+option instead (`authoring-on-me.md`). Place captures the
 reader compares side by side or one above the other, so whatever moved shows as a
 misalignment.
 
@@ -114,8 +131,7 @@ package's author instructions describe. Leaf
 accepts MP4 and WebM video and MP3, M4A, Ogg and WAV audio. An export embeds each
 recording whole, a third larger, so trim recordings to what the reader needs.
 
-Put invented examples inside `lf-sample` and make them visibly fictional. Render
-tickets, source locations and URLs as real links.
+Put invented examples inside `lf-sample` and make them visibly fictional.
 
 `lf-shot` shows two versions of an interface, before and after, captured at the same
 viewport. Before writing the prose and `alt`, open both images and compare them where
@@ -128,7 +144,7 @@ Every pair starts in **Slider**, followed by **Pair** and **Pixels** in the shar
 header. Before and After label the header, or each frame when stacked. Pair keeps
 the captures at the same scale; clicking either image opens its original. Fit places them beside one another or stacks
 them, whichever draws them larger, so short wide captures stack and tall narrow ones sit
-side by side; stacked frames fit together on screen, or in a bounded comparison's room. At 100%, both panes stay visible and scrolling either image moves
+side by side; stacked frames fit together within the screen or the comparison's height limit. At 100%, both panes stay visible and scrolling either image moves
 the other to the same location. This scale uses CSS pixels when capture metadata
 supplies the pixel ratio, or bitmap pixels otherwise. The **…** menu offers Fit,
 100%, the Changed pixels color key and, for a pair with focus metadata, Full frame to inspect

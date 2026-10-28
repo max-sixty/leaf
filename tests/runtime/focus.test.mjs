@@ -10,7 +10,9 @@
    nothing out. */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { Window } from "happy-dom";
 
 const {
   closeLayer,
@@ -166,6 +168,57 @@ test("delayed work gives way to any input since its gesture", () => {
   assert.equal(typed(), false);
 });
 
+test("early input ignores inaccessible foreign events but counts keys before interception", async () => {
+  const page = new Window({ url: "https://leaf.test/" });
+  try {
+    let wheel;
+    const listen = page.addEventListener.bind(page);
+    page.addEventListener = (type, handler, options) => {
+      if (type === "wheel" && !wheel) wheel = handler;
+      listen(type, handler, options);
+    };
+    page.eval(
+      readFileSync(
+        new URL("../../browser/runtime/prepaint.js", import.meta.url),
+        "utf8",
+      ),
+    );
+    const inputs = page.document.documentElement.lfInputs;
+    const heard = [];
+    inputs.observe((event) => heard.push(event.type));
+    // Native Firefox can call a sandboxed window's wheel listener with a foreign
+    // wrapper whose properties are inaccessible and which is not a local Event.
+    // Model that browser delivery at its listener, since dispatchEvent itself
+    // requires an accessible Event before it can dispatch anything.
+    const foreign = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("Permission denied to access event property");
+        },
+      },
+    );
+    assert.doesNotThrow(() => wheel(foreign));
+    assert.equal(inputs.count, 0);
+    assert.deepEqual(heard, []);
+    wheel(new page.WheelEvent("wheel"));
+    // Bootstrap holds startup shortcuts at window capture. The user's key must
+    // count before that handler stops it from reaching the document.
+    page.addEventListener("keydown", (event) => event.stopImmediatePropagation(), true);
+    page.document.body.dispatchEvent(
+      new page.KeyboardEvent("keydown", {
+        key: "c",
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    assert.equal(inputs.count, 2);
+    assert.deepEqual(heard, ["wheel", "keydown"]);
+  } finally {
+    await page.happyDOM.close();
+  }
+});
+
 test("a press on a label keeps the user on the control they stood on until it lands", async () => {
   const { box, first } = scene();
   const label = document.createElement("label");
@@ -272,6 +325,17 @@ test("delayed work follows a hold that carries the user to the node replacing th
   assert.equal(mayFocus(), true);
   key(newer);
   assert.equal(mayFocus(), false);
+});
+
+test("a hold leaves a still-painted inert layer for its replacement", () => {
+  const { box, first, other } = scene();
+  focusDestination(first, "move");
+  const restore = holdFocus(box);
+  // A closing layer can keep painting through its fade while the browser has
+  // not yet blurred its control. Its old focus must not satisfy the hold.
+  box.inert = true;
+  assert.equal(restore(other), true);
+  assert.equal(focused(), other);
 });
 
 test("a keyed hold lands on the row keyed the same, or the nearest that survived", () => {
@@ -421,4 +485,15 @@ test("a landing built away from its close runs only as a layer closes", () => {
     () => land(first),
   );
   assert.equal(focused(), first);
+});
+
+test("a failed focus arrival publishes the departure to the document", async () => {
+  const { first, other } = scene();
+  focusDestination(first, "move");
+  heard.length = 0;
+  other.addEventListener("focus", () => other.remove(), { once: true });
+  other.focus();
+  await settled();
+  assert.equal(focused(), document.body);
+  assert.deepEqual(heard, [[null, "move"]]);
 });

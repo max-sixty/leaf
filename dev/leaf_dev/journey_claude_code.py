@@ -46,8 +46,9 @@ The steps, in order:
 - `withdrawn`: the same for an update that owes nothing, a resolve of a thread whose
   comment had no answer yet, which must still reach a hook's context after Escape;
 - `boundary`: a comment that arrives while a wake's turn runs, handed over at a tool
-  boundary whose other hook sleeps, and Escape then ends that turn. No watch runs
-  after a turn a wake opened, so the page's server nudges the session, and a turn
+  boundary whose other hook sleeps, and Escape then ends that turn. The watch the
+  wake's prompt started wakes the session, whose prompt names the boundary's comment
+  as owed rather than handing it over again, so it is handed over once, and a turn
   answers both comments;
 - `deferred`: the user's own turn, told to leave Leaf's comments for later, is
   handed a comment at a tool boundary and ends on its answer with the comment
@@ -60,9 +61,8 @@ Between steps every comment sent so far has exactly one reply and a pickup, the
 page's claim names the session with its turn closed, no Stop hook has continued a
 turn with input, so each turn ends on its own answer, no delivery shows in the
 terminal, and Leaf put no empty wake or notice in the conversation (`leaf_rows`).
-Escape runs no Stop hook, so it leaves the turn open, and the background Stop
-hook's watch from before the user's turn, which waits while a later turn runs,
-still running.
+Escape runs no Stop hook, so it leaves the turn open, and the watch its prompt
+started, which waits while that turn runs, still running.
 
 Each step also prints the rows Leaf put in the conversation the user reads, a nudge
 among them, and, with an Escape, whether it left the turn open, a
@@ -554,11 +554,19 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         ),
         "boundary: the wake was not handed its comment",
     )
-    drop(user.comment("boundary"))
+    boundary = user.comment("boundary")
+    drop(boundary)
     cc.until(
         answered("first-wake", "boundary"),
         "boundary: the comment Escape dropped was not answered",
         150,
+    )
+    # Escape during a tool boundary's hooks keeps that boundary's context, so the
+    # comment is in the conversation once and the woken turn only names it as owed.
+    handed = deliveries(native_records(cc.home, cc.session), boundary)
+    require(
+        len(handed) == 1,
+        f"boundary: the comment Escape kept was handed over {len(handed)} times",
     )
     step("boundary", started, "first-wake", "boundary")
 

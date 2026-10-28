@@ -21,6 +21,7 @@ from browser.threads import (
     summarize_thread,
 )
 from leaf import thread as thread_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -139,6 +140,62 @@ def test_a_reply_folded_in_one_view_keeps_its_widget_in_view_in_another(browser,
     view = open_panel_thread(page, root)
     expect(view.locator(f'.lf-msg[data-event="{asked["id"]}"]')).to_be_hidden()
     expect(message.locator("#folded-note")).to_be_attached()
+
+
+def test_the_browser_s_search_and_leaf_s_travel_open_a_closed_fold(browser, serve):
+    """A closed fold's messages are hidden until found, so the browser's own search
+    reaches their words and opens the whole fold, which its toggle closes again; Leaf's
+    travel to an element inside one opens it the same way. A link to a passage of text
+    drives the browser's search here: it reveals a match by the same algorithm as
+    find-in-page, which a test cannot press. Before, folded messages were plain
+    `hidden`, which the browser's search skips."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
+    asked = append_agent_reply(
+        serve.page_dir,
+        root,
+        "Here is what each job takes.",
+        '<p id="folded-note">The mounts take an hour.</p>',
+    )
+    middle = append_user_reply(serve.page_dir, root, "The mounts, then.")
+    last = append_agent_reply(serve.page_dir, root, "Mounts first.")
+    append_user_reply(serve.page_dir, root, "Keep the latest visible.")
+    summarize_thread(serve.page_dir, asked["id"], last["id"], "The mounts go first.")
+
+    page = open_page(browser, url)
+    seat = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    toggle = seat.locator(".lf-summary-expand")
+    covered = [
+        seat.locator(f'.lf-msg[data-event="{message["id"]}"]')
+        for message in (asked, middle, last)
+    ]
+    note = covered[0].locator("#folded-note")
+
+    def closed():
+        expect(toggle).to_have_attribute("aria-expanded", "false")
+        for message in covered:
+            expect(message).to_be_hidden()
+
+    def opened():
+        expect(toggle).to_have_attribute("aria-expanded", "true")
+        expect(toggle).to_have_accessible_name("Hide 3 earlier messages")
+        for message in covered:
+            expect(message).to_be_visible()
+        expect(note).to_be_in_viewport()
+
+    # The page drops the key `url` carries, so the address it stands at is the one a
+    # same-document navigation keeps; `url` would reload it.
+    here = page.url
+    page.evaluate("() => { window.stayed = true; }")
+    closed()
+    page.goto(f"{here}#:~:text=The%20mounts%20take%20an%20hour")
+    opened()
+    toggle.click()
+    closed()
+
+    page.goto(f"{here}#folded-note")
+    opened()
+    assert page.evaluate("() => window.stayed")
 
 
 def test_a_summary_folds_originals_and_reveals_them(browser, serve):
@@ -480,7 +537,8 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     loaded, and words the user selected in another stay selected. Moving a message
     reloaded its frame in WebKit, which lacks `moveBefore`, and lost the selection in
     every engine. The checkpoint groups its messages for assistive technology by
-    `aria-owns`, since it no longer contains them."""
+    `aria-owns`, since it no longer contains them. Its toggle takes a press while those
+    words stay selected."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     framed = append_agent_reply(
@@ -538,11 +596,22 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     owned = checkpoint.evaluate("node => node.getAttribute('aria-owns').split(' ')")
     assert owned == [message.evaluate("node => node.id") for message in covered]
 
-    toggle.press("Enter")
+    # A press, with those words still selected, folds and unfolds them: the guard that
+    # takes a drag ending on a control for the selection's mouseup once asked the whole
+    # card, so a selection anywhere in it deadened the toggle. Show and Hide leave their
+    # toggle under the user's aim: the thread landing it brought the thread's head back
+    # into view and lifted the toggle 20px.
+    toggle.scroll_into_view_if_needed()
+    stood = toggle.evaluate("node => node.getBoundingClientRect().top")
+    toggle.click()
     for message in covered:
         expect(message).to_be_hidden()
-    toggle.press("Enter")
+    rendered(page)
+    assert toggle.evaluate("node => node.getBoundingClientRect().top") == stood
+    toggle.click()
     expect(covered[0]).to_be_visible()
+    rendered(page)
+    assert toggle.evaluate("node => node.getBoundingClientRect().top") == stood
     kept()
 
     append_carried_log_record(

@@ -8,5 +8,8 @@
   "playwright",
   "file-editor",
   "file-tree",
-  "motion"
+  "motion",
+  "deck",
+  "detail",
+  "timeline"
 ]

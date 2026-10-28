@@ -23,7 +23,7 @@ from render_harness import (
 
 from leaf.delivery import current_responses
 from leaf.event_log import read_events
-from leaf.leases import take_lease, waiter_lease_path
+from leaf.leases import take_wait_lease, waiter_lease_path
 from leaf.render_checks import rendered
 from leaf.thread import ProviderFinal, cmd_resolve, post_reply
 
@@ -55,7 +55,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     )
     harness = website_server.WebsiteCodexHarness("codex")
     turn = hosted_follower(harness, page_dir, prepared)
-    watcher = take_lease(waiter_lease_path(page_dir, "hosted-thread"))
+    watcher = take_wait_lease(waiter_lease_path(page_dir, "hosted-thread"))
     assert watcher is not None
     request.addfinalizer(watcher.close)
     # The send opens the new thread's view in the panel, its reply standing in the
@@ -98,8 +98,8 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     watcher.close()
     told(page)
     rendered(page)
-    expect(receipt).to_have_text("Update stale")
-    expect(receipt).to_have_attribute("title", "Update stale · Looking at the page.")
+    expect(receipt).to_have_text("Gone quiet")
+    expect(receipt).to_have_attribute("title", "Gone quiet · Looking at the page.")
     assert receipt_words() > receipt_width, (
         initial_receipt,
         receipt_width,

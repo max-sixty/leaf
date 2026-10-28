@@ -3,7 +3,7 @@ when detached. Playback and seeking remain local presentation state."""
 
 import pytest
 from playwright.sync_api import expect
-from render_harness import leaf_page, open_page
+from render_harness import consume_browser_errors, leaf_page, open_page
 
 from leaf.render_checks import wait_until_ready
 
@@ -175,11 +175,20 @@ def test_motion_recordings_share_native_playback_and_a_sticky_transport(browser,
     assert page.evaluate("window.videoSeeks") == 0
     play.tap()
     assert videos.evaluate_all("vs => vs.every(v => v.paused)")
-    moments = videos.evaluate_all("vs => vs.map(v => v.currentTime)")
-    assert moments[0] == moments[1]
-    assert moments[0] * 1000 == pytest.approx(
-        page.locator("#study").evaluate("study => study.currentTime")
-    )
+    # A fractional seek exercises native media precision without timing playback.
+    for requested_time in (None, 252.00699999999998):
+        if requested_time is not None:
+            page.locator("#study").evaluate(
+                "(study, time) => study.currentTime = time", requested_time
+            )
+        moments = videos.evaluate_all("vs => vs.map(v => v.currentTime)")
+        assert moments[0] == moments[1]
+        # Native seeking can truncate a microsecond; allow that plus float rounding.
+        assert moments[0] * 1000 == pytest.approx(
+            page.locator("#study").evaluate("study => study.currentTime"),
+            rel=0,
+            abs=0.002,
+        )
 
     page.get_by_role("combobox", name="Speed").select_option("0.25")
     assert videos.evaluate_all("vs => vs.every(v => v.playbackRate === 0.25)")
@@ -212,4 +221,109 @@ def test_motion_recordings_share_native_playback_and_a_sticky_transport(browser,
     assert page.evaluate(
         "[...detachedStudy.querySelectorAll('video')].every(v => v.paused)"
     )
-    context.close()
+
+
+def test_a_motion_failure_shows_beside_the_study_and_reaches_the_agent(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Motion failures",
+                """<h1>Motion failures</h1>
+<lf-motion id="sketch" duration="1000" aria-label="A sketch that breaks past its start">
+  <figure id="sketch-study"><svg viewBox="0 0 300 80" role="img" aria-label="Travel">
+    <circle id="dot" cx="20" cy="40" r="10" /></svg></figure>
+</lf-motion>
+<lf-motion id="recording" duration="1000" aria-label="A recording that cannot play">
+  <figure><video muted playsinline width="160" height="90" aria-label="Clip"></video>
+  </figure>
+</lf-motion>""",
+                head='<script type="module" src="/page/draw.js"></script>',
+            ),
+            packages=("motion",),
+            page_files={
+                "draw.js": """
+await customElements.whenDefined('lf-motion');
+document.getElementById('sketch').renderFrame = time => {
+  if (time > 0) throw new Error('the frame broke');
+};
+"""
+            },
+        ),
+    )
+    # A press the browser refuses to play says so in the clock's place, and the agent
+    # hears why.
+    page.evaluate(
+        """() => { HTMLMediaElement.prototype.play = () =>
+          Promise.reject(new DOMException('no source to play', 'NotSupportedError')); }"""
+    )
+    recording = page.locator("#recording")
+    recording.locator(".lf-motion-play").click()
+    expect(recording.locator(".lf-motion-clock")).to_have_text("Failed")
+    expect(recording.locator(".lf-motion-play")).to_have_accessible_name("Play")
+    consume_browser_errors(page, "Playback failed: no source to play")
+
+    # A frame that throws shows the box beside the transport, leaves the study whole,
+    # and stops the clock: the box stays one, however often the failure recurs.
+    sketch = page.locator("#sketch")
+    expect(sketch.locator(".lf-motion-play")).not_to_have_attribute(
+        "aria-disabled", "true"
+    )
+    time = sketch.get_by_role("slider", name="Time", exact=True)
+    time.press("End")
+    box = sketch.locator(":scope > .lf-error")
+    expect(box).to_have_text("<lf-motion> failed: the frame broke")
+    time.press("ArrowLeft")
+    sketch.locator(".lf-motion-play").click()
+    expect(box).to_have_count(1)
+    expect(sketch.locator(".lf-motion-controls")).to_be_visible()
+    expect(page.locator("#sketch-study #dot")).to_be_visible()
+    expect(sketch.locator(".lf-motion-play")).to_have_accessible_name("Play")
+    consume_browser_errors(page, "the frame broke")
+    # A frame that draws again takes the box away.
+    time.press("Home")
+    expect(box).to_have_count(0)
+
+
+# Each study's Play availability as the parser finishes, before any module runs.
+FIRST_PAINT_PLAY = """
+document.addEventListener('readystatechange', () => {
+  if (document.readyState !== 'interactive') return;
+  window.firstPlay = Object.fromEntries([...document.querySelectorAll('lf-motion')].map(
+    (study) => [study.id, study.querySelector('.lf-motion-play')?.getAttribute('aria-disabled')
+      ?? null]));
+});
+"""
+
+
+def test_play_is_available_from_first_paint_only_where_there_is_something_to_play(
+    browser, serve
+):
+    context = browser.new_context()
+    context.add_init_script(FIRST_PAINT_PLAY)
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Play availability",
+                """<h1>Play availability</h1>
+<lf-motion id="recording" duration="1000" aria-label="A recording">
+  <figure><video muted playsinline width="160" height="90" aria-label="Clip"></video>
+  </figure>
+</lf-motion>
+<lf-motion id="sketch" duration="1000" aria-label="A sketch nothing draws">
+  <figure><svg viewBox="0 0 300 80" role="img" aria-label="Travel"></svg></figure>
+</lf-motion>""",
+            ),
+            packages=("motion",),
+        ),
+        context=context,
+    )
+    assert page.evaluate("window.firstPlay") == {"recording": None, "sketch": "true"}
+    recording = page.locator("#recording .lf-motion-play")
+    sketch = page.locator("#sketch .lf-motion-play")
+    expect(recording).not_to_have_attribute("aria-disabled", "true")
+    expect(sketch).to_have_attribute("aria-disabled", "true")
+    # A study with nothing to play takes no press.
+    sketch.click(force=True)
+    expect(sketch).to_have_accessible_name("Play")

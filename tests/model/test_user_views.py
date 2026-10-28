@@ -13,6 +13,7 @@ from leaf.state import write_json
 def report(session="a" * 32, sequence=1, revision=1):
     viewport = {"width": 900, "height": 700}
     return {
+        "identity": {"delivery": {"runtime": "captured-runtime"}},
         "session": session,
         "sequence": sequence,
         "visible": True,
@@ -32,6 +33,7 @@ def report(session="a" * 32, sequence=1, revision=1):
         "scroll": {"x": 0, "y": 250},
         "visible_regions": ["heading", "comparison"],
         "checks": {
+            "identity": {"delivery": {"runtime": "captured-runtime"}},
             "sequence": sequence,
             "revision": revision,
             "through_seq": 3,
@@ -87,11 +89,14 @@ def test_check_receipt_and_basis_do_not_follow_fresh_context(tmp_path, monkeypat
     checked_at = instant.isoformat()
     instant += timedelta(seconds=20)
     resized = {**original, "sequence": 2, "viewport": {"width": 420, "height": 800}}
+    resized["identity"] = {"delivery": {"runtime": "new-runtime"}}
     user_views.observe_user_view(tmp_path, resized)
     value = user_views.read_user_views(tmp_path, 1)["sessions"][0]
     assert value["received_at"] != checked_at
     assert value["checks"]["checked_at"] == checked_at
     assert value["checks"]["viewport"] == original["viewport"]
+    assert value["identity"] == resized["identity"]
+    assert value["checks"]["identity"] == original["checks"]["identity"]
 
     user_views.observe_user_view(tmp_path, {**resized, "sequence": 3, "checks": None})
     assert (

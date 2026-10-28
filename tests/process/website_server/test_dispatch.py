@@ -743,7 +743,7 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
             page.take_claim(
                 website_server.website_harness("hosted-thread", os.getpid())
             )
-            page.set_status("waiting", "New epoch")
+            page.set_status("waiting")
         current = session_record("hosted-thread")
         leaf_codex.set_stream_activity(
             "hosted-thread",

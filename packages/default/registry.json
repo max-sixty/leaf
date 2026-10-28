@@ -55,8 +55,8 @@
     }
   },
   "lf-ask": {
-    "description": "A question for the user. Around decision widgets it gives their heading and context, each widget answered separately; with no widget inside, it is a question the user answers in words.",
-    "x-instructions": "Around decision widgets, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Each widget inside that asks for input stays its own obligation with its own answer, and the frame asks nothing itself. With no widget inside, it is a question answered in words: in a reply's markup, by the user's next message in that thread; on the page, by their comment on it. Write the question itself as its content, with no heading needed. Wrap the context in a `section` when the document needs a section landmark.",
+    "description": "A question for the user that widgets inside it answer: it gives their heading and context, and each widget is answered separately.",
+    "x-instructions": "Around widgets that ask for input, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Each widget inside that asks for input stays its own obligation with its own answer, and the frame asks nothing itself. Wrap the context in a `section` when the document needs a section landmark. A question the user answers in words needs no `lf-ask`: ask it in a thread message with `--obligation` (`authoring-on-me.md`).",
     "type": "object",
     "properties": {
       "id": {
@@ -70,10 +70,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-awaits": {
-      "reply": true,
-      "encloses": true
-    },
+    "x-encloses": true,
     "x-word": "question",
     "x-upgrade": false,
     "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees; each option draws its document list once the store fills. I recommend dropping the oldest documents, because editing continues and the server keeps a copy of each one.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><small class=\"tag\">editing: continues</small><small class=\"tag ok\">recommended</small><strong>Drop the oldest documents</strong> Editing continues; the server keeps a copy.\n        <figure id=\"store-evict-fig\">\n          <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"store-evict-t\">\n            <title id=\"store-evict-t\">The oldest document leaves the device; the rest stay editable</title>\n            <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n            <rect class=\"line\" x=\"12\" y=\"12\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"25\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"ghost\" x=\"12\" y=\"38\" width=\"130\" height=\"6\" rx=\"3\"/>\n            <text class=\"small\" x=\"228\" y=\"44\" text-anchor=\"end\">server only</text>\n          </svg>\n        </figure>\n      </lf-option>\n      <lf-option id=\"store-stop\"><small class=\"tag\">editing: paused</small><strong>Pause offline editing</strong> Nothing leaves.\n        <figure id=\"store-stop-fig\">\n          <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"store-stop-t\">\n            <title id=\"store-stop-t\">Every document stays on the device, read-only until it reconnects</title>\n            <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n            <rect class=\"line\" x=\"12\" y=\"12\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"25\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"38\" width=\"130\" height=\"6\" rx=\"3\"/>\n            <circle class=\"warn\" cx=\"224\" cy=\"28\" r=\"5\"/><text class=\"small\" x=\"212\" y=\"31\" text-anchor=\"end\">read-only</text>\n          </svg>\n        </figure>\n      </lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
@@ -174,7 +171,8 @@
     "x-data": {
       "document": {
         "contract": "text-document",
-        "source": "source"
+        "source": "source",
+        "property": "value"
       }
     },
     "x-language": "language",
@@ -228,7 +226,7 @@
   },
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
-    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case and picture inside its lf-option. `multiple` lets the user pick several options as one answer (references/authoring-decisions.md says when). The built-in Another option field takes unlisted answers, so add no catch-all option. Use `for` only to point at sections or work items that exist apart from the decision. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case and picture inside its lf-option. `multiple` lets the user pick several options as one answer (references/authoring-on-me.md says when). The built-in Another option field takes unlisted answers, so add no catch-all option; `closed` leaves it out where only the listed options can answer, such as a page that draws its own choice, and the user can still say more in a comment. Use `for` only to point at sections or work items that exist apart from the question. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
     "type": "object",
     "properties": {
       "id": {
@@ -239,6 +237,9 @@
         "type": "boolean"
       },
       "multiple": {
+        "type": "boolean"
+      },
+      "closed": {
         "type": "boolean"
       },
       "settled": {
@@ -263,6 +264,7 @@
         "settled": [false]
       },
       "retired": "settled",
+      "key": "value",
       "answered": {
         "choose": {
           "when": {
@@ -318,7 +320,7 @@
   },
   "lf-option": {
     "description": "One alternative in a decision: a compact label, or a card showing what choosing it gives the user.",
-    "x-instructions": "Word, label and illustrate the alternatives as `references/authoring-decisions.md` says. A card opens with its small.tag labels, then `<small class=\"tag ok\">recommended</small>` on the option you advise, then a `<strong>` title and a sentence naming its consequence, then any picture as block HTML, such as an svg.drawing. Give your reason for the recommendation in prose beside the group, such as the `lf-ask`'s paragraph, so each card states only what choosing it does. Direct text takes inline Markdown. `chosen` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words.",
+    "x-instructions": "Word, label and illustrate the alternatives as `references/authoring-on-me.md` says. A card opens with its small.tag labels, then `<small class=\"tag ok\">recommended</small>` on the option you advise, then a `<strong>` title and a sentence naming its consequence, then any picture as block HTML, such as an svg.drawing. Give your reason for the recommendation in prose beside the group, such as the `lf-ask`'s paragraph, so each card states only what choosing it does. Direct text takes inline Markdown. `chosen` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the group's answer, such as a board column (`authoring-on-me.md`, \"One decision in its section and on a board\").",
     "type": "object",
     "properties": {
       "id": {
@@ -332,6 +334,10 @@
       "chosen": {
         "type": "boolean"
       },
+      "value": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
       "restated": {
         "type": "boolean"
       }
@@ -339,6 +345,9 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-owners": ["lf-options"],
+    "x-unique": {
+      "value": "lf-options"
+    },
     "x-content": "markup",
     "x-text-format": "inline-markdown",
     "x-refers": {
@@ -396,7 +405,7 @@
   },
   "lf-chart": {
     "description": "An Observable Plot chart authored with Plot\u2019s API and sized to its place in the page.",
-    "x-instructions": "Inside a `<pre>`, write a JavaScript expression for the options object you would pass to `Plot.plot`, HTML-escaping & before < and >. `Plot` and `width` are the names in scope, and the data goes inline. The chart requires an `ariaLabel` describing it. Leave `width` and `height` out of the options: read `width` to fit the ticks to the room, and set a height other than the default with `data-height` on the element. Write dates as ISO strings on an explicitly typed time scale, `utc` for days and months, and give moments a time zone, such as 2026-06-01T14:00Z. Use `var(--series-N)` for constant or categorical colors; a continuous color scale needs a Plot scheme. Title the chart in the heading or prose around it rather than with Plot's `title`. When `page check --render` reports overlapping labels, use fewer category ticks, choose them by `width`, or give the axis label more margin.",
+    "x-instructions": "Inside a `<pre>`, write a JavaScript expression for the options object you would pass to `Plot.plot`, HTML-escaping & before < and >. `Plot` and `width` are the names in scope, and the data goes inline. The chart requires an `ariaLabel` describing it. Leave `width` and `height` out of the options: read `width` to fit the ticks to the room, and set a height other than the default with `data-height` on the element. Write dates as ISO strings on an explicitly typed time scale, `utc` for days and months, and give moments a time zone, such as 2026-06-01T14:00Z. Use `var(--series-N)` for constant or categorical colors; a continuous color scale needs a Plot scheme. Title the chart in the heading or prose around it rather than with Plot's `title`. When `page check --render` reports overlapping labels, use fewer category ticks, choose them by `width`, or give the axis label more margin. Plot takes a mark's `dx`, `dy` and `textAnchor` as one value for the whole mark, so labels that each need their own offset, such as line ends that meet, each take a mark of their own.",
     "type": "object",
     "properties": {
       "id": {
@@ -443,7 +452,7 @@
   },
   "lf-board": {
     "description": "Cards grouped into columns for scanning work and status, with movement and reordering available.",
-    "x-instructions": "Use a board to show grouped work and status. When the user must make changes or decisions, give them explicit controls or `lf-options` rather than relying on moving cards. When revising, keep each card the user moved in the column they chose, unless the revision retracts that move by marking the card, not the board, `restated` (`authoring-revisions.md`, \"Honor user state\").",
+    "x-instructions": "Use a board to show grouped work and status. When the user must make decisions, give them explicit controls or `lf-options` rather than relying on moving cards, and to gather those answers on a board as well, give each card `shows`. When revising, keep each card the user moved in the column they chose, unless the revision retracts that move by marking the card, not the board, `restated` (`authoring-revisions.md`, \"Honor user state\").",
     "type": "object",
     "properties": {
       "id": {
@@ -469,7 +478,7 @@
   },
   "lf-column": {
     "description": "One named board column, including empty columns the user can move a card into.",
-    "x-instructions": "Write a label that names the column on its own. Use tone when landing here carries a status judgment, such as blocked, needing review, or done; otherwise leave it neutral.",
+    "x-instructions": "Write a label that names the column on its own. Use tone when landing here carries a status judgment, such as blocked, needing review, or done; otherwise leave it neutral. On a board whose cards show answers, `value` names the answer the column holds, and a column without one holds the answers that name none.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -482,6 +491,10 @@
       },
       "tone": {
         "type": "string"
+      },
+      "value": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
     "required": ["id", "label"],
@@ -496,10 +509,14 @@
   },
   "lf-card": {
     "description": "One board card whose identity and comments survive user moves.",
-    "x-instructions": "Lead with a `<strong>` title and follow with prose. Keep its id stable across moves. Use `$restated` to withdraw the user's moves.",
+    "x-instructions": "Lead with a `<strong>` title and follow with prose. Keep its id stable across moves. Use `$restated` to withdraw the user's moves. `shows` makes the card a view of a decision widget's answer: it stands in the column whose `value` that answer names, and moving it changes the answer (`authoring-on-me.md`, \"One decision in its section and on a board\").",
     "type": "object",
     "properties": {
       "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "shows": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
@@ -510,6 +527,13 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-owners": ["lf-column"],
+    "x-refers": {
+      "shows": {}
+    },
+    "x-shows": {
+      "attr": "shows",
+      "value": "value"
+    },
     "x-content": "markup",
     "x-work": true,
     "x-upgrade": false
@@ -557,7 +581,7 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-inline": true,
-    "x-prepaint": "<span class=\"lf-tally-face\"><span class=\"lf-tally-count\"><span class=\"lf-tally-room\">00 of 00 to answer · 00 on the agent</span><span class=\"lf-tally-room\">00 of 00 to answer · 00 on the agent</span><span class=\"lf-tally-words\"></span></span><button class=\"lf-btn lf-tally-next lf-ui lf-ui-face\" type=\"button\">Next on me</button></span>",
+    "x-initial": "/vendor/lf-tally-initial.js",
     "x-refers": {
       "for": {}
     },

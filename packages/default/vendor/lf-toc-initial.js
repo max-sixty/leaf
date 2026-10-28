@@ -5,15 +5,40 @@
   // packages/default/widgets/toc-view.js
   var HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
   var outlineDocument = (host) => host.closest("[data-lf-views] > *, main");
-  function drawToc(host, generatedElement) {
+  function drawToc(host, { generatedElement, keeps }, initialReading) {
     const open = host.hasAttribute("open");
+    let outline = { start: { label: "Top" }, items: [] };
     const href = (destination) => destination?.id ? `#${destination.id}` : nothing;
-    const paint = (start, items) => render(
-      html`
-        <nav class="lf-toc-nav lf-ui scroll" aria-label="On this page">
-          <p class="lf-toc-heading lf-label">On this page</p>
+    const generated = (says) => ref((node) => node && generatedElement(node, { says }));
+    host.replaceChildren();
+    return {
+      scope: () => outlineDocument(host),
+      get nav() {
+        return host.querySelector("nav");
+      },
+      get track() {
+        return host.querySelector(".lf-toc-rows");
+      },
+      get lens() {
+        return host.querySelector(".lf-toc-window");
+      },
+      render(reading2 = initialReading) {
+        if (reading2 && host.ownerDocument.readyState !== "loading") {
+          outline = readOutline(host, reading2);
+          keeps(host, "data-lf-toc-empty", outline.items.length ? null : "");
+        }
+        const { start, items } = outline;
+        return html`
+        <nav
+          class="lf-toc-nav lf-ui scroll"
+          aria-label="On this page"
+          ${generated(false)}
+        >
+          <p class="lf-toc-heading lf-label" ${generated(true)}>On this page</p>
           <details class="lf-toc-disclosure" ?open=${open}>
-            <summary class="lf-toc-toggle lf-label">On this page</summary>
+            <summary class="lf-toc-toggle lf-label" ${generated(true)}>
+              On this page
+            </summary>
             <div class="lf-toc-rows">
               <span class="lf-toc-window" aria-hidden="true"></span>
               <div class="lf-toc-start" data-lf-depth="0">
@@ -21,39 +46,24 @@
               </div>
               <ol>
                 ${repeat(
-        items,
-        ({ key }) => key,
-        (item) => html`
+          items,
+          ({ key }) => key,
+          (item) => html`
                     <li data-lf-depth=${item.depth}>
                       <a href=${href(item.destination)}>${item.label}</a>
                     </li>
                   `
-      )}
+        )}
               </ol>
             </div>
           </details>
         </nav>
-      `,
-      host
-    );
-    host.replaceChildren();
-    paint({ label: "Top" }, []);
-    const nav = host.querySelector("nav");
-    generatedElement(nav, { says: false });
-    for (const label of nav.querySelectorAll(".lf-toc-heading, .lf-toc-toggle"))
-      generatedElement(label, { says: true });
-    const track = nav.querySelector(".lf-toc-rows");
-    const startRow = track.querySelector(".lf-toc-start");
-    const list = track.querySelector("ol");
-    return {
-      scope: () => outlineDocument(host),
-      nav,
-      track,
-      lens: track.querySelector(".lf-toc-window"),
-      update(reading2) {
-        const { start, items } = readOutline(host, reading2);
-        paint(start, items);
-        const rows = [...list.children];
+      `;
+      },
+      sections() {
+        const { start, items } = outline;
+        const startRow = host.querySelector(".lf-toc-start");
+        const rows = [...host.querySelector("ol").children];
         return items.length ? [
           { ...start, row: startRow, link: startRow.firstElementChild },
           ...items.map((item, index) => ({
@@ -113,8 +123,8 @@
     lends: false
   };
   document.documentElement.lfInitial.register("lf-toc", (host, tools) => {
-    const drawing = drawToc(host, tools.generatedElement);
-    const outline = () => tools.keeps(host, "data-lf-toc-empty", drawing.update(reading).length ? null : "");
+    const drawing = drawToc(host, tools, reading);
+    const outline = () => render(drawing.render(), host, { host });
     const doc = host.ownerDocument;
     if (doc.readyState === "loading") {
       const pending = host.hasAttribute("open") && outlineDocument(host);
@@ -127,7 +137,7 @@
         },
         { once: true }
       );
-    } else outline();
+    }
     return drawing;
   });
 })();

@@ -39,7 +39,7 @@
       const views = {
         "overview-sample": { surface: "panel" },
         "on-you-sample": { thread: "98850286", surface: "page" },
-        "resolved-sample": { surface: "panel", status: "resolved" },
+        "resolved-sample": { surface: "panel" },
         "summary-sample": { thread: "c1a39980", surface: "panel" },
       };
       function showView(sample) {
@@ -60,7 +60,7 @@
       <h1>Threads</h1>
       <p>
         These views share Leaf's conversation renderer across the panel and anchored
-        card. Each is a separate page with its own event log. Open a thread, filter the
+        card. Each is a separate page with its own event log. Open a thread, search the
         list, reply, or Reset a sample to return to the starting view.
       </p>
       <nav id="thread-panel-jumps" aria-label="Panel views">
@@ -122,7 +122,10 @@
 
         <section id="panel-resolved">
           <h2>Resolved</h2>
-          <p>The Resolved filter shows the closed discussion and its Reopen action.</p>
+          <p>
+            Threads folds the closed discussion under Resolved; pressing the heading
+            lists it, and opening it offers Reopen.
+          </p>
           <lf-sample id="resolved-sample" label="resolved thread">
             <template id="resolved-page" data-sample data-sample-threads="edf09a41">
               <h1>Workshop room</h1>

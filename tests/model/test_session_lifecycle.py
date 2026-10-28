@@ -55,10 +55,8 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
     assert hosting_model.start_server(
         claimed, harness=harness_model.session_harness()
     )  # a real detached server to clean up
-    session_model.cmd_waiting(claimed, "")
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
-    )
+    session_model.cmd_waiting(claimed)
+    cleanup_model.end_harness_instance("s1")
     wait_for(
         lambda: server_model.running_server(claimed),
         lambda running: not running,
@@ -92,7 +90,9 @@ def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
 
     record_claim(page_dir, id="released")
     leases_model.mark_hooks("released")
-    held = leases_model.take_lease(leases_model.waiter_lease_path(None, "released"))
+    held = leases_model.take_wait_lease(
+        leases_model.waiter_lease_path(None, "released")
+    )
     record_claim(page_dir, id="holder")
     leases_model.mark_hooks("holder")
     cleanup_model.end_harness_instance("released")
@@ -113,7 +113,7 @@ def test_desktop_codex_unloading_keeps_the_chat_page_owned(page_dir, native_code
         page_dir, harness="codex", chat=True, ts=cleanup_model.now_iso()
     )
     before = cleanup_model.session_record("s1")
-    hooks_model.cmd_hook("codex", {"hook_event_name": "SessionEnd", "session_id": "s1"})
+    cleanup_model.end_harness_instance("s1")
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
     assert service_model.page_claim(page_dir)["acquisition"] == claim["acquisition"]
     assert cleanup_model.session_record("s1")["generation"] == before["generation"]
@@ -128,7 +128,7 @@ def test_resumed_session_is_reminded_until_its_leaf_recovers(page_dir, harness, 
     assert hosting_model.start_server(
         page_dir, harness=harness_model.hook_harness(harness, "s1")
     )
-    hooks_model.cmd_hook(harness, {"hook_event_name": "SessionEnd", "session_id": "s1"})
+    cleanup_model.end_harness_instance("s1")
     wait_for(
         lambda: server_model.running_server(page_dir),
         lambda running: not running,
@@ -152,7 +152,7 @@ def test_resumed_session_is_reminded_until_its_leaf_recovers(page_dir, harness, 
         )
         assert "leaf server start" in capsys.readouterr().out
     # Another resumed generation still needs recovery advice.
-    hooks_model.cmd_hook(harness, {"hook_event_name": "SessionEnd", "session_id": "s1"})
+    cleanup_model.end_harness_instance("s1")
     hooks_model.cmd_hook(
         harness, {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
@@ -256,9 +256,7 @@ def test_resume_needs_ownership_even_while_the_old_server_still_serves(claimed, 
     }
     hooks_model.cmd_hook("claude-code", resume)
     assert capsys.readouterr().out == ""
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
-    )
+    cleanup_model.end_harness_instance("s1")
     assert server_model.running_server(claimed)
     hooks_model.cmd_hook("claude-code", resume)
     command = f"leaf server start {shlex.quote(str(claimed.resolve()))}"
@@ -273,9 +271,7 @@ def test_resume_needs_ownership_even_while_the_old_server_still_serves(claimed, 
     record_claim(claimed)
     hooks_model.cmd_hook("claude-code", resume)
     assert capsys.readouterr().out == ""
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
-    )
+    cleanup_model.end_harness_instance("s1")
     hooks_model.cmd_hook("claude-code", resume)
     assert (
         command
@@ -374,14 +370,12 @@ def test_session_end_cannot_release_a_page_claimed_by_its_successor(page_dir):
     serving(page_dir, 41000, "session")
     record_claim(page_dir, id="predecessor")
     record_claim(page_dir, id="successor")
-    session_model.cmd_waiting(page_dir, "successor is reviewing")
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "predecessor"}
-    )
+    session_model.cmd_waiting(page_dir)
+    cleanup_model.end_harness_instance("predecessor")
     assert service_model.page_claim(page_dir)["id"] == "successor"
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
     assert read_record(page_dir / "service.json")["enabled"] is True
-    assert declared(page_dir)["detail"] == "successor is reviewing"
+    assert declared(page_dir)["state"] == "waiting"
     assert server_model.running_server(page_dir)
 
 

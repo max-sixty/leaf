@@ -10,7 +10,9 @@ import { LeafElement, nothing, html } from "/runtime/widget-api.js";
 let fixtureSequence = 0;
 async function scene() {
   adoptRegistry({
-    "lf-feed": { "x-data": { rows: { source: "source", contract: "rows" } } },
+    "lf-feed": {
+      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+    },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
   document.body.innerHTML =
@@ -31,8 +33,14 @@ async function scene() {
   await notifyDataSubscribers();
 }
 
+// Whatever the element owes has drawn its DOM, without the drawing its own
+// `updateComplete` goes on to wait for.
+const committed = (element) =>
+  Object.getPrototypeOf(LeafElement.prototype).getUpdateComplete.call(element);
+
 // A widget bound to the deployments source, as the scene's <lf-feed> is, drawing each
-// delivery through `draw(snapshot)`; a promise it returns is the draw's drawing.
+// delivered value through `draw(value)`; a promise it returns is the draw's drawing,
+// which its `updateComplete` waits for.
 let feeds = 0;
 async function feed(
   draw,
@@ -40,20 +48,29 @@ async function feed(
 ) {
   const tag = `lf-feed-${++feeds}`;
   adoptRegistry({
-    [tag]: { "x-data": { rows: { source: "source", contract: "rows" } } },
+    [tag]: {
+      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+    },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
   customElements.define(
     tag,
     class extends LeafElement {
+      constructor() {
+        super();
+        this.value = null;
+      }
       render() {
-        this.snapshot = this.data("rows");
         return nothing;
       }
       updated(changed) {
         super.updated(changed);
-        const work = draw(this.snapshot);
-        if (work) this.drawing(work);
+        this.work = draw(this.value);
+      }
+      async getUpdateComplete() {
+        const result = await super.getUpdateComplete();
+        await this.work;
+        return result;
       }
     },
   );
@@ -62,7 +79,7 @@ async function feed(
   bind(element);
   document.querySelector("main").append(element);
   await new Promise((resolve) => setTimeout(resolve, 0));
-  await element.updateComplete;
+  await committed(element);
   return element;
 }
 
@@ -70,11 +87,11 @@ test("a widget reads its own binding, captured at its first read", async () => {
   await scene();
   const { runtime } = await import("/runtime/context.js");
   const current = [];
-  const bound = await feed((snapshot) => current.push(snapshot?.revision ?? null));
+  const bound = await feed((value) => current.push(value?.[0].value ?? null));
   bound.remove();
   const absent = [];
   const elsewhere = await feed(
-    (snapshot) => absent.push(snapshot),
+    (value) => absent.push(value),
     (element) => element.setAttribute("source", "constructor"),
   );
   // A live attribute change does not rebind what the element reads.
@@ -87,11 +104,11 @@ test("a widget reads its own binding, captured at its first read", async () => {
   elsewhere.remove();
   const unbound = [];
   const loose = await feed(
-    (snapshot) => unbound.push(snapshot),
+    (value) => unbound.push(value),
     () => {},
   );
   loose.remove();
-  assert.deepEqual(current, ["initial-revision"]);
+  assert.deepEqual(current, ["Running"]);
   assert.deepEqual(absent, [null]);
   assert.deepEqual(unbound, [null]);
 });
@@ -168,8 +185,8 @@ test("a superseded async data render cannot stamp the newer version", async () =
     const { runtime } = await import("/runtime/context.js");
     const taken = 1;
     const releases = new Map();
-    const widget = await feed((snapshot) => {
-      const value = snapshot?.value?.[0]?.value;
+    const widget = await feed((rows) => {
+      const value = rows?.[0]?.value;
       if (!value?.startsWith("Held")) return;
       return new Promise((resolve) => releases.set(value, resolve));
     });
@@ -250,7 +267,7 @@ test("a return redraws delivered data after interrupted or completed drawing", a
     await settle();
     main.append(widget);
     await settle();
-    await widget.updateComplete;
+    await committed(widget);
   };
   let draws = 0;
   let finish;
@@ -288,11 +305,8 @@ test("data readiness does not wait for an unrelated widget region", async () => 
     const { notifyDataSubscribers } = await import("/runtime/data.js");
     const { attachApplicationPresentation } =
       await import("/runtime/semantic-state.js");
-    const unrelated = attachApplicationPresentation(
-      "widget:unrelated:render",
-      document.body,
-    );
-    const held = unrelated.present("held");
+    const unrelated = attachApplicationPresentation("widget:unrelated:render");
+    const held = unrelated.present();
     let ready = false;
     const data = notifyDataSubscribers().then(() => {
       ready = true;
@@ -316,11 +330,13 @@ function outputScene(draw) {
   const consumerTag = `lf-consumer-${suffix}`;
   adoptRegistry({
     [producerTag]: {
-      "x-data": { rows: { source: "source", contract: "rows" } },
+      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
       "x-output": { rows: { contract: "rows" } },
     },
     [consumerTag]: {
-      "x-data": { rows: { reference: "for", output: "rows", contract: "rows" } },
+      "x-data": {
+        rows: { reference: "for", output: "rows", contract: "rows", property: "value" },
+      },
       "x-refers": { for: {} },
     },
   });
@@ -328,13 +344,16 @@ function outputScene(draw) {
     consumerTag,
     class extends LeafElement {
       render() {
-        this.snapshot = this.data("rows");
         return nothing;
       }
       updated(changed) {
         super.updated(changed);
-        const work = draw(this, this.snapshot);
-        if (work) this.drawing(work);
+        this.work = draw(this, this.value);
+      }
+      async getUpdateComplete() {
+        const result = await super.getUpdateComplete();
+        await this.work;
+        return result;
       }
     },
   );
@@ -345,9 +364,9 @@ const settleOutput = async () => new Promise((resolve) => setTimeout(resolve));
 test("typed output readers retain authored scope and producer instance identity", async () => {
   const { publishOutput, dataReader } = await import("/runtime/data.js");
   const readings = new Map();
-  const { producerTag, consumerTag } = outputScene((element, snapshot) => {
+  const { producerTag, consumerTag } = outputScene((element, value) => {
     const history = readings.get(element.id) ?? [];
-    readings.set(element.id, [...history, snapshot]);
+    readings.set(element.id, [...history, value]);
   });
   document.body.innerHTML =
     `<main><${producerTag} id="feed"></${producerTag}><${consumerTag} id="page" for="feed"></${consumerTag}></main>` +
@@ -361,20 +380,13 @@ test("typed output readers retain authored scope and producer instance identity"
   pageValue.rows[0] = "mutated";
   publishOutput(messageProducer, "rows", { rows: ["message"] });
   await settleOutput();
-  assert.deepEqual(readings.get("page"), [
-    null,
-    {
-      contract: "rows",
-      value: { rows: ["page"] },
-      origin: { derived: [{ widget: "feed" }] },
-    },
-  ]);
-  assert.deepEqual(readings.get("message").at(-1).value, { rows: ["message"] });
+  assert.deepEqual(readings.get("page"), [null, { rows: ["page"] }]);
+  assert.deepEqual(readings.get("message").at(-1), { rows: ["message"] });
   assert.deepEqual(current().value, { rows: ["page"] });
   publishOutput(pageProducer, "rows", { rows: ["page"] });
   await settleOutput();
   assert.equal(readings.get("page").length, 2, "same complete value does not repaint");
-  readings.get("page").at(-1).value.rows[0] = "consumer mutation";
+  readings.get("page").at(-1).rows[0] = "consumer mutation";
   assert.deepEqual(
     current().value,
     { rows: ["page"] },
@@ -392,20 +404,20 @@ test("typed output readers retain authored scope and producer instance identity"
     value: { rows: ["changed first"] },
     origin: { derived: [{ widget: "feed" }] },
   };
-  assert.deepEqual(readings.get("page").at(-1), captured);
+  assert.deepEqual(readings.get("page").at(-1), captured.value);
   assert.deepEqual(current(), captured);
   const replacement = document.createElement(producerTag);
   replacement.id = "feed";
   pageProducer.replaceWith(replacement);
   publishOutput(replacement, "rows", { rows: ["replacement"] });
   await settleOutput();
-  assert.deepEqual(readings.get("page").at(-1).value, { rows: ["replacement"] });
+  assert.deepEqual(readings.get("page").at(-1), { rows: ["replacement"] });
   replacement.remove();
   await settleOutput();
   assert.equal(readings.get("page").at(-1), null);
   document.querySelector("main").append(replacement);
   await settleOutput();
-  assert.deepEqual(readings.get("page").at(-1).value, { rows: ["replacement"] });
+  assert.deepEqual(readings.get("page").at(-1), { rows: ["replacement"] });
   publishOutput(replacement, "rows", null);
   await settleOutput();
   assert.equal(readings.get("page").at(-1), null);
@@ -419,8 +431,8 @@ test("source readiness includes asynchronous LeafElement output consumers", asyn
   let started;
   const begun = new Promise((resolve) => (started = resolve));
   const rendering = new Promise((resolve) => (release = resolve));
-  const { producerTag, consumerTag } = outputScene((element, snapshot) => {
-    if (snapshot?.value === "next") {
+  const { producerTag, consumerTag } = outputScene((element, value) => {
+    if (value === "next") {
       started();
       return rendering;
     }
@@ -429,12 +441,11 @@ test("source readiness includes asynchronous LeafElement output consumers", asyn
     producerTag,
     class extends LeafElement {
       render() {
-        this.snapshot = this.data("rows");
         return nothing;
       }
       updated(changed) {
         super.updated(changed);
-        publishOutput(this, "rows", this.snapshot?.value ?? null);
+        publishOutput(this, "rows", this.value ?? null);
       }
     },
   );

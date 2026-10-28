@@ -22,8 +22,16 @@ globalThis.ResizeObserver = class {
   constructor(callback) {
     this.callback = callback;
   }
-  observe() {}
-  disconnect() {}
+  observed = new Map();
+  observe(target, options) {
+    this.observed.set(target, options);
+  }
+  unobserve(target) {
+    this.observed.delete(target);
+  }
+  disconnect() {
+    this.observed.clear();
+  }
 };
 
 const {
@@ -382,4 +390,39 @@ test("a preparation released between an update and its check owes another update
   assert.equal(renderingState().updatesSettled, false);
   await update();
   assert.equal(settled, 1);
+});
+
+test("size subscriptions started during delivery wait for the next update and can retire first", async () => {
+  const target = {};
+  const retired = {};
+  const stopped = sizeObserver(() => {});
+  const receiver = sizeObserver(() => {});
+  const source = sizeObserver(() => {
+    receiver.observe(target);
+    receiver.observe(retired);
+    receiver.unobserve(retired);
+    stopped.observe(target);
+    stopped.disconnect();
+  });
+  await update({ delivering: [source] });
+  assert.equal(receiver.observed.size, 0);
+  assert.equal(renderingState().updatesSettled, false);
+  await update();
+  assert.deepEqual([...receiver.observed.keys()], [target]);
+  assert.equal(stopped.observed.size, 0);
+  receiver.disconnect();
+});
+
+test("uncounted size subscriptions stay outside the settled reading", async () => {
+  await update();
+  const target = {};
+  const receiver = sizeObserver(() => {}, { counted: false });
+  const source = sizeObserver(() => receiver.observe(target), { counted: false });
+  source.callback([], source);
+  assert.equal(receiver.observed.size, 0);
+  assert.equal(renderingState().updatesSettled, true);
+  await update();
+  assert.equal(receiver.observed.has(target), true);
+  assert.equal(renderingState().updatesSettled, true);
+  receiver.disconnect();
 });

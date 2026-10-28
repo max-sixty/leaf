@@ -12,7 +12,7 @@ start, with its text as the line (`take_in_hand`), so the thread and the Working
 line show the same words.
 
 The agent's to-do is on a thread, a page widget, an element, or the whole page.
-`leaf task open` writes a `todo` event. A reply that promises work it doesn't
+`leaf task create` writes a `todo` event. A reply that promises work it doesn't
 deliver carries the to-do's title as `todo`, which opens a to-do on the reply's
 thread under the reply's id (`todo_reading`), so one write answers the message and
 keeps the work on the agent. The to-do stays open until a `todo_end` gives it an
@@ -27,7 +27,7 @@ counts under `queues.on_agent` in `page state`, and shows in the page's status.
 A to-do on the user is a `todo` event opened with `--on user`, ended by the user's
 Done or by the agent. It publishes a canonical obligation (`obligations`) that the
 lists read directly. Its explicit completion remains owned by this fold. The agent's `todo_end` can also close an open
-question the user answers in words, such as an `lf-ask` in a reply, by its obligation id:
+question the user answers in words, a message sent with `--obligation`, by its obligation id:
 `done` when the user answered it elsewhere, `dropped` when it no longer applies,
 never `failed`. Neither records an answer from the user (`obligations.settle_by_words`).
 
@@ -73,7 +73,7 @@ from .findings import Finding, Rejected
 from .obligations import answered_in_words
 from .thread_context import thread_ids, thread_names
 
-# What `task open` takes for the page as a whole; any other id names a widget or an
+# What `task create` takes for the page as a whole; any other id names a widget or an
 # element of the page.
 PAGE_SUBJECT = "page"
 
@@ -285,7 +285,7 @@ def todo_error(
     Replies can also open agent work on their own thread (`todo_reading`). A start names an open agent to-do or an owed
     update. Both completion carriers share `TodoReading.completion_error`.
     Either side can end a to-do within its ownership rules. An agent end may
-    also end an open obligation the user answers in words (`obligations.replied`) by its id,
+    also end an open obligation the user answers in words (`obligations.answered_in_words`) by its id,
     while an obligation its widget's state answers stays owned by that state.
     """
     kind = event["kind"]
@@ -329,7 +329,7 @@ def todo_error(
             None,
         )
         if item is not None:
-            if not answered_in_words(item, registry):
+            if not answered_in_words(item):
                 return Finding("widget-obligation", values=named)
             if event["author"] != "agent":
                 return Finding("users-question", values=named)
@@ -350,8 +350,8 @@ def todo_error(
     return log.completion_error(event, todo)
 
 
-def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
-    """Open a to-do titled `title`, owed by `owner`, on what `subject` names: a page
+def cmd_create(page_dir: Path, subject: str, title: str, owner: str) -> dict:
+    """Create a to-do titled `title`, owed by `owner`, on what `subject` names: a page
     widget, thread, any other element of the page by its id, or `page` for the
     page as a whole; the record. A thread attachment supplies discussion context
     without making a reply complete the task."""

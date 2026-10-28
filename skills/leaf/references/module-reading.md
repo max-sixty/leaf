@@ -6,7 +6,8 @@ module owes.
 ## Reading the page
 
 Read an element's words with `says(element)`, which returns them as passages and
-comments read them; `textContent` also returns lines Leaf writes into the page. To name
+comments read them; `textContent` also returns words a widget generated that passages
+leave out. To name
 one of the widget's own parts, use `wrote(element)`, which returns only the words the
 author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims leading
 blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters,
@@ -61,17 +62,6 @@ name a datum not yet drawn. Where your key is a source location rather than the 
 lasting identity, translate it and read `projectedDatum(widget, key)`, the one matching
 element or `null`.
 
-#### Indicating (experimental)
-
-`indicate(this, attribute, key)` marks the elements `key` names in the referenced
-widget with `data-lf-indicated`, replacing this widget's previous mark through that
-attribute, and returns
-whether it marked anything; pass `null` to clear it, including in your cleanup. It
-doesn't scroll, focus, load, announce or record anything, so a widget may move the mark
-every frame and says in its own words what the mark means. A target whose parts have
-their own look styles `[data-lf-indicated]` in place of the default outline, and calls
-`layoutChanged(this)` after redrawing what a key names.
-
 ## Content helpers
 
 ### Markdown
@@ -98,27 +88,22 @@ one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
 `highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
 names a language.
 
-Leaf adds a Copy button to each `pre > code` in the page. For other source text a widget
-draws, such as code in its shadow stage, append the button `copyBlock(block, source,
-noun)` returns once the block is connected; it copies `source()`, and `noun`, such as
-`"code"`, names what it copies.
+Leaf adds a Copy button to each `pre > code` in the page. A widget block holding other
+source text, such as numbered code lines, declares its own: give the block
+`data-lf-copy`, naming what it holds, such as `"code"`, and an `lfCopy()` method that
+returns the text to copy. Leaf stands the button right after the block while both are in
+the page, and a page without Leaf shows none. Where the button belongs among the
+widget's own controls, as in a draft's toolbar, place the one `copyBlock(block, source,
+noun)` returns once the block is connected; it copies `source()`. A copy that stands
+among a widget's own controls rather than over a block, such as in a popover's header,
+is `copyControl(className, {label, success, error})`: set its `value` before it copies,
+and it reports `success` or `error` as a code block's does.
 
 ### Text alignment
 
 `alignText(before, after)` aligns two texts by words and returns runs `{kind, text}`,
 with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
 `Intl.Segmenter` with `granularity: "sentence"` as the third argument.
-
-### Image comparison (experimental)
-
-`compareImages(a, b)` compares two decoded, untainted images at natural size. It
-resolves to `{width, height, changed, throughout, regions}`: the compared size, the
-number of differing pixels, whether they differ almost everywhere, and outlines
-`{x, y, width, height, side, kind}` around content that `changed` or `moved`, on the
-before image (`a`) or the after (`b`). `differenceKind(reading)`,
-`describeDifference(reading)` and `countAreas(regions)` classify, word and count the
-result. `compareImagePixels(a, b)` resolves to one RGBA mask `{width, height, data}`,
-whose alpha is stronger where a visible pixel changed more. `lf-shot` is the worked example.
 
 ### Media URLs
 
@@ -128,9 +113,19 @@ on a generated image or link, so it resolves on published pages too.
 
 ### Icons
 
-`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons.
-For a thread control, put `iconElement("comment", "lf-action-icon")` in an
-`lf-icon-action` button, which gives the label.
+`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons,
+for what something is or holds, such as a kind or a state. A press shows an action's
+symbol instead, so each action looks the same wherever it is offered. `ACTIONS` in
+`runtime/icon-paths.js` lists Leaf's actions with their symbol and name, and
+`offerAction("symbol", className, label, {action: "comment"})` draws one
+(`module-authoring.md`, "Generated controls"). Where your widget gives the press its
+face itself, `nameAction(control, action, {label, title, className})`, or
+`namedAction(action, {…})` in a template's element part, gives it the action's symbol
+and says the action's name as its tooltip and accessible name, unless `label` or
+`title` says more. Call it again with another action for a press whose action follows
+its state, such as Expand all turning to Collapse all; it swaps only the symbol.
+`actionTemplate(action, className)` draws an action's symbol that isn't a press's whole
+face, such as the second of two symbols a press swaps by CSS.
 
 ## Page readings
 
@@ -171,14 +166,13 @@ arrives. Each `source.kind` adds its own facts:
 
 - A bound-data record's obligation names the owning widget in `source.id` and the
   record key in `source.unit`.
-- For a widget declaring `x-awaits.reply`, such as an `lf-ask` holding no widget, the
-  user's next message in its thread or comment on it is its `answer.value` (`{text}`,
-  or `{token}` for a settling reaction); `answeredInWords(obligation)` says whether an
-  obligation is one. When the agent ends it with `leaf task end`, `status` is
+- For a `message` obligation, an agent message sent with `--obligation`, the user's
+  next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
+  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. When the agent ends it with `leaf task end`, `status` is
   `answered_elsewhere` or `withdrawn` and `end.detail` says why.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
-  widget it stands on. Its next actor is the agent while it owes a reply or a version,
+  widget the update concerns. Its next actor is the agent while it owes a reply or a version,
   the user when it was handed back to send again, and `null` once a reply, named by
   `answer.event`, answered it. Of several messages the user sent in a row, only the
   newest has one. `obligationsIn` never counts an update.
@@ -188,6 +182,9 @@ arrives. Each `source.kind` adds its own facts:
 returns the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and
 `lf-tally` count with it, so a module marking obligations per card or section should
 too, passing `readObligations().user` for those waiting on the user.
+`tally(obligations)` counts such a set as `{onUser, onAgent, open, total}`, splitting the
+open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
+does, such as "2 left to answer · 1 on Claude", so every count of a queue reads alike.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation
@@ -196,10 +193,23 @@ me, and resolves to whether it arrived. A control that calls it prevents `moused
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
 
+An element declaring `x-shows`, such as a board card, is a view of another widget's
+answer ([package-data.md, "Views of an answer"](package-data.md#views-of-an-answer)).
+`shownAnswer(element)` reads it in `render()`, which then redraws with every change to
+that widget's state, and returns `null` where the element shows no answer. Otherwise
+it returns `{owner, value, available, takes, answer}`: the widget, the value its
+answer names now (`null` for none), whether the user can change it, `takes(value)`,
+whether the widget can answer `value` (`null` clears it), and `answer(value, says)`,
+which sends the widget's own command and returns what `dispatch` returns, or `null`
+where the widget can't take `value`. Place the view by `value`, and change it only
+through `answer`, so the view records nothing of its own.
+
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On me and On <agent>. Each row has a `kind`, which is its obligation's
 `source.kind` (with the obligation as `obligation`) or `todo` (with the to-do as
-`todo`), and an `owner`, `user` or `agent`. Rows not done carry `offers: {open, done}`.
+`todo`), and an `owner`, `user` or `agent`. An obligation's row lists in `also` the ids
+of the other obligations the user answers at the same place, such as the agent's answer
+in a thread about it. Rows not done carry `offers: {open, done}`.
 `queueItemKey(row)` names a row across moves between lists, and `queueTitle(row)` gives
 its title. `queueActions.open(key)` goes to a row. `queueActions.done(key)` ends a to-do
 the agent opened on the user, returning its admission promise, and returns `null` for

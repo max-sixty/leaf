@@ -21,10 +21,10 @@ from render_harness import (
     is_problem,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_control,
     panel_menu,
-    panel_settled,
     refuse,
     sending,
     take_browser_errors,
@@ -68,8 +68,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     before = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
 
     (serve.page_dir / "index.html").write_text(LIVE_V2)
     told(page)

@@ -2,6 +2,7 @@
    ordering and labels without browser dependencies. The browser registry keeps
    command-scope capabilities outside the normalized records. */
 
+import { actionIcon } from "./icon-paths.js";
 import { excerptWords } from "./words.js";
 
 const entryRecords = new WeakSet();
@@ -43,8 +44,10 @@ const RANK_PRIORITY = new Map([
 const ENTRY_OPTIONS = new Set([
   "key",
   "glyph",
+  "action",
   "icon",
   "label",
+  "voice",
   "accessibleLabel",
   "context",
   "description",
@@ -78,19 +81,19 @@ export const KINDS = Object.freeze(
       comment: { label: "Thread", icon: "comment", priority: 1 },
       "on-me": { label: "On me", icon: "question", priority: 2 },
       sent: {
-        label: "Sent",
+        label: "Queued",
         icon: "sent",
         priority: 3,
         indication: true,
       },
       queued: {
-        label: "Queued",
+        label: "Up next",
         icon: "pickup",
         priority: 3,
         indication: true,
       },
       pickup: {
-        label: "Delivered",
+        label: "Got it",
         icon: "pickup",
         priority: 3,
         indication: true,
@@ -168,8 +171,10 @@ export function contributionEntry(offered) {
   const {
     key,
     glyph = null,
-    icon = null,
+    action = null,
+    icon: mark = null,
     label,
+    voice = "agent",
     accessibleLabel = null,
     context = null,
     description = null,
@@ -189,8 +194,11 @@ export function contributionEntry(offered) {
     scope = null,
   } = offered;
   if (!text(key)) throw new TypeError("A contribution entry needs a key");
-  if (Boolean(text(glyph)) === Boolean(icon))
-    throw new TypeError("A contribution entry needs exactly one glyph or icon");
+  // An entry that does something shows its action's symbol (icon-paths.js, `ACTIONS`);
+  // `icon` is for one that shows what it holds, such as a margin entry's kind.
+  if ([text(glyph), action, mark].filter(Boolean).length !== 1)
+    throw new TypeError("A contribution entry needs exactly one glyph, action or icon");
+  const icon = action ? actionIcon(action) : mark;
   if (!text(label)) throw new TypeError("A contribution entry needs a label");
   if (!TONES.has(tone)) throw new TypeError(`Unknown contribution entry tone: ${tone}`);
   if (!BEHAVIORS.has(behavior))
@@ -209,6 +217,8 @@ export function contributionEntry(offered) {
     glyph: glyph == null ? null : String(glyph),
     icon,
     label: text(label),
+    // Who says the label: Leaf's own words stand apart in italic (`workflowVoice`).
+    voice,
     accessibleLabel: text(accessibleLabel) || text(label),
     context: text(context) || null,
     description: text(description) || null,

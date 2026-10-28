@@ -14,7 +14,7 @@ import {
   PRESENTATION_DOM,
   readPart,
 } from "./semantic-state.js";
-import { announce, notice } from "./notifications.js";
+import { announce } from "./notifications.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
@@ -33,7 +33,7 @@ import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
-import { createQueueActions } from "./queue-api.js";
+import { createQueueActions, queueItemKey } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
@@ -136,7 +136,8 @@ export function mountApplication(dependencies) {
   };
 
   createProjectionPresentation();
-  const dataProjection = createDataProjection({ invalidateDom });
+  // A widget's drawn marks reach it through `projectMarked` (leaf-element.js).
+  createDataProjection({ invalidateDom });
 
   let delivery;
   const presentThread = () => threadPresenter.present();
@@ -154,7 +155,7 @@ export function mountApplication(dependencies) {
     // than turning an accepted gesture into an apparent refusal, and it cannot strand
     // the gesture before transport or leave later sends behind an unanswered entry.
     try {
-      if (isMessageEvent(entry.event)) announce("Message sent");
+      if (isMessageEvent(entry.event)) announce("Message added");
       if (entry.event.kind === "edit") announce("Message edited");
     } catch (error) {
       reportPageError(error, "optimistic presentation");
@@ -165,12 +166,13 @@ export function mountApplication(dependencies) {
 
   commandDispatch.mount({
     afterEnqueue,
-    // A widget's gesture is acknowledged by the name the widget gave it, the name its
-    // undo is announced by too.
+    // A widget's gesture is announced by the name the widget gave it, the name its undo
+    // is announced by too. The live region alone says it: the pick is drawn where the
+    // user made it, and the margin's receipt says it was saved.
     named: (entry, says) => {
       undo.retainGesture(entry.event.attempt, { says });
       void entry.answer.then((admitted) => {
-        if (admitted) notice(`${says} — sent`);
+        if (admitted) announce(says);
       });
     },
     withdraw: (candidate) => undo.withdraw(candidate),
@@ -219,12 +221,12 @@ export function mountApplication(dependencies) {
     wireInput: dependencies.wireInput,
     landSent: dependencies.landSent,
     landInThread: dependencies.landInThread,
-    changed: refreshThread,
   };
   const settlementView = {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
-    retainGesture: undo.retainGesture,
+    landedAway: undo.landedAway,
+    returnToThread: undo.returnToThread,
   };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,
@@ -234,6 +236,8 @@ export function mountApplication(dependencies) {
     reply: replyView,
     settlement: settlementView,
     reaction: reactionView,
+    // A thread's head ends the user's to-do on it with its own Done.
+    todos: { done: (id) => queueActions.done(queueItemKey({ kind: "todo", id })) },
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
@@ -262,9 +266,8 @@ export function mountApplication(dependencies) {
     dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
-  // The margin's annotations, which the thread presentation, the margin's own geometry
-  // and contributions also redraw directly. `refresh()` redraws them once they have
-  // been drawn.
+  // The margin's annotations, which the margin's own geometry and contributions also
+  // redraw directly. `refresh()` redraws them once they have been drawn.
   let annotationsDrawn = false;
   const renderAnnotations = () => {
     annotationsDrawn = true;
@@ -278,10 +281,12 @@ export function mountApplication(dependencies) {
   };
   // The inventory lists the marks the projection's chrome paints, reading their nodes,
   // which signals cannot track, so it reads the parts that move them itself, and
-  // reads them once that region has committed. The ages the margin shows are followed
-  // with the rest of what this paint reads, so the clock repaints them by the same
-  // proof.
+  // reads them once that region has committed. What the thread pass decides about
+  // each thread, where it is placed and whether a widget seats or holds it, and the
+  // ages the margin shows are followed with the rest of what this paint reads, so a
+  // commit that moves one and the clock repaint them by the same proof.
   const annotationInputs = readPart(annotationSelection);
+  let marginPresentation = null;
   const mountAnnotations = () => {
     const presentation = applicationPresenter({
       region: "annotations",
@@ -289,6 +294,7 @@ export function mountApplication(dependencies) {
       reading: () => annotationInputs(),
       paint: renderAnnotations,
     });
+    marginPresentation = presentation;
     void presentation.present();
     // A paint on paper read no ages, so the return to screen paints through the
     // presenter, which follows them again.
@@ -316,6 +322,7 @@ export function mountApplication(dependencies) {
     placedAt: dependencies.anchorPlacement.placedAt,
     marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
     scrollToElement: dependencies.anchorTravel.scrollToElement,
+    openInPanel: dependencies.annotationCommands.openInPanel,
   });
   const threadDestinations = createThreadDestinations({
     threadIdsAt: annotations.threadIdsAt,
@@ -337,7 +344,6 @@ export function mountApplication(dependencies) {
     pageGeometry: dependencies.pageGeometry,
     readDraft: dependencies.readThreadDraft,
     activeActionAnchor: dependencies.activeActionAnchor,
-    renderAnnotations,
     renderSurfaces,
     // Where a thread stands now, put up for a user carried there from a box a surface
     // stopped drawing: the surface drawing it, its margin card, or the floating panel.
@@ -349,12 +355,15 @@ export function mountApplication(dependencies) {
         part: "reply",
         focus: false,
         travel: false,
-        flash: false,
         intent,
       }),
+    returnToPage: threadDestinations.returnToPage,
     // The thread a margin entry stands for, which a user on it goes on with when the
     // thread leaves the margin.
     threadAt: (node) => overlay?.entryThread(node) ?? null,
+    // The margin's own commit, which reply continuity waits for; before the margin
+    // mounts there is nothing to wait for.
+    marginCommitted: () => marginPresentation?.committed() ?? Promise.resolve(),
     read,
   });
   const accountPending = (receipts) => {
@@ -594,7 +603,6 @@ export function mountApplication(dependencies) {
       presentThreads(owner, spec, true),
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
     post,
-    projectData: dataProjection.projectData,
     readAndApply: feed.readAndApply,
     refreshThread,
     presentThread,
@@ -634,7 +642,6 @@ export const invalidateDom = (...args) => app().invalidateDom(...args);
 export const landInThread = (...args) => app().landInThread(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const post = commandDispatch.post;
-export const projectData = (...args) => app().projectData(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 export const registerThreadPresentation = (...args) =>

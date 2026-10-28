@@ -6,7 +6,7 @@
       name="description"
       content="Projects and capabilities to explore across your contributions, follows and stars."
     />
-    <style data-controls>
+    <style>
       :root {
         --col: 1040px;
         --wide: 1040px;
@@ -160,7 +160,7 @@
       }
       .feed-news,
       .feed-refresh {
-        min-block-size: 40px;
+        min-block-size: max(40px, var(--aim-floor));
         background: transparent;
         border: 0;
         padding: 6px 0 6px 10px;
@@ -552,7 +552,7 @@
           inline-size: auto;
           padding: 8px 10px;
           font-size: 0.77rem;
-          min-block-size: 42px;
+          min-block-size: max(42px, var(--aim-floor));
           border-radius: 7px;
         }
         .feed-nav-dot,
@@ -579,7 +579,7 @@
         }
         .feed-topics button {
           font-size: 0.71rem;
-          min-block-size: 42px;
+          min-block-size: max(42px, var(--aim-floor));
         }
         .feed-card {
           padding: 20px 0;

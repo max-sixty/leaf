@@ -9,8 +9,8 @@ private copy through Leaf's canonical Python server. The catalog previews and th
 product card come from the max-sixty/leaf-assets revision pinned in `leaf-assets.json`.
 
 The worked examples and developer package galleries become complete Leaf page directories
-under examples/<name>/. The same preparation path that serves a local fixture vendors
-each page's selected layer, stamps its authored versions, applies its companion event
+under examples/<name>/. The same preparation path that serves a local fixture records
+each page's selected packages, stamps its authored versions, applies its companion event
 log and data, and closes the finished page without claiming it for an agent. A second,
 derived tree contains the immutable live shell Cloudflare serves before the canonical
 server answers its API requests.
@@ -22,8 +22,8 @@ publishes beside each revision. The website's container image installs the same 
 so a revision a hosted session writes captures the layer the published revisions were
 built from and runs the same runtime. The suite and
 `refresh-previews` serve the site with this checkout's adapter, which refuses pages
-another Leaf vendored, so they build with the checkout's own Leaf; the suite's browser
-probes also import source modules a compiled kernel no longer has.
+at another page protocol, so they build with the checkout's own Leaf; the suite's
+browser probes also import source modules a compiled kernel no longer has.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote through the website server's routing and refuses a site
@@ -67,9 +67,9 @@ from leaf.live_shell import write_live_shell
 from leaf.schema import (
     BROWSER_DIRS,
     DATA_DIR,
+    LAYER_TOP_FILES,
     PAGE_STATE_FILES,
     SESSION_ROUTE_DIRS,
-    VENDORED_FILES,
 )
 from leaf.structure import FRAME_ANCESTORS_CSP
 from leaf_dev import LEAF_COMMAND, ROOT, docs
@@ -79,6 +79,7 @@ from leaf_dev.docs import catalog_preview, media_url, product_route, product_sou
 from leaf_dev.example_data import catalog_sources, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import (
+    fixture_environment,
     package_selection_args,
     prepare_page,
     read_fixture,
@@ -211,7 +212,7 @@ def leaf(
     done = subprocess.run(
         [*command, *args],
         cwd=ROOT,
-        env=env,
+        env=fixture_environment(env),
         capture_output=True,
         text=True,
         input=input_text,
@@ -406,7 +407,7 @@ def publish_live_shells(
         "routes": {
             "layer": list(BROWSER_DIRS),
             "session": list(SESSION_ROUTE_DIRS),
-            "files": list(VENDORED_FILES),
+            "files": list(LAYER_TOP_FILES),
         },
         "pages": {},
     }

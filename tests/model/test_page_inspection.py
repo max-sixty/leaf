@@ -23,24 +23,36 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
     sheet = '@import "./shared.css"; @media (width > 20em) { p { margin: 0; } }'
     (authored / "style.css").write_text(sheet)
     (authored / "shared.css").write_text(shared)
-    (authored / "unused.css").write_text("p { padding: 999px; }")
+    unused = "p { padding: 999px; }"
+    (authored / "unused.css").write_text(unused)
     media = page_dir / "media"
     media.mkdir(exist_ok=True)
     media_css = '@import "./shared.css"; p { border: 0; }'
     media_shared = "p { opacity: 1; }"
     (media / "page.css").write_text(media_css)
     (media / "shared.css").write_text(media_shared)
+    download_script = "export const download = true;"
+    (media / "download.js").write_text(download_script)
     (authored / "widgets" / "lf-options.js").write_text(
         "export const styling = `p { color: blue }`;"
     )
+    script = 'import "./shared.js"; export const label = "é";'
+    shared_script = "export const shared = true;"
+    (authored / "main.js").write_text(script)
+    (authored / "shared.js").write_text(shared_script)
+    inline_script = 'import "./page/main.js";'
     source = leaf_page(
         "Inspection",
         '<p id="intro" style="--label: &quot;é&quot;; color: green">Hi</p>\n'
+        '<a download href="media/download.js">Download module</a>\n'
         '<template id="child" data-sample>\n'
+        f'<script type="module">{inline_script}</script>\n'
         "<style>p { padding: 1px; }</style>\n"
         '<link rel="stylesheet" href="page/shared.css">\n'
         '<p id="child-p">Child</p></template>',
         head="<style>p { display: block; }</style>\n"
+        '<script type="module" src="page/main.js"></script>\n'
+        '<script type="application/json">{"not":"executable"}</script>\n'
         '<link rel="stylesheet" href="page/style.css">\n'
         '<link rel="stylesheet" href="media/page.css">',
     )
@@ -51,7 +63,13 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
     reading = json.loads(result.output)
     assert list_revisions(page_dir) == before
     page = [item for item in reading["css"]["sources"] if item["owner"] == "page"]
-    assert len(page) == 7
+    assert len(page) == 8
+    # A revision holds every page file, so a sheet nothing links is listed, loaded by
+    # no document.
+    assert (
+        next(item for item in page if item["path"] == "page/unused.css")["documents"]
+        == []
+    )
     assert next(item for item in page if item["path"] == "media/page.css")[
         "documents"
     ] == ["index.html"]
@@ -69,6 +87,7 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
             for css in (
                 shared,
                 sheet,
+                unused,
                 media_css,
                 media_shared,
                 "p { display: block; }",
@@ -76,8 +95,8 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
                 '--label: "é"; color: green',
             )
         ),
-        "rules": 10,
-        "declarations": 9,
+        "rules": 11,
+        "declarations": 10,
         "inline_styles": 1,
         "important": 1,
     }
@@ -93,6 +112,21 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
     assert reading["page_widgets"] == [
         {"tag": "lf-options", "path": "page/widgets/lf-options.js"}
     ]
+    javascript = reading["javascript"]
+    assert javascript["page"] == {
+        "bytes": sum(
+            len(text.encode("utf-8"))
+            for text in (
+                script,
+                shared_script,
+                inline_script,
+                download_script,
+                "export const styling = `p { color: blue }`;",
+            )
+        ),
+        "files": 4,
+        "inline_scripts": 1,
+    }
 
 
 def test_inspection_distinguishes_working_css_from_the_observed_revision(page_dir):
@@ -120,6 +154,21 @@ def test_inspection_distinguishes_working_css_from_the_observed_revision(page_di
     assert view["checks"]["matches_source"] is False
     assert view["checks"]["viewport"] == {"width": 900, "height": 700}
     assert cmd_inspect(page_dir, 1)["css"] == original["css"]
+    result = CliRunner().invoke(
+        cli, ["page", "inspect", str(page_dir), "--compare-to", "1"]
+    )
+    assert result.exit_code == 0, result.output
+    comparison = json.loads(result.output)["comparison"]
+    assert comparison["basis"] == original["basis"]
+    assert comparison["css"]["page"]["declarations"] == 1
+    assert comparison["css"]["layer"]["declarations"] == 0
+    assert len(comparison["sources"]) == 1
+    changed = comparison["sources"][0]
+    assert changed["path"] == "page/style.css"
+    assert changed["status"] == "changed"
+    assert changed["css_delta"]["declarations"] == 1
+    assert changed["after"]["bytes"] - changed["before"]["bytes"] == len("margin: 0; ")
+    assert cmd_inspect(page_dir, 1, compare_to=1)["comparison"]["sources"] == []
     result = CliRunner().invoke(
         cli, ["page", "inspect", str(page_dir), "--revision", "20"]
     )
@@ -151,3 +200,19 @@ def test_inspection_does_not_report_missing_styles_as_zero(page_dir):
     result = CliRunner().invoke(cli, ["page", "inspect", str(page_dir)])
     assert result.exit_code != 0
     assert "missing.css" in result.output
+
+
+def test_inspection_counts_non_utf8_downloads(page_dir):
+    media = page_dir / "media"
+    media.mkdir(exist_ok=True)
+    download = media / "source.js"
+    download.write_bytes(b"// calf\xe9\n")
+    source = leaf_page("Download", '<a download href="media/source.js">Source</a>')
+    (page_dir / "index.html").write_text(source)
+    write_revision(page_dir, 1, source.encode())
+    download.write_text("// cafe\n")
+    reading = cmd_inspect(page_dir, compare_to=1)
+    change = reading["comparison"]["sources"][0]
+    assert change["path"] == "media/source.js"
+    assert change["before"]["digest"] != change["after"]["digest"]
+    assert reading["javascript"]["page"]["bytes"] == len(b"// cafe\n")

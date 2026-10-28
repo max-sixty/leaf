@@ -7,16 +7,17 @@ one without rebuilding state, and the browser compares them whole. `join_reading
 builds that form; nothing else spells it.
 
 A page's inputs are declared once, here: `page_input` says which paths inside the
-page directory count and `outside_inputs` names the files outside it. No other
-module keeps a list of them: a reader that keys on the page's files, such as
+page directory count, `page_roots` names the directories whose notifications report
+them, and `outside_inputs` names the files outside it. No other module keeps a list
+of them: a reader that keys on the page's files, such as
 `presence.presence_reading`, keys on `page_reading`. The stamps below cover exactly
 those inputs, and every native subscription that wakes on a page's changes
-(`file_changes.page_changes`, `session.Watch`) accepts exactly them, so a write
-that moves a page's reading wakes each of its watchers and a write its watchers
-ignore moves no reading. The one asymmetry is a watcher's looseness: it wakes for
-any write to an entry of a directory the reading stamps without descending, since
-adding or removing one moves that directory's stamp, and the read that wake
-prompts finds nothing moved for an entry rewritten in place.
+(`file_changes.page_changes`, `session.Watch`) subscribes `page_roots` and accepts
+exactly them, so a write that moves a page's reading wakes each of its watchers and
+a write its watchers ignore moves no reading. The one asymmetry is a watcher's
+looseness: it wakes for any write to an entry of a directory the reading stamps
+without descending, since adding or removing one moves that directory's stamp, and
+the read that wake prompts finds nothing moved for an entry rewritten in place.
 """
 
 import hashlib
@@ -63,6 +64,28 @@ def page_input(page_dir: Path, path: Path) -> bool:
     if len(parts) == 1:
         return parts[0] not in UNWATCHED
     return parts[0] in TREES or len(parts) == 2
+
+
+def page_roots(page_dir: Path) -> dict[Path, bool]:
+    """The directories whose notifications report every `page_input`, each with
+    whether its whole tree counts.
+
+    The page's parent reports the page directory being replaced, and the page
+    directory its direct children. Each other directory among them reports the
+    entries whose arrival or removal moves its stamp, and each of `TREES` every
+    file beneath it. Nothing deeper is an input, so what each revision in
+    `revisions/` holds and the page's package copies go unwatched. The roots follow
+    the page's direct subdirectories as they stand: one created later is reported
+    by the page directory, and the owner's next subscription takes it in."""
+    roots = {page_dir.parent: False, page_dir: False}
+    try:
+        entries = list(page_dir.iterdir())
+    except FileNotFoundError:
+        return roots
+    for entry in entries:
+        if entry.is_dir() and not STAGED.fullmatch(entry.name):
+            roots[entry] = entry.name in TREES
+    return roots
 
 
 def outside_inputs(page_dir: Path) -> set[Path]:
@@ -120,8 +143,10 @@ def held_page_reading(page_dir: Path) -> str:
     a module dependency or stylesheet is a candidate revision even when the HTML stays
     unchanged. So is `data/`, whose publication files `leaf data set` replaces
     atomically. Other directories are stamped without descending — a new revision
-    moves `revisions/`, a stamp moves `events.jsonl`, and the vendored layer cannot
-    change under a served page at all, since re-vendoring restarts the server.
+    moves `revisions/`, a stamp moves `events.jsonl`, and the layer cannot change
+    under a served page at all: the server composes it once (`layer.selected_layer`),
+    and `page init`, which rewrites the record and the page's package copies,
+    restarts the server.
 
     Stat stamps rather than contents: the question is only whether anything moved, and
     the answer has to be cheap enough to ask many times a second. Activation keys on

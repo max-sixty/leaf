@@ -25,7 +25,8 @@
    - `title` is the command's required concise name, or a function when state changes
      it. The obligation, menu rows, reference, and announcements read these same words.
    - `description` is the row's tooltip in the reference, its meta line when the row
-     is selected, and a line under its title on a touch screen. Most rows need none. Write one only for something the title and
+     is selected, and a line under its title on a touch screen and on an On me card that
+     answers a Decision command. Most rows need none. Write one only for something the title and
      section heading leave out and a short title can't hold, such as "Keeps what is
      typed" or the action Undo would take back. If the missing words fit in the title,
      put them there ("discard" rather than "stop editing").
@@ -37,7 +38,8 @@
      owns several results. No caller allocates or renumbers another widget's bindings.
    - `control` is the visible element activating the command. `decision: true` marks a
      command that starts, advances, answers, or revises an obligation; the role does not assign
-     bindings. `bindingBadge` independently requests an inline hint: an Element lends
+     bindings. `recommended: true` marks the answer the page advises, so a surface that
+     answers the obligation away from its widget, as On me does, can say so. `bindingBadge` independently requests an inline hint: an Element lends
      the widget's seat, null requests a corner badge, absence requests none. A route
      inherits its row's seat only when its own field is undefined.
    - `when` says whether the capability exists. An owned native button derives its
@@ -50,6 +52,10 @@
      at the user's current position.
    - `run` performs one result. A run-less row names a press it does not make: the
      platform's own on a link, or one another scope's row already runs.
+   - `keep` is the step a close request, such as Android's back gesture, takes in
+     place of `run`, on a row whose `run` throws away words the user wrote and hasn't
+     sent, such as an editor's Discard: it closes the same way without losing them,
+     saving them or keeping them where reopening finds them (close-requests.js).
    - `touch` is the words of the menu row that stands in for a page command's press
      under a finger, or a function when state chooses them, and `false` where a finger
      reaches the result directly (keyboard/AGENTS.md, "Touch routes"). Every page
@@ -58,6 +64,11 @@
      terse reading that row shows at its end, past words the row may cut, such as how
      long ago the gesture Undo would take back was made; the row's hover reads the
      description whole.
+   - `travels: true` says the command takes the user somewhere, as a walk, a scroll or
+     a Go-to destination does, so its result may move what they pressed it on. Every
+     other command leaves the control it was pressed on where it stood on screen
+     (browser/AGENTS.md, "Stability"). The dispatcher announces it with the
+     invocation, where the suite's shift watch reads it.
    - A command that enters a layer declares no way back out of it. The layer's own
      owner declares that step, against the open layer rather than against the press
      that opened it, so one state has one way out however the user reached it.
@@ -163,7 +174,6 @@ export const spell = (binding) => {
 const softKeyboard = () => coarsePointer.matches;
 export const submitBindings = () =>
   softKeyboard() ? ["Mod+Enter"] : ["Enter", "Mod+Enter"];
-export const submitLabel = () => spell(submitBindings()[0]);
 // Whether a surface advertises keys: a key drawn where the user has no keyboard names a
 // press they cannot make, and costs room on the smallest window there is. Every
 // runtime surface that paints a key it was not asked for — a field's send key, the
@@ -451,7 +461,8 @@ export function activeRows(rows, where = "a scope") {
 }
 
 // The controls one ordered command set contributes to an obligation. `decision: true` marks
-// its answering role; the command's title supplies its name. The obligation view reads these controls
+// its answering role; the command's title supplies its name, and its description and
+// `recommended` what a surface answering it elsewhere says beside the name. The obligation view reads these controls
 // for arrival and visibility, while the shared compiler forwards context bindings from
 // the original declarations. Routes may name distinct controls when one compact row
 // owns a family of parameterized bindings. Each result retains its scoped identity so
@@ -468,6 +479,7 @@ export function decisionControls(commands, where = "an obligation") {
       const contribution = route ?? row;
       const control = word(contribution.control ?? row.control);
       const label = titleOf(contribution);
+      const description = descriptionOf(route?.description !== undefined ? route : row);
       const bindingBadge =
         word(
           contribution.bindingBadge !== undefined
@@ -495,6 +507,8 @@ export function decisionControls(commands, where = "an obligation") {
         source,
         control,
         label,
+        description,
+        recommended: Boolean(contribution.recommended ?? row.recommended),
         bindingBadge,
         intrinsicBindings: active,
         command: Object.freeze({

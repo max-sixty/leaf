@@ -1,6 +1,6 @@
 """Widget state, record, and retirement contract validation."""
 
-from leaf.schema import ELEMENT_ID
+from leaf.schema import DATA_CONTRACT_NAME, ELEMENT_ID
 
 from .contract import (
     deciding_outcomes,
@@ -136,6 +136,17 @@ def validate_widget_record_contracts(
         unit = spec["unit"]
         record = spec.get("record")
         if record is None:
+            if binding := spec.get("contract"):
+                attribute = properties.get(binding["attribute"], {})
+                if (
+                    binding["field"] not in spec["detail"].get("properties", {})
+                    or not isinstance(attribute, dict)
+                    or attribute.get("type") != "string"
+                    or attribute.get("pattern") != f"^{DATA_CONTRACT_NAME}$"
+                ):
+                    raise registry_error(
+                        "verb-contract", path, tag, verb=verb, **binding
+                    )
             if unit == "widget":
                 continue
             detail = spec["detail"]
@@ -207,16 +218,15 @@ def validate_widget_retirement(tag: str, entry: dict, declarations: dict, path) 
 
 
 def validate_deciding_verb(tag: str, entry: dict, path) -> None:
-    # A detail field named `outcome` is reserved: it is the decision an owner's
-    # retirable members leave the page under (x-retired-when, x-withdrawn-as). One
-    # verb per tag decides, for the whole widget, over a closed set of words.
+    # A declared decision selects which members retire. Payload spelling alone
+    # gives no other verb this role. One user verb per tag decides, over the widget.
     deciding = deciding_verbs(entry)
     if len(deciding) > 1:
         raise registry_error("deciding-verbs", path, tag, verbs=deciding)
     if not deciding:
         return
     spec = entry["x-state"][deciding[0]]
-    schema = spec["detail"]["properties"]["outcome"]
+    schema = spec["detail"].get("properties", {}).get("outcome")
     words = schema.get("enum") if isinstance(schema, dict) else None
     if (
         spec["unit"] != "widget"

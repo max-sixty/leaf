@@ -1,22 +1,20 @@
 ---
 name: leaf
-description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes user input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” building a playground, explorer, simulator, or interactive tool, work whose progress or review belongs in a shared page, a `leaf_delivery` tool output, or a `leaf-delivery` message.
+description: Builds an interface for the user to inspect, explore and act on their work with an agent, and responds to input from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” building a playground, explorer, simulator, or interactive tool, work whose progress or review belongs in a shared page, a `leaf_delivery` tool output, or a `leaf-delivery` message.
 allowed-tools:
   - Bash(leaf:*)
   - Bash(jq:*)
 ---
 
-You work with the user through a live HTML page. They read it, comment on exact
-passages and act through widgets while the work continues. Success means
-completing the task while the user can understand and redirect the work. Their
-questions and changes of direction take priority over work in progress. Keep the
-page current as the work proceeds.
+Develop material the user can judge or use directly. The user can inspect and
+operate it, comment on exact passages and steer revisions.
+Keep the page current and give their questions and changes of direction priority.
 
-The input is either a subject to present or a delivery from a page already handed
-over: a `leaf_delivery` tool output, a `leaf-delivery` element, or the envelope
-`leaf wait` printed. A delivery starts at step 6 below; don't initialize or hand
-the page over again. With no subject in `$ARGUMENTS`, present the work already
-under discussion.
+The input is either work to develop on a page or a delivery from a page already
+handed over: a `leaf_delivery` tool output, a `leaf-delivery` element, or the
+envelope `leaf wait` printed. A delivery starts at step 7 below; continue that
+page rather than initializing or handing it over again. With no subject in
+`$ARGUMENTS`, develop the work already under discussion.
 
 $ARGUMENTS
 
@@ -46,38 +44,49 @@ must outlive the page directory.
    its vocabulary or instructions: `leaf page init --package diagram --package diff <page>`.
    `references/packages.md`, "Package reach", lists the packages. Use
    `playground` when the user explores candidates or tunes a configuration before
-   sending it; its choices can contain the previews themselves. Simple decisions
-   use `lf-options` (`references/authoring-decisions.md`). Running `page init`
+   sending it; its choices can contain the previews themselves. Simple choices
+   use `lf-options` (`references/authoring-on-me.md`). Running `page init`
    again with `--package` replaces the page's packages, so name every package the page keeps.
-2. Read all of `references/page-authoring.md`, then each reference the page
-   needs, listed under "Author a version" below.
-   Write `<page>/index.html` in the registry's vocabulary. Each valid save
-   becomes the live immutable revision. An invalid save leaves the last valid one
-   live and reports the error in page state and the browser. You write
-   `index.html` and `page/`; only Leaf writes revisions and version mappings.
+   Personal themes and their author instructions are discoverable with
+   `leaf theme list`; `references/package-themes.md`, "Personal themes", covers
+   choosing one for the task and how the page captures it.
+2. Read `references/page-authoring.md` and choose the subject and concrete case
+   the user will examine. Construct that subject in the chosen situation, then
+   compose the explanation around the result. Follow
+   `references/authoring-revisions.md` when changing an existing page, then write
+   `<page>/index.html`. Each valid save becomes the live immutable revision. An
+   invalid save leaves the last valid one live and reports the error in page state
+   and the browser. You write `index.html` and `page/`; only Leaf writes revisions
+   and version mappings.
 3. **Check the page.** Before you first hand the page over, run
-   `leaf page check <page>` and fix every failure. That is the whole check for a
-   quick page, one the user reacts to once and then revises or drops: hand it over
-   without stamping or a browser review. A revision that answers a user's message,
-   even on a record, goes straight to the reply. The reply checks your saved edits
-   and is refused over an error; fix it and reply again. Each valid save is
-   already live on the user's page, so a separate check only delays the answer
-   they are waiting for.
-4. **Review and stamp a record.** A record is a page used beyond this
-   conversation. Before a record's first handoff, run `leaf page check <page> --render`, do the reading in
-   `references/page-checkpoints.md`, "Pre-handover review", then run
-   `leaf page stamp <page> --text "<changelog>"`.
-   `references/page-checkpoints.md`, "Stamp checkpoints", says when to stamp
-   again; each later stamp repeats the render check and the reading for the views
-   and On me obligations it adds. A quick page takes this review once a stamp makes it a record.
-5. Read the contract that "Harness selection" below picks. Follow
+   `leaf page check <page>` and fix every failure. A revision that answers a user's
+   message, even on a page you review, goes straight to the reply. The reply checks
+   your saved edits and is refused over an error; fix it and reply again. Each valid
+   save is already live on the user's page, so a separate check only delays the
+   answer they are waiting for.
+4. **Review an important page in the browser.** `leaf page check <page> --render`
+   and the reading in `references/page-checkpoints.md`, "Pre-handover review",
+   find what the markup check can't, such as a table squeezed to a word a line or a
+   layout that breaks at phone width. They take minutes, so give them to the pages
+   that matter. A page matters more the longer the user relies on it, whether past
+   this conversation or through a long one, the more it holds, and the more of its
+   layout you wrote yourself rather than took from the vocabulary. It matters less
+   the more urgently the user is waiting for it. A quick page, one the user reacts to
+   once and then revises or drops, needs no review. Review an important page before
+   its first handoff and again at each checkpoint, such as the user approving a plan
+   or settling a stage of the work, after the reply that answers it.
+5. **Stamp a record.** A record is a page used beyond this conversation, so it is
+   always important. Stamp it after each review, its first and each later one:
+   `leaf page stamp <page> --text "<changelog>"`. `references/page-checkpoints.md`,
+   "Stamp checkpoints", says which checkpoints a record has.
+6. Read the contract that "Harness selection" below picks. Follow
    `references/conversation-loop.md`, "Page availability and handoff", and serve and hand
    over the page the way that contract says.
-6. When a delivery arrives, read `references/event-batches.md`, the harness
+7. When a delivery arrives, read `references/event-batches.md`, the harness
    contract and, for user messages, `references/threads.md`, and answer every
    event as they say. Say what you are doing before you do it
    (`references/conversation-loop.md`, "When to write").
-7. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
+8. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
 
 ## Harness selection
 
@@ -93,7 +102,7 @@ Pick the contract for the session that owns the page:
 
 The parent session owns the Leaf conversation:
 answer the user, keep the page current, and direct background subagents doing the
-substantive research, editing and testing. Keep direct answers, small page changes,
+substantive research, editing and testing. Keep direct answers, revisions of existing material,
 and the review and integration of worker results with you. Having more work to do
 is a reason to delegate it, while you remain available for the user's next move.
 
@@ -104,16 +113,8 @@ between bounded steps.
 
 ## Page contract
 
-Unless the user sets the page's shape or depth, a Leaf page is a short sequence
-of visually distinct, self-contained views. Each view makes one point, shows one
-state or offers one move, so the user takes it in at a glance and moves on.
-`references/page-authoring.md`, "Reading cost", owns what stays visible and what
-goes in a disclosure. Read it when choosing that presentation.
-
-The page's shape follows the subject.
-A Layout class on `main` sets the shape, and the page's own CSS
-adjusts it. `references/page-authoring.md`, "Composing a page", owns the choice
-of shape.
+`references/page-authoring.md` owns content, reading cost and composition. `references/page-layout.md` owns Layout geometry;
+`references/authoring-on-me.md` owns the questions and choices you put to the user.
 
 Choose controls, gestures and options whose benefit to the user's task outweighs
 the attention and effort they require. Remove redundant actions before making
@@ -122,8 +123,13 @@ sent words stay in the log.
 
 ## Keep the user current
 
-Follow `references/authoring-revisions.md`, "Keep the current page current", when
-work lands, a decision is made, or your understanding changes.
+Whenever the user returns, the page should be the one you would write today from
+what you now know. When work lands, a decision is acted on or your understanding
+changes, reread the whole page and bring all of it up to date in that revision,
+rather than amending the sentences that mention the change: open work and open
+questions fill the column, decisions you have acted on become settled records,
+finished work shrinks to its outcome out of the way, and superseded material goes
+(`references/authoring-revisions.md`, "Keep the current page current").
 
 ## Follow the user's preferences
 
@@ -151,7 +157,7 @@ Read references from this skill directory.
   a `page/registry.json`, or anything loaded from another server.
 - `references/live-samples.md`: before letting the user operate a Leaf page inside a
   page or a thread message.
-- `references/authoring-decisions.md`: when the page or your reply leaves anything for
+- `references/authoring-on-me.md`: when the page or your reply leaves anything for
   the user to decide or approve an action, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising the page's current state.
@@ -171,18 +177,18 @@ Read references from this skill directory.
 - `references/event-batches.md`: after a delivery, before processing its events.
 - `references/threads.md`: before opening, naming, replying to, editing,
   summarizing or resolving a thread.
-- `references/page-checkpoints.md`: before a record's pre-handover review, stamping,
+- `references/page-checkpoints.md`: before a pre-handover review, stamping,
   or ending a page.
 
 ### Serve or extend a page
 
 - `references/serving-pages.md`: for the first handoff, `--export`, an unreachable
   URL, whether an operation changes a page's URL, `--host`, a persistent page,
-  re-vendoring a served page, a page a Leaf update broke, or resuming another
+  changing a served page's packages, a page a Leaf update broke, or resuming another
   session's page.
-- `references/module-authoring.md`: before writing or changing browser behavior in
-  a page script, page-owned widget or package widget. Then, as the behavior needs
-  them: `references/module-reading.md` for reading the page, content helpers, obligations
+- `references/module-authoring.md`: before writing or changing a page-owned or
+  package widget, or using a Leaf helper `page-behavior.md` doesn't describe in a page
+  script. Then, as the behavior needs them: `references/module-reading.md` for reading the page, content helpers, obligations
   and history; `references/module-state.md` for recorded state, data, authenticated
   HTTP connections and LLM generation;
   `references/module-input.md` for commands, focus and text entry;

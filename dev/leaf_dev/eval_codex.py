@@ -105,7 +105,10 @@ def records_for(message: dict, session: str, final: str) -> list[dict]:
                 else {
                     "type": "tool_result",
                     "tool_use_id": item["id"],
-                    "content": json.dumps(item.get("result") or item.get("error")),
+                    # A result's content parts are the shape a Claude Code tool
+                    # result carries, so readers of either trace read them alike.
+                    "content": (item.get("result") or {}).get("content")
+                    or json.dumps(item.get("result") or item.get("error")),
                     "is_error": item["status"] != "completed",
                 }
             )
@@ -212,13 +215,24 @@ class CodexChild:
 
     transport = "app-server"
 
-    def __init__(self, cwd, prompt, *args, stderr, limit, timed_out, dirs=(), env=None):
+    def __init__(
+        self,
+        cwd,
+        prompt,
+        *args,
+        stderr,
+        limit,
+        timed_out,
+        dirs=(),
+        env=None,
+        model=None,
+    ):
         from leaf_dev.arms import MODELS, codex_home, environment, now
 
         self.cwd, self.prompt = cwd, prompt
         self.stderr, self.timed_out = stderr, timed_out
         self.queue, self.outbox, self.closing = deque(), deque(), False
-        self.final, self.now, self.model = "", now, MODELS["codex"]
+        self.final, self.now, self.model = "", now, model or MODELS["codex"]
         self.usage = None
         self.usage_baseline = None
         self.started_at = time.monotonic()

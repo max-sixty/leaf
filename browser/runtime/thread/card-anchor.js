@@ -7,10 +7,15 @@
    also ends that hold. A press instead keeps the control it
    acted on through that change's fitting, until another input or unrelated change.
    These lifetimes belong to the conversation, not the physical placement solver.
-   Above its subject, reading keeps the foot. Writing keeps the top unless a
-   side-by-side card has reached the window's foot: then it grows up to keep the
-   answer beside the editor. Below the subject it grows down to keep that subject
-   clear. Adoption keeps the editor's attachment ahead of any conversation hold.
+   Above its subject, reading keeps the foot. Writing keeps the top. Beside its
+   subject, a card being written in also rises (`rises`): it may outgrow the room
+   below its top, and the window's foot lifts it, as a chat's composer grows, so the
+   line being typed and the turn it answers stay in view (the user's decision,
+   2026-10-21). Its top stays where it stood, so a shorter draft brings it back
+   down. Rejected: holding the foot once a landing met the window's foot, which kept
+   a shrinking draft's card lifted, detached from where it stood. Below the subject
+   it grows down to keep that subject clear. Adoption keeps the editor's attachment
+   ahead of any conversation hold.
    A preparation advances the press only when its placement lands and cannot
    overwrite a newer press captured during fitting. */
 import { TEXT_FIELD } from "../control-selectors.js";
@@ -18,7 +23,7 @@ import { currentLocationIn, inputCount } from "../focus.js";
 
 /** @typedef {"top" | "foot"} Edge */
 /** @typedef {{side: "top" | "bottom" | "left" | "right",
- * floored: boolean, adopted: boolean, fresh: boolean}} Seat */
+ * adopted: boolean, fresh: boolean}} Seat */
 /** @typedef {{input: number, path: {node: Element, offset: number}[],
  * extent: number, edge: Edge | null}} Press */
 
@@ -143,15 +148,11 @@ export class CardAnchor {
     /** @type {Edge} */
     const attachment = seat.side === "top" ? "foot" : "top";
     /** @type {Edge} */
-    const ordinary =
-      this.#sent ||
-      (writing
-        ? seat.floored && seat.side !== "top" && seat.side !== "bottom"
-        : seat.side === "top")
-        ? "foot"
-        : "top";
+    const ordinary = this.#sent || (!writing && seat.side === "top") ? "foot" : "top";
+    const beside = seat.side === "left" || seat.side === "right";
     return {
       edge: seat.adopted ? attachment : (press?.edge ?? ordinary),
+      rises: !seat.adopted && !press?.edge && writing && !this.#sent && beside,
       commit: () => {
         if (this.#press === captured) this.#press = press;
       },

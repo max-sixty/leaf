@@ -15,6 +15,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    open_threads,
     panel_settled,
     resized,
     sending,
@@ -607,6 +608,10 @@ def test_lit_margin_projection_reorders_retained_controls_without_moving_the_use
     box = action_a.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.down()
+    # Native pointer focus leaves B before arriving at A. That transfer stays
+    # inside the cluster, so it must not fold the options under the held press.
+    expect(action_a).to_be_focused()
+    expect(host).to_have_attribute("data-lf-options-open", "")
     page.evaluate("() => window.lfRetainedMargin.change()")
     expect(action_a).to_have_accessible_name("Action A now")
     assert action_a.evaluate("node => node === window.lfRetainedMarginA")
@@ -627,8 +632,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
 ):
     """The inline Lit seat reorders one retained control tree and completes its press."""
     page = open_page(browser, serve(PANEL_PAGE))
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
@@ -741,20 +745,19 @@ def test_a_margin_row_is_unseen_until_its_first_placement_lands(browser, serve):
         """async () => {
           const {contributionEntry, registerContribution} =
             await window.__lfWidgetApi();
-          return new Promise(resolve => requestAnimationFrame(() => {
-            const registration = registerContribution({
-              key: 'first-placement', target: document.querySelector('#how-cap'),
-              read: () => ({entries: [contributionEntry({
-                key: 'act', icon: 'dot', label: 'New margin action'
-              })]}), activate: () => {}
-            });
-            const row = registration.control('act', 'margin')
-              .closest('.lf-margin-cluster');
-            const rect = row.getBoundingClientRect();
-            resolve({place: row.dataset.lfPlace ?? null,
-              visibility: getComputedStyle(row).visibility,
-              width: rect.width, height: rect.height});
-          }));
+          await new Promise(requestAnimationFrame);
+          const registration = registerContribution({
+            key: 'first-placement', target: document.querySelector('#how-cap'),
+            read: () => ({entries: [contributionEntry({
+              key: 'act', icon: 'dot', label: 'New margin action'
+            })]}), activate: () => {}
+          });
+          const row = registration.control('act', 'margin')
+            .closest('.lf-margin-cluster');
+          const rect = row.getBoundingClientRect();
+          return {place: row.dataset.lfPlace ?? null,
+            visibility: getComputedStyle(row).visibility,
+            width: rect.width, height: rect.height};
         }"""
     )
     assert unplaced["place"] is None
@@ -914,6 +917,10 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
   </lf-column>
 </lf-board>
 """,
+        head="""<style>:root {
+          --pin-fill: light-dark(#e7cbff, #4a236b);
+          --pin-ink: light-dark(#241343, #fbe8a3);
+        }</style>""",
     ).replace("<body>", '<body data-rail="none">')
     events = [
         _comment_on("discussion"),
@@ -966,7 +973,7 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
         assert faces[0]["radius"] == "6px 6px 6px 0px", faces[0]
         assert faces[0]["background"] == token_colour(page, "--pin-fill"), faces[0]
         assert faces[0]["border"] == ["2px", token_colour(page, "--paper")], faces[0]
-        assert faces[0]["ink"] == "rgb(255, 255, 255)", faces[0]
+        assert faces[0]["ink"] == token_colour(page, "--pin-ink"), faces[0]
         status.hover()
         assert status.evaluate(read_face) == faces[0]
         page.mouse.move(0, 0)

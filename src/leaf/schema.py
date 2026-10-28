@@ -3,12 +3,12 @@
 Resources belong to the installed plugin; the skill directory holds instructions.
 """
 
-import json
 import re
 
-from .state import EVENTS_FILE, PLUGIN_ROOT
+from .state import EVENTS_FILE, PLUGIN_ROOT, kernel_registry
 
 ASSETS = PLUGIN_ROOT / "browser"
+SKILL_FILE = PLUGIN_ROOT / "skills" / "leaf" / "SKILL.md"
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
@@ -18,8 +18,8 @@ ORPHAN_GRACE_SECS = 1
 # supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
 UNNAMED_AGENT = "Agent"
 ANSWER_INSTRUCTION = (
-    "`leaf page state <page>` lists what is owed, and `leaf page state <page> <id>` "
-    "reads a thread's history."
+    "`leaf page state <page>` lists what is owed, and "
+    "`leaf page state <page> <message>` reads a thread's history."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, thread context, and response "
@@ -29,9 +29,9 @@ WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "with new input instead, and end."
 )
 
-# The name grammars, declared in the kernel registry's `$names`, which the browser's
-# generated copy shares.
-_NAMES = json.loads((ASSETS / "registry.json").read_text())["$names"]
+# The name grammars, declared in the kernel registry's `$names`, which the browser
+# reads too.
+_NAMES = kernel_registry()["$names"]
 HTML_NAME = _NAMES["html"]
 WIDGET_NAME = _NAMES["widget"]
 # What a refused element name is told, so the author need not read WIDGET_NAME.
@@ -179,6 +179,22 @@ REFERENCE_SCHEMA = {
 }
 
 
+# A custom detail carries exactly the keys its declaration spells. Field meanings
+# such as `resolves` read those declarations, so patternProperties and combinators
+# cannot admit unnamed keys. `registry.schema.check_schema` validates the nested
+# schemas and the standard keywords left unrestricted here.
+_VERB_DETAIL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "type": {"const": "object"},
+        "properties": {},
+        "required": {},
+        "additionalProperties": {"const": False},
+    },
+    "required": ["type", "additionalProperties"],
+    "additionalProperties": False,
+}
+
 # Each verb declares its coordinate and a recorded effect or custom detail schema.
 # `writer: "agent"` makes it a report through `leaf page report`; otherwise the
 # user writes it. The writers differ in what their state may be, not its shape. The
@@ -187,7 +203,7 @@ REFERENCE_SCHEMA = {
 VERB_SCHEMA = {
     "type": "object",
     "properties": {
-        "detail": {"type": "object"},
+        "detail": _VERB_DETAIL_SCHEMA,
         "unit": {"type": "string", "minLength": 1},
         "record": {
             "oneOf": [
@@ -198,7 +214,18 @@ VERB_SCHEMA = {
             ]
         },
         "writer": {"const": "agent"},
+        "attention": {"const": True},
         "creates": ACTION_CREATES,
+        "decides": {"const": True},
+        "contract": {
+            "type": "object",
+            "properties": {
+                "field": {"type": "string", "minLength": 1},
+                "attribute": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            },
+            "required": ["field", "attribute"],
+            "additionalProperties": False,
+        },
         # The effect owns the payload; `text` adds a required non-empty detail.text.
         "text": {"const": True},
     },
@@ -206,7 +233,14 @@ VERB_SCHEMA = {
     "allOf": [
         {
             "if": {"required": ["record"]},
-            "then": {"properties": {"detail": False, "creates": False}},
+            "then": {
+                "properties": {
+                    "detail": False,
+                    "creates": False,
+                    "contract": False,
+                    "decides": False,
+                }
+            },
             "else": {"required": ["detail"]},
         }
     ],
@@ -234,10 +268,7 @@ STATE_SCHEMA = {
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
     "additionalProperties": VERB_SCHEMA,
 }
-# A widget's obligation is answered either by its own state (`value` and `answered`) or, with
-# `reply`, by the user's words about it, which it has no state to hold. `encloses`
-# makes a widget the frame of the obligations inside it, asking nothing itself while it holds
-# another that can ask.
+# A widget's obligation is answered by its own state (`value` and `answered`).
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -255,19 +286,9 @@ AWAITS_SCHEMA = {
         },
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "reply": {"const": True},
-        "encloses": {"const": True},
+        "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
-    "if": {"required": ["reply"]},
-    "then": {
-        "properties": {
-            "value": False,
-            "answered": False,
-            "all": False,
-            "records": False,
-        },
-    },
-    "else": {"required": ["value", "answered"]},
+    "required": ["value", "answered"],
     "additionalProperties": False,
 }
 # Package and data-contract instructions address their declared audiences. Widget
@@ -291,6 +312,9 @@ DATA_INPUTS_SCHEMA = {
             "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             "reference": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             "output": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            # The element property the runtime sets to the delivered value
+            # (leaf-element.js, "Bound values").
+            "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
         },
         "dependentRequired": {"reference": ["output"], "output": ["reference"]},
         "required": ["contract"],
@@ -341,6 +365,10 @@ EXTENSION_SCHEMA = {
             },
         },
         "x-example": {"type": "string"},
+        "x-example-data": {
+            "type": "object",
+            "propertyNames": {"pattern": f"^{DATA_SOURCE_NAME}$"},
+        },
         "x-exhibit": {
             "oneOf": [
                 {"type": "boolean"},
@@ -354,6 +382,7 @@ EXTENSION_SCHEMA = {
         },
         "x-instructions": {"type": "string", "pattern": r"\S"},
         "x-inline": {"type": "boolean"},
+        "x-encloses": {"const": True},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
         "x-margin-content": {"enum": ["map"]},
@@ -372,6 +401,15 @@ EXTENSION_SCHEMA = {
             "additionalProperties": {"enum": ["before", "after"]},
         },
         "x-shadow": {"type": "boolean"},
+        # A view of another widget's answer (`shown_answers.py`): `attr` names that
+        # widget, and `value` the attribute of the view's compound owner that names
+        # the answer it holds.
+        "x-shows": {
+            "type": "object",
+            "properties": {"attr": _ATTRIBUTE_NAME, "value": _ATTRIBUTE_NAME},
+            "required": ["attr", "value"],
+            "additionalProperties": False,
+        },
         "x-state": STATE_SCHEMA,
         "x-thread-surface": {"const": True},
         "x-tone": _ATTRIBUTE_NAME,
@@ -415,33 +453,12 @@ EXTENSION_SCHEMA = {
         # reserves only what an occurrence's data-height states.
         "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
         "x-history": {"const": True},
-        # A captured classic bundle registering one synchronous DOM producer. Delivery
-        # runs it after each occurrence closes; the module adopts its existing nodes.
+        # A captured classic script registering a synchronous Lit view factory. Delivery
+        # supplies lfInitial.lit before it runs, then draws each complete host;
+        # the module continues that view in its existing rendering root.
         "x-initial": {
             "type": "string",
             "pattern": r"^/(?:[a-z0-9-]+/)*[a-z0-9.-]+\.js$",
-        },
-        # The markup an upgraded widget's first paint shows until its module draws:
-        # one element, the structure the module will draw, with words that size it
-        # as the drawing will. Delivery writes it as each occurrence's first child,
-        # marked `data-lf-prepaint` (`revision_delivery.mark_declared`), so the
-        # browser lays out the widget's real structure before any module runs, and
-        # the module takes it out in the step that draws its replacement. `{"as": tag}`
-        # writes another widget's, for one that first paints as that widget will
-        # stand in it: a command with no seat draws a readings seat at its head.
-        "x-prepaint": {
-            "oneOf": [
-                # Its form is held where it is parsed (`registry/widgets.py`).
-                {"type": "string"},
-                {
-                    "type": "object",
-                    "properties": {
-                        "as": {"type": "string", "pattern": f"^{WIDGET_NAME}$"}
-                    },
-                    "required": ["as"],
-                    "additionalProperties": False,
-                },
-            ]
         },
         "x-views": {"enum": [True, "parts"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
@@ -459,6 +476,7 @@ EXTENSION_SCHEMA = {
         "x-retired-when": ["x-owners"],
         "x-within": ["x-owners"],
         "x-measured": ["x-data"],
+        "x-shows": ["x-owners", "x-refers"],
     },
     # An upgraded container can retain authored children, native markup included.
     "if": {"required": ["x-patch"]},
@@ -468,6 +486,18 @@ EXTENSION_SCHEMA = {
             "x-upgrade": {"const": True},
         }
     },
+    "additionalProperties": False,
+}
+# Selector idioms share author-facing extension fields with widgets, but cannot
+# declare widget behavior or marks (`revision_delivery.mark_declared`).
+IDIOM_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "description": {"type": "string", "pattern": r"\S"},
+        "x-example": {**EXTENSION_SCHEMA["properties"]["x-example"], "pattern": r"\S"},
+        "x-instructions": EXTENSION_SCHEMA["properties"]["x-instructions"],
+    },
+    "required": ["description", "x-example"],
     "additionalProperties": False,
 }
 _NONEMPTY = {"type": "string", "minLength": 1}
@@ -596,22 +626,32 @@ ATTRIBUTE_KEYS = (
 KERNEL = PLUGIN_ROOT / "dist" / "kernel"
 BUNDLED_PACKAGES = PLUGIN_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
-# The files `page init` writes at the top of a page directory.
-VENDORED_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
+# A page's layer record (`registry.storage.LAYER`): the packages it selects.
+LAYER_FILE = "layer.json"
+# The top-level files a composed layer serves beside the page (`layer.compose_layer`).
+LAYER_TOP_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
+# A package's source contributions are composed into the page files above. Their
+# roles depend on their filenames, not on whether the package declares widgets.
+PACKAGE_STYLES = (
+    "widget-shadow.css",
+    "widgets.css",
+    "theme.css",
+)
+PACKAGE_FILES = (*PACKAGE_STYLES, "registry.json", "icon.svg")
 # The layer's browser directories, which packages add to.
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
-# What the Leaf serving a page supplies rather than its vendored layer: the runtime's
+# What the Leaf serving a page supplies beside the layer it composes: the runtime's
 # entry and ASSETS's files under these directories (`runtime_selection`).
 RUNTIME_ENTRY = "leaf.js"
 RUNTIME_DIRS = ("runtime", "vendor")
 INSTRUCTIONS_DIR = "instructions"
 PACKAGE_DIRS = (*BROWSER_DIRS, INSTRUCTIONS_DIR)
 # A package's own command-line tools, run by `leaf package run` from wherever the
-# package is installed or bundled. A page never vendors them: they are the agent's.
+# package is installed or bundled. A page never copies them: they are the agent's.
 SCRIPTS_DIR = "scripts"
 INSTRUCTIONS_FILE = re.compile(rf"{HTML_NAME}\.md")
-# Media the page shows, named by the hash of their bytes (`page media`). Not vendored
-# — they are the page's content, not the layer's — but served like it, and the
+# Media the page shows, named by the hash of their bytes (`page media`). They are the
+# page's content, not the layer's, but served like it, and the
 # naming is what keeps the directory's promise: same name, same bytes, so a
 # version the user approved cannot show them something else later.
 MEDIA_DIR = "media"
@@ -637,6 +677,9 @@ MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
 FILE_BINDINGS_FILE = "files.json"
 DATA_DIR = "data"
+# The page's copies of the packages it selects by path (`vendoring`), which every
+# Leaf reading the page composes in place of a directory only `page init` could see.
+PACKAGES_DIR = "packages"
 # The diagnostic request and interaction trace (`interaction_log.py`).
 INTERACTIONS_FILE = "observations.jsonl"
 PREVIEW_FILE = "preview.json"
@@ -665,20 +708,21 @@ SESSION_FILES = (
 )
 # Process declarations, leases, browser observations and diagnostics are disposable.
 PAGE_PROCESS_FILES = (*SESSION_FILES, INTERACTIONS_FILE)
-# The files Leaf writes in a page directory as it runs. With the author's index.html,
-# the vendored files, and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
+# The files Leaf writes in a page directory as it runs. With the author's index.html
+# and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
 PAGE_STATE_FILES = (
+    LAYER_FILE,
     EVENTS_FILE,
     INTERACTIONS_FILE,
     FILE_BINDINGS_FILE,
     *SESSION_FILES,
 )
-PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
-PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, DATA_DIR, "page")
+PAGE_OWNED_FILES = ("index.html", *PAGE_STATE_FILES)
+PAGE_OWNED_DIRS = ("revisions", MEDIA_DIR, DATA_DIR, "page", PACKAGES_DIR)
 # A revision's and a version's file name, without `.html`.
 REVISION_NAME = r"r(?P<revision>[1-9][0-9]*)-[a-f0-9]{16}"
 VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
-# The directories of a page's URL namespace beneath its root, beside its vendored
+# The directories of a page's URL namespace beneath its root, beside its layer's top
 # files: its API, its browser layer, and what its session writes after a publish (the
 # media it adds, the revisions it activates, the versions it stamps). The website
 # adapter routes exactly these and those files to a page, and so does the Worker in
@@ -706,8 +750,8 @@ MODULE_EXTENSION = (
 # Share safe path segments with vendor files, excluding traversal segments.
 BROWSER_FILE = r"(?:(?!\.{1,2}/)[^/\\\x00-\x1f]+/)*(?!\.{1,2}$)[^/\\\x00-\x1f]+"
 # What the server exposes from a page: the browser layer, media, immutable revisions,
-# and event-backed version addresses. Agent-side instructions stay vendored but are read
-# only through the CLI.
+# and event-backed version addresses. A layer's agent-side instructions are read only
+# through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.
 DIR_FILES = {
@@ -721,7 +765,7 @@ DIR_FILES = {
 SERVED_PATH = re.compile(
     "/(?:"
     + "|".join(
-        [re.escape(f) for f in VENDORED_FILES]
+        [re.escape(f) for f in LAYER_TOP_FILES]
         + [f"{d}/{DIR_FILES[d]}" for d in (*BROWSER_DIRS, MEDIA_DIR)]
         + [rf"versions/{VERSION_NAME}\.html"]
         + [rf"revisions/{REVISION_NAME}\.html"]

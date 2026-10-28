@@ -7,7 +7,9 @@
 // follow them. Reconciliation, not the originating press, owns the fold because the same
 // change can arrive from another tab or the agent. A resolved thread leaves the
 // open-thread vocabulary at once, folds in place, then moves under the resolved
-// disclosure.
+// disclosure. A message leaving a thread, as a reply the log refuses does, folds where
+// it stood (thread/transcript.js), and the thread gives its room back as it folds
+// (thread/reply-continuity.js).
 //
 // Projection composes the complete final state before rendering. Ordered containers
 // measure once around that composition and show one FLIP from the current layout to the
@@ -48,8 +50,8 @@ export const motionPlays = () => !reducedMotion() && pagePresented();
 // reduce, and a caller treats "no animation" and "animation finished" as the same
 // state. Every motion this module plays shares one held-end-frame contract. A duration
 // a caller passes in is still a number this module has no reason for; see AGENTS.md's
-// "Motion". `motion` is the packages' door, and its signature is part of what a
-// vendored package calls, so it stays as pages know it.
+// "Motion". `motion` is the packages' door, and its signature is part of what an
+// installed package calls, so it stays as pages know it.
 export const motion = (el, keyframes, ms, pseudoElement = null) =>
   playMotion(el, keyframes, { duration: ms, pseudoElement });
 
@@ -106,7 +108,7 @@ export const motionTime = (property, on = document.documentElement) => {
 export const motionEasing = (property, on = document.documentElement) =>
   token(property, on);
 
-// A thread's arrival tint and the navigation flash on the surface it revealed.
+// A message's arrival tint, and the cue on a tab a walk revealed.
 export const flashDuration = () => motionTime("--lf-motion-flash");
 // Independently rendered carriers join the same finite agent-work arrival window.
 export const agentArrivalDuration = () => motionTime("--lf-motion-agent-arrival");
@@ -121,8 +123,8 @@ export function backgroundFlash(el, ms) {
 // worth of page closing, short enough that the act still reads as having happened at
 // the press: the board's own FLIP is 150ms over a card's width, and this is a taller
 // distance travelled by the whole column below it. A decided suggestion's retired
-// slot and a resolved inline thread fold over it, and a picture's zoom (media.js)
-// takes the same time.
+// slot, a resolved inline thread and a message leaving a thread fold over it, and a
+// picture's zoom (media.js) takes the same time.
 export const foldDuration = () => motionTime("--lf-motion-fold");
 // A retained frame returns from an editor to its shorter reading.
 export const returnDuration = () => motionTime("--lf-motion-return");
@@ -133,9 +135,13 @@ export const returnDuration = () => motionTime("--lf-motion-return");
 // the effect. `display` keeps an already-retired slot drawn until its pixels finish;
 // semantic retirement is still true from the first frame.
 // Clip without creating a scroller, so a folding thread's title stays sticky to its list.
-// Without intrinsic interpolation, which Firefox and WebKit lack, use the caller's
-// immediate retirement path rather than a discrete height jump half way through an
-// opacity animation.
+// Where intrinsic interpolation is missing (Firefox, WebKit), `auto` would jump
+// discretely half way. There the effect first holds the block at `auto`, reads that
+// height and restarts from it in pixels, all before the next frame. The pixels live
+// only in the effect's keyframes, so content that changes mid-fold keeps the starting
+// height it was read with. Firefox cannot animate `display` either, so an
+// already-retired slot is drawn by an inline `display` that the effect's end or
+// cancellation removes; the retirement rule then hides it again.
 // When retiring also replaces adjacent UI, the container's prior allocation supplies
 // the starting room: its final composition may replace an editor with a disclosure.
 // Account for that difference in the retiring block's size, so the first
@@ -144,33 +150,38 @@ export const returnDuration = () => motionTime("--lf-motion-return");
 // The caller measures only the container before composing; this owner reads the new
 // allocation, so consumers share the geometry rule.
 export function foldBlock(el, allocation = null) {
-  if (!CSS.supports("block-size", "calc-size(auto, size)")) return null;
   const adjustment = allocation
     ? allocation.priorSize - allocation.container.getBoundingClientRect().height
     : 0;
-  return motion(
+  const native = CSS.supports("block-size", "calc-size(auto, size)");
+  const frames = (blockSize) => [
+    { blockSize, display: "block", overflow: "clip", opacity: 1 },
+    {
+      blockSize: "0px",
+      minBlockSize: "0px",
+      marginBlockStart: "0px",
+      marginBlockEnd: "0px",
+      paddingBlockStart: "0px",
+      paddingBlockEnd: "0px",
+      borderBlockStartWidth: "0px",
+      borderBlockEndWidth: "0px",
+      display: "block",
+      overflow: "clip",
+      opacity: 0,
+    },
+  ];
+  const played = motion(
     el,
-    [
-      {
-        blockSize: `calc-size(auto, size + ${adjustment}px)`,
-        display: "block",
-        overflow: "clip",
-        opacity: 1,
-      },
-      {
-        blockSize: "0px",
-        minBlockSize: "0px",
-        marginBlockStart: "0px",
-        marginBlockEnd: "0px",
-        paddingBlockStart: "0px",
-        paddingBlockEnd: "0px",
-        borderBlockStartWidth: "0px",
-        borderBlockEndWidth: "0px",
-        display: "block",
-        overflow: "clip",
-        opacity: 0,
-      },
-    ],
+    frames(native ? `calc-size(auto, size + ${adjustment}px)` : "auto"),
     foldDuration(),
   );
+  if (!played || native) return played;
+  if (getComputedStyle(el).display === "none") {
+    el.style.display = "block";
+    const release = () => el.style.removeProperty("display");
+    played.finished.then(release, release);
+  }
+  const size = parseFloat(getComputedStyle(el).blockSize) + adjustment;
+  played.effect.setKeyframes(frames(`${size}px`));
+  return played;
 }

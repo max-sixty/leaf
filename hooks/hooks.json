@@ -74,6 +74,14 @@
             "type": "command",
             "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code --if-claimed || exit 1",
             "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "exec python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/background-watch.py\" hook --harness claude-code --if-claimed --watch",
+            "asyncRewake": true,
+            "rewakeMessage": "Leaf:",
+            "rewakeSummary": "Leaf: new input",
+            "timeout": 604800
           }
         ]
       }

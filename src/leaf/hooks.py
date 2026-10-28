@@ -30,26 +30,30 @@ without starting uv (`bin/leaf`): Codex's tool hook, and every Claude Code hook
 but PreToolUse. Codex's other hooks record the provider turn a later claim rests
 on, so they always run. Claude Code's PreToolUse runs before each `leaf`
 command, and in such a session opens the turn the skipped prompt hook would have,
-so a claim that command makes joins it. Hooks
+so a claim that command makes joins it; of its runs for one tool call, one per
+registration the command matches, only the first does its work
+(`leases.first_hook_for_tool`). Hooks
 that do run with no retained claim avoid page reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
 records in `codex`. Claude Code's background Stop hook and Pi's extension watch
 between turns (`cmd_watch`), and Leaf's Claude Code hooks module follows the
-session's pages (`cmd_pages`) to draw them beside the prompt. The application
-entry routes `leaf hook` here before loading the CLI.
+session's pages (`cmd_pages`) to draw them beside the prompt. `leaf hook`
+(`cli.hook`) dispatches here.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
 after successful or failed tools, using the same envelope and receipt as its
 prompt hook. A boundary with nothing pending adds no response-debt reminders.
-Claude Code may still drop what a hook hands over, so its PreToolUse, PostToolBatch
-and Stop hooks first confirm what the turn's earlier hooks handed into it
-(`delivery.confirm_turn`): the model reads the context before it calls a tool or
-ends its turn.
+Claude Code may still drop what a hook hands over, so each of its hooks first
+records the receipt of what its transcript shows entered the model's context
+(`delivery.confirm_entered`). Its hooks name the turn by `prompt_id`
+(`ClaudeCodeHarness.hook_payload`).
 
 Session-start and prompt hooks also inspect retained claims for disconnected pages
 (`reconnect`), including inactive ownership. That notice does not reclaim a
 page or reopen a turn at SessionStart, and it persists across session generations.
+A SessionStart after a compaction also has an agent holding a page read the leaf
+skill again (`reload_skill`).
 
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment. A
@@ -59,15 +63,14 @@ developer-selected session runtime (`session_runtime`) owns the entire hook;
 import json
 import time
 
-from .leases import mark_hooks
+from .leases import first_hook_for_tool, mark_hooks
 from .refusals import Refused
 from .service import claim_records, owned_pages
 from .state import (
     advance_turn,
     close_session_turn,
-    end_harness_instance,
     flocked,
-    holds_claims,
+    held_claims,
     prompt_turn,
     session_lock_path,
     session_record,
@@ -91,29 +94,31 @@ def cmd_hook(harness: str, payload: dict) -> None:
         # Capability evidence for hook transport and open-turn activity. An
         # explicit wait carries its own input even if later hooks fail.
         mark_hooks(sid)
-    if event == "SessionEnd":
-        end_harness_instance(sid)
-        return
     if not sid:
+        return
+    if event == "PreToolUse" and not first_hook_for_tool(
+        sid, payload.get("tool_use_id")
+    ):
         return
     from .harness import hook_harness
 
     hooked = hook_harness(harness, sid)
+    payload = hooked.hook_payload(payload)
+    turn_id = payload.get("turn_id")
     if event == "PreToolUse":
         # Hooks run outside the harness's sandbox and shell commands inside it.
         # Claude Code's registration runs this only before a command naming
         # `leaf`, so a session that never runs one opens no road out.
         hooked.escape_sandbox()
-        if not holds_claims(sid):
+        if not held_claims(sid):
             # The launcher skipped this turn's prompt hook (`bin/leaf`),
             # so the turn a claim joins opens here, before the command.
-            prompt_turn(sid)
+            prompt_turn(sid, turn_id)
         elif not hooked.commits_hook_context:
-            from .delivery import confirm_turn
+            from .delivery import confirm_entered
 
-            confirm_turn(sid)
+            confirm_entered(hooked, payload)
         return
-    turn_id = payload.get("turn_id")
     if event in {"UserPromptSubmit", "TurnStart"}:
         expected = prompt_turn(sid, turn_id)
         if expected is None or event == "TurnStart":
@@ -125,6 +130,8 @@ def cmd_hook(harness: str, payload: dict) -> None:
         from .reconnect import notices
 
         context = notices(harness, sid, expected)
+        if context is not None and payload.get("source") == "compact":
+            context += reload_skill(sid)
         if context:
             print(
                 json.dumps(hooked.hook_context(event, "\n\n".join(context))),
@@ -133,7 +140,8 @@ def cmd_hook(harness: str, payload: dict) -> None:
         return
     if turn_id and event != "UserPromptSubmit":
         # A first trusted step can identify an unknown session-scoped turn.
-        # Once a prompt/provider named it, late callbacks cannot replace it.
+        # Once a prompt/provider named it, late callbacks cannot replace it; a
+        # harness whose steps can start a turn opens it first (`reconcile_turn`).
         with flocked(session_lock_path(sid)):
             record = session_record(sid)
             if (
@@ -156,10 +164,13 @@ def cmd_hook(harness: str, payload: dict) -> None:
             sid, turn_id, expected=expected, ended_at=payload.get("ended_at")
         )
         return
-    if event in {"PostToolBatch", "Stop"} and not hooked.commits_hook_context:
-        from .delivery import confirm_turn
+    if (
+        event in {"UserPromptSubmit", "PostToolBatch", "Stop"}
+        and not hooked.commits_hook_context
+    ):
+        from .delivery import confirm_entered
 
-        confirm_turn(sid)
+        confirm_entered(hooked, payload)
     prompt, expected = hooked.offer_at_step(event, payload, expected)
     if prompt:
         print(json.dumps(hooked.hook_context(event, prompt)))
@@ -190,10 +201,37 @@ def cmd_hook(harness: str, payload: dict) -> None:
         close_session_turn(sid, turn_id, expected=expected)
 
 
+def reload_skill(session_id: str) -> list[str]:
+    """What a compaction tells an agent holding pages: to read the leaf skill again,
+    which the compaction may have dropped from its context.
+
+    On 2026-10-25 five sessions left questions for the user only in their replies,
+    so On me read empty and told the user nothing waited on them. Each had read the
+    skill hours or days before, four of them before compacting, while their
+    harness's own instructions for asking the user stayed in context. Restating one
+    rule on every prompt weighed on every turn and covered only that rule; the
+    skill is where every rule a page-holding agent follows lives."""
+    from .schema import SKILL_FILE
+
+    pages = owned_pages(session_id)
+    if not pages:
+        return []
+    return [
+        (
+            f"This session holds the Leaf page {', '.join(map(str, pages))}. A "
+            f"compaction may have dropped the leaf skill; read {SKILL_FILE} again "
+            "before you next reply or run a leaf command."
+        )
+    ]
+
+
 def cmd_watch(harness: str, payload: dict) -> str | None:
-    """The watch `harness`'s Stop hook or extension starts as a turn ends,
-    watching the session's pages until input, and what it wakes the session with, or
-    None where it ends without waking it (`session.watch_between_turns`).
+    """The watch `harness`'s Stop hook or extension starts as a turn ends, or Claude
+    Code's prompt hook as a turn starts, watching the session's pages until input,
+    and what it wakes the session with, or None where it ends without waking it
+    (`session.watch_between_turns`). A prompt's watch takes the turn it starts with
+    as a later one: it waits while that turn runs and wakes only once Escape ends it
+    with no Stop hook, since a Stop starts the watch that supersedes it.
 
     It watches only while the session holds a page, and only where its harness
     watches between turns. Pi's extension starts one with an Interrupt payload
@@ -214,7 +252,11 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
         return None
     from .session import watch_between_turns
 
-    return watch_between_turns(watching, interrupted=interrupted)
+    return watch_between_turns(
+        watching,
+        interrupted=interrupted,
+        at_prompt=payload.get("hook_event_name") == "UserPromptSubmit",
+    )
 
 
 # What `cmd_pages` prints of each page, so a change to anything else stays quiet.
@@ -269,16 +311,16 @@ def cmd_pages(payload: dict) -> None:
 
 
 def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
-    """Read one harness payload and dispatch it, without importing the CLI.
+    """Read one harness payload and dispatch it.
 
-    The application entry is the only caller.
+    The Click hook command is the caller.
     A watch owns leases, so it releases them when the harness terminates it.
     """
     import os
     import sys
     import tempfile
 
-    from .session_runtime import own_launcher, selected_launcher
+    from .session_runtime import delivering_launcher, own_launcher
 
     try:
         payload = json.load(sys.stdin)
@@ -286,8 +328,8 @@ def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
         raise Refused(
             f"hook expects the harness's JSON payload on stdin ({error.msg})"
         ) from error
-    launcher = selected_launcher(payload.get("session_id") or "")
-    if launcher is not None and launcher != own_launcher():
+    launcher = delivering_launcher(payload.get("session_id") or "")
+    if launcher != own_launcher():
         # Delegate the whole hook before publishing lifecycle or pickup. Keeping
         # the stdin as a file avoids a pipe-size limit on large tool payloads;
         # exec retains cancellation and the watch's exact lifetime.

@@ -29,7 +29,13 @@
    the turn the user was reading, even when it is not the latest one. A thread opened
    for reading, on a card or in the panel's view, shows its first unread turn, else
    its latest (`showReturnTurn`). */
-import { seenRect, stuckBox, userScrollport } from "../geometry.js";
+import {
+  seenRect,
+  showsContents,
+  slotTop,
+  stuckBox,
+  userScrollport,
+} from "../geometry.js";
 import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -74,9 +80,15 @@ const separateTranscript = (held) => {
 // area, including Send and Resolve; an oversized editor reveals only its control.
 // scrollIntoView(nearest) on a card spanning both edges otherwise moves nothing, and
 // so does one aimed at a pinned reply row, so a long thread with one lands its end.
+// A control inside the thread that the user already sees stays where it is, as a
+// summary's Show or Hide does: bringing the rest of the thread into view would carry
+// it from under their aim (browser/AGENTS.md, "Stability"). A reply row pinned to its
+// scroller's foot stays put whatever lands, so its landing still shows the thread's end.
 const landingTarget = (held, control) => {
-  if (fitsWhole(held)) return { node: held };
   const reply = replyRowOf(held, control);
+  if (control !== held && !replyPinned(reply) && alreadyShown(control))
+    return { node: null };
+  if (fitsWhole(held)) return { node: held };
   // The thread itself, landed as a whole, is not a way into its pinned reply.
   if (replyPinned(reply))
     return control === held ? { node: null } : { node: held, block: "end" };
@@ -103,8 +115,8 @@ const returnTurn = (transcript, unread) => {
     ...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)"),
   ];
   let start = unread && turns.find((node) => node.dataset.message === unread);
-  while (start && !start.checkVisibility()) start = start.previousElementSibling;
-  return start ?? turns.findLast((node) => node.checkVisibility()) ?? null;
+  while (start && !showsContents(start)) start = start.previousElementSibling;
+  return start ?? turns.findLast((node) => showsContents(node)) ?? null;
 };
 
 // A thread opened for reading shows the turn the user comes back for: the end of the
@@ -119,13 +131,13 @@ export function showReturnTurn(transcript, thread) {
   const start = thread?.msgs.find((message) => message.id === unread)?.key;
   const turn = returnTurn(transcript, start ?? null);
   if (!turn) return;
-  // Measured from the box's content edge, below the focus-ring room its padding keeps
-  // over the heads: a turn landed in that room would start where read tracking sees
-  // nothing of it (geometry.js, `seenRect`), and never read.
+  // Measured from where the heads stick, below the focus-ring room the box keeps over
+  // them: a turn landed in that room would start where read tracking sees nothing of it
+  // (geometry.js, `seenRect`), and never read.
   const over =
     scroller.getBoundingClientRect().top +
     scroller.clientTop +
-    parseFloat(getComputedStyle(scroller).paddingTop) -
+    slotTop(scroller) -
     turn.getBoundingClientRect().top;
   // A turn only a little taller than its room still shows its head at the end.
   // Keep its trailing reference and metadata there; align to the head only when
@@ -195,7 +207,9 @@ export function scrollThreadIntoView(
 // the send removed has handed the user on already.
 // The sent turn lands without animation: fitting can change the transcript's room in
 // the next update, and an in-flight pixel destination would outlive the room it named.
-// The geometry owner then preserves the landed end while it fits that room.
+// The geometry owner then preserves the landed end while it fits that room. A floating
+// box presents the send itself, its content riding from where it stood to where the
+// landing left it (box-motion.js, "send"), so the landing stays one instant scroll.
 export function sendLanding(input) {
   const held = input.closest(SAYS_IN);
   if (!held) return () => {};

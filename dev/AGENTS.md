@@ -59,6 +59,6 @@ pnpm run test:evals
   `leaf-website-dev` environment. Production deploys only through
   `.github/workflows/publish-site.yaml`; `worker/README.md` owns diagnostics.
 - `leaf-dev journey` appends each sample to `$XDG_STATE_HOME/leaf-dev/journey.jsonl`. On
-  a harness target it spends the host's logins, as `leaf-dev eval` does, so CI runs
-  neither; `publish-site` runs the journey against each deployed release
+  a harness target it uses the host's authenticated accounts, as `leaf-dev eval` does,
+  so CI runs neither; `publish-site` runs the journey against each deployed release
   (`/developing-leaf`, "Run the agent journey" and "Score an instruction change").

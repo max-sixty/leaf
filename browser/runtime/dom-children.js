@@ -38,9 +38,10 @@ export function setRenderedChildren(parent, nodes) {
   patchChildren(parent, parent, after, {
     pairs: new Map([...sourceNodes(parent)].map((node) => [node, node])),
     arrive: (node) => node,
-    sameValue: (name, held, wanted) => held === wanted,
+    sameValue: (held, wanted) => held === wanted,
     touched: () => {},
     declared: () => false,
+    body: () => null,
     same: (held, wanted) => held.isEqualNode(wanted),
     generated: () => false,
   });
@@ -134,21 +135,22 @@ function staying(parent, nodes) {
      controller owns its children, with `parent` as the live element it will stand under,
      since a reading about its place in the document is made before it has one. Returns
      the live node to place.
-   - `sameValue(name, before, after)`: two revisions spell this attribute the same way.
+   - `sameValue(before, after)`: two revisions spell this attribute the same way.
      A resource address is written per revision, so it is read past that root.
    - `touched(element)`: this live element's attributes changed, and whatever a dressing
      pass reads off its attributes is owed again.
    - `declared(element)`: an upgraded widget, whose children are its controller's. Asked
      of the held element; a match names the same element on both sides.
+   - `body(element)`: the box a widget's module built to hold every authored child of
+     this live element, or null. The source's children are that box's, so the patch
+     writes, places and orders them there.
    - `reaches(before, after)`: this widget's controller leaves its members where the
      author wrote them, and the two revisions differ only inside those members. What
      changed is then authored markup the patch can write, and nothing the controller
      built from the widget is stale.
-   - `unchanged(before, after)`: that widget's authored markup is the same markup. The
-     caller compares the digests each revision's capture recorded.
    - `same(before, after)`: two source elements are spelled the same way, read past the
      address each revision was delivered at. Asked of an element whose interior a pass
-     other than a controller has taken, since no capture digested it.
+     other than a controller has taken, or a widget owns.
    - `generated(node)`: the live node is the runtime's own. Only placement asks, because
      only placement walks live children; nothing here matches or removes on it.
 
@@ -161,7 +163,7 @@ function staying(parent, nodes) {
 export function patchTree(before, after, rules) {
   const live = rules.pairs.get(before);
   patchAttributes(live, before, after, rules);
-  patchChildren(tree(live), tree(before), tree(after), rules);
+  patchChildren(holder(live, rules), tree(before), tree(after), rules);
 }
 
 // Whether the authored patch preserves this native node. An owned target needs its
@@ -188,7 +190,7 @@ function retainedWithin(before, after, target, rules) {
   const live = rules.pairs.get(before);
   if (!live || !sourceOwns(before, target, rules)) return false;
   // An unchanged source also preserves editors its renderer added underneath it.
-  if (kept(before, after, rules)) return true;
+  if (rules.same(before, after)) return true;
   if (live === target) return false;
   // A containing identity is part of the durable anchor even when the rendered
   // subject is an anonymous paragraph. Keep its attributes as well as its node.
@@ -196,8 +198,7 @@ function retainedWithin(before, after, target, rules) {
     before.attributes.length !== after.attributes.length ||
     [...before.attributes].some(
       ({ name, value }) =>
-        !after.hasAttribute(name) ||
-        !rules.sameValue(name, value, after.getAttribute(name)),
+        !after.hasAttribute(name) || !rules.sameValue(value, after.getAttribute(name)),
     )
   )
     return false;
@@ -217,7 +218,7 @@ function retainedWithin(before, after, target, rules) {
     // Like patchTree, the root is traversed; atomic ownership is decided for each
     // child by patchChildren, which either keeps that complete subtree or rebuilds it.
     const retains = atomic(held, wanted, node, rules)
-      ? kept(held, wanted, rules)
+      ? rules.same(held, wanted)
       : retainedWithin(held, wanted, target, rules);
     if (!retains) return false;
   }
@@ -230,6 +231,9 @@ function retainedWithin(before, after, target, rules) {
 // A template's tree is its content fragment, not its children; `childNodes` is empty
 // however much markup it holds.
 const tree = (node) => (node.localName === "template" ? node.content : node);
+// Where a live element's authored children stand: its tree, or the authored body its
+// widget's module moved them into.
+const holder = (live, rules) => rules.body(live) ?? tree(live);
 
 // Only where the two revisions disagree. An attribute they both carry is left exactly as
 // the page has it, which is the whole of how a user's `<details open>`, a tab stop
@@ -245,7 +249,7 @@ function patchAttributes(live, before, after, rules) {
   }
   for (const { name, value } of after.attributes) {
     const held = before.getAttribute(name);
-    if (held !== null && rules.sameValue(name, held, value)) continue;
+    if (held !== null && rules.sameValue(held, value)) continue;
     // Classes are a set the page shares with the runtime, so only the author's own
     // members move; every mark and state class beside them stays.
     if (name === "class") {
@@ -333,13 +337,13 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
     }
     if (node.nodeType !== Node.ELEMENT_NODE) writeText(live, node.data);
     else if (!atomic(before, node, live, rules)) patchTree(before, node, rules);
-    else if (!kept(before, node, rules)) {
+    else if (!rules.same(before, node)) {
       // Its interior is not this patch's to reach into, so a changed one cannot be
       // corrected from outside. It leaves, and its replacement arrives as a new element.
       evict(before, live, rules);
       placed.push(rules.arrive(node, liveParent));
       continue;
-    }
+    } else pairInterior(before, node, rules);
     rules.pairs.set(node, live);
     if (live.parentNode === liveParent) placed.push(live);
   }
@@ -350,30 +354,38 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
   order(liveParent, placed, rules.generated);
 }
 
+// A kept element's interior is the same markup in both revisions, so each of its source
+// nodes stands for whatever live node the one it replaces stood for, wherever the
+// controller holds it now. A digest that matched over markup of another shape pairs
+// nothing rather than pair the wrong nodes.
+function pairInterior(before, after, rules) {
+  const held = [...sourceNodes(before)];
+  const wanted = [...sourceNodes(after)];
+  if (held.length !== wanted.length) return;
+  wanted.forEach((node, at) => {
+    const live = rules.pairs.get(held[at]);
+    if (live) rules.pairs.set(node, live);
+  });
+}
+
 // Whether this element's interior is beyond the patch. A widget's is its controller's
 // from the moment it upgrades, and the caller names those. Any element's can also be
 // taken by a pass with a reason to own it: the tokenizer's spans stand where a code
 // block's one authored text node stood, and the nodes this patch paired are then not
 // there to write through — putting one back would stand the source's own text beside
 // the colouring of it. Both are read the same way afterwards: whole, or not at all.
-// A widget whose controller only builds beside its members is neither, for a revision
-// that leaves everything but their interiors alone: a page written as tabs keeps every
-// tab the author did not touch, rather than rebuilding the page for one sentence.
+// A widget whose controller only builds beside its members, or around the authored
+// body holding them, is neither, for a revision that leaves everything but their
+// interiors alone: a page written as tabs keeps every tab the author did not touch,
+// rather than rebuilding the page for one sentence.
 // A stylesheet's parsed rules belong to CSSOM. Replacing a changed source owner
 // reparses its original text, including when only its access declaration changed.
 const atomic = (before, after, live, rules) =>
   before.matches('style, link[rel~="stylesheet" i]') ||
   (rules.declared(before) && !rules.reaches(before, after)) ||
   [...tree(before).childNodes].some(
-    (node) => rules.pairs.get(node)?.parentNode !== tree(live),
+    (node) => rules.pairs.get(node)?.parentNode !== holder(live, rules),
   );
-
-// Whether the two revisions spell such an element the same way. A widget answers from
-// the digests its captures recorded, which is the markup the server read of each; nothing
-// else has a capture, and answers from the markup itself, read past the delivery address
-// each revision wrote into it.
-const kept = (before, after, rules) =>
-  rules.declared(before) ? rules.unchanged(before, after) : rules.same(before, after);
 
 function matchNodes(held, wanted) {
   const matches = new Map();

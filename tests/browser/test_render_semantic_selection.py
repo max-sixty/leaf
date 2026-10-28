@@ -23,6 +23,7 @@ from render_harness import (
     panel_control,
     panel_field,
     resized,
+    scroll_settled,
     selection_field,
     sending,
     write,
@@ -308,10 +309,11 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
 
 
 def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
-    """Words a script selects are quoted in the panel's field, and only a press there
-    comments on them: a Tab into the field writes on the page. A page draft hiding the
-    quote shows a Selection mode chip, and on a page drawing its own
-    annotations the field stands in an open comment box's place while it quotes."""
+    """Words a script selects are quoted in the panel's field beside c, the key that
+    comments on them as a press there does, while a Tab into the field writes on the
+    page. A page draft hiding the quote shows a Selection mode chip, and on a page
+    drawing its own annotations the field stands in an open comment box's place while
+    it quotes."""
     source = leaf_page(
         "Offered words",
         '<p id="first">The first passage holds its words.</p>'
@@ -327,7 +329,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
 
     select("#first")
     expect(offered).to_have_attribute(
-        "placeholder", "“The first passage holds its words.”"
+        "placeholder", "“The first passage holds its words.” c"
     )
     expect(offered).to_have_attribute("aria-label", "Comment on the selection")
     page.locator(".lf-fp-leaf").focus()
@@ -375,7 +377,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     }""")
     page.clock.resume()
     expect(offered).to_have_attribute(
-        "placeholder", "“A second passage comes after it.”"
+        "placeholder", "“A second passage comes after it.” c"
     )
     offered.click()
     expect(composer).to_be_focused()
@@ -642,8 +644,8 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     # Selection and whole-page search are named in the reference.
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
-    search_command = help_el.locator('tr[data-lf-command="page.search.open"]')
-    select_command = help_el.locator('tr[data-lf-command="target.picker.open"]')
+    search_command = help_el.locator('[role=row][data-lf-command="page.search.open"]')
+    select_command = help_el.locator('[role=row][data-lf-command="target.picker.open"]')
     expect(search_command.locator("kbd")).to_have_text("/")
     expect(search_command.get_by_role("button")).to_have_text("Search page")
     expect(search_command.locator(".lf-command-reference-description")).to_have_count(0)
@@ -660,6 +662,9 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     status = page.locator(".lf-page-search-status")
     expect(status).to_be_empty()
     search_field = page.locator(".lf-page-search-box")
+    # Focus arrives before the panel presents its Close control. Measure the
+    # completed search row before comparing query and feedback changes.
+    rendered(page)
     search_box = search_field.bounding_box()
     search.fill("words absent from this page")
     expect(status).to_have_attribute("aria-label", "No matches")
@@ -790,11 +795,11 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
 
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
-    expect(help_el.locator('tr[data-lf-command="page.search.next"] kbd')).to_have_text(
-        "n"
-    )
     expect(
-        help_el.locator('tr[data-lf-command="page.search.previous"] kbd')
+        help_el.locator('[role=row][data-lf-command="page.search.next"] kbd')
+    ).to_have_text("n")
+    expect(
+        help_el.locator('[role=row][data-lf-command="page.search.previous"] kbd')
     ).to_have_text("N")
     page.keyboard.press("Escape")
 
@@ -1306,21 +1311,26 @@ def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     page.evaluate(
         """() => {
           const originalRect = Element.prototype.getBoundingClientRect;
-          let hiddenRectReads = 0;
+          window.lfHintScrollReads = {hiddenRectReads: 0};
           Element.prototype.getBoundingClientRect = function (...args) {
             if (this.id.startsWith('hidden-'))
-              hiddenRectReads += 1;
+              window.lfHintScrollReads.hiddenRectReads += 1;
             return originalRect.apply(this, args);
           };
-          addEventListener('scrollend', () => requestAnimationFrame(() => {
-            window.lfHintScrollReads = {hiddenRectReads};
+          window.lfStopCounting = () => {
             Element.prototype.getBoundingClientRect = originalRect;
-          }), {capture: true, once: true});
+          };
           document.scrollingElement.scrollTo({top: 600, behavior: 'smooth'});
         }"""
     )
-    page.wait_for_function("() => window.lfHintScrollReads")
-    reads = page.evaluate("() => window.lfHintScrollReads")
+    # The membership refresh runs in the passes after the scroll rests, so the count is
+    # read once those have run, not at the scroll's end.
+    page.wait_for_function("() => scrollY > 0")
+    scroll_settled(page)
+    rendered(page)
+    reads = page.evaluate(
+        "() => { lfStopCounting(); return window.lfHintScrollReads; }"
+    )
 
     assert reads["hiddenRectReads"] == 0, reads
 
@@ -1546,3 +1556,39 @@ def test_a_partly_clipped_atomic_element_keeps_its_hint_in_sight(browser, serve)
 
     hint_top = page.locator(".lf-target-picker-hint").bounding_box()["y"]
     assert hint_top >= 0, hint_top
+
+
+def test_page_search_skips_hidden_words_but_reaches_disclosures(browser, serve):
+    """Search counts rendered words and words its travel can reveal, not hidden data."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "searchable words",
+                """<p>needle visible</p>
+<div style="display:none"><pre>needle source data</pre></div>
+<p style="visibility:hidden">needle invisible</p>
+<div style="display:contents"><p>needle contents</p></div>
+<section><lf-tabs id="views"><lf-tab id="shown" label="Shown"><p>Shown panel</p></lf-tab>
+<lf-tab id="fold" label="Folded"><p>needle folded</p></lf-tab></lf-tabs></section>
+<details id="details"><summary>Evidence</summary><p>needle disclosed</p></details>
+<p hidden>copper</p><p>copper copper</p>""",
+            )
+        ),
+    )
+    page.keyboard.press("/")
+    search = page.get_by_role("searchbox", name="Search page text")
+    search.fill("needle")
+    status = page.locator(".lf-page-search-status")
+    expect(status).to_have_text("1/4")
+    search.press("Tab")
+    expect(status).to_have_text("2/4")
+    search.press("Tab")
+    expect(status).to_have_text("3/4")
+    expect(page.locator("#fold")).not_to_have_attribute("hidden")
+    expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
+    search.press("Tab")
+    expect(status).to_have_text("4/4")
+    expect(page.locator("#details")).to_have_attribute("open", "")
+    search.fill("copper copper")
+    expect(status).to_have_text("1/1")

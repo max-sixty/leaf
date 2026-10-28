@@ -9,30 +9,6 @@
     <style>
       @import url("/page/theme.css");
 
-      #bg-style-access :is([role="checkbox"], a) {
-        color: var(--mark-ink);
-      }
-
-      #bg-metrics > dl {
-        margin: 0;
-        padding: var(--sp-3);
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--card);
-      }
-      #bg-metrics dt {
-        color: var(--muted);
-        font: 600 var(--t-6)/1.3 var(--sans);
-      }
-      #bg-metrics dd {
-        margin: var(--sp-1) 0 0;
-        font: 600 var(--t-2)/1.2 var(--sans);
-        overflow-wrap: anywhere;
-      }
-      #bg-metrics dd small {
-        font: 500 var(--t-6)/1.3 var(--sans);
-      }
-
       #bg-outcome > lf-option {
         padding: 1rem;
         min-block-size: 5rem;
@@ -76,7 +52,9 @@
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: var(--sp-2);
+        /* Wrapped rows keep each button's reach, which stands past its face under a
+           finger, clear of the row above it. */
+        gap: max(var(--sp-2), 2 * var(--lf-reach-room)) var(--sp-2);
         margin-block: var(--sp-3);
       }
 
@@ -195,11 +173,6 @@
         display: none;
       }
     </style>
-    <style data-controls>
-      #bg-style-allowed .lf-pick {
-        color: var(--accent);
-      }
-    </style>
     <script id="bg-margin-layer-status-history" type="application/json">
       [
         {
@@ -264,7 +237,7 @@
     <script type="module">
       import {
         afterPresentation,
-        commands,
+        commandsChanged,
         connection,
         generate,
         keepsText,
@@ -361,17 +334,22 @@
 
       const localNote = document.querySelector("#bg-shortcut-note");
       const focusNote = document.querySelector("#bg-shortcut-focus-note");
-      commands(document.querySelector("#bg-local-shortcuts"), "In the note sample", [
-        {
-          id: "note.focus",
-          contextKeys: ["1"],
-          control: focusNote,
-          bindingBadge: null,
-          title: "Write note",
-          description: "Focus the sample note",
-          run: () => localNote.focus(),
-        },
-      ]);
+      const localShortcuts = document.querySelector("#bg-local-shortcuts");
+      localShortcuts.lfCommands = {
+        title: "In the note sample",
+        rows: [
+          {
+            id: "note.focus",
+            contextKeys: ["1"],
+            control: focusNote,
+            bindingBadge: null,
+            title: "Write note",
+            description: "Focus the sample note",
+            run: () => localNote.focus(),
+          },
+        ],
+      };
+      commandsChanged(localShortcuts);
 
       const pageRoot = document.querySelector(
         'link[rel="canonical"][data-lf-runtime]',
@@ -391,7 +369,8 @@
         const frame = document.querySelector("#bg-durable-frame");
         frame.src = new URL("versions/v2.html?pin", pageRoot).href;
         frame.hidden = false;
-        frame.scrollIntoView({ block: "center" });
+        // Only as far as the frame needs, so the press leaves its button where it was.
+        frame.scrollIntoView({ block: "nearest" });
         frameOpener.disabled = true;
       });
 
@@ -536,9 +515,9 @@
               <h3>A to-do on you</h3>
               <p>
                 The agent put a to-do on you about this section with
-                <code>leaf task open … --on user</code>: check that the trail map marks
-                the shelter. Nothing on the page answers it, so it ends only when you
-                press Done.
+                <code>leaf task create … --on user</code>: check that the trail map
+                marks the shelter. Nothing on the page answers it, so it ends only when
+                you press Done.
               </p>
               <ul>
                 <li>
@@ -669,9 +648,11 @@
             </p>
             <h3>Undo a proposal while keeping its choice</h3>
             <p id="bg-nested-change-guide">
-              Pick a route inside the proposal, accept the proposal, then use its “Undo”
-              control. The proposal becomes undecided again; your route remains chosen.
-              Reload to check that both decisions survive.
+              Pick a route inside the proposal (the group is <code>closed</code>, so it
+              offers only its two routes, with no field for another), accept the
+              proposal, then use its “Undo” control. The proposal becomes undecided
+              again; your route remains chosen. Reload to check that both decisions
+              survive.
             </p>
             <lf-suggestion id="bg-nested-change">
               <lf-old><p>Keep the practice walk indoors.</p></lf-old>
@@ -679,7 +660,7 @@
                 <p>Take the practice walk outside.</p>
                 <lf-ask id="bg-route-ask">
                   <h4>Which route should the walk follow?</h4>
-                  <lf-options id="bg-route" choose>
+                  <lf-options id="bg-route" choose closed>
                     <lf-option id="bg-route-garden">Through the garden</lf-option>
                     <lf-option id="bg-route-river">Along the river</lf-option>
                   </lf-options>
@@ -1123,6 +1104,58 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </ul>
             </section>
           </section>
+
+          <section id="bg-ask-board">
+            <p class="eyebrow bg-feature-elements">lf-options · lf-board · lf-card</p>
+            <h2>
+              <strong>One answer in its section and on a board</strong
+              ><span class="bg-feature-detail"
+                >: the card stands where the pick puts it</span
+              >
+            </h2>
+            <p id="bg-ask-board-guide">
+              Each proposal is answered beside its case, and the board's cards show
+              those answers. Pick Next for the flask, and its card moves to Next; drag
+              the stove's card to Drop, or grab it and press the arrows, and its
+              section's pick follows. Undo takes either gesture back in both places.
+            </p>
+            <section id="bg-board-stove">
+              <h3>Replace the sample camp stove</h3>
+              <p id="bg-board-stove-case">
+                The old stove takes ten minutes to boil a litre.
+              </p>
+              <lf-options id="bg-board-stove-choice" choose>
+                <lf-option id="bg-board-stove-next" value="next">Next</lf-option>
+                <lf-option id="bg-board-stove-later" value="later" chosen
+                  >Later</lf-option
+                >
+                <lf-option id="bg-board-stove-drop" value="drop">Drop</lf-option>
+              </lf-options>
+            </section>
+            <section id="bg-board-flask">
+              <h3>Pack a second sample flask</h3>
+              <p id="bg-board-flask-case">One flask ran dry on the last long walk.</p>
+              <lf-options id="bg-board-flask-choice" choose>
+                <lf-option id="bg-board-flask-next" value="next">Next</lf-option>
+                <lf-option id="bg-board-flask-later" value="later">Later</lf-option>
+                <lf-option id="bg-board-flask-drop" value="drop">Drop</lf-option>
+              </lf-options>
+            </section>
+            <lf-board id="bg-board-plan">
+              <lf-column id="bg-board-open" label="Undecided">
+                <lf-card id="bg-board-flask-card" shows="bg-board-flask-choice"
+                  ><strong>Second flask</strong></lf-card
+                >
+              </lf-column>
+              <lf-column id="bg-board-next" label="Next" value="next"></lf-column>
+              <lf-column id="bg-board-later" label="Later" value="later">
+                <lf-card id="bg-board-stove-card" shows="bg-board-stove-choice"
+                  ><strong>New stove</strong></lf-card
+                >
+              </lf-column>
+              <lf-column id="bg-board-drop" label="Drop" value="drop"></lf-column>
+            </lf-board>
+          </section>
         </lf-tab>
 
         <lf-tab id="bg-view-threads" label="Threads">
@@ -1130,7 +1163,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <h2><strong>Threads in the panel</strong></h2>
             <p id="bg-panel-views-guide">
               Choose a view to open its thread in this practice page's Leaf panel. The
-              controls, messages, filters, and unread state are live. Reset restores the
+              controls, messages, search, and unread state are live. Reset restores the
               seeded discussion after trying a reply or changing a thread.
             </p>
             <div id="bg-panel-presets" role="group" aria-label="Threads in the panel">
@@ -1250,10 +1283,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <kbd>T</kbd>: the same thread stays focused in the list.
               </li>
               <li>
-                Choose “Open”, “Unread”, “Drafts” or “Resolved” at the head of Threads
-                to narrow the list, each tab keeping its count, or search the threads'
-                words with the find button beside them. The panel’s main field changes
-                to “Search threads”; closing search brings back the unfinished comment.
+                Read Threads down: the open threads, an unread one marked with a dot and
+                a drafted one saying Draft, then the resolved ones under Resolved.
+                Search the threads' words with the find button beside the tabs. The
+                panel’s main field changes to “Search threads”; closing search brings
+                back the unfinished comment.
               </li>
               <li>
                 Look at a row: its title leads, and a thread waiting on you says so.
@@ -1265,8 +1299,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </li>
               <li>
                 Resolve an inline thread: its state changes immediately while its space
-                folds away into Resolved. Open Resolved during the fold to read it
-                immediately, or Undo to restore the open thread.
+                folds away into Resolved. Open Threads during the fold to read it under
+                Resolved immediately, or Undo to restore the open thread.
               </li>
               <li>
                 Send a reply: focus stays on the card or its title, in the floating card
@@ -1432,8 +1466,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </li>
               <li>
                 Reopen the thread, start a reply, and press Resolve yourself: the editor
-                closes and keeps its draft. Reload, choose Resolved under View, and open
-                that thread: the editor stays closed until Reopen recovers the words.
+                closes and keeps its draft. Reload, open Threads, and open that thread
+                under Resolved: the editor stays closed until Reopen recovers the words.
               </li>
             </ul>
             <section id="bg-message-obligations">
@@ -1474,7 +1508,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 the agent names it.
               </li>
               <li>
-                If the send takes a moment, the message's header reads “Sending” until
+                If the send takes a moment, the message's header reads “Saving…” until
                 the server records it.
               </li>
               <li>
@@ -1613,11 +1647,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <p id="bg-thread-text">
                     <strong>An existing thread.</strong> The sample agenda has room for
                     one more topic. Its speech-bubble control is green, and hovering it
-                    shows “My turn to answer” under the label. The image question still
-                    needs an answer even though the agent added a later progress
-                    message. In Threads, “My turn to answer” still says so. Open the
-                    control and reply: the control turns blue as the thread comes back
-                    to the agent. The same reading fills this target’s Page Map row.
+                    shows “Your turn” under the label. The image question still needs an
+                    answer even though the agent added a later progress message. In
+                    Threads, “Your turn” still says so. Open the control and reply: the
+                    control turns blue as the thread comes back to the agent. The same
+                    reading fills this target’s Page Map row.
                   </p>
                   <p id="bg-thread-media">
                     <strong>Pasted images.</strong> That thread includes an image
@@ -1648,9 +1682,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <h3>Resolved</h3>
               <p id="bg-resolved-text">
                 <strong>A resolved thread.</strong> The room has a projector. Its
-                earlier question is resolved. Open Threads in Leaf's panel, choose
-                “Resolved”, open the thread, and press its underlined “Resolved” to
-                bring its Thread control back to the page.
+                earlier question is resolved. Open Threads in Leaf's panel, open the
+                thread under “Resolved”, and press its underlined “Resolved” to bring
+                its Thread control back to the page.
               </p>
             </section>
             <section id="bg-retained-quote">
@@ -1718,8 +1752,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   Look at a margin control whose thread holds unread replies: it carries
-                  the same dot as Threads. “My turn to answer” still identifies an
-                  outstanding question after you read it.
+                  the same dot as Threads. “Your turn” still identifies an outstanding
+                  question after you read it.
                 </li>
               </ul>
             </section>
@@ -1747,28 +1781,6 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <div class="callout" id="bg-theme-conclusion">
               <p id="bg-theme-conclusion-copy">The comparison is ready for review.</p>
             </div>
-          </section>
-
-          <section id="bg-style-access">
-            <h2><strong>A stylesheet explicitly chooses control access</strong></h2>
-            <p id="bg-style-access-guide">
-              The ordinary page rule colors this
-              <a href="#bg-style-allowed">page link</a>, while the first pair keeps
-              Leaf's ink. A separate stylesheet marked <code>data-controls</code>
-              colors the second pair's selection marks with the accent. Pick by click,
-              tap, or Tab and Space; Undo restores the earlier choice without changing
-              either face.
-            </p>
-            <h3>Ordinary page stylesheet</h3>
-            <lf-options id="bg-style-protected" choose>
-              <lf-option id="bg-style-protected-one"><strong>First</strong></lf-option>
-              <lf-option id="bg-style-protected-two"><strong>Second</strong></lf-option>
-            </lf-options>
-            <h3>Stylesheet with control access</h3>
-            <lf-options id="bg-style-allowed" choose>
-              <lf-option id="bg-style-allowed-one"><strong>First</strong></lf-option>
-              <lf-option id="bg-style-allowed-two"><strong>Second</strong></lf-option>
-            </lf-options>
           </section>
 
           <section id="bg-user-view">
@@ -1879,9 +1891,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </h2>
             <p id="bg-ask-pictured-guide">
               Each option below holds the drawing of what choosing it gives, today's in
-              the option that keeps it. The cards stand side by side across the group's
-              wide width, so the two drawings compare in one row at the size they were
-              drawn, each above its own pick; narrow the window and the cards stack.
+              the option that keeps it. The cards read down, so each drawing keeps the
+              size it was drawn at, above its own pick.
             </p>
             <lf-ask id="bg-pictured-ask">
               <h3>Should the sample queue group its tickets by owner?</h3>
@@ -2031,10 +2042,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <ul id="bg-margin-controls-steps">
               <li>
                 Read the Turn and agent workflow samples, which follow one update:
-                “Sent” means the server recorded it, “Queued” that a later turn will
-                handle it, “Delivered” that a turn accepted it, and “Working” or
-                “Replying” that its answer is in progress. “Turn ended” and “Update
-                stale” show uncertainty without claiming an interruption.
+                “Saved” means the server recorded it, “Up next” that a later turn will
+                handle it, “Got it” that a turn accepted it, and “On it” or “Replying”
+                that its answer is in progress. “Stopped” and “Gone quiet” show
+                uncertainty without claiming an interruption.
               </li>
               <li>
                 Compare thread colors: green marks a thread that needs an answer from
@@ -2173,10 +2184,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p id="bg-margin-layer-status-guide">
               <strong>Quiet status pins without a rail.</strong> This sample starts with
               a recorded card move. The small upward arrow beside “Print the workshop
-              map” says “Sent” on hover: the move was recorded, with nothing for you to
-              answer. After two minutes undelivered, it becomes “Waiting for delivery”;
-              Reset starts a fresh example. Queued, Delivered, and Working follow the
-              same placement rule. When a target already has a control, that control can
+              map” says “Saved” on hover: the move was recorded, with nothing for you to
+              answer. After two minutes undelivered, it becomes “Haven't seen it yet”;
+              Reset starts a fresh example. Up next, Got it, and On it follow the same
+              placement rule. When a target already has a control, that control can
               carry the status instead of adding a separate pin.
             </p>
             <lf-sample
@@ -2262,7 +2273,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: values and trends</span>
               </h3>
               <p id="bg-metrics-guide">
-                Metrics show individual values as tiles, in a
+                Metrics show individual values as <code>metric</code> tiles, in a
                 <code>layout-tiles</code> row, and a Chart compares the values across
                 runs. The metric tiles and the run under them keep to the column, and
                 the three charts take the wide width. Narrow the window: the metric
@@ -2272,15 +2283,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <div id="bg-metrics-room">
                 <div id="bg-metrics" class="layout-tiles">
-                  <dl id="bg-metric-complete" class="panel">
+                  <dl id="bg-metric-complete" class="metric">
                     <dt>checks complete</dt>
                     <dd><strong>12</strong> <small>change: +3</small></dd>
                   </dl>
-                  <dl id="bg-metric-open" class="panel">
+                  <dl id="bg-metric-open" class="metric">
                     <dt>open failures</dt>
                     <dd><strong>2</strong> <small>change: -1</small></dd>
                   </dl>
-                  <dl id="bg-metric-neutral" class="panel">
+                  <dl id="bg-metric-neutral" class="metric">
                     <dt>sample duration</dt>
                     <dd><strong>4 min</strong></dd>
                   </dl>
@@ -3371,9 +3382,8 @@ switch --readers checkout-api,orders-api</code></pre>
             </h2>
             <p id="bg-delivery-guide">
               Drag the card to “Tried”, use its grip with <kbd>Enter</kbd> and the
-              arrows, or tap a destination on a phone. “Sent”, “Delivered”, and
-              “Working” report the agent workflow. A refused send offers “Retry” and
-              “Cancel”.
+              arrows, or tap a destination on a phone. “Saved”, “Got it”, and “On it”
+              report the agent workflow. A refused send offers “Retry” and “Cancel”.
             </p>
             <p id="bg-cut-guide">
               This board has more columns than the page has room for, so it scrolls

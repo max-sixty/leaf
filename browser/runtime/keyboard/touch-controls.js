@@ -1,10 +1,11 @@
 /* The page's commands a finger reaches, as rows of the page's controls (page-controls.js).
  * `touch` names a page command a finger needs a row for; the same row serves a mouse, and
  * stands in the floating panel's menu. A scope with a row marked `exit` is a stance, such
- * as page search or Draw mode: while the innermost one stands (dispatch.js,
- * `innermostStance`), the panel's row offers that row as its one way out, and the panel
- * says the scope's title (status-context.js). Words, availability and activation all
- * come from the same row as keyboard dispatch.
+ * as page search or Draw mode, or a to-do the user stands on, whose Done ends it: while
+ * the innermost one stands (dispatch.js, `innermostStance`), the panel's row offers
+ * that row as its one way out, drawn as the row's `action` (Close's ✕ unless it names one), and
+ * the panel says the scope's `says`, else its title (status-context.js). Words,
+ * availability and activation all come from the same row as keyboard dispatch.
  *
  * A command's words and liveness are read in the repaint frame (`paintTouchControls`),
  * where the register is read, rather than in a presentation's paint: a liveness
@@ -67,6 +68,7 @@ function placeStanceExit() {
     rank: PAGE_CONTROL_RANK.exit,
     exit: true,
     label: () => stance?.label ?? "",
+    action: () => stance?.action ?? "close",
     group: "page",
     offered: () => Boolean(stance),
     disabled: () => stance?.disabled ?? true,
@@ -76,7 +78,8 @@ function placeStanceExit() {
   });
 }
 
-const sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled;
+const sameStance = (a, b) =>
+  a?.label === b?.label && a?.disabled === b?.disabled && a?.action === b?.action;
 
 const same = (a, b) =>
   a?.label === b?.label &&
@@ -92,6 +95,7 @@ export function paintTouchControls() {
   const nextStance = held
     ? {
         label: title[0].toUpperCase() + title.slice(1),
+        action: held.exit.action ?? "close",
         disabled: !live(held.exit),
         press: { id: held.exit.id, row: held.exit, binding: undefined },
       }

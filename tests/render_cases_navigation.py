@@ -901,7 +901,7 @@ SUGGEST_BLOCK = (
 def live_watcher(page_dir, page):
     """Hold the exact lease `leaf wait` uses for the duration of the block."""
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, session["id"] if session else None)
     )
     assert lease
@@ -961,20 +961,22 @@ DATA_PROJECTION_PAGE = leaf_page(
 )
 
 DATA_PROJECTION_MODULE = """
-import {offer, LeafElement, nothing, projectData, setChildren} from '/runtime/widget-api.js';
+import {keeps, offer, LeafElement, nothing, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends LeafElement {
   render() {
-    this.show(this.data('rows'));
+    this.show(this.value);
     return nothing;
   }
-  show(snapshot) {
-    const datums = (snapshot?.value ?? []).map(({key, value}, index) => {
+  show(value) {
+    const rows = (value ?? []).map(({key, value: words}, index) => {
       const row = document.createElement('p');
-      row.append(value, offer('button', 'inspect', 'Inspect'));
-      return {node: row, key, origin: {...snapshot.origin, path: [index, 'value']}};
+      row.append(words, offer('button', 'inspect', 'Inspect'));
+      keeps(row, 'data-lf-datum', key);
+      keeps(row, 'data-lf-origin-path', JSON.stringify([index, 'value']));
+      return row;
     });
-    setChildren(this, datums.map(({node}) => node));
-    projectData(this, datums, {snapshot});
+    setChildren(this, rows);
+    this.dispatchEvent(new CustomEvent('drawn', {detail: {value}}));
   }
 });
 """
@@ -997,7 +999,13 @@ def data_projection_page(serve):
         "required": ["id", "source"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-data": {"rows": {"contract": "deployment-rows", "source": "source"}},
+        "x-data": {
+            "rows": {
+                "contract": "deployment-rows",
+                "source": "source",
+                "property": "value",
+            }
+        },
         "x-upgrade": True,
         "x-example": ('<lf-feed id="feed-example" source="deployments"></lf-feed>'),
     }

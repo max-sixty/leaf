@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import process from "node:process";
 import { execFileSync } from "node:child_process";
-import { initialOutputs } from "../../build/initial.mjs";
 import * as live from "/vendor/lit.js";
 import { build } from "../../build/esbuild.mjs";
 import { bindToInitialLit } from "../../build/lit.mjs";
@@ -19,11 +18,8 @@ test("a later producer uses module Lit and preserves its drawing", async () => {
     stdin: {
       contents: `
         import { html } from "lit";
-        import { render } from "/vendor/lit.js";
         document.documentElement.lfInitial.register("lf-lit-probe", (host) => {
-          const draw = (label) => render(html\`<button>\${label}</button>\`, host);
-          draw("Initial");
-          return { draw };
+          return { render: (label = "Initial") => html\`<button>\${label}</button>\` };
         });
       `,
     },
@@ -38,7 +34,7 @@ test("a later producer uses module Lit and preserves its drawing", async () => {
   try {
     const drawing = document.documentElement.lfInitial.paint(host);
     const button = host.querySelector("button");
-    drawing.draw("Live");
+    live.render(drawing.render("Live"), host, { host });
     assert.equal(host.querySelector("button"), button);
     assert.equal(button.textContent, "Live");
   } finally {
@@ -100,15 +96,4 @@ test("removing repeated chrome rows does not leave accumulating markers", () => 
   } finally {
     host.remove();
   }
-});
-
-test("the initial dependency graph follows producer imports", async () => {
-  const outputs = await initialOutputs();
-  const dependencies = JSON.parse(
-    outputs.get("browser/vendor/initial-dependencies.json"),
-  );
-  assert.deepEqual(dependencies, {
-    "/vendor/lf-toc-initial.js": ["/vendor/lit-initial.js"],
-    "/vendor/lf-activity-initial.js": ["/vendor/lit-initial.js"],
-  });
 });

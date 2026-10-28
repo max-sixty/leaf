@@ -38,6 +38,7 @@ from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     HARNESSES,
+    JUDGE_MODELS,
     MODELS,
     TURN_LIMIT,
     WORKFLOW_LIMIT,
@@ -412,8 +413,6 @@ def prepare(
             tests.append(
                 {
                     **sample,
-                    "description": address
-                    + ("" if condition == "leaf" else f" ({condition})"),
                     "providers": labels,
                     "metadata": {**metadata, "case": address, "condition": condition},
                 }
@@ -440,7 +439,7 @@ def prepare(
                 "provider": {
                     "id": "anthropic:claude-agent-sdk",
                     "config": {
-                        "model": MODELS["judge"],
+                        "model": JUDGE_MODELS[ClaudeCodeHarness.name],
                         "apiKeyRequired": False,
                         "persist_session": False,
                     },
@@ -536,6 +535,7 @@ def eval(
             prefix=f"{datetime.now().astimezone():%Y%m%d-%H%M%S}-", dir=RUNS
         )
     )
+    click.echo(f"evidence: {out}")
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as temporary:
         scratch = Path(temporary)
         refs = {"base": base} if base else {}
@@ -594,5 +594,5 @@ def eval(
             stdin=subprocess.DEVNULL,
             check=False,
         ).returncode
-    click.echo(f"evidence: {out}\nview: pnpm run eval:view")
+    click.echo("view: pnpm run eval:view")
     sys.exit(status)

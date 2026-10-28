@@ -16,6 +16,7 @@ import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool, _retire
 from interact_support import (
+    COMMAND_HUB_PACKAGE,
     COMPOSITE_TIMEOUT,
     PAGE,
     PLUGIN_ROOT,
@@ -26,6 +27,7 @@ from interact_support import (
     add_test_widget,
     case_alias,
     command_findings,
+    declare_on_page,
     element_declaration,
     fetch,
     install_payload,
@@ -37,7 +39,6 @@ from interact_support import (
     registry_refusal,
     shipped_payload,
     vendored_at_another_protocol,
-    vendored_before_a_key_rename,
     wait_for,
     words,
 )
@@ -89,6 +90,17 @@ def storage_contract() -> tuple[list[str], list[str]]:
 
 
 STORAGE_FILES, STORAGE_DIRECTORIES = storage_contract()
+
+
+def layer_files(page: Path) -> dict[str, bytes]:
+    """The files the layer `page` selects serves, by rooted path."""
+    return registry_storage.selected(registry_storage.layer_record(page), page).files
+
+
+def layer_instructions(page: Path) -> dict[str, bytes]:
+    """The instructions the layer `page` selects composes, by file name."""
+    record = registry_storage.layer_record(page)
+    return registry_storage.selected(record, page).directory_files["instructions"]
 
 
 def test_cli_help_groups_commands_with_complete_summaries(regtest):
@@ -152,7 +164,7 @@ def test_agent_interaction_command_help(regtest):
         "thread summarize",
         "page open",
         "page close",
-        "thread open",
+        "thread create",
         "thread reply",
         "thread edit",
         "thread resolve",
@@ -213,7 +225,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
     envelope = json.loads(woke.output)
-    assert f"leaf wait --ack {envelope['id']}" in envelope["acknowledge"]
+    assert f"leaf delivery ack {envelope['id']} && leaf wait" in envelope["acknowledge"]
     delivery_model.receive(envelope, "s1")
     [batch] = envelope["batches"]
     assert len(batch["events"]) == 2
@@ -230,11 +242,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     answered_events = events_model.read_events(page)
     record(response_args(), 0)
     assert events_model.read_events(page) == answered_events
-    for addressed_option in (
-        ["--done"],
-        ["--failure", "offline"],
-        ["--attempt", "retry"],
-    ):
+    for addressed_option in (["--done"],):
         record(
             [
                 "thread",
@@ -267,118 +275,6 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
-def _replying_after(page, server, edit):
-    """Reply to a user comment after `edit` changes what the page's layer records,
-    as a Leaf update leaves it, and return the command's result."""
-    publish(page)
-    code, response = fetch(
-        f"{server}/api/event",
-        data=json.dumps({"kind": "comment", "revision": 1, "text": "Hello"}).encode(),
-    )
-    assert code == 200, response
-    woke = CliRunner().invoke(cli_model.cli, ["wait", str(page)])
-    assert woke.exit_code == 0, woke.output
-    envelope = json.loads(woke.output)
-    delivery_model.receive(envelope, "s1")
-    reference = envelope["batches"][0]["events"][0]["answer"]["ref"]
-    edit(page)
-    # A process of its own, as the agent's next command is, so it reads the page as
-    # edited rather than as this one remembers it (`page_memory`).
-    return subprocess.run(
-        [*LEAF_COMMAND, "thread", "reply", reference, "--ephemeral", "--text", "Hi"],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-
-
-def test_a_page_another_leaf_vendored_at_this_protocol_takes_its_writes(
-    claimed, server
-):
-    """A Leaf update leaves an open page working. Another Leaf's runtime and serving
-    code, and an older kernel vocabulary lacking fields this Leaf writes, in every
-    registry the page and its revisions captured, still take a reply: the kernel's
-    records are the running Leaf's own (`registry.kernel`)."""
-
-    def older_leaf(page):
-        captured = page.glob("revisions/*/resources/registry.json")
-        for stamp in [page / "registry.json", *captured]:
-            registry = interact_files.read_json(stamp)
-            if "$layer" in registry:
-                registry["$layer"]["runtime"] = "sha256:" + "b" * 64
-                registry["$layer"]["server"] = "sha256:" + "c" * 64
-            reply = registry["$events"]["kinds"]["reply"]["record"]["properties"]
-            for written in ("ephemeral", "start"):
-                del reply[written]
-            # Replaced rather than written through: a revision hard-links its files.
-            stamp.unlink()
-            stamp.write_text(json.dumps(registry))
-
-    replied = _replying_after(claimed, server, older_leaf)
-    assert replied.returncode == 0, replied.stderr
-    # The page's own copy is its runtime's, so a new version still composes over it.
-    checked = subprocess.run(
-        [*LEAF_COMMAND, "page", "check", str(claimed)],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert checked.returncode == 0, checked.stderr
-
-
-def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
-    claimed, server, tmp_path
-):
-    """A reply through a reference names no page, so it is refused on a page an older
-    Leaf vendored, naming the re-vendor. The session's next write naming the page
-    makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
-    its address, and the reply then goes."""
-    replied = _replying_after(claimed, server, vendored_at_another_protocol)
-    assert replied.returncode != 0, replied.stdout
-    assert f"leaf page init {claimed}" in replied.stderr
-    read = subprocess.run(
-        [*LEAF_COMMAND, "page", "state", str(claimed)],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert read.returncode == 0, read.stderr
-    assert "page protocol" in json.loads(read.stdout)["source"]["error"]
-    before = interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
-    subprocess.run(
-        [
-            *LEAF_COMMAND,
-            "page",
-            "export",
-            str(claimed),
-            "--out",
-            str(tmp_path / "export.html"),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (
-        interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
-        == before
-    )
-    for command in (["page", "claim", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
-        ran = subprocess.run(
-            [*LEAF_COMMAND, *command],
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-        )
-        assert ran.returncode == 0, ran.stderr
-        assert "re-vendor" not in ran.stderr
-    assert fetch(f"{server}/api/state")[0] == 200
-
-
 @pytest.mark.parametrize("unreadable", ["claim", "lifecycle"])
 def test_read_commands_leave_an_older_page_and_its_server_alone(
     claimed, server, unreadable
@@ -397,7 +293,7 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
     stored["format"] = "leaf-" + unreadable + "/999"
     cleanup_model.write_json(record, stored)
     revisions = interact_files.list_revisions(claimed)
-    registry = (claimed / "registry.json").read_bytes()
+    recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
     for command in (
         ["page", "state", str(claimed)],
         ["page", "events", str(claimed)],
@@ -412,53 +308,29 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
             check=False,
             env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
         )
-        same_registry = (claimed / "registry.json").read_bytes() == registry
-        assert same_registry, command
+        same_record = (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
+        assert same_record, command
         assert interact_files.list_revisions(claimed) == revisions
         assert fetch(f"{server}/api/state")[0] == 200
-    assert (
-        interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
-        == vendored
-    )
-    assert vendoring_model.renew_layer(claimed, None) is None
-    assert (claimed / "registry.json").read_bytes() == registry
+    assert registry_storage.layer_record(claimed)["protocol"] == vendored
+    assert vendoring_model.renew_layer(claimed, None, command=True) is None
+    assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
 
 
-@pytest.mark.parametrize(
-    "reshape",
-    [
-        None,
-        lambda registry: registry["$events"].pop("handling"),
-        lambda registry: registry.update({"$future": 1}),
-    ],
-    ids=["same-shape", "layer-facts", "declarations"],
-)
-def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed, reshape):
+def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
     """A process the session started before its plugin updated still runs the older
     Leaf, and must not take the page back to it: the newer Leaf's next hook would
     re-vendor it up again, reloading the user's tabs each time. Neither a command
     naming the page nor an explicit `page init` re-vendors it down, and each names
-    the newer Leaf as the repair rather than the re-vendor it refuses. That holds
-    for a layer whose shape this Leaf's schema rejects, as a newer protocol's may
-    be: the protocol is read before the shape."""
+    the newer Leaf as the repair rather than the re-vendor it refuses."""
     publish(claimed)
     foreign = vendored_at_another_protocol(claimed, newer=True)
-    if reshape:
-        path = claimed / "registry.json"
-        registry = json.loads(path.read_text())
-        reshape(registry)
-        # Replaced rather than written through: a revision hard-links its files.
-        path.unlink()
-        path.write_text(json.dumps(registry))
     for command in (["page", "check"], ["page", "init"]):
         refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
         assert refused.exit_code != 0
         assert f"Use a Leaf at protocol {foreign} or later" in refused.output
         assert "leaf page init" not in refused.output
-        assert (
-            interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
-            == foreign
-        )
+        assert registry_storage.layer_record(claimed)["protocol"] == foreign
     # A fresh process in a session that does not hold the page reads the state of
     # the revision published before, and reports the same refusal as its source
     # error.
@@ -475,52 +347,7 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed, reshape):
     assert f"Use a Leaf at protocol {foreign} or later" in error
 
 
-def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed):
-    """A layer vendored before an x- key was renamed (`x-noun`, say, now `x-word`)
-    declares nothing under the new name, so this Leaf would quietly
-    drop what the key said. The layer still reads, but the one reading every server
-    and writer refuses on (`layer.incompatible_layer`) names the re-vendor, and so
-    does `page check` from a session that may not make it, as one that does not
-    hold the page. A layer that lacks a key this Leaf added is refused nothing."""
-    from leaf.event_contracts import write_refusal
-
-    page_dir = claimed
-    other = {"CLAUDE_CODE_SESSION_ID": "s2"}
-    path = page_dir / "registry.json"
-
-    def vendored(change):
-        registry = json.loads(path.read_text())
-        change(registry["$keys"])
-        # Replaced rather than written through: a revision hard-links its files.
-        path.unlink()
-        path.write_text(json.dumps(registry))
-
-    vendored(lambda keys: keys.update({"x-noun": keys.pop("x-word")}))
-    revendor = f"leaf page init {page_dir}"
-    assert registry_storage.load_registry(page_dir) is not None
-    assert write_refusal(page_dir).values["retired"] == ["x-noun"]
-    checked = CliRunner().invoke(
-        cli_model.cli, ["page", "check", str(page_dir)], env=other
-    )
-    assert checked.exit_code != 0
-    report = json.loads(checked.stdout)
-    assert report["status"] == 1 and report["browser"] is None
-    [finding] = report["findings"]
-    assert finding["code"] == "retired-layer"
-    assert "x-noun" in finding["text"] and revendor in finding["text"]
-
-    vendored(lambda keys: keys.pop("x-noun"))
-    assert write_refusal(page_dir) is None
-
-
-@pytest.mark.parametrize(
-    ("vendored", "named"),
-    [
-        (vendored_at_another_protocol, "page protocol"),
-        (vendored_before_a_key_rename, "x-noun"),
-    ],
-)
-def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, named):
+def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed):
     """`page state` on a page this Leaf can neither serve nor write, from a session
     that may not re-vendor it since another one holds the page, still prints its
     reading, and says why under `source.error`, naming the re-vendor, from the one
@@ -531,7 +358,7 @@ def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, na
     captured in memory, under the vocabulary before the change."""
     page_dir = claimed
     publish(page_dir)
-    vendored(page_dir)
+    vendored_at_another_protocol(page_dir)
     source = page_dir / "index.html"
     source.write_text(source.read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>"))
     revisions = interact_files.list_revisions(page_dir)
@@ -547,70 +374,10 @@ def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, na
     assert result.returncode == 0, result.stderr
     state = json.loads(result.stdout)
     assert state["source"]["live"] is False
-    assert named in state["source"]["error"]
+    assert "page protocol" in state["source"]["error"]
     assert f"leaf page init {page_dir}" in state["source"]["error"]
     assert state["active"]["revision"] == revisions[-1]
     assert interact_files.list_revisions(page_dir) == revisions
-
-
-def test_thread_reply_names_a_published_page_vendored_before_a_key_was_renamed(
-    claimed, server
-):
-    """Admission refuses an old page on the same reading the servers do, after a
-    revision is published as well as before: here the layer and the revision it
-    captured both use the key's old name, in `$keys` and on `lf-ask`, as the older
-    Leaf left them."""
-    replied = _replying_after(claimed, server, vendored_before_a_key_rename)
-    assert replied.returncode != 0, replied.stdout
-    assert "x-noun" in replied.stderr
-    assert f"leaf page init {claimed}" in replied.stderr
-    # The re-vendor it names repairs the page: init runs on it, and the reply goes.
-    for command in (["page", "init", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
-        ran = subprocess.run(
-            [*LEAF_COMMAND, *command],
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-        )
-        assert ran.returncode == 0, ran.stderr
-    assert fetch(f"{server}/api/state")[0] == 200
-
-
-def test_a_layer_stamped_with_its_revision_still_names_the_revendor(page_dir):
-    """A page an older Leaf stamped holds that Leaf's layer twice, vendored and captured
-    in its active revision, and the captured copy excuses an unchanged layer from
-    validation. Once the page declares its own vocabulary, a fault the layer shows on
-    its own is still the layer's, named with the re-vendor, not the declarations'."""
-    publish(page_dir)
-    # The older Leaf's layer lacks a key this one added, in both copies.
-    captured = page_dir.glob("revisions/*/resources/registry.json")
-    for path in [page_dir / "registry.json", *captured]:
-        registry = json.loads(path.read_text())
-        del registry["$keys"]["x-work"]
-        # Replaced rather than written through: a revision hard-links its files.
-        path.unlink()
-        path.write_text(json.dumps(registry))
-    (page_dir / "page").mkdir(exist_ok=True)
-    (page_dir / "page" / "registry.json").write_text(
-        json.dumps({"lf-local-note": element_declaration("lf-local-note")})
-    )
-    # A fresh process, as the older Leaf's stamp was: this one holds the revision it
-    # captured in memory.
-    checked = subprocess.run(
-        [*LEAF_COMMAND, "page", "check", str(page_dir)],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert checked.returncode != 0
-    [refused] = json.loads(checked.stdout)["findings"]
-    assert (refused["code"], refused["values"]["missing"]) == (
-        "keys-documentation",
-        ["x-work"],
-    )
-    assert refused["values"]["revendor"] == str(page_dir)
 
 
 def test_the_skill_routes_every_reference_it_ships():
@@ -677,41 +444,32 @@ def test_workflow_shell_continuations_use_literal_blocks():
 
 
 @pytest.mark.parametrize(
-    ("argv", "usage"),
+    "argv",
     [
-        (["hook"], "leaf hook --harness NAME [--if-claimed] [--watch | --pages]"),
-        (
-            ["hook", "--harness"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (
-            ["hook", "--watch", "--harness", "codex"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (
-            ["hook", "--harness", "codex", "--bogus"],
-            "leaf hook --harness NAME [--if-claimed] [--watch | --pages]",
-        ),
-        (["session-end", "now"], "leaf session-end"),
+        ["hook"],
+        ["hook", "--harness"],
+        ["hook", "--harness", "codex", "--bogus"],
+        ["hook", "--harness", "codex", "--watch", "--pages"],
+        ["session-end", "now"],
     ],
 )
-def test_a_harness_entry_argv_no_registration_sends_is_refused_with_its_usage(
-    argv, usage
-):
-    """`hook` and `session-end` are routed before the CLI loads, and only in the
-    shapes harness registrations send; any other shape names the one it takes, rather
-    than reading a payload it was never meant to have."""
-    result = subprocess.run(
-        [sys.executable, "-m", "leaf", *argv],
-        input="{}",
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 1
+def test_harness_commands_report_click_usage_errors(argv):
+    result = CliRunner().invoke(cli_model.cli, argv, input="{}")
+    assert result.exit_code == 2
     assert result.stdout == ""
-    assert result.stderr == f"usage: {usage}\n"
+    assert json.loads(result.stderr)["error"]
+
+
+def test_hook_options_use_click_order_and_help():
+    runner = CliRunner()
+    result = runner.invoke(
+        cli_model.cli, ["hook", "--watch", "--harness=codex"], input="{}"
+    )
+    assert result.exit_code == 0, result.output
+    assert result.output == ""
+    help_result = runner.invoke(cli_model.cli, ["hook", "--help"])
+    assert help_result.exit_code == 0
+    assert "--harness" in help_result.output
 
 
 def test_a_page_command_names_what_its_path_holds_instead(tmp_path, regtest):
@@ -773,13 +531,13 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
 
     [waiting] = written(["page", "open", str(page_dir)])
     assert waiting == logged(waiting)
-    assert (waiting["state"], waiting["detail"]) == ("waiting", "")
+    assert waiting["state"] == "waiting"
 
     # The comment's id is the thread's; --title names it in the same command.
     [opened] = written(
         [
             "thread",
-            "open",
+            "create",
             str(page_dir),
             "--text",
             "which store?",
@@ -794,7 +552,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     # A refused title refuses the whole command, so no message goes up unnamed.
     before = events_model.read_events(page_dir)
     [unnamed] = command_findings(
-        "thread", "open", page_dir, "--text", "and the cache?", "--title", ""
+        "thread", "create", page_dir, "--text", "and the cache?", "--title", ""
     )
     assert (unnamed.code, unnamed.values["kind"]) == ("invalid-event", "comment")
     assert events_model.read_events(page_dir) == before
@@ -876,7 +634,7 @@ def test_init_help_names_the_source_revision_and_version_layout():
 
     assert result.exit_code == 0
     help_text = " ".join(result.output.split())
-    assert "Creates PAGE/revisions/, then vendors" in help_text
+    assert "composes its layer from the selection" in help_text
     assert "author writes PAGE/index.html" in help_text
     assert "--package" in result.output
 
@@ -916,13 +674,10 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # than whatever project the caller's directory sits in. `--no-dev` because
     # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
-    # payload path turns the console script into a `/bin/sh` trampoline. The
-    # checkout's environment exists, so uv skips its cache, which an agent's
-    # sandbox refuses; the hook registration tests run a payload with none.
+    # payload path turns the console script into a `/bin/sh` trampoline.
     assert dispatched == [
         "run",
         "-q",
-        "--no-cache",
         "--no-dev",
         "--project",
         str(PLUGIN_ROOT),
@@ -986,19 +741,6 @@ def test_the_launcher_uses_the_hosts_selected_leaf_for_commands_and_hooks(
         0,
         f"{PLUGIN_ROOT}\n",
         "",
-    )
-    monkeypatch.setenv("LEAF_HOST_LAUNCHER", "leaf")
-    refused = subprocess.run(
-        [launcher, "--version"],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (refused.returncode, refused.stdout, refused.stderr) == (
-        2,
-        "",
-        "LEAF_HOST_LAUNCHER must name an absolute launcher path\n",
     )
 
 
@@ -1106,7 +848,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/codex.json",
         "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-decisions.md",
+        "skills/leaf/references/authoring-on-me.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -1166,6 +908,15 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         for path in shipped_payload()
         if path.suffix == ".lock"
     ] == ["uv.lock"]
+
+
+def test_page_authoring_names_the_theme_s_largest_spacing_step():
+    """Authors read the spacing scale's ends in page-authoring.md rather than the
+    theme, so a step the theme adds is one they can find."""
+    theme = (PLUGIN_ROOT / "browser/theme.css").read_text()
+    largest = max(int(step) for step in re.findall(r"--sp-(\d+):", theme))
+    prose = (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text()
+    assert f"`--sp-1` to `--sp-{largest}`" in " ".join(prose.split())
 
 
 def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
@@ -1286,26 +1037,38 @@ def test_claude_and_codex_read_the_same_repository_skills():
     assert codex_skills.resolve() == claude_skills.resolve()
 
 
-def test_init_vendors_the_layer_but_not_the_runtime(page_dir):
-    for name in ["theme.css", "registry.json"]:
-        assert (page_dir / name).is_file()
+def test_the_selected_layer_holds_its_packages_but_not_the_runtime(page_dir):
+    """A page records its selection, with a copy of the package it selects by path,
+    and the layer composed from it carries the selected packages' files beside the
+    core's, but none of the runtime's."""
+    assert sorted(path.name for path in page_dir.iterdir()) == [
+        "events.jsonl",
+        "index.html",
+        "layer.json",
+        "packages",
+    ]
+    assert [path.name for path in (page_dir / "packages").iterdir()] == [
+        COMMAND_HUB_PACKAGE.name
+    ]
+    files = layer_files(page_dir)
+    assert "/theme.css" in files
     # The Leaf serving the page supplies its runtime and the kernel's vendor modules
-    # (`runtime_selection`), so the page holds none of them.
-    assert not (page_dir / "leaf.js").exists()
-    assert list((page_dir / "runtime").iterdir()) == []
-    assert not (page_dir / "vendor" / "jsdiff.esm.js").exists()
-    assert not (page_dir / "vendor" / "floating-ui.esm.js").exists()
-    assert (page_dir / "widgets" / "lf-tabs.js").is_file()
-    assert (page_dir / "widgets" / "lf-chart.js").is_file()
-    assert (page_dir / "vendor" / "plot.esm.js").is_file()
+    # (`runtime_selection`), so the layer holds none of them.
+    assert "/leaf.js" not in files
+    assert not any(path.startswith("/runtime/") for path in files)
+    assert "/vendor/jsdiff.esm.js" not in layer_files(page_dir)
+    assert "/vendor/floating-ui.esm.js" not in layer_files(page_dir)
+    assert "/widgets/lf-tabs.js" in layer_files(page_dir)
+    assert "/widgets/lf-chart.js" in layer_files(page_dir)
+    assert "/vendor/plot.esm.js" in layer_files(page_dir)
     # The selected packages land in the same flat directories as the default one,
     # which is what lets a widget import `/vendor/…` without knowing where it came
     # from page_packages().
-    assert (page_dir / "widgets" / "lf-diagram.js").is_file()
-    assert (page_dir / "vendor" / "pele.esm.js").is_file()
-    assert (page_dir / "vendor" / "pele.LICENSES.txt").is_file()
-    assert (page_dir / "widgets" / "lf-diff.js").is_file()
-    assert (page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
+    assert "/widgets/lf-diagram.js" in layer_files(page_dir)
+    assert "/vendor/pele.esm.js" in layer_files(page_dir)
+    assert "/vendor/pele.LICENSES.txt" in layer_files(page_dir)
+    assert "/widgets/lf-diff.js" in layer_files(page_dir)
+    assert "/vendor/pierre-diffs.esm.js" in layer_files(page_dir)
 
 
 def test_init_and_revendoring_preserve_the_page_owned_contribution(
@@ -1347,11 +1110,8 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     that the reset reads the difference off the filesystem — identity, size,
     modification time — rather than off a list of the files somebody remembered
     a fixture writes. A page-owned file nobody has named yet is removed because
-    the shape has not got it, and an edited layer file comes back because its
-    stat moved.
-
-    Package vendor files stay hard links into the shape across the loan, which is
-    the sharing the reset must not quietly spend (tests/AGENTS.md, "Fixtures")."""
+    the shape has not got it, and an edited layer record comes back because its
+    stat moved."""
     monkeypatch.chdir(tmp_path)
     pool = PagePool(tmp_path / "shapes")
 
@@ -1363,18 +1123,15 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     shape = {path.relative_to(first).as_posix() for path in first.rglob("*")}
 
     (first / "index.html").write_text("<html></html>")
+    (first / "media").mkdir()
     (first / "media" / "shot.png").write_bytes(b"png")
     (first / "notes").mkdir()
     (first / "notes" / "held.txt").write_text("scratch")
-    (first / "theme.css").write_text("/* edited */")
-    (first / "widgets" / "lf-tabs.js").unlink()
-    (first / "vendor" / "plot.esm.js").unlink()
-    # A symlink where a layer file belongs, and one where nothing does: the reset
-    # reads a path as itself rather than as what it points at, so a broken link
-    # is a file it removes rather than a stat that raises.
-    (first / "icon.svg").unlink()
-    (first / "icon.svg").symlink_to(tmp_path / "nowhere")
-    (first / "widgets" / "lf-planted.js").symlink_to(tmp_path / "nowhere")
+    # A symlink where the layer record belongs, and one where nothing does: the
+    # reset reads a path as itself rather than as what it points at, so a broken
+    # link is a file it removes rather than a stat that raises.
+    (first / "layer.json").unlink()
+    (first / "layer.json").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
     (first / "stream.json").write_text("{}")
     pool.give_back("plain", first)
@@ -1383,12 +1140,10 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
 
     template = pool.shapes["plain"].template
     assert {path.relative_to(second).as_posix() for path in second.rglob("*")} == shape
-    for name in ("theme.css", "widgets/lf-tabs.js", "registry.json"):
+    for name in ("layer.json", "events.jsonl"):
         assert (second / name).read_bytes() == (template / name).read_bytes(), name
     # A stream the test wrote is a file it added, so the reset takes it away.
     assert not (second / "stream.json").exists()
-    linked = "vendor/plot.esm.js"
-    assert (second / linked).stat().st_ino == (template / linked).stat().st_ino
 
 
 def _css_parse_errors(nodes):
@@ -1406,15 +1161,14 @@ def test_every_vendored_stylesheet_parses(page_dir):
     with a body a backtick has cut short and the browser then refuses whole. As files,
     the gate's own CSS parser reads them, and an error token anywhere is the finding.
     The runtime's own sheets come from the Leaf serving the page (`runtime_selection`)."""
-    for source in [
-        page_dir / "theme.css",
-        schema_model.ASSETS / "runtime" / "chrome.css",
-        schema_model.ASSETS / "runtime" / "marks.css",
+    for name, css in [
+        ("theme.css", layer_files(page_dir)["/theme.css"].decode()),
+        *(
+            (name, (schema_model.ASSETS / "runtime" / name).read_text())
+            for name in ("chrome.css", "marks.css")
+        ),
     ]:
-        name = source.name
-        rules = tinycss2.parse_stylesheet(
-            source.read_text(), skip_comments=True, skip_whitespace=True
-        )
+        rules = tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=True)
         assert rules, f"{name} is empty"
         assert not _css_parse_errors(rules), f"{name}: {_css_parse_errors(rules)}"
 
@@ -1492,8 +1246,9 @@ def _selector_list(prelude, parent=()):
 _HOLDS_RULES = {"media", "supports", "container", "scope", "layer"}
 
 
-def _style_rules(sheet):
-    """(conditions, enclosing, complex selector, declarations) for each style rule.
+def _style_rules(sheet, *, whole=False):
+    """(conditions, enclosing, complex selector, declarations) for each style rule, of
+    the file alone or, `whole`, of the sheet a page receives with its imports in place.
 
     `conditions` are the preludes of the @media, @supports, @container and @layer a rule
     stands under; `enclosing` is every at-rule keyword around it, @scope included, so a
@@ -1545,7 +1300,11 @@ def _style_rules(sheet):
 
     yield from visit(
         tinycss2.parse_stylesheet(
-            sheet.read_text(), skip_comments=True, skip_whitespace=True
+            layer_model.stylesheet(sheet, schema_model.PLUGIN_ROOT)
+            if whole
+            else sheet.read_text(),
+            skip_comments=True,
+            skip_whitespace=True,
         ),
         (),
         frozenset(),
@@ -1555,7 +1314,9 @@ def _style_rules(sheet):
 def _stated_faces(sheet, *, only_top_level):
     """{complex selector: {property}} for every rule stating a shared visual property."""
     stated = {}
-    for _conditions, enclosing, selector, declarations in _style_rules(sheet):
+    for _conditions, enclosing, selector, declarations in _style_rules(
+        sheet, whole=True
+    ):
         if only_top_level and enclosing & {"scope", "layer"}:
             continue
         properties = {name for name, _value in declarations if name in _FACE}
@@ -1567,8 +1328,11 @@ def _stated_faces(sheet, *, only_top_level):
 _PAGE_SIDE_SHEETS = [
     schema_model.ASSETS / "theme.css",
     schema_model.ASSETS / "shadow.css",
-    *sorted(schema_model.BUNDLED_PACKAGES.glob("*/theme.css")),
-    *sorted(schema_model.BUNDLED_PACKAGES.glob("*/shadow.css")),
+    *(
+        path
+        for name in schema_model.PACKAGE_STYLES
+        for path in sorted(schema_model.BUNDLED_PACKAGES.glob(f"*/{name}"))
+    ),
 ]
 
 
@@ -1576,7 +1340,9 @@ def _declared_rules(sheet, *, scoped):
     """{(conditions, complex selector): [declarations]}; `scoped` keeps only what stands
     inside chrome.css's `@scope`."""
     found = {}
-    for conditions, enclosing, selector, declarations in _style_rules(sheet):
+    for conditions, enclosing, selector, declarations in _style_rules(
+        sheet, whole=True
+    ):
         if scoped and "scope" not in enclosing:
             continue
         found.setdefault((conditions, selector), []).append(declarations)
@@ -1658,9 +1424,7 @@ def test_kernel_selectors_name_no_package_tag():
 
     leaks = []
     for sheet in sorted(schema_model.ASSETS.rglob("*.css")):
-        if "vendor" in sheet.parts or sheet.read_text().startswith(
-            "/* @noformat Generated from "
-        ):
+        if "vendor" in sheet.parts:
             continue
         where = sheet.relative_to(schema_model.ASSETS)
         rules = tinycss2.parse_stylesheet(sheet.read_text(), skip_comments=True)
@@ -1692,7 +1456,7 @@ def test_layout_style_and_widgets_never_read_each_other():
     A Layout class is one layouts.css styles; a style class is one the kernel theme
     gives its own type or spacing tokens (`--t-*`, `--sp-*`)."""
     layouts = schema_model.ASSETS / "layouts.css"
-    theme = schema_model.ASSETS / "styles" / "theme.css"
+    theme = schema_model.ASSETS / "theme.css"
     owned = {
         layouts: {
             name
@@ -1714,13 +1478,6 @@ def test_layout_style_and_widgets_never_read_each_other():
     readers = []
     for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
         if "vendor" in source.parts:
-            continue
-        # The style build proves ready sheets derive from their authored owners.
-        # Read the owners here rather than treating each compiled delivery as a
-        # second authority for selectors.
-        if source.suffix == ".css" and source.read_text().startswith(
-            "/* @noformat Generated from "
-        ):
             continue
         foreign = [names for home, names in owned.items() if home != source]
         named = re.compile(r"\b(" + "|".join(sorted(set().union(*foreign))) + r")\b")
@@ -1752,6 +1509,57 @@ def test_layout_style_and_widgets_never_read_each_other():
         readers
     )
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
+
+
+def test_controls_are_built_by_role_and_never_by_face():
+    """Leaf's controls come from a closed set of roles, each with one face, so a widget
+    cannot draw two controls of one kind two ways. The classes of a role's face are
+    spelled only in prepaint.js's `ACTION_FACES`, which `offerAction` reads; any other
+    bundled module that spells one, in a string or a comment, has chosen a face itself.
+    module-authoring.md lists the roles for package authors, in the table's order.
+    `primary` and the authored `button` face are ordinary words too, so they count
+    where a string lists classes or a template's `class` attribute names them."""
+    owner = schema_model.ASSETS / "runtime" / "prepaint.js"
+    table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
+    roles = dict(re.findall(r"(\w+): \"([^\"]+)\"", table[1]))
+    assert {"symbol", "word", "commit"} <= roles.keys(), roles
+    reference = (SKILL_ROOT / "references" / "module-authoring.md").read_text()
+    documented = re.findall(r"^- `\"(\w+)\"`, ", reference, re.MULTILINE)
+    assert documented == list(roles), "module-authoring.md lists other roles"
+    faces = {name for classes in roles.values() for name in classes.split()}
+    named = re.compile(
+        r"(?<![\w-])("
+        + "|".join(sorted(name for name in faces if name.startswith("lf-")))
+        + r")(?![\w-])"
+    )
+    words = {name for name in faces if not name.startswith("lf-")} | {"button"}
+    assert words == {"primary", "button"}, words
+    spelled = []
+    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
+        for source in sorted(root.rglob("*.js")):
+            if "vendor" in source.parts or source == owner:
+                continue
+            text = source.read_text()
+            where = source.relative_to(ROOT)
+            spelled += [f"{where}: {match[1]}" for match in named.finditer(text)]
+            code = re.sub(r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*", "", text, flags=re.DOTALL)
+            for literal in re.findall(r"([\"'`])((?:(?!\1).)*)\1", code):
+                classes = literal[1].split()
+                if (
+                    len(classes) > 1
+                    and all(re.fullmatch(r"[a-z][\w-]*", name) for name in classes)
+                    and words & set(classes)
+                ):
+                    spelled.append(f"{where}: {literal[1]}")
+            spelled += [
+                f"{where}: class={value[1]}"
+                for value in re.findall(r"class=([\"'])(.*?)\1", code)
+                if words & set(value[1].split())
+            ]
+    assert not spelled, (
+        "build these controls with offerAction or offeredAction by role:\n"
+        + "\n".join(spelled)
+    )
 
 
 def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
@@ -1796,7 +1604,6 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
         for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
         for sheet in sorted(root.rglob("*.css"))
         if "vendor" not in sheet.parts
-        and not sheet.read_text().startswith("/* @noformat Generated from ")
     ]
     for root in (ROOT / "examples", ROOT / "docs"):
         sheets += [
@@ -1847,11 +1654,7 @@ def test_every_token_a_sheet_reads_is_set_somewhere():
         written |= set(re.findall(r"@property\s+(--[\w-]+)", text))
         written |= set(re.findall(r"[\"'`](--[\w-]+)[\"'`]", text))
         prefixes |= set(re.findall(r"`(--[\w-]+)\$\{", text))
-        if (
-            source.suffix != ".css"
-            or "vendor" in source.parts
-            or text.startswith("/* @noformat Generated from ")
-        ):
+        if source.suffix != ".css" or "vendor" in source.parts:
             continue
         for _conditions, _enclosing, selector, declarations in _style_rules(source):
             reads += [
@@ -1912,7 +1715,14 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
 _LAYER_SHEET_ORDER = [
     sheet
     for root in SHIPPED_PACKAGES
-    for sheet in (root / name for name in layer_model.ROOT_SHEETS)
+    for sheet in (
+        root / name
+        for name in (
+            ("shadow.css", "theme.css")
+            if root == schema_model.ASSETS
+            else schema_model.PACKAGE_STYLES
+        )
+    )
     if sheet.is_file()
 ]
 
@@ -1936,7 +1746,9 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
     faces = [
         (sheet, selector)
         for sheet in _LAYER_SHEET_ORDER
-        for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
+        for _conditions, _enclosing, selector, declarations in _style_rules(
+            sheet, whole=True
+        )
         if any(name in _FACE for name, _value in declarations)
     ]
     assert faces, "no face was read from the layer's sheets — the reading is broken"
@@ -1959,12 +1771,13 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
 
 
 def test_layer_style_sources_consume_the_runtime_layout_names():
-    """CSS and runtime agree on shared property and attribute names. Read editable
-    sources; the stylesheet freshness gate holds their generated delivery copies."""
+    """CSS and runtime agree on shared property and attribute names."""
     page_paint = schema_model.ASSETS / "runtime" / "page-paint.js"
     read = json.loads(js_facts("literals", [page_paint]))
-    styles = schema_model.ASSETS / "styles"
-    sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
+    assets = schema_model.ASSETS
+    sheet = (assets / "theme.css").read_text() + (
+        assets / "runtime/chrome.css"
+    ).read_text()
 
     spelling = (
         "["
@@ -1999,12 +1812,13 @@ def test_identical_init_preserves_the_installed_layer(tmp_path):
     page = tmp_path / "page"
     first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert first_init.exit_code == 0, first_init.output
-    first = interact_files.read_json(page / "registry.json")["$layer"]
-    assert re.fullmatch(r"sha256:[0-9a-f]{64}", first["fingerprint"])
 
-    state = runner.invoke(cli_model.cli, ["page", "state", str(page)])
-    assert state.exit_code == 0, state.output
-    assert json.loads(state.output)["layer"] == first
+    def served_layer():
+        state = runner.invoke(cli_model.cli, ["page", "state", str(page)])
+        assert state.exit_code == 0, state.output
+        return json.loads(state.output)["layer"]
+
+    first = served_layer()
 
     files = {
         path.relative_to(page): (path.read_bytes(), path.stat().st_mtime_ns)
@@ -2016,41 +1830,12 @@ def test_identical_init_preserves_the_installed_layer(tmp_path):
     assert json.loads(planned.output) == {"page": str(page), "changed": False}
     second_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert second_init.exit_code == 0, second_init.output
-    second = interact_files.read_json(page / "registry.json")["$layer"]
-    assert second["fingerprint"] == first["fingerprint"]
-    assert second == first
     assert {
         path.relative_to(page): (path.read_bytes(), path.stat().st_mtime_ns)
         for path in page.rglob("*")
         if path.is_file()
     } == files
-
-
-@pytest.mark.parametrize("input_name", ["server.py", "pyproject.toml", "uv.lock"])
-def test_server_inputs_require_a_transition_without_browser_changes(
-    tmp_path, monkeypatch, input_name
-):
-    """The installed browser bytes cannot identify a changed serving process."""
-    payload = tmp_path / "payload"
-    script = payload / "src/server.py"
-    script.parent.mkdir(parents=True)
-    script.write_text("# original\n")
-    for name in ("pyproject.toml", "uv.lock"):
-        (payload / name).write_text("# original\n")
-    monkeypatch.setattr(layer_model, "PLUGIN_ROOT", payload)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert first_init.exit_code == 0, first_init.output
-    first = interact_files.read_json(page / "registry.json")["$layer"]
-    target = script if input_name == "server.py" else payload / input_name
-    target.write_text("# changed\n")
-    second_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert second_init.exit_code == 0, second_init.output
-    second = interact_files.read_json(page / "registry.json")["$layer"]
-    assert second["generation"] != first["generation"]
-    assert second["server"] != first["server"]
-    assert second["fingerprint"] == first["fingerprint"]
+    assert served_layer() == first
 
 
 def test_site_page_accepts_events_across_build_and_container_python_versions(
@@ -2076,37 +1861,6 @@ PLAIN_PAGE = (
     '<!doctype html><html lang="en"><head><title>t</title></head>'
     "<body><main><h1>Title</h1><p>words</p></main></body></html>"
 )
-
-
-def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypatch):
-    """A Leaf update leaves the render gate working on a page an earlier Leaf vendored
-    at this protocol: the gate runs the page under its own runtime and probes, and
-    names the page's Leaf beside its own."""
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
-    # The identity an earlier Leaf recorded for the layer it vendored.
-    stamp = page / "registry.json"
-    vendored = interact_files.read_json(stamp)
-    vendored["$layer"]["producer"] = {
-        "commit": "a74b08365870",
-        "dirty": False,
-        "committed": "2026-09-26T09:32:21-07:00",
-    }
-    stamp.unlink()
-    stamp.write_text(json.dumps(vendored), encoding="utf-8")
-
-    result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
-
-    assert result.exit_code == 0, result.output
-    report = json.loads(result.stdout)
-    assert report["browser"]["ran"] == ["render check"]
-    assert "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00" in words(
-        result.stdout
-    )
 
 
 def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
@@ -2136,7 +1890,7 @@ def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
     with pytest.raises(Refused):
-        layer_model.resolve_packages(("./.leaf",))
+        layer_model.resolve_packages(("./.leaf",), Path.cwd())
 
     with preview_server(page, structure_model.SourceDocument(PLAIN_PAGE), 1) as url:
         assert url.startswith("http://127.0.0.1:")
@@ -2244,75 +1998,6 @@ def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
     }
 
 
-def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
-    """Between protocol bumps an update can still break an older page, and nothing
-    compares the page's files with this Leaf's. So `page check` names the Leaf that
-    vendored the page beside its own, with their dates, for the agent to judge a
-    re-vendor; a page this Leaf vendored gets no such line. With `--json` the same
-    reading is a record of both versions."""
-    (page_dir / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
-    stamp = page_dir / "registry.json"
-    registry = json.loads(stamp.read_text(encoding="utf-8"))
-
-    def checked(producer):
-        registry["$layer"]["producer"] = producer
-        cleanup_model.write_json(stamp, registry)
-        result = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
-        assert result.exit_code == 0, result.output
-        return json.loads(result.stdout)
-
-    older = {
-        "commit": "a74b08365870",
-        "dirty": False,
-        "committed": "2026-09-26T09:32:21-07:00",
-    }
-    this_leaf = layer_model.provenance_label(layer_model.payload_provenance())
-    report = checked(older)
-    assert (report["status"], report["browser"]) == (0, None)
-    [finding] = [f for f in report["findings"] if f["code"] == "leaf-version"]
-    assert finding["text"] == (
-        "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00 vendored this page; "
-        f"this is Leaf {this_leaf}."
-    )
-    assert finding["severity"] == "advice"
-    assert finding["values"] == {
-        "vendored": "a74b08365870, committed 2026-09-26T09:32:21-07:00",
-        "running": this_leaf,
-        "page": str(page_dir),
-    }
-    same = checked(layer_model.payload_provenance())
-    assert {f["code"] for f in same["findings"]} == {"unpointable"}, same
-    assert {f["severity"] for f in same["findings"]} == {"advice"}, same
-
-
-def test_a_server_names_its_leaf_where_another_vendored_the_page(page_dir):
-    """The served state names the Leaf the server runs only where it is another than
-    the page's, so the leaf's About menu sets the two side by side exactly when they
-    differ, judged by the commit the Leaf records rather than its short label."""
-    from leaf import hosting as hosting_model
-
-    (page_dir / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
-    stamp = page_dir / "registry.json"
-    registry = json.loads(stamp.read_text(encoding="utf-8"))
-    serving = layer_model.running_leaf()
-
-    def served(producer):
-        registry["$layer"]["producer"] = producer
-        cleanup_model.write_json(stamp, registry)
-        temporary = hosting_model.TemporaryPageServer(page_dir, token="key").start()
-        try:
-            status, body = fetch(temporary.origin + "/api/state", token="key")
-        finally:
-            temporary.close()
-        assert status == 200, body
-        return json.loads(body).get("leaf")
-
-    assert served(serving) is None
-    # A commit sharing the label's eight characters is still another Leaf.
-    other = {**serving, "commit": (serving.get("commit") or "12345678")[:8] + "f0f0"}
-    assert served(other) == serving
-
-
 def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     page = tmp_path / "page"
@@ -2329,14 +2014,12 @@ def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypa
     assert state["event_seq"] == 0
     assert state["data"] == {"dir": "data", "errors": []}
     assert (
-        data_model.read_data(page, json.loads((page / "registry.json").read_text()))[
-            "sources"
-        ]
+        data_model.read_data(page, registry_storage.load_registry(page))["sources"]
         == {}
     )
 
 
-def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
+def test_init_composes_nested_browser_modules(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "package"
     module = package / "runtime" / "nested-package" / "fold" / "model.js"
@@ -2350,138 +2033,12 @@ def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
     )
 
     assert initialized.exit_code == 0, initialized.output
-    assert (page / "runtime" / "nested-package" / "fold" / "model.js").read_text() == (
-        "export const model = 'package';\n"
+    assert layer_files(page)["/runtime/nested-package/fold/model.js"] == (
+        b"export const model = 'package';\n"
     )
     assert schema_model.SERVED_PATH.fullmatch("/runtime/nested-package/fold/model.js")
     assert not schema_model.SERVED_PATH.fullmatch("/vendor/../../stream.json")
     assert not schema_model.SERVED_PATH.fullmatch("/vendor/../leaf.js")
-
-    module.unlink()
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-
-    assert initialized.exit_code == 0, initialized.output
-    assert not (page / "runtime" / "nested-package").exists()
-
-
-@pytest.mark.parametrize("nested_first", [False, True])
-def test_init_refuses_composed_file_directory_collisions_before_writing(
-    tmp_path, monkeypatch, nested_first
-):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    before = {
-        path.relative_to(page): path.read_bytes()
-        for path in page.rglob("*")
-        if path.is_file()
-    }
-    flat = tmp_path / "flat" / "vendor" / "cache"
-    flat.parent.mkdir(parents=True)
-    flat.write_text("flat")
-    nested = tmp_path / "nested" / "vendor" / "cache" / "chunk.js"
-    nested.parent.mkdir(parents=True)
-    nested.write_text("nested")
-    packages = ["./nested", "./flat"] if nested_first else ["./flat", "./nested"]
-
-    result = runner.invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            *(arg for package in packages for arg in ("--package", package)),
-            str(page),
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert "as a file and" in result.output
-    assert "vendor/cache" in result.output
-    after = {
-        path.relative_to(page): path.read_bytes()
-        for path in page.rglob("*")
-        if path.is_file()
-    }
-    assert after == before
-
-
-def test_init_refuses_an_intermediate_symlink_before_writing_nested_modules(
-    tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    package_module = (
-        tmp_path / "package" / "runtime" / "nested-package" / "fold" / "model.js"
-    )
-    package_module.parent.mkdir(parents=True)
-    package_module.write_text("export const model = true;\n")
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    (page / "runtime" / "nested-package").symlink_to(outside, target_is_directory=True)
-
-    result = runner.invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "./package", str(page)],
-    )
-
-    assert result.exit_code != 0
-    assert "must be a real directory, not a symlink" in result.output
-    assert list(outside.iterdir()) == []
-
-
-def test_init_refuses_case_aliased_file_directory_collisions_before_writing(
-    tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    before = {
-        path.relative_to(page): path.read_bytes()
-        for path in page.rglob("*")
-        if path.is_file()
-    }
-    flat = tmp_path / "flat" / "vendor" / "Cache"
-    flat.parent.mkdir(parents=True)
-    flat.write_text("flat")
-    nested = tmp_path / "nested" / "vendor" / "cache" / "chunk.js"
-    nested.parent.mkdir(parents=True)
-    nested.write_text("nested")
-    location = vendoring_model.path_location
-
-    def case_insensitive(path):
-        found = location(path)
-        return found._replace(tail=tuple(part.casefold() for part in found.tail))
-
-    monkeypatch.setattr(vendoring_model, "path_location", case_insensitive)
-
-    result = runner.invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            "--package",
-            "./flat",
-            "--package",
-            "./nested",
-            str(page),
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert "as a file and" in result.output
-    after = {
-        path.relative_to(page): path.read_bytes()
-        for path in page.rglob("*")
-        if path.is_file()
-    }
-    assert after == before
 
 
 def test_the_layer_composer_is_the_browser_module_population():
@@ -2569,6 +2126,74 @@ def test_composed_sheets_preserve_each_sources_eof_boundary(tmp_path, first):
     assert tinycss2.serialize(later[0].prelude).strip() == ".y"
 
 
+def test_a_sheet_composes_the_files_it_imports_in_place(tmp_path):
+    """A package splits its sheet into files with `@import` and needs no build: each
+    file's rules stand where its import stood, in the layer it asks for, and each file
+    keeps its own EOF recovery. So an edit to any of them reaches the next composition,
+    and the page asks for no import."""
+    (tmp_path / "parts").mkdir()
+    (tmp_path / "theme.css").write_text(
+        '@import "./parts/open.css";\n'
+        "@import url(parts/layered.css) layer(extra);\n"
+        ".after { color: blue; }\n"
+    )
+    (tmp_path / "parts/open.css").write_text(".open { color: red;")
+    (tmp_path / "parts/layered.css").write_text(".layered { color: green; }")
+
+    composed = layer_model.composed_sheets([tmp_path])["theme.css"].decode()
+    assert "@import" not in composed
+    # A reader that follows the layer's inputs, such as a live preview, follows them.
+    assert {
+        (tmp_path / "parts" / name).resolve() for name in ("open.css", "layered.css")
+    } <= set(layer_model.input_paths([tmp_path]))
+
+    def shape(rule):
+        """A style rule's selector, or an at-rule's prelude and the rules it holds."""
+        prelude = tinycss2.serialize(rule.prelude).strip()
+        if rule.type == "qualified-rule":
+            return prelude
+        held = tinycss2.parse_blocks_contents(rule.content, skip_whitespace=True)
+        return [prelude, [shape(item) for item in held]]
+
+    *_, layer = tinycss2.parse_stylesheet(composed, skip_whitespace=True)
+    assert shape(layer) == ["lf-base", [".open", ["extra", [".layered"]], ".after"]]
+
+
+@pytest.mark.parametrize(
+    "imported",
+    [
+        '"../outside.css"',
+        '"/theme.css"',
+        '"https://example.com/a.css"',
+        '"a.css" print',
+    ],
+)
+def test_a_sheet_imports_only_its_own_files_whole(tmp_path, imported):
+    """An import names a file inside its package, so the package composes the same
+    wherever it is installed, and comes whole or in a layer; a condition belongs
+    inside the imported file."""
+    package = tmp_path / "package"
+    package.mkdir()
+    (tmp_path / "outside.css").write_text(".outside {}")
+    (package / "a.css").write_text(".a {}")
+    (package / "theme.css").write_text(f"@import {imported};\n")
+    with pytest.raises(Refused, match="import"):
+        layer_model.composed_sheets([package])
+
+
+def test_sheets_that_import_each_other_are_refused_by_name(tmp_path):
+    """A cycle of imports is refused naming its files, and a reader that follows the
+    layer's inputs, as vendoring and a live preview do, still finishes and lists them."""
+    (tmp_path / "theme.css").write_text('@import "a.css";\n')
+    (tmp_path / "a.css").write_text('@import "b.css";\n.a {}\n')
+    (tmp_path / "b.css").write_text('@import "a.css";\n.b {}\n')
+    with pytest.raises(Refused, match=r"a\.css -> .*b\.css -> .*a\.css"):
+        layer_model.composed_sheets([tmp_path])
+    assert {(tmp_path / name).resolve() for name in ("a.css", "b.css")} <= set(
+        layer_model.input_paths([tmp_path])
+    )
+
+
 @pytest.mark.parametrize(
     "css",
     [
@@ -2587,6 +2212,35 @@ def test_composed_sheets_replace_surrogate_escapes_as_the_browser_does(tmp_path,
     sheet = layer_model.composed_sheets([tmp_path])["theme.css"].decode()
     assert "\ufffd" in sheet
     assert "é🍂" in sheet
+
+
+def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path):
+    """A package's page contribution survives acquiring a widget, and package
+    installation captures every source sheet the compositor reads."""
+    package = tmp_path / "contributions"
+    package.mkdir()
+    (package / "registry.json").write_text("{}")
+    (package / "theme.css").write_text("/* theme.css */ p { color: purple; }")
+    before = layer_model.composed_sheets([schema_model.ASSETS, package])
+
+    (package / "registry.json").write_text(
+        json.dumps({"lf-contribution": element_declaration("lf-contribution")})
+    )
+    assert layer_model.composed_sheets([schema_model.ASSETS, package]) == before
+    for name in ("widgets.css", "widget-shadow.css"):
+        (package / name).write_text("lf-contribution { color: green; }")
+    staged = tmp_path / "installed"
+    staged.mkdir()
+    packages_model.copy_package_contract(package, staged)
+    assert {
+        name: (staged / name).read_bytes() for name in schema_model.PACKAGE_STYLES
+    } == {name: (package / name).read_bytes() for name in schema_model.PACKAGE_STYLES}
+    assert {package / name for name in schema_model.PACKAGE_STYLES} <= set(
+        layer_model.input_paths([package])
+    )
+    assert layer_model.composed_sheets([schema_model.ASSETS, staged]) == (
+        layer_model.composed_sheets([schema_model.ASSETS, package])
+    )
 
 
 def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
@@ -2646,7 +2300,7 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     )
 
     assert result.exit_code == 0, result.output
-    registry = json.loads((page / "registry.json").read_text())
+    registry = registry_storage.load_registry(page)
     assert registry["lf-local"] == project_entry
     assert registry["lf-project-only"] == project_only
     assert "lf-options" in registry and "$events" in registry
@@ -2684,7 +2338,7 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
         cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert result.exit_code == 0, result.output
-    registry = json.loads((page / "registry.json").read_text())
+    registry = registry_storage.load_registry(page)
     shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())
     assert registry[".hazard"] == hazard
     assert registry[".callout"] == callout
@@ -2692,40 +2346,6 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
     assert registry["$languages"]["paths"]["svelte"] == "javascript"
     assert set(shipped["$languages"]["paths"]) <= set(registry["$languages"]["paths"])
     assert registry["$languages"]["names"] == shipped["$languages"]["names"]
-
-
-@pytest.mark.skipif(os.name == "nt", reason="POSIX umask and mode semantics")
-def test_staged_writes_are_private_without_copying_a_replaced_symlink_mode(
-    tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    customized = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-    assert customized.exit_code == 0, customized.output
-
-    page = tmp_path / "page"
-    initialized = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
-    )
-    assert initialized.exit_code == 0, initialized.output
-    assert (page / "theme.css").stat().st_mode & 0o777 == 0o600
-    external = tmp_path / "external-theme.css"
-    external.write_text("external")
-    external.chmod(0o644)
-    (page / "theme.css").unlink()
-    (page / "theme.css").symlink_to(external)
-    old_umask = os.umask(0o022)
-    try:
-        revendored = runner.invoke(
-            cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
-        )
-    finally:
-        os.umask(old_umask)
-
-    assert revendored.exit_code == 0, revendored.output
-    assert not (page / "theme.css").is_symlink()
-    assert (page / "theme.css").stat().st_mode & 0o777 == 0o600
-    assert external.read_text() == "external"
 
 
 def test_path_case_policy_matches_the_filesystem(tmp_path):
@@ -2757,9 +2377,8 @@ def test_an_initialized_page_owns_what_the_storage_contract_names(
     tmp_path, monkeypatch
 ):
     """page-storage.md's "Files" is the page directory's whole inventory: the page
-    owns each file it names and everything beneath each directory, which `page init`
-    creates, and nothing else is Leaf's there. The same name one level down belongs
-    to no page."""
+    owns each file it names and everything beneath each directory, and nothing else
+    is Leaf's there. The same name one level down belongs to no page."""
     assert sorted(schema_model.PAGE_OWNED_FILES) == STORAGE_FILES
     assert sorted(schema_model.PAGE_OWNED_DIRS) == STORAGE_DIRECTORIES
 
@@ -2772,7 +2391,6 @@ def test_an_initialized_page_owns_what_the_storage_contract_names(
         assert owner(page / name) == page, name
         assert owner(page / ".leaf" / name) is None, name
     for directory in STORAGE_DIRECTORIES:
-        assert (page / directory).is_dir(), directory
         assert owner(page / directory / "future") == page, directory
 
 
@@ -2904,7 +2522,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     # uncontended; the second is the one taker that can find it held.
     second_waiting = lock_contention(monkeypatch, page, by="second-init")
 
-    def paused_init(page_dir, selected):
+    def paused_init(page_dir, selected, *, theme=None):
         creator = threading.current_thread().name
         creations.append(creator)
         if creator == "first-init":
@@ -2912,7 +2530,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
             assert release_first.wait(STATED_TIMEOUT), "the first init was never let go"
         else:
             second_entered.set()
-        original_init(page_dir, selected)
+        original_init(page_dir, selected, theme=theme)
 
     def initialize():
         try:
@@ -2926,16 +2544,18 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     first.start()
     try:
         wait_for(
-            first_entered.is_set,
+            lambda: first_entered.is_set() or bool(errors),
             bool,
             failure="the first init never began creating the page",
         )
+        assert errors == []
         second.start()
         wait_for(
-            lambda: second_waiting.is_set() or second_entered.is_set(),
+            lambda: second_waiting.is_set() or second_entered.is_set() or bool(errors),
             bool,
             failure="the second init neither waited on the page lock nor began creating",
         )
+        assert errors == []
         assert not second_entered.is_set(), (
             "the second init began creating while the first held the page"
         )
@@ -2971,14 +2591,11 @@ def test_a_failed_fresh_commit_does_not_mark_the_page_initialized(
     """The stable log marks a completed init, not one that failed while committing."""
     monkeypatch.chdir(tmp_path)
     page = tmp_path / "interrupted-page"
-    original_replace_files = vendoring_model.replace_files
 
-    def fail_layer_commit(files):
-        if any(path.name == "registry.json" for path, _, _ in files):
-            raise OSError("layer commit failed")
-        return original_replace_files(files)
+    def fail_layer_commit(page_dir, record):
+        raise OSError("layer commit failed")
 
-    monkeypatch.setattr(vendoring_model, "replace_files", fail_layer_commit)
+    monkeypatch.setattr(vendoring_model, "_write_record", fail_layer_commit)
 
     with pytest.raises(OSError, match="layer commit failed"):
         vendoring_model.cmd_init(page)
@@ -3015,71 +2632,9 @@ def test_init_refuses_malformed_layer_css_before_revendoring(tmp_path, monkeypat
     assert after == before
 
 
-def test_init_does_not_partially_revendor_on_a_destination_conflict(
-    tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    theme_before = (page / "theme.css").read_bytes()
-    registry_before = (page / "registry.json").read_bytes()
-
-    conflict = page / "widgets" / "lf-tabs.js"
-    conflict.unlink()
-    conflict.mkdir()
-    layer = tmp_path / ".leaf"
-    layer.mkdir(parents=True)
-    (layer / "theme.css").write_text(
-        ":scope:is(lf-new-shape) { --accent: rebeccapurple; }\n"
-    )
-    (layer / "registry.json").write_text(
-        json.dumps({"lf-new-shape": element_declaration("lf-new-shape")})
-    )
-
-    result = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
-    )
-
-    assert result.exit_code != 0
-    # Named, not merely refused. `page init` has a dozen ways to stop, and the layer
-    # staged above is enough to trip several of them, so an exit code alone says only
-    # that something went wrong — delete the destination check and one of the others
-    # fails the command in its place, leaving this green with its subject gone. The tail
-    # of the message rather than the whole path: the CLI resolves the directory, and on
-    # a mac that is the /private prefix the fixture's own path doesn't carry.
-    assert "lf-tabs.js must be a file" in result.output
-    assert (page / "theme.css").read_bytes() == theme_before
-    assert (page / "registry.json").read_bytes() == registry_before
-
-
-@pytest.mark.parametrize("sub", STORAGE_DIRECTORIES)
-def test_init_refuses_a_symlinked_page_directory(tmp_path, monkeypatch, sub):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    original = tmp_path / f"original-{sub}"
-    (page / sub).rename(original)
-    outside = tmp_path / f"outside-{sub}"
-    outside.mkdir()
-    sentinel = outside / "keep.txt"
-    sentinel.write_text("do not prune or replace files outside the page")
-    (page / sub).symlink_to(outside, target_is_directory=True)
-
-    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-
-    assert result.exit_code != 0
-    assert "must be a real directory, not a symlink" in result.output
-    assert sentinel.read_text() == "do not prune or replace files outside the page"
-    assert list(outside.iterdir()) == [sentinel]
-
-
 @pytest.mark.parametrize(
     ("source_relative", "destination_relative"),
-    [("vendor", "widgets"), ("theme.css", "registry.json")],
+    [("widgets", "media"), ("theme.css", "index.html")],
 )
 def test_init_refuses_a_layer_source_aliased_to_a_page_destination(
     tmp_path, monkeypatch, source_relative, destination_relative
@@ -3090,6 +2645,10 @@ def test_init_refuses_a_layer_source_aliased_to_a_page_destination(
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     destination = page / destination_relative
+    if destination_relative == "index.html":
+        destination.write_text(PAGE)
+    else:
+        destination.mkdir()
     if destination.is_dir():
         (destination / "keep-source.txt").write_text(
             "stale pruning must not delete a package"
@@ -3150,9 +2709,10 @@ def test_init_refuses_a_case_aliased_source_at_a_page_destination(
     page = tmp_path / "MixedCasePage"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
+    (page / "index.html").write_text(PAGE)
     alias = case_alias(page)
-    target = alias / "THEME.CSS"
-    assert target.samefile(page / "theme.css")
+    target = alias / "INDEX.HTML"
+    assert target.samefile(page / "index.html")
     before = {
         path.relative_to(page): path.read_bytes()
         for path in page.rglob("*")
@@ -3174,27 +2734,6 @@ def test_init_refuses_a_case_aliased_source_at_a_page_destination(
         if path.is_file()
     }
     assert after == before
-
-
-def test_init_preserves_tmp_files_even_when_a_layer_reads_one(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    source = page / f"theme.css.{os.getpid()}.0.tmp"
-    source.write_text(":root { --accent: rebeccapurple; }\n")
-    layer = tmp_path / ".leaf"
-    layer.mkdir(parents=True)
-    (layer / "theme.css").symlink_to(source)
-
-    result = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
-    )
-
-    assert result.exit_code == 0, result.output
-    assert source.read_text() == ":root { --accent: rebeccapurple; }\n"
-    assert (layer / "theme.css").is_symlink()
 
 
 @pytest.mark.parametrize(
@@ -3237,14 +2776,6 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     assert refused.values["finding"]["code"] == code
 
 
-def test_revendoring_removes_files_the_layer_retired(page_dir):
-    stale = page_dir / "widgets" / "lf-retired.js"
-    stale.write_text("// no longer in any layer")
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert result.exit_code == 0, result.output
-    assert not stale.exists()
-
-
 def test_explicit_package_order_is_registry_file_and_theme_precedence(
     tmp_path, monkeypatch
 ):
@@ -3255,7 +2786,7 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
         declaration = element_declaration("lf-shared")
         declaration["description"] = name
         (package / "registry.json").write_text(json.dumps({"lf-shared": declaration}))
-        (package / "theme.css").write_text(f"/* package {name} */\n")
+        (package / "theme.css").write_text(f":root {{ --package-{name}: 1; }}\n")
         (package / "widgets" / "shared.js").write_text(f"// {name}\n")
 
     page = tmp_path / "page"
@@ -3273,12 +2804,12 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
     )
 
     assert result.exit_code == 0, result.output
-    registry = json.loads((page / "registry.json").read_text())
-    assert registry["$layer"]["packages"] == ["./first", "./second"]
+    registry = registry_storage.load_registry(page)
+    assert registry["$layer"]["packages"] == ["./packages/first", "./packages/second"]
     assert registry["lf-shared"]["description"] == "second"
-    assert (page / "widgets" / "shared.js").read_text() == "// second\n"
-    theme = (page / "theme.css").read_text()
-    assert theme.index("package first") < theme.index("package second")
+    assert layer_files(page)["/widgets/shared.js"] == b"// second\n"
+    theme = layer_files(page)["/theme.css"].decode()
+    assert theme.index("--package-first") < theme.index("--package-second")
 
 
 def test_init_refuses_a_case_aliased_page_inside_a_package(tmp_path, monkeypatch):
@@ -3326,9 +2857,10 @@ def test_init_refuses_non_utf8_package_instructions_before_revendoring(
         cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
-    before = (page / "instructions" / "author.md").read_bytes()
+    before = (page / schema_model.LAYER_FILE).read_bytes()
 
     source.write_bytes(b"\xff")
+    # The next command is a fresh process, which reads the package again.
 
     result = runner.invoke(
         cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
@@ -3336,7 +2868,7 @@ def test_init_refuses_non_utf8_package_instructions_before_revendoring(
 
     assert result.exit_code != 0
     assert "instructions/author.md must be UTF-8" in result.output
-    assert (page / "instructions" / "author.md").read_bytes() == before
+    assert (page / schema_model.LAYER_FILE).read_bytes() == before
 
 
 def test_init_refuses_a_noncanonical_instructions_audience(tmp_path, monkeypatch):
@@ -3467,6 +2999,7 @@ def test_init_refuses_to_write_inside_a_package(tmp_path, monkeypatch):
     ("relative", "directory"),
     [
         ("theme.css", True),
+        ("widgets.css", True),
         ("registry.json", True),
         ("instructions", False),
         ("widgets", False),
@@ -3542,21 +3075,6 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
         result = runner.invoke(cli_model.cli, args)
         assert result.exit_code != 0
         assert "widgets/lf-unfinished.js" in result.output
-
-
-def test_package_check_leaves_root_matching_to_native_scope(tmp_path, monkeypatch):
-    """Composition preserves CSS; native scope makes outside subjects inert."""
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-    assert created.exit_code == 0, created.output
-    add_test_widget(tmp_path / ".leaf", "lf-toned-note")
-    (tmp_path / ".leaf" / "theme.css").write_text(
-        ":scope { color: teal; }\n:root { --toned: teal; }\n"
-    )
-
-    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
-    assert result.exit_code == 0, result.output
 
 
 def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
@@ -3695,10 +3213,13 @@ def test_package_init_creates_independently_selectable_packages(tmp_path, monkey
         ],
     )
     assert initialized.exit_code == 0, initialized.output
-    registry = json.loads((page / "registry.json").read_text())
-    assert registry["$layer"]["packages"] == [str(callout), str(accent)]
+    registry = registry_storage.load_registry(page)
+    assert registry["$layer"]["packages"] == [
+        "./packages/callout",
+        "./packages/accent",
+    ]
     assert "lf-callout" in registry
-    assert (page / "widgets" / "lf-callout.js").is_file()
+    assert "/widgets/lf-callout.js" in layer_files(page)
 
 
 def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch):
@@ -3730,6 +3251,7 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
         "theme.css",
         "vendor",
         "widgets",
+        "widgets.css",
     ]
 
     shutil.rmtree(source)
@@ -3739,10 +3261,10 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
     )
 
     assert vendored.exit_code == 0, vendored.output
-    registry = json.loads((page / "registry.json").read_text())
+    registry = registry_storage.load_registry(page)
     assert registry["$layer"]["packages"] == ["callout"]
     assert "lf-callout" in registry
-    assert (page / "widgets" / "lf-callout.js").is_file()
+    assert "/widgets/lf-callout.js" in layer_files(page)
 
 
 def test_package_install_refuses_a_source_it_cannot_check_or_name(
@@ -4046,17 +3568,17 @@ def test_package_recognizes_a_page_without_runtime_status(tmp_path, monkeypatch)
     assert initialized.exit_code == 0, initialized.output
     # A page has no stream until a harness observes a turn on it.
     assert not (page / "stream.json").exists()
-    before = (page / "theme.css").read_bytes()
+    before = (page / "events.jsonl").read_bytes()
 
     layer = project / ".leaf"
     layer.mkdir(parents=True)
-    (layer / "theme.css").symlink_to(page / "theme.css")
+    (layer / "theme.css").symlink_to(page / "events.jsonl")
 
     result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
     assert "owned by initialized page" in result.output
-    assert (page / "theme.css").read_bytes() == before
+    assert (page / "events.jsonl").read_bytes() == before
     assert not (layer / "registry.json").exists()
 
 
@@ -4089,46 +3611,6 @@ def test_package_refuses_an_initialized_page_as_a_layer(tmp_path, monkeypatch, u
         if path.is_file()
     }
     assert after == before
-
-
-@pytest.mark.parametrize(
-    "relative",
-    ["theme.css", "registry.json", "widgets", "widgets/lf-tabs.js"],
-)
-def test_package_refuses_members_aliased_into_an_initialized_page(
-    tmp_path, monkeypatch, relative
-):
-    project = tmp_path / "project"
-    project.mkdir()
-    monkeypatch.chdir(project)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    before = {
-        path.relative_to(page): path.read_bytes()
-        for path in page.rglob("*")
-        if path.is_file()
-    }
-
-    layer = project / ".leaf"
-    alias = layer / relative
-    alias.parent.mkdir(parents=True, exist_ok=True)
-    target = page / relative
-    alias.symlink_to(target, target_is_directory=target.is_dir())
-
-    result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-
-    assert result.exit_code != 0
-    assert "owned by initialized page" in result.output
-    after = {
-        path.relative_to(page): path.read_bytes()
-        for path in page.rglob("*")
-        if path.is_file()
-    }
-    assert after == before
-    assert not (layer / "theme.css").exists() or relative == "theme.css"
-    assert not (layer / "registry.json").exists() or relative == "registry.json"
 
 
 @pytest.mark.parametrize(
@@ -4236,7 +3718,7 @@ def test_selecting_the_bundled_default_package_is_redundant(tmp_path):
         cli_model.cli, ["page", "init", "--package", "default", str(page)]
     )
     assert result.exit_code == 0, result.output
-    assert "lf-options" in json.loads((page / "registry.json").read_text())
+    assert "lf-options" in registry_storage.load_registry(page)
 
 
 def test_page_init_refuses_to_publish_an_absolute_package_path(tmp_path, monkeypatch):
@@ -4275,9 +3757,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "registry.json").write_text(
         json.dumps({"lf-solo": element_declaration("lf-solo", upgrade=True)})
     )
-    (widget_package / "theme.css").write_text(
-        ":scope:is(lf-solo) { --lf-block-frame: 1; }\n"
-    )
+    (widget_package / "widgets.css").write_text("lf-solo { --lf-block-frame: 1; }\n")
     (widget_package / "widgets" / "lf-solo.js").write_text(
         'import { ready } from "./ready.js";\n'
         'customElements.define("lf-solo", class extends HTMLElement {\n'
@@ -4314,24 +3794,23 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     )
 
     assert initialized.exit_code == 0, initialized.output
-    registry = json.loads((page / "registry.json").read_text())
-    assert registry["$layer"]["packages"] == ["./solo", "./night"]
+    registry = registry_storage.load_registry(page)
+    assert registry["$layer"]["packages"] == ["./packages/solo", "./packages/night"]
     assert "lf-solo" in registry
-    assert (page / "widgets" / "lf-solo.js").is_file()
-    assert (page / "widgets" / "ready.js").is_file()
-    assert (page / "vendor" / "solo.json").is_file()
-    theme = (page / "theme.css").read_text()
-    # A package with a widget reaches only inside it; a package without one is a
-    # theme, and its rules reach the page as written.
-    assert theme.index(":scope:is(lf-solo) { --lf-block-frame: 1; }") < theme.index(
+    assert "/widgets/lf-solo.js" in layer_files(page)
+    assert "/widgets/ready.js" in layer_files(page)
+    assert "/vendor/solo.json" in layer_files(page)
+    theme = layer_files(page)["/theme.css"].decode()
+    # Each contribution keeps its role regardless of the package's widget count.
+    assert theme.index("lf-solo { --lf-block-frame: 1; }") < theme.index(
         ":root { --solo-night: 1; }"
     )
-    instructions = (page / "instructions" / "author.md").read_text()
+    instructions = layer_instructions(page)["author.md"].decode()
     assert instructions == (
         "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"
     )
-    assert "Report the result." in (page / "instructions" / "worker.md").read_text()
-    assert "Check the contrast." in (page / "instructions" / "reviewer.md").read_text()
+    assert "Report the result." in layer_instructions(page)["worker.md"].decode()
+    assert "Check the contrast." in layer_instructions(page)["reviewer.md"].decode()
 
     reading = CliRunner().invoke(cli_model.cli, ["page", "instructions", str(page)])
     assert reading.exit_code == 0, reading.output
@@ -4343,9 +3822,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
 
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert revendored.exit_code == 0, revendored.output
-    assert json.loads((page / "registry.json").read_text())["$layer"]["packages"] == [
-        "./solo",
-        "./night",
+    assert registry_storage.load_registry(page)["$layer"]["packages"] == [
+        "./packages/solo",
+        "./packages/night",
     ]
 
 
@@ -4363,19 +3842,20 @@ def test_page_owned_pr_brief_composes_its_data_contract(tmp_path, monkeypatch):
 
     assert checked.exit_code == 0, checked.output
     assert initialized.exit_code == 0, initialized.output
-    registry = json.loads((page / "registry.json").read_text())
+    registry = registry_storage.load_registry(page)
     widget = registry["lf-pr-brief"]
-    assert registry["$layer"]["packages"] == [selection]
+    assert registry["$layer"]["packages"] == ["./packages/pr-walkthrough.page"]
     assert widget["x-data"] == {
         "request": {
             "contract": "pull-request",
             "source": "source",
+            "property": "value",
         }
     }
     assert "pull-request" in registry["$data"]["contracts"]
-    assert (page / "widgets" / "lf-pr-brief.js").is_file()
+    assert "/widgets/lf-pr-brief.js" in layer_files(page)
     assert "lf-call-diff" not in registry
-    assert not (page / "widgets" / "lf-call-diff.js").exists()
+    assert "/widgets/lf-call-diff.js" not in layer_files(page)
 
 
 @pytest.mark.parametrize(
@@ -4445,20 +3925,21 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
 
     assert checked.exit_code == 0, checked.output
     assert initialized.exit_code == 0, initialized.output
-    registry = json.loads((page / "registry.json").read_text())
+    registry = registry_storage.load_registry(page)
     widget = registry["lf-visual-review"]
     assert registry["$layer"]["packages"] == ["visual-review"]
     assert widget["x-data"] == {
         "run": {
             "contract": "visual-run",
             "source": "source",
+            "property": "value",
         }
     }
     assert widget["x-state"]["review"]["unit"] == "case"
     assert widget["x-thread-surface"] is True
     assert "visual-run" in registry["$data"]["contracts"]
-    assert (page / "widgets" / "lf-visual-review.js").is_file()
-    assert (page / "instructions" / "author.md").is_file()
+    assert "/widgets/lf-visual-review.js" in layer_files(page)
+    assert "author.md" in layer_instructions(page)
 
 
 @pytest.mark.parametrize(
@@ -4531,14 +4012,57 @@ def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatc
 
     assert bundled_result.exit_code == 0, bundled_result.output
     assert local_result.exit_code == 0, local_result.output
-    bundled_registry = json.loads((bundled / "registry.json").read_text())
-    local_registry = json.loads((local_page / "registry.json").read_text())
+    bundled_registry = registry_storage.load_registry(bundled)
+    local_registry = registry_storage.load_registry(local_page)
     assert "lf-diagram" in bundled_registry
     assert "lf-local" not in bundled_registry
     assert bundled_registry["$layer"]["packages"] == ["diagram"]
     assert "lf-diagram" not in local_registry
     assert "lf-local" in local_registry
-    assert local_registry["$layer"]["packages"] == ["./diagram"]
+    assert local_registry["$layer"]["packages"] == ["./packages/diagram"]
+
+
+def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
+    tmp_path, monkeypatch
+):
+    """A saved version keeps the package it was written with: dropping the package
+    from the selection leaves its copy for the revisions that name it, and an edit to
+    the package reaches them at a new address, never under one a browser cached, and
+    as a new generation, which an open document reloads on."""
+    from leaf.revision_artifact import read_artifact
+    from leaf.revisioning import activate_source
+    from leaf.runtime_selection import execution_identity
+
+    monkeypatch.chdir(tmp_path)
+    custom = tmp_path / "custom"
+    (custom / "widgets").mkdir(parents=True)
+    (custom / "widgets" / "helper.js").write_text("export const value = 1;\n")
+    page = tmp_path / "page"
+    init = ["page", "init", "--package", "./custom", str(page)]
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    (page / "index.html").write_text(PLAIN_PAGE)
+    assert activate_source(page).error is None
+    first = execution_identity(read_artifact(page, 1))
+    generation = registry_storage.layer_record(page)["generation"]
+
+    (custom / "widgets" / "helper.js").write_text("export const value = 2;\n")
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    assert execution_identity(read_artifact(page, 1)) != first
+    assert registry_storage.layer_record(page)["generation"] != generation
+
+    cleared = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--no-packages", str(page)]
+    )
+    assert cleared.exit_code == 0, cleared.output
+    assert registry_storage.layer_packages(page) == []
+    assert "/widgets/helper.js" in layer_files_of_revision(page, 1)
+
+
+def layer_files_of_revision(page: Path, revision: int) -> dict[str, bytes]:
+    from leaf.revision_artifact import read_artifact
+
+    manifest = json.loads(read_artifact(page, revision).manifest)
+    return registry_storage.selected(manifest["layer"], page).files
 
 
 def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
@@ -4571,7 +4095,7 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
     )
 
     assert result.exit_code == 0, result.output
-    tokens = json.loads((page / "registry.json").read_text())["$reactions"]["tokens"]
+    tokens = registry_storage.load_registry(page)["$reactions"]["tokens"]
     assert list(tokens) == ["keep", "change", "clarify", "support", "prioritize", "meh"]
     assert tokens["keep"] == {"glyph": "👍", "settles": True}
     assert tokens["meh"] == {"glyph": "~"}
@@ -4872,18 +4396,16 @@ def test_the_suite_pins_every_bundled_script_dependency():
 
 
 @pytest.fixture
-def instruction_page(tmp_path: Path):
-    page = tmp_path / "page"
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
-    assert result.exit_code == 0, result.output
-    # Initialization provides the layer; authoring has not started.
-    assert not (page / "index.html").exists()
-    registry_path = page / "registry.json"
-    registry = json.loads(registry_path.read_text())
+def instruction_page(tmp_path: Path, monkeypatch):
+    """A page selecting a package of instructed vocabulary and audience instructions,
+    before authoring has started."""
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "instructed"
+    registry = {"$data": {"contracts": {}}}
     owner = element_declaration("lf-instruction-owner")
     owner.update(
         {
-            "x-content": "members",
+            "x-content": "markup",
             "x-instructions": "Choose the owner's inputs before composing it.",
             "x-example": '<lf-instruction-owner id="owner"><p class="instruction-caption">Inputs</p><lf-instruction-member id="input" kind="first"></lf-instruction-member><lf-instruction-example id="example"></lf-instruction-example></lf-instruction-owner>',
             "x-data": {
@@ -4927,6 +4449,10 @@ def instruction_page(tmp_path: Path):
     )
     member["properties"]["kind"] = {"type": "string", "enum": ["first", "second"]}
     member["required"].append("kind")
+    member["x-example"] = (
+        '<lf-instruction-owner id="owner"><lf-instruction-member id="member"'
+        ' kind="first">One</lf-instruction-member></lf-instruction-owner>'
+    )
     registry["lf-instruction-member"] = member
     for tag, text in (
         ("lf-instruction-example", "Preserve the copied example's companion."),
@@ -4935,6 +4461,10 @@ def instruction_page(tmp_path: Path):
         entry = element_declaration(tag)
         entry["x-instructions"] = text
         entry["x-owners"] = ["lf-instruction-owner"]
+        entry["x-example"] = (
+            f'<lf-instruction-owner id="owner"><{tag} id="member">One</{tag}>'
+            "</lf-instruction-owner>"
+        )
         registry[tag] = entry
     registry["$data"]["contracts"].update(
         {
@@ -4953,11 +4483,17 @@ def instruction_page(tmp_path: Path):
             },
         }
     )
-    registry_path.write_text(json.dumps(registry))
-    directory = page / "instructions"
-    directory.mkdir(exist_ok=True)
+    directory = package / "instructions"
+    directory.mkdir(parents=True)
+    (package / "registry.json").write_text(json.dumps(registry))
     (directory / "author.md").write_text("Shared composition instructions.\n")
     (directory / "coordinator.md").write_text("Assign the selected work.\n")
+    page = tmp_path / "page"
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "./instructed", str(page)]
+    )
+    assert result.exit_code == 0, result.output
+    assert not (page / "index.html").exists()
     return page
 
 
@@ -5044,6 +4580,8 @@ def test_cli_selection_returns_the_composed_audience_map(instruction_page):
     for option, value, message in (
         ("--use", "lf-absent", "unknown instructions vocabulary entry"),
         ("--use", "$data", "unknown instructions vocabulary entry"),
+        # A Layout is a class the page's CSS provides; the refusal says where it is.
+        ("--use", "layout-tiles", "page-layout.md describes them"),
         ("--contract", "absent", "unknown instructions data contract"),
     ):
         result = runner.invoke(
@@ -5090,12 +4628,12 @@ def test_instruction_reading_uses_the_candidate_vocabulary_before_html_changes(
     assert activation.error is None, activation.error
     original_html = source.read_text()
 
-    path = instruction_page / "registry.json"
-    registry = json.loads(path.read_text())
-    registry["lf-instruction-owner"]["x-instructions"] = (
-        "Use the new candidate contract."
+    declare_on_page(
+        instruction_page,
+        lambda registry: registry["lf-instruction-owner"].update(
+            {"x-instructions": "Use the new candidate contract."}
+        ),
     )
-    path.write_text(json.dumps(registry))
     instructions = page_instructions(
         instruction_page, entries=("lf-instruction-owner",)
     )

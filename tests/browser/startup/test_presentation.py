@@ -8,7 +8,7 @@ import pytest
 from interact_support import wait_for
 from playwright.sync_api import expect
 from render_cases_interaction import SHORT_SUGGESTION, live_url
-from render_cases_navigation import data_projection_page
+from render_cases_navigation import DATA_PROJECTION_MODULE, data_projection_page
 from render_harness import (
     PANEL,
     displayed,
@@ -188,25 +188,24 @@ def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
     expect(host.locator(PANEL)).to_have_attribute("data-rest", "mark")
     child = host.frame_locator("#practice iframe")
     expect(child.locator(PANEL)).to_have_attribute("data-rest", "row")
-    context.close()
 
 
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
     """A data renderer runs after the initial page dressing, but what it contributes
     is still part of the Leaf and should carry the same visible navigation contract."""
     url = data_projection_page(serve)
-    module = serve.page_dir / "widgets" / "lf-feed.js"
+    # The page's own module for the family, which takes the package's place.
+    module = serve.page_dir / "page" / "widgets" / "lf-feed.js"
+    module.parent.mkdir(parents=True, exist_ok=True)
     module.write_text(
-        module.read_text()
-        .replace("{offer,", "{keeps, keepsText, offer,")
-        .replace(
+        DATA_PROJECTION_MODULE.replace("{keeps,", "{keeps, keepsText,").replace(
             "const row = document.createElement('p');\n"
-            "      row.append(value, offer('button', 'inspect', 'Inspect'));",
+            "      row.append(words, offer('button', 'inspect', 'Inspect'));",
             """const prior = [...this.children].find(row => row.dataset.lfDatum === key);
       const row = prior ?? document.createElement('p');
       const link = row.querySelector('a') ?? document.createElement('a');
-      keeps(link, 'href', value === 'Ready' ? 'https://example.com/status' : '#title');
-      keepsText(link, value);
+      keeps(link, 'href', words === 'Ready' ? 'https://example.com/status' : '#title');
+      keepsText(link, words);
       if (!prior) {
         link.target = '_self';
         link.rel = 'author';
@@ -306,12 +305,22 @@ def test_reduced_motion_reaches_declared_shadow_stages(
     }
     package = tmp_path / ".leaf"
     package.mkdir()
-    (package / "shadow.css").write_text("""
-.pulse { animation: package-pulse 30s linear infinite; }
-.pulse::before { content: 'Activity'; animation: package-pulse 30s linear infinite; }
+    # The sheet reaches both trees and names each widget it styles: by tag in the
+    # document, by its host in the shadow tree.
+    (package / "widget-shadow.css").write_text("""
+lf-motion-light .pulse, :host(lf-motion-shadow) .pulse {
+  animation: package-pulse 30s linear infinite;
+}
+lf-motion-light .pulse::before, :host(lf-motion-shadow) .pulse::before {
+  content: 'Activity'; animation: package-pulse 30s linear infinite;
+}
 @keyframes package-pulse { from { opacity: .25; } to { opacity: 1; } }
-button { transition: background-color 30s linear; background-color: rgb(10, 20, 30); }
-button.chosen { background-color: rgb(40, 50, 60); }
+lf-motion-light button, :host(lf-motion-shadow) button {
+  transition: background-color 30s linear; background-color: rgb(10, 20, 30);
+}
+lf-motion-light button.chosen, :host(lf-motion-shadow) button.chosen {
+  background-color: rgb(40, 50, 60);
+}
 """)
     modules = {}
     for tag, declaration in registry.items():
@@ -330,7 +339,6 @@ customElements.define('{tag}', class extends HTMLElement {{
     pulse.ends = [];
     pulse.addEventListener('animationend', event => pulse.ends.push(event.pseudoElement));
     const button = document.createElement('button'); button.textContent = 'Choose';
-    button.style.transition = 'background-color 30s linear';
     button.onclick = () => button.classList.toggle('chosen');
     const nodes = [pulse, button];
     {stage};

@@ -27,7 +27,7 @@
    A screen reader hears each error as it is raised, unless its producer already says
    it aloud, as page-status.js does a change of status. News and acknowledgements stay
    notices (notifications.js); an error is never one. */
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
 import { announce } from "./notifications.js";
 
 /**

@@ -10,6 +10,13 @@
   syntax: "*";
   inherits: false;
 }
+/* Clearance needed after the last content in a region reaching the window's foot.
+ * It does not inherit: a container passes it only to a child taking over that edge. */
+@property --lf-end-room {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
 @layer lf-layouts {
   /* Each page Layout owns its page's geometry, the body's included; a page with no
    * Layout keeps the browser's. The body drops its margin and, on a live page other than
@@ -71,10 +78,9 @@
    * Layout arranges (above). Live, a column down the left holds what the page writes
    * before the parts, its title, and under it the parts' list (its `tablist`); the open
    * part takes the rest of the width from the top of the page. Title and list both stand
-   * fixed in the window, the list below the title by the title's height, which
-   * prepaint.js measures (`--lf-parts-title-h`), since no CSS can stack one such box
-   * under another of unknown height; the grid keeps their column's width. A title too
-   * tall to leave the list 8rem, a few names' room, scrolls on its own, so neither stands
+   * fixed in the window, the list anchored below the title; the grid keeps their
+   * column's width. A title too tall to leave the list 8rem, a few names' room,
+   * scrolls on its own, so neither stands
    * out of reach in a short window. So the column stands still whichever part is open
    * and wherever it is read, the rubber band at the page's end included: every engine
    * holds a fixed box still through overscroll, while Firefox and Chrome move a stuck
@@ -130,6 +136,7 @@
       ) {
       grid-column: 1;
       grid-row: 1;
+      anchor-name: --lf-parts-title;
       position: fixed;
       top: var(--lf-top);
       box-sizing: border-box;
@@ -263,16 +270,9 @@
       }
     }
   }
-  /* The pane role's grammar (theme.css owns its look): which row each child stands in,
-   * and a body held to the pane's width. Not a page Layout, but it resets what a widget
-   * sets on the box it arranges, so it shares their tier. */
-  [data-lf-reading-role="pane"] {
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    grid-template-columns: minmax(0, 1fr);
-    min-width: 0;
-    --lf-block-frame: 1;
-  }
+  /* The pane role's grammar (its box: theme.css): which row each child stands in, and
+   * a body held to the pane's width. Not a page Layout, but it resets what a widget
+   * sets on the children it arranges, so it shares their tier. */
   [data-lf-reading-role="pane"] > header {
     grid-row: 1;
     margin: 0;
@@ -403,7 +403,7 @@
         --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift));
         --lf-top-outer: var(--lf-top);
       }
-      /* It sticks and scrolls what it holds, as a sidebar page's track block does
+      /* It sticks and scrolls what it holds, as a sidebar page's track body does
        * (Sticking blocks, below). */
       :is(
           :scope[data-lf-margin~="sidebar"],
@@ -704,7 +704,13 @@
    * Layout's `aside`: written before the body it stands left, after it right, so source
    * order is reading order at every width. Body and track take 2:1 of the room from
    * bases of 30rem and 18rem, and stack where they no longer fit or where the body would
-   * lose its content's minimum. A header or footer takes the whole row. Flex margins do
+   * lose its content's minimum. A page sizes the track by setting `--aside` on the
+   * Layout's box to a length or a share of the row, such as `20rem` or `25%`: the track
+   * then stands that wide beside the body and the body takes the rest, and the two
+   * stack where the body's base or its content's minimum no longer fits beside it. The
+   * body's grow factor dwarfs the track's, so beside the body the track keeps its width,
+   * and alone on a line each fills it. `auto`, the default, keeps the 2:1 shares. A
+   * header or footer takes the whole row. Flex margins do
    * not collapse, so the items' block margins go. The row holds its edge
    * (`--lf-holds-edge`, theme.css): each item beside another stands at both of its
    * edges, so the trim follows into each alike, a header only from the top and a footer
@@ -722,6 +728,7 @@
     align-items: flex-start;
     gap: var(--sp-4);
     --lf-holds-edge: 1;
+    --aside: auto;
   }
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
     > :not(footer) {
@@ -741,24 +748,40 @@
     flex: 2 1 30rem;
     margin-block: 0;
   }
+  /* A track keeps what it holds in view beside the scrolling body: the box the runtime
+   * gathers its blocks into (`data-lf-track-body`, prepaint.js `holdTrack`) sticks below
+   * the window's head room and any tab strip, scrolls what it holds within the window,
+   * and stays inside the track, which runs its flex line's height, so it never stands
+   * over a footer or a later line. The track itself, a flex item, would be bounded by
+   * the whole flex container. The track never scrolls, so it keeps its flex sizing.
+   * Whether the track stands beside the body depends on widths no query reads, so the
+   * margin reading marks it (`data-lf-beside`, prepaint.js `marginContentLayout`). Like a
+   * margin sidebar, the body restarts the slot and landing band, keeps the ring's room,
+   * anchors no reading, and is a reading region of the Layout's own. Where it sticks it
+   * scrolls, and keeps the ring's room inside its edges (Sticking blocks, below). */
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar > aside {
     flex: 1 1 18rem;
     --lf-margin-content: track;
-  }
-  /* A track holding one block keeps it in view beside the scrolling body: sticky below
-   * the window's head room and any tab strip, scrolling what it holds within the window, and only
-   * inside its own flex line. The track itself never scrolls, so it keeps its flex
-   * sizing. Whether the track stands beside the body depends on widths no query reads,
-   * so the margin reading marks it (`data-lf-beside`, prepaint.js `marginContentLayout`). Like a
-   * margin sidebar, the block restarts the slot and landing band, keeps the ring's room,
-   * anchors no reading, and is a reading region of the Layout's own. */
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
-    > aside:has(> :only-child) {
     align-self: stretch;
+  }
+  @container not style(--aside: auto) {
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+      > :not(header, footer) {
+      flex: 1000000 1 30rem;
+    }
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar > aside {
+      flex: 1 1 var(--aside);
+    }
+  }
+  /* The track beside the body says so to what it holds, as a column's margin sidebar
+   * says `margin`: a contents outline there stands open (toc.css). */
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+    > aside[data-lf-beside] {
+    --lf-sidebar-slot: beside;
   }
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
     > aside
-    > :only-child {
+    > [data-lf-track-body] {
     --lf-reading-region: layout;
   }
   @media screen {
@@ -766,12 +789,12 @@
       --lf-top-outer: var(--lf-top);
     }
     /* A widget's track: a box a widget generates beside what it serves, such as a
-     * playground's rail beside its stage, marked `data-lf-track`. It sticks as a track
-     * block does (module-scroll-and-motion.md, "Reading regions"). */
+     * playground's rail beside its stage, marked `data-lf-track`. It sticks as a track's
+     * body does (module-scroll-and-motion.md, "Reading regions"). */
     :has(> [data-lf-track]) {
       --lf-top-outer: var(--lf-top);
     }
-    /* Sticking blocks: a column's sidebar in the margin, a sidebar page's track block
+    /* Sticking blocks: a column's sidebar in the margin, a sidebar page's track body
      * beside the body and a widget's track stand below the window's head room and any tab
      * strip, and scroll what they hold within the window below that, so each restarts
      * `--lf-top` and its landing band (theme.css), a focused link keeps the ring's room
@@ -802,7 +825,7 @@
           > aside.sidebar:nth-child(1 of aside.sidebar),
         :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
           > aside[data-lf-beside]
-          > :only-child,
+          > [data-lf-track-body],
         [data-lf-track] {
           position: sticky;
           --lf-head-inset: 0px;
@@ -818,6 +841,20 @@
           overflow-y: auto;
           overflow-anchor: none;
           --lf-holds-height: 1;
+        }
+        /* A scrolling box clips at its padding edge, and a track body's blocks run its
+         * full width, so a full-width control's ring would be cut at both sides and the
+         * last one's at the foot. The body holds the ring's room as padding. It gives
+         * the block-axis room back as a negative margin, so its blocks start where they
+         * would without it; the inline room stays inside the track, since a box set
+         * past the track's sides stands past the column (render check `past-column`). */
+        :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+          > aside[data-lf-beside]
+          > [data-lf-track-body] {
+          box-sizing: border-box;
+          padding: var(--focus-ring-room);
+          margin-block: calc(-1 * var(--focus-ring-room));
+          scroll-padding: var(--focus-ring-room);
         }
       }
     }
@@ -853,43 +890,52 @@
     padding-inline: var(--lf-workspace-gutter);
     padding-block: var(--sp-2) var(--page-pad-end);
   }
-  /* The root workspace owns the window's foot. What can reach the foot keeps the
-   * panel's room within its scrollable content, rather than leaving an empty band below
-   * every pane: the body when it is one pane, and each pane of the body's own grid,
-   * since CSS cannot tell a grid's last row from the others. A pane a body widget
-   * places deeper stands inside that body's own end room (below), so it keeps only its
-   * inset: a visual review's stacked case strip, at the top of the window, had given
-   * 72px of a 720px window to a panel it never reaches. Flowing workspaces still use
-   * the document's end room. */
-  @media screen and (min-width: 720px) and (min-height: 480px) {
-    html[data-lf-live][data-lf-layout~="workspace"] body {
-      padding-block-end: 0;
-    }
+  /* The root workspace reaches the window's foot. Its last reading region keeps
+   * the panel's clearance inside its content; containers that pass the edge to a
+   * child pass --lf-end-room as well, rather than shortening that child's frame. */
+  @media screen {
+    html[data-lf-live][data-lf-layout~="workspace"] body,
     html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace {
-      block-size: calc(var(--lf-view-height) + var(--lf-foot-room));
+      padding-block-end: 0;
     }
     html[data-lf-live][data-lf-layout~="workspace"]
       body
       > main.layout-workspace
-      > [data-lf-reading-role="pane"]
-      > :not(header, footer),
+      > :not(header, footer) {
+      --lf-end-room: var(--lf-foot-room);
+      margin-block-end: 0;
+    }
+    html[data-lf-live][data-lf-layout~="workspace"]
+      body
+      > main.layout-workspace:has(> footer)
+      > :not(header, footer) {
+      --lf-end-room: 0px;
+    }
+    html[data-lf-live][data-lf-layout~="workspace"]
+      body
+      > main.layout-workspace
+      > footer {
+      padding-block-end: var(--lf-foot-room);
+    }
     html[data-lf-live][data-lf-layout~="workspace"]
       body
       > main.layout-workspace
       > :not(header, footer)
-      > [data-lf-reading-role="pane"]
-      > :not(header, footer) {
-      padding-block-end: calc(var(--pane-inset) + var(--lf-foot-room));
+      > [data-lf-reading-role="pane"] {
+      --lf-end-room: inherit;
     }
-    /* A direct grid of panes already clears the panel inside each pane. A body
-       grouping panes more deeply scrolls as one box and needs its own end room. */
     html[data-lf-live][data-lf-layout~="workspace"]
       body
       > main.layout-workspace
-      > :not(header, footer, [data-lf-reading-role="pane"]):not(
+      > :not(header, footer, [data-lf-reading-role="pane"], [data-lf-views]):not(
         :has(> [data-lf-reading-role="pane"])
       ) {
-      padding-block-end: var(--lf-foot-room);
+      padding-block-end: var(--lf-end-room);
+    }
+  }
+  @media screen and (min-width: 720px) and (min-height: 480px) {
+    html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace {
+      block-size: calc(var(--lf-view-height) + var(--lf-foot-room));
     }
   }
   /* The header is one row: the title with the page's status beside it, wrapping only

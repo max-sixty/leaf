@@ -30,11 +30,14 @@ reading it returns is caused by the markup and the log the test wrote and by
 nothing else on the machine.
 """
 
+from pathlib import Path
+
 from interact_support import ModelPage, model_layer, served_state_error, served_thread
 
 from leaf.event_contracts import admitted_event
 from leaf.files import document_descriptor, version_descriptors
 from leaf.passages import SourceReading
+from leaf.registry.storage import served_layer
 from leaf.served_state.context import PageRead
 from leaf.served_state.page import read_served_page
 from leaf.structure import SourceDocument
@@ -46,7 +49,7 @@ NOW = "2026-09-19T12:00:00+00:00"
 # facts a fold is allowed to see, and a fixture that reached for the real reading
 # would bring the developer's own machine with it.
 UNCLAIMED = {
-    "status": {"state": "waiting", "detail": ""},
+    "status": {"state": "waiting"},
     "listening": False,
     "cursor": 0,
     "pending": 0,
@@ -54,10 +57,12 @@ UNCLAIMED = {
     "session_alive": None,
     "live_turn": None,
     "claim_session": None,
+    "session_name": None,
     "claim_turn": None,
     "turn_closed": None,
     "turn_opened": None,
     "turn_takes_input": False,
+    "input_wakes": False,
     "session_cwd": None,
 }
 
@@ -129,13 +134,7 @@ def served_reading(
     # the same packages the page would install, without writing an installation.
     registry = {
         **(registry or model_layer()),
-        "$layer": {
-            "generation": "0" * 32,
-            "fingerprint": "0" * 64,
-            "runtime": "0" * 64,
-            "server": "0" * 64,
-            "packages": [],
-        },
+        "$layer": {"generation": "0" * 32, "packages": [], "theme": None},
     }
     data = data or {"version": "0" * 16, "sources": {}}
     door = ModelPage(documents=parsed, registry=registry, data=data)
@@ -169,6 +168,8 @@ def served_reading(
             revision=readings.__getitem__,
             registry=registry,
             stored_layer=lambda: registry["$layer"],
+            # The fixture selects no package, so no page directory resolves one.
+            serve_layer=lambda metadata: served_layer(metadata, Path()),
             stored_data=lambda: data,
             bound_files=dict,
             versions=tuple(version_descriptors(log, parsed)),

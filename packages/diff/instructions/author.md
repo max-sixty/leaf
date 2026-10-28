@@ -1,7 +1,17 @@
+## A patch review
+
+`lf-diff` has its own file listing. When directory hierarchy helps the reader navigate
+the patch, select the `file-tree` package too; its author instructions describe the
+navigator and selected-file composition. A small flat patch can use the diff's listing
+alone.
+
+## Worktree snapshots
+
 Use `lf-worktree-diffs` when the reader needs to inspect a supplied set of worktrees.
 Give it one `lf-worktree` per snapshot, in review order. There is no limit on how many.
-Wrap each member’s evidence in one native `details` with a stable id. Leaf supplies its
-summary; set `open` on the first useful disclosure.
+Write each member’s evidence directly inside it. Leaf makes each member an expandable
+row and writes its summary from the member's attributes; set `open` on the first useful
+snapshot.
 
 Each member supplies `label`, `path`, `status`, and the known snapshot's `files`,
 `additions`, and `deletions`. Use `branch` when attached and `head` for the full current
@@ -19,7 +29,7 @@ comparison and its inclusion scope: comparing a merge base with HEAD differs fro
 comparing it with the working tree, and untracked files need explicit treatment.
 Snapshots can come from different repositories. Label illustrative evidence as such.
 
-Inside that disclosure, use ordinary authored markup followed by the real `lf-diff`:
+Inside each member, use ordinary authored markup followed by the real `lf-diff`:
 
 ```html
 <lf-worktree-diffs id="worktrees">
@@ -33,27 +43,26 @@ Inside that disclosure, use ordinary authored markup followed by the real `lf-di
     files="1"
     additions="1"
     deletions="1"
+    open
   >
-    <details id="draft-worktree-body" open>
-      <p>Preserve a composer draft while switching threads.</p>
-      <details>
-        <summary>Snapshot details</summary>
-        <dl>
-          <dt>Repository</dt>
-          <dd><code>/workspace/leaf</code></dd>
-          <dt>Current commit</dt>
-          <dd><code>c8ebd603f87d4c9db1ce17bf134b76567d8a409c</code></dd>
-          <dt>Comparison</dt>
-          <dd>HEAD → working tree; tracked files only</dd>
-          <dt>Captured</dt>
-          <dd>22 Oct 2026, 10:30 PT</dd>
-        </dl>
-      </details>
-      <aside><p>The draft is saved before the thread changes.</p></aside>
-      <lf-diff id="draft-patch" source="draft-patch-data" data-height="360">
-        <pre></pre>
-      </lf-diff>
+    <p>Preserve a composer draft while switching threads.</p>
+    <details>
+      <summary>Snapshot details</summary>
+      <dl>
+        <dt>Repository</dt>
+        <dd><code>/workspace/leaf</code></dd>
+        <dt>Current commit</dt>
+        <dd><code>c8ebd603f87d4c9db1ce17bf134b76567d8a409c</code></dd>
+        <dt>Comparison</dt>
+        <dd>HEAD → working tree; tracked files only</dd>
+        <dt>Captured</dt>
+        <dd>22 Oct 2026, 10:30 PT</dd>
+      </dl>
     </details>
+    <aside><p>The draft is saved before the thread changes.</p></aside>
+    <lf-diff id="draft-patch" source="draft-patch-data" data-height="360">
+      <pre></pre>
+    </lf-diff>
   </lf-worktree>
 </lf-worktree-diffs>
 ```
@@ -66,6 +75,7 @@ The worktree path itself is supplied by `path` and shown above the body. Include
 path in the authored details too when the reader needs to comment on it.
 
 `lf-diff` remains the patch reader: supply the exact Git patch inline or through its
-existing source contract. Describe binary changes in the authored body when
+existing source contract. An inline patch reserves the height it draws at, while a
+`source` patch arrives after first paint, so only the bound one takes a `data-height`. Describe binary changes in the authored body when
 there is no textual patch to inspect. This widget displays snapshots supplied
 by the author; it does not discover directories or run Git in the browser.

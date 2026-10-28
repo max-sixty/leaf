@@ -9,6 +9,12 @@ the package writes no storage or server code. It declares each kind of change as
 under the element's `x-state`. Leaf validates each event, works out the current state,
 hands it to the module, and shows it to the agent under `state` in `leaf page state`.
 
+A verb declaring `decides: true` selects which of its widget's members retire. It
+folds by widget and requires a string-enum `outcome` field. `x-retired-when` and
+`x-withdrawn-as` refer to those outcomes. An `outcome` field on any other verb is
+ordinary domain data; whether an action answers an obligation is separately
+declared by `x-awaits`.
+
 The default board declares `move` as a position record in
 `packages/default/registry.json`:
 
@@ -46,6 +52,11 @@ detail field holding the moved element. A verb with no record declares its own c
 `detail` JSON Schema, with `unit` either `"widget"` or a required string detail field
 naming what the verb's state is about, by element id or by data key, as a playground's
 submitted settings do.
+
+For an optional command the agent should act on, such as Archive, declare
+`attention: true` on its user verb (`$state.attention` in the registry). Changes to
+that verb's state reach the agent without putting a question on the user's On me list.
+Use `x-awaits` below when the widget instead asks the user for an answer.
 
 Only one widget records each attribute. A member's `value` record can't use the same
 attribute as an `attribute` record on a widget around it; `page check` refuses that in
@@ -103,17 +114,14 @@ and its answering action's unit. The named label field supplies the prompt. For 
 `value: "review"` with `answered: {"review": {"detail": {"approved": true}}}` completes
 each record's obligation while that unit's latest review approves it. Clearing or undoing
 approval reopens it. Source reordering preserves these identities; removing a record
-removes its obligation. The widget projects those same keys with `projectData` so Leaf's
+removes its obligation. The widget marks those same keys as its drawn data
+([module-state.md, "Marking drawn data"](module-state.md#marking-drawn-data)) so Leaf's
 On me navigation can reveal each record.
 
 `x-awaits.retired` names the attribute an author sets to close an obligation but keep its
 widget on the page, such as a decided question collapsed with its options; `when` must
-require it to be absent. `x-awaits.encloses`, which `lf-ask` declares, makes a wrapper
-give the obligations inside it its heading and where the user lands; it asks nothing itself
-while it holds another widget declaring `x-awaits`. With `reply: true` instead of
-`value` and `answered`, a widget asks for the user's words; `lf-ask` uses this when it
-holds no answering widget. [module-reading.md, "Reading obligations and the On
-lists"](module-reading.md#reading-obligations-and-the-on-lists) describes which messages answer it.
+require it to be absent. `x-encloses`, which `lf-ask` declares, makes a wrapper give
+the obligations inside it its heading and where the user lands; it asks nothing itself.
 
 The module reads and records this state through `widgetController(owner)`
 ([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),
@@ -121,6 +129,59 @@ words answers with `static answerWords` ([module-state.md, "Declared widget
 state"](module-state.md#declared-widget-state)), and reads obligations with `readObligations()`
 ([module-reading.md, "Reading obligations and the
 On lists"](module-reading.md#reading-obligations-and-the-on-lists)).
+
+### Views of an answer
+
+An answer has one owner, the widget whose `x-awaits.value` verb records it, but the
+user may want to see and change it from another view, as a board gathers the picks of
+proposals answered in their own sections. The view's element declares `x-shows`, as
+`lf-card` does:
+
+```json
+{
+  "x-refers": { "shows": {} },
+  "x-shows": { "attr": "shows", "value": "value" }
+}
+```
+
+`attr` names the attribute holding the widget's id, which must be in the view's own
+page or message, and `value` the attribute on the view's compound owner (its
+`x-owners` tag, here `lf-column`) naming the answer that owner holds. The view stands
+in the owner holding the value the answer names, or in one without `value` while the
+answer names none, or one no owner holds. A `value` record's answer names its attribute's value. An
+`attribute` record's answer names a value when every member it picks carries the same
+value in the attribute `x-awaits.key` names, as `lf-options` declares `"key":
+"value"` and each `lf-option` a `value` unique within its group (`x-unique`); an empty
+pick, an option the user added, or picks of different values name none.
+
+The view keeps no state of its own about the answer. It reads and changes the answer
+through `shownAnswer` ([module-reading.md, "Reading obligations and the On
+lists"](module-reading.md#reading-obligations-and-the-on-lists)), which sends the
+widget's own command, so the log holds one answer whichever view the user changed it
+in. The append door refuses a position move of a view, and `page check` refuses
+markup that puts a view apart from its widget's authored answer, owners that all
+hold a value, leaving nowhere for an answer that names none, or an owner value the
+widget can't answer.
+
+## Instance input contracts
+
+A custom-detail verb can declare `contract: {"field": "values", "attribute": "contract"}`.
+The widget's `contract` attribute is a string matching the data contract name pattern
+from `schema.DATA_CONTRACT_NAME`. Its authored value selects a `$data.contracts` entry
+whose `schema` validates the complete `detail.values`, alongside the package's base
+schema. The field and attribute names belong to the package; core reads the declaration.
+
+For example, two Playgrounds can use `contract="release-query"` and
+`contract="notification"`. Their page declares those contracts in
+`page/registry.json`, with each complete values schema covering scalar controls,
+structured editor values, required names and bounds. The widget declaration stays
+with its package. Without the attribute, the base payload schema applies.
+
+Page checks refuse unknown contract names. Admission reads the attribute from the
+authored revision, or from the frozen message holding a thread widget, and resolves
+it using the command’s revision registry. Changing only the selected contract keeps
+any earlier action whose value fits the new schema. The log keeps the original action
+and its schema.
 
 ## References between widgets
 
@@ -191,9 +252,10 @@ one kind of record needs, so `data set` refuses a value the widget couldn't show
 the widget needn't check it again. A `format` must be one Leaf checks: `date-time` is a
 timezone-aware instant, `uri` an absolute URL, and `package check` lists the rest.
 
-A widget declares the inputs it can show under `x-data`, each naming its contract and
-the attribute that carries the page's source id. Make that attribute required when the
-widget can't work without the input; an unbound optional input delivers `null`. Tell
+A widget declares the inputs it can show under `x-data`, each naming its contract, the
+attribute that carries the page's source id, and the element `property` Leaf sets to
+the value. Make that attribute required when the widget can't work without the input;
+Leaf leaves the property of an input the markup doesn't bind to the widget. Tell
 page authors how to bind it in `x-instructions`, and whoever produces the data in the
 contract's `instructions` (`packages.md`, "Package contract").
 
@@ -211,7 +273,8 @@ contract's `instructions` (`packages.md`, "Package contract").
     "x-data": {
       "builds": {
         "contract": "build-status",
-        "source": "source"
+        "source": "source",
+        "property": "value"
       }
     },
     "x-instructions": "Bind `source` to the build feed this page should show.",
@@ -240,7 +303,8 @@ an external source or another widget's output:
     "contract": "file-list",
     "source": "source",
     "reference": "for",
-    "output": "files"
+    "output": "files",
+    "property": "value"
   }
 },
 "x-refers": {"for": {}}
@@ -253,7 +317,16 @@ is a widget publishing `files`. `page check` verifies the referenced widget decl
 named output with the input's contract. Consumers never identify a producer by tag.
 
 The producer calls `publishOutput(this, "files", value)` after deriving its complete
-value, and publishes `null` when that output is unavailable. Output values belong to
+value, and publishes `null` when that output is unavailable. `page check --render`
+and `package check --render` validate every output exercised during their render,
+including values later withdrawn or replaced and values from contained samples whose
+frames are later disposed. A mismatch is an error naming the
+producer, output, contract and value path. Captured provenance names the implementation
+owner and, when different, the output declaration and data contract owners: a page
+can change each independently. These checks cover the paths the examples exercise,
+not every possible later value. The running browser does not load a schema validator.
+
+Output values belong to
 the widget instance: leaving the document clears them; returning restores them until
 the producer publishes again. Outputs are ephemeral browser derivations, not stored
 sources, and have no fabricated source revision or run receipt. Data reading,
@@ -303,7 +376,7 @@ git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE 
 A contract whose value holds keyed rows declares `records`, naming the array and each
 row's key, which must be a unique non-empty string. A row's large payload can be
 `deferred`: the file keeps it, but the page receives rows without it, and a widget
-fetches one with `loadDeferred(snapshot, key)`. The widget decides when it needs that
+fetches one with `loadDeferred(value, key)`. The widget decides when it needs that
 evidence; `lf-diff` loads and checks each patch before showing its row, and defers only
 textual rendering until the file opens. Its contract's schema has a `files` array of
 `{path, patch}` objects:

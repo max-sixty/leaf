@@ -1,7 +1,7 @@
 # Complete task; diagnostic contexts retain the original fixed checks.
 # healthy-release contrasts an automatic rollout with a rollback decision: Codex
 # base 0/2, conditional rollback guidance 2/2 with the same snapshot time and rubric.
-description: Dashboard
+description: Release rollout dashboard
 metadata:
   purpose: Compose and revise a dashboard; inspect its rendered output against the
     request and, on Leaf, read and preserve a user choice on that page.
@@ -79,3 +79,81 @@ variants:
           requirement created merely because rollback is available fails.
           Judge the information and decisions offered, not the Layout or widgets
           used for the status and supporting evidence.
+  # From TODO.md, "Test the Layouts on agents": after its comment and decision, the
+  # rollout dashboard also carries the incident write-up, so a live surface and a
+  # document share one page.
+  write-up:
+    metadata:
+      scenario: dashboard-write-up
+      purpose: Add a document to a live dashboard, keeping both usable and the comment thread.
+      tags: [workflow, layout]
+      conditions: [leaf]
+  # From TODO.md, "Test the Layouts on agents": a cold request for "a dashboard",
+  # with mixed material and no stated arrangement, the likeliest trigger for tiling
+  # everything.
+  cold:
+    description: dashboard/cold
+    metadata:
+      purpose: A cold request for a dashboard tiles only peers and gives every other
+        part the form its content needs.
+      tags: [layout, authoring]
+      executor: null
+      scenario: null
+      authoring: true
+      conditions: [leaf]
+    vars:
+      prompt: |
+        can you make me a dashboard for the payments platform? here's what I pulled
+        this morning (09:10 UTC):
+
+        auth success rate 97.8% (target 98.0%), p95 checkout latency 640 ms (target
+        800), chargebacks this week 41 (last week 37), settlement backlog 1,200
+        batches (normal is under 300)
+
+        services:
+        gateway — ok — errors 0.12% — p95 210 ms — deployed 08:40
+        auth — degraded — errors 2.2% — p95 380 ms — deployed yesterday 17:05
+        tokenizer — ok — errors 0.05% — p95 45 ms — deployed 3 days ago
+        risk-engine — ok — errors 0.31% — p95 160 ms — deployed 07:55
+        ledger — ok — errors 0.02% — p95 90 ms — deployed 2 days ago
+        settlement — degraded — errors 0.4% — p95 1.9 s — deployed 06:30
+        payouts — ok — errors 0.08% — p95 300 ms — deployed 08:15
+        webhooks — ok — errors 0.6% — p95 520 ms — deployed yesterday 11:20
+
+        card networks: Visa ok, Mastercard degraded in EU since 07:20 (their status
+        page says elevated declines), Amex ok, Discover ok
+
+        open incidents:
+        INC-2231 sev2 — auth declines up for Mastercard EU cards since 07:25, likely
+        the network's issue, Priya investigating
+        INC-2229 sev3 — settlement batches running slow after the 06:30 deploy, Tom
+        looking at a slow query
+
+        error budget left this month: checkout availability 64%, auth success 22%,
+        payouts timeliness 91%, webhooks delivery 78%
+
+        deploys today: 06:30 settlement 3.4.0 (Tom), 07:55 risk-engine 2.19.1 (Ana),
+        08:15 payouts 1.12.0 (Ana), 08:40 gateway 5.2.3 (Sam)
+
+        on call: Priya (primary), Tom (secondary)
+    assert:
+      - type: llm-rubric
+        metric: tiles-hold-peers
+        value: |
+          Read the HTML and CSS as the user's dashboard in a desktop window. Pass if
+          equal tiles, whether `layout-tiles` or the page's own grid of equal cells,
+          hold only items a reader scans side by side as peers, such as the headline
+          figures, the card networks or the error budgets, and every other part takes
+          the form its content needs: the eight services as one table a reader can
+          compare down a column, the deploys as a list or log, the incidents as items
+          with their summaries and owners. What needs attention now (auth below
+          target with its budget nearly spent, Mastercard EU degraded, the two open
+          incidents, the settlement backlog) is evident near the top. Fail if unlike
+          content shares equal cells (a table or log in a tile beside a single
+          number, a cell mostly empty beside a full one), if the services are split
+          into one card each so a reader can't compare them down a column, if tiles
+          are nested in tiles, or if tiles hold paragraphs. Judge what the reader
+          gets, not the class names.
+      - type: python
+        metric: no-noticeable-defect
+        value: file://../dev/leaf_dev/page_defects.py

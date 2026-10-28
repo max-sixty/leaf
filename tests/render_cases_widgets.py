@@ -16,7 +16,7 @@ from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 
 # ---------- anchors written without a browser ----------
-# `leaf thread open` writes an anchor by reading the mapped revision; the runtime
+# `leaf thread create` writes an anchor by reading the mapped revision; the runtime
 # resolves it against the DOM that revision becomes. Nothing static can check that those
 # two readings agree, and every way they can come apart — a widget's upgrade, an
 # attribute rendered as text, the space a block boundary stands for — only exists
@@ -24,7 +24,7 @@ from leaf.structure import SourceDocument
 
 
 def written_anchors(page_dir, html, limit=40):
-    """Anchors `leaf thread open` would write for windows over a page's own prose. A
+    """Anchors `leaf thread create` would write for windows over a page's own prose. A
     window the page says twice, or one crossing a fence, is refused on purpose —
     skipping those here is that refusal, and what survives is exactly what the command
     promises to place."""
@@ -536,6 +536,9 @@ BAD_CHARTS = {
     "bad-mark": '{ariaLabel: "merged", marks: [Plot.barz([{n: 1}], {y: "n"})]}',
     "bad-drawn": 'Plot.plot({ariaLabel: "merged", marks: [Plot.ruleY([0])]})',
     "bad-height": '{ariaLabel: "merged", height: 200, marks: [Plot.ruleY([0])]}',
+    "bad-offset": (
+        '{ariaLabel: "merged", marks: [Plot.text([{n: 1}], {y: "n", text: "n", dy: (d) => d.n})]}'
+    ),
 }
 # A chart an agent sent in a reply, which upgrades inside a panel nobody has opened yet.
 MESSAGE_CHART = """{
@@ -691,7 +694,7 @@ def _filler(name, count):
 
 
 # Bound to a feed rather than written inline, because that is the form a review arrives in
-# and the only one whose lines are commentable data: `projectData` labels each retained row by file,
+# and the only one whose lines are commentable data: its marks label each retained row by file,
 # side and source line, which is the coordinate a remark on a line is recorded at.
 # Prose either side of it so the patch has somewhere to be scrolled from and somewhere to
 # be scrolled to — a page whose whole diff fits on screen proves nothing about a header

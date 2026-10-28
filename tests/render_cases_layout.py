@@ -8,8 +8,10 @@ import struct
 import zlib
 from weakref import WeakKeyDictionary
 
+import tinycss2
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
+from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_harness import (
@@ -487,6 +489,29 @@ OVER_ITS_CONTAINER = LONG_PAGE.replace(
     "<style>lf-test-drawing-control { display: block; width: 90px; }"
     "#clipped-drawing { width: 200px; }</style></head>",
 )
+_LOG_LINES = "\n".join(f"line {i}" for i in range(1, 41))
+# Boxes that cut off content of their own, which has no box for a container to lose,
+# beside boxes that cut on purpose and say so. A <pre> scrolls sideways only, so a
+# max-height alone hides every line past it.
+CUT_CONTENT = (
+    f"<pre id='capped-log' style='max-height: 6rem'>{_LOG_LINES}</pre>"
+    "<div id='short-box' style='height: 3rem; overflow: hidden'>"
+    "<p>First of three.</p><p>Second of three.</p><p>Third of three.</p></div>"
+    "<div id='unwrapped' style='width: 120px; overflow: hidden; white-space: nowrap'>"
+    "A label written longer than its box</div>"
+    f"<pre id='bounded-log' data-bound='start'>{_LOG_LINES}</pre>"
+    "<details id='shut-log'><summary>The whole log</summary>"
+    f"<pre id='shut-capped' style='max-height: 6rem'>{_LOG_LINES}</pre></details>"
+    "<p id='clamped' style='display: -webkit-box; -webkit-box-orient: vertical; "
+    "-webkit-line-clamp: 2; overflow: hidden'>"
+    + "A clamped summary marks its own cut. "
+    * 20
+    + "</p><p id='tight-line' style='line-height: 1; height: 1em; overflow: hidden'>"
+    "Descenders gyp</p>"
+    "<span id='listening' style='position: absolute; width: 1px; height: 1px; "
+    "overflow: hidden; clip-path: inset(50%); white-space: nowrap'>"
+    "Words for whoever is listening</span>"
+)
 DRAWING_CONTROL_LAYER = {
     "lf-test-drawing-control": {
         "description": "A native offered control inside a drawing viewport.",
@@ -590,8 +615,9 @@ def with_one_obligation(html):
 
 
 def toggle_queue(page, open=True):
-    """Open or close the panel's On me view from its mark and wait for it to stand."""
-    page.locator(".lf-fp-on-user").click()
+    """Open the panel's On me view from its mark, or close it from the same seat, where
+    its ✕ stands while the view does, and wait for it to stand or go."""
+    page.locator(".lf-fp-on-user" if open else ".lf-fp-close").click()
     panel_settled(page, open=open, view="queue" if open else None)
 
 
@@ -1067,8 +1093,6 @@ def mark_edges(page, ident, ink):
     was multiplying first that made `round(gap * scale)` disagree with it — by a pixel the
     window below covers, until a scale of 4 makes it two. The window is kept for a device
     pixel of engine drift either side."""
-    from PIL import Image  # a dev dependency already, for the demo recorder
-
     box = page.locator(f"#{ident}").bounding_box()
     clip = {"x": math.floor(box["x"] - MARK_PAD), "y": math.floor(box["y"] - MARK_PAD)}
     clip["width"] = math.ceil(box["x"] + box["width"] + MARK_PAD) - clip["x"]
@@ -1138,7 +1162,7 @@ UNBREAKABLE_PAGE = leaf_page(
     """
 <h1 id="h">Nothing to break on</h1>
 <div class="layout-tiles" id="numbers">
-  <dl id="m-token" class="panel"><dt>Bucket key</dt><dd><strong>a_very_long_unbroken_identifier</strong></dd></dl>
+  <dl id="m-token" class="metric"><dt>Bucket key</dt><dd><strong>a_very_long_unbroken_identifier</strong></dd></dl>
 </div>
 <p id="p-token">The one it fails on is
 gateway_middleware_authentication_token_bucket_refill_strategy.py, every time.</p>
@@ -1412,6 +1436,9 @@ RING_CANDIDATES = browser_function(
 # another selector added to the list, the rule moving file) and changes when what
 # selects the ring does. Tests assert on the part of it that makes the rule the
 # control's own, such as `.lf-grip`, rather than on the whole text.
+# Read the browser's serialized selector list, not each selector's source range:
+# formatting is not part of a ring's identity. Only top-level commas divide the
+# list; commas and whitespace within functions or strings keep their meaning.
 #
 # Only a declaration that draws with the ring's own token is a ring rule: `--focus-ring`
 # for an outline, `--focus-shadow` for the band cast as a shadow. A contour written out
@@ -1441,8 +1468,15 @@ def _matched_selector(match):
     rule = match["rule"]
     if rule["origin"] == "inline":
         return "style attribute"
-    selectors = rule["selectorList"]["selectors"]
-    said = ", ".join(selectors[i]["text"] for i in match["matchingSelectors"])
+    selectors = [[]]
+    for token in tinycss2.parse_component_value_list(rule["selectorList"]["text"]):
+        if token.type == "literal" and token.value == ",":
+            selectors.append([])
+        else:
+            selectors[-1].append(token)
+    said = ", ".join(
+        tinycss2.serialize(selectors[i]).strip() for i in match["matchingSelectors"]
+    )
     context = [f"@scope {scope['text']}" for scope in rule.get("scopes", [])]
     context += reversed(rule.get("nestingSelectors", []))
     return " { ".join([*context, said])
@@ -1557,7 +1591,13 @@ def rings_drawn(page):
     as `ring_rules` reads it) and what is wrong with it.
 
     A non-focused element mark painting the band with no ring rule behind it is the
-    pointer's feedback contour rather than a ring, so it is left out."""
+    pointer's feedback contour rather than a ring, so it is left out.
+
+    It reads once the runtime has rendered what the input so far asked for. The probe
+    and the browser's matched styles are two reads, and a carrier the runtime replaces
+    between them, such as the projected focus mark after a focus move, has no styles
+    left to read."""
+    rendered(page)
     candidates = page.evaluate(RING_CANDIDATES)
     if not candidates:
         return []
@@ -1567,6 +1607,7 @@ def rings_drawn(page):
         geometry=True,
     )
     answers = page.evaluate(RINGS_DRAWN, rectangles)
+    _read_ring_pixels(page, answers)
     drawn = []
     for seen, rule in zip(answers, rules, strict=True):
         if seen.pop("mark") and not seen["focused"] and not rule:
@@ -1574,6 +1615,68 @@ def rings_drawn(page):
         seen["rule"] = rule
         drawn.append(seen)
     return drawn
+
+
+# The share of a run's samples the ring's colour must cover. A run hit testing found
+# clear but painted over, or never painted, reads near nought.
+RUN_DRAWN = 0.9
+# The fewest unpainted samples, 4px apart, that count: a neighbour's edge blending into
+# a short run's end sample is one.
+RUN_MISSED = 3
+# How far a sample's channels may stray from the ring's, summed: a band on a fractional
+# edge blends a little of the ground into its middle pixel, and ground or text that
+# covers it differs by far more.
+RUN_INK = 90
+
+
+def _read_ring_pixels(page, answers):
+    """Add to each ring's `covers` the runs its colour is missing from in a screenshot,
+    at the samples `ringsDrawn` (focus_rings.js) found nothing in front of that takes
+    hits, and drop the samples, ink and rectangle from each answer.
+
+    The screenshot is taken a round trip after the reading, so a caller reads a page at
+    rest (`rendered`); one still repainting can read a ring where it no longer is."""
+    sampled = [seen for seen in answers if seen["runs"]]
+    if sampled:
+        points = [p for seen in sampled for run in seen["runs"] for p in run["points"]]
+        # Whole CSS pixels, since Chrome truncates a clip to them before it scales.
+        left = math.floor(min(x for x, _ in points))
+        top = math.floor(min(y for _, y in points))
+        clip = {
+            "x": left,
+            "y": top,
+            "width": math.floor(max(x for x, _ in points)) + 1 - left,
+            "height": math.floor(max(y for _, y in points)) + 1 - top,
+        }
+        image = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        scale = image.width / clip["width"]
+    for seen in answers:
+        runs, ink, ring = seen.pop("runs"), seen.pop("ink"), seen.pop("ringAt")
+        for run in runs:
+            painted = [
+                sum(
+                    abs(a - b)
+                    for a, b in zip(
+                        image.getpixel(
+                            (
+                                min(int((x - left) * scale), image.width - 1),
+                                min(int((y - top) * scale), image.height - 1),
+                            )
+                        ),
+                        ink,
+                        strict=True,
+                    )
+                )
+                < RUN_INK
+                for x, y in run["points"]
+            ]
+            share = sum(painted) / len(painted)
+            if share < RUN_DRAWN and painted.count(False) >= RUN_MISSED:
+                seen["covers"].append(
+                    f"its {run['side']} edge shows the ring at {share:.0%} of its "
+                    f"{len(painted)} samples where nothing in front takes hits: paint "
+                    f"hit testing can't see is over it, or it isn't painted (ring {ring})"
+                )
 
 
 def current_location_ring(page):

@@ -3,6 +3,7 @@
 import fcntl
 import hashlib
 import os
+import stat
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -18,7 +19,7 @@ class PathLocation(NamedTuple):
     comparison alone.
 
     That is the whole point of the form. The callers are set intersections: every
-    package input against every other, every input against every vendored
+    package input against every other, every input against every page
     destination — 786 containment tests over the shipped layer's thirty-six
     distinct paths. Asked path-by-path, each test re-resolved both paths and
     stat'd its way up both ancestor chains, so `page init` spent two thirds of
@@ -130,8 +131,75 @@ def locations_overlap(left: PathLocation, right: PathLocation) -> bool:
 
 
 def located(paths) -> list:
-    """Each path beside its location, for a caller about to compare it many times."""
-    return [(path, path_location(path)) for path in paths]
+    """Each path beside its location, for a caller about to compare it many times.
+
+    The paths are usually a package's files, most of them in a few directories, so
+    each directory is resolved and its lineage read once for all the paths beneath
+    it, and an existing file that is no symlink costs one `lstat`. Any other path, a
+    symlink or one that doesn't exist yet, is read alone (`path_location`)."""
+    resolved: dict[Path, Path] = {}
+    lineages: dict[Path, tuple] = {}
+
+    def resolve_directory(directory: Path) -> Path:
+        if directory not in resolved:
+            resolved[directory] = directory.resolve()
+        return resolved[directory]
+
+    def lineage(directory: Path) -> tuple:
+        # `directory` is resolved and exists, as is each of its ancestors.
+        if directory not in lineages:
+            identity = directory.stat()
+            parent = directory.parent
+            lineages[directory] = ((identity.st_dev, identity.st_ino),) + (
+                lineage(parent) if parent != directory else ()
+            )
+        return lineages[directory]
+
+    def location(path: Path) -> PathLocation:
+        if path.name in ("", ".", ".."):
+            return path_location(path)
+        try:
+            info = path.lstat()
+        except (FileNotFoundError, NotADirectoryError):
+            return path_location(path)
+        if stat.S_ISLNK(info.st_mode):
+            return path_location(path)
+        parent = resolve_directory(path.parent)
+        return PathLocation(((info.st_dev, info.st_ino),) + lineage(parent), ())
+
+    return [(path, location(path)) for path in paths]
+
+
+def first_overlap(lefts: list, rights: list):
+    """The first `(left, right)` pair of two `located` lists whose locations overlap,
+    in the order a loop over `lefts` holding a loop over `rights` meets them, or None.
+
+    Containment of an existing path is membership of its identity in the other's
+    lineage, so the rights are indexed by identity and by every identity above them,
+    and each left asks the index rather than every right. A right that doesn't exist
+    yet is compared with each left directly."""
+    first_at: dict[tuple, int] = {}
+    first_below: dict[tuple, int] = {}
+    pending = []
+    for index, (_right, at) in enumerate(rights):
+        if at.tail:
+            pending.append(index)
+            continue
+        first_at.setdefault(at.lineage[0], index)
+        for identity in at.lineage:
+            first_below.setdefault(identity, index)
+    for left, left_at in lefts:
+        candidates = [
+            first_at[identity] for identity in left_at.lineage if identity in first_at
+        ]
+        if not left_at.tail and left_at.lineage[0] in first_below:
+            candidates.append(first_below[left_at.lineage[0]])
+        candidates.extend(
+            index for index in pending if locations_overlap(left_at, rights[index][1])
+        )
+        if candidates:
+            return left, rights[min(candidates)][0]
+    return None
 
 
 def path_is_within(path: Path, root: Path) -> bool:

@@ -19,7 +19,8 @@ from render_cases_interaction import (
 from render_harness import (
     LONG_PAGE,
     PANEL,
-    CutOff,
+    PANEL_THREAD,
+    expect_open_threads,
     holding,
     leaf_page,
     open_page,
@@ -41,13 +42,6 @@ from leaf import event_log as events_model
 from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-def expect_open_threads(page, count):
-    """The panel's Threads mark counts `count` open threads."""
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile(rf"^Threads, {count} open\b")
-    )
 
 
 def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser, serve):
@@ -104,7 +98,7 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
             thread.get_by_role(
                 "button", name=optimistic, exact=True, include_hidden=True
             )
-        ).to_have_attribute("aria-busy", "true")
+        ).to_be_attached()
         page.locator("#later").fill("Keep my later focus here.")
         held.pop().continue_()
         round_trip(page)
@@ -112,11 +106,13 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
     page.unroute("**/api/event")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 @pytest.mark.parametrize("existing_neighbors", [False, True])
 def test_inline_retirement_is_resolved_before_its_pixels_finish(
-    browser, serve, existing_neighbors
+    engine, request, serve, existing_neighbors
 ):
-    """The outgoing room is inert; open, undo and refusal interrupt it immediately."""
+    """The outgoing room is inert; open, undo and refusal interrupt it immediately.
+    Firefox, without intrinsic-size interpolation, starts from the same room."""
     url = serve(
         SEATED_OBLIGATION_PAGE.replace(
             "</main>", '<label>Later thought <input id="later"></label></main>'
@@ -146,7 +142,7 @@ def test_inline_retirement_is_resolved_before_its_pixels_finish(
         append_carried_log_record(
             serve.page_dir, {"kind": "resolve", "author": "user", "parent": settled}
         )
-    page = open_page(browser, url)
+    page = open_page(request.getfixturevalue(engine), url)
     page.emulate_media(reduced_motion="no-preference")
     thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
     summary = page.locator("#jobs .lf-resolved-summary")
@@ -201,6 +197,10 @@ def test_inline_retirement_is_resolved_before_its_pixels_finish(
         resolve()
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     expect(thread).not_to_have_attribute("inert", "")
+    # The refusal returns the user to the thread in its seat, not to another surface.
+    page.wait_for_function(
+        "node => node.contains(document.activeElement)", arg=thread.element_handle()
+    )
     expect(
         thread.get_by_role("button", name="Resolve thread", exact=True)
     ).to_be_enabled()
@@ -262,9 +262,6 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(held_events, serv
     expect(thread.locator(".lf-page-thread")).to_be_focused()
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     expect(resolve).to_be_enabled()
-    expect(resolve).not_to_have_attribute("aria-busy", "true")
-    # Its command is live again, so the button says so to the keyboard as well.
-    expect(resolve).not_to_have_attribute("aria-disabled", "true")
     expect(resolve).not_to_have_attribute("aria-keyshortcuts", re.compile(r".*x.*"))
     resolve.focus()
     with page.expect_request("**/api/event"):
@@ -344,10 +341,11 @@ def test_z_leaves_the_user_in_a_seated_thread_they_resolved(browser, serve):
 
 
 @pytest.mark.parametrize("gesture", ["resolve", "reopen"])
-def test_z_opens_no_surface_the_user_closed_after_settling(browser, serve, gesture):
-    """Putting the user back is the settling surface's to do while it stands. With
-    the panel closed since, taking the gesture back changes the thread and nothing
-    else."""
+def test_z_shows_a_settlement_the_user_left_before_taking_it(browser, serve, gesture):
+    """A settlement's landing arms `z` to take it back in one press only until the
+    user acts. With the panel closed since and a press on the page, the thread is
+    out of view like any other gesture's place: the first `z` opens it and takes
+    nothing, and the second takes the gesture back there."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Settle this one, then think better of it.")
     if gesture == "reopen":
@@ -357,16 +355,19 @@ def test_z_opens_no_surface_the_user_closed_after_settling(browser, serve, gestu
     page = open_page(browser, url)
     open_panel_thread(page, root).focus()
     with sending(page, f"the {gesture}"):
-        page.keyboard.press("r" if gesture == "resolve" else "Enter")
+        page.keyboard.press("r")
     round_trip(page)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     page.locator("h1").first.click()
 
+    page.keyboard.press("z")
+    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-thread", root)
+    expect(page.locator(".lf-live")).to_contain_text("Press again to undo")
     undo(page)
     round_trip(page)
     expect_open_threads(page, 1 if gesture == "resolve" else 0)
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-thread", root)
 
 
 def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve):
@@ -486,16 +487,10 @@ def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serv
     ] == [root]
 
 
-def test_a_poll_accounted_settlement_repaints_before_its_post_response(
-    held_events, serve
-):
-    """A poll may prove acceptance while the original POST response remains held.
-
-    The poll paints and accounts the receipt first. Delivery then retires the already
-    accounted ledger entry, which must invalidate the unchanged thread reading;
-    otherwise the settlement control stays busy until an unrelated clock tick or state
-    read.
-    """
+def test_a_settlement_in_flight_leaves_its_opposite_live(held_events, serve):
+    """While a Resolve travels, the Reopen it leaves is live at once: it wears no busy
+    or unavailable face, and a press sends the unresolve after the resolve, as the
+    ledger orders them, rather than being swallowed."""
     browser, held = held_events
     url = serve(SEATED_OBLIGATION_PAGE)
     root = append_carried_log_record(
@@ -505,7 +500,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
             "author": "user",
             "revision": 1,
             "anchor": {"section": "jobs"},
-            "text": "Account this resolution from the complete reading.",
+            "text": "Resolve this and change my mind before the page answers.",
         },
     )["id"]
     page = open_page(browser, url)
@@ -514,27 +509,28 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
 
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Resolve thread", exact=True).click()
-    holding(page, held, 1, "the resolution whose response remains held")
+    holding(page, held, 1, "the resolve")
     page.locator("#jobs .lf-resolved-summary").click()
-    pending = inline.get_by_role("button", name="Reopen", exact=True)
-    expect(pending).to_be_disabled()
-    expect(pending).to_have_attribute("aria-busy", "true")
+    reopen = inline.get_by_role("button", name="Reopen", exact=True)
+    expect(reopen).to_be_enabled()
+    expect(reopen).not_to_have_attribute("aria-busy", "true")
+    reopen.click()
+    resolve = inline.get_by_role("button", name="Resolve thread", exact=True)
+    expect(resolve).to_be_enabled()
+    expect(resolve).not_to_have_attribute("aria-busy", "true")
 
-    # Let exactly the news-triggered state read through. Its receipt accounts the
-    # gesture while the page's original POST still has no response, and refusing later
-    # reads prevents another poll from hiding a missing local invalidation.
-    reads = CutOff(lets_through=1).hold(page)
-    route = held.pop()
-    accepted = route.fetch()
-    told(page)
-    reads.cut()
-    for settled in (inline.get_by_role("button", name="Reopen", exact=True),):
-        expect(settled).to_be_enabled()
-        expect(settled).not_to_have_attribute("aria-busy", "true")
-
-    route.fulfill(response=accepted)
+    with page.expect_request("**/api/event"):
+        held.pop().continue_()
+    holding(page, held, 1, "the unresolve sent after the resolve")
+    held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
+    assert [
+        event["kind"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("parent") == root
+    ] == ["resolve", "unresolve"]
+    expect(resolve).to_be_visible()
 
 
 def test_taking_back_a_resolve_is_the_users_own_gesture(browser, serve):
@@ -592,6 +588,32 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     expect(reply).to_have_js_property("value", "Back to this.")
     expect_open_threads(page, 18)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
+
+
+def test_a_reply_in_a_resolved_thread_reopens_it(browser, serve):
+    """A resolved thread opened in the floating panel keeps its reply box, and the
+    user's reply there reopens the thread, with no Reopen first."""
+    url = serve(LONG_PAGE, comments=1)
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+    )
+    page = open_page(browser, url)
+    expect_open_threads(page, 0)
+    open_panel_thread(page, root)
+    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
+    reply = page.locator(PANEL_REPLY)
+    reply.click()
+    page.keyboard.type("One more thing.")
+    with sending(page, "the reply"):
+        page.keyboard.press("Enter")
+    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
+    expect_open_threads(page, 1)
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "reply"
 
 
 def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
@@ -671,7 +693,7 @@ def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
         expect(card.locator(f'.lf-page-thread[data-thread="{root}"]')).to_be_visible()
 
     arrive()
-    page.locator(".lf-fp-threads").focus()
+    page.locator(".lf-fp-on-user").focus()
     page.keyboard.press("r")
     rendered(page)
     expect(card).to_be_visible()

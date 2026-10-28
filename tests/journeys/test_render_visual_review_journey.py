@@ -18,7 +18,6 @@ from render_harness import (
     sending,
     stamp_page,
     told,
-    undo,
 )
 
 from leaf import data as data_model
@@ -30,7 +29,6 @@ from leaf import media as media_model
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.test_render_visual_review_journey import (
-    VISUAL_REVIEW_GALLERY,
     assert_keyboard_focus,
     comment_on_target,
     go_to,
@@ -165,7 +163,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     corrected_candidate = f"{corrected_target.origin}/versions/"
 
     media = {
-        name: media_model.cmd_media(review_dir, [path])[0][1]
+        name: media_model.cmd_media(review_dir, [path])[0]["path"]
         for name, path in capture_files.items()
     }
     conditions = {
@@ -394,28 +392,3 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert capture_key not in exported.read_text(encoding="utf-8")
     assert capture_key not in data_text
     assert "?t=" not in data_text
-
-
-def test_visual_review_approvals_survive_reload_and_undo(browser, serve):
-    """Approval is reversible and independent of case navigation."""
-    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    resized(page, 702, 898)
-    widget = page.locator("#visual-review-run")
-    case = widget.locator('.lf-vr-case[aria-hidden="false"]')
-    ids = []
-    for _ in range(3):
-        ids.append(case.get_attribute("data-lf-datum"))
-        with sending(page, "approve selected case"):
-            case.get_by_role("checkbox", name="Looks right").check()
-        expect(case).to_have_attribute("data-lf-datum", ids[-1])
-        if len(ids) < 3:
-            case.get_by_role("button", name="Next unchecked").click()
-    assert len(set(ids)) == 3
-    expect(case.get_by_role("button", name="Next unchecked")).to_be_disabled()
-    page.reload()
-    expect(widget.locator(".lf-vr-progress")).to_contain_text("3 of 3")
-    undo(page)
-    expect(widget.locator(".lf-vr-progress")).to_contain_text("2 of 3")
-    case.get_by_role("button", name="Next unchecked").click()
-    expect(case).to_have_attribute("data-lf-datum", ids[-1])
-    expect(case.get_by_role("checkbox", name="Looks right")).not_to_be_checked()

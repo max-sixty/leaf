@@ -65,29 +65,29 @@ reading takes longer than 100 ms, make that path faster.
 
 ### Pages across Leaf updates
 
-A page keeps the layer (registry, theme, widgets and package modules) that
-`leaf page init` vendored into it, and runs the runtime of the Leaf that serves,
-checks or exports it. A change crosses that gap in one of two ways.
+A page records its authored content, its log and the packages it selects. The Leaf
+that serves, checks or exports it supplies everything else: the runtime, and the
+layer (registry, theme, widgets and package modules) it composes from the page's
+selection. So what changes with Leaf ships together, and what crosses the gap
+between Leaf versions is only what a page keeps: its event log and the records kept
+outside it.
 
 - **A protocol bump** changes the kernel registry's `$events.protocol`, and every
-  page vendored at another number is refused until it is re-vendored, which the
-  session holding the page does itself on its first command or hook naming the
-  page. Bump it for any change an earlier page would break on: to the event
-  log, what a page sends, its vendored declarations, the public package API
-  (`widget-api.js` and what its readers return) or a record kept outside a page.
-  The served state isn't among them, since the Leaf serving a page also supplies
-  the runtime that reads it. It is Leaf's only version, so a
-  record kept outside a page, such as a browser draft, carries the protocol at
-  which its own shape last changed (`layer-registry.md`, "Page protocol", owns
-  the rules).
-  Bumps are rare, perhaps one in five hundred commits. Once Leaf is released,
-  only a bump may break an existing page.
-- **Drift** may break an older page without a bump while Leaf is in alpha, as
-  when a vendored package widget relies on runtime behavior an update changed. Leaf
-  doesn't detect drift by comparing a page's files with its own, since nearly
-  every update would then force a rebuild. Instead the Leaf panel's menu and
-  `page check` name the Leaf that vendored the page beside the one serving or checking it,
-  with dates, and the agent re-vendors a much older page that misbehaves.
+  page at another number is refused until the session holding it takes it to the
+  new number, which it does itself on its first command or hook naming the page.
+  Bump it only for a change a Leaf at the same number would misread in the log or
+  in a record kept outside a page. A change to the runtime, the served state, the
+  bundled widgets and their registry entries, the theme or the public package API
+  (`widget-api.js` and its portable part `portable-api.js`) never bumps it. It is
+  Leaf's only version, so a record kept outside a page, such as a browser draft,
+  carries the protocol at which its own shape last changed (`layer-registry.md`,
+  "Page protocol", owns the rules). Bumps are rare, perhaps one in five hundred
+  commits. Once Leaf is released, only a bump may break an existing page.
+- **A page's own code**, its widgets and scripts, and an installed package's
+  modules call the public package API across Leaf versions. While Leaf is in alpha
+  an update may change that API without a bump, since a bump would not repair code
+  Leaf doesn't compose; `page check --render` and `package check --render` report a
+  module it breaks, and the agent fixes it as any other check failure.
 
 ## Fix the underlying issue
 
@@ -131,8 +131,8 @@ browser assets and the packages into a page's layer.
 
 - `bin/leaf`, `pyproject.toml`, `uv.lock`: the launcher and its uv project.
 - `src/leaf/`: the CLI, server and event model (`src/AGENTS.md`).
-- `browser/`: the browser runtime, registry and theme, with the framework's
-  TypeScript under `browser/framework/`
+- `browser/`: the browser runtime, registry and theme, with the type check's
+  configuration and declarations under `browser/types/`
   (`browser/AGENTS.md`; `browser/runtime/keyboard/AGENTS.md`
   for commands, bindings and scopes).
 - `packages/`: the bundled packages (`packages/AGENTS.md`).
@@ -148,7 +148,7 @@ browser assets and the packages into a page's layer.
   (`tests/AGENTS.md`).
 - `build/`: the build of every generated browser file (`build/AGENTS.md`). A
   `vendor/` directory, such as `browser/vendor/`, holds generated browser
-  modules, the framework's compiled ones included, not only third-party code.
+  modules, not only third-party code.
 - `dist/kernel/`: the compiled core runtime pages run, generated and
   committed; it is a delivery form of the runtime, not a skill or an
   installation root.
@@ -157,9 +157,13 @@ browser assets and the packages into a page's layer.
 - `worker/`: the Cloudflare Worker and containers behind <https://leaf.page/>
   (`worker/README.md`).
 - `docs/`: the site's own pages, each a Leaf source.
-- `TODO.md`: the ordered priority list.
-- `notes/`: research and plans for unresolved work. When a design lands, its
-  contract moves beside the code or into a reference and the note is deleted.
+- `TODO.md`: the biggest current challenges, and how to query the backlog, the
+  GitHub issues labelled `backlog`.
+- `notes/`: what the code doesn't hold yet: research, and plans for large work in
+  progress or a design not yet built. Work built on a branch keeps its contract in
+  its code, and a page that shows it to the user is a preview of a file in `.tmp/`.
+  When a design lands, its contract moves beside the code or into a reference and
+  the note is deleted.
 
 Load `/developing-leaf` for any work whose subject is Leaf itself, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
@@ -341,8 +345,9 @@ through: each takes minutes to over an hour and slows every session on the host.
 Before widening your selection or its parallelism, check CPU, memory pressure and
 other running suites, and on a busy host keep to focused checks.
 
-The TypeScript in `worker/src/` and `browser/framework/`, and the lock every committed
-bundle is built from, have gates the suite and pre-commit don't reach.
+The TypeScript in `worker/src/`, the browser runtime's type check
+(`browser/types/`), and the lock every committed bundle is built from, have gates
+the suite and pre-commit don't reach.
 `pnpm run check` runs them, and both
 landing paths run them too. The website's delivery checks (the site build, the
 Worker's dry-run deploy, `leaf-dev verify-site website-worker`) run on a pull

@@ -59,7 +59,7 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
     ]
 
 
-def test_check_requires_the_vendored_layer(tmp_path):
+def test_check_requires_an_initialized_page(tmp_path):
     d = tmp_path / "bare"
     d.mkdir(parents=True)
     (d / "index.html").write_text(PAGE)
@@ -331,7 +331,7 @@ def sample_holder_findings(page_dir, holder, source) -> list[Finding]:
         return findings
     published(page_dir)
     return command_findings(
-        "thread", "open", str(page_dir), "--text", "Try it:", "--markup", source
+        "thread", "create", str(page_dir), "--text", "Try it:", "--markup", source
     )
 
 

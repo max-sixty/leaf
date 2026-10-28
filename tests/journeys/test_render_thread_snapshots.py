@@ -24,7 +24,7 @@ from leaf.served_state import context as served_context
 # Paused except for `leaf-dev thread-snapshots capture`, which runs it with updating on.
 @pytest.mark.skipif(
     "not config.getoption('image_snapshot_update')",
-    reason="paused: TODO.md, Resume the thread appearance gate",
+    reason="paused: issue #4046, Resume the thread appearance gate",
 )
 @pytest.mark.parametrize(
     "case",

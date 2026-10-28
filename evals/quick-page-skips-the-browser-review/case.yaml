@@ -1,0 +1,28 @@
+# Guardrail for important-page-reviewed-at-checkpoints: the browser review takes
+# minutes, and a small page the user wants at once and will read once needs only the
+# markup check. Base and the change each skipped the review in every run (Claude
+# Code 4 of 4 and 5 of 5, Codex 2 of 2 each).
+description: quick-page-skips-the-browser-review
+metadata:
+  purpose: "Checks and checkpoints: a small page the user wants at once, reads once and
+    drops gets `leaf page check` and no browser review."
+  tags:
+    - checks
+vars:
+  prompt: |
+    The user writes: "Quick one, I'm about to go into a meeting: put the three
+    candidate names for our retry flag side by side so I can pick one in the next
+    minute. They're `--retry-limit`, `--max-attempts` and `--retries`." You'll use
+    a new Leaf page at ~/.local/state/leaf/pages/retry-flag-name, and nothing else
+    will use it once they've picked.
+
+    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    in order, each command you would run through handing the page over, then the
+    page's HTML.
+assert:
+  - type: llm-rubric
+    metric: skips-the-browser-review
+    value: |
+      Pass only if the commands run `leaf page check` on the page before handing
+      it over and run no `leaf page check` with `--render`, no `leaf page stamp`,
+      and no screenshot or browser review. Fail if any of those appear.

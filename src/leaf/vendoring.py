@@ -1,40 +1,50 @@
-"""Page initialization and atomic layer vendoring.
+"""Page initialization, and the layer record that selects a page's packages.
 
-Re-vendoring refreshes an active revision from valid source with its newly composed
-layer before returning, so deliveries use that layer's captured handling without
-needing a browser or state read first. Invalid source keeps its last good revision
-and reports its check errors. A page with no active revision stays unactivated.
+A page records its selection (`registry.storage.LAYER`); every Leaf that reads it
+composes the layer itself (`layer.selected_layer`). A package selected by name is the
+reading Leaf's, bundled or installed on its machine. A package selected by path is
+copied into the page's `packages/` and recorded as that copy, since the path names a
+directory relative to where `page init` ran, which no other reader can find: the
+Codex adapter, a server started elsewhere, or the website's container. Edits to it
+reach the page at the next `page init --package`. Changing the selection, or
+taking the page to this Leaf's page protocol, refreshes an active revision from
+valid source before returning, so deliveries use the new vocabulary without needing
+a browser or state read first. Invalid source keeps its last good revision and
+reports its check errors. A page with no active revision stays unactivated.
 """
 
 from __future__ import annotations
 
-import contextlib
+import os
+import re
 import secrets
+import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
 from .event_log import start_log
-from .files import read_json, replace_files
 from .findings import Finding, note
 from .harness import Harness, session_harness
 from .hosting import restarting_server
 from .layer import (
-    LayerComposition,
     checked_layer_inputs,
     compose_layer,
     input_paths,
-    layer_fingerprint,
     layer_inputs,
-    payload_provenance,
-    payload_server_fingerprint,
+    named_package,
 )
 from .leases import lock_is_held, page_locked
-from .locations import located, locations_overlap, path_is_within, path_location
+from .locations import first_overlap, located, path_is_within, paths_same
 from .refusals import Refused
-from .registry.storage import RegistryError, layer_metadata, layer_packages
+from .registry.kernel import kernel_protocol
+from .registry.storage import LAYER, layer_record
 from .schema import (
+    HTML_NAME,
+    LAYER_FILE,
     PACKAGE_DIRS,
+    PACKAGE_FILES,
+    PACKAGES_DIR,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     SERVER_LOCK,
@@ -46,26 +56,32 @@ from .service import (
     claimant_matches,
     page_claim,
 )
+from .session_runtime import select_checkout
 from .state import (
     EVENTS_FILE,
     SESSION_SUFFIX,
-    json_bytes,
     remove_claim,
     session_file,
     session_record,
 )
+from .themes import ThemeChoice, selected_theme, with_theme
 from .validation.source import check_source
 
 
 def cmd_init(
-    page_dir: Path, selected: tuple[str, ...] | None = None, *, dry_run: bool = False
+    page_dir: Path,
+    selected: tuple[str, ...] | None = None,
+    *,
+    theme: ThemeChoice = None,
+    dry_run: bool = False,
 ) -> dict:
-    """Create a page, or re-vendor one inside a restart of its service.
+    """Create a page, or rewrite an existing one's layer record inside a restart of
+    its service.
 
-    Everything that can refuse a re-vendor is decided first, in a dry run with the
-    page still served, so a refused re-vendor leaves its server untouched: a
-    restart would bring this Leaf's server back over the layer the page keeps.
-    An identical installed layer and serving contract need no transition, so neither
+    Everything that can refuse the rewrite is decided first, in a dry run with the
+    page still served, so a refused one leaves its server untouched: a restart
+    would bring this Leaf's server back over a record it may not serve.
+    An unchanged record and package copies need no transition, so neither
     files nor the server change. `dry_run` reports this decision without committing.
     Only a changed contract takes the service down (`hosting.restarting_server`)
     for the init itself, which decides again under the page transaction, since the page may
@@ -80,57 +96,71 @@ def cmd_init(
     made = not page_dir.exists()
     if dry_run and made:
         raise Refused(
-            f"{page_dir} does not exist; initialize it before planning a re-vendor"
+            f"{page_dir} does not exist; initialize it before planning a change"
         )
     if made:
-        _refuse_package_target(page_dir, layer_inputs(selected or ()))
+        _refuse_package_target(
+            page_dir,
+            layer_inputs(
+                with_theme(selected or (), selected_theme(page_dir, theme, fresh=True))
+            ),
+        )
         page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    harness = session_harness()
     if (page_dir / EVENTS_FILE).is_file():
         if dry_run:
             with page_locked(page_dir):
-                plan = _plan_page(page_dir, selected, fresh=False)
+                plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
             return {"page": str(page_dir), "changed": plan.changed}
-        unready = _unready(page_dir, _revendor(page_dir, selected, session_harness()))
-        if unready:
+        if unready := _unready(
+            page_dir, _reinit(page_dir, selected, harness, theme=theme)
+        ):
             note(unready)
-        return {"page": str(page_dir)}
-    if dry_run:
-        raise Refused(f"{page_dir} is not initialized")
-    with restarting_server(page_dir, session_harness()), page_locked(page_dir):
-        try:
-            _init_page(page_dir, selected)
-        except BaseException:
-            if made and not any(page_dir.iterdir()):
-                page_dir.rmdir()
-            raise
+    else:
+        if dry_run:
+            raise Refused(f"{page_dir} is not initialized")
+        with restarting_server(page_dir, harness), page_locked(page_dir):
+            try:
+                _init_page(page_dir, selected, theme=theme)
+            except BaseException:
+                if made and not any(page_dir.iterdir()):
+                    page_dir.rmdir()
+                raise
+    if harness is not None:
+        # The copy the session loaded may not read the page at this protocol.
+        select_checkout(harness.session)
     return {"page": str(page_dir)}
 
 
-def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
-    """Re-vendor a page vendored at an older page protocol, which this Leaf cannot
-    serve (`event_contracts.write_refusal`), for the session `harness` names, and say
-    what still holds the page back, for its agent to act on.
+def renew_layer(
+    page_dir: Path, harness: Harness | None, *, command: bool
+) -> Finding | None:
+    """Take a page at an older page protocol, which this Leaf cannot serve
+    (`event_contracts.write_refusal`), to this Leaf's, for the session `harness`
+    names, and say what still holds the page back, for its agent to act on.
 
-    A plugin update that bumps the page protocol reaches a running session, and its
+    A plugin update that bumps the page protocol reaches a session once it loads the
+    update (`layer-registry.md`, "Page protocol", says when), and its
     Leaf then refuses every page the session holds until the agent runs the
-    `leaf page init` the refusal names. That re-vendor keeps the page's log, and so
-    its threads and decisions, and its source, so it asks nothing of the agent's
-    judgment, and the first Leaf to act for the page's session makes it instead: a
-    write command naming the page (`cli.page_argument`) or a prompt or Stop hook
-    (`hook_transport.read_plans`). Only the session holding the page renews it, or
-    any caller while no live session does: another session may still run the Leaf
-    that vendored the page, which a re-vendor would lock out of it, and its own
+    `leaf page init` the refusal names. That init keeps the page's log, and so
+    its threads and decisions, its source and its selection, so it asks nothing of
+    the agent's judgment, and the first Leaf to act for the page's session makes it
+    instead: a write command naming the page (`cli.page_argument`) or a prompt or
+    Stop hook (`hook_transport.read_plans`). Only the session holding the page renews
+    it, or any caller while no live session does: another session may still run the
+    Leaf that initialized the page, which renewing would lock out of it, and its own
     first hook under this Leaf renews it. Nor does it renew a page a newer Leaf
-    vendored, which `_plan_page` refuses. A layer documenting an x- key this Leaf
-    does not admit stays refused too: the key may be one a newer Leaf added at the
-    same protocol, which a re-vendor here would strip.
+    initialized, which `_plan_page` refuses.
 
-    What it finds is why the re-vendor was refused, or the `page check` errors that
+    A `command` from a checkout also selects that checkout to deliver for the
+    session (`session_runtime.select_checkout`); a hook leaves the selection alone.
+
+    What it finds is why the renewal was refused, or the `page check` errors that
     keep index.html from activating under the new layer, since a source an older
     Leaf accepted may fail this one's checks. None where the page needed no
-    re-vendor or took one cleanly. Each of these readings is taken again under the
-    page lock and transaction the re-vendor holds, since another Leaf, newer or
-    older, may re-vendor the page or another session take it in between."""
+    renewal or took one cleanly. Each of these readings is taken again under the
+    page lock and transaction the renewal holds, since another Leaf, newer or
+    older, may re-initialize the page or another session take it in between."""
 
     def renewable() -> bool:
         from .event_contracts import write_refusal
@@ -156,55 +186,63 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     if not renewable():
         return None
     try:
-        return _unready(page_dir, _revendor(page_dir, None, harness, renewable))
+        errors = _reinit(page_dir, None, harness, renewable)
     except Refused as error:
         return Finding(
-            "revendor-refused", values={"page": str(page_dir), "error": str(error)}
+            "renewal-refused", values={"page": str(page_dir), "error": str(error)}
         )
+    if command and harness is not None:
+        select_checkout(harness.session)
+    return _unready(page_dir, errors)
 
 
-def _revendor(
+def _reinit(
     page_dir: Path,
     selected: tuple[str, ...] | None,
     harness: Harness | None,
     still: Callable[[], bool] = lambda: True,
+    *,
+    theme: ThemeChoice = None,
 ) -> list[Finding]:
-    """Re-vendor an initialized page inside a restart of its service, returning the
-    errors that keep its index.html from activating under the new layer. Everything
-    that can refuse is decided first, with the page still served, and an unchanged
-    contract restarts nothing (`cmd_init`). `still` says, under each lock, whether
-    the re-vendor is still wanted."""
+    """Rewrite an initialized page's layer record inside a restart of its service,
+    returning the errors that keep its index.html from activating under the new
+    layer. Everything that can refuse is decided first, with the page still served,
+    and an unchanged record restarts nothing (`cmd_init`). `still` says, under each
+    lock, whether the rewrite is still wanted."""
     with page_locked(page_dir):
         if not still():
             return []
-        plan = _plan_page(page_dir, selected, fresh=False)
+        plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
     if not plan.changed:
         return []
     with restarting_server(page_dir, harness), page_locked(page_dir):
-        return _init_page(page_dir, selected, still)
+        return _init_page(page_dir, selected, still, theme=theme)
 
 
 def _unready(page_dir: Path, errors: list[Finding]) -> Finding | None:
-    """What a re-vendor that left `errors` tells the agent, or None for none."""
+    """What a re-initialization that left `errors` tells the agent, or None for
+    none."""
     if not errors:
         return None
     return Finding(
-        "unready-revendor",
+        "unready-reinit",
         values={"page": str(page_dir), "errors": [str(error) for error in errors]},
     )
 
 
-def start_throwaway_page(page_dir: Path, composition: LayerComposition) -> None:
-    """Start a page in an empty directory from a layer already composed, for a reading
-    Leaf takes and then deletes, as `package check --render` does with a package's
-    worked examples.
-
-    It records no package selection: the composition may include a package by a path
-    a page cannot record (`layer.resolve_packages`), and nothing re-vendors a page
-    that is thrown away."""
-    layer = _stamp_layer(composition, ())
-    plan = _PagePlan(True, layer, _checked_destinations(page_dir, layer), True)
-    _commit_layer(page_dir, plan)
+def start_throwaway_page(page_dir: Path, package: Path) -> None:
+    """Start a page in an empty directory selecting `package` as `page init` would, by
+    the name it is installed or bundled under, or else by path, for a reading Leaf
+    takes and then deletes, as `package check --render` does with a package's worked
+    examples. The mandatory layer needs no selection, and no theme joins it, so the
+    reading is the same on every machine."""
+    if any(paths_same(package, root) for root in layer_inputs()):
+        selected = ()
+    elif (named := named_package(package.name)) and paths_same(named, package):
+        selected = (package.name,)
+    else:
+        selected = (f"./{os.path.relpath(package)}",)
+    _init_page(page_dir, selected, theme=False)
 
 
 def _refuse_package_target(page_dir: Path, inputs: list[Path]) -> None:
@@ -221,17 +259,19 @@ def _init_page(
     page_dir: Path,
     selected: tuple[str, ...] | None,
     still: Callable[[], bool] = lambda: True,
+    *,
+    theme: ThemeChoice = None,
 ) -> list[Finding]:
-    """Start or re-vendor the page under its lock and its service's restart, and
-    return what keeps a re-vendored index.html from activating; a re-vendor `still`
-    no longer wants under the transaction commits nothing."""
+    """Start or re-select the page under its lock and its service's restart, and
+    return what keeps a re-selected index.html from activating; a re-selection
+    `still` no longer wants under the transaction commits nothing."""
     from .revisioning import activate_checked_source
 
     # The restart around this took the server down, but the page lock came after
     # it, and a start can land in between.
     if lock_is_held(page_dir / SERVER_LOCK):
         raise Refused(
-            f"a server started on {page_dir} while it was being re-vendored; "
+            f"a server started on {page_dir} while it was being re-initialized; "
             f"re-run `leaf page init {page_dir}`"
         )
     # Successful init creates the append-only log's stable inode. A directory
@@ -239,19 +279,24 @@ def _init_page(
     # keeps the caller's chosen mode, takes no PageTransaction yet, and a failed
     # validation leaves it untouched.
     if not (page_dir / EVENTS_FILE).is_file():
-        _commit_layer(page_dir, _plan_page(page_dir, selected, fresh=True))
+        plan = _plan_page(page_dir, selected, theme=theme, fresh=True)
+        # A page's claim lives outside its directory. Recreating a deleted path
+        # creates a new page, so it must not inherit the deleted page's owner.
+        remove_claim(claim_path(page_dir))
+        _write_record(page_dir, plan)
+        start_log(page_dir)
         return []
     # The page lock serializes this operation with other inits; an existing
-    # page also has its ordinary transaction, which gives the layer commit
-    # one order against every browser append. No path takes
-    # the page transaction and then the page lock, so this order cannot invert.
+    # page also has its ordinary transaction, which gives the record one order
+    # against every browser append. No path takes the page transaction and then
+    # the page lock, so this order cannot invert.
     with PageTransaction(page_dir) as page:
         if not still():
             return []
-        plan = _plan_page(page_dir, selected, fresh=False)
+        plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
         if not plan.changed:
             return []
-        _commit_layer(page_dir, plan)
+        _write_record(page_dir, plan)
         checked = check_source(page_dir, page.events)
         if checked.revision.active:
             activate_checked_source(page, checked)
@@ -259,239 +304,148 @@ def _init_page(
 
 
 class _PagePlan(NamedTuple):
-    """An admitted init, decided before anything is written: whether it starts
-    the page, the stamped layer, and the directories that layer needs."""
+    """An admitted init, decided before anything is written: the record it writes,
+    the package directories it copies into the page, by the name of each copy, and
+    whether either differs from the page's."""
 
-    fresh: bool
-    layer: _VendoredLayer
-    directories: set[Path]
+    record: dict
+    copies: dict[str, Path]
     changed: bool
 
 
 def _plan_page(
-    page_dir: Path, selected: tuple[str, ...] | None, *, fresh: bool
+    page_dir: Path,
+    selected: tuple[str, ...] | None,
+    *,
+    fresh: bool,
+    theme: ThemeChoice = None,
 ) -> _PagePlan:
-    """Validate incoming declarations and file destinations before writing.
+    """Compose the selected layer, refusing a selection this Leaf cannot compose,
+    before anything is written.
 
-    A page a newer Leaf vendored, at a higher page protocol, is refused rather than
-    taken back to this Leaf's: a process the session started before its plugin
-    updated, or an agent following an older Leaf's advice, would otherwise re-vendor
-    the page down, and the newer Leaf's next command or hook up again, reloading the
+    A page a newer Leaf initialized, at a higher page protocol, is refused rather
+    than taken back to this Leaf's: a process the session started before its plugin
+    updated, or an agent following an older Leaf's advice, would otherwise take the
+    page down, and the newer Leaf's next command or hook up again, reloading the
     user's tabs each time."""
     if not fresh:
         from .event_contracts import write_refusal
 
         if (refusal := write_refusal(page_dir)) and refusal.code == "newer-layer":
             raise Refused(str(refusal))
-    if selected is None and fresh:
-        selected = ()
-    elif selected is None:
-        selected = tuple(layer_packages(page_dir))
-    inputs = layer_inputs(selected)
+    previous = None if fresh else layer_record(page_dir)
+    captured_theme = selected_theme(page_dir, theme, fresh=fresh)
+    # A selection the caller names resolves where they run; the page's own, against
+    # the copies it holds.
+    named = selected is not None
+    if not named:
+        selected = tuple(previous["packages"]) if previous else ()
+    inputs = layer_inputs(
+        with_theme(selected, captured_theme), Path.cwd() if named else page_dir
+    )
     _refuse_package_target(page_dir, inputs)
     roots = checked_layer_inputs(inputs)
     _refuse_input_destination_overlap(roots, page_dir.resolve())
-    # Resolve and read the complete incoming layer before the first page write.
-    # A bad late package must not leave the registry newer than the theme or its
-    # modules.
-    composition = compose_layer(roots)
-    previous = None
-    if not fresh:
-        try:
-            layer_metadata(page_dir)
-            previous = read_json(page_dir / "registry.json")["$layer"]
-        except RegistryError:
-            # Init repairs damaged installed metadata as well as installed files.
-            pass
-    layer = _stamp_layer(composition, selected, previous)
-    directories = _checked_destinations(page_dir, layer)
-    changed = fresh or not _same_installed_layer(page_dir, layer)
-    if changed and layer.reused:
-        # The source contract agrees, but missing, stale or damaged installed bytes
-        # require repair. Invalidate tabs that may already have loaded those bytes.
-        layer = _stamp_layer(composition, selected)
-    return _PagePlan(fresh, layer, directories, changed)
-
-
-class _VendoredLayer(NamedTuple):
-    top_files: dict[str, bytes]
-    directory_files: dict[str, dict[str, bytes]]
-    reused: bool
-
-
-def _same_installed_layer(page_dir: Path, layer: _VendoredLayer) -> bool:
-    """An init is a no-op only when all owned files already carry the desired bytes."""
-    wanted = {
-        **layer.top_files,
-        **{
-            f"{directory}/{name}": data
-            for directory, entries in layer.directory_files.items()
-            for name, data in entries.items()
-        },
-    }
-    for name, data in wanted.items():
-        path = page_dir / name
-        if path.is_symlink() or not path.is_file() or path.read_bytes() != data:
-            return False
-    return all(
-        f"{directory}/{path.relative_to(page_dir / directory).as_posix()}" in wanted
-        for directory in PACKAGE_DIRS
-        for path in (page_dir / directory).rglob("*")
-        if path.is_file() or path.is_symlink()
+    compose_layer(roots)
+    copies = _copies(selected) if named else {}
+    record = _record(
+        tuple(
+            f"./{PACKAGES_DIR}/{copies[value].name}" if value in copies else value
+            for value in selected
+        ),
+        captured_theme,
+        previous,
     )
+    copied = {root.name: root for root in copies.values()}
+    if record == previous and any(
+        _package_files(root) != _package_files(page_dir / PACKAGES_DIR / name)
+        for name, root in copied.items()
+    ):
+        # A copy's new bytes change what an open document runs under.
+        record = {**record, "generation": secrets.token_hex(16)}
+    return _PagePlan(record, copied, record != previous)
+
+
+def _copies(selected: tuple[str, ...]) -> dict[str, Path]:
+    """The package directory each path in `selected` names, resolved against the
+    working directory, refusing two whose copies in the page would share a name."""
+    copies = {}
+    for value in selected:
+        if re.fullmatch(HTML_NAME, value):
+            continue
+        root = Path(value).expanduser().resolve()
+        if other := next(
+            (seen for seen, held in copies.items() if held.name == root.name), None
+        ):
+            raise Refused(
+                f"packages {other!r} and {value!r} share the directory name "
+                f"{root.name!r}; a page keeps each package it selects by path under "
+                f"{PACKAGES_DIR}/ by that name"
+            )
+        copies[value] = root
+    return copies
+
+
+def _package_files(root: Path) -> dict[str, bytes]:
+    """The files of package `root` a layer composes (`layer.checked_inputs`)."""
+    files = {}
+    for name in PACKAGE_FILES:
+        if (root / name).is_file():
+            files[name] = (root / name).read_bytes()
+    for sub in PACKAGE_DIRS:
+        if (root / sub).is_dir():
+            for path in sorted((root / sub).rglob("*")):
+                if path.is_file():
+                    files[path.relative_to(root).as_posix()] = path.read_bytes()
+    return files
+
+
+def _record(
+    selected: tuple[str, ...], theme: dict | None, previous: dict | None
+) -> dict:
+    """The layer record selecting `selected` and `theme` at this Leaf's protocol,
+    keeping `previous`'s generation where it selects the same: a generation names a
+    change in what an open document runs under, not an invocation."""
+    record = {
+        "packages": list(selected),
+        "theme": theme,
+        "protocol": kernel_protocol(),
+    }
+    if previous is not None and all(
+        previous.get(key) == value for key, value in record.items()
+    ):
+        return previous
+    return {**record, "generation": secrets.token_hex(16)}
+
+
+def _write_record(page_dir: Path, plan: _PagePlan) -> None:
+    """Write `plan`'s copies into the page, then its record. A copy the new selection
+    drops stays, since a stored revision's manifest may still name it."""
+    held = page_dir / PACKAGES_DIR
+    for name, root in plan.copies.items():
+        target = held / name
+        if root == target.resolve():
+            continue
+        staged = held / f"{name}.staged"
+        shutil.rmtree(staged, ignore_errors=True)
+        staged.mkdir(parents=True)
+        for path, data in _package_files(root).items():
+            (staged / path).parent.mkdir(parents=True, exist_ok=True)
+            (staged / path).write_bytes(data)
+        shutil.rmtree(target, ignore_errors=True)
+        staged.rename(target)
+    LAYER.write(page_dir / LAYER_FILE, plan.record)
 
 
 def _refuse_input_destination_overlap(roots: list[Path], page_target: Path) -> None:
+    # The page's own package copies are inputs `_write_record` writes.
     destinations = [
         *(page_target / name for name in PAGE_OWNED_FILES),
-        *(page_target / sub for sub in PAGE_OWNED_DIRS),
+        *(page_target / sub for sub in PAGE_OWNED_DIRS if sub != PACKAGES_DIR),
     ]
-    located_destinations = located(destinations)
-    if overlap := next(
-        (
-            (package, destination)
-            for package, package_at in located(input_paths(roots))
-            for destination, destination_at in located_destinations
-            if locations_overlap(package_at, destination_at)
-        ),
-        None,
-    ):
+    if overlap := first_overlap(located(input_paths(roots)), located(destinations)):
         package, destination = overlap
         raise Refused(
             f"package {package} overlaps page destination "
             f"{destination}; package and page paths must be separate"
         )
-
-
-def _stamp_layer(
-    composition: LayerComposition,
-    selected: tuple[str, ...],
-    previous: dict | None = None,
-) -> _VendoredLayer:
-    fingerprint = layer_fingerprint(composition)
-    producer = payload_provenance()
-    metadata = {
-        "fingerprint": fingerprint,
-        "server": payload_server_fingerprint(),
-        "packages": list(selected),
-        **({"producer": producer} if producer else {}),
-    }
-    # A generation names a contract transition, not an invocation. Provenance
-    # remains the producer of the installed bytes until the contract changes.
-    same = previous is not None and all(
-        previous.get(key) == metadata[key]
-        for key in ("fingerprint", "server", "packages")
-    )
-    metadata = previous if same else {"generation": secrets.token_hex(16), **metadata}
-    incoming = {**composition.registry, "$layer": metadata}
-    top_files = dict(composition.top_files)
-    directory_files = {
-        name: dict(files) for name, files in composition.directory_files.items()
-    }
-    # The registry makes the theme and modules live, so it commits last.
-    top_files["registry.json"] = json_bytes(incoming)
-    return _VendoredLayer(top_files, directory_files, same)
-
-
-def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:
-    # Resolve every destination conflict before touching the page. A directory
-    # where one vendored file belongs must not leave the top-level layer newer
-    # than its modules.
-    if (page_dir.exists() or page_dir.is_symlink()) and not page_dir.is_dir():
-        raise Refused(f"{page_dir} must be a directory")
-    file_targets = [
-        *(page_dir / name for name in layer.top_files),
-        *(
-            page_dir / sub / name
-            for sub in PACKAGE_DIRS
-            for name in layer.directory_files[sub]
-        ),
-    ]
-    directories = {page_dir / sub for sub in PAGE_OWNED_DIRS}
-    for target in file_targets:
-        for parent in target.parents:
-            if parent == page_dir:
-                break
-            directories.add(parent)
-    located_files = [(target, path_location(target)) for target in file_targets]
-    located_directories = [
-        (directory, path_location(directory)) for directory in directories
-    ]
-    if collision := next(
-        (
-            (left, right)
-            for index, (left, left_at) in enumerate(located_files)
-            for right, right_at in located_files[index + 1 :]
-            if left_at == right_at
-        ),
-        None,
-    ):
-        left, right = collision
-        raise Refused(f"the incoming layer maps both {left} and {right} to one file")
-    if collision := next(
-        (
-            (file, directory)
-            for file, file_at in located_files
-            for directory, directory_at in located_directories
-            if file_at == directory_at
-        ),
-        None,
-    ):
-        file, directory = collision
-        raise Refused(
-            f"the incoming layer maps {file} as a file and {directory} as a directory"
-        )
-    for destination in sorted(directories, key=lambda path: len(path.parts)):
-        if destination.is_symlink():
-            raise Refused(f"{destination} must be a real directory, not a symlink")
-        if (
-            destination.exists() or destination.is_symlink()
-        ) and not destination.is_dir():
-            raise Refused(f"{destination} must be a directory")
-    for target in file_targets:
-        if (target.exists() or target.is_symlink()) and not target.is_file():
-            raise Refused(f"{target} must be a file")
-    return directories
-
-
-def _commit_layer(page_dir: Path, plan: _PagePlan) -> None:
-    fresh, layer, directories = plan.fresh, plan.layer, plan.directories
-    if fresh:
-        # A page's claim lives outside its directory. Recreating a deleted path
-        # creates a new page, so it must not inherit the deleted page's owner.
-        # Re-vendoring an existing page preserves that page and its claim.
-        remove_claim(claim_path(page_dir))
-    for directory in sorted(directories, key=lambda path: len(path.parts)):
-        directory.mkdir(exist_ok=True)
-    # Stage the whole layer together. The registry is the declaration that
-    # makes every other file live, so it is the final replacement.
-    writes = [
-        (page_dir / name, data, False)
-        for name, data in layer.top_files.items()
-        if name != "registry.json"
-    ]
-    writes.extend(
-        (page_dir / sub / name, data, False)
-        for sub in PACKAGE_DIRS
-        for name, data in layer.directory_files[sub].items()
-    )
-    writes.append((page_dir / "registry.json", layer.top_files["registry.json"], False))
-    replace_files(writes)
-
-    for sub in PACKAGE_DIRS:
-        destination = page_dir / sub
-        wanted = set(layer.directory_files[sub])
-        for stale in sorted(
-            destination.rglob("*"), key=lambda path: len(path.parts), reverse=True
-        ):
-            relative = stale.relative_to(destination).as_posix()
-            if relative not in wanted and (stale.is_symlink() or stale.is_file()):
-                stale.unlink()
-            elif stale.is_dir():
-                with contextlib.suppress(OSError):
-                    stale.rmdir()
-    # The append-only log's stable inode is also the successful-init marker and
-    # the page transaction lease. Publish it only after the layer commits, so a
-    # failed first write still takes the fresh-init path.
-    if fresh:
-        start_log(page_dir)

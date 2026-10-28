@@ -1,9 +1,8 @@
 /* Thread reaction projection and its synchronous Lit owner. The controller
    registers template-owned controls and owns only disclosure, keyboard and focus. */
-import { html, render, repeat } from "/vendor/browser-runtime.js";
-import { iconTemplate } from "../icons.js";
+import { html, render, repeat } from "/runtime/framework.js";
 import { HOLDS_WORD } from "../held-word.js";
-import { offered } from "../widget-elements.js";
+import { offered, offeredAction } from "../widget-elements.js";
 
 let ordinal = 0;
 export class ReactionStripView {
@@ -25,15 +24,13 @@ export class ReactionStripView {
     this.node.classList.toggle("lf-open", model.latest);
     render(
       html` <button
-          ${offered("lf-msg-control lf-react-trigger")}
+          ${offeredAction("symbol", "lf-msg-control lf-react-trigger", undefined, {
+            action: "react",
+          })}
           aria-expanded="false"
           aria-controls=${this.#paletteId}
-          aria-label="Add reaction"
-          title="Add reaction"
           @click=${() => this.#registration.toggle()}
-        >
-          ${iconTemplate("reaction", "lf-msg-control-icon")}
-        </button>
+        ></button>
         <span
           class="lf-react-palette"
           id=${this.#paletteId}
@@ -54,7 +51,6 @@ export class ReactionStripView {
                 title=${choice.label}
                 aria-label=${choice.label}
                 aria-pressed=${String(Boolean(choice.inForce))}
-                aria-busy=${String(Boolean(choice.inForce?.pending))}
                 @click=${() => this.#press(choice.name)}
               >
                 <span class="lf-react-glyph">${choice.glyph}</span>

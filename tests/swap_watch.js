@@ -1,5 +1,5 @@
 // Watches every page for a line of occupants that grows or shrinks as one occupant
-// gives way to another: the "What takes turns in a place doesn't size it" rule
+// gives way to another: the "Shared containers determine control dimensions" rule
 // (browser/AGENTS.md, "Stability"). The browser fixture installs it on every page a test
 // opens (render_harness.watched), so every test checks it.
 //
@@ -27,7 +27,8 @@
 // - the row's height changes the way its tallest occupant's does, and that occupant
 //   is the row's tallest child on its side of the swap: a row that grows as a shorter
 //   occupant arrives, or as a field beside the arrival takes a line, grew for another
-//   reason;
+//   reason. A place taller than its tallest occupant on the taller side holds
+//   several lines or other room, so it is not a line sized by that occupant;
 // - the change reaches the box that holds the row: a row inside a line that keeps its
 //   height, as a crumb inside a taller controls row, shows the reader nothing;
 // - the taller occupant is no taller for its content, which the rule lets grow a
@@ -287,7 +288,8 @@
   const tallest = (side) =>
     side.reduce((most, seat) => (seat.size.height > most.size.height ? seat : most));
   const sizedBy = (place, before, after, left, came, read) => {
-    const { display, flexDirection } = getComputedStyle(place);
+    const style = getComputedStyle(place);
+    const { display, flexDirection } = style;
     if (!display.endsWith("flex") || !flexDirection.startsWith("row")) return false;
     const grew = after.height - before.height;
     if (Math.abs(grew) < 1) return false;
@@ -299,6 +301,16 @@
       .filter((child) => !swapped.has(child))
       .map((child) => (grew > 0 ? read(child) : sizes.get(child))?.height ?? 0);
     const taller = grew > 0 ? arriving : leaving;
+    const insets = [
+      "paddingTop",
+      "paddingBottom",
+      "borderTopWidth",
+      "borderBottomWidth",
+    ].reduce((sum, name) => sum + parseFloat(style[name]), 0);
+    // A wrapping list takes room for all its lines, not just its tallest control.
+    // Judge the taller side, including when those lines are being put away.
+    if (Math.max(before.height, after.height) > taller.size.height + insets + 1)
+      return false;
     if (stood.some((height) => height >= taller.size.height - 0.5)) return false;
     const container = holder(up(place));
     const was = container && sizes.get(container);

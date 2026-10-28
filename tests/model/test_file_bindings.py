@@ -39,6 +39,11 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
         cli, ["file", "bind", str(page_dir), "notes", str(target)]
     )
     assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == {
+        "binding": "notes",
+        "path": str(target.resolve()),
+        "bytes": target.stat().st_size,
+    }
     assert BINDINGS.read(page_dir / "files.json") == {
         "bindings": {"notes": str(target.resolve())}
     }
@@ -63,7 +68,8 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
 def test_file_saves_preserve_special_permission_bits(page_dir, tmp_path):
     target = tmp_path / "executable"
     target.write_text("original\n")
-    snapshot = bind_file(page_dir, "executable", target)
+    bind_file(page_dir, "executable", target)
+    snapshot = read_file(page_dir, "executable")
     for mode in (0o2755, 0o6755, 0o1755):
         target.chmod(mode)
         assert stat.S_IMODE(target.stat().st_mode) == mode
@@ -80,7 +86,8 @@ def test_cli_unbinding_revokes_open_editor_access_only_for_its_grant(
 ):
     target = tmp_path / "notes.txt"
     target.write_text("saved work\n")
-    original = bind_file(page_dir, "notes", target)
+    bind_file(page_dir, "notes", target)
+    original = read_file(page_dir, "notes")
     bind_file(page_dir, "other", target)
     state_url = f"{server}/api/state"
     assert set(json.loads(fetch(state_url)[1])["files"]) == {"notes", "other"}
@@ -121,7 +128,8 @@ def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
         read_file(page_dir, str(target))
     with pytest.raises(FileBindingError):
         bind_file(page_dir, "../notes", target)
-    snapshot = bind_file(page_dir, "notes", target)
+    bind_file(page_dir, "notes", target)
+    snapshot = read_file(page_dir, "notes")
     for body in (
         {},
         {"revision": snapshot["revision"], "text": 5},
@@ -155,8 +163,10 @@ def test_rebinding_cannot_apply_an_old_buffer_to_an_identical_other_file(
     first, second = tmp_path / "first.txt", tmp_path / "second.txt"
     first.write_text("same\n")
     second.write_text("same\n")
-    original = bind_file(page_dir, "notes", first)
-    rebound = bind_file(page_dir, "notes", second)
+    bind_file(page_dir, "notes", first)
+    original = read_file(page_dir, "notes")
+    bind_file(page_dir, "notes", second)
+    rebound = read_file(page_dir, "notes")
     assert rebound["revision"] != original["revision"]
     with pytest.raises(StaleFileError):
         save_file(
@@ -209,7 +219,8 @@ def test_http_file_door_requires_key_origin_and_current_revision(
 ):
     target = tmp_path / "notes.txt"
     target.write_text("hello\n")
-    original = bind_file(page_dir, "notes", target)
+    bind_file(page_dir, "notes", target)
+    original = read_file(page_dir, "notes")
     url = f"{server}/api/files/notes"
     assert fetch(url, token=None)[0] == 401
     assert json.loads(fetch(url)[1]) == original

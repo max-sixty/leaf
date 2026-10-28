@@ -46,8 +46,8 @@ BOTH_SIDES = (
         "agent": "Agent",
         "parent": "e1",
         "responds": "e1",
-        "text": "One question:",
-        "markup": '<lf-ask id="cadence">Weekly or daily?</lf-ask>',
+        "text": "Weekly or daily?",
+        "obligation": True,
     },
     {"kind": "comment", "text": "Tighten this."},
     {"kind": "comment", "text": "Rebuild the chart."},
@@ -170,9 +170,9 @@ def build() -> dict:
                         "agent": "Agent",
                         "parent": "e1",
                         "responds": "e1",
-                        "text": "Here is the board.",
-                        "markup": model_layer()["lf-board"]["x-example"]
-                        + '<lf-ask id="first-card">Which card goes first?</lf-ask>',
+                        "text": "Here is the board. Which card goes first?",
+                        "markup": model_layer()["lf-board"]["x-example"],
+                        "obligation": True,
                     },
                     {
                         "kind": "action",
@@ -300,7 +300,7 @@ def build() -> dict:
 # a start's line stays current for (`activity.WORKING_GRACE`).
 HELD = {
     **UNCLAIMED,
-    "status": {"state": "working", "detail": "", "ts": NOW},
+    "status": {"state": "working", "ts": NOW},
     "listening": True,
     "session_alive": True,
     "claim_session": "served-records",

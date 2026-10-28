@@ -15,7 +15,7 @@ from leaf.projection import (
     page_reading,
     with_action,
 )
-from leaf.registry.contract import matches_when, state_definition
+from leaf.registry.contract import deciding_verb, matches_when, state_definition
 from leaf.thread_context import thread_structure
 
 
@@ -84,20 +84,24 @@ def direct_dependencies(event: dict, spec: dict) -> list[str]:
     return dependencies
 
 
-def state_meaning(event: dict, entry: dict, scope: str, origin: str) -> dict:
+def state_meaning(event: dict, record: dict, registry: dict, scope: str) -> dict:
     """Resolve one validated verb using its sending document's declaration.
 
     The event records the fold unit, direct dependencies, created child tag,
     and the semantic definition of the operation. The scope with its revision
     names the sending document. A later registry may change that operation;
     the old event remains history instead of being read as the new operation."""
+    origin = record["tag"]
+    entry = registry[origin]
     spec = entry["x-state"][event["action"]]
     dependencies = direct_dependencies(event, spec)
     meaning = {
         "scope": scope,
         "unit": dependencies[1],
         "depends": sorted(set(dependencies)),
-        "state": state_definition(origin, entry, spec),
+        "state": state_definition(
+            origin, entry, spec, attrs=record["attrs"], registry=registry
+        ),
     }
     # A created child's unit is new, so no document may yet hold it. Stamping its
     # tag lets registry-free readers keep the action resting on it regardless.
@@ -125,7 +129,11 @@ def answer_meaning(
     if event["kind"] != "action" or event["action"] not in answer_verbs(entry):
         return False, None
     withdrawn = entry.get("x-withdrawn-as")
-    declined = withdrawn is not None and event["detail"].get("outcome") == withdrawn
+    declined = (
+        event["action"] == deciding_verb(entry)
+        and withdrawn is not None
+        and event["detail"]["outcome"] == withdrawn
+    )
     if event_document(event)["kind"] == "page":
         reading = readings.page(event["revision"])
         byid = sender.by_id
@@ -180,7 +188,7 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
         scope = "thread"
     entry = registry[record["tag"]]
     admitted = dict(event)
-    admitted["meaning"] = state_meaning(event, entry, scope, record["tag"])
+    admitted["meaning"] = state_meaning(event, record, registry, scope)
     position = entry["x-state"][event["action"]].get("record") or {}
     if position.get("kind") == "position":
         # The authored units the rank lies among, in their order on the sending

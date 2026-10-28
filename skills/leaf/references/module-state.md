@@ -42,9 +42,27 @@ cancelling has put the DOM back; it draws the newest reading. A dragged widget
 (`dragging`, `module-input.md`, "Pointer presses") defers for the whole drag.
 
 Pass asynchronous preparation the page should wait for, such as a renderer loading, to
-`present(promise)`. Drawing that finishes a draw, such as highlighting what `render()`
-placed, goes to `this.drawing(promise)` from `updated()` instead; that draw counts as
-shown only once the promise settles.
+`present(promise)`, or, from a widget that also runs off Leaf, dispatch it as a
+`PendingTaskEvent` (`module-authoring.md`, "A widget that also runs off Leaf"), which
+Leaf passes to the same place. Drawing that finishes a draw, such as highlighting what `render()`
+placed, starts in `updated()` and extends the element's `updateComplete`, as any Lit
+element's completion waits for work its update starts:
+
+```js
+updated(changed) {
+  super.updated(changed);
+  this.highlighting = highlightBlocks(this);
+}
+async getUpdateComplete() {
+  const result = await super.getUpdateComplete();
+  await this.highlighting;
+  return result;
+}
+```
+
+The draw counts as shown only once `updateComplete` settles, and a rejection is the
+draw's failure. Set the promise on every update, `undefined` when it starts none, so a
+finished failure doesn't fail every later draw.
 
 ### Tab-local working state
 
@@ -84,70 +102,80 @@ the module draws.
 
 ## Bound data and projections
 
-A widget reads a bound data source in `render()` through an input its entry declares
-([package-data.md, "External or derived data"](package-data.md#external-or-derived-data)):
+A widget reads a bound data source through the property its `x-data` input names
+([package-data.md, "External or derived data"](package-data.md#external-or-derived-data)),
+`"property": "value"` for most widgets. Before each update the delivery moves, Leaf
+sets that property to the source's value, or `null` while there is no readable value,
+including when the value doesn't fit the contract. Declare it as a Lit property and
+read it in `render()`, as a widget would read a value any host sets:
 
 ```js
+static properties = { value: { attribute: false } };
+
+constructor() {
+  super();
+  this.value = null;
+}
+
 render() {
-  const snapshot = this.data("builds");
-  return snapshot ? html`…` : html`<p>Waiting for builds.</p>`;
+  return this.value ? html`…` : html`<p>No builds.</p>`;
 }
 ```
 
-Leaf draws the widget again whenever the source's value, contract or validity changes.
-`this.data(input)` throws for an undeclared input, and returns `null` while there is no
-readable value, including when the value doesn't fit the contract. Otherwise it returns
-`{source, contract, revision, run, updated, value, origin}`, the same copy until the
-next delivery: `revision` identifies the value and `run` the write, so a rerun with the
-same value gets a new `run`. A widget whose drawing of the data finishes later starts it
-from `updated()` and passes it to `this.drawing(promise)`, so Leaf counts the source as
-shown only once it settles.
+A widget bound to a source first draws once the page has read its data, or has gone
+offline without it, so until then it shows its first-paint box. Each delivery is a new
+copy, so a widget tells a new delivery by identity. A rerun with
+the same value delivers a new copy too. An input the markup leaves unbound, such as an
+`lf-diff` showing its inline patch, is left to the widget: Leaf doesn't set its
+property.
 
-A widget output reads through the same `this.data(input)`, as
-`{contract, value, origin: {derived: [{widget: producerId}]}}`. Its producer publishes
-it with `publishOutput(element, name, value)` (package-data.md, "Widget outputs") in the
-turn that commits the matching rendering, and publishes `null` rather than keep stale
-records after a failed replacement. Leaf doesn't check a published value against its
-contract, so publish only values that fit it.
+A widget output reads through the same property, as the value its producer published
+with `publishOutput(element, name, value)` (package-data.md, "Widget outputs"). The
+producer publishes in the turn that commits the matching rendering, and publishes
+`null` rather than keep stale records after a failed replacement. Leaf doesn't check a
+published value against its contract, so publish only values that fit it.
 
 Rows whose contract declares a `deferred` field arrive without it. Fetch one row's field
-with `loadDeferred(snapshot, key)`, which throws if the source changed in the meantime.
+with `loadDeferred(value, key)`, passing the value Leaf delivered that the row came
+from; it throws if the source changed in the meantime.
 
-### Projecting data
+### Marking drawn data
 
-Once the widget has placed its nodes (`module-authoring.md`, "Retained nodes"), mark
-which of them show data with `projectData(root, datums, {snapshot})` in the same
-synchronous turn, so comments on them anchor to the data rather than to prose:
+Mark which nodes show data with plain attributes, so comments on them anchor to the
+data rather than to prose. After setting the drawing's marks, dispatch `drawn` with
+the value you drew, in the same synchronous turn:
 
 ```js
 setChildren(
   this,
-  rows.map((row) => row.node),
+  rows.map((row, index) => {
+    row.node.dataset.lfDatum = row.key;
+    row.node.dataset.lfIdentity = row.id;
+    row.node.dataset.lfDatumLabel = row.label;
+    row.node.dataset.lfOriginPath = JSON.stringify(["rows", index]);
+    return row.node;
+  }),
 );
-projectData(
-  this,
-  rows.map((row) => ({
-    node: row.node,
-    key: row.key,
-    label: row.label,
-    identity: row.id,
-    origin: { ...snapshot.origin, path: ["rows", row.index] },
-  })),
-  { snapshot },
-);
+this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.value } }));
 ```
 
-`root` is an element with an id, and each datum's `node` must already be under it.
-`key` is a unique string Leaf doesn't interpret, and `label` an optional name shown in
-thread chrome. Give `identity` where the same subject survives new values of the source,
-so a comment follows the subject and keeps the quote the user saw; without one, a new
-value marks comments on that key as outdated. A node left out of the next call loses
-its marking.
+`data-lf-datum` is a key unique within the widget that Leaf doesn't interpret, and
+`data-lf-datum-label` an optional name shown in thread chrome. Give `data-lf-identity`
+where the same subject survives new values of the source, so a comment follows the
+subject and keeps the quote the user saw; without one, a new value marks comments on
+that key as outdated. `data-lf-origin-path` is an optional JSON array naming the
+datum's place in the value. Take a mark off a node you keep once it no longer shows
+data; a node you remove takes its marks with it.
 
-A widget declaring `x-data` passes the delivered `snapshot`, even `null`. A datum that
-knows its place in the JSON gives `origin: {...snapshot.origin, path: [...]}`, and one
-computed from other widgets gives `origin: {derived: [{widget: id}]}`. A projection not
-drawn from a source omits `snapshot`.
+The detail names the property and the value drawn from it, and Leaf stamps the marks
+with that value's source and revision, so a draw that finishes after a newer value
+arrived keeps the revision it drew. Name the value Leaf set, not a copy, or `null` for
+words no bound value supplied, such as records the widget composed itself. A string or
+number value can be one you still hold or one Leaf set after the value you last
+reported; after reporting a newer one, don't go back to an older one. A widget
+with several bound inputs marks the items of one of them and names that one, since a
+widget's marks carry one source. Marks on nodes inside a nested widget belong to that
+widget. On a page without Leaf, nothing listens and the marks mean nothing.
 
 ### Time readings
 

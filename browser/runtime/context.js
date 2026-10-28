@@ -75,7 +75,7 @@ const offlinePayload = offlineMarker
   : null;
 // This declaration participates in executable identity: changing it replaces this
 // document realm rather than switching initialized physical owners in place.
-/** @typedef {import("../framework/contract.js").AuthoredAllocations} Allocations */
+/** @typedef {import("../types/contract.js").AuthoredAllocations} Allocations */
 /** A page-wide allocation `body` states (`$authored`), or null where it states none.
  * @template {keyof Allocations} A @param {A} name @returns {Allocations[A] | null} */
 const allocation = (name) => /** @type {any} */ (document.body.getAttribute(name));
@@ -175,7 +175,7 @@ export const runtime = {
   },
   // The layer's `registry.json`, which fills this once it loads (registry.js).
   registry:
-    /** @type {import("../framework/application.ts").SemanticDocument["registry"] & Record<string, any>} */ ({}),
+    /** @type {import("./framework/application.js").SemanticDocument["registry"] & Record<string, any>} */ ({}),
   get statePhase() {
     return part.phase();
   },

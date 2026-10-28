@@ -53,12 +53,12 @@ test("a reply streaming paints the working face under its own word", () => {
   assert.equal(control.getAttribute("data-lf-agent-workflow"), "picked_up");
   assert.equal(
     control.getAttribute("aria-description"),
-    "Delivered · Preparing an update",
+    "Got it · Preparing an update",
   );
 });
 
 test("template contribution hosts paint the retained-host contract and are found on their surface", async () => {
-  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { html, render } = await import("/runtime/framework.js");
   const root = document.createElement("section");
   document.body.append(root);
   const imperative = document.createElement("button");

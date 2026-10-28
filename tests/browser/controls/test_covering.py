@@ -11,6 +11,7 @@ from render_harness import (
     PANEL_THREAD,
     SHELL_BOX,
     open_page,
+    open_threads,
     panel_settled,
     panel_view,
     resized,
@@ -162,9 +163,7 @@ def test_page_and_panel_scroll_in_separate_regions(browser, serve):
     page and takes no room from it, so the shell keeps the window's width while native
     document scrolling remains rooted in html."""
     page = open_page(browser, serve(LONG_PAGE, comments=30))
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button", has_text="Open").click()
+    open_threads(page)
     expect(page.locator(".lf-fp-thread")).to_have_count(30)
 
     geom = page.evaluate(
@@ -205,9 +204,7 @@ def test_a_wheel_over_an_open_view_scrolls_the_view_and_not_the_page(browser, se
     page.wait_for_function("() => document.scrollingElement.scrollTop > 0")
     before = page.evaluate("() => document.scrollingElement.scrollTop")
 
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button", has_text="Open").click()
+    open_threads(page)
     page.evaluate("() => { window.lfViewScroller = (" + VIEW_SCROLLER + ")(); }")
     assert page.evaluate("() => Boolean(window.lfViewScroller)"), (
         "the open view holds every thread, so nothing is proved"

@@ -1,4 +1,4 @@
-# An already-running acknowledgment wait loses its page to another session.
+# A wait started after an acknowledgment loses its page to another session.
 
 exit: 2
 

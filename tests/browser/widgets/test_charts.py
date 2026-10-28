@@ -28,6 +28,7 @@ from leaf import render_checks as render_checks_model
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
+@pytest.mark.watch_shifts
 def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     """Readable part details survive a tap, including a move across commit branches."""
     example = ROOT / "examples" / "wt-merge.html"
@@ -52,7 +53,10 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
         title: inspector.querySelector('strong').textContent,
       };
     }, {once: true})""")
+    inspect_next.scroll_into_view_if_needed()
+    inspection_top = inspect_next.bounding_box()["y"]
     inspect_next.tap()
+    assert inspect_next.bounding_box()["y"] == pytest.approx(inspection_top, abs=1)
     assert page.evaluate("firstInspection") == {"hidden": False, "title": labels[0]}
     inspect_next.press("Escape")
     expect(inspector).to_be_hidden()
@@ -74,18 +78,23 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     expect(inspector.locator("strong")).to_have_text("worktree ~/repo.feature")
     details = inspector.bounding_box()
     assert details["y"] >= 0
-    assert details["y"] + details["height"] <= 844
+    reading_bottom = page.evaluate(
+        "async () => (await window.__lfWidgetApi()).shownWindow().bottom"
+    )
+    assert details["y"] + details["height"] <= reading_bottom
     assert inspect_next.bounding_box()["y"] >= 0
     inspect_next.focus()
     page.evaluate("window.scrollBy(0, 500)")
     inspect_next.press("i")
     details = inspector.bounding_box()
     assert details["y"] >= 0
-    assert details["y"] + details["height"] <= 844
+    assert details["y"] + details["height"] <= reading_bottom
     assert inspect_next.bounding_box()["y"] >= 0
     play = film.locator(".film-play")
     play.focus()
+    play_top = play.bounding_box()["y"]
     play.press("i")
+    assert play.bounding_box()["y"] == pytest.approx(play_top, abs=1)
     expect(inspector).to_be_visible()
     play.press("Escape")
     expect(inspector).to_be_hidden()
@@ -449,6 +458,45 @@ def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
         }"""
     )
     assert narrowed == 240, narrowed
+
+
+def test_a_chart_keeps_its_stated_height_beside_a_taller_one(browser, serve):
+    """A row of tiles stretches each cell to the row's tallest, and once a chart is drawn
+    its box is the drawing's, so a short chart's box stands as tall as its neighbour.
+    Drawn again for a new width, it keeps the height it states. Drawn to the stretched
+    box, it took the neighbour's height, and each width change after kept it there."""
+    body = """{
+  ariaLabel: "Merged by team: backend 12, frontend 19",
+  marks: [Plot.barY([{team: "backend", n: 12}, {team: "frontend", n: 19}],
+                    {x: "team", y: "n"})],
+}"""
+    tiles = "".join(
+        chart_markup(chart_id, body).replace(
+            f'<lf-chart id="{chart_id}">',
+            f'<lf-chart id="{chart_id}" data-height="{height}">',
+        )
+        for chart_id, height in (("c-short", 200), ("c-tall", 420))
+    )
+    source = leaf_page(
+        "tiled charts",
+        f'<h1 id="t">Merged</h1><div class="layout-tiles">{tiles}</div>',
+    )
+    page = open_page(browser, serve(source))
+    heights = """() => Object.fromEntries(['c-short', 'c-tall'].map(id => [id,
+        Number(document.querySelector(`#${id} svg[role=img]`).getAttribute('height'))]))"""
+    drawn_for_room = """() => ['c-short', 'c-tall'].every(id => {
+        const el = document.getElementById(id);
+        const svg = el.querySelector('svg[role=img]');
+        return Number(svg.getAttribute('width')) === Math.round(el.clientWidth);
+    })"""
+    assert page.evaluate(heights) == {"c-short": 200, "c-tall": 420}
+    widths = []
+    for width in (640, 1280):
+        resized(page, width, 900)
+        page.wait_for_function(drawn_for_room)
+        widths.append(page.locator("#c-short").evaluate("el => el.clientWidth"))
+    assert widths[0] != widths[1], "the charts were never drawn again"
+    assert page.evaluate(heights) == {"c-short": 200, "c-tall": 420}
 
 
 def test_a_chart_that_fails_on_a_redraw_stays_failed_when_it_returns(browser, serve):

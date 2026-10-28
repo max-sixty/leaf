@@ -2,10 +2,10 @@
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
-import { el, LAYOUT, searchField } from "../widget-elements.js";
-import { iconElement } from "../icons.js";
+import { el, offerAction, searchField } from "../widget-elements.js";
+import { LAYOUT } from "../widget-upgrade.js";
 import { coarsePointer } from "../pointer.js";
-import { html, nothing, render, signal } from "/vendor/browser-runtime.js";
+import { html, nothing, render, signal } from "/runtime/framework.js";
 
 import {
   contextAround,
@@ -18,6 +18,7 @@ import {
   segmentBlock,
 } from "../passages.js";
 import { shownBox } from "../geometry.js";
+import { skipped } from "../shown-box.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { intersect, union } from "../rect.js";
@@ -76,21 +77,14 @@ pageSearchStatus.append(pageSearchWords);
 // count they move, the walk's one control for a finger and a mouse. A press leaves focus
 // in the field, so a phone's keyboard stays up and the next letter still edits the query.
 // Tab is their key, so they are no stop of its own.
-const matchStep = (icon, name) => {
-  const control = el(
-    "button",
-    "lf-btn lf-icon-action lf-quiet-action lf-page-search-step",
-  );
-  control.type = "button";
+const matchStep = (action) => {
+  const control = offerAction("symbol", "lf-page-search-step", undefined, { action });
   control.tabIndex = -1;
-  control.append(iconElement(icon, "lf-action-icon"));
-  control.setAttribute("aria-label", name);
-  control.title = name;
   control.addEventListener("mousedown", (event) => event.preventDefault());
   return control;
 };
-const previousMatchControl = matchStep("up", "Previous match");
-const nextMatchControl = matchStep("down", "Next match");
+const previousMatchControl = matchStep("previous-match");
+const nextMatchControl = matchStep("next-match");
 const pageSearchControls = [pageSearchStatus, previousMatchControl, nextMatchControl];
 const noMatches = "No matches";
 const searchCount = (position, total) => `${position}/${total}`;
@@ -185,6 +179,7 @@ export function createTargetPicker({
   };
 
   function firstShown(range, owner, reading) {
+    if (skipped(range.startContainer.parentElement)) return null;
     const clip = reading.clipOver(owner);
     if (!clip) return null;
     return (
@@ -663,6 +658,7 @@ export function createTargetPicker({
     ],
     title: "search matches",
     repeat: true,
+    travels: true,
     when: () => Boolean(repeatedSearch),
     run: (binding) => repeatSearch(binding === "n" ? 1 : -1),
   };
@@ -694,6 +690,7 @@ export function createTargetPicker({
     keys: HINT_KEYS,
     label: "a–z",
     title: "type hint",
+    travels: true,
     when: () => hints.candidates().length > 0,
     run: hints.type,
   };
@@ -728,6 +725,7 @@ export function createTargetPicker({
         id: "page.search.match.select",
         keys: ["Enter"],
         title: "select match",
+        travels: true,
         // A finger presses the marked match itself (`pressMatch`).
         touch: false,
         when: () => matches.value.length > 0,
@@ -753,6 +751,7 @@ export function createTargetPicker({
         ],
         title: "matches",
         repeat: true,
+        travels: true,
         when: () => matches.value.length > 0,
         run: (binding) => moveMatch(binding === "Tab" ? 1 : -1),
       },

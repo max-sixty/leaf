@@ -10,10 +10,14 @@
    callbacks nominate outlets during preparation; their seats, composer and ownership
    commit together after every required member is ready. A mechanical
    repaint — a draft, a hover — claims the same region through `present`.
-   Reply continuity begins after commit and runs independently: its selected route may
-   itself need this renderer to finish. Its caret follows the actual returned editor;
-   its failures reach the page's existing asynchronous error channel. */
-import { untracked } from "/vendor/browser-runtime.js";
+   The pass paints no other owner's region: what it decides about a thread reaches the
+   margin as readings the margin's paint follows (anchor-placement.js `placedAt`,
+   surfaces.js `claimed` and `heldOut`), so a commit that moves one has the margin
+   repainted before the pass settles, and one that moves none leaves it drawn once.
+   Reply continuity begins once the margin has committed, since the route it lands on
+   may be a margin card, and runs independently: its selected route may itself need
+   this renderer to finish. Its caret follows the actual returned editor; its failures
+   reach the page's existing asynchronous error channel. */
 import { keeps } from "../keeps.js";
 import { reportPageError } from "../layer-client.js";
 import { elementById, inChrome } from "../passages.js";
@@ -55,19 +59,18 @@ export function createThreadPresentation({
   pageGeometry,
   readDraft,
   activeActionAnchor,
-  renderAnnotations,
   renderSurfaces,
   openThread,
   continueThread,
+  returnToPage,
   threadAt,
+  marginCommitted,
   read,
 }) {
   let primary = null;
 
   // The paint follows what it reads, before it waits for preparation and in the
-  // continuations it resumes after (`renderReading`). The margin this presentation
-  // renders once it commits also draws the Questions and the workflows; its own watcher
-  // follows those (`annotationSelection`).
+  // continuations it resumes after (`renderReading`).
   //
   // Before the page has read the log, an epoch with no thread draws the same line about
   // waiting, and repainting the margin and the anchors to say it again is work done
@@ -171,16 +174,24 @@ export function createThreadPresentation({
             surfaces.commit();
             commitThreadSeats(batch);
             surfaceView.composition.finishPlacement();
-            // The margin is an owner of its own, with its own watcher; this pass only
-            // refreshes it over the targets it moved, so what it reads is not this paint's.
-            untracked(renderAnnotations);
             pageGeometry.pageShifted();
             read.present();
-            // Continuity may reveal a route needing this very presenter. Its work starts
-            // after the cohort commits, and never joins the ticket it is completing.
-            void continueReplies(restorePlace).catch((error) =>
-              reportPageError(error, `Reply continuation failed`),
-            );
+            // Continuity lands the user where the pass left their thread, a margin card
+            // included, so it starts once the margin has committed (`marginCommitted`)
+            // rather than when the whole pass settles. The margin's claim for what this
+            // commit moved lands when this stretch's batch ends, so its commit is read a
+            // microtask later. A margin owing no repaint has already committed; one that
+            // repaints commits after the DOM upstream of it, so a widget holding its
+            // commit, as through a drag, still delays continuity. It may reveal a route
+            // needing this very presenter, and never joins the ticket it is completing.
+            // Once the user is placed, a thread the primary held as the last resort goes
+            // back to the page where the page now draws its place
+            // (thread/destination.js, `returnToPage`).
+            void Promise.resolve()
+              .then(marginCommitted)
+              .then(() => continueReplies(restorePlace))
+              .then(returnToPage)
+              .catch((error) => reportPageError(error, `Reply continuation failed`));
           }),
         );
       };

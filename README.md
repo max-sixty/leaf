@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/bdc00d621c2e6b0e0c8651e6fced61e09e479e05/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/bdc00d621c2e6b0e0c8651e6fced61e09e479e05/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/6ad7cc888bbd294fc9e165a9e614b5a9754b2ff8/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/6ad7cc888bbd294fc9e165a9e614b5a9754b2ff8/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/bdc00d621c2e6b0e0c8651e6fced61e09e479e05/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/6ad7cc888bbd294fc9e165a9e614b5a9754b2ff8/demo/demo.gif)
 
 </details>
 
@@ -74,10 +74,14 @@ index. Render checks use the executable named by
 Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 `chromium`, or `chromium-browser` on `PATH`.
 
-In Claude Code, a background Stop hook watches the session's pages between turns,
-and Leaf's hooks module shows a line above the prompt for each page the session
-holds: a link to the page, what is On you, its open threads with how many have
-replies you haven't read, and what the agent is doing or waiting for. Ctrl+X Tab
+Leaf needs Claude Code 2.1.196 or later, the first release whose hooks name the
+turn they run in. On an earlier one, an update handed into a prompt you interrupt
+waits until that turn ends before it is offered again.
+
+In Claude Code, a background Stop hook watches the session's pages between turns.
+Leaf's hooks module shows a line above the prompt for each page the session owns,
+with a link, items waiting on you, the number of open threads and how many contain
+unread replies, and the agent's activity or waiting status. Ctrl+X Tab
 then Enter opens the first page in your browser, or, in a session you reached over
 SSH, copies its link to your clipboard. Hooks modules are an early-access Claude
 Code feature.
@@ -93,8 +97,8 @@ message for your approval unless Claude Code's `crossSessionInbound` setting is
 <summary>Agent sandboxes</summary>
 
 Leaf's hooks run outside an agent's sandbox, but `leaf` commands run wherever the
-agent's shell commands do, and a sandbox refuses them what they need: writes to
-Leaf's state in `~/.local/state/leaf`, a port on localhost for the page server, and
+agent's shell commands do. The sandbox can block access to resources Leaf needs:
+writes to its state in `~/.local/state/leaf`, a port on localhost for the page server, and
 a browser for render checks.
 
 In Claude Code, Leaf's hook starts a bridge outside the sandbox before the first

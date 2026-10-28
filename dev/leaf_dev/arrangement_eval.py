@@ -3,7 +3,8 @@
 Promptfoo owns providers, repetition, concurrency, assertions and saved results.
 This provider supplies the work Promptfoo cannot do: an installed Leaf or plain
 HTML workspace, a live multi-turn author, a browser user who makes the task's
-decision, and saved pages/traces. The author checks its own work. One agent judges
+decision, an optional last revision that changes what the page is for, and saved
+pages/traces. The author checks its own work. One agent judges
 the final page and, for a decision task, its earlier usable controls; there is no
 second decision reader or repeated render/quality grader for every revision.
 
@@ -18,6 +19,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import time
 from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,11 +27,13 @@ from pathlib import Path
 from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
+from leaf.render_gate import command as render_command_model
 from leaf.service import requires_agent_attention
 from leaf.thread import successful_replies
-from leaf_dev import ROOT, arrangement_plain
+from leaf.user_views import read_user_views
+from leaf_dev import ROOT, arrangement_plain, pane_readings
 from leaf_dev.arms import (
-    MODELS,
+    JUDGE_MODELS,
     TURN_LIMIT,
     LiveChild,
     LiveSession,
@@ -93,14 +97,21 @@ class Decision:
 
 @dataclass(frozen=True)
 class Scenario:
+    # The task under `evals/` whose request.md and pinned files the author gets,
+    # so a scenario can revise another task's page.
+    request: str
     comment: Comment | None = None
     decision: Decision | None = None
     # What a reader clicks to open the item that holds the comment's passage.
     reveal: str = ""
+    # A last message that changes what the page is for, sent once the user's
+    # comment and decision are on it.
+    revision: str | None = None
 
 
 CASES = {
     name: Scenario(
+        request=case["inputs"].get("request", name),
         comment=(
             Comment(**(comment | {"quotes": tuple(comment["quotes"])}))
             if (comment := case["inputs"]["comment"])
@@ -110,6 +121,7 @@ CASES = {
             Decision(**decision) if (decision := case["inputs"]["decision"]) else None
         ),
         reveal=case["inputs"]["reveal"],
+        revision=case["inputs"].get("revision"),
     )
     for name, case in DEFINITION["cases"].items()
 }
@@ -161,22 +173,27 @@ class Run:
 
 
 def phases(subject: str) -> tuple[int, ...]:
-    """Authoring, the width revision, the comment and the decision, as the task has
-    them."""
+    """Authoring, the width revision, the comment, the decision and the revision,
+    as the task has them."""
     scenario = CASES[subject]
     return (
         1,
         2,
         *((3,) if scenario.comment else ()),
         *((4,) if scenario.decision else ()),
+        *((5,) if scenario.revision else ()),
     )
+
+
+def request(subject: str) -> str:
+    return (TASKS / CASES[subject].request / "request.md").read_text()
 
 
 def first_prompt(payload: Path, page: Path, subject: str, condition="leaf") -> str:
     return DEFINITION["prompts"]["first"][condition].format(
         payload=payload,
         page=page,
-        request=(TASKS / subject / "request.md").read_text(),
+        request=request(subject),
         browser=shell_executable(),
     )
 
@@ -224,13 +241,37 @@ def latest_seq(page: Path) -> int:
     return max((e["seq"] for e in events), default=0)
 
 
+def open_as_user(run: Run, url: str) -> None:
+    """Open the handed-over Leaf page once at the run's first window, as the user
+    who said "I'll open it" would, and wait until the page has recorded that view.
+
+    The author's `page check --render` reads the desktop at the window a browser last
+    reported for the page (`render_gate.command.desktop_viewport`), so in use it
+    checks the user's window. Here the browser user first opens the page in the
+    comment phase, and until then every render check read the fixed laptop window
+    while the user's stated window was 1600×1000: authors hunted for a way to
+    change it, setting `LEAF_RENDER_VIEWPORT=1600x1000` and grepping Leaf's source,
+    in 8 of 12 width revisions on 2026-10-24."""
+    viewport = next(iter(run.widths.values()))[0]
+    with headless_shell() as browser, tab(browser, viewport=viewport) as view:
+        load(view, url)
+        deadline = time.monotonic() + 20
+        while not read_user_views(run.authored_page, None)["sessions"]:
+            if time.monotonic() > deadline:
+                raise RuntimeError(f"the page recorded no view of {url}")
+            view.wait_for_timeout(250)
+
+
 def author(run: Run, cwd: Path) -> None:
     """Run the sample's live session through its phases, preserving each phase's
-    page, and stop any server it left running."""
+    page, and stop any server it left running. Its render checks read the user's
+    window once the page is handed over (`open_as_user`), not the fixed one the
+    harness pins for its own checks (`arms.environment`)."""
     cwd.mkdir(parents=True, exist_ok=True)
-    fixtures = pinned_copy(TASKS / run.subject)
+    task = CASES[run.subject].request
+    fixtures = pinned_copy(TASKS / task)
     if fixtures is not None and fixtures.is_dir():
-        shutil.copytree(fixtures, cwd / "evals" / run.subject)
+        shutil.copytree(fixtures, cwd / "evals" / task)
     (run.directory / "work-dir").write_text(str(cwd))
     run.state.mkdir(parents=True)
     page = run.authored_page
@@ -249,6 +290,7 @@ def author(run: Run, cwd: Path) -> None:
             {
                 "PATH": environment(payload=run.payload)["PATH"],
                 "XDG_STATE_HOME": str(run.state),
+                render_command_model.PIN_VARIABLE: "",
             }
             if leaf
             else {}
@@ -271,12 +313,16 @@ def author(run: Run, cwd: Path) -> None:
                     before = comment(run, live)
                 elif phase == 4:
                     decision_round(run, live)
+                elif phase == 5:
+                    live.send(CASES[run.subject].revision)
                 settled = live.settle(since, grace=GRACE, wake=WAKE, before=before)
                 snapshot(page, run.directory / f"page-phase{phase}")
                 if not settled or not (page / "index.html").exists():
                     break
                 if leaf and not live.url:
                     break
+                if leaf and phase == 1:
+                    open_as_user(run, live.url)
     finally:
         if leaf:
             run.leaf("server", "stop", str(page))
@@ -459,6 +505,18 @@ def judge_pages(
                         Path(saved["payload"]), Path(temporary) / "state", copied
                     )
                 )
+            # Leaf's regions, read only where every page is Leaf's: a plain HTML page
+            # has none, and a pair judge given measurements of one side only would
+            # find measured defects on that side alone.
+            panes = (
+                {
+                    label: pane_readings.read(address, widths)
+                    for label, address in addresses.items()
+                }
+                if all(page["condition"] == "leaf" for page in pages.values())
+                else {}
+            )
+            (evidence / "panes.json").write_text(json.dumps(panes, indent=2))
             instructions = f"""Judge the live pages below against the task and criterion.
 Use this browser CLI: {shlex.join(command)}
 Open your own headless Chromium with -s=<session> open <URL> --config {browser_config}.
@@ -480,7 +538,7 @@ Required viewports (CSS pixels):
 {json.dumps(widths)}
 Task and criterion:
 {prompt}
-"""
+{pane_readings.judge_note(panes)}"""
             (evidence / "prompt.txt").write_text(instructions)
             try:
                 trace = run_agent(
@@ -491,6 +549,7 @@ Task and criterion:
                     out=evidence / "stream.jsonl",
                     err=evidence / "err.txt",
                     harness="codex",
+                    model=JUDGE_MODELS["codex"],
                     env=variables,
                     limit=JUDGING_LIMIT,
                 )
@@ -514,7 +573,8 @@ Task and criterion:
                 "metadata": {
                     "evidence": str(evidence),
                     "pages": addresses,
-                    "model": MODELS["codex"],
+                    "panes": panes,
+                    "model": JUDGE_MODELS["codex"],
                     "trace": summary,
                 }
             }
@@ -628,6 +688,8 @@ def later_messages(
                 f'to be applied: "{apply_message(decision, "typed", None)}"'
             ),
         ]
+    if revision := scenario.revision:
+        lines += ["", f'Then the user asked: "{revision}"']
     return lines
 
 
@@ -637,7 +699,7 @@ def brief(
     """What the judge reads: the request, the later messages, the author's `answer`
     to the comment."""
     lines = [
-        f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
+        f"<request>\n{request(subject)}</request>",
         "",
         *later_messages(subject, viewports=viewports),
         "",
@@ -668,11 +730,11 @@ def comparison_inputs(
     decision = CASES[subject].decision
     versions = {"": str(order[-1])}
     if decision:
-        versions["_before_decision"] = str(order[-2])
+        versions["_before_decision"] = str(order[order.index(4) - 1])
     return {
         "brief": "\n".join(
             [
-                f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
+                f"<request>\n{request(subject)}</request>",
                 "",
                 *later_messages(subject, "the first version", viewports),
             ]

@@ -97,14 +97,15 @@ const TONES: Record<string, string> = {
 };
 
 /** What a line says of the agent's work, in the words of an All pages row
- * (`leafRow` in activity-words.js), less its bare Awaits: a listening page shows
- * only the detail the agent declared, since listening is the usual case. */
+ * (`leafRow` in activity-words.js), less its bare Listening and Awaits, since
+ * listening is the usual case. */
 function statusOf({ kind, detail }: Leaf["activity"]) {
   const stated = (word: string) => (detail ? `${word} — ${detail}` : word);
-  if (kind === "working") return stated("Working");
+  // The agent's own sentence, as the row gives it (`leafRow`).
+  if (kind === "working") return detail || "Working on it";
   if (kind === "stalled") return stated("Quiet");
   if (kind === "away") return "Away";
-  return detail;
+  return "";
 }
 
 // The follower's last list, how to stop the follower while one runs, and whether

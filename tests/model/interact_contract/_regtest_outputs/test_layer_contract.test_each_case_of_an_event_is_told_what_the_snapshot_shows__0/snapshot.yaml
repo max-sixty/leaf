@@ -47,10 +47,10 @@
 #              or the visual inside it that the optional `drawing.frame` names (CSS
 #              pixels for HTML, user units for SVG, intrinsic pixels for an image,
 #              canvas or video), and `drawing.box` is that frame's size. To see what
-#              the mark covers, run `leaf page picture <page> <id>` with the comment's
-#              `id`; it prints the path of a PNG of the revision as the user saw it,
-#              with the ink drawn over it. Answer it like any comment; its `text`, if
-#              any, explains the mark.
+#              the mark covers, run `leaf page picture <page> <message>` with the
+#              comment's `id`; it prints the path of a PNG of the revision as the user
+#              saw it, with the ink drawn over it. Answer it like any comment; its
+#              `text`, if any, explains the mark.
 #      clause 2, does not apply:
 #        when: {"required": ["text"], "properties": {"text": {"pattern": "\\]\\(/media/"}}}
 #        text: The message links an image in Markdown, as `/media/<digest>.<ext>`
@@ -67,11 +67,11 @@
 #              Leaf's chrome, such as `lf-composer`. `part`, when present, describes
 #              the control, region or picture the user clicked. Fix it in this page's
 #              source. If the behavior belongs to a package's widget, or the user asks
-#              for a wider fix, change the package as the Leaf skill's
-#              `references/packages.md` says, re-vendor, and note the re-vendor on the
-#              stamp. A fix to Leaf itself is the user's to raise; offer to file it
-#              (SKILL.md, "Improve Leaf through use"). Your reply names the stamped
-#              version that carries the fix.
+#              for a wider fix, change the package and take the change into the page
+#              as the Leaf skill's `references/packages.md` says, and note the package
+#              change on the stamp. A fix to Leaf itself is the user's to raise; offer
+#              to file it (SKILL.md, "Improve Leaf through use"). Your reply names the
+#              stamped version that carries the fix.
 #      clause 5, applies:
 #        when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
 #        text: The thread has no title yet. Name its subject with `--title "<a few
@@ -80,7 +80,7 @@
 #        when: {"required": ["token"]}
 #        text: A reaction owes no answer. Act on the token if it calls for a change,
 #              and reply only if its meaning is unclear. Once the page reflects it,
-#              close it with `leaf thread resolve <page> <event-id>`.
+#              close it with `leaf thread resolve <page> <message>`.
 #      clause 7, applies:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
 #        text: If the event asks for work, first post one line in its thread saying
@@ -88,28 +88,34 @@
 #              reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
 #              Then do the work, put the result on the page with what shows it
 #              (captures, a figure, the numbers), and answer with `leaf thread reply
-#              <answer.ref> --done --file reply.md`: what changed, in a sentence or
-#              two, linking the section that shows it. If the event asks for no work,
-#              answer it with that reply at once. The reply checks your saved page
-#              edit and makes it live before posting. Mark an answer that promises
-#              work beyond this turn `--todo "<what you owe>"` instead of `--done`.
-#              When your reply needs the user's answer, decision, permission or
-#              review, add `--obligation` to put the message on On me until they
-#              answer. Omit it for progress or information that needs no response. A
-#              widget in `--markup` can register the answer it captures instead
-#              (`references/threads.md`).
+#              <answer.ref> <declaration> --file reply.md`: what changed, in a
+#              sentence or two, linking the section that shows it. If the event asks
+#              for no work, answer it with that reply at once. The reply checks your
+#              saved page edit and makes it live before posting. The declaration says
+#              whose move your answer leaves, which delivering what was asked doesn't
+#              settle. `--obligation` when it is the user's: it leaves them a
+#              decision, or something to try or review before making one, or asks them
+#              for an answer or permission. That puts your answer on their On me list
+#              until they reply or resolve the thread, even where the decision itself
+#              is already there. `--todo "<what you owe>"` when it is yours, promising
+#              work beyond this turn. `--done` when it leaves nobody a move. A widget
+#              in `--markup` can register the answer it captures instead of
+#              `--obligation` (`references/threads.md`).
 #      clause 8, does not apply:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
 #        text: Leaf posts your opening message in the thread as your progress line and
 #              your final message as the reply, unless an explicit reply already
 #              answered this input. Before your first tool call, tell the user briefly
 #              the answer or what you are about to do; later working messages stay in
-#              Codex. End with the answer, or what changed and where it shows. For
-#              widgets, a message awaiting the user (`--obligation`), work promised
-#              beyond this turn (`--todo`), a title or moving the thread, reply
-#              explicitly with `leaf thread reply <answer.ref>`
-#              (`references/threads.md`); it posts at once, and your final message is
-#              then not posted.
+#              Codex. End with the answer, or what changed and where it shows. A final
+#              message leaves the user no move, so where your answer leaves them one,
+#              such as a decision or something to try or review before making one,
+#              answer with `leaf thread reply <answer.ref> --obligation` instead: it
+#              puts the answer on their On me list even where the decision itself is
+#              already there. Reply explicitly too for widgets, work promised beyond
+#              this turn (`--todo`), a title or moving the thread
+#              (`references/threads.md`); an explicit reply posts at once, and your
+#              final message is then not posted.
 #      clause 9, applies:
 #        (no `when`, so it always applies)
 #        text: Your reply renders as Markdown in a narrow column: give each point its
@@ -134,7 +140,7 @@
 #        "format": "leaf-delivery/15",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
-#        "acknowledge": "If the output was cut off, reread it with `leaf delivery read e8417b8a` and follow any `next` commands. Then, before any other work, start `leaf wait --ack e8417b8a` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.",
+#        "acknowledge": "If the output was cut off, reread it with `leaf delivery read e8417b8a` and follow any `next` commands. Then, before any other work, start `leaf delivery ack e8417b8a && leaf wait` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.",
 #        "batches": [
 #          {
 #            "page": "/path/to/page",
@@ -161,7 +167,7 @@
 #            ],
 #            "handling": {
 #              "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
-#              "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> --done --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. Mark an answer that promises work beyond this turn `--todo \"<what you owe>\"` instead of `--done`. When your reply needs the user's answer, decision, permission or review, add `--obligation` to put the message on On me until they answer. Omit it for progress or information that needs no response. A widget in `--markup` can register the answer it captures instead (`references/threads.md`).",
+#              "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On me list until they reply or resolve the thread, even where the decision itself is already there. `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move. A widget in `--markup` can register the answer it captures instead of `--obligation` (`references/threads.md`).",
 #              "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
 #            },
 #            "events": [
@@ -211,7 +217,7 @@
 # ----------------------
 #
 # Step 3, for one example of every case, using the clauses in
-# browser/registry.json (the file `leaf page init` copies into a page).
+# browser/runtime/kernel-registry.json (which `leaf page init` composes into a page).
 # Each top-level key below names a case and holds:
 #
 #   event:  the input: a log line's `kind`, the kind of answer its delivery
@@ -251,15 +257,18 @@
 #              you will do, before any other command, even a read: `leaf thread reply <answer.ref>
 #              --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
 #              the result on the page with what shows it (captures, a figure, the numbers),
-#              and answer with `leaf thread reply <answer.ref> --done --file reply.md`:
+#              and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
 #              what changed, in a sentence or two, linking the section that shows it. If
 #              the event asks for no work, answer it with that reply at once. The reply
-#              checks your saved page edit and makes it live before posting. Mark an answer
-#              that promises work beyond this turn `--todo "<what you owe>"` instead of
-#              `--done`. When your reply needs the user's answer, decision, permission
-#              or review, add `--obligation` to put the message on On me until they answer.
-#              Omit it for progress or information that needs no response. A widget in
-#              `--markup` can register the answer it captures instead (`references/threads.md`).
+#              checks your saved page edit and makes it live before posting. The declaration
+#              says whose move your answer leaves, which delivering what was asked doesn't
+#              settle. `--obligation` when it is the user's: it leaves them a decision,
+#              or something to try or review before making one, or asks them for an answer
+#              or permission. That puts your answer on their On me list until they reply
+#              or resolve the thread, even where the decision itself is already there.
+#              `--todo "<what you owe>"` when it is yours, promising work beyond this turn.
+#              `--done` when it leaves nobody a move. A widget in `--markup` can register
+#              the answer it captures instead of `--obligation` (`references/threads.md`).
 #          - text: >-
 #              Your reply renders as Markdown in a narrow column: give each point its own
 #              short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -288,15 +297,18 @@ comment:
         you will do, before any other command, even a read: `leaf thread reply <answer.ref>
         --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
         the result on the page with what shows it (captures, a figure, the numbers),
-        and answer with `leaf thread reply <answer.ref> --done --file reply.md`:
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
         what changed, in a sentence or two, linking the section that shows it. If
         the event asks for no work, answer it with that reply at once. The reply
-        checks your saved page edit and makes it live before posting. Mark an answer
-        that promises work beyond this turn `--todo "<what you owe>"` instead of
-        `--done`. When your reply needs the user's answer, decision, permission
-        or review, add `--obligation` to put the message on On me until they answer.
-        Omit it for progress or information that needs no response. A widget in
-        `--markup` can register the answer it captures instead (`references/threads.md`).
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        `--todo "<what you owe>"` when it is yours, promising work beyond this turn.
+        `--done` when it leaves nobody a move. A widget in `--markup` can register
+        the answer it captures instead of `--obligation` (`references/threads.md`).
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -317,11 +329,14 @@ comment over App Server:
         your final message as the reply, unless an explicit reply already answered
         this input. Before your first tool call, tell the user briefly the answer
         or what you are about to do; later working messages stay in Codex. End with
-        the answer, or what changed and where it shows. For widgets, a message awaiting
-        the user (`--obligation`), work promised beyond this turn (`--todo`), a
-        title or moving the thread, reply explicitly with `leaf thread reply <answer.ref>`
-        (`references/threads.md`); it posts at once, and your final message is then
-        not posted.
+        the answer, or what changed and where it shows. A final message leaves the
+        user no move, so where your answer leaves them one, such as a decision or
+        something to try or review before making one, answer with `leaf thread reply
+        <answer.ref> --obligation` instead: it puts the answer on their On me list
+        even where the decision itself is already there. Reply explicitly too for
+        widgets, work promised beyond this turn (`--todo`), a title or moving the
+        thread (`references/threads.md`); an explicit reply posts at once, and your
+        final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -348,8 +363,8 @@ comment with a drawing:
         that the optional `drawing.frame` names (CSS pixels for HTML, user units
         for SVG, intrinsic pixels for an image, canvas or video), and `drawing.box`
         is that frame's size. To see what the mark covers, run `leaf page picture
-        <page> <id>` with the comment's `id`; it prints the path of a PNG of the
-        revision as the user saw it, with the ink drawn over it. Answer it like
+        <page> <message>` with the comment's `id`; it prints the path of a PNG of
+        the revision as the user saw it, with the ink drawn over it. Answer it like
         any comment; its `text`, if any, explains the mark.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
@@ -357,15 +372,18 @@ comment with a drawing:
         you will do, before any other command, even a read: `leaf thread reply <answer.ref>
         --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
         the result on the page with what shows it (captures, a figure, the numbers),
-        and answer with `leaf thread reply <answer.ref> --done --file reply.md`:
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
         what changed, in a sentence or two, linking the section that shows it. If
         the event asks for no work, answer it with that reply at once. The reply
-        checks your saved page edit and makes it live before posting. Mark an answer
-        that promises work beyond this turn `--todo "<what you owe>"` instead of
-        `--done`. When your reply needs the user's answer, decision, permission
-        or review, add `--obligation` to put the message on On me until they answer.
-        Omit it for progress or information that needs no response. A widget in
-        `--markup` can register the answer it captures instead (`references/threads.md`).
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        `--todo "<what you owe>"` when it is yours, promising work beyond this turn.
+        `--done` when it leaves nobody a move. A widget in `--markup` can register
+        the answer it captures instead of `--obligation` (`references/threads.md`).
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -390,15 +408,18 @@ comment with a pasted image:
         you will do, before any other command, even a read: `leaf thread reply <answer.ref>
         --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
         the result on the page with what shows it (captures, a figure, the numbers),
-        and answer with `leaf thread reply <answer.ref> --done --file reply.md`:
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
         what changed, in a sentence or two, linking the section that shows it. If
         the event asks for no work, answer it with that reply at once. The reply
-        checks your saved page edit and makes it live before posting. Mark an answer
-        that promises work beyond this turn `--todo "<what you owe>"` instead of
-        `--done`. When your reply needs the user's answer, decision, permission
-        or review, add `--obligation` to put the message on On me until they answer.
-        Omit it for progress or information that needs no response. A widget in
-        `--markup` can register the answer it captures instead (`references/threads.md`).
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        `--todo "<what you owe>"` when it is yours, promising work beyond this turn.
+        `--done` when it leaves nobody a move. A widget in `--markup` can register
+        the answer it captures instead of `--obligation` (`references/threads.md`).
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -427,15 +448,18 @@ suggestion:
         you will do, before any other command, even a read: `leaf thread reply <answer.ref>
         --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
         the result on the page with what shows it (captures, a figure, the numbers),
-        and answer with `leaf thread reply <answer.ref> --done --file reply.md`:
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
         what changed, in a sentence or two, linking the section that shows it. If
         the event asks for no work, answer it with that reply at once. The reply
-        checks your saved page edit and makes it live before posting. Mark an answer
-        that promises work beyond this turn `--todo "<what you owe>"` instead of
-        `--done`. When your reply needs the user's answer, decision, permission
-        or review, add `--obligation` to put the message on On me until they answer.
-        Omit it for progress or information that needs no response. A widget in
-        `--markup` can register the answer it captures instead (`references/threads.md`).
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        `--todo "<what you owe>"` when it is yours, promising work beyond this turn.
+        `--done` when it leaves nobody a move. A widget in `--markup` can register
+        the answer it captures instead of `--obligation` (`references/threads.md`).
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -456,25 +480,28 @@ design comment:
         such as `lf-composer`. `part`, when present, describes the control, region
         or picture the user clicked. Fix it in this page's source. If the behavior
         belongs to a package's widget, or the user asks for a wider fix, change
-        the package as the Leaf skill's `references/packages.md` says, re-vendor,
-        and note the re-vendor on the stamp. A fix to Leaf itself is the user's
-        to raise; offer to file it (SKILL.md, "Improve Leaf through use"). Your
-        reply names the stamped version that carries the fix.
+        the package and take the change into the page as the Leaf skill's `references/packages.md`
+        says, and note the package change on the stamp. A fix to Leaf itself is
+        the user's to raise; offer to file it (SKILL.md, "Improve Leaf through use").
+        Your reply names the stamped version that carries the fix.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even a read: `leaf thread reply <answer.ref>
         --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
         the result on the page with what shows it (captures, a figure, the numbers),
-        and answer with `leaf thread reply <answer.ref> --done --file reply.md`:
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
         what changed, in a sentence or two, linking the section that shows it. If
         the event asks for no work, answer it with that reply at once. The reply
-        checks your saved page edit and makes it live before posting. Mark an answer
-        that promises work beyond this turn `--todo "<what you owe>"` instead of
-        `--done`. When your reply needs the user's answer, decision, permission
-        or review, add `--obligation` to put the message on On me until they answer.
-        Omit it for progress or information that needs no response. A widget in
-        `--markup` can register the answer it captures instead (`references/threads.md`).
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        `--todo "<what you owe>"` when it is yours, promising work beyond this turn.
+        `--done` when it leaves nobody a move. A widget in `--markup` can register
+        the answer it captures instead of `--obligation` (`references/threads.md`).
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -489,7 +516,7 @@ reaction on the page:
       text: >-
         A reaction owes no answer. Act on the token if it calls for a change, and
         reply only if its meaning is unclear. Once the page reflects it, close it
-        with `leaf thread resolve <page> <event-id>`.
+        with `leaf thread resolve <page> <message>`.
 
 reply:
   event:
@@ -503,22 +530,25 @@ reply:
     - when: {"not": {"required": ["token"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
-        <thread-id>` reads its full history.
+        <message>` reads its full history.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even a read: `leaf thread reply <answer.ref>
         --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
         the result on the page with what shows it (captures, a figure, the numbers),
-        and answer with `leaf thread reply <answer.ref> --done --file reply.md`:
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
         what changed, in a sentence or two, linking the section that shows it. If
         the event asks for no work, answer it with that reply at once. The reply
-        checks your saved page edit and makes it live before posting. Mark an answer
-        that promises work beyond this turn `--todo "<what you owe>"` instead of
-        `--done`. When your reply needs the user's answer, decision, permission
-        or review, add `--obligation` to put the message on On me until they answer.
-        Omit it for progress or information that needs no response. A widget in
-        `--markup` can register the answer it captures instead (`references/threads.md`).
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        `--todo "<what you owe>"` when it is yours, promising work beyond this turn.
+        `--done` when it leaves nobody a move. A widget in `--markup` can register
+        the answer it captures instead of `--obligation` (`references/threads.md`).
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -536,7 +566,7 @@ reply in an untitled thread:
     - when: {"not": {"required": ["token"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
-        <thread-id>` reads its full history.
+        <message>` reads its full history.
     - when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
       text: >-
         The thread has no title yet. Name its subject with `--title "<a few words>"`
@@ -547,15 +577,18 @@ reply in an untitled thread:
         you will do, before any other command, even a read: `leaf thread reply <answer.ref>
         --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
         the result on the page with what shows it (captures, a figure, the numbers),
-        and answer with `leaf thread reply <answer.ref> --done --file reply.md`:
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
         what changed, in a sentence or two, linking the section that shows it. If
         the event asks for no work, answer it with that reply at once. The reply
-        checks your saved page edit and makes it live before posting. Mark an answer
-        that promises work beyond this turn `--todo "<what you owe>"` instead of
-        `--done`. When your reply needs the user's answer, decision, permission
-        or review, add `--obligation` to put the message on On me until they answer.
-        Omit it for progress or information that needs no response. A widget in
-        `--markup` can register the answer it captures instead (`references/threads.md`).
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        `--todo "<what you owe>"` when it is yours, promising work beyond this turn.
+        `--done` when it leaves nobody a move. A widget in `--markup` can register
+        the answer it captures instead of `--obligation` (`references/threads.md`).
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -572,7 +605,7 @@ reply with a pasted image:
     - when: {"not": {"required": ["token"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
-        <thread-id>` reads its full history.
+        <message>` reads its full history.
     - when: {"required": ["text"], "properties": {"text": {"pattern": "\\]\\(/media/"}}}
       text: >-
         The message links an image in Markdown, as `/media/<digest>.<ext>` under
@@ -584,15 +617,18 @@ reply with a pasted image:
         you will do, before any other command, even a read: `leaf thread reply <answer.ref>
         --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
         the result on the page with what shows it (captures, a figure, the numbers),
-        and answer with `leaf thread reply <answer.ref> --done --file reply.md`:
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
         what changed, in a sentence or two, linking the section that shows it. If
         the event asks for no work, answer it with that reply at once. The reply
-        checks your saved page edit and makes it live before posting. Mark an answer
-        that promises work beyond this turn `--todo "<what you owe>"` instead of
-        `--done`. When your reply needs the user's answer, decision, permission
-        or review, add `--obligation` to put the message on On me until they answer.
-        Omit it for progress or information that needs no response. A widget in
-        `--markup` can register the answer it captures instead (`references/threads.md`).
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        `--todo "<what you owe>"` when it is yours, promising work beyond this turn.
+        `--done` when it leaves nobody a move. A widget in `--markup` can register
+        the answer it captures instead of `--obligation` (`references/threads.md`).
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -613,7 +649,7 @@ reply in a long thread:
     - when: {"not": {"required": ["token"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
-        <thread-id>` reads its full history.
+        <message>` reads its full history.
     - when: {"required": ["thread"], "properties": {"thread": {"required": ["summary_hint"]}}, "not": {"required": ["token"]}}
       text: >-
         This thread's entry in the batch's `threads` has a `summary_hint`: an earlier
@@ -626,15 +662,18 @@ reply in a long thread:
         you will do, before any other command, even a read: `leaf thread reply <answer.ref>
         --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
         the result on the page with what shows it (captures, a figure, the numbers),
-        and answer with `leaf thread reply <answer.ref> --done --file reply.md`:
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
         what changed, in a sentence or two, linking the section that shows it. If
         the event asks for no work, answer it with that reply at once. The reply
-        checks your saved page edit and makes it live before posting. Mark an answer
-        that promises work beyond this turn `--todo "<what you owe>"` instead of
-        `--done`. When your reply needs the user's answer, decision, permission
-        or review, add `--obligation` to put the message on On me until they answer.
-        Omit it for progress or information that needs no response. A widget in
-        `--markup` can register the answer it captures instead (`references/threads.md`).
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        `--todo "<what you owe>"` when it is yours, promising work beyond this turn.
+        `--done` when it leaves nobody a move. A widget in `--markup` can register
+        the answer it captures instead of `--obligation` (`references/threads.md`).
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -672,15 +711,18 @@ rewritten message:
         you will do, before any other command, even a read: `leaf thread reply <answer.ref>
         --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
         the result on the page with what shows it (captures, a figure, the numbers),
-        and answer with `leaf thread reply <answer.ref> --done --file reply.md`:
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
         what changed, in a sentence or two, linking the section that shows it. If
         the event asks for no work, answer it with that reply at once. The reply
-        checks your saved page edit and makes it live before posting. Mark an answer
-        that promises work beyond this turn `--todo "<what you owe>"` instead of
-        `--done`. When your reply needs the user's answer, decision, permission
-        or review, add `--obligation` to put the message on On me until they answer.
-        Omit it for progress or information that needs no response. A widget in
-        `--markup` can register the answer it captures instead (`references/threads.md`).
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        `--todo "<what you owe>"` when it is yours, promising work beyond this turn.
+        `--done` when it leaves nobody a move. A widget in `--markup` can register
+        the answer it captures instead of `--obligation` (`references/threads.md`).
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -713,15 +755,18 @@ rewritten suggestion:
         you will do, before any other command, even a read: `leaf thread reply <answer.ref>
         --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
         the result on the page with what shows it (captures, a figure, the numbers),
-        and answer with `leaf thread reply <answer.ref> --done --file reply.md`:
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
         what changed, in a sentence or two, linking the section that shows it. If
         the event asks for no work, answer it with that reply at once. The reply
-        checks your saved page edit and makes it live before posting. Mark an answer
-        that promises work beyond this turn `--todo "<what you owe>"` instead of
-        `--done`. When your reply needs the user's answer, decision, permission
-        or review, add `--obligation` to put the message on On me until they answer.
-        Omit it for progress or information that needs no response. A widget in
-        `--markup` can register the answer it captures instead (`references/threads.md`).
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        `--todo "<what you owe>"` when it is yours, promising work beyond this turn.
+        `--done` when it leaves nobody a move. A widget in `--markup` can register
+        the answer it captures instead of `--obligation` (`references/threads.md`).
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -745,8 +790,11 @@ pick on the page:
     - text: >-
         It answers the page's obligation, which waits on you until the markup records
         the answer. Before starting the work it selects or unblocks, name it with
-        `leaf task start <page> <event-id> "<the work, in a line>"`; then do it,
-        write the answer into the markup, and stamp a version. An option the user
+        `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
+        do it and write the answer into the markup. Once the work is done, make
+        the question a record of the decision (`references/authoring-revisions.md`,
+        "Keep the current page current"), such as a choice group marked `settled`
+        with what came of it beside it, and stamp a version. An option the user
         added needs no writing in; the page keeps it where the user put it.
 
 option the user added:
@@ -794,6 +842,40 @@ pick before Done:
       text: >-
         This action owes no answer of its own.
 
+pick a thread's open question is about:
+  event:
+    kind: action
+    meaning:
+      scope: page
+    waiting:
+      - id: message:m1
+        text: Try the previews first.
+    answer:
+      kind: markup
+  told:
+    - text: >-
+        The user already sees the action applied.
+    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
+      text: >-
+        If you need clarification, ask in a thread on the picked option. To override
+        the pick in a later version, mark the element `restated` and say why in
+        the version note.
+    - when: {"required": ["waiting"]}
+      text: >-
+        Your questions in `waiting`, asked in a thread about this widget, still
+        wait on the user. Judge from each one's `text` whether this action answers
+        it: end one it settles with `leaf task end <page> <id> done --text "<what
+        answered it>"`, and leave one that still needs the user.
+    - text: >-
+        It answers the page's obligation, which waits on you until the markup records
+        the answer. Before starting the work it selects or unblocks, name it with
+        `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
+        do it and write the answer into the markup. Once the work is done, make
+        the question a record of the decision (`references/authoring-revisions.md`,
+        "Keep the current page current"), such as a choice group marked `settled`
+        with what came of it beside it, and stamp a version. An option the user
+        added needs no writing in; the page keeps it where the user put it.
+
 decided suggestion:
   event:
     kind: action
@@ -818,8 +900,11 @@ decided suggestion:
     - text: >-
         It answers the page's obligation, which waits on you until the markup records
         the answer. Before starting the work it selects or unblocks, name it with
-        `leaf task start <page> <event-id> "<the work, in a line>"`; then do it,
-        write the answer into the markup, and stamp a version. An option the user
+        `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
+        do it and write the answer into the markup. Once the work is done, make
+        the question a record of the decision (`references/authoring-revisions.md`,
+        "Keep the current page current"), such as a choice group marked `settled`
+        with what came of it beside it, and stamp a version. An option the user
         added needs no writing in; the page keeps it where the user put it.
 
 pick inside a thread:
@@ -839,15 +924,18 @@ pick inside a thread:
         you will do, before any other command, even a read: `leaf thread reply <answer.ref>
         --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
         the result on the page with what shows it (captures, a figure, the numbers),
-        and answer with `leaf thread reply <answer.ref> --done --file reply.md`:
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
         what changed, in a sentence or two, linking the section that shows it. If
         the event asks for no work, answer it with that reply at once. The reply
-        checks your saved page edit and makes it live before posting. Mark an answer
-        that promises work beyond this turn `--todo "<what you owe>"` instead of
-        `--done`. When your reply needs the user's answer, decision, permission
-        or review, add `--obligation` to put the message on On me until they answer.
-        Omit it for progress or information that needs no response. A widget in
-        `--markup` can register the answer it captures instead (`references/threads.md`).
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        `--todo "<what you owe>"` when it is yours, promising work beyond this turn.
+        `--done` when it leaves nobody a move. A widget in `--markup` can register
+        the answer it captures instead of `--obligation` (`references/threads.md`).
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -874,11 +962,14 @@ pick inside a thread over App Server:
         your final message as the reply, unless an explicit reply already answered
         this input. Before your first tool call, tell the user briefly the answer
         or what you are about to do; later working messages stay in Codex. End with
-        the answer, or what changed and where it shows. For widgets, a message awaiting
-        the user (`--obligation`), work promised beyond this turn (`--todo`), a
-        title or moving the thread, reply explicitly with `leaf thread reply <answer.ref>`
-        (`references/threads.md`); it posts at once, and your final message is then
-        not posted.
+        the answer, or what changed and where it shows. A final message leaves the
+        user no move, so where your answer leaves them one, such as a decision or
+        something to try or review before making one, answer with `leaf thread reply
+        <answer.ref> --obligation` instead: it puts the answer on their On me list
+        even where the decision itself is already there. Reply explicitly too for
+        widgets, work promised beyond this turn (`--todo`), a title or moving the
+        thread (`references/threads.md`); an explicit reply posts at once, and your
+        final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -903,7 +994,7 @@ unresolve:
     - text: >-
         The user reopened a closed thread. Reopening needs no separate answer; if
         the thread's latest user message was never answered, `leaf page state <page>
-        <thread-id>` shows the `answer` still owed.
+        <message>` shows the `answer` still owed.
 
 Done on a to-do on the user:
   event:

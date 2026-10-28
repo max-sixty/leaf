@@ -30,7 +30,6 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   moreBelow: "data-lf-more-below",
   goto: "data-lf-go-to-active",
   traffic: "data-lf-traffic",
-  indicated: "data-lf-indicated",
   // A recording playing through the runtime's controls (video-controls.js).
   player: "data-lf-player",
   // A breakout that keeps to its holder (prepaint.js, `breakouts`).
@@ -39,6 +38,10 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   // (revision_delivery.py, `mark_declared`).
   mediaWidth: "data-lf-media-width",
   mediaHeight: "data-lf-media-height",
+  // A module's, not a runtime writer's: the quiet word it declares on a part, which the
+  // runtime writes there (declared-words.js, `watchQuietWords`). Paint even on an
+  // authored element, a suggestion's slot, since the word follows the slot's state.
+  quiet: "data-lf-quiet",
 });
 
 // Whether the page has presented: the stamp presentation.js writes once on `body` and

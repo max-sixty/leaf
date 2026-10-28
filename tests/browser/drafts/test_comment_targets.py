@@ -4,6 +4,7 @@ or moves to another location, and whose words a transfer carries."""
 import re
 
 import pytest
+from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_cases_navigation import compose, go_to_address, pending_text
 from render_harness import (
@@ -329,9 +330,7 @@ def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
     if not resume_before_scroll:
         # Slow the browser to expose Resume interrupting native smooth travel.
-        page.context.new_cdp_session(page).send(
-            "Emulation.setCPUThrottlingRate", {"rate": 6}
-        )
+        slow_cpu(page, 6)
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     if existing_reply:
         page.keyboard.press("t")
@@ -615,27 +614,51 @@ def test_commenting_on_the_same_selection_preserves_the_existing_suggestion(
 def datum_draft_url(serve, *, identified=False):
     """Serve a projected subject whose rendering can change independently of its identity."""
     module = """
-import {projectData, html, render} from '/runtime/widget-api.js';
-customElements.define('lf-draft-subject', class extends HTMLElement {
-  connectedCallback() { this.show('Original datum words.'); }
-  show(words, key='datum') {
-    render(html`<p>${words}</p><p>Other words in the same widget.</p>`, this);
-    projectData(this, [{key, IDENTITY node: this.querySelector('p'), label: 'Datum',
-      origin: {derived: [{widget: 'subject'}]}}]);
+import {LeafElement, html} from '/runtime/widget-api.js';
+customElements.define('lf-draft-subject', class extends LeafElement {
+  static properties = {words: {attribute: false}, key: {attribute: false}};
+  constructor() {
+    super();
+    this.words = 'Original datum words.';
+    this.key = 'datum';
+  }
+  show(words, key = 'datum') {
+    this.words = words;
+    this.key = key;
+  }
+  render() {
+    return html`<p data-lf-datum=${this.key} IDENTITY data-lf-datum-label="Datum"
+      >${this.words}</p><p>Other words in the same widget.</p>`;
+  }
+  updated(changed) {
+    super.updated(changed);
+    this.dispatchEvent(new CustomEvent('drawn', {detail: {value: this.words}}));
   }
 });
 """
-    module = module.replace("IDENTITY", "identity: 'subject'," if identified else "")
+    module = module.replace(
+        "IDENTITY", 'data-lf-identity="subject"' if identified else ""
+    )
     return serve(
         leaf_page("Datum draft", '<lf-draft-subject id="subject"></lf-draft-subject>'),
         layer_registry={
             "lf-draft-subject": {
                 "description": "A datum whose words can change.",
                 "type": "object",
-                "properties": {"id": {"type": "string"}},
+                "properties": {
+                    "id": {"type": "string"},
+                    "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+                },
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "empty",
+                "x-data": {
+                    "words": {
+                        "contract": "text-document",
+                        "source": "source",
+                        "property": "value",
+                    }
+                },
                 "x-upgrade": True,
                 "x-example": '<lf-draft-subject id="example"></lf-draft-subject>',
             }

@@ -84,10 +84,16 @@ customElements.define('lf-source-stage', class extends HTMLElement {
             page.goto(url, wait_until="commit")
         displayed(page)
         fallback = page.locator("#document").evaluate(face)
+        typography = ("font", "size", "line", "color")
         for widget_id in ("code", "diagram", "diff"):
             widget = page.locator(f"#{widget_id}")
             expect(widget).not_to_have_class(re.compile("lf-rendered"))
-            assert widget.evaluate(face) == fallback
+            actual = widget.evaluate(face)
+            # Packages own layout: an inline diff clips its reserved first-paint
+            # box. The shared source primitive supplies the readable type.
+            assert {key: actual[key] for key in typography} == {
+                key: fallback[key] for key in typography
+            }, widget_id
         assert len(boot) == 1, "the preview runtime was not held before widget upgrade"
     finally:
         for route in boot:
@@ -214,12 +220,11 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
 
     page = library_select(browser, serve)
     control = page.locator(".library-select")
-    # A page rule granted control access and with no specificity at all can outrank
+    # A page rule with no specificity at all can outrank
     # the shared theme's `:is(wa-select, …)` mapping.
     page.evaluate(
         """() => {
           const style = document.createElement('style');
-          style.setAttribute('data-controls', '');
           style.textContent = ':where(wa-select){--wa-color-text-quiet: rgb(1, 2, 3);}';
           document.head.append(style);
         }"""
@@ -229,7 +234,7 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
             "el => getComputedStyle(el).getPropertyValue('--wa-color-text-quiet')"
         ).strip()
         == "rgb(1, 2, 3)"
-    ), "a page rule granted control access must outrank the lazy vendor defaults"
+    ), "a page rule must outrank the lazy vendor defaults"
 
 
 def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(

@@ -7,7 +7,7 @@
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
 import { authoredScope, elementReading } from "./passages.js";
-import { TEXT_BLOCK } from "./passage-facts.js";
+import { TEXT_BLOCK } from "./kernel-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
 
@@ -83,20 +83,28 @@ export function addressableSays(addressable) {
 // element by the same rule off the document (`gesture_words.element_name`), and
 // `tests/name_cases.json` holds both to the same cases.
 const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
-function leadingTitle(container) {
+/** The element whose words name `container` by that rule, or null. */
+export function leadingTitle(container) {
   for (const node of container.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return "";
+    if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return null;
     if (node.nodeType !== Node.ELEMENT_NODE || uiInside(node, container)) continue;
-    if (node.matches(TITLES)) return elementReading(node, "wrote");
+    if (node.matches(TITLES)) return node;
     if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
   }
-  return "";
+  return null;
+}
+// The title an element's attribute holds, as its declaration names (`x-name`), such
+// as a tab's label.
+export function declaredName(element) {
+  const attribute = registry[element.localName]?.["x-name"];
+  return (attribute && element.getAttribute(attribute)?.trim()) || "";
 }
 export function addressableName(element) {
   if (!element) return "";
-  const attribute = registry[element.localName]?.["x-name"];
-  const declared = attribute && element.getAttribute(attribute)?.trim();
-  return declared || leadingTitle(element);
+  const declared = declaredName(element);
+  if (declared) return declared;
+  const title = leadingTitle(element);
+  return title ? elementReading(title, "wrote") : "";
 }
 
 // What the chrome calls an element away from it: an On me row, a Page Map heading,

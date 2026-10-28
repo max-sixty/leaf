@@ -1,13 +1,8 @@
-import { shadowHost, under, upFrom } from "./bundle-dom-move.js";
-import { PAGE_PAINT_ATTRIBUTE, SAID, UI_MARKS, decisionFor, declaredRoot, hostIn, inUi, overIn, pageShadowRoots, pageUpgraded, refuseShadowRoot, registry, reportPageError, shadowRootsIn, uiInside } from "./bundle-layer-client.js";
-import { readPart } from "./bundle-context.js";
+import { PAGE_PAINT_ATTRIBUTE, pageUpgraded, renderedParent, shadowHost, under, upFrom } from "./bundle-portable.js";
+import { COLLAPSE, SAID, TEXT_BLOCK, UI_MARKS, decisionFor, declaredRoot, hostIn, inUi, overIn, pageShadowRoots, readPart, refuseShadowRoot, registry, shadowRootsIn, uiInside } from "./bundle-layer-stack.js";
+import { reportPageError } from "./bundle-layer-client.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
-//#region runtime/passage-facts.js
-const COLLAPSE = /[\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
-const TEXT_BLOCK = "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
-
-//#endregion
 //#region runtime/text-alignment.js
 const textUnits = new Intl.Segmenter(void 0, { granularity: "word" });
 const sentenceUnits = new Intl.Segmenter(void 0, { granularity: "sentence" });
@@ -733,16 +728,38 @@ function findQuote(text, quote, anchor, within) {
 	const found = exact.length === 1 ? exact[0] : exact.length === 0 && candidates.length === 1 ? candidates[0] : null;
 	return found ? spanOf(text, found.from, found.to) : [];
 }
+function searchableWords() {
+	const styles = /* @__PURE__ */ new Map();
+	const reachable = /* @__PURE__ */ new Map();
+	const style = (el) => {
+		if (!styles.has(el)) styles.set(el, getComputedStyle(el));
+		return styles.get(el);
+	};
+	const canReveal = (el) => {
+		if (!el) return true;
+		if (reachable.has(el)) return reachable.get(el);
+		const css = style(el);
+		const result = css.display !== "none" && (css.contentVisibility !== "hidden" || el.getAttribute("hidden") === "until-found") && canReveal(renderedParent(el));
+		reachable.set(el, result);
+		return result;
+	};
+	return ({ node }) => {
+		const parent = renderedParent(node);
+		return parent && style(parent).visibility === "visible" && canReveal(parent);
+	};
+}
 function findText(text, query) {
 	const words = query.trim().split(/\s+/u).filter(Boolean);
 	if (!words.length) return [];
 	const pattern = new RegExp(words.map((w) => [...w].map(escape).join(`${EDGE}*`)).join(`[\\s${EDGE}]+`), "giu");
 	const out = [];
-	for (const match of text.raw.matchAll(pattern)) {
+	const searchable = searchableWords();
+	for (let match; match = pattern.exec(text.raw);) {
 		const from = match.index;
 		const to = from + match[0].length;
-		if (!withinCell(text, from, to)) continue;
-		out.push(spanOf(text, from, to));
+		const segments = spanOf(text, from, to);
+		if (withinCell(text, from, to) && segments.every(searchable)) out.push(segments);
+		else pattern.lastIndex = from + String.fromCodePoint(text.raw.codePointAt(from)).length;
 	}
 	return out;
 }
@@ -773,4 +790,4 @@ function pageParts(sel) {
 }
 
 //#endregion
-export { COLLAPSE, DATUM, LEAF_SURFACE, TEXT_BLOCK, alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fileModelsPassage, findQuote, findText, inChrome, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, pointAt, programmaticSelection, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, selectEnds, selectionBackward, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };
+export { DATUM, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fileModelsPassage, findQuote, findText, inChrome, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, pointAt, programmaticSelection, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, selectEnds, selectionBackward, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };

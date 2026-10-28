@@ -1,12 +1,15 @@
-/* Mechanical presentation and arrival for widget obligations.
+/* Mechanical presentation and arrival for the obligations placed on the page: widgets'
+   and to-dos on the user (obligations/place.js).
 
    The application publisher owns the complete obligation inventory, typed answers,
    completion and attention. This view selects widget sources and resolves their
    current nodes for focus, geometry, contextual commands and blanket actions. Questions
-   answered in words navigate through their thread owner instead.
+   answered in words navigate through their thread owner instead. A to-do has a place
+   and no source, so it takes the ring and the arrival and has no commands or choices:
+   its Done is the queue walk's (queue-walk.js).
 
    An obligation keeps its source identity. Its prompt.target names where the user arrives:
-   the enclosing widget (an lf-ask or another declaring `x-awaits.encloses`), otherwise
+   the enclosing widget (an lf-ask or another declaring `x-encloses`), otherwise
    the widget itself. The source owns the answer and the explicit context bindings.
    Adding an enclosing widget changes neither the obligation nor its answer.
 
@@ -34,7 +37,7 @@ import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { decisionControls } from "../keyboard/bindings.js";
 import { closestAcross, elementById, inChrome, showsWords } from "../passages.js";
-import { TEXT_BLOCK } from "../passage-facts.js";
+import { TEXT_BLOCK } from "../kernel-facts.js";
 import { scrollerFor } from "../reading-regions.js";
 import { keeps } from "../keeps.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
@@ -58,6 +61,7 @@ import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
 import { hostIn, under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
 import { obligationPlace } from "./place.js";
+import { partOver } from "../thread/placement.js";
 import { revealAddressed } from "../anchor-resolution.js";
 
 // The obligation view owns contextual action routes and navigation; the keyboard presenter owns their hints.
@@ -72,7 +76,9 @@ export function createObligationView({
 }) {
   const obligationNode = (item) => obligationPlace(item).node;
   const sourceNode = (item) => obligationPlace(item).source;
-  const sourceOwner = (item) => item && elementById(item.source.id);
+  // The widget whose commands answer an obligation; a to-do has none.
+  const sourceOwner = (item) =>
+    item?.source.kind === "widget" ? elementById(item.source.id) : null;
   const hasObligation = (items, candidate) =>
     Boolean(candidate && items.some((item) => item.id === candidate.id));
   const unansweredIds = () => new Set(readObligations().unanswered.map(({ id }) => id));
@@ -249,32 +255,46 @@ export function createObligationView({
     return source ? actionsFor(source, sourceOwner(item)) : [];
   };
   // The answers an obligation offers, for a surface that answers it away from where it stands,
-  // as the floating panel's On view does: each Decision control's own words and
-  // its own press, so the answer is the widget's, recorded as a press there would be.
+  // as the floating panel's On view does: each Decision control's own words, whether
+  // the page advises it, and its own press, so the answer is the widget's, recorded as
+  // a press there would be.
   // Null while the obligation's source has no node, as in a thread turn not yet drawn; the
   // caller then offers the arrival instead.
   function choicesOf(item) {
     const source = sourceNode(item);
     if (!source) return null;
-    return actionsFor(source, sourceOwner(item)).map(({ id, label, control }) =>
-      Object.freeze({
-        id,
-        label,
-        chosen:
-          control.getAttribute("aria-pressed") === "true" ||
-          control.getAttribute("aria-checked") === "true" ||
-          (control.localName === "input" && control.checked),
-        press: () => presentedActionControl(control).click(),
-      }),
+    return actionsFor(source, sourceOwner(item)).map(
+      ({ id, label, description, recommended, control }) =>
+        Object.freeze({
+          id,
+          label,
+          description,
+          recommended,
+          chosen:
+            control.getAttribute("aria-pressed") === "true" ||
+            control.getAttribute("aria-checked") === "true" ||
+            (control.localName === "input" && control.checked),
+          press: () => presentedActionControl(control).click(),
+        }),
     );
   }
+  // The widget obligation whose commands answer where `node` stands. A to-do has no
+  // commands, so one standing inside a question, or on it, leaves its digits live.
+  const answerableAt = (node) => {
+    const all = readObligations().all;
+    return obligationHolding(
+      all.filter((item) => item.source.kind === "widget"),
+      placeOf(node),
+      all,
+    );
+  };
   function obligationContext(origin) {
-    const record = obligationAt(readObligations().all, hostIn(origin, document));
+    const record = answerableAt(hostIn(origin, document));
     let root = null;
     // Keep the projection outside any nearer widget scope, but inside the
     // keyboard boundary of a thread. Native input claims precede context scopes.
     for (let node = origin; record && node; node = upFrom(node)) {
-      if (obligationAt(readObligations().all, node)?.id !== record.id) break;
+      if (answerableAt(node)?.id !== record.id) break;
       root = node;
       if (node.hasAttribute("data-lf-thread-surface")) break;
     }
@@ -337,16 +357,17 @@ export function createObligationView({
   function arrivalFocus(record, review = false) {
     const item = obligationNode(record);
     const source = sourceNode(record);
-    if (!item || !source) return null;
+    if (!item) return null;
     // A boxless decided obligation can retain a zero-height layout rect after its
     // content retires. It has no visible surface to receive the return focus.
-    const target = [...item.getClientRects()].some((rect) => rect.width && rect.height)
-      ? item
-      : (source.querySelector(OBLIGATION_CONTROL) ??
-        actionsFor(source, sourceOwner(record)).map(({ control }) =>
-          presentedActionControl(control),
-        )[0] ??
-        source);
+    const target =
+      !source || [...item.getClientRects()].some((rect) => rect.width && rect.height)
+        ? item
+        : (source.querySelector(OBLIGATION_CONTROL) ??
+          actionsFor(source, sourceOwner(record)).map(({ control }) =>
+            presentedActionControl(control),
+          )[0] ??
+          source);
     reviewedThrough = review ? target : null;
     return target;
   }
@@ -387,10 +408,8 @@ export function createObligationView({
     if (target) focusForNavigation(target, "return");
   }
 
-  const HEADING = "h1,h2,h3,h4,h5,h6";
-
   // Where the user arrives at a page obligation: the region whose start has to be in front
-  // of them for the obligation to make sense. A widget declaring `x-awaits.encloses` is its own frame —
+  // of them for the obligation to make sense. A widget declaring `x-encloses` is its own frame —
   // one heading, then the context and evidence, then the control — and this walk is handed
   // that region rather than the widget inside it, so its arrival is simply its start.
   //
@@ -415,7 +434,7 @@ export function createObligationView({
     // the reader arrives at its opening and reads down to the answering controls.
     // Shared context must fit above this source; otherwise use its nearby words.
     // With only the default source target, infer the words preceding it instead.
-    const declared = context && registry[context.localName]?.["x-awaits"]?.encloses;
+    const declared = context && registry[context.localName]?.["x-encloses"];
     if (declared && context === currentLocation) return context;
     // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a
@@ -440,22 +459,23 @@ export function createObligationView({
         target.bottom - start.top <= landingRoom(region, item).height
       );
     };
+    // The heading is what names the obligation's part of the page (thread/placement.js,
+    // `partOver`), bounded by the container both stand under, as below.
+    //
     // The blocks before this one that are about the same part of the document: the two
-    // stand under one container, which is what "the heading over this" means and is the
-    // whole of the bound the search needs. Without it the nearest preceding heading can
-    // be the previous obligation's own — two obligations written one after another is the ordinary way
-    // to write them — and the user arrives reading the wrong obligation as the context
-    // for this one. It also stops the walk at the section the obligation is in rather than
-    // running back through the whole document to find a heading.
+    // stand under one container, as a heading and what it heads do. Without that bound
+    // the block before can be the previous obligation's own, and the user arrives
+    // reading the wrong obligation as the context for this one.
     //
     // An ancestor both contains and precedes, so the block holding an inline change is
     // asked for by name and excluded here — or the walk backwards would stop at the
     // sentence the change is already inside and call it the one before.
-    // The document's own blocks, in document order, which is what picking the last
-    // heading and the nearest block both rest on. `pageQueryAll` would reach a widget's
+    // The document's own blocks, in document order, which is what picking the nearest
+    // block rests on. `pageQueryAll` would reach a widget's
     // declared shadow tree as well, and it concatenates each root's answer rather than
     // composing one order, so the last heading it reported could be from another tree
-    // entirely — a worse answer than the one this misses. The crossing worth having is
+    // entirely — a worse answer than the one this misses. The heading is read off the
+    // page's outline, which composes that order (`partOver`). The crossing worth having is
     // on the two questions asked of each block: `under` for the container, and
     // the host climb below for the order, which together let an obligation staged inside a
     // shadow tree take the heading standing over its host.
@@ -468,9 +488,9 @@ export function createObligationView({
     // different roots are DISCONNECTED, and the direction bit that comes with it is
     // arbitrary-but-consistent rather than positional: Chrome answers PRECEDING for every
     // block in the document, whichever side of the host it stands. Asked straight, the
-    // filter therefore kept the blocks after such an obligation too, and the last heading in
-    // the container won — the wrong-question arrival this bound exists to remove, in the
-    // one shape the crossing above was written to serve.
+    // filter therefore kept the blocks after such an obligation too, and a block after it
+    // won — the wrong-question arrival this bound exists to remove, in the one shape the
+    // crossing above was written to serve.
     const seenBy = (block) => hostIn(item, block.getRootNode());
     const before = [...document.querySelectorAll(TEXT_BLOCK)].filter((block) => {
       const from = seenBy(block);
@@ -484,11 +504,10 @@ export function createObligationView({
         from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING
       );
     });
-    const heading = before.findLast((block) => block.matches(HEADING));
     return (
       [
         declared ? context : null,
-        heading,
+        partOver(item),
         closestAcross(item, TEXT_BLOCK) ?? before.at(-1),
       ].find(fits) ?? item
     );
@@ -555,13 +574,13 @@ export function createObligationView({
     // rather than a second one asked here.
     const destination = () => {
       const { node: target, source, context } = obligationPlace(next);
-      if (!target || !source) return null;
+      // A widget is arrived at once its source is drawn; a to-do has none.
+      if (!target || (!source && next.source.kind === "widget")) return null;
       const box = !inChrome(target) && scrollerFor(target);
       return {
         target,
-        source,
         box,
-        region: box && arrivalRegion(source, context, target),
+        region: box && arrivalRegion(source ?? target, context, target),
       };
     };
     const initial = destination();
@@ -584,7 +603,10 @@ export function createObligationView({
         const { target, box, region } = here;
         return {
           where: target,
-          reveal: next.source.id !== next.prompt.target ? [sourceNode(next)] : [],
+          reveal:
+            next.source.id !== next.prompt.target
+              ? [sourceNode(next)].filter(Boolean)
+              : [],
           focus: arrivalFocus(next, !unansweredIds().has(next.id)),
           // Reveal the obligation through its own inner scrollports before aligning its
           // context, which may stand outside them. A framed obligation requests no motion.
@@ -607,8 +629,11 @@ export function createObligationView({
     return arrived;
   }
 
+  // A widget's obligation, which its thread draws first where it stands in one, and a
+  // to-do placed on the page outside any thread; the rest are their thread owner's.
   function arriveAtRecord(next) {
-    if (next.source.kind !== "widget") return Promise.resolve(false);
+    const placed = next.thread === null && Boolean(obligationNode(next));
+    if (next.source.kind !== "widget" && !placed) return Promise.resolve(false);
     const ready = arriveAtRecordNow(next);
     void ready.catch(() => {});
     return ready;

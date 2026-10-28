@@ -25,6 +25,7 @@ import {
 } from "../../browser/runtime/keyboard/bindings.js";
 import { dispatchKey, keyReady } from "../../browser/runtime/keyboard/dispatch.js";
 import { applicationState } from "../../browser/runtime/semantic-state.js";
+import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
 
 // Ordinary control tests begin with saved input available; startup tests withhold it.
 beforeEach(() => applicationState.setPhase("ready"));
@@ -1059,7 +1060,7 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
 });
 
 test("a scope's attachment and re-render run its latest callbacks and read only its own element", async () => {
-  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { html, render } = await import("/runtime/framework.js");
   const other = document.createElement("button");
   document.body.append(other);
   keys(other, "Elsewhere", [{ id: "probe.elsewhere", keys: ["x"], title: "x" }]);
@@ -1114,7 +1115,7 @@ test("a scope's attachment and re-render run its latest callbacks and read only 
 });
 
 test("a template scope refused on re-render withdraws its shortcuts, and its aliases follow each reading", async () => {
-  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { html, render } = await import("/runtime/framework.js");
   const { scopesAt } = await import("../../browser/runtime/keyboard/scopes.js");
   const root = document.createElement("section");
   document.body.append(root);
@@ -1155,7 +1156,7 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
 });
 
 test("a template scope's rows read the element the template renders", async () => {
-  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { html, render } = await import("/runtime/framework.js");
   const { DISCLOSE } = await import("../../browser/runtime/keyboard/disclosure.js");
   const root = document.createElement("section");
   document.body.append(root);
@@ -1181,7 +1182,7 @@ test("a template scope's rows read the element the template renders", async () =
 });
 
 test("template scopes follow current rows and retire without removing projected commands", async () => {
-  const { html, nothing, render } = await import("/vendor/browser-runtime.js");
+  const { html, nothing, render } = await import("/runtime/framework.js");
   const root = document.createElement("section");
   document.body.append(root);
   const invoked = [];
@@ -1426,4 +1427,32 @@ test("an announced scope says each live row's key and title", () => {
     { id: "fixture.off", keys: ["x"], title: "unavailable", when: () => false },
   ];
   assert.equal(saying(rows), "Escape cancel, g top");
+});
+
+test("a widget's declared commands stand from before it is placed until it withdraws them", () => {
+  const owner = document.createElement("section");
+  const declared = () => commandsWithin(owner).map(({ row }) => row.id);
+  // Declared while the element is out of the page, as a control built before it is
+  // placed is.
+  owner.lfCommands = {
+    title: "Declared",
+    rows: [{ id: "declared.run", title: "run", keys: ["Alt+1"], run: () => {} }],
+  };
+  commandsChanged(owner);
+  document.body.append(owner);
+  try {
+    assert.deepEqual(declared(), ["declared.run"]);
+    owner.lfCommands = null;
+    commandsChanged(owner);
+    assert.deepEqual(declared(), []);
+    // A malformed declaration is refused where the widget made it.
+    owner.lfCommands = {
+      title: "Declared",
+      rows: [{ id: "Not an id", title: "run", keys: ["Alt+1"], run: () => {} }],
+    };
+    assert.throws(() => commandsChanged(owner), /not a stable command id/);
+    assert.deepEqual(declared(), []);
+  } finally {
+    owner.remove();
+  }
 });

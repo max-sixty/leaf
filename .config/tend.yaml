@@ -1,6 +1,6 @@
 bot_name: leaf-agent
 harness: codex
-model: gpt-6-sol
+model: gpt-6.1-sol
 codex:
   auth_refresh: false
 merge: yolo
@@ -17,34 +17,25 @@ setup:
   # environment. Every step after this export can read it, and so can
   # anything the agent runs, which is why it comes last.
   #
-  # The expression hands it only to agents answering an issue or a red run on
-  # `main` — `issues`, `issue_comment` on an issue rather than a pull request,
-  # and `ci-fix`'s `workflow_run` — which is when `running-tend` sends an agent
-  # to the logs. Every other agent may run a pull request's code: a review and
-  # a mention on a pull request start with it in the workspace, and the
-  # notifications poll reviews fork pull requests.
-  #
-  # `ci-fix`'s own `branches: ["main"]` filter is not enough to mean main: it
-  # matches the triggering run's head branch, which for a pull request is the
-  # head ref, so a fork whose default branch is also `main` arrives as a red
-  # run on `main` and would be reproduced from the fork's code.
-  # `head_repository` is what says whose code that is. The empty value has to
-  # be the `||` arm, because `cond && '' || secret` yields the secret either
-  # way.
+  # The expression hands it only to agents answering an issue, which is when
+  # `running-tend` sends an agent to the logs: `issues` and `issue_comment` on
+  # an issue rather than a pull request, and every `tend-triage` run, since a
+  # CI failure report and its cause issues reach triage as `workflow_dispatch`
+  # runs that carry no issue in their event. Every other agent may run a pull
+  # request's code: a review, a landing, and a mention on a pull request start
+  # with it in the workspace, and the notifications poll reviews fork pull
+  # requests. The empty value has to be the `||` arm, because
+  # `cond && '' || secret` yields the secret either way.
   - name: Export the Cloudflare log token for agents that read the logs
     run: echo "CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN" >> "$GITHUB_ENV"
     env:
-      CLOUDFLARE_API_TOKEN: "${{ ((github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository) || (github.event.issue && !github.event.issue.pull_request)) && secrets.CLOUDFLARE_API_TOKEN || '' }}"
+      CLOUDFLARE_API_TOKEN: "${{ (github.workflow == 'tend-triage' || (github.event.issue && !github.event.issue.pull_request)) && secrets.CLOUDFLARE_API_TOKEN || '' }}"
 
 workflows:
-  # The suite runs about 50 minutes, and a review that waited for it spent
-  # ~95% of its runner time polling: tend-review was ~31% of the repository's
-  # Actions minutes. Without the wait, a review acts on the checks already
-  # finished and ends; under yolo it still waits on a head the bot pushed,
-  # since it lands those.
+  # Review acts on completed checks; tend-land owns later CI and landing.
   review:
     await_ci: false
-  ci-fix:
+  ci-failures:
     watched_workflows:
       - ci
       # A red `publish-site` leaves <https://leaf.page/> stale on whatever it

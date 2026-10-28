@@ -14,7 +14,8 @@ it here from that owner as it reads the source (`page_fixtures.authored_markup`)
   `<meta name="description">`;
 - `table#all-verbs`'s body: every `x-state` verb the kernel and the bundled packages
   declare, in registry order;
-- `nav.reference-index` and `div.reference-list`: the kernel registry's `$keys`;
+- `nav.reference-index` and `div.reference-list`: the core layer's `$keys`
+  (`browser/registry.json`);
 - `div.schema-list`: each declared schema in the group its `data-schemas` names
   (`SCHEMA_LISTS`), as a table of its fields.
 
@@ -30,6 +31,7 @@ from pathlib import Path
 
 from leaf.media import media_name
 from leaf.schema import MEDIA_DIR
+from leaf.state import KERNEL_REGISTRY
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT, declared_records
 from leaf_dev.example_data import document_metadata
@@ -51,6 +53,7 @@ SITE_NAV = (
     ("/", "leaf"),
     ("/examples/", "Examples"),
     ("/how-it-works/", "How it works"),
+    ("/ui/", "UI"),
     ("/extending/", "Extending"),
     ("https://github.com/max-sixty/leaf", "GitHub"),
 )
@@ -113,7 +116,7 @@ def markup_record(verb_state: dict) -> str:
 
 
 def registries() -> list[Path]:
-    """The kernel's registry, then each bundled package's."""
+    """The core layer's registry, then each bundled package's."""
     return [ASSETS / "registry.json", *sorted(PACKAGES.glob("*/registry.json"))]
 
 
@@ -405,7 +408,7 @@ def served_entries() -> list[str]:
 def event_entries() -> list[str]:
     """The fields every event record shares, then each kind's own, with the meaning
     left to `events.md`."""
-    kinds = read_json(ASSETS / "registry.json")["$events"]["kinds"]
+    kinds = read_json(KERNEL_REGISTRY)["$events"]["kinds"]
     records = [contract["record"] for contract in kinds.values()]
     shared = tuple(
         name
@@ -446,7 +449,7 @@ def event_entries() -> list[str]:
 def record_entries() -> list[str]:
     """Each record Leaf keeps outside a page's log and document, the composer's draft
     among them, with the `format` it is stored at."""
-    draft = read_json(ASSETS / "registry.json")["$events"]["draft"]
+    draft = read_json(KERNEL_REGISTRY)["$events"]["draft"]
     records = {
         kind: (record.since, record.schema)
         for kind, record in declared_records().items()
@@ -499,11 +502,7 @@ def inputs(source: Path) -> list[Path]:
     return [
         *examples,
         *(registries() if composed else []),
-        *(
-            [SERVED_SCHEMA, INTERACTION_SCHEMA, ASSETS / "registry.json"]
-            if schemas
-            else []
-        ),
+        *([SERVED_SCHEMA, INTERACTION_SCHEMA, KERNEL_REGISTRY] if schemas else []),
     ]
 
 

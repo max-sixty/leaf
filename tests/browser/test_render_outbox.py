@@ -12,6 +12,7 @@ from interact_support import (
     append_command,
     refused_on,
 )
+from leaf_dev.browser import threads_tab
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -27,6 +28,7 @@ from render_cases_navigation import (
     actions,
     composer_quote,
     mark_shows_beside_composer,
+    pending_text,
 )
 from render_harness import (
     AVAILABLE_COMMANDS,
@@ -45,13 +47,16 @@ from render_harness import (
     consume_browser_errors,
     draft_control,
     expect_obligations_answered,
+    expect_panel_offers,
     expect_panel_says,
     holding,
     http_error_console,
     is_problem,
     leaf_page,
+    navigate,
     nudge,
     open_page,
+    open_threads,
     page_comment,
     pane_scroll_behavior,
     panel_control,
@@ -138,14 +143,15 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     # Observe the instant after the immutable rejection publishes and seals, before
     # its queued imperative application. A later settled read cannot see an overclaim.
     page.evaluate("""async () => {
-      const {watchSemantic, readApplication, readApplicationPresentation} =
+      const {watchSemantic, readApplication, readApplicationPresentation, applicationPresented} =
         await window.__lfCheckApi();
       let previous = readApplication().effective.thread.all.length;
       watchSemantic(root => {
           const count = root.effective.thread.all.length;
           if (previous > 0 && count === 0) queueMicrotask(() => {
-            const {semanticEpoch, presentedEpoch, pending} = readApplicationPresentation();
-            window.rejectionPresentation = {semanticEpoch, presentedEpoch, pending};
+            window.rejectionPresentation = {
+              ...readApplicationPresentation(), presented: applicationPresented(),
+            };
           });
           previous = count;
         });
@@ -156,7 +162,8 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     round_trip(page)
     page.wait_for_function("window.rejectionPresentation !== undefined")
     reading = page.evaluate("window.rejectionPresentation")
-    assert reading["presentedEpoch"] < reading["semanticEpoch"], reading
+    assert reading["sealed"] is True, reading
+    assert reading["presented"] is False, reading
     assert "thread" in reading["pending"], reading
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
@@ -189,9 +196,7 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
 
     undo(page)
     # Back among the open threads: the user's own and the third, the agent's closed.
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "title", re.compile("^Threads, 2 open")
-    )
+    expect(threads_tab(page).locator(".lf-fp-count")).to_have_text("2")
     log = events_model.read_events(serve.page_dir)
     assert log[-1] == {
         **log[-1],
@@ -315,7 +320,7 @@ def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(f"Press again to undo: {resolved}")
     with sending(page, "the withdrawal"):
         panel_control(page, "command:history.undo").click()
-    expect(page.locator(".lf-live")).to_have_text(f"Undid: {resolved} — sent")
+    expect(page.locator(".lf-live")).to_have_text(f"Undid: {resolved}")
 
     append_command(
         serve.page_dir,
@@ -413,9 +418,7 @@ def test_z_shows_an_old_resolve_out_of_view_before_taking_it(browser, serve):
     with sending(page, "the withdrawal"):
         page.keyboard.press("z")
     assert _undos(serve.page_dir) == [resolve]
-    expect(page.locator(".lf-live")).to_have_text(
-        "Undid: resolved “Feeder” · 21d ago — sent"
-    )
+    expect(page.locator(".lf-live")).to_have_text("Undid: resolved “Feeder” · 21d ago")
 
 
 def test_a_quick_second_z_waits_for_the_first_to_show_its_gesture(browser, serve):
@@ -559,6 +562,11 @@ def test_another_key_or_a_scroll_away_puts_the_shown_gesture_back_to_showing(
     def pressed_without_taking():
         page.keyboard.press("z")
         expect(picks).to_be_in_viewport()
+        # A scroll clears the arm only once the arm has seen what the press showed: its
+        # travel finished and the next pass read it in view. The user is on it from
+        # then, so a scroll before it would be one no user could make.
+        page.wait_for_function("() => !navigation.transition")
+        rendered(page)
         told(page)
         assert _undos(serve.page_dir) == []
 
@@ -571,6 +579,8 @@ def test_another_key_or_a_scroll_away_puts_the_shown_gesture_back_to_showing(
     page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
     scroll_settled(page)
     expect(picks).not_to_be_in_viewport()
+    # The arm reads the scroll in the pass after the window moves.
+    rendered(page)
     pressed_without_taking()
 
     page.mouse.move(400, 300)
@@ -1918,7 +1928,7 @@ def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, s
     for key in ["Enter", "ArrowRight", "Enter"]:
         page.keyboard.press(key)
     holding(page, refused, 2, "the move the rollout would not take")
-    expect_panel_says(page, "isn't ready yet")
+    expect_panel_says(page, "Not through yet")
     # The same gesture throughout: a refusal that admits nothing cannot mint a second.
     assert len(set(refused)) == 1
 
@@ -2364,7 +2374,7 @@ def test_a_held_suggestion_delivery_does_not_reclaim_focus(held_events, serve):
     holding(page, held, 1, "the accepted suggestion")
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_focused()
 
-    elsewhere = page.locator(".lf-fp-threads")
+    elsewhere = page.locator(".lf-fp-on-user")
     elsewhere.focus()
     held.pop(0).continue_()
     round_trip(page)
@@ -2688,8 +2698,14 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     field = page.locator(".lf-fab-input")
     write(field, "Half a thought")
     expect(field).to_be_focused()
+    rendered(page)
     box = page.locator(".lf-fab-bar")
-    at = box.bounding_box()["y"]
+    # Where the field stands is read against its target: the scroll offset that brings
+    # the target back is not the one read here once anything above it reflows, which
+    # scroll anchoring then absorbs.
+    beside = """box => box.getBoundingClientRect().top
+      - document.getElementById('p30').getBoundingClientRect().top"""
+    at = box.evaluate(beside)
     away = (
         "document.scrollingElement"
         if scroller == "page"
@@ -2714,8 +2730,8 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     expect(box).to_be_visible()
     expect(field).to_have_js_property("value", "Half a thought")
     expect(field).to_be_focused()
-    assert box.bounding_box()["y"] == pytest.approx(at, abs=1), (
-        "the field came back somewhere other than where it stood"
+    assert box.evaluate(beside) == pytest.approx(at, abs=1), (
+        "the field came back somewhere other than beside its target"
     )
     page.keyboard.type(" more")
     expect(field).to_have_js_property("value", "Half a thought more")
@@ -2808,9 +2824,8 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     write(page.locator(".lf-composer leaf-text"), "held open across the panel opening")
-    # A press on the panel's Threads mark gives the Threads view focus.
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    # Opening the panel's Threads takes focus into the panel.
+    open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert root_overflow(page) == 0
 
@@ -3056,3 +3071,58 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     assert [said(error) for error in errors] == [
         'leaf: <lf-suggestion id="sug-refill"> failed: injected optimistic presentation fault'
     ], errors
+
+
+def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, serve):
+    """A draft survives the version it was written against even when that version's
+    replacement removes its passage. The editor stays available without attaching to
+    the rewritten words, and the draft returns to its passage when that version does."""
+    url = serve(INLINE_PAGE)
+    page = open_page(browser, url)
+
+    page.locator("#p").click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    write(
+        page.locator(".lf-composer leaf-text"),
+        "half-written when the version turned over",
+    )
+    passage = " ".join(page.locator("#p").inner_text().split())
+    assert not composer_quote(page)["shown"], "the passage is right here, and marked"
+
+    # Claude ships a version that rewrites the passage out. The page holds still — a
+    # draft is mid-composition — and offers the new version in the leaf's menu, which
+    # the user takes.
+    d = serve.page_dir
+    rewritten = INLINE_PAGE.replace(
+        "A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,\n"
+        "so that a selection across the middle of it lands in more than one text node.",
+        "Rewritten, with nothing left of the sentence the draft was about.",
+    )
+    stamp_page(d, rewritten, "two")
+    told(page)
+    expect_panel_offers(page, "latest")
+    panel_control(page, "latest").click()
+    wait_for_revision(page, 2)
+    expect(page).not_to_have_url(re.compile("/versions/"))
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "half-written when the version turned over"
+    )
+    expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
+    assert pending_text(page) == "", (
+        "v2 rewrote the passage and the page marked it anyway"
+    )
+
+    # Through the page's own readiness rather than the paragraph's arrival in markup:
+    # the restore of an open draft is part of presenting the page, and a gesture made
+    # before that is a gesture the user could not have made.
+    navigate(page, url)
+    page.locator("#p").click(click_count=3)
+    expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "half-written when the version turned over"
+    )
+    # The words come back; the user's keyboard does not go with them.
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    quote = composer_quote(page)
+    assert quote["text"] == f"“{passage}”", f"the quote says {quote['text']!r}"

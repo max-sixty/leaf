@@ -1,4 +1,6 @@
-"""Leaf's side of one Codex task, shared by both App Server clients.
+"""Leaf's side of one Codex task: the delivery records every transport shares, and
+the App Server connection Leaf uses where it can reach one, which the desktop app
+never offers (`session-lifetime.md`, "Watchers", says which tasks offer one).
 
 Two programs connect to a Codex task's App Server for Leaf: the detached
 `codex_adapter.py`, which watches a task the user owns, and `leaf_website`
@@ -127,7 +129,6 @@ from .delivery import (
     validate_delivery_id,
 )
 from .harness import CodexHarness, Harness
-from .leases import sessions_home
 from .refusals import Refused
 from .service import (
     PageTransaction,
@@ -143,6 +144,7 @@ from .state import (
     retire_if_gone,
     session_lock_path,
     session_record,
+    sessions_home,
     start_session_turn,
 )
 
@@ -1065,7 +1067,6 @@ class AppServerReplyStream:
                 self.target["ref"],
                 " ".join(text.split()),
                 reservation=self.attempt,
-                attempt=f"{self.attempt}-opening",
                 ephemeral=True,
                 identity={"session": self.session_id},
                 claimed_session=self.session_id,
@@ -1197,7 +1198,6 @@ class AppServerReplyStream:
                 self.target["ref"],
                 text,
                 reservation=self.attempt,
-                attempt=self.attempt,
                 identity={"session": self.session_id},
                 claimed_session=self.session_id,
             )

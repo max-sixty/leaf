@@ -18,7 +18,7 @@
    still decides when a passive settlement may move the reader. */
 import { setChildren } from "../dom-children.js";
 import { generatedElement } from "../widget-elements.js";
-import { html, render } from "/vendor/browser-runtime.js";
+import { html, render } from "/runtime/framework.js";
 import { seatRoot } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { elementById } from "../passages.js";

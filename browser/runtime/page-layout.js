@@ -26,9 +26,43 @@
 
 // Application composition supplies feature-local geometry. This owner cannot open
 // surfaces, send commands, or reconcile thread DOM.
-import { sizeObserver } from "./rendering.js";
+import { afterScript, sizeObserver } from "./rendering.js";
+import { whileConnected } from "./arrivals.js";
+import { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 import { scheduleMarginContentLayout } from "./content-layout.js";
 import { syncLayoutRegion } from "./reading-regions.js";
+
+// Packages declare the headers they place over the document; this owner alone writes
+// the root landing inset. CSS cannot sum heights across independent header owners.
+// Read the actual border boxes so typography and theme changes need no second height
+// declaration. Positioning and local sticky-content offsets remain the package's.
+const rootHeaders = new Set();
+const paintRootHeaders = () => {
+  const height = [...rootHeaders]
+    .filter((header) => header.isConnected)
+    .reduce((total, header) => total + header.getBoundingClientRect().height, 0);
+  const root = document.documentElement;
+  if (height) setRuntimeRootStyle(root, "--lf-root-headers", `${height}px`);
+  else removeRuntimeRootStyle(root, "--lf-root-headers");
+};
+const syncRootHeaders = () => afterScript(paintRootHeaders);
+
+/** Reserve a header's height in document landings while it is connected. Independent
+ * headers add their heights. Call the returned stop when a header changes to local
+ * navigation; removing and reconnecting the node otherwise withdraws and restores it. */
+export function registerRootHeader(header) {
+  return whileConnected(header, () => {
+    rootHeaders.add(header);
+    const size = sizeObserver(syncRootHeaders);
+    size.observe(header, { box: "border-box" });
+    syncRootHeaders();
+    return () => {
+      size.disconnect();
+      rootHeaders.delete(header);
+      syncRootHeaders();
+    };
+  });
+}
 
 export function createPageLayout({
   scheduleThreadPreviewPosition,

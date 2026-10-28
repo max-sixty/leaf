@@ -8,7 +8,7 @@ configured.
 
 Results return to the caller without collecting data or writing page state. Leaf
 makes one harness request and adds no retries. The harness owns its own transport
-retry behavior. TODO.md owns the deferred allowance and accounting work: this
+retry behavior. Issue #4020 owns the deferred allowance and accounting work: this
 endpoint does not bound cumulative usage.
 """
 

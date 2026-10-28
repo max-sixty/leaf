@@ -1,11 +1,10 @@
 """The current location (the ring, Escape, navigation, the obligation walk) and the presses,
 obligations, controls and drafts they keep across a revision."""
 
-import json
 import re
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, declare_on_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_KEYS_APPARATUS,
@@ -100,9 +99,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     )
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Chose “Two” — sent")
-    )
+    expect(page.locator(".lf-live")).to_have_text("Chose “Two”")
     round_trip(page)
 
 
@@ -679,7 +676,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     # keys rather than by backing out of the panel — a surface lands them on the page,
     # never on the control that reopens it. What is asserted here is the band the ring
     # is drawn in while they stand there.
-    toggle = page.locator(".lf-fp-threads")
+    toggle = page.locator(".lf-fp-on-user")
     toggle.focus()
     # Return by keyboard to exercise the same focus band through sequential navigation.
     page.keyboard.press("Tab")
@@ -847,7 +844,9 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
     # page at all.
     page.keyboard.press("?")
     expect(
-        page.locator('.lf-command-reference tr[data-lf-command="navigation.release"]')
+        page.locator(
+            '.lf-command-reference [role=row][data-lf-command="navigation.release"]'
+        )
     ).to_contain_text("Let go")
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
@@ -909,10 +908,12 @@ def test_the_obligation_walk_follows_registry_declarations(browser, serve):
     """Removing an open-request declaration removes that widget from every obligation
     surface without changing the runtime, panel, or keyboard walk."""
     url = serve(OBLIGATIONS_PAGE)
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
-    del registry["lf-suggestion"]["x-awaits"]
-    del registry["lf-suggestion"]["properties"]["resolves"]
-    (serve.page_dir / "registry.json").write_text(json.dumps(registry))
+
+    def undeclare(registry):
+        del registry["lf-suggestion"]["x-awaits"]
+        del registry["lf-suggestion"]["properties"]["resolves"]
+
+    declare_on_page(serve.page_dir, undeclare)
     stamp_page(
         serve.page_dir,
         (serve.page_dir / "index.html").read_text(),
@@ -961,10 +962,10 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
         "The first revision's existing body."
     )
     revised.locator(".lf-draft-body").click()
-    editor = revised.get_by_role("textbox", name="Edit revised-draft")
+    editor = revised.locator("leaf-text")
     write(editor, "The user's unsent replacement.\n")
-    # The user leaves the editor open and steps back to the page.
-    page.locator("h1").click()
+    # The editor stays open with the focus elsewhere; a press away would save it.
+    editor.blur()
     expect(editor).not_to_be_focused()
     assert take_browser_errors(page) == []
 
@@ -977,7 +978,7 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
     expect(page.locator("#arriving-draft .lf-draft-body")).to_have_text(
         "The second revision's newly inserted body."
     )
-    expect(
-        revised.get_by_role("textbox", name="Edit revised-draft")
-    ).to_have_js_property("value", "The user's unsent replacement.\n")
+    expect(revised.locator("leaf-text")).to_have_js_property(
+        "value", "The user's unsent replacement.\n"
+    )
     assert take_browser_errors(page) == []

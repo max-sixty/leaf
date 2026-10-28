@@ -78,7 +78,7 @@
         url.origin === location.origin &&
         (url.pathname.endsWith(".js") ||
           url.pathname.endsWith(".css") ||
-          url.pathname.endsWith("/registry.json"))
+          url.pathname.endsWith("registry.json"))
       );
     });
     const javascript = code.filter((entry) =>

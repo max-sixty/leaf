@@ -18,10 +18,10 @@ def test_export_refuses_an_unstamped_version_without_replacing_the_destination(
     output.write_text("Keep the existing export")
     result = CliRunner().invoke(
         cli_model.cli,
-        ["page", "export", str(page_dir), "--version", "0", "--out", str(output)],
+        ["page", "export", str(page_dir), "--version", "9", "--out", str(output)],
     )
     assert result.exit_code != 0
-    assert "v0 is not stamped" in result.output
+    assert "v9 is not stamped" in result.output
     assert output.read_text() == "Keep the existing export"
 
 

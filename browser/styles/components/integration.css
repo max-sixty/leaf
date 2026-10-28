@@ -1,65 +1,85 @@
 /* Sent media can live in chrome-owned threads or page-owned widget threads.
    Scale the complete image in both surfaces; a tall capture must not become the whole
-   thread, and nothing is cropped. */
+   thread, and nothing is cropped. Its face is every picture's (reading.css). */
 .lf-message-media img {
   display: block;
   max-width: 100%;
   max-height: min(60vh, 480px);
-  border-radius: var(--r);
 }
-:is(.lf-btn, .button):is([aria-pressed="true"], [aria-checked="true"]) {
+/* A toggle's selected face, a word's or a symbol's. */
+:is(.lf-btn, .button, .lf-icon-action):is(
+  [aria-pressed="true"],
+  [aria-checked="true"]
+) {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--chip);
 }
-/* Draw mode takes document presses while Leaf surfaces keep their gestures.
-   Document selectors do not cross a declared shadow root, so the document's draw-mode
-   rules (chrome.css) reach a tree hosted in main as an inherited property its own
-   rules query. */
+/* Draw mode takes presses on the document plane, page-widget controls included, while
+   Leaf surfaces keep their gestures. The crosshair is important: it covers whatever
+   cursor the page or a widget states for its own controls. Runtime surfaces keep
+   their controls usable wherever their owner seats them, so the crosshair leaves them
+   out and they keep their own cursors. A document selector does not cross a declared
+   shadow root, so main states the mode as an inherited property that these rules
+   query; this sheet reaches the document and every shadow tree, so one rule serves
+   both. */
 html[data-lf-draw-mode] main {
   --lf-draw-mode: on;
 }
 @container style(--lf-draw-mode: on) {
-  :host * {
+  :not([data-lf-runtime], [data-lf-runtime] *) {
     cursor: crosshair !important;
   }
-  :host [data-lf-runtime],
-  :host [data-lf-runtime] * {
-    cursor: auto !important;
+  :where([data-lf-runtime]) {
+    cursor: auto;
   }
 }
-/* Copy floats over the code's corner without changing its box or scrolling text.
+/* A block's marks (Copy, a draft's editing controls) stand on one small toolbar whose
+   middle lies on the block's border at its right, so it covers the border and padding
+   rather than a word and takes no room: a patch of the card ground with a ring and a
+   lift, its marks (controls.css, `.lf-mark-action`) 1px inside it. Its marks stand a reach
+   apart, so neighbouring reaches meet rather than overlap and the finger's wider
+   reach widens only the toolbar. A code block's Copy is such a toolbar of one mark, on
+   the block's top border; a draft's toolbar (draft.css) wears the same face in the
+   same seat. `--lf-mark-bar-end` is how far in from the block's outer right edge the
+   toolbar stands. */
+:root {
+  --lf-mark-bar-end: 8px;
+}
+.lf-mark-bar,
+.lf-code-copy {
+  box-sizing: border-box;
+  display: flex;
+  gap: max(2px, var(--aim-floor) - var(--mark-size));
+  padding: 1px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  box-shadow: var(--raise-1);
+}
+/* Copy stands over its code without changing the block's box or scrolling its text.
    Hover, keyboard focus, or a tap that stands the user on the source reveals it
    (code-copy.js). Hidden, it takes no presses, so a finger selecting the words beneath
-   it reaches them. */
-:root {
-  --lf-code-copy-size: var(--lf-line);
-  --lf-code-copy-inset: 4px;
-}
+   it reaches them. Its toolbar is its mark, its padding and its ring. */
 .lf-code-copy {
+  --lf-code-copy-box: calc(var(--mark-size) + 4px);
   position: absolute;
   /* Hidden sources have no anchor; their chrome controls stay outside the window. */
   top: calc(
-    anchor(top, -9999px) + var(--lf-code-copy-inset) + var(--lf-block-control-dy, 0px)
+    anchor(top, -9999px) - var(--lf-code-copy-box) / 2 + var(--lf-block-control-dy, 0px)
   );
   left: calc(
-    anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset) +
+    anchor(right, -9999px) - var(--lf-mark-bar-end) - var(--lf-code-copy-box) +
       var(--lf-block-control-dx, 0px)
   );
-  width: var(--lf-code-copy-size);
-  height: var(--lf-code-copy-size);
+  width: var(--lf-code-copy-box);
+  height: var(--lf-code-copy-box);
   z-index: 1;
   white-space: normal;
   font-size: 0;
   line-height: 0;
   opacity: 0;
   pointer-events: none;
-}
-/* A control the runtime stands over a page block (block-controls.js) draws only while
-   its block renders near the window, whatever display the control's own rules give
-   it. */
-.lf-block-control-away {
-  display: none !important;
 }
 /* Keep the document controls together without introducing a containing block for
    their CSS anchors or their fixed header-clipping frames. */
@@ -86,28 +106,68 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
+/* In a toolbar of more marks, Copy is one of them, shown with its toolbar. */
+.lf-mark-bar > .lf-code-copy {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+/* The ring is the shadow button's, and so is the focus a Tab reveals: it stands half
+   above its block, where a scroller's edge can meet it, so it keeps the ring's room as a
+   focused control in the page does (shadow.css, `:focus`). */
 .lf-code-copy::part(button) {
-  position: relative;
-  width: var(--lf-code-copy-size);
-  height: var(--lf-code-copy-size);
-  padding: 6px;
-  border: 1px solid var(--code-border);
-  border-radius: var(--r);
-  background: var(--pre-bg);
-  color: var(--muted);
-  display: flex;
-  font-size: var(--t-5);
+  scroll-margin: var(--focus-ring-landing);
 }
-.lf-code-copy::part(button):hover {
-  color: var(--ink);
+/* A heading's link stands in the gutter before its first line, centered on that line
+   (heading-links.js writes where the line stands in the heading's box), and at the
+   heading's far end where the gutter has no room for it. It shows as Copy does, and is
+   a symbol (controls.css, `.lf-icon-action`) a line tall. */
+:root {
+  --lf-heading-link-size: var(--lf-line);
 }
-/* Copy runs on its shadow button's press, so the reach (surfaces.css) is the button's:
-   one on the host would take the press from the button and copy nothing. Its own rule,
-   so an engine refusing a pseudo-element after a part keeps the rest. */
-.lf-code-copy::part(button)::after {
-  content: "";
+/* The gutter's room is the box between the containing block's start and the heading.
+   `--lf-heading-link-room` is what that box holds beyond the control, and where it is
+   negative the control stands one heading's width further on. The width alone decides,
+   so arithmetic chooses rather than `position-try-fallbacks`: a browser keeps the
+   fallback it last took until that overflows too (CSS Anchor Positioning, "last
+   successful position option"), so a window narrowed and widened again would leave
+   the control at the far end. The `right` inset carries it, since Firefox 155 left a
+   `left`-inset control where its heading had stood before the window widened. */
+.lf-heading-link {
+  --lf-heading-link-room: calc(
+    100% - anchor(left, 9999px) + var(--lf-block-control-dx, 0px) -
+      var(--lf-heading-link-size)
+  );
   position: absolute;
-  inset: min(0px, (100% - var(--aim-floor)) / 2);
+  top: calc(
+    anchor(top, -9999px) + var(--lf-heading-link-top, 0px) +
+      (
+        var(--lf-heading-link-line, var(--lf-heading-link-size)) -
+          var(--lf-heading-link-size)
+      ) /
+      2 + var(--lf-block-control-dy, 0px)
+  );
+  right: calc(
+    anchor(left, 9999px) - var(--lf-block-control-dx, 0px) +
+      (1 - clamp(0, sign(var(--lf-heading-link-room)) + 1, 1)) *
+      (anchor(right, 9999px) - anchor(left, 9999px))
+  );
+  --lf-icon-action-face: var(--lf-heading-link-size);
+  width: var(--lf-heading-link-size);
+  height: var(--lf-heading-link-size);
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+}
+.lf-heading-link:is(.lf-heading-link-shown, :hover, [data-lf-focus-within]) {
+  opacity: 1;
+  pointer-events: auto;
 }
 /* A recording's bar lies over its foot, inset as Copy is from a code block's corner, in
    a control's face: paper, a hairline and the theme's radius (video-controls.js). It
@@ -146,41 +206,32 @@ html[data-lf-draw-mode] main {
   }
 }
 .lf-video-controls:is(
-  :not(.lf-video-playing),
-  .lf-video-hover,
-  .lf-video-keyed,
+  :not([data-playing]),
+  [data-hovered],
+  [data-keyed],
   :hover,
   :has(:focus-visible)
 ) {
   opacity: 1;
   pointer-events: auto;
 }
-.lf-video-play,
-.lf-video-full-screen {
+/* Play and Full screen are symbols (controls.css, `.lf-icon-action`) as tall as the
+   bar inside its border, standing flush with its ends. */
+.lf-video-controls {
+  --lf-icon-action-face: calc(var(--lf-video-bar-h) - 2px);
+}
+:is(.lf-video-play, .lf-video-full-screen) {
   flex: none;
-  display: grid;
-  place-items: center;
-  position: relative;
-  inline-size: max(var(--lf-video-bar-h) - 2px, var(--aim-floor));
-  block-size: 100%;
-  padding: 0;
-  border: 0;
-  border-radius: var(--r);
-  background: none;
-  color: var(--ink);
-  &:hover {
-    background: var(--chip);
-  }
+  /* Flush with the bar's edge, the ring stays inside the press. */
   &[data-lf-focus-visible] {
-    outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
-  & > .lf-video-icon {
-    grid-area: 1 / 1;
-  }
 }
-.lf-video-controls:not(.lf-video-playing) .lf-video-icon[data-lf-icon="pause"],
-.lf-video-playing .lf-video-icon[data-lf-icon="play"] {
+.lf-video-play > .lf-action-icon {
+  grid-area: 1 / 1;
+}
+.lf-video-controls:not([data-playing]) .lf-video-play > [data-lf-icon="pause"],
+.lf-video-controls[data-playing] .lf-video-play > [data-lf-icon="play"] {
   visibility: hidden;
 }
 .lf-video-time {
@@ -220,7 +271,4 @@ html[data-lf-draw-mode] main {
   block-size: var(--lf-reply-space, 0px);
   min-block-size: 0;
   max-block-size: 100%;
-}
-.lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
-  block-size: var(--lf-reply-writing-room, auto);
 }

@@ -41,6 +41,7 @@ const browserGlobals = Object.fromEntries(
     "DOMParser",
     "DOMRect",
     "Element",
+    "ErrorEvent",
     "Event",
     "EventSource",
     "FileReader",
@@ -176,8 +177,9 @@ const publicRuntimeBoundary = {
       ],
       patterns: [
         {
-          regex: "^/runtime/(?!widget-api\\.js$)",
-          message: "Behavior and probe modules use /runtime/widget-api.js.",
+          regex: "^/runtime/(?!(?:widget-api|portable-api)\\.js$)",
+          message:
+            "Behavior and probe modules use /runtime/widget-api.js, or /runtime/portable-api.js where a widget must also load off a Leaf page.",
         },
         {
           regex: "^\\.{1,2}/(?:.*/)?runtime/",
@@ -186,11 +188,6 @@ const publicRuntimeBoundary = {
         {
           regex: "^\\.{1,2}/(?:.*/)?(?:leaf|widget-api)\\.js$",
           message: "Do not create a relative edge to the entry or public facade.",
-        },
-        {
-          regex: "^(?:/|\\.{1,2}/(?:.*/)?)vendor/browser-runtime(?:\\.js$|/)",
-          message:
-            "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
         },
       ],
     },
@@ -203,8 +200,9 @@ const publicRuntimeBoundary = {
     },
     {
       selector:
-        'ImportExpression[source.value=/^\\/runtime\\//]:not([source.value="/runtime/widget-api.js"])',
-      message: "Behavior and probe modules use /runtime/widget-api.js.",
+        'ImportExpression[source.value=/^\\/runtime\\//]:not([source.value="/runtime/widget-api.js"], [source.value="/runtime/portable-api.js"])',
+      message:
+        "Behavior and probe modules use /runtime/widget-api.js, or /runtime/portable-api.js where a widget must also load off a Leaf page.",
     },
     {
       selector: "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?runtime\\//]",
@@ -214,12 +212,6 @@ const publicRuntimeBoundary = {
       selector:
         "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?(?:leaf|widget-api)\\.js$/]",
       message: "Do not create a relative edge to the entry or public facade.",
-    },
-    {
-      selector:
-        "ImportExpression[source.value=/^(?:\\/|\\.{1,2}\\/(?:.*\\/)?)vendor\\/browser-runtime(?:\\.js$|\\/)/]",
-      message:
-        "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
     },
     {
       selector: 'ImportExpression:not([source.type="Literal"])',
@@ -268,6 +260,12 @@ const ownerBoundary = {
       selector:
         "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?(?:leaf|widget-api)\\.js$/]",
       message: "Private runtime owners never import the entry or public facade.",
+    },
+    {
+      selector:
+        'AssignmentExpression[operator="+="][left.type="MemberExpression"][left.property.name="value"]',
+      message:
+        "`x.value += 1` reads the signal before writing it, and inside a paint subscribes that paint to its own write; advance a version signal with tick() from version-signal.js.",
     },
   ],
 };
@@ -337,28 +335,25 @@ export const semanticStoreOwnershipRule = {
   create(context) {
     const file = runtimeName(context.filename ?? context.getFilename());
     // A module behind the facade is reached only through it, so the facade's
-    // exports are every framework capability a runtime module can name.
+    // exports are every framework capability a runtime module can name. The facade
+    // and the modules behind it reach one another directly.
+    const inFramework = file === "framework.js" || file.startsWith("framework/");
     const browserFrameworkSource = (source) => {
       if (typeof source?.value !== "string") return false;
-      if (/(?:^|\/)vendor\/browser-runtime\//u.test(source.value)) {
-        context.report({
-          node: source,
-          message:
-            "Import browser framework capabilities from its facade, vendor/browser-runtime.js.",
-        });
+      if (
+        /(?:^|\/)runtime\/framework\/|^\.{1,2}\/(?:.*\/)?framework\//u.test(
+          source.value,
+        )
+      ) {
+        if (!inFramework)
+          context.report({
+            node: source,
+            message:
+              "Import browser framework capabilities from its facade, runtime/framework.js.",
+          });
         return false;
       }
-      if (!/(?:^|\/)vendor\/browser-runtime\.js$/u.test(source.value)) return false;
-      // The type check maps the facade's served path to the framework's source; a
-      // relative path reaches the compiled facade, whose types are blanked, so what a
-      // module imports through it goes unchecked (`build/browser/build.mjs`, `typecheck`).
-      if (source.value.startsWith("."))
-        context.report({
-          node: source,
-          message:
-            "Import the browser framework's facade by its served path, /vendor/browser-runtime.js.",
-        });
-      return true;
+      return /(?:^\/runtime\/|^\.{1,2}\/(?:.*\/)?)framework\.js$/u.test(source.value);
     };
     const report = (node) =>
       context.report({
@@ -1007,6 +1002,35 @@ export const layerReturnsRule = {
   },
 };
 
+// A module that awaits outside every function, anywhere in a rolldown build, turns off
+// the build's chunk optimization (`mergeCommonChunks`, `avoidRedundantChunkLoads`) for
+// every module in it, since that is how rolldown keeps a waiting module's execution
+// order, and the build says nothing. When leaf.js awaited at its top level, every page
+// loaded eleven more kernel chunks before it presented. Both builds compile from this
+// tree: the kernel from `browser/`, and the website's rebundle from each published
+// layer, which adds the packages' widgets and an example's own. It is a rule of its own
+// rather than a `no-restricted-syntax` selector because a file takes that rule's options
+// from the last block matching it, and the runtime's blocks set their own.
+const topLevelAwaitRule = {
+  meta: { type: "problem", schema: [] },
+  create(context) {
+    const report = (node) => {
+      for (let scope = node.parent; scope; scope = scope.parent)
+        if (/Function/u.test(scope.type)) return;
+      context.report({
+        node,
+        message:
+          "A top-level await turns off the bundler's chunk merging for the whole build; await inside a function the module calls.",
+      });
+    };
+    return {
+      AwaitExpression: report,
+      "ForOfStatement[await=true]": report,
+      'VariableDeclaration[kind="await using"]': report,
+    };
+  },
+};
+
 const architecturePlugin = {
   rules: {
     "semantic-store-ownership": semanticStoreOwnershipRule,
@@ -1017,6 +1041,7 @@ const architecturePlugin = {
     "open-layers": openLayersRule,
     moves: movesRule,
     "layer-returns": layerReturnsRule,
+    "top-level-await": topLevelAwaitRule,
     "root-state-ownership": {
       meta: { type: "problem", schema: [] },
       create(context) {
@@ -1340,8 +1365,9 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
-    // Initial sources are compiled to self-contained scripts. Sharing these pure SVG paths adds no
-    // private runtime dependency to the package shipped to a page.
+    // Initial sources are compiled to self-contained scripts. Sharing the icon table
+    // and the time axis's geometry adds no private runtime dependency to the package
+    // shipped to a page.
     files: ["packages/*/initial/*.js"],
     rules: {
       "no-restricted-imports": [
@@ -1353,7 +1379,8 @@ export default [
               pattern.regex === "^\\.{1,2}/(?:.*/)?runtime/"
                 ? {
                     ...pattern,
-                    regex: "^\\.{1,2}/(?:.*/)?runtime/(?!motion-icon-paths\\.js$)",
+                    regex:
+                      "^\\.{1,2}/(?:.*/)?runtime/(?!(?:icon-paths|time-axis)\\.js$)",
                   }
                 : pattern,
           ),
@@ -1386,11 +1413,7 @@ export default [
     // The browser framework's and runtime's own fold tests exercise private owners,
     // which the facade rule would forbid; the entry stays out of reach, because a
     // test is not a page and booting one would import the whole layer to read one fold.
-    files: [
-      "tests/runtime/**/*.mjs",
-      "build/browser/**/*.test.mjs",
-      "browser/framework/**/*.test.mjs",
-    ],
+    files: ["tests/runtime/**/*.mjs", "build/browser/**/*.test.mjs"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -1540,6 +1563,16 @@ export default [
     rules: { "no-undef": "error" },
   },
   {
+    // What the kernel build and the website's rebundle compile (`topLevelAwaitRule`).
+    files: [
+      "browser/**/*.js",
+      "packages/*/**/*.js",
+      "examples/**/*.page/widgets/**/*.js",
+    ],
+    plugins: { architecture: architecturePlugin },
+    rules: { "architecture/top-level-await": "error" },
+  },
+  {
     // The settled reading answers only for the rendering callbacks and size observers it
     // counts, so the layer and its packages reach both through runtime/rendering.js.
     files: ["browser/**/*.js", "packages/*/**/*.js"],
@@ -1587,6 +1620,9 @@ export default [
           "browser/runtime/composing/text-field.js",
           // The shared CodeMirror adapter places its own native editor.
           "browser/runtime/editor-view.js",
+          // A held release stands in for the browser's own press, so it focuses the
+          // control as that press does, ringless; focus.js reads it as the press's.
+          "browser/runtime/held-word.js",
         ],
       ],
       "architecture/open-layers": [
@@ -1636,6 +1672,11 @@ export default [
         ],
       ],
     },
+  },
+  {
+    // Kernel widgets use their private owners; package widgets use the public API.
+    files: ["browser/widgets/**/*.js"],
+    rules: entryBoundary,
   },
   {
     files: ["browser/runtime/**/*.js"],
@@ -1714,7 +1755,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./(?:anchor-coordinate|collapse|event-kinds|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./(?:anchor-coordinate|kernel-facts|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
               message: "Thread readings depend only on pure record operations.",
             },
           ],

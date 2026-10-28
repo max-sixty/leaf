@@ -2,10 +2,11 @@
    retains their command scopes and presented controls, independently of the renderer
    that seats them. Every projection uses this directory for control, focus and
    containment, so a producer updates one registration whichever surface shows it. */
-import { html, render } from "/vendor/browser-runtime.js";
+import { html, render } from "/runtime/framework.js";
 import { iconTemplate } from "./icons.js";
 import { HOLDS_WORD } from "./held-word.js";
 import { progressFace, workflowLabel } from "./thread/workflow.js";
+import { agentName } from "./semantic-state.js";
 import { elementDirective, offer } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
@@ -258,7 +259,11 @@ function syncContributionAgentWorkflow(control, receipt) {
   Object.assign(
     reading,
     paintedStage
-      ? { stage: paintedStage, word: workflowLabel(receipt), detail: receipt.detail }
+      ? {
+          stage: paintedStage,
+          word: workflowLabel(receipt, agentName()),
+          detail: receipt.detail,
+        }
       : { stage: null, word: null, detail: null },
   );
   paintAgentDescription(control);
@@ -409,7 +414,9 @@ export function presentContributionEntry(control, offered, options = {}) {
   render(
     html`${glyph}<span class="lf-margin-entry-space" aria-hidden="true"> </span
       ><span class="lf-margin-entry-label" aria-hidden="true"
-        ><span class="lf-margin-entry-label-word">${visibleLabel}</span>${
+        ><span class="lf-margin-entry-label-word" data-voice=${record.voice}
+          >${visibleLabel}</span
+        >${
           record.context
             ? html`<span class="lf-margin-entry-context">${record.context}</span>`
             : null

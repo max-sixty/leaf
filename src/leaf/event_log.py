@@ -269,8 +269,7 @@ def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
         while (stamp := file_stamp(log)) == seen:
             # The generation is taken before the stamp it confirms, so an append
             # between the two still ends the wait.
-            changes = page_changes(page_dir)
-            generation = changes.mark()
+            changes, generation = page_changes(page_dir)
             if file_stamp(log) == seen:
                 # A signal may reach a watcher thread while Python's main thread
                 # waits here, leaving its handler pending until this wait ends.

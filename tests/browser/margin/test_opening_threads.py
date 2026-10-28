@@ -23,8 +23,10 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    open_threads,
     panel_field,
     panel_settled,
+    press_visible,
     resized,
     sending,
     stamp_page,
@@ -364,7 +366,7 @@ def open_where_the_user_stands(page, section, **options):
           const {readThreads, threadActions} = await window.__lfWidgetApi();
           const thread = readThreads().threads.find(t => t.anchor.section === section);
           const opening = threadActions.open(
-            thread.key, {focus: false, travel: false, flash: false, ...options});
+            thread.key, {focus: false, travel: false, ...options});
           const late = new Promise(resolve => setTimeout(() => resolve('late'), 5000));
           const shown = await Promise.race([opening, late]);
           return shown === 'late' ? shown : Boolean(shown);
@@ -607,6 +609,33 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(preview.locator("leaf-text")).to_have_js_property(
         "value", "Keep this draft visible."
     )
+    for activation in ("keyboard", "pointer"):
+        write(reply, "Keep this draft visible.")
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "resolve",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": preview.locator(".lf-page-thread").get_attribute(
+                    "data-thread"
+                ),
+            },
+        )
+        told(page)
+        # Editing keeps the reply drawn, so only the control changes, with no
+        # changed room to hold behind a news notice. Both routes return to the draft.
+        # The check drawn done names who resolved it before Reopen.
+        reopen = preview.get_by_role("button", name=re.compile(r"· Reopen$"))
+        if activation == "keyboard":
+            reopen.focus()
+        with sending(page, "reopen the thread beside its kept draft"):
+            if activation == "keyboard":
+                page.keyboard.press("Enter")
+            else:
+                reopen.click()
+        expect(reply).to_be_focused()
+        expect(reply).to_have_js_property("value", "Keep this draft visible.")
     write(preview.locator("leaf-text"), "")
     page.locator(".lf-margin-preview-close").click()
     page.keyboard.press("Enter")
@@ -732,8 +761,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
 
     page.locator(".lf-margin-preview-close").click()
     expect(preview).to_be_hidden()
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     marker.focus()
     page.keyboard.press("Enter")
     expect(preview).to_be_visible()
@@ -798,6 +826,7 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
             - transcript.evaluate(
                 "list => list.getBoundingClientRect().top + list.clientTop"
                 " + parseFloat(getComputedStyle(list).paddingTop)"
+                " + parseFloat(getComputedStyle(list).getPropertyValue('--lf-top'))"
             )
         )
         <= 1
@@ -845,8 +874,7 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
     page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, width, 900)
     if threads_open:
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
+        open_threads(page)
     page.locator("#mounts-p").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
@@ -872,7 +900,7 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
     assert preview_box["x"] + preview_box["width"] <= width, preview_box
     # The send leaves the user on its card.
     expect(thread).to_be_focused()
-    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    press_visible(page, thread.get_by_role("textbox", name="Reply", exact=True))
     expect(thread.locator("leaf-text")).to_be_focused()
     page.keyboard.type("the next thought")
     expect(thread.locator("leaf-text")).to_have_js_property("value", "the next thought")
@@ -909,8 +937,7 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, 1440, 900)
     if threads_open:
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
+        open_threads(page)
     stood = page.locator("lf-option-control").first
     stood.focus()
     expect(stood).to_be_focused()
@@ -1264,8 +1291,7 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
     expect(preview).to_contain_text(COMMENT_ON_OBLIGATION["text"])
     expect(preview).not_to_contain_text(second_comment["text"])
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(preview).to_be_hidden()
 
 
@@ -1298,7 +1324,7 @@ def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):
 
     marker.focus()
     expect(preview).to_be_hidden()
-    toggle = page.locator(".lf-fp-threads")
+    toggle = page.locator(".lf-fp-on-user")
     toggle.focus()
 
     expect(toggle).to_be_focused()
@@ -1330,7 +1356,7 @@ def test_a_card_follows_the_margin_entry_it_hangs_from_in_the_tab_order(browser,
     expect(preview).to_be_visible()
     assert page.evaluate("scrollY") == scrolled
     page.keyboard.press("Tab")
-    first = preview.get_by_role("button", name="Resolve thread", exact=True)
+    first = preview.get_by_role("button", name="Open in panel", exact=True)
     expect(first).to_be_focused()
     page.keyboard.press("Shift+Tab")
     expect(marker).to_be_focused()
@@ -1435,3 +1461,29 @@ def test_resolving_a_cells_thread_rings_the_whole_cell(browser, serve):
     ring = current_location_ring(page)
     assert ring, "the cell the user is located on wears no ring"
     assert ring["cuts"] == [], ring["cuts"]
+
+
+def test_open_in_panel_moves_the_cards_thread_and_its_reply_to_the_panel(
+    browser, serve
+):
+    """A card's Open in panel closes the card and opens its thread in the panel's view,
+    the reply being written there along with it, and Show on page brings both back."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    reply = preview.locator(".lf-thread-reply leaf-text")
+    reply.click()
+    page.keyboard.type("Halfway through a reply")
+
+    preview.get_by_role("button", name="Open in panel").click()
+    expect(preview).to_be_hidden()
+    panel_settled(page, view="thread")
+    expect(page.locator(PANEL_THREAD)).to_contain_text("Start with the first two.")
+    expect(panel_field(page)).to_have_js_property("value", "Halfway through a reply")
+
+    page.locator(PANEL).get_by_role("button", name="Show on page").click()
+    expect(preview).to_be_visible()
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
+    expect(reply).to_have_js_property("value", "Halfway through a reply")

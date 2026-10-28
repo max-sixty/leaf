@@ -53,7 +53,7 @@ dependencies = [
   "linkify-it-py>=2",
   "markdown-it-py>=4",
   "mdit-py-plugins>=0.4",
-  "playwright>=1.63",
+  "playwright>=1.64",
   "psutil>=6",
   "pywhatwgurl>=0.1.2",
   "regress>=2026.9",
@@ -81,7 +81,7 @@ module-name = "leaf"
 [dependency-groups]
 dev = [
   # Accessible snapshots with rendered boxes for corpus round-trip checks.
-  "playwright>=1.63",
+  "playwright>=1.64",
   "pytest>=9.1",
   "pytest-xdist>=3",
   "axe-playwright-python>=0.1.4",
@@ -137,7 +137,7 @@ extend-exclude = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tests"]
-addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.commands.suite_profile"
+addopts = "-n 2 --dist loadgroup --max-worker-restart=0 --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.commands.suite_profile"
 markers = [
   "network: requires external network access after development setup",
   "shifts_unsurveyed: its browser tests await a shift survey, so they do not reject unsolicited layout shifts",
@@ -145,8 +145,11 @@ markers = [
 ]
 # A test still running after half an hour is hung, not slow: the slowest takes under
 # three minutes on CI, so even ten times slower it finishes. The worker prints every
-# thread's stack, which names the call that blocked, and exits; xdist reports the test
-# as crashed and starts a fresh worker for the rest. Without this, a call with no
+# thread's stack, which names the call that blocked, and exits. xdist reports the test
+# as crashed, and `--max-worker-restart=0` (addopts) then ends the run once the other
+# workers finish the tests already sent to them. Replacing the crashed worker instead
+# leaves a `--dist loadgroup` run with every worker idle, waiting for a test that never
+# comes, until something kills it (xdist 3.8.0). Without the timeout, a call with no
 # deadline of its own (`page.evaluate`, a new page, a lock) holds the run until the CI
 # job's six-hour limit. Pytest cancels this timer when a test reports a failure,
 # so it does not bound that test's cleanup. CI also bounds the whole Python/profile
@@ -190,6 +193,8 @@ ignore_names = [
   "do_*",
   "list_directory",
   "log_message",
+  "protocol_version",
+  "close_connection",
   "daemon_threads",
   "handlers",
   # urllib.request calls this HTTPRedirectHandler override by name.
@@ -200,6 +205,7 @@ ignore_names = [
   "get_command",
   "format_commands",
   "command_class",
+  "group_class",
   "main_loop",
   "validateLink",
 ]

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from .obligations import ObligationSources
 
 # ---------- passages: the text an anchor points at ----------
-# The runtime resolves an anchor against the DOM; `leaf thread open` writes one down
+# The runtime resolves an anchor against the DOM; `leaf thread create` writes one down
 # against the file. The two have to read the same page or the anchor lands somewhere it
 # was never made, so this mirrors the runtime's capture (passages.js) rather than
 # approximating it: the same skip list, the same block-boundary space, the same collapse,

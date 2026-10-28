@@ -1,51 +1,59 @@
-import { Z, classMap, createRef, guard, html, keyed, live, noChange, nothing, rankAt, ref, render, repeat, styleMap, turns, unsafeHTML } from "./bundle-browser-runtime.js";
-import { TEXT_BOX, TEXT_FIELD, afterScript, atLayoutPrecision, cancelAnimation, cancelRender, closeLayer, currentLocationIn, focusDestination, focused, handBack, holdFocus, isNativeLayer, keeps, keepsHidden, keepsText, layoutPx, move, nextAnimation, nextFrame, nextRender, onCurrentLocation, onUserInput, openLayer, openerOf, rove, sizeObserver, under, whenLeft } from "./bundle-dom-move.js";
-import { LAYOUT, LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, announce, closeNativeLayer, commandScope, commandsOn, cycledRow, declarationFor, dragging, el, elementsDeclaring, frameFor, generated, generatedElement, growthIsSeen, iconElement, iconTemplate, inBaseLayer, keys, labelOf, landingInsets, layerFact, layoutChanged, matchesWhen, measure, motionPreview, notice, offer, offered, paintKeys, plainPress, pressIsKeyboardActivation, raiseError, reachedForWords, registry, relabel, removeRuntimeRootStyle, requestJson, rowArrows, saying, searchField, selectableOffer, selectableOffered, setRuntimeRootStyle, showNativeLayer, shownParts, shownWindow, whileConnected, worksInside } from "./bundle-layer-client.js";
-import { agentName, applicationRegionsPresented, applicationState, offlineInteractive, pageUrl, projectionRegionsPresented, readPart, revisionLabel } from "./bundle-context.js";
-import { PAGE_INTERFACE, PRESENTATION, afterPresentation, ago, atScrollEnd, clockValue, compoundReadingRegionId, deferredArrival, pageScroller, preserveReadingRegions, quietSince, regionScrollBehavior, registerReadingRegion, scrollLimit, scrollerFor, shortAgo, showReadingSubject, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
-import { LeafEditorView, LeafElement, answerWords, claimTraversals, comparisonChanges, consumeAnnotations, currentProjection, landInThread, loadDeferred, navigateToDatum, obligationActions, placePageThreads, projectData, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, readQueues, referencedProjection, registerThreadPresentation, replaceEntry, requireReference, threadActions, threadBox, threadInput, widgetController, wireInput } from "./bundle-answer.js";
-import { alignText, authoredScope, closestAcross, elementById, excerptWords, inChrome, renderRetired, says, textNodesUnder, wrote } from "./bundle-passages.js";
-import { addressableLabel, addressableName, addressableWord, addressedElements, fragmentTarget, projectedDatum, registerVisualParts } from "./bundle-css-anchors.js";
-import { initialRender } from "./bundle-initial-render.js";
-import { HOLDS_WORD, HeldReading, allButCommandReference, anchorLabel, answeredInWords, beginWalk, capturePlace, clearDraft, copyBlock, ensureSyntaxLanguage, fitsWhole, heldGrowth, highlightBlocks, inlineMarkdownFragment, keepView, langForPath, listWalkPosition, loadDraft, loadMarkdown, markdownReady, markdownSourceOffset, markdownWords, obligationsIn, openingView, paintMarkdown, placeKeeper, quietWord, readObligations, readThreads, releaseOutlets, renderMarkdown, restorePlace, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, sendDraft, synNodes, syntax, tabStore, threadSummary, threadSurface, tokenLines, watchDraft } from "./bundle-surfaces.js";
-import { DISCLOSE, aborted, bodyText, dataBody, failSoft, once, placesFailure, quoted, reportFailure, setChildLists, setChildren, setRenderedChildren, shadowStage } from "./bundle-abort.js";
-import { backgroundFlash, foldBlock, foldDuration, motion, onMotionPreferenceChange, reducedMotion, returnDuration, scrollBehavior } from "./bundle-motion.js";
-import { isCanonicalMediaUrl, scopedMediaUrl } from "./bundle-media.js";
-import { CONTRIBUTION_ENTRY_SCHEMA, contributionEntry, contributionItemKey, presentContributionEntry, presentContributionReceipts, registerContribution } from "./bundle-margin-model.js";
-import { dressSamples, wear } from "./bundle-dress.js";
+import { LAYOUT, PendingTaskEvent, actionOffers, afterScript, announce, backgroundFlash, bodyText, cancelAnimation, cancelRender, commandsChanged, dataBody, drawsFirst, ensureSyntaxLanguage, failSoft, flashDuration, foldBlock, foldDuration, frameFor, iconElement, inBaseLayer, initialRender, isNativeLayer, layoutChanged, measure, motion, nextAnimation, nextFrame, nextRender, onMotionPreferenceChange, once, placesFailure, reducedMotion, registerVisualParts, reportFailure, returnDuration, scrollBehavior, showAction, sizeObserver, stagesFailure, synNodes, syntax, tabStore, tokenLines, under, watchArrivalsIn, whileConnected } from "./bundle-portable.js";
+import { SHADOW_LEADING_CSS, TEXT_BOX, TEXT_FIELD, Z, agentName, annotationMarkSheets, applicationRegionsPresented, applicationState, atLayoutPrecision, closeLayer, closeNativeLayer, currentLocationIn, declarationFor, elementsDeclaring, focusDestination, focused, handBack, holdFocus, keeps, keepsHidden, keepsText, layerFact, layoutPx, marksSheet, matchesWhen, move, offlineInteractive, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, pageUrl, projectionRegionsPresented, rankAt, readPart, registry, revisionLabel, rove, shadowRules, showNativeLayer, turns, watchCurrentLocationIn, watchLayers, whenLeft } from "./bundle-layer-stack.js";
+import { LayerRefused, PRESS, PRESSABLE, actionTemplate, commandScope, commandsOn, cycledRow, dragging, el, generated, generatedElement, iconTemplate, labelOf, motionPreview, nameAction, namedAction, notice, offer, offerAction, offered, offeredAction, plainPress, pressIsKeyboardActivation, raiseError, reachedForWords, relabel, requestJson, rowArrows, saying, searchField, selectableOffer, selectableOffered, worksInside } from "./bundle-layer-client.js";
+import { PAGE_INTERFACE, PRESENTATION, addressableLabel, addressableName, addressableWord, afterPresentation, ago, atScrollEnd, clockValue, compoundReadingRegionId, deferredArrival, fragmentTarget, pageScroller, preserveReadingRegions, projectedDatum, quietSince, regionScrollBehavior, registerReadingRegion, scrollLimit, scrollerFor, shortAgo, showReadingSubject, watchReadingRegionTransitions, whileInterfaceConnected } from "./bundle-content-layout.js";
+import { HOLDS_WORD, HeldReading, aborted, allButCommandReference, anchorLabel, answeredInWords, beginWalk, capturePlace, claimTraversals, clearDraft, comparisonChanges, copyBlock, heldGrowth, highlightBlocks, inlineMarkdownFragment, keepView, langForPath, listWalkPosition, loadDeferred, loadDraft, loadMarkdown, markdownReady, markdownSourceOffset, markdownWords, obligationsIn, openingView, paintMarkdown, placeKeeper, placeOf, publishOutput, pushEntry, quoted, readObligations, readThreads, releaseOutlets, renderMarkdown, replaceEntry, restorePlace, rowWalk, saveDraft, sendDraft, setChildLists, setChildren, setRenderedChildren, threadSummary, threadSurface, watchDraft, widgetDescriptor } from "./bundle-data.js";
+import { growthIsSeen, landingInsets, shownWindow } from "./bundle-geometry.js";
+import { alignText, authoredScope, closestAcross, elementById, excerptWords, inChrome, says, watchPassageRoot, wrote } from "./bundle-passages.js";
+import { copyControl, fitsWhole, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
+import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
+import { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, LeafElement, answerWords, consumeAnnotations, contributionEntry, contributionItemKey, currentProjection, landInThread, leafEditorView, navigateToDatum, obligationActions, placePageThreads, presentContributionEntry, presentContributionReceipts, queueActions, queueItemKey, queueTitle, readQueues, registerContribution, registerRootHeader, registerThreadPresentation, threadActions, threadBox, threadInput, watchDisclosures, widgetController, wireInput } from "./bundle-disclosure.js";
+import { classMap, createRef, guard, html, keyed, live, noChange, nothing, ref, render, repeat, styleMap, unsafeHTML } from "./portable-api.js";
+import { wear } from "./bundle-dress.js";
 
-//#region runtime/indication.js
-const INDICATED = PAGE_PAINT_ATTRIBUTE.indicated;
-const held = /* @__PURE__ */ new Map();
-let painted = /* @__PURE__ */ new Set();
-let listening = false;
-const resolve = (owner, attribute, key) => {
-	const source = referencedProjection(owner, attribute);
-	return source ? addressedElements(source, key) : [];
+//#region runtime/shown-answer.js
+const namedValue = (answer, keyOf) => {
+	if (!keyOf) return typeof answer === "string" && answer ? answer : null;
+	const values = new Set((Array.isArray(answer) ? answer : []).map(keyOf));
+	return values.size === 1 && !values.has(null) ? [...values][0] : null;
 };
-function repaint() {
-	const next = /* @__PURE__ */ new Set();
-	for (const [owner, keys] of held) for (const [attribute, key] of keys) for (const element of resolve(owner, attribute, key)) next.add(element);
-	for (const element of painted) if (!next.has(element)) element.removeAttribute(INDICATED);
-	for (const element of next) if (!painted.has(element)) element.setAttribute(INDICATED, "");
-	painted = next;
-}
-function indicate(owner, attribute, key) {
-	requireReference("indicate", owner, attribute);
-	if (key !== null && (typeof key !== "string" || !key)) throw new TypeError("indicate key must be a non-empty string or null");
-	if (!listening) {
-		listening = true;
-		document.addEventListener(LAYOUT, () => {
-			if (held.size || painted.size) repaint();
-		});
-	}
-	const keys = held.get(owner) ?? /* @__PURE__ */ new Map();
-	if (key === null) keys.delete(attribute);
-	else keys.set(attribute, key);
-	if (keys.size) held.set(owner, keys);
-	else held.delete(owner);
-	repaint();
-	return key !== null && resolve(owner, attribute, key).length > 0;
+function shownAnswer(view) {
+	const shows = declarationFor(view, "x-shows");
+	const id = shows && view.getAttribute(shows.attr);
+	if (!id) return null;
+	const owner = elementById(id, authoredScope(view));
+	const awaits = owner && declarationFor(owner, "x-awaits");
+	const verb = awaits?.value;
+	const record = verb && declarationFor(owner, "x-state")?.[verb]?.record;
+	if (record?.kind !== "value" && !(record?.kind === "attribute" && awaits.key)) return null;
+	if (!widgetDescriptor(owner)) return null;
+	const controller = widgetController(owner);
+	const reading = controller.read();
+	const state = reading.state?.[verb];
+	if (!state) return null;
+	const scope = authoredScope(owner);
+	const keyOf = record.kind === "attribute" ? (member) => elementById(member, scope)?.getAttribute(awaits.key) ?? null : null;
+	const detailFor = (value) => {
+		if (!keyOf) return value === null ? null : { value };
+		if (value === null) return { value: [] };
+		const members = (reading.memberships?.[record.attr] ?? []).filter((member) => keyOf(member) === value);
+		return members.length ? { value: members } : null;
+	};
+	return Object.freeze({
+		owner,
+		value: namedValue(state.value, keyOf),
+		available: Boolean(reading.actions[verb]?.available),
+		takes: (value) => detailFor(value) !== null,
+		answer(value, says) {
+			const detail = detailFor(value);
+			return detail ? controller.dispatch({
+				kind: "action",
+				verb,
+				detail,
+				...says && { says }
+			}) : null;
+		}
+	});
 }
 
 //#endregion
@@ -227,489 +235,37 @@ function readWork(scope) {
 }
 
 //#endregion
-//#region runtime/image-difference.js
-const SLIGHT = 48;
-const STEP = 4;
-const LINE = 40;
-const CELL = 4;
-const SPACING = 1;
-const COARSE = 8;
-const THROUGHOUT = .5;
-const ABSORB = 16;
-const MOVED_REACH = 32;
-async function differingRegions(a, b) {
-	const width = Math.max(a.width, b.width);
-	const height = Math.max(a.height, b.height);
-	const columns = Math.ceil(width / CELL);
-	const one = words(a);
-	const other = words(b);
-	const struck = new Uint8Array(columns * Math.ceil(height / CELL));
-	const coarseColumns = Math.ceil(width / COARSE);
-	const coarse = new Uint8Array(coarseColumns * Math.ceil(height / COARSE));
-	let changed = 0;
-	for (let y = 0; y < height; y += 1) {
-		const row = Math.floor(y / CELL) * columns;
-		const coarseRow = Math.floor(y / COARSE) * coarseColumns;
-		for (let x = 0; x < width; x += 1) {
-			const change = pixelChange(a, one, b, other, x, y);
-			if (!change) continue;
-			changed += 1;
-			if (change === STRONG) {
-				struck[row + Math.floor(x / CELL)] = 1;
-				coarse[coarseRow + Math.floor(x / COARSE)] = 1;
-			}
-		}
+//#region runtime/shadow-stage.js
+const stageStyles = /* @__PURE__ */ new WeakMap();
+function shadowStage(host, nodes) {
+	const root = host.shadowRoot ?? stageFor(host);
+	watchArrivalsIn(root);
+	root.adoptedStyleSheets = [.../* @__PURE__ */ new Set([
+		...root.adoptedStyleSheets,
+		...annotationMarkSheets,
+		marksSheet
+	])];
+	watchDisclosures(root);
+	watchLayers(root);
+	watchCurrentLocationIn(root);
+	const rules = SHADOW_LEADING_CSS + shadowRules;
+	let style = stageStyles.get(root);
+	if (style?.textContent !== rules) {
+		style = document.createElement("style");
+		style.textContent = rules;
+		stageStyles.set(root, style);
 	}
-	if (coarse.reduce((sum, square) => sum + square, 0) >= THROUGHOUT * coarse.length) return {
-		width,
-		height,
-		changed,
-		throughout: true,
-		regions: []
-	};
-	if (!struck.includes(1)) return {
-		width,
-		height,
-		changed,
-		throughout: false,
-		regions: []
-	};
-	const { DBSCAN } = await import("/vendor/density-clustering.esm.js");
-	const before = blocksOf(a, one, columns);
-	const after = blocksOf(b, other, columns);
-	const drawnChange = (block, image, pixels, otherImage, otherPixels) => block.cells.some((cell) => {
-		if (!struck[cell]) return false;
-		block.ground ??= around(block, image, pixels) ?? null;
-		const box = block.boxes.get(cell);
-		for (let y = box.y; y < box.y + box.height; y += 1) for (let x = box.x; x < box.x + box.width; x += 1) {
-			const p = pixels[y * image.width + x];
-			if (block.ground !== null && distance(p, block.ground) <= STEP) continue;
-			const q = x < otherImage.width && y < otherImage.height ? otherPixels[y * otherImage.width + x] : void 0;
-			if (q === void 0 || distance(p, q) >= SLIGHT) return true;
-		}
-		return false;
+	setChildren(root, [style, ...nodes]);
+	for (const child of [...host.childNodes]) child.remove();
+	watchPassageRoot(root);
+	return root;
+}
+function stageFor(host) {
+	stagesFailure(host, (box) => {
+		shadowStage(host, [box]);
+		return true;
 	});
-	const touched = (block, image, pixels, otherImage, otherPixels) => block.frame ? drawnChange(block, image, pixels, otherImage, otherPixels) : block.cells.some((cell) => struck[cell]);
-	const reading = (blocks, image, pixels, others, otherImage, otherPixels) => blocks.map((block) => {
-		if (!touched(block, image, pixels, otherImage, otherPixels)) return { state: "same" };
-		let found = null;
-		let nearest = Infinity;
-		for (const candidate of others) {
-			if (!touched(candidate, otherImage, otherPixels, image, pixels)) continue;
-			if (candidate.width !== block.width || candidate.height !== block.height) continue;
-			const far = Math.abs(candidate.x - block.x) + Math.abs(candidate.y - block.y);
-			if (far < nearest && alike(image, pixels, block, otherImage, otherPixels, candidate)) [found, nearest] = [candidate, far];
-		}
-		if (!found) return { state: "changed" };
-		if (!nearest) return { state: "same" };
-		return {
-			state: "moved",
-			d: [found.x - block.x, found.y - block.y]
-		};
-	});
-	const readBefore = reading(before, a, one, after, b, other);
-	const readAfter = reading(after, b, other, before, a, one);
-	const owned = new Uint8Array(struck.length);
-	for (const block of [...before, ...after]) for (let r = Math.floor(block.y / CELL); r * CELL < block.y + block.height; r += 1) owned.fill(1, r * columns + Math.floor(block.x / CELL), r * columns + Math.ceil((block.x + block.width) / CELL));
-	const bare = [];
-	for (let cell = 0; cell < struck.length; cell += 1) if (struck[cell] && !owned[cell]) {
-		const x = cell % columns * CELL;
-		const y = Math.floor(cell / columns) * CELL;
-		bare.push({
-			x,
-			y,
-			width: Math.min(CELL, width - x),
-			height: Math.min(CELL, height - y)
-		});
-	}
-	const unowned = merged(bare, (p, q) => near(p, q, 8)).flatMap((box) => [["before", a], ["after", b]].flatMap(([side, image]) => {
-		const right = Math.min(box.x + box.width, image.width);
-		const bottom = Math.min(box.y + box.height, image.height);
-		return right > box.x && bottom > box.y ? [{
-			x: box.x,
-			y: box.y,
-			width: right - box.x,
-			height: bottom - box.y,
-			side,
-			kind: "changed"
-		}] : [];
-	}));
-	const regions = [...outlines(before, readBefore, struck, "before", unowned, DBSCAN), ...outlines(after, readAfter, struck, "after", unowned, DBSCAN)].sort((p, q) => p.y - q.y || p.x - q.x).map(({ x, y, width, height, side, kind }) => ({
-		x,
-		y,
-		width,
-		height,
-		side,
-		kind
-	}));
-	return {
-		width,
-		height,
-		changed,
-		throughout: false,
-		regions
-	};
-}
-function outlines(blocks, states, struck, side, bare, DBSCAN) {
-	const marks = [];
-	for (const [i, block] of blocks.entries()) {
-		const { state, d } = states[i];
-		if (state === "same") continue;
-		if (state === "moved" && block.frame) continue;
-		marks.push({
-			...box(block),
-			side,
-			kind: state,
-			d,
-			block
-		});
-	}
-	const whole = marks.filter((mark) => mark.kind === "changed" && marks.some((inner) => contains(mark, inner)) && blocks.every((block, i) => states[i].state === "changed" || !contains(mark, block)));
-	const inWhole = (mark) => whole.some((outer) => contains(outer, mark));
-	const holds = (mark) => !whole.includes(mark) && (mark.kind === "changed" ? blocks : marks).some((inner) => inner !== mark.block && contains(mark, inner));
-	const shown = marks.filter((mark) => !holds(mark) && !inWhole(mark));
-	for (const mark of marks) {
-		if (!holds(mark) || inWhole(mark) || mark.kind !== "changed") continue;
-		const loose = mark.block.cells.filter((cell) => struck[cell]).map((cell) => mark.block.boxes.get(cell)).filter((cellBox) => !shown.some((other) => contains(other, cellBox)));
-		for (const group of merged(loose, (p, q) => near(p, q, 8))) {
-			const host = shown.find((other) => other.kind === "changed" && near(other, group, ABSORB));
-			if (host) Object.assign(host, union(host, group));
-			else shown.push({
-				...group,
-				side,
-				kind: "changed"
-			});
-		}
-	}
-	const joined = join([...shown, ...bare.filter((box) => box.side === side)], DBSCAN);
-	return joined.filter((mark) => mark.kind !== "moved" || !joined.some((outer) => outer.kind === "changed" && contains(outer, mark)));
-}
-function blocksOf(image, pixels, columns) {
-	const { width, height } = image;
-	const belowDiffers = new Uint8Array(width * height);
-	const rightDiffers = new Uint8Array(width * height);
-	for (let i = 0; i < width * height; i += 1) {
-		const p = pixels[i];
-		if (i + width < width * height && p !== pixels[i + width] && distance(p, pixels[i + width]) > STEP) belowDiffers[i] = 1;
-		if ((i + 1) % width && p !== pixels[i + 1] && distance(p, pixels[i + 1]) > STEP) rightDiffers[i] = 1;
-	}
-	const acrossRows = new Uint8Array(width * height);
-	const acrossColumns = new Uint8Array(width * height);
-	for (let i = 0; i < width * height; i += 1) {
-		if (belowDiffers[i]) acrossRows[i] = acrossRows[i + width] = 1;
-		if (rightDiffers[i]) acrossColumns[i] = acrossColumns[i + 1] = 1;
-	}
-	const line = new Uint8Array(width * height);
-	for (let y = 0; y < height; y += 1) {
-		const row = y * width;
-		let start = 0;
-		for (let x = 1; x <= width; x += 1) {
-			const i = row + x;
-			if (x < width && acrossRows[i] && acrossRows[i - 1] && !rightDiffers[i - 1]) continue;
-			if (x - start >= LINE && acrossRows[row + start]) line.fill(1, row + start, row + x);
-			start = x;
-		}
-	}
-	for (let x = 0; x < width; x += 1) {
-		let start = 0;
-		for (let y = 1; y <= height; y += 1) {
-			const i = y * width + x;
-			if (y < height && acrossColumns[i] && acrossColumns[i - width] && !belowDiffers[i - width]) continue;
-			if (y - start >= LINE && acrossColumns[start * width + x]) for (let k = start; k < y; k += 1) line[k * width + x] = 1;
-			start = y;
-		}
-	}
-	const rows = Math.ceil(height / CELL);
-	const ownColumns = Math.ceil(width / CELL);
-	const count = ownColumns * rows;
-	const boxes = new Int32Array(count * 4).fill(-1);
-	const marked = new Uint8Array(count);
-	const lined = new Uint8Array(count);
-	for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
-		const i = y * width + x;
-		if (!acrossRows[i] && !acrossColumns[i]) continue;
-		const cell = Math.floor(y / CELL) * ownColumns + Math.floor(x / CELL);
-		if (!line[i]) marked[cell] = 1;
-		else lined[cell] = 1;
-		const k = cell * 4;
-		if (boxes[k] < 0) {
-			boxes[k] = boxes[k + 2] = x;
-			boxes[k + 1] = boxes[k + 3] = y;
-		} else {
-			boxes[k] = Math.min(boxes[k], x);
-			boxes[k + 1] = Math.min(boxes[k + 1], y);
-			boxes[k + 2] = Math.max(boxes[k + 2], x);
-			boxes[k + 3] = Math.max(boxes[k + 3], y);
-		}
-	}
-	const parent = Int32Array.from({ length: count }, (_, cell) => cell);
-	const root = (cell) => {
-		while (parent[cell] !== cell) cell = parent[cell] = parent[parent[cell]];
-		return cell;
-	};
-	const join = (one, other) => {
-		const [from, to] = [root(one), root(other)];
-		if (from !== to) parent[to] = from;
-	};
-	for (let r = 0; r < rows; r += 1) for (let c = 0; c < ownColumns; c += 1) {
-		const cell = r * ownColumns + c;
-		if (boxes[cell * 4] < 0) continue;
-		for (const near of [
-			cell + 1,
-			cell + ownColumns - 1,
-			cell + ownColumns,
-			cell + ownColumns + 1
-		]) if (near < count && Math.abs(near % ownColumns - c) <= 1 && boxes[near * 4] >= 0) join(cell, near);
-	}
-	const pieces = /* @__PURE__ */ new Map();
-	for (let cell = 0; cell < count; cell += 1) {
-		const k = cell * 4;
-		if (boxes[k] < 0) continue;
-		const id = root(cell);
-		const piece = pieces.get(id);
-		if (!piece) pieces.set(id, {
-			id,
-			left: boxes[k],
-			top: boxes[k + 1],
-			right: boxes[k + 2],
-			bottom: boxes[k + 3],
-			marked: !!marked[cell],
-			lined: !!lined[cell]
-		});
-		else {
-			piece.left = Math.min(piece.left, boxes[k]);
-			piece.top = Math.min(piece.top, boxes[k + 1]);
-			piece.right = Math.max(piece.right, boxes[k + 2]);
-			piece.bottom = Math.max(piece.bottom, boxes[k + 3]);
-			piece.marked ||= !!marked[cell];
-			piece.lined ||= !!lined[cell];
-		}
-	}
-	const marks = [...pieces.values()].filter((piece) => piece.marked && !piece.lined).sort((p, q) => p.top - q.top);
-	for (const [i, p] of marks.entries()) {
-		const height = p.bottom - p.top + 1;
-		for (let j = i + 1; j < marks.length; j += 1) {
-			const q = marks[j];
-			if (q.top > p.bottom + SPACING * height) break;
-			const reach = SPACING * Math.min(height, q.bottom - q.top + 1);
-			const across = Math.max(q.left - p.right, p.left - q.right) - 1;
-			const down = Math.max(q.top - p.bottom, p.top - q.bottom) - 1;
-			if (down < 0 && across >= 0 && across <= reach || across < 0 && down >= 0 && down <= reach) join(p.id, q.id);
-		}
-	}
-	const groups = /* @__PURE__ */ new Map();
-	for (let cell = 0; cell < count; cell += 1) {
-		const k = cell * 4;
-		if (boxes[k] < 0) continue;
-		const id = root(cell);
-		let group = groups.get(id);
-		if (!group) groups.set(id, group = {
-			left: Infinity,
-			top: Infinity,
-			right: -1,
-			bottom: -1,
-			frame: true,
-			cells: [],
-			boxes: /* @__PURE__ */ new Map()
-		});
-		group.left = Math.min(group.left, boxes[k]);
-		group.top = Math.min(group.top, boxes[k + 1]);
-		group.right = Math.max(group.right, boxes[k + 2]);
-		group.bottom = Math.max(group.bottom, boxes[k + 3]);
-		if (marked[cell]) group.frame = false;
-		const pairCell = Math.floor(cell / ownColumns) * columns + cell % ownColumns;
-		group.cells.push(pairCell);
-		group.boxes.set(pairCell, {
-			x: boxes[k],
-			y: boxes[k + 1],
-			width: boxes[k + 2] - boxes[k] + 1,
-			height: boxes[k + 3] - boxes[k + 1] + 1
-		});
-	}
-	return [...groups.values()].map((group) => ({
-		x: group.left,
-		y: group.top,
-		width: group.right - group.left + 1,
-		height: group.bottom - group.top + 1,
-		frame: group.frame,
-		cells: group.cells,
-		boxes: group.boxes
-	}));
-}
-function alike(image, pixels, block, otherImage, otherPixels, candidate) {
-	for (let j = 0; j < block.height; j += 1) {
-		const p = (block.y + j) * image.width + block.x;
-		const q = (candidate.y + j) * otherImage.width + candidate.x;
-		for (let i = 0; i < block.width; i += 1) {
-			const u = pixels[p + i];
-			const v = otherPixels[q + i];
-			if (u !== v && distance(u, v) >= SLIGHT) return false;
-		}
-	}
-	return true;
-}
-const box = ({ x, y, width, height }) => ({
-	x,
-	y,
-	width,
-	height
-});
-const contains = (outer, inner) => outer !== inner && outer.x <= inner.x && outer.y <= inner.y && outer.x + outer.width >= inner.x + inner.width && outer.y + outer.height >= inner.y + inner.height;
-const near = (p, q, reach) => p.x - reach < q.x + q.width && q.x - reach < p.x + p.width && p.y - reach < q.y + q.height && q.y - reach < p.y + p.height;
-const union = (p, q) => {
-	const x = Math.min(p.x, q.x);
-	const y = Math.min(p.y, q.y);
-	return {
-		x,
-		y,
-		width: Math.max(p.x + p.width, q.x + q.width) - x,
-		height: Math.max(p.y + p.height, q.y + q.height) - y
-	};
-};
-function merged(items, joins) {
-	const list = items.map((item) => ({ ...item }));
-	for (let i = 0; i < list.length; i += 1) for (let j = 0; j < list.length; j += 1) {
-		if (j === i || !joins(list[i], list[j])) continue;
-		list[i] = {
-			...list[i],
-			...union(list[i], list[j])
-		};
-		list.splice(j, 1);
-		if (j < i) i -= 1;
-		j = -1;
-	}
-	return list;
-}
-function join(marks, DBSCAN) {
-	const moves = merged(marks.filter((mark) => mark.kind === "moved"), (p, q) => p.d.join() === q.d.join() && near(p, q, MOVED_REACH));
-	const changed = marks.filter((mark) => mark.kind === "changed");
-	if (changed.length < 2) return [...moves, ...changed];
-	const sizes = changed.map((mark) => Math.max(1, Math.min(mark.width, mark.height) - 2)).sort((a, b) => a - b);
-	const radius = sizes[Math.floor(sizes.length / 2)] * Math.min(2, Math.sqrt(changed.length) / 2);
-	const gap = (p, q) => near(p, q, 8) ? 0 : Math.max(0, p.x - q.x - q.width + 2, q.x - p.x - p.width + 2, p.y - q.y - q.height + 2, q.y - p.y - p.height + 2);
-	const groups = new DBSCAN().run(changed, radius, 1, gap);
-	return [...moves, ...groups.map((indices) => ({
-		...changed[indices[0]],
-		...indices.map((i) => changed[i]).reduce(union)
-	}))];
-}
-function around({ x, y, width, height }, image, pixels) {
-	const counts = /* @__PURE__ */ new Map();
-	let best;
-	const count = (column, row) => {
-		if (column < 0 || row < 0 || column >= image.width || row >= image.height) return;
-		const p = pixels[row * image.width + column];
-		const n = (counts.get(p) ?? 0) + 1;
-		counts.set(p, n);
-		if (best === void 0 || n > counts.get(best)) best = p;
-	};
-	for (let column = x - 1; column <= x + width; column += 1) {
-		count(column, y - 1);
-		count(column, y + height);
-	}
-	for (let row = y; row < y + height; row += 1) {
-		count(x - 1, row);
-		count(x + width, row);
-	}
-	return best;
-}
-function words(image) {
-	return new Uint32Array(image.data.buffer, image.data.byteOffset, image.width * image.height);
-}
-function distance(p, q) {
-	return Math.max(Math.abs((p & 255) - (q & 255)), Math.abs((p >>> 8 & 255) - (q >>> 8 & 255)), Math.abs((p >>> 16 & 255) - (q >>> 16 & 255)), Math.abs((p >>> 24) - (q >>> 24)));
-}
-const SLIGHT_CHANGE = 1;
-const STRONG = 2;
-function pixelChange(a, one, b, other, x, y) {
-	const p = x < a.width && y < a.height ? one[y * a.width + x] : void 0;
-	const q = x < b.width && y < b.height ? other[y * b.width + x] : void 0;
-	if (p === q && p !== void 0) return 0;
-	return p === void 0 || q === void 0 || distance(p, q) >= SLIGHT ? STRONG : SLIGHT_CHANGE;
-}
-const FAINT = 40;
-const FAR = 96;
-async function changedPixels(a, b) {
-	const { default: diff } = await import("/vendor/blazediff.js");
-	const width = Math.max(a.width, b.width);
-	const height = Math.max(a.height, b.height);
-	const data = new Uint8ClampedArray(width * height * 4);
-	diff(padded(a, width, height), padded(b, width, height), data, width, height, {
-		threshold: 0,
-		includeAA: true,
-		diffMask: true,
-		diffColor: [
-			0,
-			0,
-			0
-		]
-	});
-	const one = words(a);
-	const other = words(b);
-	for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
-		const alpha = (y * width + x) * 4 + 3;
-		const inA = x < a.width && y < a.height;
-		if (inA !== (x < b.width && y < b.height)) data[alpha] = 255;
-		else if (inA) {
-			const p = one[y * a.width + x];
-			const q = other[y * b.width + x];
-			if (data[alpha] || p >>> 24 !== q >>> 24) {
-				const far = Math.min(distance(p, q), FAR);
-				data[alpha] = FAINT + 215 * far / FAR;
-			}
-		}
-	}
-	return {
-		width,
-		height,
-		data
-	};
-}
-function padded(image, width, height) {
-	if (image.width === width && image.height === height) return image.data;
-	const data = new Uint8ClampedArray(width * height * 4);
-	for (let y = 0; y < image.height; y += 1) data.set(image.data.subarray(y * image.width * 4, (y + 1) * image.width * 4), y * width * 4);
-	return data;
-}
-function differenceKind({ changed, throughout, regions }) {
-	if (!changed) return "identical";
-	if (throughout) return "throughout";
-	return regions.length ? "areas" : "slight";
-}
-function describeDifference(reading) {
-	const kind = differenceKind(reading);
-	if (kind !== "areas") return {
-		identical: "identical",
-		throughout: "changed throughout",
-		slight: "only slight changes"
-	}[kind];
-	const { changed: changedCount, moved: movedCount } = countAreas(reading.regions);
-	const areas = (n) => `${n} ${n === 1 ? "area" : "areas"}`;
-	if (!changedCount) return `${areas(movedCount)} moved`;
-	return `${areas(changedCount).replace(" ", " changed ")}${movedCount ? `, ${movedCount} moved` : ""}`;
-}
-function countAreas(regions) {
-	const changes = regions.filter((region) => region.kind === "changed");
-	const before = changes.filter((region) => region.side === "before");
-	const after = changes.filter((region) => region.side === "after");
-	const shared = before.filter((p) => after.some((q) => near(p, q, 0))).length;
-	return {
-		changed: before.length + after.length - shared,
-		moved: Math.max(...["before", "after"].map((side) => regions.filter((region) => region.kind === "moved" && region.side === side).length))
-	};
-}
-function compareImages(a, b) {
-	return differingRegions(pixels(a), pixels(b));
-}
-function compareImagePixels(a, b) {
-	return changedPixels(pixels(a), pixels(b));
-}
-function pixels(image) {
-	const width = image.naturalWidth ?? image.width;
-	const height = image.naturalHeight ?? image.height;
-	const context = new OffscreenCanvas(width, height).getContext("2d", { willReadFrequently: true });
-	context.drawImage(image, 0, 0);
-	return context.getImageData(0, 0, width, height);
+	return host.attachShadow({ mode: "open" });
 }
 
 //#endregion
@@ -783,10 +339,82 @@ function connection(name) {
 }
 
 //#endregion
+//#region runtime/obligations/tally.js
+function tally(held) {
+	const open = held.filter((item) => item.status === "open");
+	return {
+		onUser: open.filter((item) => item.next_actor === "user").length,
+		onAgent: open.filter((item) => item.next_actor === "agent").length,
+		open: open.length,
+		total: held.length
+	};
+}
+function tallyWords({ onUser, onAgent, open, total }, agent) {
+	if (!total) return "Nothing to answer";
+	if (onUser && onAgent) return `${onUser} left to answer · ${onAgent} on ${agent}`;
+	if (onUser) return `${onUser} left to answer`;
+	if (onAgent) return `${onAgent} on ${agent}`;
+	if (open) return `${open} open`;
+	return total === 1 ? "Answered" : `All ${total} answered`;
+}
+
+//#endregion
+//#region runtime/time-axis.js
+const TICK_SPACING = 84;
+const STEPS = [
+	1,
+	2,
+	5
+];
+function tickStep(pxPerMs) {
+	for (let power = 1; power < 1e9; power *= 10) for (const step of STEPS) if (step * power * pxPerMs >= TICK_SPACING) return step * power;
+	return 1e9;
+}
+function tickLabel(time, step) {
+	if (time === 0) return "0 s";
+	const digits = step >= 1e3 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
+	return `${(time / 1e3).toFixed(digits)} s`;
+}
+function axisTicks(from, to, duration, pxPerMs) {
+	const step = tickStep(pxPerMs);
+	const minor = step / (String(step)[0] === "2" ? 4 : 5);
+	const ticks = [];
+	for (let time = Math.floor(from / minor) * minor; time <= to; time += minor) {
+		const rounded = Math.round(time * 1e3) / 1e3;
+		if (rounded < 0 || rounded > duration) continue;
+		const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
+		ticks.push({
+			time: rounded,
+			major,
+			label: major ? tickLabel(rounded, step) : null,
+			step
+		});
+	}
+	return ticks;
+}
+function assignRows(items, start, end) {
+	const rows = [];
+	const rowOf = /* @__PURE__ */ new Map();
+	for (const item of items.toSorted((a, b) => start(a) - start(b))) {
+		let row = rows.findIndex((last) => last <= start(item));
+		if (row < 0) row = rows.push(-Infinity) - 1;
+		rows[row] = end(item);
+		rowOf.set(item.id, row);
+	}
+	return rowOf;
+}
+let measuring = null;
+function textWidth(text, font) {
+	measuring ??= document.createElement("canvas").getContext("2d");
+	measuring.font = font;
+	return measuring.measureText(text).width;
+}
+
+//#endregion
 //#region runtime/widget-api.js
 async function mountSample(frame, options) {
 	return (await import("./bundle-sample.js")).mountSample(frame, options);
 }
 
 //#endregion
-export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, HOLDS_WORD, HeldReading, LAYOUT, LeafEditorView, LeafElement, PAGE_INTERFACE, PRESENTATION, PRESS, PRESSABLE, TEXT_BOX, TEXT_FIELD, aborted, addressableLabel, addressableWord, afterPresentation, afterScript, agentName, ago, alignText, allButCommandReference, anchorLabel, announce, answerWords, answeredInWords, atLayoutPrecision, atScrollEnd, authoredScope, backgroundFlash, beginWalk, bodyText, boundFile, cancelAnimation, cancelRender, capturePlace, claimTraversals, classMap, clearDraft, clockValue, closeLayer, closeNativeLayer, commandScope, keys as commands, commandsOn, compareImagePixels, compareImages, comparisonChanges, compoundReadingRegionId, connection, consumeAnnotations, contributionEntry, contributionItemKey, copyBlock, countAreas, createRef, currentLocationIn, cycledRow, dataBody, declarationFor, deferredArrival, describeDifference, differenceKind, directWorkElements, dragging, dressSamples, el, elementById, elementsDeclaring, ensureSyntaxLanguage, excerptWords, failSoft, fitsWhole, focusDestination, focused, foldBlock, foldDuration, fragmentTarget, frameFor, generate, generated, generatedElement, growthIsSeen, guard, handBack, heldGrowth, highlightBlocks, holdFocus, html, iconElement, iconTemplate, inBaseLayer, inChrome, indicate, initialRender, inlineMarkdownFragment, isCanonicalMediaUrl, isNativeLayer, keepView, keeps, keepsHidden, keepsText, keyed, labelOf, landInThread, landingInsets, langForPath, layerFact, layoutChanged, layoutPx, listWalkPosition, live, loadDeferred, loadDraft, loadMarkdown, markdownReady, markdownSourceOffset, markdownWords, matchesWhen, measure, motion, motionPreview, mountSample, move, navigateToDatum, nextAnimation, nextFrame, nextRender, noChange, nothing, notice, obligationActions, obligationsIn, offer, offered, onCurrentLocation, onMotionPreferenceChange, onUserInput, once, openLayer, openerOf, openingView, pageScroller, paintKeys, paintMarkdown, placeKeeper, placePageThreads, placesFailure, plainPress, presentContributionEntry, presentContributionReceipts, preserveReadingRegions, pressIsKeyboardActivation, projectData, projectedDatum, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, quietSince, quietWord, quoted, raiseError, rankAt, reachedForWords, readHistory, readObligations, readQueues, readThreads, readWork, reducedMotion, ref, regionScrollBehavior, registerContribution, registerReadingRegion, registerThreadPresentation, registerVisualParts, relabel, releaseOutlets, removeRuntimeRootStyle, render, renderMarkdown, renderRetired, repeat, replaceEntry, reportFailure, reportSequence, reportsPresented, reportsReady, restorePlace, retainUserIntent, returnDuration, revisionLabel, rove, rowArrows, rowWalk, saidAt, saveDraft, saying, says, scopedMediaUrl, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollerFor, searchField, selectableOffer, selectableOffered, sendDraft, setChildLists, setChildren, setRenderedChildren, setRuntimeRootStyle, shadowStage, shortAgo, showNativeLayer, showReadingSubject, shownParts, shownWindow, Z as signal, sizeObserver, styleMap, synNodes, syntax, tabStore, textNodesUnder, threadActions, threadBox, threadInput, threadSummary, threadSurface, turns as threadTurns, tokenLines, under, unsafeHTML, watchDraft, watchReadingRegionTransitions, wear, whenLeft, whileConnected, widgetController, wireInput, workAncestor, workElements, workRole, worksInside, wrote };
+export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, HOLDS_WORD, HeldReading, LAYOUT, LeafElement, PAGE_INTERFACE, PRESENTATION, PRESS, PRESSABLE, PendingTaskEvent, TEXT_BOX, TEXT_FIELD, aborted, actionOffers, actionTemplate, addressableLabel, addressableWord, afterPresentation, afterScript, agentName, ago, alignText, allButCommandReference, anchorLabel, announce, answerWords, answeredInWords, assignRows, atLayoutPrecision, atScrollEnd, authoredScope, axisTicks, backgroundFlash, beginWalk, bodyText, boundFile, cancelAnimation, cancelRender, capturePlace, claimTraversals, classMap, clearDraft, clockValue, closeLayer, closeNativeLayer, commandScope, commandsChanged, commandsOn, comparisonChanges, compoundReadingRegionId, connection, consumeAnnotations, contributionEntry, contributionItemKey, copyBlock, copyControl, createRef, currentLocationIn, cycledRow, dataBody, declarationFor, deferredArrival, directWorkElements, dragging, drawsFirst, el, elementById, elementsDeclaring, ensureSyntaxLanguage, excerptWords, failSoft, fitsWhole, flashDuration, focusDestination, focused, foldBlock, foldDuration, fragmentTarget, frameFor, generate, generated, generatedElement, growthIsSeen, guard, handBack, heldGrowth, highlightBlocks, holdFocus, html, iconElement, iconTemplate, inBaseLayer, inChrome, initialRender, inlineMarkdownFragment, isCanonicalMediaUrl, isNativeLayer, keepView, keeps, keepsHidden, keepsText, keyed, labelOf, landInThread, landingInsets, langForPath, layerFact, layoutChanged, layoutPx, leafEditorView, listWalkPosition, live, loadDeferred, loadDraft, loadMarkdown, markdownReady, markdownSourceOffset, markdownWords, matchesWhen, measure, motion, motionPreview, mountSample, move, nameAction, namedAction, navigateToDatum, nextAnimation, nextFrame, nextRender, noChange, nothing, notice, obligationActions, obligationsIn, offer, offerAction, offered, offeredAction, onCurrentLocation, onMotionPreferenceChange, onPressAway, onUserInput, once, openLayer, openerOf, openingView, pageScroller, paintMarkdown, placeKeeper, placeOf, placePageThreads, placesFailure, plainPress, presentContributionEntry, presentContributionReceipts, preserveReadingRegions, pressIsKeyboardActivation, projectedDatum, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, quietSince, quoted, raiseError, rankAt, reachedForWords, readHistory, readObligations, readQueues, readThreads, readWork, reducedMotion, ref, regionScrollBehavior, registerContribution, registerReadingRegion, registerRootHeader, registerThreadPresentation, registerVisualParts, relabel, releaseOutlets, render, renderMarkdown, repeat, replaceEntry, reportFailure, reportSequence, reportsPresented, reportsReady, restorePlace, retainUserIntent, returnDuration, revisionLabel, rove, rowArrows, rowWalk, saidAt, saveDraft, saying, says, scopedMediaUrl, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollerFor, searchField, selectableOffer, selectableOffered, sendDraft, setChildLists, setChildren, setRenderedChildren, shadowStage, shortAgo, showAction, showNativeLayer, showReadingSubject, shownAnswer, shownWindow, Z as signal, sizeObserver, styleMap, synNodes, syntax, tabStore, tally, tallyWords, textWidth, threadActions, threadBox, threadInput, threadSummary, threadSurface, turns as threadTurns, tokenLines, under, unsafeHTML, watchDraft, watchReadingRegionTransitions, wear, whenLeft, whileConnected, whileInterfaceConnected, widgetController, wireInput, workAncestor, workElements, workRole, worksInside, wrote };

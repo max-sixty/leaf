@@ -24,15 +24,40 @@
    excludes those presentations. Chrome is appended after the page, so measuring its
    DOM position would incorrectly place the user after every obligation and thread.
 
-   `currentLocationOrigin` reads focus, then the selection's ends, returning null when
-   neither identifies a page location. `walkOrigin` falls back to the first visible
-   reading block. A selected tab starts a walk inside its controlled panel without
-   changing comment targets. Every press reads the browser afresh. `stepFrom` orders
-   destinations by rendered position (`renderedOrder`, shadow-tree.js), including
-   positions within a widget's shadow tree rather than substituting its host. */
+   `currentLocationOrigin` reads focus, then the selection's ends, then the page place
+   the floating panel holds while the user stands in it (`holdPagePlace`), returning
+   null when none identifies a page location. A selected tab starts a walk inside its
+   controlled panel without changing comment targets.
+
+   Every walk (`t`, `m`, a tally's Next on me) pages through its stops by one rule, read
+   from one origin (`walkOrigin`): the node the user's place was read from, the place
+   it stands for, and whether that is a current location. The user is on a stop while
+   their current location is in the stop's destination, where the walk's own arrival
+   puts them: an obligation's place or a presentation of it, a thread's view. A press
+   steps off that stop to its neighbour. Anywhere else the user is at most at a stop,
+   and the press arrives at the stop at their place (`stepFrom`), else at the nearest
+   one in the press's direction. A thread's target, with the thread's card open beside
+   it, is at the thread and not on it. With no current location, a walk starts at what
+   the user let go of (focus.js, `onLetGo`) while they still see it, since letting go
+   leaves them beside it rather than anywhere else, until they go on from there by
+   standing on another page place or by pressing, wheeling or touching the page; failing
+   that, at the first visible reading block. Neither is on a stop. Stepping into Leaf's
+   panel from either keeps it, the panel holding no other page place. So a walk, Escape
+   and the walk again returns to the stop the user left, and a second press goes on from
+   it. Each press reads the origin afresh. `stepFrom` orders destinations by rendered
+   position (`renderedOrder`, shadow-tree.js), including positions within a widget's
+   shadow tree rather than substituting its host. */
 import { cycledRow } from "./keyboard/bindings.js";
-import { focused, currentLocationNodes } from "./focus.js";
-import { inChrome } from "./passages.js";
+import {
+  focused,
+  currentLocationNodes,
+  onCurrentLocation,
+  onLetGo,
+  onUserInput,
+} from "./focus.js";
+import { seenRect } from "./geometry.js";
+import { closestAcross, inChrome } from "./passages.js";
+import { THREAD } from "./thread/selectors.js";
 import { readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
 import { renderedOrder, renderedUnder, under } from "./shadow.js";
@@ -51,21 +76,25 @@ export function declareSide(bridge, { beside = false } = {}) {
   return () => sides.delete(bridge);
 }
 
-// The innermost obligation whose source, or whose own enclosing widget, is or holds `node`.
-// An enclosing widget shared by several sources cannot identify one of them on its own,
-// so only a source stands for such an obligation (`obligationPlace`). Obligations nest, as a question
+// The innermost obligation whose source, or whose own place, is or holds `node`: a
+// widget's enclosing widget, or the element a to-do is on. An enclosing widget shared
+// by several sources cannot identify one of them on its own, so only a source stands for
+// such an obligation (`obligationPlace`). Obligations nest, as a question
 // inside a proposal's new text does, so the nearest place holding the node names the
 // obligation rather than the kind of place: on the inner question's enclosing widget the user
-// is on that question, not on the proposal whose source holds it.
-export function obligationHolding(items, node) {
+// is on that question, not on the proposal whose source holds it. Of two standing at one
+// place, as a to-do on a widget does beside the widget's own question, the first the
+// inventory lists names it, and the inventory lists widgets' obligations before to-dos.
+// `items` may be a selection, such as those waiting on the user, placed as the whole
+// `inventory` places them.
+export function obligationHolding(items, node, inventory = items) {
   if (!node) return null;
   const holds = (element) => element && under(node, element);
   let held = null;
   for (const item of items) {
-    if (item.source.kind !== "widget") continue;
-    const { source, node: target } = obligationPlace(item, items);
+    const { source, node: target } = obligationPlace(item, inventory);
     const at = holds(source) ? source : holds(target) ? target : null;
-    if (at && (!held || under(at, held.at))) held = { item, at };
+    if (at && (!held || (at !== held.at && under(at, held.at)))) held = { item, at };
   }
   return held?.item ?? null;
 }
@@ -93,26 +122,75 @@ function placeFrom(node, visited, countBeside) {
   return inChrome(at) ? null : at;
 }
 
+// The page place a surface beside the page holds while the user stands in it, as the
+// floating panel holds where they stepped in from (`readPlace`, history.js). It is still
+// their place on the page, so `z` aligns it and a walk pressed there starts on it.
+let heldPlace = () => null;
+export function holdPagePlace(read) {
+  heldPlace = read;
+}
+export const heldPagePlace = () => heldPlace()?.focus?.deref() ?? null;
+
 // A current location origin can step off its current stop. An `at` origin arrives at
 // its place; an `enter` origin starts inside its region, from either direction.
-// A selected tab enters its panel instead of being on an obligation it may hold.
+// A selected tab enters its panel instead of being on an obligation it may hold. Each
+// names the element it was read from, `node`, which is in a thread's view where the
+// user is in that thread; `place` is null for a thread with no place on the page.
 export function currentLocationOrigin() {
-  for (const node of currentLocationNodes()) {
-    const place = placeOf(node);
-    if (place) {
-      const tab = place.closest('[role="tab"][aria-selected="true"]');
+  for (const [node, place] of locations()) {
+    // A thread with no page place, such as a general thread open in the panel, is still
+    // where a user in it is.
+    if (place?.isConnected || closestAcross(node, THREAD)) {
+      const tab = place?.closest('[role="tab"][aria-selected="true"]');
       const panel = tab?.ariaControlsElements?.[0];
       return panel
-        ? { place: panel, kind: "enter" }
-        : { place, kind: "current-location" };
+        ? { node, place: panel, kind: "enter" }
+        : { node, place, kind: "current-location" };
     }
   }
   return null;
 }
 
-// A walk can start at what the viewport shows even when the user has no current location.
-export const walkOrigin = () =>
-  currentLocationOrigin() ?? { place: pageReadingBlock(), kind: "current-location" };
+// Each node the user's place can be read from, nearest first, with the place it stands
+// for. The panel's hold read its place as the user stepped in, since what showed it then,
+// such as a margin card, may be put away by the step.
+function* locations() {
+  for (const at of currentLocationNodes()) {
+    const node = at.nodeType === 1 ? at : at.parentElement;
+    yield [node, placeOf(node)];
+  }
+  const held = heldPlace();
+  const node = held?.focus?.deref();
+  if (node) yield [node, held.place?.deref() ?? null];
+}
+
+// What the user let go of, until they go on from it. Chrome holding no page place,
+// such as On me's list or the comment field, is not somewhere else on the page.
+let letGone = null;
+onLetGo((node) => {
+  letGone = new WeakRef(node);
+});
+onCurrentLocation((node) => {
+  if (node && placeOf(node)) letGone = null;
+});
+// A key is a command at the user's place rather than a move away from it.
+const LEAVING = new Set(["pointerdown", "wheel", "touchstart"]);
+onUserInput((event) => {
+  if (LEAVING.has(event.type) && !inChrome(event.composedPath()[0])) letGone = null;
+});
+
+// Where a walk starts: the user's current location, else what they let go of while
+// they still see it, else what the viewport shows. Only a current location can be on a
+// stop; the others are `at` one.
+export function walkOrigin() {
+  const here = currentLocationOrigin();
+  if (here) return here;
+  const node = letGone?.deref();
+  const left = node?.isConnected ? placeOf(node) : null;
+  if (left && seenRect(left, new Map())) return { node, place: left, kind: "at" };
+  const block = pageReadingBlock();
+  return { node: block, place: block, kind: "at" };
+}
 
 // The item a walk over `list` steps to in direction `dir` from `here`, a place on the
 // page. `list` is in page order with its

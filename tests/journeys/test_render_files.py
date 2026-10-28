@@ -8,11 +8,9 @@ from render_harness import (
     consume_browser_errors,
     http_error_console,
     leaf_page,
-    one_frame,
     open_page,
     primed,
     rendered,
-    scroll_settled,
 )
 
 from leaf.file_bindings import bind_file
@@ -360,83 +358,3 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
         http_error_console(409),
         "Failed to load resource: net::ERR_FAILED",
     )
-
-
-def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
-    scrollbar_browser, serve
-):
-    """A desktop horizontal scrollbar must not invoke a cross-frame mobile reveal."""
-    page = open_page(
-        scrollbar_browser,
-        serve(
-            leaf_page(
-                "File editor containment",
-                """
-<h1>Containing page</h1><button id="owner">Containing owner</button>
-<div style="height:1400px"></div>
-<lf-sample id="practice" label="File practice" window>
-  <template id="practice-source" data-sample>
-    <style>
-      html { overflow-x:scroll !important; }
-      ::-webkit-scrollbar { width:16px; height:16px; background:#ddd; }
-      ::-webkit-scrollbar-thumb { background:#888; }
-    </style>
-    <script type="module">
-      let height = 220;
-      document.addEventListener('keydown', event => {
-        if (event.key !== 'F2') return;
-        event.preventDefault();
-        document.querySelector('#file').style.setProperty(
-          '--lf-file-editor-height', `${height}px`);
-        height -= 40;
-      });
-    </script>
-    <h1>File practice</h1><div style="width:3000px;height:4px"></div>
-    <lf-file-editor id="file" binding="notes"></lf-file-editor>
-    <div style="height:3000px"></div>
-  </template>
-</lf-sample>
-<div style="height:1400px"></div>
-""",
-            ),
-            packages=["file-editor"],
-        ),
-    )
-    sample = page.locator("#practice")
-    sample.evaluate("async sample => await sample.ready")
-    frame = sample.locator("iframe")
-    child = frame.element_handle().content_frame()
-    editor = child.get_by_role("textbox", name="File contents", exact=True)
-    expect(editor).to_have_attribute("aria-readonly", "true")
-    expect(child.locator(".lf-file-editor-status")).to_have_attribute(
-        "title", "No file is bound as 'notes'."
-    )
-    expect(child.locator(".cm-placeholder")).to_have_text(
-        "No file is bound as 'notes'."
-    )
-    editor.click()
-    expect(editor).to_be_focused()
-    assert child.evaluate("innerHeight - visualViewport.height") > 1
-
-    # Scroll the active editor away, then resize it while its child document is
-    # outside the parent's viewport. CodeMirror defers this layout until visible.
-    child.evaluate("scrollTo(0, 2000)")
-    page.evaluate("scrollTo(0, 0)")
-    scroll_settled(page)
-    page.keyboard.press("F2")
-    top = frame.evaluate("frame => frame.getBoundingClientRect().top + scrollY")
-    before = round(top - page.viewport_size["height"] + 100)
-    page.evaluate("y => scrollTo(0, y)", before)
-    scroll_settled(page)
-    rendered(child)
-    # Visibility delivers the deferred observer and its editor measurement.
-    one_frame(child)
-    rendered(child)
-    assert page.evaluate("scrollY") == before
-
-    page.keyboard.press("F2")
-    rendered(child)
-    one_frame(child)
-    rendered(child)
-    assert page.evaluate("scrollY") == before
-    expect(editor).to_be_focused()

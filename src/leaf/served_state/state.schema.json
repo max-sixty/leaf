@@ -24,10 +24,6 @@
       "description": "The news token of the facts this answer read (`served_state.reading`), which the tab's freshness reads compare.",
       "type": "string"
     },
-    "leaf": {
-      "description": "The Leaf serving the page, as `layer.payload_provenance` reads it, sent only where it is another than the one that vendored the page.",
-      "$ref": "#/$defs/Provenance"
-    },
     "release": {
       "description": "The leaf.page release that served the page.",
       "type": "string"
@@ -41,13 +37,21 @@
       "type": "object",
       "properties": {
         "layer": {
-          "description": "The identity of the layer the shown revision was read under, or the vendored layer's before a revision exists (`layer-registry.md`). A layer another Leaf at this protocol vendored may carry more.",
+          "description": "The identity of the layer the shown revision was read under, or the page's before a revision exists (`layer-registry.md`): its generation and selection, and the fingerprint and producer of the layer the serving Leaf composes for it.",
           "type": "object",
           "properties": {
             "generation": { "type": "string" },
             "fingerprint": { "type": "string" },
-            "server": { "type": "string" },
             "packages": { "type": "array", "items": { "type": "string" } },
+            "theme": {
+              "type": ["object", "null"],
+              "properties": {
+                "name": { "type": "string" },
+                "source": { "enum": ["explicit", "default"] }
+              },
+              "required": ["name", "source"],
+              "additionalProperties": false
+            },
             "producer": { "$ref": "#/$defs/Provenance" }
           },
           "required": ["generation", "fingerprint"]
@@ -136,16 +140,12 @@
               "description": "`waiting` on the user or `idle`, done with the page; `waiting` before the agent declares anything.",
               "type": "string"
             },
-            "detail": {
-              "description": "The declaration's words; empty before the first declaration and where a start reopened an idle page.",
-              "type": "string"
-            },
             "ts": {
               "description": "When the agent declared it, or when a start reopened an idle page; absent before the first declaration.",
               "type": "string"
             }
           },
-          "required": ["state", "detail"],
+          "required": ["state"],
           "additionalProperties": false
         },
         "listening": {
@@ -187,6 +187,10 @@
           "description": "The claimant session, or null.",
           "type": ["string", "null"]
         },
+        "session_name": {
+          "description": "What the claimant's harness calls its session now (`Harness.session_name`), or null where it names none.",
+          "type": ["string", "null"]
+        },
         "claim_turn": {
           "description": "The claimant's current turn, which an opened delivery names, or null.",
           "type": ["string", "null"]
@@ -201,6 +205,10 @@
         },
         "turn_takes_input": {
           "description": "Whether an open turn of the claimant's takes new input before it ends (`Harness.turn_takes_input`).",
+          "type": "boolean"
+        },
+        "input_wakes": {
+          "description": "Whether the nudge the claimant's next input gets would start a turn of its session's (`Harness.input_wakes`).",
           "type": "boolean"
         },
         "session_cwd": {
@@ -293,10 +301,12 @@
         "pending",
         "agent",
         "claim_session",
+        "session_name",
         "claim_turn",
         "turn_closed",
         "turn_opened",
         "turn_takes_input",
+        "input_wakes",
         "session_cwd",
         "activity",
         "workflows",
@@ -1210,12 +1220,17 @@
           "description": "The thread it stands in, or null.",
           "type": ["string", "null"]
         },
+        "also": {
+          "description": "The other obligations the user answers at the same place, each a view's `obligations` entry: the further records a thread's reply answers, and on an obligation's row those of a thread about it.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "live": {
           "description": "Whether the agent has it in hand now: an update it is at work on whose work has not gone quiet or stopped.",
           "type": "boolean"
         }
       },
-      "required": ["kind", "id", "owner", "subject", "thread", "live"]
+      "required": ["kind", "id", "owner", "subject", "thread", "also", "live"]
     },
     "TodoRow": {
       "description": "An agent to-do's row in On <agent> (`served_state.queues`).",

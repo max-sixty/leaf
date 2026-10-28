@@ -4,7 +4,7 @@ A page server reads either the page directory as it stands (`LivePage`) or a cap
 frozen for a browser check or an export (`page_snapshot.PageSnapshot`). Both answer
 the questions in `PageSource`. Every route and the state service read the page's
 revisions, log, data and presence only through the source their server was given.
-Files the page directory serves beside them, such as the vendored layer and media
+Files the page directory serves beside them, such as media
 outside a captured data value, are still read from the directory under either source.
 """
 
@@ -238,10 +238,7 @@ class PageStateService:
                 "on_user": len(view["queues"]["on_user"]) if view is not None else 0,
                 "threads": thread_counts(threads),
             }
-            live = {
-                key: context.presence[key]
-                for key in ("listening", "session_alive", "live_turn")
-            }
+            live = {key: context.presence[key] for key in presence_model.LIVE_FACTS}
         return row, reading, live
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:

@@ -2,18 +2,20 @@
 
    The browser orders data readings by when the server took them, independently of
    the log sequence, because overlapping poll and POST responses can order the authorities
-   differently. A `LeafElement` reads a bound input through `dataReader` (`this.data`),
-   which yields one copy a delivery of `{source, contract, revision, run, updated, value,
-   origin}`, or `null` while the bound source has no readable value. A widget-output
-   binding yields `{contract, value, origin}` with derived-widget provenance, without
-   a fabricated source revision or run. Outputs join the immutable application
-   publication and the same presentation barrier as sources. What a source shows moves
-   only as state application delivers, and each element that draws data holds the data
-   version until its region has drawn the delivery (`joinDataDelivery`). Modules project
-   the result into the authored seat; they do not fetch it, mutate the accepted copy, or
-   keep a hidden current-value map of their own.*/
+   differently. A `LeafElement` reads a bound input through `dataReader`, which yields
+   one copy a delivery of `{source, contract, revision, run, updated, value, origin}`,
+   or `null` while the bound source has no readable value, and hands the widget only its
+   `value` (leaf-element.js, "Bound values"). A widget-output binding yields
+   `{contract, value, origin}` with derived-widget provenance, without a fabricated
+   source revision or run. Each object value names the snapshot that supplied it
+   (`suppliedSnapshot`), so whoever holds the value can name its revision. Outputs join
+   the immutable application publication and the same presentation barrier as sources.
+   What a source shows moves only as state application delivers, and each element that
+   draws data holds the data version until its region has drawn the delivery
+   (`joinDataDelivery`). Modules draw the value into the authored seat; they do not
+   fetch it, mutate the accepted copy, or keep a hidden current-value map of their own.*/
 
-import { computed, signal, untracked } from "/vendor/browser-runtime.js";
+import { computed, signal, untracked } from "/runtime/framework.js";
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
@@ -22,6 +24,7 @@ import { registry } from "./registry.js";
 import { watchOwner } from "./arrivals.js";
 import { referencedProjection, requireReference } from "./references.js";
 import { reportPageError, requestJson } from "./layer-client.js";
+import { tick } from "./version-signal.js";
 
 export function acceptData(candidate, taken) {
   return applicationState.acceptData(candidate, taken);
@@ -32,7 +35,7 @@ const joined = new Set();
 
 export async function notifyDataSubscribers() {
   const version = runtime.data.version;
-  deliveries.value += 1;
+  tick(deliveries);
   await whenApplicationRegionsPresented(
     [...joined],
     () => runtime.data.version === version,
@@ -54,6 +57,14 @@ const declaredInput = (element, input) => {
     );
   return declaration;
 };
+
+// A check subscribes before widgets run and keeps the values it exercises. The
+// production runtime retains no output history and does no schema validation here.
+const outputObservers = new Set();
+export function observeOutputs(observe) {
+  outputObservers.add(observe);
+  return () => outputObservers.delete(observe);
+}
 
 // Mounted widgets own their derived values. The publication holds the immutable
 // reading, while this weak lifetime record only lets a retained node return with it.
@@ -92,6 +103,13 @@ export function publishOutput(element, output, value) {
     value === null
       ? null
       : { contract: declaration.contract, value: structuredClone(value) };
+  for (const observe of outputObservers)
+    observe({
+      element,
+      output,
+      contract: declaration.contract,
+      value: reading === null ? null : reading.value,
+    });
   owner.values.set(output, reading);
   if (owner.connected)
     applicationState.publishOutput(outputKey(element), output, reading);
@@ -133,6 +151,40 @@ function inputBinding(element, declaration) {
         }
       : { ...reading, origin: { derived: [{ widget }] } };
   return { source, widget, selected, snapshot };
+}
+
+// The snapshot each delivered object value came from. An object is one delivery's copy,
+// so the lookup is exact, and it lasts as long as something holds the value.
+const supplied = new WeakMap();
+/** The snapshot that supplied a delivered object `value`, or undefined. */
+export const suppliedSnapshot = (value) => supplied.get(value);
+
+// Whether the markup binds a declared input, to a source or to a widget's output.
+export const bindsInput = (element, { source, reference }) =>
+  Boolean(
+    (source && element.getAttribute(source)) ||
+    (reference && element.getAttribute(reference)),
+  );
+
+// Whether `element` binds a page data source while the page has read no data yet.
+// Until the first state answer is accepted, a source has no reading because none has
+// been read, not because it holds none, so an element drawing it then would draw "no
+// data" and move its contents when the data came (leaf-element.js, `shouldUpdate`). An
+// input bound to another widget's output, or a declared source the element doesn't
+// name, waits for nothing. The acceptance draws the element with the accepted reading,
+// as any element's first read takes it. A page whose first read brought no state
+// settles offline, and its elements draw then, saying their sources hold nothing,
+// since no answer is coming to fill them.
+const dataRead = applicationState.select(
+  (root) => root.data.version !== null || root.phase === "offline",
+);
+/** @param {Element} element */
+export function awaitsData(element) {
+  return (
+    Object.values(registry[element.localName]?.["x-data"] ?? {}).some(
+      (declaration) => declaration.source && element.getAttribute(declaration.source),
+    ) && !dataRead.read()
+  );
 }
 
 // A `LeafElement`'s reader of one bound input (leaf-element.js): the delivered source
@@ -187,11 +239,15 @@ export function dataReader(element, input, accepted) {
       return null;
     // One copy a delivery: a render that reads it again gets the same value, so a widget
     // tells a new delivery by identity, and none can mutate the accepted snapshot.
-    if (sourceStore !== copied.store)
+    if (sourceStore !== copied.store) {
       copied = {
         store: sourceStore,
         value: structuredClone(snapshot(sourceStore, input)),
       };
+      const { value } = copied.value;
+      if (value !== null && typeof value === "object")
+        supplied.set(value, copied.value);
+    }
     return copied.value;
   };
 }
@@ -204,10 +260,14 @@ export function joinDataDelivery(region) {
   return () => joined.delete(region);
 }
 
-// A deferred value's identity belongs to the delivered manifest. A replacement can be
-// accepted before its subscriber renders; loading through that older manifest must not
-// fetch a same-key deferred value from the replacement.
-export async function loadDeferred(manifest, key) {
+// A deferred value's identity belongs to the delivered manifest, which the widget names
+// by the value it drew. A replacement can be accepted before its subscriber renders;
+// loading through that older manifest must not fetch a same-key deferred value from the
+// replacement.
+export async function loadDeferred(value, key) {
+  const manifest = supplied.get(value);
+  if (!manifest?.source)
+    throw new Error(`loadDeferred(${key}) needs a source value Leaf delivered`);
   const { source, revision } = manifest;
   const current = () => {
     const reading = /** @type {{revision?: string, contract?: unknown} | undefined} */ (

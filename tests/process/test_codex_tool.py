@@ -25,7 +25,7 @@ exit 3
 
 
 @pytest.fixture
-def server(tmp_path, monkeypatch):
+def server(tmp_path, monkeypatch, spawn):
     """The MCP server as Codex starts it, after the handshake, with a stand-in
     for Leaf behind the launcher."""
     launcher = tmp_path / "host-leaf"
@@ -37,25 +37,20 @@ def server(tmp_path, monkeypatch):
     # MCP inherits its platform defaults plus the plugin's declared variables.
     # HOME and PATH are the only platform defaults this stand-in needs.
     forwarded = {"HOME", "PATH", *manifest["mcpServers"]["leaf"]["env_vars"]}
-    process = subprocess.Popen(
+    # `spawn` ends it as Codex does, by closing the stdin it reads.
+    process = spawn(
         [sys.executable, "-I", str(SERVER)],
         env={key: value for key, value in os.environ.items() if key in forwarded},
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
     )
-    try:
-        session = Session(process)
-        assert session.request(
-            0, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {}}
-        )["capabilities"] == {"tools": {}}
-        session.send({"method": "notifications/initialized"})
-        yield session
-    finally:
-        process.kill()
-        process.wait()
-        process.stdin.close()
-        process.stdout.close()
+    session = Session(process)
+    assert session.request(
+        0, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {}}
+    )["capabilities"] == {"tools": {}}
+    session.send({"method": "notifications/initialized"})
+    return session
 
 
 class Session:
@@ -163,10 +158,18 @@ def _alive(pid: int) -> bool:
 @pytest.mark.skipif(not shutil.which("sandbox-exec"), reason="macOS's sandbox")
 def test_a_codex_sandbox_refusal_names_the_tool(tmp_path, monkeypatch):
     """Where Codex's sandbox refuses a `leaf` command what it needs, the refusal
-    tells the agent to rerun it with the tool."""
+    tells the agent to rerun it with the tool. The sandbox refuses writes to uv's
+    cache too, which the launcher must not need there."""
     monkeypatch.setenv("CODEX_SANDBOX", "seatbelt")
     page = tmp_path / "page"
-    profile = f'(version 1)(allow default)(deny file-write* (subpath "{os.path.realpath(tmp_path)}"))'
+    uv_cache = subprocess.run(
+        ["uv", "cache", "dir"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    profile = (
+        "(version 1)(allow default)(deny file-write*"
+        f' (subpath "{os.path.realpath(tmp_path)}")'
+        f' (subpath "{os.path.realpath(uv_cache)}"))'
+    )
     refused = subprocess.run(
         ["sandbox-exec", "-p", profile, ROOT / "bin" / "leaf", "page", "init", page],
         capture_output=True,

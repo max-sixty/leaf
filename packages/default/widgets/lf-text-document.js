@@ -11,7 +11,6 @@
 import {
   failSoft,
   generatedElement,
-  projectData,
   ensureSyntaxLanguage,
   inBaseLayer,
   LeafElement,
@@ -24,6 +23,11 @@ import {
   renderMarkdown,
 } from "/runtime/widget-api.js";
 import { pierre, markSyntax } from "./pierre.js";
+
+// Writing the same key again would still be a mutation the page's observers see.
+const mark = (node, key) => {
+  if (node.dataset.lfDatum !== key) node.dataset.lfDatum = key;
+};
 
 async function sourceListing(source, language) {
   const [{ preloadFile }, { themeName, foreground }] = await Promise.all([
@@ -45,7 +49,11 @@ async function sourceListing(source, language) {
       `@scope { ${style.textContent.replaceAll(":host", ":scope")} }`,
     );
   }
+  // A line number is Leaf's control, drawn from `data-number`; dropping Pierre's
+  // attribute keeps its sheet's rule for that span (a positioned, stacked
+  // inline-block) off it.
   for (const number of rendered.querySelectorAll("span[data-line-number-content]")) {
+    number.removeAttribute("data-line-number-content");
     number.setAttribute("data-number", number.textContent);
     number.textContent = "";
     number.classList.add("lf-ui");
@@ -79,22 +87,39 @@ customElements.define(
       });
     }
 
+    // The text, set by whoever hosts the widget: Leaf from the bound source (the
+    // registry's `x-data.document.property`), or null while that source has none.
+    static properties = { value: { attribute: false } };
+
+    constructor() {
+      super();
+      /** @type {string | null} */
+      this.value = null;
+    }
+
     render() {
-      this.snapshot = this.data("document");
       return nothing;
     }
 
-    // Highlighting and the preview load after the draw, and the draw's claim waits
-    // for them.
+    // Highlighting and the preview load after the draw; `updateComplete` waits for
+    // them, as a Lit element's completion does for work its update starts.
     updated(changed) {
       super.updated(changed);
-      this.drawing(this.show(this.snapshot));
+      this.showing = this.show(this.value);
     }
 
-    async show(snapshot) {
+    // Also waits for the drawing the latest update started: a newer update's drawing
+    // replaces one still pending.
+    async getUpdateComplete() {
+      const result = await super.getUpdateComplete();
+      await this.showing;
+      return result;
+    }
+
+    async show(value) {
       const rendering = (this.rendering ?? 0) + 1;
       this.rendering = rendering;
-      const source = snapshot?.value ?? "";
+      const source = value ?? "";
       const preview = this.getAttribute("preview");
       try {
         if (preview) await import("./lf-tabs.js");
@@ -108,7 +133,7 @@ customElements.define(
         /** @type {HTMLElement} */
         this.figure = this.figure ?? this.build(preview);
         const label = this.getAttribute("label") ?? this.getAttribute("source");
-        keepsText(this.caption, snapshot ? label : `${label} · no data`);
+        keepsText(this.caption, value == null ? `${label} · no data` : label);
         const drawnPre = listing.querySelector("pre");
         if (!this.pre) {
           setChildren(this.listing, [...listing.childNodes]);
@@ -120,9 +145,9 @@ customElements.define(
           // in place while unchanged lines keep their text nodes and selection.
           setRenderedChildren(this.code, drawnPre.querySelector("code").childNodes);
           const width = "--diffs-min-number-column-width-default";
-          const value = drawnPre.style.getPropertyValue(width);
-          if (this.pre.style.getPropertyValue(width) !== value)
-            this.pre.style.setProperty(width, value);
+          const drawnWidth = drawnPre.style.getPropertyValue(width);
+          if (this.pre.style.getPropertyValue(width) !== drawnWidth)
+            this.pre.style.setProperty(width, drawnWidth);
         }
         let loaded = this.frameLoaded;
         if (preview === "markdown") {
@@ -149,16 +174,13 @@ customElements.define(
             this.preview.srcdoc = source;
         }
         setChildren(this, [this.figure]);
-        projectData(
-          this,
-          preview
-            ? [
-                { key: "source", node: this.pre },
-                { key: "preview", node: this.preview },
-              ]
-            : [{ key: "document", node: this.figure }],
-          { snapshot },
-        );
+        // The drawn text's items, marked for whoever hosts the widget: on a Leaf page,
+        // comments on them anchor to the document's data.
+        if (preview) {
+          mark(this.pre, "source");
+          mark(this.preview, "preview");
+        } else mark(this.figure, "document");
+        this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
         if (loaded) await loaded;
         if (rendering !== this.rendering || !this.isConnected) return;
         this.classList.toggle("lf-rendered", true);

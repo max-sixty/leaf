@@ -1,0 +1,28 @@
+/* The drawn diff's vertical anatomy, said once where both the shadow tree that draws
+ * it and the document's first paint (theme.css, "First paint") read it: the first
+ * paint reserves the drawn height from these and the counts the initial renderer
+ * takes from the patch, before any shadow tree exists. Resolved at the widget root
+ * and at the host, like the palette, so each reads its own aim floor.
+ *
+ * The bar of presses on a file's name line: how tall it stands, and how far down the
+ * name it starts. The pull in shadow.css is the same distance in the other direction:
+ * the bar is laid out above the file's body and the body is drawn back over it, so a
+ * number restated there would put the presses off the name the moment either changed.
+ * A finger's floor is each press's reach, which the bar starts low enough to hold
+ * inside the row.
+ *
+ * The file's row: 7px above and below a path's line, 35px in all, or the bar of
+ * presses where that stands taller. Closed files stand one row on the next with no
+ * room between for a reach, so a row with presses is at least the aim floor, and the
+ * bar stands in its middle. */
+:where(lf-call-diff, lf-diff, lf-worktree, lf-worktree-diffs) {
+  --lf-diff-gap: 8px;
+  --lf-diff-action-h: 26px;
+  --lf-diff-action-top: max(6px, (var(--aim-floor) - var(--lf-diff-action-h)) / 2);
+  --lf-diff-head-line: 35px;
+  --lf-diff-head-pressed: max(
+    var(--lf-diff-head-line),
+    calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)),
+    var(--aim-floor)
+  );
+}

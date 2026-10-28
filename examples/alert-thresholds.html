@@ -161,11 +161,7 @@
       }
     </style>
     <script type="module">
-      import {
-        PAGE_INTERFACE,
-        keepsText,
-        whileConnected,
-      } from "/runtime/widget-api.js";
+      import { keepsText, whileInterfaceConnected } from "/runtime/widget-api.js";
 
       const ALERTS = [
         {
@@ -359,24 +355,9 @@
         ),
       };
       const playground = document.getElementById("alert-playground");
-      let registered = false;
-      whileConnected(playground, (signal) => {
-        let unsubscribe;
-        const initialize = () => {
-          if (signal.aborted || unsubscribe) return;
-          if (!registered) {
-            playground.registerInstructionProvider(instruction);
-            registered = true;
-          }
-          unsubscribe = playground.subscribe((values) => paint(values, today));
-        };
-        document.addEventListener(
-          PAGE_INTERFACE,
-          (event) => event.detail.present(Promise.resolve().then(initialize)),
-          { signal },
-        );
-        if (registered) initialize();
-        return () => unsubscribe?.();
+      whileInterfaceConnected(playground, {
+        declare: () => playground.registerInstructionProvider(instruction),
+        connect: () => playground.subscribe((values) => paint(values, today)),
       });
     </script>
   </head>
@@ -401,6 +382,7 @@
           data-width="available"
         >
           <lf-playground-control
+            id="alert-budget"
             name="budget"
             label="On-call page budget, per 30 days"
             kind="range"
@@ -506,6 +488,7 @@
                       label="over 0.5%"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="alert-rate-today"
                       value="1%"
                       label="over 1%"
                     ></lf-playground-choice>

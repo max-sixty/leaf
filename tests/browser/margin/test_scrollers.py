@@ -197,7 +197,7 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     over the column beside it, and the Alt outline 300px left of the table. In each
     engine the pin stands on the header it marks and keeps that place through a
     scroll, the outline Alt raises after the scroll stands on the table, and a code
-    block's Copy, which CSS anchors alone, shows in the block's corner."""
+    block's Copy, which CSS anchors alone, stands on the block's top border."""
     browser = request.getfixturevalue(engine)
     comment = _comment_on("grid", quote="Caret in the field")
     page = open_page(browser, serve(WIDENED_TABLE_PAGE, events=[comment]))
@@ -233,14 +233,16 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     corner = copy.bounding_box()
     inset = code["x"] + code["width"] - corner["x"] - corner["width"]
     assert 0 <= inset <= 8, (corner, code)
-    assert 0 <= corner["y"] - code["y"] <= 8, (corner, code)
+    # Its toolbar's middle lies on the block's top border.
+    middle = corner["y"] + corner["height"] / 2
+    assert middle == pytest.approx(code["y"], abs=1), (corner, code)
 
 
 def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
     """Every frame Chrome draws while a pane scrolls shows the pin level with its
     target, since the browser carries both through the same scroll."""
     marks = (
-        f"<style data-controls>#pane-top {{ background:{SUBJECT_MARK}; }}"
+        f"<style>#pane-top {{ background:{SUBJECT_MARK}; }}"
         f' [data-lf-margin-for="pane-top"] {{ outline:6px solid {FOLLOWER_MARK}'
         " !important; }</style></head>"
     )
@@ -773,7 +775,10 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
     expect(stuck).to_be_visible()
 
 
-def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, subtests):
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_a_constrained_target_carries_its_row_through_scroll(
+    request, serve, subtests, engine
+):
     """A sticky or fixed box between a target and its scroller moves the target as no
     scroll alone does, so its row's carrier is anchored to the target itself, which
     carries the row in the first frame after every scroll with no pass to reseat it.
@@ -782,9 +787,10 @@ def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, sub
     stays put through the document's scroll. Firefox draws a stuck target's row where
     the target would stand unstuck, and WebKit moves a fixed target's row with the
     document's scroll (notes/browser-support.md, "A stuck sticky anchor in Firefox",
-    "An anchor under a fixed box in WebKit").
+    "An anchor under a fixed box in WebKit"). Chromium also reads the compositor's frames,
+    which only it traces; WebKit checks the rectangles after each scroll.
     """
-    page = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(request.getfixturevalue(engine), serve(PANEL_PAGE))
     resized(page, 1280, 900)
     # Each case adds its own scroller and row, replacing the case before; the fixed
     # target, which also lengthens the document, goes last.
@@ -858,7 +864,7 @@ def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, sub
                 after = page.evaluate(reading)
                 assert after["offset"] == pytest.approx(before["offset"], abs=1), after
                 assert after["hit"] and not after["withheld"], after
-            if position == "fixed":
+            if position == "fixed" or engine != "browser":
                 continue
             # A rectangle read in the frame after a scroll shows where the last frame drew an
             # anchored box, so the compositor's own frames are what show it carried.
@@ -975,4 +981,3 @@ def test_a_quoted_passage_scrolled_out_of_its_pane_withholds_its_row(
     # frame or two rather than at some later pass.
     page.locator("#pane").evaluate("pane => { pane.scrollTop = 0; }")
     expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
-    context.close()

@@ -1,0 +1,52 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "/vendor/lit.js": [
+        "./lit.d.ts"
+      ],
+      "/vendor/signals-core.js": [
+        "./signals-core.d.ts"
+      ],
+      "/vendor/*": [
+        "../vendor/*",
+        "../../packages/code-review/vendor/*",
+        "../../packages/deck/vendor/*",
+        "../../packages/default/vendor/*",
+        "../../packages/detail/vendor/*",
+        "../../packages/diagram/vendor/*",
+        "../../packages/diff/vendor/*",
+        "../../packages/file-editor/vendor/*",
+        "../../packages/file-tree/vendor/*",
+        "../../packages/monitoring/vendor/*",
+        "../../packages/motion/vendor/*",
+        "../../packages/playground/vendor/*",
+        "../../packages/playwright/vendor/*",
+        "../../packages/timeline/vendor/*",
+        "../../packages/visual-review/vendor/*"
+      ],
+      "/widgets/*": [
+        "../widgets/*",
+        "../../packages/code-review/widgets/*",
+        "../../packages/deck/widgets/*",
+        "../../packages/default/widgets/*",
+        "../../packages/detail/widgets/*",
+        "../../packages/diagram/widgets/*",
+        "../../packages/diff/widgets/*",
+        "../../packages/file-editor/widgets/*",
+        "../../packages/file-tree/widgets/*",
+        "../../packages/monitoring/widgets/*",
+        "../../packages/motion/widgets/*",
+        "../../packages/playground/widgets/*",
+        "../../packages/playwright/widgets/*",
+        "../../packages/timeline/widgets/*",
+        "../../packages/visual-review/widgets/*"
+      ],
+      "/runtime/*": [
+        "../runtime/*"
+      ],
+      "/checks/*": [
+        "../../src/leaf/render-checks/*"
+      ]
+    }
+  }
+}

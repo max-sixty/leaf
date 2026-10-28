@@ -71,21 +71,17 @@ def test_a_bridged_command_keeps_its_stdin_streams_and_status(page_dir):
 
 
 @pytest.mark.usefixtures("bridged")
-def test_a_bridged_command_ends_though_its_stdin_never_does():
+def test_a_bridged_command_ends_though_its_stdin_never_does(spawn):
     """A harness may hand a command a stdin that never ends, and a command that
     never reads it still finishes."""
-    held = subprocess.Popen(
+    held = spawn(
         [LAUNCHER, "--version"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
     )
-    try:
-        assert held.wait(timeout=STATED_TIMEOUT) == 0
-        assert held.stdout.read().startswith("leaf ")
-    finally:
-        held.stdin.close()
-        held.stdout.close()
+    assert held.wait(timeout=STATED_TIMEOUT) == 0
+    assert held.stdout.read().startswith("leaf ")
 
 
 @pytest.mark.usefixtures("bridged")
@@ -157,3 +153,19 @@ def test_a_session_that_runs_no_leaf_command_starts_no_bridge():
     ):
         hooks_model.cmd_hook("claude-code", {"session_id": "unbridged", **payload})
     assert not bridge_model.bridge_path("lock").exists()
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["--help"], ["--version"], ["--root", "--", "x"]],
+)
+def test_the_bridge_client_forwards_leaf_arguments_verbatim(monkeypatch, argv):
+    """`bin/leaf` hands a sandboxed command's whole argv to the bridge client,
+    which passes every argument after its mode to Leaf unparsed, `--` included."""
+    received = []
+    monkeypatch.setattr(bridge_model, "run", lambda args: received.append(args) or 7)
+    monkeypatch.setattr("sys.argv", ["bridge.py", "run", *argv])
+    with pytest.raises(SystemExit) as exited:
+        bridge_model.main()
+    assert exited.value.code == 7
+    assert received == [argv]

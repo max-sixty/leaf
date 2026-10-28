@@ -33,6 +33,7 @@ import base64
 import io
 import json
 import re
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -524,6 +525,44 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     assert card["right"] <= boundary["right"] + 1
 
 
+def test_send_and_reopen_keep_the_card_minimum_and_attachment(browser, serve):
+    """Send keeps the comment frame's width, already at least the card minimum. Reopening
+    chooses its width afresh for the thread's contents, at the same attachment."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(browser, serve(PAGE), context=context)
+    FIRST_LINE.open(page, False)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "data-lf-placement", re.compile(".+")
+    )
+    page.keyboard.insert_text("Keep the runner fixed.")
+    rendered(page)
+    frame = page.evaluate(RECT, ".lf-fab-bar")
+    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
+    assert frame["right"] - frame["left"] >= minimum - 0.5, (frame, minimum)
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    sent = page.evaluate(RECT, ".lf-margin-preview")
+    assert sent["right"] - sent["left"] == pytest.approx(
+        frame["right"] - frame["left"], abs=0.5
+    ), (frame, sent)
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
+    page.locator(".lf-margin-marker").click()
+    expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    reopened = page.evaluate(RECT, ".lf-margin-preview")
+    assert reopened["right"] - reopened["left"] >= minimum - 0.5, (reopened, minimum)
+    edges = ("left", "top", "bottom")
+    assert {edge: sent[edge] for edge in edges} == pytest.approx(
+        {edge: reopened[edge] for edge in edges}, abs=0.5
+    ), (sent, reopened)
+
+
 @pytest.mark.parametrize(
     "region,route",
     # Each scrolling arrangement once; the two routes alternate between them, since
@@ -545,7 +584,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     read Chrome's actual compositor screenshots. The initial passage rectangle, box
     height, side and gap supply the expected attachment independently of the return.
     """
-    marker_style = f"""<style data-controls>
+    marker_style = f"""<style>
       #paint-target {{ background: {SUBJECT_MARK}; }}
       .lf-fab-bar {{ outline: 8px solid {FOLLOWER_MARK} !important; }}
     </style>"""
@@ -826,6 +865,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             / f"wheel-return-{region}-{route}"
         )
         evidence.mkdir(parents=True, exist_ok=True)
+        (evidence / "compositor.json").write_text(json.dumps({"traceEvents": events}))
         for index, event in enumerate(frames):
             (evidence / f"frame-{index:03}.jpg").write_bytes(
                 base64.b64decode(event["args"]["snapshot"])
@@ -856,7 +896,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
                 indent=2,
             )
         )
-        error.add_note(f"Original compositor frames and raw history: {evidence}")
+        error.add_note(f"Original compositor trace, frames and raw history: {evidence}")
         raise
 
     expect(field).to_have_js_property("value", words)
@@ -1078,8 +1118,8 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
 
 def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
     """A card sent in a pane grows out of its box no further than the pane's edge
-    cuts it at rest: the growth's clip and the region's are one clip, so the card and
-    its shadow never paint past the pane, even for the growth's 240ms."""
+    cuts it at rest: the growth moves the card's surface inside the region's cut, so the
+    card and its shadow never paint past the pane, even while it grows."""
     page = open_page(
         browser,
         serve(
@@ -1107,7 +1147,8 @@ def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
       window.clips = [];
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');
-        if (card?.getAnimations().length) window.clips.push(getComputedStyle(card).clipPath);
+        if (card?.querySelector('.lf-margin-preview-ground').getAnimations().length)
+          window.clips.push(getComputedStyle(card).clipPath);
         window.sampling = requestAnimationFrame(sample);
       };
       window.sampling = requestAnimationFrame(sample);
@@ -1118,7 +1159,7 @@ def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
     expect(card).to_be_visible()
     wait_for(
         lambda: page.evaluate(
-            "document.querySelector('.lf-margin-preview').getAnimations().length"
+            "document.querySelector('.lf-margin-preview-ground').getAnimations().length"
         ),
         lambda n: n == 0,
         failure="Thread growth never finished",
@@ -1258,7 +1299,8 @@ def test_send_grows_thread_around_the_words(
     the rectangle the box's frame reserved, so the draft's words stand where they were
     typed through Send and its acknowledgement: the box and the card share one text
     column and foot, and the card stands its words as far above its end as the box did.
-    The growth only clips the card, so the words its layout places are the ones painted.
+    The growth only cuts the card's surface and parts, so the words its layout places
+    are the ones painted.
     Read inside the editor solely to measure its actual glyphs, without changing its
     closed-root behavior."""
     browser = request.getfixturevalue(engine)
@@ -1308,6 +1350,11 @@ def test_send_grows_thread_around_the_words(
         rendered(page)
     if long == "passage":
         assert FIRST_LINE.line(page)["bottom"] > 0
+    # The words stand where the box's growth with them ends (box-motion.js).
+    page.evaluate(
+        """() => Promise.all(document.querySelector('.lf-fab-ground')
+          .getAnimations().map(motion => motion.finished.catch(() => {})))"""
+    )
     page.evaluate("""() => {
       const input = document.querySelector('.lf-fab-input');
       const blockRects = node => {
@@ -1353,8 +1400,8 @@ def test_send_grows_thread_around_the_words(
       window.grew = false;
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');
-        window.grew ||= Boolean(card?.getAnimations().some(animation =>
-          animation.effect.getKeyframes().some(frame => 'clipPath' in frame)));
+        window.grew ||= Boolean(
+          card?.querySelector('.lf-margin-preview-ground').getAnimations().length);
         const body = card?.querySelector('.lf-msg-body');
         if (body && card.checkVisibility()) {
           window.sendFrames.push({rects:rects(body), pageScroll:scrollY,
@@ -1376,7 +1423,7 @@ def test_send_grows_thread_around_the_words(
     rendered(page)
     wait_for(
         lambda: page.evaluate(
-            "document.querySelector('.lf-margin-preview').getAnimations().length"
+            "document.querySelector('.lf-margin-preview-ground').getAnimations().length"
         ),
         lambda n: n == 0,
         failure="Thread growth never finished",
@@ -1388,8 +1435,7 @@ def test_send_grows_thread_around_the_words(
     assert not reading["box"]["painted"], "The box being written painted its frame"
     assert reading["grew"], "Send showed the card without growing it out of the box"
     assert reading["frames"]
-    # The card takes the editor's reserved rectangle. The Other responses button
-    # stands beside that rectangle and disappears when the card opens.
+    # The card takes the editor's reserved rectangle.
     edges = ("left", "right", "top") if options else ("left", "right", "top", "bottom")
     for frame in reading["frames"]:
         assert {edge: frame["frame"][edge] for edge in edges} == pytest.approx(
@@ -1411,29 +1457,25 @@ def test_send_grows_thread_around_the_words(
     if not long and not touch and not again:
         card.locator('leaf-text[name="reply"]').click()
         page.keyboard.insert_text("The same placement works for a reply.")
-        painted_growth = size == (900, 600) and not options
-        if painted_growth:
+        check_reply_growth = size == (900, 600) and not options
+        if check_reply_growth:
             rendered(page)
-            # Layout Instability compares painted frames; a RAF measurement can
-            # catch an intermediate height the browser never actually displayed. The
-            # card grows up from its foot here, so its painted top rises. Its source
-            # rect is the card's visual rect, which takes in the ink below its box, so
-            # that rect's height need not change while the card's does.
+            # Read the card's border box, not Layout Instability's attribution:
+            # the moving surface may be attributed to its shadow-bearing ground,
+            # whose visual-overflow rectangle need not move with the card's edge.
             card.evaluate("""card => {
-              const growth = [];
-              const record = entries => {
-                for (const entry of entries) for (const source of entry.sources) {
-                  if (source.node !== card || !source.previousRect.height) continue;
-                  const before = source.previousRect.top, after = source.currentRect.top;
-                  if (Math.abs(after - before) > 0.75) growth.push({before, after});
-                }
+              const frames = [];
+              const sample = () => {
+                const {top, bottom} = card.getBoundingClientRect();
+                frames.push({top, bottom});
+                window.__replyFrame = requestAnimationFrame(sample);
               };
-              const observer = new PerformanceObserver(list => record(list.getEntries()));
-              observer.observe({type: 'layout-shift'});
+              sample();
               window.__replyGrowth = () => {
-                record(observer.takeRecords());
-                observer.disconnect();
-                return growth;
+                cancelAnimationFrame(window.__replyFrame);
+                const {top, bottom} = card.getBoundingClientRect();
+                frames.push({top, bottom});
+                return frames;
               };
             }""")
         with sending(page, "reply"):
@@ -1442,9 +1484,18 @@ def test_send_grows_thread_around_the_words(
         expect(
             card.get_by_text("The same placement works for a reply.")
         ).to_be_visible()
-        if painted_growth:
-            growth = page.evaluate("window.__replyGrowth()")
-            assert len(growth) == 1 and growth[0]["after"] < growth[0]["before"], growth
+        if check_reply_growth:
+            frames = page.evaluate("window.__replyGrowth()")
+            assert frames[-1]["top"] < frames[0]["top"] - 0.75, frames
+            assert [frame["bottom"] for frame in frames] == pytest.approx(
+                [frames[0]["bottom"]] * len(frames), abs=0.75
+            ), frames
+            changes = [
+                after["top"] - before["top"]
+                for before, after in pairwise(frames)
+                if abs(after["top"] - before["top"]) > 0.75
+            ]
+            assert len(changes) == 1 and changes[0] < 0, frames
 
         # The first sent message, subsequent turns, metadata and the empty reply
         # share one reading edge, both during the handoff and after reopening.
@@ -1731,7 +1782,7 @@ def test_a_comment_box_on_words_alone_in_a_scroller_paints_in_the_frame_they_scr
                 + "Export tenants."
                 + "<br>" * 60
                 + '</p><div style="height:1200px"></div>',
-                head=f"<style data-controls>#quote {{ height:320px; overflow:auto; color:{SUBJECT_MARK};"
+                head=f"<style>#quote {{ height:320px; overflow:auto; color:{SUBJECT_MARK};"
                 " font: 900 72px/1 sans-serif; -webkit-text-stroke: 6px currentColor; }"
                 f" .lf-fab-bar {{ outline: 8px solid {FOLLOWER_MARK} !important; }}</style>",
             )
@@ -1748,3 +1799,130 @@ def test_a_comment_box_on_words_alone_in_a_scroller_paints_in_the_frame_they_scr
     rendered(page)
     page.mouse.move(box["x"] + 60, box["y"] + 60)
     assert_follows_in_every_frame(page, "#quote")
+
+
+def test_a_multiline_passage_attaches_to_its_first_words_through_focus_reflow_and_send(
+    browser, serve
+):
+    """A later, less indented line cannot move the passage's inline attachment.
+    Native selection and the captured draft/card use the same first fragment, while
+    their clearance continues to belong to the whole code block."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Multiline attachment",
+                '<div><h1>Review the handler</h1><pre id="source"><code class="language-javascript">'
+                'const answer = {\n  decision: "Keep",\n  does: "keep the active card",\n};'
+                "</code></pre><p>The handler records the current decision.</p></div>",
+                layout="sidebar",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    phrase = """words => {
+      const code = document.querySelector('#source code');
+      const start = code.textContent.indexOf(words);
+      const end = start + words.length;
+      const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      let offset = 0;
+      for (let node; (node = walker.nextNode());) {
+        const next = offset + node.length;
+        if (offset <= start && start < next) range.setStart(node, start - offset);
+        if (offset < end && end <= next) range.setEnd(node, end - offset);
+        offset = next;
+      }
+      const fragments = [...range.getClientRects()].filter(r => r.width && r.height);
+      return {
+        first: fragments[0].toJSON(), last: fragments.at(-1).toJSON(),
+        box: range.getBoundingClientRect().toJSON(),
+      };
+    }"""
+    passage = page.evaluate(phrase, 'Keep",\n  does: "keep the active card')
+    first, last = passage["first"], passage["last"]
+    select(
+        page,
+        (first["left"] + 1, first["top"] + first["height"] / 2),
+        (last["right"] - 1, last["top"] + last["height"] / 2),
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    words = page.evaluate("() => getSelection().toString()")
+
+    def attached(selector):
+        rendered(page)
+        passage = page.evaluate(phrase, words)
+        # The fixture must distinguish the first words from the whole range's left edge.
+        assert passage["first"]["left"] - passage["box"]["left"] > 50
+        rect = page.evaluate(RECT, selector)
+        block = page.evaluate(RECT, "#source")
+        assert rect["left"] == pytest.approx(passage["first"]["left"], abs=1)
+        assert rect["bottom"] <= block["top"] or rect["top"] >= block["bottom"]
+        return rect
+
+    attached(".lf-fab-bar")
+    field.click()
+    page.keyboard.insert_text("Keep this meaning explicit.")
+    expect(field).to_be_focused()
+    assert page.evaluate("() => getSelection().isCollapsed")
+    attached(".lf-fab-bar")
+    resized(page, 1200, 900)
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Keep this meaning explicit.")
+    attached(".lf-fab-bar")
+    page.reload(wait_until="load")
+    wait_until_ready(page)
+    expect(field).to_have_js_property("value", "Keep this meaning explicit.")
+    before = attached(".lf-fab-bar")
+    field.click()
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    after = attached(".lf-margin-preview")
+    assert after["left"] == pytest.approx(before["left"], abs=1)
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    # Leave the card for its passage, then dismiss it before reopening.
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
+    page.locator(".lf-margin-marker").click()
+    expect(card).to_have_css("opacity", "1")
+    attached(".lf-margin-preview")
+
+
+def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Comment width through scroll",
+                '<div style="height:650px"></div>'
+                '<p id="subject">Keep the long comment with this passage.</p>'
+                '<div style="height:1800px"></div>',
+            )
+        ),
+    )
+    resized(page, 900, 600)
+    target = page.locator("#subject")
+    target.evaluate(
+        "node => scrollTo(0, node.getBoundingClientRect().top + scrollY - 400)"
+    )
+    rendered(page)
+    target.click(modifiers=["Alt"], position={"x": 30, "y": 10})
+    write(page.locator(".lf-fab-input"), "Keep these words while the page leaves. " * 6)
+    rendered(page)
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    width = bar.bounding_box()["width"]
+
+    page.mouse.wheel(0, 1500)
+    scroll_settled(page)
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    away = bar.bounding_box()
+    assert away["y"] + away["height"] < 0, away
+    assert abs(away["width"] - width) <= 1
+    page.mouse.wheel(0, -1500)
+    scroll_settled(page)
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    assert abs(bar.bounding_box()["width"] - width) <= 1

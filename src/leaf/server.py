@@ -62,7 +62,7 @@ SERVICE = Record(
             {
                 "restart": described(
                     "The mark `page init` leaves while it holds a served page down "
-                    "to re-vendor it (`hosting.restarting_server`).",
+                    "to rewrite its layer record (`hosting.restarting_server`).",
                     STRING,
                 )
             },
@@ -219,8 +219,7 @@ def stop_when_service_ends(page_dir: Path) -> None:
     _memory = memory_of(page_dir)
     orphaned_at = None
     while True:
-        changes = page_changes(page_dir)
-        mark = changes.mark()
+        changes, mark = page_changes(page_dir)
         service = read_service(page_dir)
         if not service or not service["enabled"]:
             exit_serving(0)

@@ -14,6 +14,7 @@ from render_harness import (
     any_owner_entry,
     leaf_page,
     open_page,
+    open_threads,
     panel_settled,
     resized,
     select_words,
@@ -30,7 +31,6 @@ from browser.threads import (
     REPLY_CHANGE,
     append_agent_reply,
     open_panel_thread,
-    open_threads,
     seed_reply,
     thread_row,
 )
@@ -361,11 +361,12 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
     longer its own apparatus and the parts come back.
 
     `display: contents` on a widget is a page's line to write — the shipped vocabulary
-    has none today, and `shownParts` exists because any layer can. Page CSS is the
-    unlayered author stylesheet, above the package-scoped widget rules."""
+    has none today, and `shownParts` exists because any layer can. A widget in a reply
+    stands in the chrome, so the page's rule names it there, which outweighs the chrome's
+    guard against light page rules (styles/chrome-guard.css)."""
     page_source = REPLY_TRAVEL_PAGE.replace(
         "</head>",
-        "<style data-controls>lf-options { display: contents }</style>\n</head>",
+        "<style>.lf-chrome lf-options { display: contents }</style>\n</head>",
     )
     url = serve(page_source, packages=EXAMPLE_PACKAGES)
     # The page's unlayered style puts a reporting group's wrapper in `contents`; the
@@ -382,7 +383,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
     open_panel_thread(page, "tv-decisioned")
     parts = page.evaluate(
         """async () => {
-             const { shownParts } = await window.__lfWidgetApi();
+             const { shownParts } = await window.__lfCheckApi();
              const el = document.querySelector('.lf-fp-view #tv-decision');
              return { boxless: el.getBoundingClientRect().height === 0,
                       display: getComputedStyle(el).display,
@@ -624,13 +625,24 @@ def test_a_changed_datum_keeps_its_old_words_open_when_its_label_changes(
     """Subject identity survives a rewrite; neither its label nor location is the quote."""
     old = "The original requirement keeps a human review before release. " * 12
     module = """
-import {projectData, html, render} from '/runtime/widget-api.js';
-customElements.define('lf-quote-subject', class extends HTMLElement {
-  connectedCallback() { window.quoteSubject = this; this.show('Old plan', this.dataset.words); }
+import {LeafElement, html} from '/runtime/widget-api.js';
+customElements.define('lf-quote-subject', class extends LeafElement {
+  static properties = {label: {attribute: false}, words: {attribute: false}};
+  setup() {
+    window.quoteSubject = this;
+    this.show('Old plan', this.dataset.words);
+  }
   show(label, words) {
-    render(html`<p>${words}</p>`, this);
-    projectData(this, [{key: 'plan', node: this.querySelector('p'), label,
-      identity: 'plan', origin: {derived: [{widget: 'subject'}]}}]);
+    this.label = label;
+    this.words = words;
+  }
+  render() {
+    return html`<p data-lf-datum="plan" data-lf-identity="plan"
+      data-lf-datum-label=${this.label}>${this.words}</p>`;
+  }
+  updated(changed) {
+    super.updated(changed);
+    this.dispatchEvent(new CustomEvent('drawn', {detail: {value: this.words}}));
   }
 });
 """
@@ -647,10 +659,18 @@ customElements.define('lf-quote-subject', class extends HTMLElement {
                 "properties": {
                     "id": {"type": "string"},
                     "data-words": {"type": "string"},
+                    "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
                 },
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "empty",
+                "x-data": {
+                    "words": {
+                        "contract": "text-document",
+                        "source": "source",
+                        "property": "value",
+                    }
+                },
                 "x-upgrade": True,
                 "x-example": '<lf-quote-subject id="example"></lf-quote-subject>',
             }

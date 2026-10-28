@@ -16,6 +16,7 @@ from interact_support import (
 from playwright.sync_api import expect
 from render_cases_layout import (
     BADGE_CHROME,
+    SHORT_CHIP_PAGE,
     SHOT_PAGE,
     SHOT_SRC,
     SHOTS,
@@ -25,6 +26,7 @@ from render_cases_layout import (
 from render_harness import (
     CARRIED_PAGE,
     EXAMPLE_PACKAGES,
+    INLINE_PAGE,
     LONG_PAGE,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
@@ -1249,26 +1251,41 @@ FILM_PAGE = LONG_PAGE.replace(
 )
 
 
-def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
-    browser, serve, tmp_path
+def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
+    browser, serve, tmp_path, headless_shell
 ):
-    """A message's markup is validated as it is posted, and drawn only where a browser
-    shows it, so a reply carrying a chart posts as fast as one without and needs no
-    browser. A body its module cannot draw reports to the author when the user opens
-    its thread, as the page's own widgets do, naming the widget; the log freezes the
-    message, so the author answers with a corrected reply."""
+    """Nothing draws a message's widgets before the user opens its thread, and the
+    log freezes the message, so a thread command runs markup holding a widget only a
+    browser can judge once before it posts, and refuses it with the widget's own
+    error, as plain `page check` refuses a page. A host with no browser posts it
+    unrun; the body its module cannot draw then reports to the author when the user
+    opens its thread, naming the widget, and the author answers with a corrected
+    reply."""
     url = serve(LONG_PAGE)
     d = serve.page_dir
-    posted = subprocess.run(
-        [*LEAF_COMMAND, "thread", "open", str(d), "--text", "See this."]
-        + ["--markup", '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>'],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "none")},
-    )
+
+    def post(executable):
+        return subprocess.run(
+            [*LEAF_COMMAND, "thread", "create", str(d), "--text", "See this."]
+            + [
+                "--markup",
+                '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>',
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": executable},
+        )
+
+    refused = post(headless_shell)
+    assert refused.returncode != 0, refused.stdout + refused.stderr
+    refusal = json.loads(refused.stderr)["error"]
+    assert refusal.startswith("comment markup doesn't draw:"), refusal
+    assert '<lf-chart id="t-bad"> failed: ' in refusal
+    assert not [e for e in events_model.read_events(d) if e["kind"] == "comment"]
+
+    posted = post(str(tmp_path / "none"))
     assert posted.returncode == 0, posted.stdout + posted.stderr
-    assert not posted.stderr, "posting asks for no browser"
 
     [root] = [e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"]
     page = open_page(browser, url)
@@ -1286,3 +1303,207 @@ def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
         failure="the page never reported the chart",
     )
     assert len(reported) == 1 and reported[0].startswith(report), reported
+
+
+def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serve):
+    """Collapsing overlapping words removes them from the gate's screen reading."""
+    url = serve(
+        leaf_page(
+            "collapsed words",
+            '<h1>Collapsed words</h1><div id="collapsed" hidden="until-found">'
+            '<p style="position:absolute;top:100px;left:100px;margin:0">First hidden line</p>'
+            '<p style="position:absolute;top:100px;left:100px;margin:0">Second hidden line</p>'
+            "</div>",
+        )
+    )
+    page = open_page(browser, url)
+    collapsed = page.locator("#collapsed")
+    collapsed.evaluate("node => node.removeAttribute('hidden')")
+    expect(collapsed.locator("p").first).to_be_visible()
+    visible = render_checks_model.evaluate_probe(page, "coveredWords")
+    assert any(
+        {found["words"], found["covered"]}
+        == {"First hidden line", "Second hidden line"}
+        for found in visible
+    ), (
+        "the visible lines fell on nobody, so a gate that never looked would pass this too"
+    )
+    collapsed.evaluate("node => node.setAttribute('hidden', 'until-found')")
+    expect(collapsed.locator("p").first).to_be_hidden()
+
+    assert render_checks_model.evaluate_probe(page, "coveredWords") == []
+
+
+def test_the_gate_passes_words_set_close_or_declared_decorative(browser, serve):
+    """Display type set solid overlaps its neighbour's line box with no letter near
+    another, and a faint numeral the page marks aria-hidden sits behind a label on
+    purpose; neither is words drawn on words. Two labels a few pixels apart still are,
+    and so is an opaque aria-hidden word over a label, words over capitals a stylesheet
+    raised from lowercase, and vertical lines laid along each other."""
+    url = serve(
+        leaf_page(
+            "close words",
+            '<h1>Close words</h1><div style="position:relative;height:400px">'
+            '<p id="kpi" style="font:700 44px/1 sans-serif;margin:0">'
+            '1,204<span style="display:block">requests</span></p>'
+            '<span aria-hidden="true" style="position:absolute;top:0;left:0;'
+            'font-size:120px;opacity:.08">7</span>'
+            '<p id="stacked" style="font:700 80px/.8 Arial;margin:48px 0 0">HIGH<br>TYPE</p>'
+            '<p id="warning" style="position:absolute;top:100px;left:400px;margin:0">'
+            "Cannot proceed</p>"
+            '<span aria-hidden="true" style="position:absolute;top:100px;left:400px;'
+            'background:white">Decoration</span>'
+            '<p id="lower" style="position:absolute;top:150px;left:400px;margin:0">'
+            "One label</p>"
+            '<p id="upper" style="position:absolute;top:154px;left:400px;margin:0">'
+            "Another label</p>"
+            '<p style="position:absolute;top:300px;left:0;margin:0;'
+            'font:80px/1 Arial;text-transform:uppercase">xxxxxx</p>'
+            '<p style="position:absolute;top:297px;left:0;margin:0;font:20px Arial">'
+            "Over the caps</p>"
+            '<p style="position:absolute;top:0;left:700px;margin:0;'
+            'font:40px Arial;writing-mode:vertical-rl">MMMMMM</p>'
+            '<p style="position:absolute;top:140px;left:700px;margin:0;'
+            'font:40px Arial;writing-mode:vertical-rl">WWWWWW</p>'
+            '<p style="position:absolute;top:20px;left:900px;margin:0;'
+            'font:80px/1 Arial;text-transform:lowercase">11111P</p>'
+            '<p style="position:absolute;top:91px;left:1104px;margin:0;'
+            'font:20px/1 Arial">Under the descender</p>'
+            '<svg width="120" height="200" style="position:absolute;top:220px;left:900px">'
+            '<text transform="translate(60 30) rotate(90)" font-size="40">lllll</text>'
+            '<text transform="translate(60 65) rotate(90)" font-size="40">iiiii</text>'
+            "</svg></div>",
+        )
+    )
+    page = open_page(browser, url)
+    found = render_checks_model.evaluate_probe(page, "coveredWords")
+
+    assert sorted(sorted([f["words"], f["covered"]]) for f in found) == [
+        ["11111P", "Under the descender"],
+        ["Another label", "One label"],
+        ["Cannot proceed", "Decoration"],
+        ["MMMMMM", "WWWWWW"],
+        ["Over the caps", "xxxxxx"],
+        ["iiiii", "lllll"],
+    ], found
+
+
+def test_reduced_motion_is_the_page_s_to_answer(browser, serve):
+    """With the reader's preference for less motion, Leaf's stylesheets stop their own
+    motion and leave the page's: a spinner the page never stops keeps turning, and the
+    gate's reading names it, while one the page stops under the preference is quiet."""
+    url = serve(
+        leaf_page(
+            "motion",
+            "<style>@keyframes turn { to { rotate: 1turn } }"
+            ".spinner { width: 20px; height: 20px; animation: turn 1s linear infinite }"
+            "@media (prefers-reduced-motion: reduce) { #calm { animation: none } }"
+            "</style><h1>Motion</h1>"
+            '<div class="spinner" id="busy"></div><div class="spinner" id="calm"></div>',
+        )
+    )
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    expect(page.locator("#busy")).to_have_css("animation-iteration-count", "infinite")
+    found = render_checks_model.evaluate_probe(page, "unreducedMotion")
+
+    assert [f["at"] for f in found] == ["<div id=busy>"], found
+
+
+def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
+    """A comment on a widget's option leaves a page the gate passes
+    (`test_every_table_the_theme_sets_honestly_passes_the_gate` gates one): the mark
+    and the note counting the comment are the runtime's, and none of it is words the
+    widget wrote.
+
+    The pass hunting words drawn on other words holds out a control the runtime hangs out
+    of flow over the page (`floating` in words.js). A control planted over the option's
+    words is held out by the normal reading and reported by the reading with that hold
+    disabled, so the hold is what keeps such a control from failing the page."""
+    url = serve(INLINE_PAGE, anchored=[("opt-b", "quietly puts one back")])
+    page = open_page(browser, url)
+    # Vacuous otherwise: the gate has to be looking at a page that carries the comment.
+    expect(page.locator(".lf-mark-note")).to_have_count(1)
+    page.evaluate(
+        """() => {
+          const text = document.querySelector('#opt-b strong').firstChild;
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          const word = range.getClientRects()[0];
+          const float = Object.assign(document.createElement('span'), {
+            className: 'lf-ui', textContent: 'planted float',
+          });
+          Object.assign(float.dataset, { lfGen: '1', lfOffer: 'button' });
+          Object.assign(float.style, {
+            position: 'absolute', whiteSpace: 'nowrap',
+            left: `${word.left + scrollX}px`, top: `${word.top + scrollY}px`,
+          });
+          document.body.append(float);
+        }"""
+    )
+    held = render_checks_model.evaluate_probe(page, "coveredWords")
+    reported = render_checks_model.evaluate_probe(
+        page, "coveredWords", {"holdFloating": False}
+    )
+    page.close()
+    assert held == []
+    assert any(
+        "planted float" in (found["words"], found["covered"]) for found in reported
+    ), "the planted control covers no words, so a gate that never looked would pass too"
+
+
+def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
+    """A gloss is set among the words around it, so its box is the words in it and there is
+    no width it was ever going to reach. Held to the floor written for a widget that lays
+    out a region, a gloss saying `£9` reads as a collapse, and the gate refuses a page with
+    nothing wrong with it — for a price, which is the shortest thing an author is likely to
+    put in one. A suggestion swapping one short word is the same case in a second tag,
+    there because the gate dispatches on the declaration: the day the wrapper took a box
+    it stood in front of this floor, and only x-inline says whose floor is whose.
+
+    The floor a gloss does keep is the height, since a line of words is a line tall under
+    any layout. Both halves are asserted, because a floor deleted outright passes the
+    first on its own."""
+    url = serve(SHORT_CHIP_PAGE)
+    page = open_page(browser, url)
+    widths = page.locator("lf-gloss").evaluate_all(
+        "els => els.map(el => Math.round(el.getBoundingClientRect().width))"
+    )
+    assert widths and max(widths) < 40, (
+        f"these glosses are {widths}px, so they clear the floor and prove nothing"
+    )
+    sug_width = page.locator("#sug-flag").evaluate(
+        "el => Math.round(el.getBoundingClientRect().width)"
+    )
+    assert sug_width < 40, (
+        f"the suggestion is {sug_width}px, so it clears the floor and proves nothing"
+    )
+
+    assert (
+        render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page)) == []
+    ), "the gate refuses glosses and a suggestion with nothing wrong with them"
+
+    # Asked without the declaration, the same floor flags it — so what passes the page
+    # is the declaration, not a floor gone missing.
+    undeclared = json.loads(json.dumps(page_registry(page)))
+    del undeclared["lf-suggestion"]["x-inline"]
+    assert [
+        box
+        for box in render_checks_model.evaluate_probe(page, "tinyBoxes", undeclared)
+        if box["tag"] == "lf-suggestion"
+    ], (
+        "with x-inline stripped the gate stays quiet, so the floor is gone rather than declared"
+    )
+
+    # Flattened, the same glosses are a collapse and the gate says so — the reading the
+    # declaration narrows rather than switches off.
+    page.add_style_tag(
+        content="lf-gloss { display: block; height: 2px; overflow: hidden; }"
+    )
+    flattened = render_checks_model.evaluate_probe(
+        page, "tinyBoxes", page_registry(page)
+    )
+    page.close()
+    assert [box for box in flattened if box["tag"] == "lf-gloss"], (
+        "a gloss with no height left reports nothing, so the floor is gone rather than declared"
+    )

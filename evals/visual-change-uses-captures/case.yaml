@@ -38,3 +38,65 @@ assert:
       Pass only if the finding draws nothing beside its captures. Fail if the page adds an
       inline SVG, an lf-diagram, or an HTML mockup of the button or form. Showing one capture
       again on its own elsewhere is fine.
+variants:
+  # The same captures as a visual review, whose cases live in a `visual-run` source
+  # that plain page check never draws: the pair has to share a width and a focus
+  # rectangle has to fall inside both images. Measures what
+  # `widgets-draw-as-written` measures, here because this case holds the captures.
+  review:
+    metadata:
+      purpose: A visual review of supplied captures draws as the agent wrote it.
+      tags:
+        - checks
+        - widgets
+    vars:
+      prompt: |
+        Set up a Leaf visual review (the visual-review package) of the Save button
+        fix, with a case for each Save state, so I can approve each or leave feedback
+        on it.
+
+        The fix: the Save button's disabled state was the same grey as its enabled
+        state, so users clicked it and nothing happened. Enabled Save is now the
+        accent colour and disabled Save is at 40% opacity.
+
+        Captures of /settings/notifications, the form with Save disabled (unchanged
+        email) and enabled (edited email), taken by our capture job on 24 October at
+        14:05 UTC in Chromium 141 at a 1200×700 viewport, device scale factor 1, light
+        scheme, en-US, UTC. Base is revision 4f1c2a9 and the fix is 9b7e310; neither is
+        deployed anywhere you can open.
+        - evals/visual-change-uses-captures/captures/before.png
+        - evals/visual-change-uses-captures/captures/after.png
+    assert:
+      - type: python
+        metric: widgets-draw
+        value: file://../dev/leaf_dev/draw_failures.py
+  # The same captures stated at device scale 2, so a focus rectangle has to be given
+  # in CSS pixels, half the image's: one read off the image's own pixels falls
+  # outside it.
+  review-scaled:
+    metadata:
+      purpose: A visual review of captures taken at device scale 2 draws as the agent wrote it.
+      tags:
+        - checks
+        - widgets
+    vars:
+      prompt: |
+        Set up a Leaf visual review (the visual-review package) of the Save button
+        fix, with a case for each Save state, so I can approve each or leave feedback
+        on it.
+
+        The fix: the Save button's disabled state was the same grey as its enabled
+        state, so users clicked it and nothing happened. Enabled Save is now the
+        accent colour and disabled Save is at 40% opacity.
+
+        Captures of /settings/notifications, the form with Save disabled (unchanged
+        email) and enabled (edited email), taken by our capture job on 24 October at
+        14:05 UTC in Chromium 141 at a 600×350 viewport, device scale factor 2, light
+        scheme, en-US, UTC. Base is revision 4f1c2a9 and the fix is 9b7e310; neither is
+        deployed anywhere you can open.
+        - evals/visual-change-uses-captures/captures/before.png
+        - evals/visual-change-uses-captures/captures/after.png
+    assert:
+      - type: python
+        metric: widgets-draw
+        value: file://../dev/leaf_dev/draw_failures.py

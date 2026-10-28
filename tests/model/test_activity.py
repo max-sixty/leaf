@@ -55,7 +55,7 @@ def test_a_claimant_inside_a_turn_is_listening_between_two_waits(claimed):
     reaches, or opens, takes the input, so the status keeps reading listening rather
     than telling the user the agent is away. Once the turn has closed, it is away."""
     serving(claimed, 1)
-    session_model.cmd_waiting(claimed, "look at v2")
+    session_model.cmd_waiting(claimed)
     claim = service_model.page_claim(claimed)
     cleanup_model.open_session_turn(claim["id"])
     assert page_state(claimed)["listening"] is False
@@ -63,6 +63,54 @@ def test_a_claimant_inside_a_turn_is_listening_between_two_waits(claimed):
 
     cleanup_model.close_session_turn(claim["id"])
     assert activity_reading(claimed)["kind"] == "away"
+
+
+def test_a_session_the_next_input_wakes_reads_listening(page_dir, tmp_path):
+    """With no watch after its turn ended, a session is away only if the nudge the
+    next input gets (`ClaudeCodeHarness.nudge`) might not start a turn. A background
+    job whose daemon retired its idle worker, and the watch with it, is resumed with
+    that input as its prompt. A live session takes it from its socket as a turn
+    where the user's settings accept other sessions' messages; elsewhere the message
+    may wait behind a dialog."""
+    job = tmp_path / "job"
+    job.mkdir()
+    cleanup_model.write_json(job / "state.json", {"sessionId": "s1"})
+    record_claim(page_dir, job=str(job), turn_closed=cleanup_model.now_iso())
+    assert activity_reading(page_dir)["kind"] == "listening"
+
+    sessions = harness_model.claude_code_sessions()
+    sessions.mkdir(exist_ok=True)
+    project = tmp_path / "project"
+    (project / ".git").mkdir(parents=True)
+    worker = {
+        "pid": os.getpid(),
+        "sessionId": "s1",
+        "cwd": str(project / "src"),
+        "messagingSocketPath": str(tmp_path / "peer.sock"),
+    }
+    cleanup_model.write_json(sessions / f"{os.getpid()}.json", worker)
+    cleanup_model.write_json(sessions / f"{os.getpid()}.k.key", {"peerToken": "t"})
+    assert activity_reading(page_dir)["kind"] == "away"
+
+    cleanup_model.write_json(
+        harness_model.claude_code_config() / "settings.json",
+        {"crossSessionInbound": "accept"},
+    )
+    assert activity_reading(page_dir)["kind"] == "listening"
+
+    # A project can narrow the user's accept, from the repository's root too.
+    (project / ".claude").mkdir()
+    cleanup_model.write_json(
+        project / ".claude" / "settings.local.json", {"crossSessionInbound": "hold"}
+    )
+    assert activity_reading(page_dir)["kind"] == "away"
+
+    # Only the user's settings grant it.
+    cleanup_model.write_json(
+        project / ".claude" / "settings.local.json", {"crossSessionInbound": "accept"}
+    )
+    cleanup_model.write_json(harness_model.claude_code_config() / "settings.json", {})
+    assert activity_reading(page_dir)["kind"] == "away"
 
 
 def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
@@ -174,7 +222,7 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
     )
 
     end_work(claimed)
-    session_model.cmd_waiting(claimed, "review the answer")
+    session_model.cmd_waiting(claimed)
     assert activity_reading(claimed)["kind"] == "working"
 
     cleanup_model.close_session_turn(claim["id"])
@@ -185,7 +233,7 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
         "operation": "work",
     }
 
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -238,7 +286,7 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
             },
         )
 
-    session_model.cmd_waiting(claimed, "Pick a layout")
+    session_model.cmd_waiting(claimed)
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Tighten the lede."}
     )
@@ -326,7 +374,7 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
             },
         )
 
-    session_model.cmd_waiting(claimed, "Pick a layout")
+    session_model.cmd_waiting(claimed)
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Compare the layouts."}
     )
@@ -380,7 +428,7 @@ def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
     stalled with the agent to act, which `counts.overdue` names: one still Sent
     past the pickup grace, or one a turn picked up and ended without answering."""
     serving(claimed, 1)
-    session_model.cmd_waiting(claimed, "Pick a layout")
+    session_model.cmd_waiting(claimed)
 
     def turn_ends():
         # The first Stop refuses to end the turn over the page's debts; the
@@ -432,7 +480,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
     now = datetime.now().astimezone()
     old = (now - timedelta(minutes=30)).isoformat()
     present = {
-        "status": {"state": "waiting", "ts": old, "detail": ""},
+        "status": {"state": "waiting", "ts": old},
         "listening": True,
         "session_alive": True,
         "live_turn": None,
@@ -565,9 +613,9 @@ def test_newer_pending_input_does_not_reclassify_page_work(claimed):
 
 def test_queued_input_does_not_hide_live_codex_activity(claimed):
     serving(claimed, 1)
-    session_model.cmd_waiting(claimed, "Comment on the page")
+    session_model.cmd_waiting(claimed)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -594,9 +642,9 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
 
 def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     serving(claimed, 1)
-    session_model.cmd_waiting(claimed, "comment on the page")
+    session_model.cmd_waiting(claimed)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -606,8 +654,7 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
             "s1", "turn-live", {"kind": "tool", "detail": "Running the tests"}
         )
 
-    status = declared(claimed)
-    assert (status["state"], status["detail"]) == ("waiting", "comment on the page")
+    assert declared(claimed)["state"] == "waiting"
     public_presence = presence_model.presence(
         claimed, events_model.read_events(claimed)
     )
@@ -623,22 +670,19 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     )
     assert activity["observed_kind"] == "tool"
 
-    session_model.cmd_waiting(claimed, "review the result")
+    session_model.cmd_waiting(claimed)
     assert activity_reading(claimed)["detail"] == "Running the tests"
 
     with service_model.PageTransaction(claimed) as transaction:
         transaction.clear_stream_activity("s1", "turn-live")
     returned = activity_reading(claimed)
-    assert (returned["kind"], returned["detail"]) == (
-        "listening",
-        "review the result",
-    )
+    assert (returned["kind"], returned["detail"]) == ("listening", "")
     leases_model.release_lease(lease)
 
 
 def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
     serving(claimed, 1)
-    session_model.cmd_waiting(claimed, "comment on the page")
+    session_model.cmd_waiting(claimed)
 
     with service_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
@@ -685,7 +729,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     and its own date, and the step is reported beside it."""
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -717,7 +761,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
         cli_model.cli, ["task", "end", str(claimed), start["item"], "done"]
     )
     assert ended.exit_code == 0, ended.output
-    session_model.cmd_waiting(claimed, "which store should own it")
+    session_model.cmd_waiting(claimed)
     waiting = activity_reading(claimed)
     assert (waiting["kind"], waiting["detail"], waiting["observed"]) == (
         "working",
@@ -726,7 +770,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     )
     assert waiting["detail_source"] is None
 
-    session_model.cmd_waiting(claimed, "which store should own it")
+    session_model.cmd_waiting(claimed)
 
     # A newer user move has its own pending delivery; it does not reclassify current
     # page work or imply that the observed tool step belongs to that message.
@@ -752,7 +796,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
 def test_a_malformed_old_stream_record_is_ignored(claimed):
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -789,7 +833,7 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
         "Handling the new work",
     )
     end_work(claimed)
-    session_model.cmd_waiting(claimed, "Review the result")
+    session_model.cmd_waiting(claimed)
     without_old_stream = activity_reading(claimed)
     assert (without_old_stream["kind"], without_old_stream["observed_kind"]) == (
         "listening",
@@ -801,11 +845,11 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
 def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
-    session_model.cmd_waiting(claimed, "Review the result")
+    session_model.cmd_waiting(claimed)
     with service_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
             claim["id"],
@@ -938,7 +982,7 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
 
     early = CliRunner().invoke(cli_model.cli, waiting)
     assert early.exit_code == 0, early.output
-    assert json.loads(early.stdout)["detail"] == ""
+    assert json.loads(early.stdout)["state"] == "waiting"
     [owed] = said(early.stderr)
     assert owed["code"] == "page-open-owes"
     assert owed["text"] == (
@@ -1001,9 +1045,9 @@ def test_a_process_free_publication_keeps_input_without_claimant_facts(claimed):
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Keep this input"}
     )
-    session_model.cmd_waiting(claimed, "Review the result")
+    session_model.cmd_waiting(claimed)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -1017,13 +1061,14 @@ def test_a_process_free_publication_keeps_input_without_claimant_facts(claimed):
         assert stream is None
         assert captured["cursor"] == live["cursor"]
         assert captured["pending"] == live["pending"] == 1
-        assert captured["status"] == {"state": "waiting", "detail": ""}
+        assert captured["status"] == {"state": "waiting"}
         assert captured["agent"] == schema_model.UNNAMED_AGENT
         assert not captured["listening"]
         for field in (
             "session_alive",
             "live_turn",
             "claim_session",
+            "session_name",
             "claim_turn",
             "turn_closed",
             "turn_opened",
@@ -1099,7 +1144,6 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
         declare_status(
             d,
             "waiting" if state == "working" else state,
-            "" if state == "working" else detail,
             ts=ts.isoformat(timespec="seconds"),
         )
         if state == "working":
@@ -1151,7 +1195,7 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
         activity["counts"]["handling"],
         activity["counts"]["handling_comments"],
     ) == (1, 1)
-    _, activity = declare("waiting", "your read on the plan")
+    _, activity = declare("waiting")
     assert (activity["kind"], activity["detail"]) == ("working", "")
     assert (
         activity["counts"]["handling"],
@@ -1168,7 +1212,7 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
             "text": "Handled before the next turn.",
         },
     )
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(d, "s"))
+    lease = leases_model.take_wait_lease(leases_model.waiter_lease_path(d, "s"))
     assert lease
     try:
         declare("working", "revising the plan")
@@ -1231,12 +1275,9 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
             )
             assert activity["kind"] == "working"
 
-        # What the page wants back, in the agent's words, with input on its way.
-        _, activity = declare("waiting", "pick a storage engine")
-        assert (activity["kind"], activity["detail"]) == (
-            "listening",
-            "pick a storage engine",
-        )
+        # Waiting on the user, with input on its way.
+        _, activity = declare("waiting")
+        assert (activity["kind"], activity["detail"]) == ("listening", "")
         assert activity["counts"]["pending"] == 1
     finally:
         leases_model.release_lease(lease)
@@ -1310,7 +1351,7 @@ def test_an_ended_pickup_keeps_the_invitation_the_agent_declared(page_dir):
         {"kind": "comment", "author": "user", "revision": 1, "text": "Comment 0."},
     )
     claim = record_claim(page_dir, id="s", pid=os.getpid(), agent="Claude")
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(page_dir, "s"))
+    lease = leases_model.take_wait_lease(leases_model.waiter_lease_path(page_dir, "s"))
     assert lease
     try:
         with service_model.PageTransaction(page_dir) as transaction:
@@ -1344,7 +1385,7 @@ def test_newer_page_work_takes_the_activity_from_an_older_thread_start(page_dir)
         delivery_model.record_pickup(transaction, [comment])
     started = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(page_dir), comment["id"], "reading the traces"],
+        ["task", "start", str(page_dir), comment["id"], "--text", "reading the traces"],
     )
     assert started.exit_code == 0, started.output
     activity = activity_reading(page_dir)

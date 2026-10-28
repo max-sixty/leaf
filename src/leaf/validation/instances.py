@@ -1,12 +1,13 @@
 """Registry-declared markup instance validation."""
 
+import re
+
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import leading_title_node
 from leaf.obligations import (
     encloses,
     local_obligation_entry,
     quoted_in,
-    replied,
 )
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
@@ -18,9 +19,12 @@ from leaf.registry.contract import (
     state_specs,
 )
 from leaf.registry.schema import json_validator, schema_reading
+from leaf.shown_answers import shown_errors
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import found_at, structure_errors
+
+_GLOBAL_ATTRIBUTE = re.compile(r"class|style|title|lang|dir|aria-[a-z]+|data-(?!lf-).+")
 
 
 def member_holders(rec: dict, registry: dict):
@@ -36,7 +40,7 @@ def member_holders(rec: dict, registry: dict):
 
 
 def thread_markup_contract_errors(parser, registry: dict) -> list[Finding]:
-    """Registry-derived errors shared by admission and re-vendoring."""
+    """Registry-derived errors shared by admission and `page init`."""
     errors = fragment_errors(parser, registry)
     settled = retirement_slots(registry)
     errors.extend(
@@ -68,17 +72,36 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
         # The element validates as the instance built from its attributes:
         # values as strings, flag attributes as True. HTML's two flag spellings
         # (bare and ="") both mean true; a literal value on a flag stays a string
-        # so it fails loudly rather than silently meaning true.
+        # so it fails loudly rather than silently meaning true. HTML's global
+        # attributes that say nothing a widget records stand outside every schema
+        # unless the entry declares one: `class` and `style` are the page's styling
+        # hooks (the runtime sets its own classes and custom properties beside the
+        # author's, and Leaf's own `lf-` classes are refused as markers), and `title`,
+        # `lang`, `dir`, `aria-*` and the page's own `data-*` describe the element as
+        # on any other. `data-lf-*` stays Leaf's; `hidden` and `inert` still validate,
+        # since either could hide what the widget asks of the user.
         props = entry.get("properties", {})
         instance = {}
         for name, value in rec["attrs"].items():
-            if name in AUTHORED_ALLOCATIONS:
+            if name in AUTHORED_ALLOCATIONS or (
+                name not in props and _GLOBAL_ATTRIBUTE.fullmatch(name)
+            ):
                 continue
             prop = props.get(name)
             is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
             errors.append(found_at("attribute-schema", rec, **schema_reading(err)))
+        for verb, spec in state_specs(entry):
+            binding = spec.get("contract")
+            if not binding or not (name := rec["attrs"].get(binding["attribute"])):
+                continue
+            if name not in registry["$data"]["contracts"]:
+                errors.append(
+                    found_at(
+                        "instance-contract", rec, verb=verb, contract=name, **binding
+                    )
+                )
         for input_name, spec in entry.get("x-data", {}).items():
             if rec["attrs"].get(spec.get("source")) and rec["attrs"].get(
                 spec.get("reference")
@@ -239,36 +262,28 @@ def unasked(rec: dict, entry: dict) -> dict:
 
 
 def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """An enclosing widget (`x-awaits.encloses`) supplies a leading title and
+    """An enclosing widget (`x-encloses`) supplies a leading title and
     arrival region for the obligations inside it.
 
     It never owns obligation identity or registration. Any number of sources can select
     it, and each source retains its independent answer and lifecycle. An enclosing
     widget whose widgets none ask shows a question the On me list never counts and
     the user can't answer, so the error names what each enclosed widget lacks to
-    ask (`unasked`). One holding no widget asks only if it declares its own
-    reply-answered obligation (`x-awaits.reply`), and then needs no heading: its words
-    are the question.
+    ask (`unasked`), or that it holds none.
     """
-
-    def encloser_of(rec):
-        return next(
-            (
-                holder
-                for holder in enclosing_widgets(rec)
-                if encloses(registry.get(holder["tag"], {}))
-            ),
-            None,
-        )
 
     lf_elements = document.lf_elements
     regions = [rec for rec in lf_elements if encloses(registry.get(rec["tag"], {}))]
     framed = {id(region): [] for region in regions}
+    # A widget asks inside every frame around it, so a frame holding only a nested frame
+    # is as full as that one; the nearest still gives the obligation its prompt.
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
-        region = encloser_of(rec)
-        if local_obligation_entry(entry) and region and not quoted_in(rec, registry):
-            framed[id(region)].append((rec, unasked(rec, entry)))
+        if not local_obligation_entry(entry) or quoted_in(rec, registry):
+            continue
+        for holder in enclosing_widgets(rec):
+            if encloses(registry.get(holder["tag"], {})):
+                framed[id(holder)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
         held = framed[id(region)]
@@ -277,10 +292,6 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         # question's place in the outline and in heading navigation.
         title = leading_title_node(document.authoring.node_of(region))
         titled = bool(title) and title["tag"] in {f"h{n}" for n in range(1, 7)}
-        # A question is its words alone. A heading over no widget is a frame whose
-        # widget is missing, as when a revision drops the decision it framed.
-        if not held and replied(registry[region["tag"]]) and not titled:
-            continue
         # A quoted enclosing widget is a mention whose widgets ask nothing by design.
         if not quoted_in(region, registry) and all(lacks for _, lacks in held):
             widgets = [
@@ -437,6 +448,10 @@ def reference_errors(
                 )
             elif reference.get("owns") and target not in own:
                 errors.append(found_at("outside-reference", rec, **reference_to))
+            elif attr == entry.get("x-shows", {}).get("attr") and target not in own:
+                # A view and the answer it shows travel in one document, so a board
+                # in a reply shows widgets frozen in the same reply (`shown_answers`).
+                errors.append(found_at("shows-outside", rec, **reference_to))
             elif reference.get("owns"):
                 owners.setdefault((rec["tag"], attr, target), []).append(rec)
         for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
@@ -552,6 +567,7 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         + addressable_instance_errors(lf_elements, registry)
         + enclosing_errors(document, registry)
         + unique_errors(lf_elements, registry)
+        + shown_errors(document, registry)
     )
 
 

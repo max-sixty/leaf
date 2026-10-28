@@ -12,7 +12,9 @@ the source, and the history (the log and the revisions). That is how a saved
 `index.html` reaches an open tab: the next read sees the source change and makes
 the revision. A cached "no new revision" stays valid while only the log grows,
 because admission checked each event against the revision it names. A refusal is
-checked again when the source or the history changes.
+checked again when the source or the history changes. A stamp leaves the answer for
+the source it published (`hold_published`), so the next read in that process doesn't
+check the same source again.
 
 When a revision drops the passage an open thread is anchored to, activation appends
 a `reanchor` event in the same log transaction, which moves the thread to the
@@ -103,6 +105,19 @@ def _activate_source(page_dir: Path, page) -> Activation:
     settled = activation._replace(created=False) if activation.created else activation
     held.answer = _Answer(source, history, settled)
     return activation
+
+
+def hold_published(page_dir: Path, source: str, activation: Activation) -> None:
+    """Hold a publication as the answer the next `activate_source` gives.
+
+    `source` is the source reading taken before the check that published, as
+    `_activate_source` takes its own. A stamp checks the source and publishes it as
+    the active revision, so a state read in the same process, such as a page server
+    beside the command, finds it active rather than checking it again; a write since
+    that reading moves the page past this answer."""
+    memo(page_dir, _Held).answer = _Answer(
+        source, "", activation._replace(created=False)
+    )
 
 
 def planned_activation(page_dir: Path, checked: SourceCheck) -> Activation:

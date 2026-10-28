@@ -3,7 +3,7 @@
 import hashlib
 import re
 from collections.abc import Mapping
-from functools import cached_property
+from functools import cached_property, lru_cache
 from html import escape
 
 import turbohtml
@@ -196,8 +196,13 @@ def element_attrs(element) -> dict:
     }
 
 
+@lru_cache(maxsize=4096)
 def _local_resource(value: str) -> tuple[str, str] | None:
-    """Read an attribute candidate; arbitrary prose need not be a valid URL."""
+    """Read an attribute candidate; arbitrary prose need not be a valid URL.
+
+    A pure reading of the value, asked of every attribute a document carries, so it
+    is kept by value: a layer's examples and a page's revisions repeat the same
+    attributes, each of which costs two WHATWG parses."""
     try:
         return resource_reference(value, "/index.html")
     except ReferenceError:
@@ -723,11 +728,13 @@ class Authoring:
 
         if tag == "noscript":
             self.errors.append(Finding("noscript", "<noscript>", {"line": line}))
+        # Only the outermost: an element inside one already named moves with it.
         if (
             not in_main
             and tag not in DOCUMENT_WRAPPERS
             and tag != "script"
             and not (in_head and tag in HEAD_METADATA_TAGS)
+            and (parent_tag is None or parent_tag in DOCUMENT_WRAPPERS)
         ):
             self.outside_main.append({"tag": tag, "line": line, "text": False})
 
@@ -833,7 +840,7 @@ class Authoring:
                 if (
                     child.data.strip()
                     and "main" not in next_ancestors
-                    and element.tag not in {"script", "style", "title"}
+                    and element.tag in DOCUMENT_WRAPPERS
                 ):
                     self.outside_main.append(
                         {"tag": element.tag, "line": line, "text": True}

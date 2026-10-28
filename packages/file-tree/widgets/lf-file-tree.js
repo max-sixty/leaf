@@ -18,23 +18,20 @@
  */
 import {
   PRESS,
-  commands,
   commandScope,
   focused,
   focusDestination,
   keeps,
-  keepsHidden,
-  keepsText,
   navigateToDatum,
   offer,
   LeafElement,
-  nothing,
+  render,
   onCurrentLocation,
-  paintKeys,
   plainPress,
   scrollIntoView,
   shadowStage,
   whileConnected,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 let library;
@@ -43,16 +40,32 @@ const loadTrees = () => (library ??= import("/vendor/pierre-trees.esm.js"));
 customElements.define(
   "lf-file-tree",
   class extends LeafElement {
-    #snapshot;
+    // The file list, set by whoever hosts the widget: Leaf from the bound source or
+    // diff (the registry's `x-data.files.property`), or null while it has none.
+    static properties = { value: { attribute: false } };
+
+    constructor() {
+      super();
+      this.value = null;
+    }
+
+    // The file list the last render read, the one last applied, and its application.
+    #delivered;
     #shown;
+    #applied;
+    #emptyRoot;
+    #empty = "No files available.";
+
+    createRenderRoot() {
+      return this.#emptyRoot;
+    }
 
     setup() {
-      const empty = offer("p", "lf-file-tree-empty", "No files available.");
+      const empty = (this.#emptyRoot = offer("p", "lf-file-tree-empty"));
       const root = shadowStage(this, [empty]);
       const theme = root.firstChild;
       const label = this.getAttribute("aria-label") || "Files";
       keeps(this, "aria-label", label);
-      this.replaceChildren();
 
       let tree = null;
       let files = [];
@@ -64,15 +77,13 @@ customElements.define(
       const expanded = new Set();
       const paintEmpty = () => {
         const noMatches = files.length > 0 && tree?.getVisibleCount() === 0;
-        keepsText(
-          empty,
-          noMatches
-            ? "No matching files."
-            : available
-              ? "No files."
-              : "No files available.",
-        );
-        keepsHidden(empty, files.length > 0 && !noMatches);
+        this.#empty = noMatches
+          ? "No matching files."
+          : available
+            ? "No files."
+            : "No files available.";
+        keeps(empty, "hidden", files.length > 0 && !noMatches ? "" : null);
+        render(this.#empty, empty, this.renderOptions);
       };
       const rememberExpansion = () => {
         if (!tree) return;
@@ -82,7 +93,7 @@ customElements.define(
           else expanded.delete(row.path);
         }
         paintEmpty();
-        paintKeys();
+        commandsChanged(this);
       };
       const mount = () => {
         if (!tree || mounted || !files.length) return;
@@ -142,7 +153,8 @@ customElements.define(
           when: focusedRow,
         },
       ]);
-      commands(this, fileActions);
+      this.lfCommands = fileActions;
+      commandsChanged(this);
       whileConnected(this, (signal) => {
         mount();
         // Trees scrolls its virtualized list and focuses with preventScroll. The
@@ -157,7 +169,8 @@ customElements.define(
           if (row?.getAttribute("role") === "treeitem" && root.contains(row)) {
             // Each upstream row is a native button. Its exact scope precedes
             // native activation; an ancestor scope cannot own that press.
-            commands(row, fileActions);
+            row.lfCommands = fileActions;
+            commandsChanged(row);
             scrollIntoView(row, { block: "nearest" });
           }
         });
@@ -189,10 +202,10 @@ customElements.define(
           mounted = false;
         };
       });
-      this.applyFiles = async (snapshot) => {
+      this.applyFiles = async (value) => {
         const current = ++generation;
-        files = snapshot?.value.files ?? [];
-        available = snapshot !== null;
+        files = value?.files ?? [];
+        available = value !== null;
         paintEmpty();
         if (!tree && files.length) {
           const { FileTree } = await loadTrees();
@@ -223,7 +236,7 @@ customElements.define(
             .filter((file) => file.status)
             .map(({ path, status }) => ({ path, status })),
         );
-        if (snapshot?.value.current) selectOnly(snapshot.value.current);
+        if (value?.current) selectOnly(value.current);
         if (!files.length) {
           stopModel?.();
           stopModel = null;
@@ -236,15 +249,26 @@ customElements.define(
     }
 
     render() {
-      this.#snapshot = this.data("files");
-      return nothing;
+      this.#delivered = this.value;
+      return this.#empty;
     }
 
+    // The tree loads and draws each list after the update that read it, and that
+    // update's `updateComplete` waits for it.
     updated(changed) {
       super.updated(changed);
-      if (this.#snapshot === this.#shown) return;
-      const snapshot = (this.#shown = this.#snapshot);
-      this.drawing(this.applyFiles(snapshot));
+      this.#applied =
+        this.#delivered === this.#shown
+          ? undefined
+          : this.applyFiles((this.#shown = this.#delivered));
+    }
+
+    // Also waits for the drawing the latest update started: a newer update's drawing
+    // replaces one still pending.
+    async getUpdateComplete() {
+      const result = await super.getUpdateComplete();
+      await this.#applied;
+      return result;
     }
   },
 );

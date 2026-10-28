@@ -1,10 +1,12 @@
 /* What a user who meets a problem copies to say which page and which Leaf they are on:
- * the page's access link, a developer preview's diagnostics, the Leaf version the page
- * runs, and the website's session reference. Each is one row of the page's controls
+ * the page's access link, the agent session its comments reach, a developer preview's
+ * diagnostics, the Leaf version the page runs, and the website's session reference.
+ * Each is one row of the page's controls
  * (page-controls.js) whose press copies its text, derived from the state reading where
  * it is read, so a presentation follows the reading. */
+import { pageIdentity } from "./page-identity.js";
 import { ago } from "./presence.js";
-import { DELIVERY, SHARE_ROOT, runtime, shareUrl } from "./context.js";
+import { SHARE_ROOT, runtime, shareUrl } from "./context.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { retainUserIntent } from "./user-intent.js";
 import { raiseError } from "./errors.js";
@@ -12,7 +14,7 @@ import { raiseError } from "./errors.js";
 registerPageControl({
   key: "inspection",
   rank: PAGE_CONTROL_RANK.inspection,
-  label: "Page diagnostics",
+  label: "About this page",
   group: "page",
   press: () => {
     const intent = retainUserIntent();
@@ -20,7 +22,7 @@ registerPageControl({
       .then(({ openPageInspection }) => openPageInspection(intent))
       .catch((error) =>
         raiseError(
-          `Page diagnostics could not open: ${error.message}. Open the menu to retry.`,
+          `About this page could not open: ${error.message}. Open the menu to retry.`,
         ),
       );
   },
@@ -40,25 +42,6 @@ const shortCommit = (provenance) =>
   provenance.commit
     ? `${provenance.commit.slice(0, 8)}${provenance.dirty ? "+" : ""}`
     : "unknown";
-// Another payload's diagnostics, each line led by how it relates to the page.
-const otherPayloadLines = (relation, provenance) => [
-  ...(provenance.commit ? [`${relation} commit: ${provenance.commit}`] : []),
-  ...(provenance.dirty !== undefined ? [`${relation} dirty: ${provenance.dirty}`] : []),
-  ...payloadDateLines(provenance).map((line) => `${relation} ${line}`),
-];
-// Where another Leaf serves the page (`state.leaf`), whose runtime the page runs, it
-// stands beside the Leaf that vendored the page's layer with its age, so whoever meets
-// a problem can tell how far apart the two are (AGENTS.md, "Pages across Leaf
-// updates").
-const servedBy = (state) =>
-  state.leaf
-    ? ` · served by ${shortCommit(state.leaf)}${payloadAge(state.leaf) ? ` · ${payloadAge(state.leaf)}` : ""}`
-    : "";
-const pageUrl = () => {
-  const url = new URL(location.href);
-  url.searchParams.delete("t");
-  return String(url);
-};
 
 if (SHARE_ROOT)
   registerPageControl({
@@ -70,22 +53,56 @@ if (SHARE_ROOT)
     group: "page",
   });
 
+// The agent session that holds the page, which the user's comments reach: by the name
+// its harness gives it, or the start of its id where it gives none, and the directory
+// it works in, so a user with several sessions open can tell which one to turn to
+// (`presence.page_list` lists the same for every page). A session that ended still
+// holds the page until another claims it, so the row says so rather than going.
+export function claimantValue(state) {
+  const { session_name: name, claim_session: id, session_cwd: cwd } = state;
+  const where = cwd ? cwd.split("/").findLast(Boolean) : null;
+  return [name || id.slice(0, 8), where, state.session_alive === false && "ended"]
+    .filter(Boolean)
+    .join(" · ");
+}
+export function claimantDiagnostics(state) {
+  return [
+    "Agent session",
+    `agent: ${state.agent}`,
+    ...(state.session_name ? [`name: ${state.session_name}`] : []),
+    `id: ${state.claim_session}`,
+    ...(state.session_cwd ? [`directory: ${state.session_cwd}`] : []),
+    `running: ${state.session_alive !== false}`,
+  ].join("\n");
+}
+const claimed = () => Boolean(/** @type {any} */ (runtime.state)?.claim_session);
+registerPageControl({
+  key: "claimant",
+  rank: PAGE_CONTROL_RANK.claimant,
+  label: "agent session",
+  value: () => (claimed() ? claimantValue(/** @type {any} */ (runtime.state)) : ""),
+  copies: () =>
+    claimed() ? claimantDiagnostics(/** @type {any} */ (runtime.state)) : "",
+  offered: claimed,
+  group: "page",
+});
+
 // The developer preview's identity: which checkout is serving this page. A user preview
 // claims the page, so every press on it, the agent's own screenshots included, comes
 // back to the session as user input; that is the mode worth marking.
 const preview = () => /** @type {any} */ (runtime.state)?.preview ?? null;
 function previewLabel() {
-  const state = /** @type {any} */ (runtime.state);
-  const producer = state.layer.producer ?? {};
+  const identity = pageIdentity();
+  const producer = identity.layer.producer ?? {};
   const kind = preview().interaction === "user" ? "User" : "Preview";
   const stem = `${kind} · ${preview().checkout}${producer.commit ? `@${producer.commit}` : ""}`;
   const age = payloadAge(producer);
-  return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${servedBy(state)}`;
+  return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}`;
 }
 function previewDiagnostics() {
-  const state = /** @type {any} */ (runtime.state);
-  const producer = state.layer.producer ?? {};
-  const { example, checkout, interaction, started } = preview();
+  const identity = pageIdentity();
+  const producer = identity.layer.producer ?? {};
+  const { example, checkout, interaction, started } = identity.preview;
   return [
     "Leaf preview",
     `example: ${example}`,
@@ -94,16 +111,15 @@ function previewDiagnostics() {
     ...(producer.commit ? [`commit: ${producer.commit}`] : []),
     ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
     ...payloadDateLines(producer),
-    ...(state.leaf ? otherPayloadLines("served by", state.leaf) : []),
     `started: ${started}`,
     ...runtimeLines(),
-    `layer generation: ${state.layer.generation}`,
-    ...(state.layer.fingerprint
-      ? [`layer fingerprint: ${state.layer.fingerprint}`]
+    `layer generation: ${identity.layer.generation}`,
+    ...(identity.layer.fingerprint
+      ? [`layer fingerprint: ${identity.layer.fingerprint}`]
       : []),
-    ...(state.active ? [`revision: ${state.active.revision}`] : []),
-    `event sequence: ${state.events.at(-1)?.seq ?? 0}`,
-    `url: ${pageUrl()}`,
+    ...(runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : []),
+    `event sequence: ${runtime.lastEventSeq ?? 0}`,
+    `url: ${identity.url}`,
   ].join("\n");
 }
 registerPageControl({
@@ -119,46 +135,46 @@ registerPageControl({
 // The runtime this document runs, which the server serving it supplied
 // (`runtime_selection.py`); a website release names it instead.
 function runtimeLines() {
-  return DELIVERY.runtime ? [`runtime: ${DELIVERY.runtime}`] : [];
+  const { delivery } = pageIdentity();
+  return delivery.runtime ? [`runtime: ${delivery.runtime}`] : [];
 }
 
-// The vendored layer names the Leaf version that composed this page's registry, theme
-// and widgets. It can remain older than the plugin now installed in the harness, so
-// this reads the provenance captured by `page init` rather than a live package or
-// server version. Pages built outside Git retain a stable identity through the
-// composed layer fingerprint.
-function layerIdentity(state) {
-  const producer = state.layer.producer ?? {};
-  const fingerprint = state.layer.fingerprint;
+// The layer names the Leaf that composed this page's registry, theme and widgets:
+// the one serving it, which also supplies its runtime
+// (`registry.storage.served_layer`). It can be older than the plugin now installed in
+// the harness, since a server keeps the code it started with. Pages built outside Git retain a stable identity through
+// the composed layer fingerprint.
+function layerIdentity(identity) {
+  const producer = identity.layer.producer ?? {};
+  const fingerprint = identity.layer.fingerprint;
   if (producer.commit) return shortCommit(producer);
   return fingerprint
     ? `sha256:${fingerprint.replace(/^sha256:/, "").slice(0, 12)}`
     : null;
 }
 const layerShown = () => {
-  const state = /** @type {any} */ (runtime.state);
-  return Boolean(state && !state.preview && layerIdentity(state));
+  const identity = pageIdentity();
+  return Boolean(identity.layer && !identity.preview && layerIdentity(identity));
 };
 function layerNamed() {
-  const state = /** @type {any} */ (runtime.state);
-  const age = payloadAge(state.layer.producer ?? {});
-  return `Leaf ${layerIdentity(state)}${age ? ` · ${age}` : ""}${servedBy(state)}`;
+  const identity = pageIdentity();
+  const age = payloadAge(identity.layer.producer ?? {});
+  return `Leaf ${layerIdentity(identity)}${age ? ` · ${age}` : ""}`;
 }
 function layerDiagnostics() {
-  const state = /** @type {any} */ (runtime.state);
-  const producer = state.layer.producer ?? {};
-  const fingerprint = state.layer.fingerprint;
+  const identity = pageIdentity();
+  const producer = identity.layer.producer ?? {};
+  const fingerprint = identity.layer.fingerprint;
   return [
     "Leaf layer",
     ...(producer.commit ? [`commit: ${producer.commit}`] : []),
     ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
     ...payloadDateLines(producer),
-    ...(state.leaf ? otherPayloadLines("served by", state.leaf) : []),
     ...(fingerprint ? [`fingerprint: ${fingerprint}`] : []),
-    `generation: ${state.layer.generation}`,
+    `generation: ${identity.layer.generation}`,
     ...runtimeLines(),
-    ...(state.active ? [`revision: ${state.active.revision}`] : []),
-    `url: ${pageUrl()}`,
+    ...(runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : []),
+    `url: ${identity.url}`,
   ].join("\n");
 }
 registerPageControl({

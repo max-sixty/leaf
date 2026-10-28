@@ -18,11 +18,4 @@ PACKAGES = [
     ),
 ]
 
-KNOWN = {
-    "diff": {
-        # The worked example states its drawing's height in pixels at reading
-        # density. At working density the rows present at another height; a
-        # stated height is one density's.
-        ("lf-diff", "keeps-first-box"),
-    },
-}
+KNOWN: dict[str, set[tuple[str, str]]] = {}

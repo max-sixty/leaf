@@ -71,7 +71,7 @@ if (child) {
     if (!event.isTrusted || event.type === "blur") return;
     gestures++;
     afterSettling(() => gestures--);
-    sampleNotice("input");
+    sampleNotice("input", { type: event.type });
   };
   onUserInput(input);
   window.addEventListener("click", input, { capture: true, passive: true });

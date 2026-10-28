@@ -16,7 +16,6 @@ import pytest
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
-    declare,
     read_record,
     serving,
     wait_for,
@@ -104,7 +103,7 @@ def holding_page(driven: ClaudeCode, page_dir: Path, monkeypatch) -> None:
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
     service_model.claim_page(page_dir)
     serving(page_dir, 1)
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     # hooks.json's prompt hook has run for the session by the time it holds a page.
     leases_model.mark_hooks(driven.session)
     driven.emit("session.start", {"cwd": str(page_dir), "isInteractive": True})
@@ -256,8 +255,6 @@ def test_the_band_follows_the_pages_the_session_holds(
         },
     )
     band([(f"Leaf {title} · On me 1 · Threads 1, 1 new", url)])
-    declare(page_dir, detail="Pick a layout")
-    band([(f"Leaf {title} · On me 1 · Threads 1, 1 new · Pick a layout", url)])
     # Another session takes the page, so this one holds none.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "cc-s2")
     service_model.claim_page(page_dir)

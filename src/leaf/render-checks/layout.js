@@ -13,7 +13,7 @@ import {
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
-import { clippedControls, restsOverPage } from "./reachability.js";
+import { clippedControls, restsOverPage, sealedAxes } from "./reachability.js";
 import { scrollbarClearance } from "./scrollbars.js";
 import { coveredWords, shrunkLabelReading } from "./words.js";
 
@@ -89,7 +89,7 @@ export function geometryReading(open) {
 // same box, and the name every finding uses (locate.js). With `shown`, the walk keeps
 // to what the browser draws, leaving out skipped content such as a tab not chosen: a
 // reading of the view the user has asks nothing of it, and asking would make the
-// browser style and lay out each such subtree first (runtime/geometry.js, `skipped`).
+// browser style and lay out each such subtree first (runtime/shown-box.js, `skipped`).
 export function arrangedBoxes(open, { shown = false } = {}) {
   const main = pageDocument();
   if (!main) return [];
@@ -118,7 +118,14 @@ export function arrangedBoxes(open, { shown = false } = {}) {
       if (row) row.count++;
       else rows.push({ top, count: 1 });
     }
-    return [{ path, at: element(box), rows: rows.map((r) => r.count).join("+") }];
+    return [
+      {
+        path,
+        at: element(box),
+        place: place(box),
+        rows: rows.map((r) => r.count).join("+"),
+      },
+    ];
   });
 }
 
@@ -181,6 +188,7 @@ export function overflowingRegions() {
           {
             id: region.id,
             at: element(region.host),
+            place: place(region.host),
             over: Math.round(over),
           },
         ]
@@ -328,10 +336,14 @@ export function misplacedBoxes() {
   // container that clips without saying so in `overflow` is named for a spill it is
   // drawn nowhere near and left unnamed for the loss it did take, the walk at the foot
   // of this pass having gone straight past the container that cut it.
+  // A fixed box answers for itself wherever it stands, as a badge pinned to the
+  // window's corner across the column's edge does: it hangs off the window, so it can
+  // never scroll the page sideways, and where it sits is the author's call.
+  const pinned = (el) => getComputedStyle(el).position === "fixed";
   const answeredFor = (el) => {
-    if (isMarginContent(el)) return true;
+    if (isMarginContent(el) || pinned(el)) return true;
     for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
-      if (isMarginContent(a)) return true;
+      if (isMarginContent(a) || pinned(a)) return true;
       if (shownBand(a)) return true;
     }
     return false;
@@ -491,10 +503,8 @@ export function misplacedBoxes() {
   // group holding it carried every mark on it past the clip, and four of the examples
   // shipped a decision with no box to tick.
   //
-  // Across the page and not down it, which is the axis every reading here takes: a
-  // box cut off below its container is usually cut on purpose — a collapsed
-  // disclosure, a shot's frame, a draft's box are all a height with the rest hidden —
-  // where one cut off at the side never is.
+  // Across the page, box by box, which names the one box a container lost. Down the
+  // page, and the words a box holds itself, are its content's reading after this loop.
   //
   // The nearest container and no further, because past it what an outer box sees is
   // that container's own edges, and the container answers the same question on its
@@ -570,6 +580,44 @@ export function misplacedBoxes() {
     if ([...lost].some(([o, [, its]]) => o !== el && its === a && o.contains(el)))
       continue;
     report(el, "clipped-out", { past, container: at(a) });
+  }
+  // And what a box cuts off of its own content, on an axis it neither scrolls nor
+  // marks, read from its scroll extent: lines and words have no box of their own for
+  // the loop above to measure, and a box's height is where a page most often cuts
+  // them. The theme scrolls a <pre> or table sideways only, so one given just a
+  // max-height clips every line past it, and the reader sees a log end where it
+  // doesn't. Read down as well as across, which reverses the rule this pass kept
+  // until then, that a box cut off below is cut on purpose: what cuts on purpose
+  // says so. A bounded block scrolls (data-bound); a closed disclosure skips its
+  // content, which checkVisibility() reads; a line clamp and text-overflow mark the
+  // cut on the axis each marks; and a box under two pixels either way shows nothing to
+  // cut from: a hidden tab, size-contained to no height, and the words a page clips
+  // to a pixel for whoever is listening. A drawing's viewport (--lf-drawing) frames
+  // its own coordinates, as a screenshot frames its crop. A cut shorter than half a line hides no line or word, only the overhang
+  // of a tight line box. A text box scrolls to its caret. Across, the loop above
+  // already named the box a container lost, so the container's own reading adds
+  // only what no box of it carried, such as a run of words that does not wrap.
+  const named = new Set([...lost.values()].map(([, a]) => a));
+  for (const el of main.querySelectorAll("*")) {
+    if (!pageBox(el) || !el.checkVisibility() || el.matches(TEXT_BOX)) continue;
+    const s = getComputedStyle(el);
+    if (el.closest("svg") || s.getPropertyValue("--lf-drawing").trim() === "1")
+      continue;
+    const sealed = sealedAxes(s);
+    if (!sealed.across && !sealed.down) continue;
+    if (el.clientWidth < 2 || el.clientHeight < 2) continue;
+    const line = parseFloat(s.lineHeight) || 1.2 * parseFloat(s.fontSize);
+    const cut = (extent, room) =>
+      extent - room >= line / 2 ? Math.round(extent - room) : 0;
+    const across =
+      sealed.across && s.textOverflow === "clip" && !named.has(el)
+        ? cut(el.scrollWidth, el.clientWidth)
+        : 0;
+    const down =
+      sealed.down && s.webkitLineClamp === "none"
+        ? cut(el.scrollHeight, el.clientHeight)
+        : 0;
+    if (across || down) report(el, "clipped-content", { across, down });
   }
   // One finding per fault where two elements share a name, as their words would be.
   const seen = new Set();

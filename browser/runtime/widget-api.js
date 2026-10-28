@@ -6,32 +6,20 @@
    over HTTP from the served page, as `/runtime/widget-api.js`. What only the render
    gate's probes read belongs in check-api.js instead.
 
-   Every export above the `// Internal:` comment is the authoring API, and
-   the references/module-*.md files document each one; the exports below it serve Leaf's
-   bundled packages and kernel widgets alone (tests/runtime/widget-api.test.mjs). */
-export {
-  html,
-  noChange,
-  nothing,
-  render,
-  classMap,
-  createRef,
-  guard,
-  keyed,
-  live,
-  ref,
-  repeat,
-  styleMap,
-  unsafeHTML,
-  signal,
-} from "/vendor/browser-runtime.js";
+   Every export is supported for independent and bundled packages alike; the
+   references/module-*.md files document each one. Kernel widgets import private
+   capabilities from their owners rather than lending them through this surface.
+
+   The helpers that load in any document are portable-api.js's, re-exported here whole,
+   so a widget that must also run off a Leaf page imports from there and every other
+   widget keeps importing from here. */
+export * from "./portable-api.js";
+export { signal } from "/runtime/framework.js";
 export { move } from "./dom-move.js";
-export { iconElement, iconTemplate } from "./icons.js";
+export { actionTemplate, iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { LeafElement } from "./leaf-element.js";
 export { quoted } from "./widget-descriptors.js";
-export { initialRender } from "./initial-render.js";
-export { whileConnected, frameFor } from "./arrivals.js";
 export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
@@ -45,11 +33,10 @@ export { anchorLabel } from "./thread/messages.js";
 // The page's `main`, or the body of the message whose markup a node stands in.
 export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
-// Experimental: one widget marking part of another (indication.js).
-export { indicate } from "./indication.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
 export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
+export { registerRootHeader } from "./page-layout.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
 export { under } from "./shadow.js";
@@ -57,7 +44,8 @@ export { under } from "./shadow.js";
 // caret included, across a move or re-render of the node they stand on, by key in a
 // list; their current location and whether it is in a scope; recording where a layer opened
 // from and handing them back as it closes; running something once they move off an
-// element; and a group's roving Tab stop. TEXT_FIELD is the tag of the box a widget offers for the user to write
+// element, or once a press lands away from it (`onPressAway`); and a group's roving Tab
+// stop. TEXT_FIELD is the tag of the box a widget offers for the user to write
 // Markdown in; TEXT_BOX matches it and any native textarea.
 export {
   closeLayer,
@@ -66,6 +54,7 @@ export {
   handBack,
   holdFocus,
   onCurrentLocation,
+  onPressAway,
   openLayer,
   openerOf,
   rove,
@@ -80,6 +69,8 @@ export { answeredInWords, readObligations } from "./obligations/model.js";
 export { obligationsIn } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
+// A view's reading and writing of another widget's answer (x-shows).
+export { shownAnswer } from "./shown-answer.js";
 export {
   readWork,
   workRole,
@@ -91,7 +82,6 @@ export { obligationActions } from "./application.js";
 export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";
-export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
   placePageThreads,
@@ -104,8 +94,8 @@ export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
 export { turns as threadTurns } from "./thread/model.js";
 export { threadSummary } from "./thread/messages.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
-// (assets/AGENTS.md, "Stability").
-export { HeldReading } from "./thread/held-news.js";
+// (browser/AGENTS.md, "Stability").
+export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
@@ -113,24 +103,9 @@ export { isNativeLayer } from "./shadow-tree.js";
 export { HOLDS_WORD } from "./held-word.js";
 // `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
 export { PRESS, cycledRow, labelOf, rowArrows } from "./keyboard/bindings.js";
-export {
-  commandScope,
-  commandsOn,
-  keys as commands,
-  paintKeys,
-  saying,
-} from "./keyboard/scopes.js";
+export { commandScope, commandsOn, saying } from "./keyboard/scopes.js";
 // The claim of a scope standing over the page: every key but the command reference's.
 export { allButCommandReference } from "./keyboard/register.js";
-export {
-  afterScript,
-  cancelRender,
-  cancelAnimation,
-  nextAnimation,
-  nextFrame,
-  nextRender,
-  sizeObserver,
-} from "./rendering.js";
 export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
 export { excerptWords } from "./words.js";
 export {
@@ -153,14 +128,6 @@ export {
   renderMarkdown,
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-// Where two images differ, gathered into regions or as pixels (image-difference.js).
-export {
-  compareImagePixels,
-  compareImages,
-  countAreas,
-  describeDifference,
-  differenceKind,
-} from "./image-difference.js";
 export { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
 export { fitsWhole, scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
@@ -175,13 +142,12 @@ export {
   showReadingSubject,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-export { announce, notice } from "./notifications.js";
+export { notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
 export { alignText } from "./text-alignment.js";
 export { inChrome, says, wrote } from "./passages.js";
 export { ago, clockValue, quietSince, shortAgo } from "./presence.js";
 export { shadowStage } from "./shadow-stage.js";
-export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";
 export { loadDeferred, publishOutput } from "./data.js";
 export { boundFile } from "./file-api.js";
@@ -195,13 +161,12 @@ export {
   matchesWhen,
 } from "./registry.js";
 export {
+  flashDuration,
   foldDuration,
   returnDuration,
   foldBlock,
   backgroundFlash,
   motion,
-  onMotionPreferenceChange,
-  reducedMotion,
   scrollBehavior,
 } from "./motion.js";
 // A package's routes past presentation both declare the arrival, so a widget cannot
@@ -212,32 +177,17 @@ export {
   PRESENTATION,
   afterPresentation,
   deferredArrival,
+  whileInterfaceConnected,
 } from "./presentation.js";
-export { quietWord } from "./declared-words.js";
-export { projectData } from "./application.js";
 export { copyBlock } from "./code-copy.js";
+export { copyControl } from "./copy-control.js";
 export { retainUserIntent } from "./user-intent.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier;
 // and whether a click came from the keyboard rather than a pointer.
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 export { onUserInput } from "./focus.js";
-export { keepView, openingView, tabStore } from "./storage.js";
-export {
-  ensureSyntaxLanguage,
-  highlightBlocks,
-  langForPath,
-  synNodes,
-  syntax,
-  tokenLines,
-} from "./syntax.js";
-export {
-  bodyText,
-  dataBody,
-  failSoft,
-  once,
-  placesFailure,
-  reportFailure,
-} from "./widget-upgrade.js";
+export { keepView, openingView } from "./storage.js";
+export { highlightBlocks, langForPath } from "./syntax.js";
 export {
   saidAt,
   readHistory,
@@ -247,16 +197,18 @@ export {
 } from "./reports.js";
 // The one watcher of the page's readings (module-reading.md, "Page readings").
 export {
-  LAYOUT,
+  PRESSABLE,
   dragging,
   el,
   generated,
   generatedElement,
-  layoutChanged,
-  measure,
   motionPreview,
+  nameAction,
+  namedAction,
   offer,
+  offerAction,
   offered,
+  offeredAction,
   reachedForWords,
   relabel,
   searchField,
@@ -266,21 +218,26 @@ export {
 } from "./widget-elements.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 
-export { LeafEditorView } from "./editor-view.js";
+// The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
+// the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once
+// the page has presented.
+export { leafEditorView } from "./editor-view.js";
 
-// Internal: what Leaf's own bundled packages and kernel widgets import beyond the
-// authoring API the references/module-*.md files document. Package authors do not use these.
+// Optional child runtimes are loaded only by packages that mount a sample.
 export async function mountSample(frame, options) {
   const owner = await import("./sample.js");
   return owner.mountSample(frame, options);
 }
-export { dressSamples, wear } from "./dress.js";
+export { wear } from "./dress.js";
 export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";
-export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
-export { shownParts } from "./geometry.js";
-export { renderRetired, textNodesUnder } from "./passages.js";
-export { heldGrowth } from "./thread/held-news.js";
-export { PRESSABLE } from "./widget-elements.js";
 // What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
 export { agentName } from "./semantic-state.js";
+// A region's open obligations by whose turn each is, in the words `lf-tally` and
+// `lf-deck` both show.
+export { tally, tallyWords } from "./obligations/tally.js";
+// The page node the user's current location stands for, through a margin entry or a
+// thread card, as `lf-deck` asks whether the user is on its open card.
+export { placeOf } from "./current-target.js";
+// The time axis the Playwright timeline and lf-timeline both draw on.
+export { assignRows, axisTicks, textWidth } from "./time-axis.js";

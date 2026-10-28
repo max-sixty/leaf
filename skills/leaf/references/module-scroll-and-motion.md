@@ -29,12 +29,12 @@ theme to placement within the pane, such as track sizes, and don't copy the Layo
 full-height rules. Generate plain boxes rather than `lf-pane` elements, which the render
 gate expects to find in the page's file.
 
-A box the module generates to stand beside what it serves, such as a playground's rail
-of controls beside its stage, is a track: mark it `data-lf-track`, and the Layout keeps
-it in view while the window scrolls a taller neighbour past, as it does a sidebar page's
-track block. Where the module stacks the track with what it serves, as on a phone, it
-declares `--lf-track-scroll-behavior: flow` on the track's parent, and the track flows
-with the page. Register the track as a reading region, since it may scroll.
+A module can generate a track beside its main content, such as a playground's controls
+beside its preview. Mark it `data-lf-track`, and the Layout keeps it visible while the
+window scrolls the taller content beside it, as with a sidebar page's track. When the
+module stacks the track with the content, as on a phone, it declares
+`--lf-track-scroll-behavior: flow` on the track's parent, and the track scrolls with
+the page. Register the track as a reading region, since it may scroll.
 
 A horizontal scroll surface uses the shared `scroll` class on its actual
 viewport and declares overflow in its CSS. The class supplies containment. Leaf adds
@@ -65,6 +65,12 @@ place in each subject. `watchReadingRegionTransitions(listener)` hears these cha
 any shift in a region's scroller or width; `runtime/reading-regions.js` describes them.
 
 ### Holding the reader's place
+
+`heldGrowth(element, change)` postpones one size-changing update while it would move
+content the user is reading. It calls `change` immediately when no hold is needed;
+otherwise it waits until the growth is out of view or the reading is interrupted.
+The returned function cancels the pending change. When a user's own gesture requests
+that change, cancel the hold and apply the change in that gesture.
 
 When a widget redraws or resizes content where the user is reading, keep their place
 with `placeKeeper(scroller, {items, identity})` rather than restoring `scrollTop`.
@@ -105,8 +111,9 @@ the item alone where there is not.
 
 `scrollLimit(box)` is how far a box scrolls down, and `atScrollEnd(box)` whether it is
 there. `landingInsets(scroller)` reads a scroller's `scroll-padding`.
-`shownWindow({within, gap})` is the window's visible rectangle clear of Leaf's fixed
-chrome, narrowed to `within` and inset by `gap`.
+`shownWindow({within, gap, across})` is the window's visible rectangle clear of Leaf's
+fixed chrome, narrowed to `within` and inset by `gap`; with `across` (`{left, right}`),
+only chrome standing across those columns takes room.
 
 ### Sticky headers
 
@@ -146,6 +153,15 @@ with its own `scroll-padding` states it as `--lf-landing-room-start`. A box that
 clips, such as a card with rounded corners, uses `overflow: clip`, since a header inside
 an `overflow: hidden` box scrolls away with the page.
 
+### Headers over the document
+
+`registerRootHeader(header)` contributes the actual border-box height of a header the
+package places over the document. Independent contributions add, and resizing,
+disconnecting and reconnecting the element update the total. Call its returned stop
+when the header becomes local navigation. Only a header over the document belongs
+here: a nested scroller uses the local sticky and landing inputs above. Packages own
+where their headers are positioned; Leaf owns the aggregate root landing inset.
+
 ### Sideways scrollers and container queries
 
 Give a box a package scrolls sideways the class `lf-text-scroller`, and Leaf leaves room
@@ -167,18 +183,31 @@ covering the page and opens whatever holds the element. A widget that opens the 
 fragment names reads it with `fragmentTarget(hash)`, which returns nothing for an id in
 Leaf's chrome, in a message's markup, or on content a revision removed.
 
-Before Leaf travels to a target, such as a comment's anchor, it dispatches `lf-reveal`
-on each ancestor of the target and the target itself, outermost first, with
-`detail: {target, mayReveal, present, replacedView}`. A widget that folds content opens
-whatever holds `target`. An asynchronous listener checks `mayReveal()` after each wait,
-since it turns false once the user moves on. A widget that switches view to show the
-target, as `lf-tabs` does, calls `replacedView()` during the event. A listener passes
-later layout work to `present(promise)`, which Leaf waits for before placing the target.
+Before Leaf travels to a target, such as a comment's anchor, it reveals the target as
+the browser's find-in-page does: it opens each closed `<details>` holding it, and fires
+`beforematch` at each element holding it that is `hidden="until-found"`, then removes
+that attribute. It also opens a closed popover holding the target. A widget that folds
+content hides it with `hidden="until-found"` and opens it on `beforematch`, as `lf-tabs`
+does for a panel, so the browser's find reaches it too. A widget that switches view sets
+`hidden` on the view it leaves, a sibling of the one it opens, before its `beforematch`
+handler returns; Leaf reads that as a replaced view and places the target at once rather
+than scrolling from the old view's reading position. A widget that keeps the box of
+what it hides, as `lf-visual-review` stacks its cases in one cell, may set
+`content-visibility: visible` with `visibility: hidden` on it; the browser's find then
+skips it, but Leaf's travel still opens it. Leaf waits for the `updateComplete` of each
+Lit element holding what it revealed before placing the target, so a widget whose view
+switch finishes later extends its own `updateComplete`.
 
-A widget that adds history entries uses `pushEntry(url)` and `replaceEntry(url)`. To
+A widget that adds history entries uses `pushEntry(url)` and `replaceEntry(url)`. An
+entry a press adds says the press takes the user somewhere, as a link's does, so its
+result may scroll away the control pressed; `replaceEntry` only renames the entry the
+user is on. To
 restore the page itself when the user goes Back or Forward to one of its entries, call
 `claimTraversals(claim, {signal})`, where `claim(url)` returns a function that restores
-the page for an entry of the widget's, or nothing.
+the page for an entry of the widget's, or nothing. The handler may be asynchronous.
+When it only reveals the destination view, it resolves to `false`, and Leaf restores
+the entry's saved viewport after the view is shown. Otherwise the handler owns
+viewport placement.
 
 ## Motion
 
@@ -201,7 +230,8 @@ since the effect keeps its pixels drawn until the fold finishes; keep its ordina
 sizing rules while it leaves, and cancel the effect if retirement is reversed.
 
 `backgroundFlash(element, ms)` gives an element a brief yellow tint that fades to its
-own background.
+own background. `flashDuration()` is how long Leaf's own arrival tint lasts, as on a
+newly arrived message.
 
 ## Notices and spoken words
 
@@ -210,13 +240,16 @@ readers, such as a view the widget switched to. A recorded gesture is acknowledg
 the `says` its dispatch gives (`module-state.md`, "The widget controller"). News not
 caused by the user passes `{background: true}` and waits behind what the user just did;
 `{announce: false}` only shows it. `announce(message)` only announces, for words already
-on screen.
+on screen: it dispatches an `lf-announce` event on the window carrying `message` as its
+`detail`, which Leaf says in its live region and a page without Leaf leaves unsaid.
 
 `raiseError(message)` tells the user a gesture failed, such as a value the server
 refused, and the Leaf panel shows it until they have dealt with it. Its handle's
 `clear()` takes the error down once it no longer holds. Use it for failures only.
 
-`quietWord(element, word)` gives an element words screen readers say after its leading
-`<strong>` title but the screen doesn't show; pass the whole quiet word each time, or an
-empty one to remove it. Leaf writes quiet words for elements it marks as rewritten,
-changed or reported, so write them only on parts the module builds.
+A `data-lf-quiet` attribute gives an element words screen readers say after its leading
+`<strong>` title but the screen doesn't show: Leaf writes them there while the attribute
+stands, and takes them away with it. Set the whole quiet word each time. Leaf writes
+quiet words for elements it marks as rewritten, changed or reported, so declare them only
+on parts the module builds or owns, such as a code line or a suggestion's slot. A page
+without Leaf, whose theme would leave them on screen, writes none.

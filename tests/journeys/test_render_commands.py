@@ -17,7 +17,6 @@ from interact_support import (
 )
 from playwright.sync_api import expect
 from render_cases_layout import (
-    SHORT_CHIP_PAGE,
     SHOT_PAGE,
     SHOT_SRC,
     SHOTS,
@@ -26,12 +25,9 @@ from render_cases_layout import (
     solid_png,
 )
 from render_harness import (
-    INLINE_PAGE,
     LONG_PAGE,
     example_media,
     leaf_page,
-    open_page,
-    page_registry,
 )
 
 from leaf import render_checks as render_checks_model
@@ -43,134 +39,6 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.test_render_commands import FILM_DECLARATION, FILM_PAGE, unnamed_browser
 from model.test_user_views import report as user_view_report
-
-
-def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
-    """A comment on a widget's option leaves a page the gate passes
-    (`test_every_table_the_theme_sets_honestly_passes_the_gate` gates one): the mark
-    and the note counting the comment are the runtime's, and none of it is words the
-    widget wrote.
-
-    The pass hunting words drawn on other words holds out a control the runtime hangs out
-    of flow over the page (`floating` in words.js). A control planted over the option's
-    words is held out by the normal reading and reported by the reading with that hold
-    disabled, so the hold is what keeps such a control from failing the page."""
-    url = serve(INLINE_PAGE, anchored=[("opt-b", "quietly puts one back")])
-    page = open_page(browser, url)
-    # Vacuous otherwise: the gate has to be looking at a page that carries the comment.
-    expect(page.locator(".lf-mark-note")).to_have_count(1)
-    page.evaluate(
-        """() => {
-          const text = document.querySelector('#opt-b strong').firstChild;
-          const range = document.createRange();
-          range.selectNodeContents(text);
-          const word = range.getClientRects()[0];
-          const float = Object.assign(document.createElement('span'), {
-            className: 'lf-ui', textContent: 'planted float',
-          });
-          Object.assign(float.dataset, { lfGen: '1', lfOffer: 'button' });
-          Object.assign(float.style, {
-            position: 'absolute', whiteSpace: 'nowrap',
-            left: `${word.left + scrollX}px`, top: `${word.top + scrollY}px`,
-          });
-          document.body.append(float);
-        }"""
-    )
-    held = render_checks_model.evaluate_probe(page, "coveredWords")
-    reported = render_checks_model.evaluate_probe(
-        page, "coveredWords", {"holdFloating": False}
-    )
-    page.close()
-    assert held == []
-    assert any(
-        "planted float" in (found["words"], found["covered"]) for found in reported
-    ), "the planted control covers no words, so a gate that never looked would pass too"
-
-
-def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serve):
-    """Collapsing overlapping words removes them from the gate's screen reading."""
-    url = serve(
-        leaf_page(
-            "collapsed words",
-            '<h1>Collapsed words</h1><div id="collapsed" hidden="until-found">'
-            '<p style="position:absolute;top:100px;left:100px;margin:0">First hidden line</p>'
-            '<p style="position:absolute;top:100px;left:100px;margin:0">Second hidden line</p>'
-            "</div>",
-        )
-    )
-    page = open_page(browser, url)
-    collapsed = page.locator("#collapsed")
-    collapsed.evaluate("node => node.removeAttribute('hidden')")
-    expect(collapsed.locator("p").first).to_be_visible()
-    visible = render_checks_model.evaluate_probe(page, "coveredWords")
-    assert any(
-        {found["words"], found["covered"]}
-        == {"First hidden line", "Second hidden line"}
-        for found in visible
-    ), (
-        "the visible lines fell on nobody, so a gate that never looked would pass this too"
-    )
-    collapsed.evaluate("node => node.setAttribute('hidden', 'until-found')")
-    expect(collapsed.locator("p").first).to_be_hidden()
-
-    assert render_checks_model.evaluate_probe(page, "coveredWords") == []
-
-
-def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
-    """A gloss is set among the words around it, so its box is the words in it and there is
-    no width it was ever going to reach. Held to the floor written for a widget that lays
-    out a region, a gloss saying `£9` reads as a collapse, and the gate refuses a page with
-    nothing wrong with it — for a price, which is the shortest thing an author is likely to
-    put in one. A suggestion swapping one short word is the same case in a second tag,
-    there because the gate dispatches on the declaration: the day the wrapper took a box
-    it stood in front of this floor, and only x-inline says whose floor is whose.
-
-    The floor a gloss does keep is the height, since a line of words is a line tall under
-    any layout. Both halves are asserted, because a floor deleted outright passes the
-    first on its own."""
-    url = serve(SHORT_CHIP_PAGE)
-    page = open_page(browser, url)
-    widths = page.locator("lf-gloss").evaluate_all(
-        "els => els.map(el => Math.round(el.getBoundingClientRect().width))"
-    )
-    assert widths and max(widths) < 40, (
-        f"these glosses are {widths}px, so they clear the floor and prove nothing"
-    )
-    sug_width = page.locator("#sug-flag").evaluate(
-        "el => Math.round(el.getBoundingClientRect().width)"
-    )
-    assert sug_width < 40, (
-        f"the suggestion is {sug_width}px, so it clears the floor and proves nothing"
-    )
-
-    assert (
-        render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page)) == []
-    ), "the gate refuses glosses and a suggestion with nothing wrong with them"
-
-    # Asked without the declaration, the same floor flags it — so what passes the page
-    # is the declaration, not a floor gone missing.
-    undeclared = json.loads(json.dumps(page_registry(page)))
-    del undeclared["lf-suggestion"]["x-inline"]
-    assert [
-        box
-        for box in render_checks_model.evaluate_probe(page, "tinyBoxes", undeclared)
-        if box["tag"] == "lf-suggestion"
-    ], (
-        "with x-inline stripped the gate stays quiet, so the floor is gone rather than declared"
-    )
-
-    # Flattened, the same glosses are a collapse and the gate says so — the reading the
-    # declaration narrows rather than switches off.
-    page.add_style_tag(
-        content="lf-gloss { display: block; height: 2px; overflow: hidden; }"
-    )
-    flattened = render_checks_model.evaluate_probe(
-        page, "tinyBoxes", page_registry(page)
-    )
-    page.close()
-    assert [box for box in flattened if box["tag"] == "lf-gloss"], (
-        "a gloss with no height left reports nothing, so the floor is gone rather than declared"
-    )
 
 
 def test_check_render_refuses_what_only_a_browser_can_see(serve):
@@ -288,11 +156,12 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
 
     ran = subprocess.run(
         [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
+        check=False,
         capture_output=True,
         text=True,
-        check=True,
         env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
     )
+    assert ran.returncode == 0, ran.stdout + ran.stderr
     screens = json.loads(ran.stdout)["browser"]["screens"]
     into = Path(screens["directory"])
     shows = {screen["file"]: screen["shows"] for screen in screens["files"]}
@@ -410,7 +279,15 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
         check=False,
     )
     assert init.returncode == 0, init.stderr
-    installed_registry = json.loads((page_dir / "registry.json").read_text())
+    vocabulary = subprocess.run(
+        [launcher, "page", "vocabulary", page_dir],
+        cwd=elsewhere,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert vocabulary.returncode == 0, vocabulary.stderr
+    installed_registry = json.loads(vocabulary.stdout)
     assert "lf-diagram" in installed_registry
     assert installed_registry["$layer"]["packages"] == ["diagram"]
     (page_dir / "index.html").write_text(

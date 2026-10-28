@@ -19,11 +19,11 @@
  * takes the target away. It is the draft's alone: `sentDrawing` leaves it out of the
  * comment.
  */
-import { drawingSchema } from "./drawing-schema.js";
+import { drawingSchema } from "../kernel-facts.js";
 
-// Every bound is read from the schema admission holds a comment's drawing to,
-// generated from registry.json, each field from its own declaration, so a bound
-// changes there alone.
+// Every bound is read from the schema admission holds a comment's drawing to, in the
+// kernel registry, each field from its own declaration, so a bound changes there
+// alone.
 const FIELDS = drawingSchema.properties;
 export const MAX_DRAWING_STROKES = FIELDS.strokes.maxItems;
 export const MAX_DRAWING_FRAME_DEPTH = FIELDS.frame.properties.path.maxItems;

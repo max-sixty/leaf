@@ -46,8 +46,7 @@ import {
   render,
   relabel,
   inChrome,
-  showAction,
-  commands,
+  nameAction,
   keeps,
   keepsText,
   langForPath,
@@ -59,7 +58,6 @@ import {
   offer,
   offerAction,
   LeafElement,
-  paintKeys,
   publishOutput,
   projectedDatum,
   threadSurface,
@@ -77,6 +75,7 @@ import {
   layoutPx,
   focused,
   currentLocationIn,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 import {
   diffDatumKey,
@@ -373,13 +372,17 @@ function summaryNode(record, open, verified = true) {
   summary.className = `lf-diff-head lf-disclosure-marker ${HOLDS_WORD}`;
   details.append(summary);
   paintSummary(details, record, verified);
-  commands(summary, "On a diff", [
-    {
-      id: "diff.toggle",
-      keys: () => DISCLOSE(summary),
-      title: () => `${details.open ? "hide" : "show"} this file`,
-    },
-  ]);
+  summary.lfCommands = {
+    title: "On a diff",
+    rows: [
+      {
+        id: "diff.toggle",
+        keys: () => DISCLOSE(summary),
+        title: () => `${details.open ? "hide" : "show"} this file`,
+      },
+    ],
+  };
+  commandsChanged(summary);
   paintFileDetails(details, verified ? record : {});
   return details;
 }
@@ -877,10 +880,10 @@ customElements.define(
 
     setup() {
       this.singleFile = this.getAttribute("view") === "file";
-      commands(
-        this,
-        "In a diff review",
-        [
+      this.lfCommands = {
+        title: "In a diff review",
+        when: () => Boolean(this.fileEntries?.length),
+        rows: [
           // The walk leads the scope, so the command reference lists it first: moving
           // is what a user on a diff row does next, where "filter files" is
           // the press for someone who has not started reading yet.
@@ -965,8 +968,8 @@ customElements.define(
             },
           },
         ],
-        () => Boolean(this.fileEntries?.length),
-      );
+      };
+      commandsChanged(this);
       if (!this.hasAttribute("source")) {
         // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
         // can be a lone space — so only the closing newline is the <pre>'s layout.
@@ -1597,7 +1600,7 @@ customElements.define(
       keeps(this.diffTools.progress, "data-room", `${all}\n${total} of ${total}`);
       keepsText(this.diffTools.count, shown.length === total ? all : matching);
       this.paintFoldAll();
-      paintKeys();
+      commandsChanged(this);
     }
 
     // The files the filter shows: all opened while any is closed, and all closed once
@@ -1617,11 +1620,10 @@ customElements.define(
       // With nothing to open it keeps its room, so the count beside it stays put.
       button.toggleAttribute("inert", !folds.length);
       const open = folds.some((details) => !details.open);
-      showAction(button, open ? "expand-all" : "collapse-all");
       // No number: the count beside it also counts files that have nothing to open.
-      const label = `${open ? "Expand" : "Collapse"} all files`;
-      keeps(button, "aria-label", label);
-      keeps(button, "title", label);
+      nameAction(button, open ? "expand-all" : "collapse-all", {
+        label: `${open ? "Expand" : "Collapse"} all files`,
+      });
     }
 
     shownFolds() {

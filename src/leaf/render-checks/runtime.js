@@ -1,4 +1,4 @@
-import { USER_VIEW_RESTORE_CASES } from "/runtime/check-api.js";
+import { USER_VIEW_RESTORE_CASES, scrolling } from "/runtime/check-api.js";
 import { readThreads, threadActions } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
@@ -30,7 +30,12 @@ export function moving() {
     );
 }
 
-export const pageSettled = () => moving().length === 0;
+// The page is settled once nothing is moving: no finite animation, and no scroll in
+// flight, such as a landing's smooth glide, which is no animation and moves every box
+// it scrolls. The runtime's reading of scrolls starts with its first call, so the
+// probes take one as they load, before any input they wait out.
+scrolling();
+export const pageSettled = () => moving().length === 0 && !scrolling();
 export const userViewRestoreCases = () => USER_VIEW_RESTORE_CASES;
 
 const formControl = (node) => node.constructor.formAssociated === true;

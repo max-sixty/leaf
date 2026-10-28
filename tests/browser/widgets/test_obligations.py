@@ -705,7 +705,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
 
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const source = document.createElement('span');
           const inspect = document.createElement('button');
@@ -713,7 +713,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
           inspect.textContent = 'Inspect';
           source.append(inspect);
           suggestion.append(source);
-          commands(source, 'Suggestion action', [
+          source.lfCommands = { title: 'Suggestion action', rows: [
             {
               id: 'test.inspect',
               keys: ['x', 'y'], contextKeys: ['3'],
@@ -724,7 +724,8 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
               line: 'Inspect',
               run: () => { inspect.dataset.activated = '1'; },
             },
-          ]);
+          ] };
+          commandsChanged(source);
         }"""
     )
 
@@ -776,14 +777,15 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     # collapsing the command's equivalent bindings into whichever one came first.
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           const inspect = document.getElementById('inspect-action');
-          commands(inspect, 'Inspect control', [{
+          inspect.lfCommands = { title: 'Inspect control', rows: [{
             id: 'test.dead-local-x', keys: ['x'],
             title: 'Run an unavailable local command',
             line: 'unavailable local command', when: () => false,
             run: () => { inspect.dataset.deadLocalX = '1'; },
-          }]);
+          }] };
+          commandsChanged(inspect);
         }"""
     )
     rendered(page)
@@ -815,12 +817,12 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
           suggestion.append(inspect);
-          commands(inspect, 'Inspect control', [
+          inspect.lfCommands = { title: 'Inspect control', rows: [
             {
               id: 'test.inspect', keys: ['1'], contextKeys: ['3'], control: inspect, label: 'I',
               decision: true, title: 'Inspect', line: 'Inspect',
@@ -831,7 +833,8 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
               title: 'Run the local third command', line: 'local three',
               run: () => { inspect.dataset.localThree = '1'; },
             },
-          ]);
+          ] };
+          commandsChanged(inspect);
         }"""
     )
 
@@ -865,7 +868,7 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
 
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const control = document.createElement('button');
           control.textContent = 'Configure';
@@ -876,16 +879,18 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
           inside.textContent = 'Inside configuration';
           layer.append(inside);
           suggestion.append(control, layer);
-          commands(control, 'Configuration action', [{
+          control.lfCommands = { title: 'Configuration action', rows: [{
             id: 'test.configure', keys: [], contextKeys: ['3'], control,
             decision: true, title: 'Configure', line: 'configure',
             run: () => { layer.hidden = false; inside.focus(); },
-          }]);
-          commands(inside, 'In the configuration layer', [{
+          }] };
+          commandsChanged(control);
+          inside.lfCommands = { title: 'In the configuration layer', rows: [{
             id: 'test.configure.close', keys: ['Escape'],
             title: 'Close configuration', line: 'close configuration',
             run: () => { layer.hidden = true; control.focus(); },
-          }]);
+          }] };
+          commandsChanged(inside);
         }"""
     )
 
@@ -991,7 +996,7 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
 
     page.evaluate(
         """async () => {
-           const {commands} = await window.__lfWidgetApi();
+           const {commandsChanged} = await window.__lfWidgetApi();
            const source = document.getElementById('sug');
            const face = (id, top) => {
              const bindingBadge = document.createElement('span');
@@ -1007,11 +1012,12 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
             control.textContent = id;
             control.style.cssText = `position: fixed; left: 560px; top: ${top}px;`;
             source.append(control);
-            commands(control, id, [{
+            control.lfCommands = { title: id, rows: [{
                id: `test.${id}`, keys: [], contextKeys: [String(nextKey++)], control, bindingBadge,
               decision: true, title: `Activate ${id}`, line: id,
               run: () => { control.dataset.activated = '1'; },
-            }]);
+            }] };
+            commandsChanged(control);
           };
 
            add('disconnected-face', 220, face('detached-binding-badge', 100));

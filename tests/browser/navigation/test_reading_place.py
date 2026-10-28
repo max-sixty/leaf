@@ -19,6 +19,7 @@ from render_harness import (
     panel_menu,
     panel_settled,
     panel_view,
+    press_visible,
     resized,
     scroll_settled,
     select,
@@ -355,6 +356,8 @@ def test_same_passage_and_controls_keep_a_mixed_travel_group(
     entries = page.evaluate("history.length")
     page.keyboard.press("t")
     expect(page.locator(f'.lf-margin-preview [data-thread="{root}"]')).to_be_focused()
+    # Card focus precedes the passage's smooth scroll; observe its arrival first.
+    expect(page.locator("#first-reading span")).to_be_in_viewport()
     scroll_settled(page)
     expect(page.locator("#first-reading span")).to_be_visible()
     assert page.locator("#first-reading span").evaluate(
@@ -935,8 +938,11 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
     page.evaluate("scrollBy(0,-160)")
     control = panel_control(page, ALIGN_ROW, at="navigate")
     expect(control).to_be_enabled()
-    control.tap()
-    _expect_aligned(page, "#align-ask")
+    press_visible(page, control, touch=True)
+    # Returning focus from the menu can align before the current-location paint
+    # supplies its scroll margin, just as activation from the command reference does.
+    # Both landings must clear the pinned band.
+    _expect_aligned(page, "#align-ask", exact_margin=False)
     page.locator("#align-heading").focus()
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()

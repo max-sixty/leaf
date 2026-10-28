@@ -1,4 +1,4 @@
-import { PAGE_PAINT_ATTRIBUTE, failureContext, failureOf, isNativeLayer, nextRender, renderedParent, under } from "./bundle-portable.js";
+import { COMMANDS, PAGE_PAINT_ATTRIBUTE, commandsChangedOn, failureContext, failureOf, isNativeLayer, nextRender, refuseCommands, renderedParent, under } from "./bundle-portable.js";
 import { CARET_KEYS, PRESSES, TEXT_BOX, WORKS, Z, controlNavigationKeys, focusRevision, focused, keeps, keepsText, onCurrentLocation, onFocusVisibility, takesLetters, x as x$1 } from "./bundle-dom-move.js";
 import { AsyncDirective, DELIVERY, Directive, PAGE_ROOT, PartType, describeFailure, directive, html, nothing, offlineInteractive, pageUrl, render, runtime, showNativeLayer, tagsDeclaring } from "./bundle-layer-stack.js";
 
@@ -1183,6 +1183,30 @@ const commandsOn = directive(class extends AsyncDirective {
 		if (detachScope(this.#element, this.#scope)) repaint();
 	}
 });
+const declared = /* @__PURE__ */ new WeakMap();
+addEventListener(COMMANDS, (event) => {
+	const element = commandsChangedOn(event);
+	const declaration = element.lfCommands ?? null;
+	const standing = declared.get(element);
+	if (declaration === (standing?.declaration ?? null)) {
+		paintKeys();
+		return;
+	}
+	if (!declaration) {
+		declared.delete(element);
+		if (detachScope(element, standing.scope)) repaint();
+		return;
+	}
+	try {
+		const scope = attachScope(element, isCommandScope(declaration) ? declaration.scope : declaredScope(declaration.title, declaration.rows, declaration));
+		declared.set(element, {
+			declaration,
+			scope
+		});
+	} catch (error) {
+		refuseCommands(event, error);
+	}
+});
 function commandScope(title, rows, options) {
 	const scope = {
 		...declaredScope(title, rows, options),
@@ -1747,13 +1771,6 @@ const dragging = (el, on) => {
 	hands.value = held;
 	paintKeysWithin(el);
 };
-const LAYOUT = "lf-layout";
-const layoutChanged = (el) => {
-	el.dispatchEvent(new CustomEvent(LAYOUT, {
-		bubbles: true,
-		composed: true
-	}));
-};
 function worksInside(node, container) {
 	const parts = /* @__PURE__ */ new Set([container.localName]);
 	for (let grew = true; grew;) {
@@ -2278,4 +2295,4 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 //#endregion
-export { EVERYTHING, LAYOUT, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, actionElement, actionIcon, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, layoutChanged, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, showAction, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };
+export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, actionElement, actionIcon, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };

@@ -8,18 +8,25 @@
    shift restore (version.js) undoes only layout's moves, so it asks which boxes the
    reader has chosen for since its reading (`chosenSince`).
 
-   A scroll sequence ends with `scrollend`, whoever started it. Chromium also sends one
-   when layout changes the scroll range and anchors or clamps a box, so that event
-   names layout's move rather than a reader choice. A multi-frame scroll remains a
-   choice even when content grows during it. A place keeper's write returns the reader
-   to a place they already had (reading-place.js, `restorePlace`; user-place.js,
-   `placeKeeper`; continuity's move of the page with its band), so it says where it
-   left each box (`placeKept`), and a sequence ending there is the keeper's. A landing
-   in motion counts from its start (`startScroll`), since layout it caused can be
-   announced before its sequence ends. A sequence can end frames after its last
-   `scroll` event, as WebKit's do, so continuity takes a reading at the end too. Like
-   that record, this listens on the document, which a scroll inside a shadow root does
-   not reach. */
+   A scroll sequence ends with `scrollend`, whoever started it, and Chromium, Firefox and
+   WebKit also end one at once where layout moves the box, by anchoring or a clamp, one
+   sequence for each move (measured in Chromium 156, Firefox 157 and WebKit 27). So a
+   sequence of several scroll events is a glide someone drove, and a single move is a
+   choice unless layout explains it: the box's extent changed while it moved
+   (`watchLayout`). A script's jump in the frame of a layout change therefore reads as
+   layout's, and the reader's input aimed at the box, which continuity records itself
+   (version.js, `inputSince`), settles those. The browser's travel into hidden content,
+   as find-in-page opening a fold onto its match, fires `beforematch` first, so its end
+   is a choice whatever the opening did to the layout. An end that leaves the box where
+   its last one did, as Firefox sends after a layout move, chose nothing. A place
+   keeper's write returns the reader to a place they already had (reading-place.js,
+   `restorePlace`; user-place.js, `placeKeeper`; continuity's move of the page with its
+   band), so it says where it left each box (`placeKept`), and a sequence ending there
+   is the keeper's. A landing in motion counts from its start (`startScroll`), since
+   layout it caused can be announced before its sequence ends. A sequence can end frames
+   after its last `scroll` event, as WebKit's do, so continuity takes a reading at the
+   end too. Like that record, this listens on the document, which a scroll inside a
+   shadow root does not reach. */
 
 import { nextFrame, sizeObserver } from "./rendering.js";
 import { watchOwner } from "./arrivals.js";
@@ -31,13 +38,14 @@ import { watchOwner } from "./arrivals.js";
 export const pageScroller = document.scrollingElement;
 
 const moving = new WeakMap();
+// Where each box's last sequence ended, the boxes layout has moved since, and each box's
+// extent where its layout last settled. A box is watched from its first scroll, through
+// its own size and its children's, where content grows, so content that grew between
+// sequences doesn't make the next one layout's.
+const ended = new WeakMap();
 const scrollSteps = new WeakMap();
-// A resized scrollport or its contents can make Chromium send `scrollend` for
-// anchoring or clamping. Observe that layout change where it happens, so a later
-// user scroll after content grew still counts as their choice.
 const layoutMoved = new WeakSet();
 const watchedLayout = new WeakSet();
-const lastTop = new WeakMap();
 const extents = new WeakMap();
 const extentOf = (box) => [box.scrollHeight, box.clientWidth, box.clientHeight];
 const changedExtent = (before, after) =>
@@ -45,7 +53,6 @@ const changedExtent = (before, after) =>
 function watchLayout(box) {
   if (watchedLayout.has(box)) return;
   watchedLayout.add(box);
-  lastTop.set(box, box.scrollTop);
   extents.set(box, extentOf(box));
   const root = box === pageScroller ? document.documentElement : box;
   const sizes = new WeakMap();
@@ -60,7 +67,7 @@ function watchLayout(box) {
         if (before?.some((value, index) => value !== next[index])) changed = true;
       }
       if (changed) {
-        if (box.scrollTop !== lastTop.get(box)) layoutMoved.add(box);
+        if (ended.has(box) && box.scrollTop !== ended.get(box)) layoutMoved.add(box);
         else extents.set(box, extentOf(box));
       }
     },
@@ -90,7 +97,9 @@ function watchLayout(box) {
     });
   }
 }
+// The page is watched from the start, so where it stands now counts as its last end.
 watchLayout(pageScroller);
+ended.set(pageScroller, pageScroller.scrollTop);
 
 // A new landing or return takes over the old native placement, even if its target
 // is already visible. Chromium can deliver one last compositor scroll after this
@@ -132,6 +141,21 @@ export function startScroll(box) {
   moving.set(box, { glide: true });
   chooseScroll(box);
 }
+// The browser's travel into hidden content, until the sequence it starts has ended,
+// which is before the second frame after.
+let travel = null;
+document.addEventListener(
+  "beforematch",
+  () => {
+    const mark = (travel = {});
+    nextFrame(() =>
+      nextFrame(() => {
+        if (travel === mark) travel = null;
+      }),
+    );
+  },
+  { capture: true },
+);
 const eventScroller = (target) => (target === document ? pageScroller : target);
 document.addEventListener(
   "scroll",
@@ -140,8 +164,8 @@ document.addEventListener(
     watchLayout(box);
     scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
     if (moving.get(box)?.glide) return;
-    // Layout anchoring and clamps send scroll without scrollend. Native input
-    // keeps sending scroll while it moves; quiet layout moves expire after an update.
+    // Native input keeps sending scroll while it moves; a sequence that has gone quiet
+    // expires after an update.
     const sequence = { glide: false };
     moving.set(box, sequence);
     nextFrame(() =>
@@ -171,10 +195,13 @@ document.addEventListener(
     const chosenHere =
       wasMoving?.glide ||
       repeated ||
-      (!layoutMoved.has(box) && !changedExtent(extents.get(box), extent));
+      travel !== null ||
+      (ended.get(box) !== box.scrollTop &&
+        !layoutMoved.has(box) &&
+        !changedExtent(extents.get(box), extent));
     if (chosenHere && kept.get(box) !== box.scrollTop) chooseScroll(box);
+    ended.set(box, box.scrollTop);
     layoutMoved.delete(box);
-    lastTop.set(box, box.scrollTop);
     extents.set(box, extent);
     kept.delete(box);
   },

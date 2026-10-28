@@ -828,10 +828,10 @@ const fragmentTarget = (fragment) => fragment ? targetElement(resolveAnchor({ se
 //#region runtime/scrolling.js
 const pageScroller = document.scrollingElement;
 const moving = /* @__PURE__ */ new WeakMap();
+const ended = /* @__PURE__ */ new WeakMap();
 const scrollSteps = /* @__PURE__ */ new WeakMap();
 const layoutMoved = /* @__PURE__ */ new WeakSet();
 const watchedLayout = /* @__PURE__ */ new WeakSet();
-const lastTop = /* @__PURE__ */ new WeakMap();
 const extents = /* @__PURE__ */ new WeakMap();
 const extentOf = (box) => [
 	box.scrollHeight,
@@ -842,7 +842,6 @@ const changedExtent = (before, after) => before?.some((value, index) => value !=
 function watchLayout(box) {
 	if (watchedLayout.has(box)) return;
 	watchedLayout.add(box);
-	lastTop.set(box, box.scrollTop);
 	extents.set(box, extentOf(box));
 	const root = box === pageScroller ? document.documentElement : box;
 	const sizes = /* @__PURE__ */ new WeakMap();
@@ -860,7 +859,7 @@ function watchLayout(box) {
 			if (before?.some((value, index) => value !== next[index])) changed = true;
 		}
 		if (changed) {
-			if (box.scrollTop !== lastTop.get(box)) layoutMoved.add(box);
+			if (ended.has(box) && box.scrollTop !== ended.get(box)) layoutMoved.add(box);
 			else extents.set(box, extentOf(box));
 		}
 	}, { counted: false });
@@ -886,6 +885,7 @@ function watchLayout(box) {
 	}
 }
 watchLayout(pageScroller);
+ended.set(pageScroller, pageScroller.scrollTop);
 function stopScroll(boxes) {
 	const stopped = [...boxes].filter((box) => moving.has(box)).map((box) => [box, moving.get(box)]);
 	if (!stopped.length) return null;
@@ -909,6 +909,13 @@ function startScroll(box) {
 	moving.set(box, { glide: true });
 	chooseScroll(box);
 }
+let travel = null;
+document.addEventListener("beforematch", () => {
+	const mark = travel = {};
+	nextFrame(() => nextFrame(() => {
+		if (travel === mark) travel = null;
+	}));
+}, { capture: true });
 const eventScroller = (target) => target === document ? pageScroller : target;
 document.addEventListener("scroll", ({ target }) => {
 	const box = eventScroller(target);
@@ -935,9 +942,9 @@ document.addEventListener("scrollend", ({ target }) => {
 	const extent = extentOf(box);
 	const repeated = (scrollSteps.get(box) ?? 0) > 1;
 	scrollSteps.delete(box);
-	if ((wasMoving?.glide || repeated || !layoutMoved.has(box) && !changedExtent(extents.get(box), extent)) && kept.get(box) !== box.scrollTop) chooseScroll(box);
+	if ((wasMoving?.glide || repeated || travel !== null || ended.get(box) !== box.scrollTop && !layoutMoved.has(box) && !changedExtent(extents.get(box), extent)) && kept.get(box) !== box.scrollTop) chooseScroll(box);
+	ended.set(box, box.scrollTop);
 	layoutMoved.delete(box);
-	lastTop.set(box, box.scrollTop);
 	extents.set(box, extent);
 	kept.delete(box);
 }, {

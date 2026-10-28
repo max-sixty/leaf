@@ -190,7 +190,7 @@
     "runtime/root-state.js": "3ac9489665e29556fb2ea8579fd77f4e71280ce29d12588a043074fc458823b9",
     "runtime/sample-child.js": "606b199731be03601949432974c49cdc00be2e4555657d3e6d04f5698670c418",
     "runtime/sample.js": "0b42bf976594a1c916929ccc756a540827df292ad89f95768086cec5584943dd",
-    "runtime/scrolling.js": "cb1658bf9286d279b15c75c574367b849219bafce8704b3fe2b03a5a508377cf",
+    "runtime/scrolling.js": "42df1d72a9601d924aae543c8e6653bb7a76f94dcd83e767ef0497a4effad061",
     "runtime/semantic-news.js": "0c0919d60d1dd1dbc2e4c6b18ed571f03c1373856d530453e254e697cacbce58",
     "runtime/semantic-state.js": "82697914cc4de5323be662a1fc614200aeb84c53125c5a1919bbef8b29644567",
     "runtime/shadow-stage.js": "ca5c9fe0f73beb3e740784ba7b7c934dab5262dbee6a03b01c7b127196844475",

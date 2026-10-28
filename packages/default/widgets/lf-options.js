@@ -207,7 +207,6 @@ customElements.define(
     }
 
     #addition = null;
-    #answering = null;
     #choosable = false;
     #controls = new Map();
     #contextNumbers = new Map();
@@ -378,27 +377,15 @@ customElements.define(
         : this.#available("answer");
     }
 
-    // The press paints its result before the log replies. The in-flight guard keeps
-    // repeated presses from sending duplicate answers or withdrawals.
+    // The press paints its result before the log replies, and Done's face derives from
+    // that result, so a second press does what the button then says.
     #answer() {
-      if (this.#answering) return this.#answering;
-      if (!this.#doneAvailable()) return Promise.resolve(false);
+      if (!this.#doneAvailable()) return;
       const undo = this.#doneUndo();
-      const dispatched = undo
-        ? this.controller.dispatch({ kind: "undo", target: undo.attempt ?? undo.id })
-        : this.#dispatch("answer", {}, null, "Marked answered");
-      if (!dispatched) return Promise.resolve(false);
-      // A refusal answers false, and reconciliation has restored the prior state.
-      const sent = dispatched.delivery.then(Boolean);
-      this.#answering = sent;
+      if (undo)
+        this.controller.dispatch({ kind: "undo", target: undo.attempt ?? undo.id });
+      else this.#dispatch("answer", {}, null, "Marked answered");
       this.#syncDone();
-      const clear = () => {
-        if (this.#answering !== sent) return;
-        this.#answering = null;
-        this.#syncDone();
-      };
-      sent.then(clear, clear);
-      return sent;
     }
 
     #syncDone() {
@@ -412,7 +399,6 @@ customElements.define(
           : "Done: these picks are complete",
       );
       keeps(this.#done.control, "aria-pressed", String(answered));
-      keeps(this.#done.control, "aria-busy", this.#answering ? "true" : null);
     }
 
     #refreshAvailability() {
@@ -528,7 +514,7 @@ customElements.define(
               ? "Take back Done and keep choosing"
               : "Finish choosing options",
           when: () => this.#doneAvailable(),
-          run: () => void this.#answer(),
+          run: () => this.#answer(),
         });
       commands(this, SECTION, answerRows);
     }

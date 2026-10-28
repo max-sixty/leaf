@@ -676,18 +676,6 @@ class SourceReading:
         return obligation_sources(self.document, self.registry)
 
     @cached_property
-    def refused(self) -> bool:
-        """Whether this Leaf refuses a revision that captured this vocabulary
-        (`layer.incompatible_revision`). A page server asks it of the revision a tab
-        reads on every request (`http.PageEndpoint._revision_layer`), and the answer
-        walks the whole vocabulary, so a held reading takes it once."""
-        from .layer import incompatible_revision
-
-        # The refusal names the revision it was asked of, which only labels it:
-        # whether there is one depends on the vocabulary alone.
-        return incompatible_revision(0, self.registry) is not None
-
-    @cached_property
     def passages(self) -> Passages:
         """The version as authored: every slot pending, every body the agent's."""
         return page_passages(self.document, self.registry)

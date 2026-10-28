@@ -97,7 +97,7 @@ function createWidgetController(owner) {
 
   const prepared = () => {
     if (!preparationHandle && owner.isConnected)
-      preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner);
+      preparationHandle = attachWidgetPresentation(descriptor.id, "preparation");
     return preparationHandle;
   };
 
@@ -118,10 +118,8 @@ function createWidgetController(owner) {
     Promise.resolve(promise).then(settled, settled);
   };
 
-  const presentPreparation = (handle, { value, completion }) =>
-    handle
-      .present(value, (reason) => failSoftUnreported(owner, reason))
-      .resolve(completion);
+  const presentPreparation = (handle, { completion }) =>
+    handle.present((reason) => failSoftUnreported(owner, reason)).resolve(completion);
 
   // The controller is an owner of its own: a paint that mounts its widget connects it,
   // and what it reads to connect is its own, never that paint's.
@@ -182,7 +180,7 @@ function createWidgetController(owner) {
       const batch = preparationBatch;
       const completion = Promise.all(batch.promises);
       batch.completion = completion;
-      preparation = { value, completion };
+      preparation = { completion };
       holdPreparation(promise);
       const handle = prepared();
       if (handle) presentPreparation(handle, preparation);

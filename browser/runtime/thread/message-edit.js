@@ -59,7 +59,7 @@
    A double click on the message or a press on its Edit control opens it. The keyboard
    opens it with ↑: from the thread's empty reply box, the user's latest message, and
    from the start of an open rewrite not yet changed, their message before it, so Edit
-   takes no Tab stop in every thread the user opened. A resolved thread shows no reply
+   takes no Tab stop in every thread the user opened. A resolved card shows no reply
    box; Enter on it reopens it into that box, as replying there starts, since a saved
    rewrite reopens it anyway, and ↑ goes on from there. Every reader that draws a
    message offers its rewrite, a package's primary reader drawing it on its own as Feed
@@ -97,7 +97,6 @@ import {
 import { TEXT_FIELD } from "../control-selectors.js";
 import { caretAtKey, focusDestination } from "../focus.js";
 import { seenRect } from "../geometry.js";
-import { actionElement } from "../icons.js";
 import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
@@ -105,7 +104,7 @@ import { announce, notice } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
-import { offer } from "../widget-elements.js";
+import { nameAction, offer } from "../widget-elements.js";
 import { raiseError } from "../errors.js";
 import { signal } from "/runtime/framework.js";
 
@@ -360,9 +359,7 @@ export class MessageEditor {
     const actions = offer("span", "lf-msg-edit-actions");
     const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
     cancel.type = "button";
-    cancel.setAttribute("aria-label", "Discard");
-    cancel.title = "Discard";
-    cancel.append(actionElement("discard", "lf-msg-control-icon"));
+    nameAction(cancel, "discard", { className: "lf-msg-control-icon" });
     actions.append(cancel);
     // The box's last line, where the caret stands on opening: the field's own lines are
     // in a closed tree, so a mark of no size after it is what a reveal can aim at.

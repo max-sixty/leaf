@@ -915,7 +915,9 @@ export function createFloatingPanel({
   // walk's position. The thread walk standing on this thread says only its place,
   // "11 of 11", since the view names the thread. The agent's own line, a to-do's title
   // or a start's, stays in the thread, where the working message says it. A notice or
-  // the Go-to word, which pass in a moment, take the reply's place.
+  // the Go-to word, which pass in a moment, take the reply's place. Leaf's own word for
+  // an update the agent doesn't have yet is set apart, as Threads sets it
+  // (`workflowVoice`).
   function turnLead(key, input) {
     if (fieldReading(key, input).says !== "turn") return "";
     const thread = threadByKey(key);
@@ -925,9 +927,11 @@ export function createFloatingPanel({
       : walk.kind === "thread" && walk.target === thread?.id
         ? `${walk.position} of ${walk.total}`
         : walk.text;
-    return [threadAttention(thread, agentName())?.label, position]
-      .filter(Boolean)
-      .join(" · ");
+    const attention = threadAttention(thread, agentName());
+    if (!attention) return position;
+    return html`<span data-voice=${attention.voice}>${attention.label}</span>${
+        position ? ` · ${position}` : ""
+      }`;
   }
   // Where the words go, as the focused field's placeholder says it; the thread's own
   // name already heads its view.

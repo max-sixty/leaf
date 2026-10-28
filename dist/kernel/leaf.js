@@ -5164,7 +5164,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const thread = threadByKey(key);
 		const { walk } = statusContextReading();
 		const position = !walk?.shown ? "" : walk.kind === "thread" && walk.target === thread?.id ? `${walk.position} of ${walk.total}` : walk.text;
-		return [threadAttention(thread, agentName())?.label, position].filter(Boolean).join(" · ");
+		const attention = threadAttention(thread, agentName());
+		if (!attention) return position;
+		return html`<span data-voice=${attention.voice}>${attention.label}</span>${position ? ` · ${position}` : ""}`;
 	}
 	const whereTo = (key) => key ? "Reply in this thread" : "Comment on the page";
 	function saying(key, input) {

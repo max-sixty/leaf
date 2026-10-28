@@ -14,8 +14,8 @@ status.
 `seen` is the newest revision the user saw with the page in front of them (its
 `revision` and `label`), or `null` before they saw any. Where it is behind `active`,
 they have not seen your later revisions, and when they come back their page marks
-each block that changed since `seen`. Point them at what changed rather than
-restating it.
+each block that changed since `seen`, so a reply about those revisions needs no
+list of what changed.
 
 ## The user's view
 

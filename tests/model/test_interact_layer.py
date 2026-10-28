@@ -1698,6 +1698,10 @@ PRESS_FAMILIES = {
         {"lf-compose-submit", "lf-compose-dictate"},
         "Send and Dictate, which wireInput draws as a glyph on a disc in the field",
     ),
+    "copy triggers": (
+        {"lf-fp-copy-item", "lf-inspection-copy"},
+        "a copy control around its own trigger, which Web Awesome shows for its button",
+    ),
     "pictures": (
         {"lf-media-open"},
         "a picture that opens the media viewer, its face the picture itself",
@@ -1745,14 +1749,15 @@ def _presses():
     markup or making that dresses it) for every press a bundled module builds.
 
     A press is a `<button>`, or an element marked `role="button"`, in a template or an
-    HTML string, and a "button" made by `offer`, `el` or `document.createElement`. A
-    role dresses it when its tag holds `offeredAction`, or a directive or callback
-    that calls a role's builder, or when `offerActionElement` takes it as it is made.
-    The dressing is its tag's markup, with the bindings a name in its element part
-    stands for, or its making and the `className` it is given after. A role set by
-    script isn't read: a margin entry's host writer sets it on an element made
-    elsewhere, which the writer's code can't name. Nor is a copy control, a Web Awesome
-    `wa-copy-button` that `copyControl` makes."""
+    HTML string; a "button" made by `offer`, `el` or `document.createElement`; a copy
+    control, Web Awesome's copy button, made by `copyControl`; and an element a module
+    makes and then gives the role `button` by script. A role dresses it when its tag
+    holds `offeredAction`, or a directive or callback that calls a role's builder, when
+    `offerActionElement` takes it as it is made, or when `copyControl`'s options name
+    a role. The dressing is its tag's markup, with the bindings a name in its element
+    part stands for, or its making and the `className` it is given after. An element
+    handed to the code that gives it the role, as a margin entry's host writer is
+    handed its host, can't be traced from there and goes unread."""
     for source, text in _bundled_modules():
         code = _uncommented(text)
         tags = {match.start() for match in re.finditer(r"<button\b", code)}
@@ -1760,13 +1765,6 @@ def _presses():
             code.rfind("<", 0, match.start())
             for match in re.finditer(r"(?<=\s)role=[\"']?button\b", code)
         }
-        made = [
-            match
-            for match in re.finditer(r"\b(offer|el|createElement)\(", code)
-            if re.search(
-                r"([\"'`])button\1", code[match.end() : _reach(code, match.end(), ",")]
-            )
-        ]
         for start in sorted(tags):
             markup, parts, end = _opening_tag(code, start)
             # A name the element part hands over, a directive kept in a constant or a
@@ -1802,7 +1800,12 @@ def _presses():
                 how,
                 " ".join([markup, *bound]),
             )
-        for match in made:
+        # (start, end, making, how a role dresses it) of each press made in script.
+        made = []
+        for match in re.finditer(r"\b(offer|el|createElement)\(", code):
+            tag = code[match.end() : _reach(code, match.end(), ",")]
+            if not re.search(r"([\"'`])button\1", tag):
+                continue
             end = _reach(code, match.end(), "")
             making = code[match.end() : end]
             before = code[max(0, match.start() - 200) : match.start()]
@@ -1812,13 +1815,26 @@ def _presses():
                 making += " ".join(
                     re.findall(rf"\b{name[1]}\.className\s*=([^;]*)", code)
                 )
-            how = (
-                "role as it is made"
-                if re.search(rf"{_ROLE_BUILDER.pattern}\s*(?:[\w$]+\.)*$", before)
-                else None
-            )
-            site = code[match.start() : end + 1]
-            yield source, code.count("\n", 0, match.start()) + 1, site, how, making
+            built = re.search(rf"{_ROLE_BUILDER.pattern}\s*(?:[\w$]+\.)*$", before)
+            how = "role as it is made" if built else None
+            made.append((match.start(), end, making, how))
+        for match in re.finditer(r"(?<!function )\bcopyControl\(", code):
+            end = _reach(code, match.end(), "")
+            making = code[match.end() : end]
+            named = re.search(r"\brole:\s*[\"'`]\w", making)
+            how = "role in its options" if named else None
+            made.append((match.start(), end, making, how))
+        for match in re.finditer(
+            r"(?:\b([\w$]+)\.setAttribute\(|\b(?:keeps|keepsAttribute)\(\s*([\w$]+)\s*,)"
+            r"\s*[\"']role[\"']\s*,\s*[\"']button[\"']\s*\)",
+            code,
+        ):
+            making = _binding(code, match[1] or match[2])
+            if re.search(r"\b(?:offer|el|createElement)\(", making):
+                made.append((match.start(), match.end() - 1, making, None))
+        for start, end, making, how in made:
+            site = code[start : end + 1]
+            yield source, code.count("\n", 0, start) + 1, site, how, making
 
 
 def test_every_press_is_built_by_role_or_family():
@@ -1854,15 +1870,17 @@ def test_every_press_is_built_by_role_or_family():
         "role in its tag",
         "role through a name",
         "role as it is made",
+        "role in its options",
         "family",
     }, f"the reading missed a kind of press: {reached}"
     assert not unbuilt, (
         "these presses draw a face of their own:\n"
         + "\n".join(unbuilt)
-        + "\nBuild each by role with offerAction, offeredAction or offerActionElement"
-        " (prepaint.js, `ACTION_FACES`), or, where no role serves it, add its class to"
-        " a family in PRESS_FAMILIES (tests/model/test_interact_layer.py) with the"
-        " reason it keeps its own face, for a reviewer to weigh."
+        + "\nBuild each by role with offerAction, offeredAction, offerActionElement or"
+        " copyControl's `role` (prepaint.js, `ACTION_FACES`), or, where no role serves"
+        " it, add its class to a family in PRESS_FAMILIES"
+        " (tests/model/test_interact_layer.py) with the reason it keeps its own face,"
+        " for a reviewer to weigh."
     )
     unworn = sorted(family_classes - worn)
     assert not unworn, (

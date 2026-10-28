@@ -270,10 +270,11 @@ customElements.define(
         // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
         // while its block is away and came back a frame or more after the popover
         // opened, after a Tab had passed it by.
-        const copy = copyControl("lf-quiet-action lf-playground-copy", {
+        const copy = copyControl("lf-playground-copy", {
           label: "Copy instruction",
           success: "Instruction copied",
           error: "Unable to copy instruction",
+          role: "symbol",
         });
         copy.addEventListener(
           "click",

@@ -32,7 +32,7 @@ const dialog = el("dialog", "lf-ui lf-inspection-dialog");
 dialog.setAttribute("aria-label", "About this page");
 const head = el("div", "lf-inspection-head");
 head.append(el("strong", "", "About this page"));
-const copy = copyControl("", {
+const copy = copyControl("lf-inspection-copy", {
 	label: "Copy diagnostics",
 	success: "Diagnostics copied",
 	error: "Diagnostics not copied. Select the report text to copy it manually."

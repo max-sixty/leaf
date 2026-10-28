@@ -435,15 +435,6 @@ lf-playground-value {
   padding: 12px 18px 16px;
   overflow-y: auto;
 }
-/* The copy is a quiet action with a finger's floor. */
-.lf-playground-copy::part(button) {
-  box-sizing: border-box;
-  min-inline-size: var(--aim-floor);
-  min-block-size: var(--aim-floor);
-  align-items: center;
-  justify-content: center;
-}
-
 /* A quoted playground is its preview and instruction as authored, without the controls
  * written in either place (initial/lf-playground.js hides them). Candidates that are
  * previews stay, laid side by side. */

@@ -275,13 +275,18 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     regions = [rec for rec in lf_elements if encloses(registry.get(rec["tag"], {}))]
     framed = {id(region): [] for region in regions}
     # A widget asks inside every frame around it, so a frame holding only a nested frame
-    # is as full as that one; the nearest still gives the obligation its prompt.
+    # is as full as that one; the nearest still gives the obligation its prompt. A
+    # sample's widgets ask nothing beyond it (obligations.py, `shown_in`), so the walk
+    # stops there and a frame inside the sample still counts them.
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
         if not local_obligation_entry(entry):
             continue
         for holder in enclosing_widgets(rec):
-            if encloses(registry.get(holder["tag"], {})):
+            holder_entry = registry.get(holder["tag"], {})
+            if holder_entry.get("x-exhibit"):
+                break
+            if encloses(holder_entry):
                 framed[id(holder)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:

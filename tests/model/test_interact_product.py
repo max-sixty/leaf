@@ -309,6 +309,16 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
         f"{second}</lf-sample></lf-ask>"
     )
     assert fragment_errors(with_evidence, registry) == []
+    # A sample's widget asks nothing, quoted or interactive, so it can't fill a
+    # question around the sample.
+    for mode in ("", " interactive"):
+        only_shown = (
+            '<lf-ask id="decision-shown"><h2>Choose</h2>'
+            f'<lf-sample id="shown-only" label="another question"{mode}>{second}'
+            "</lf-sample></lf-ask>"
+        )
+        codes = [error.code for error in fragment_errors(only_shown, registry)]
+        assert codes == ["empty-question"], mode
 
     # The obligation's title is what the shared name rule reads, so a heading in an
     # hgroup after its eyebrow, a subheading, or context before the heading all

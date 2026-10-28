@@ -96,30 +96,35 @@ def cmd_init(
             ),
         )
         page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    harness = session_harness()
     if (page_dir / EVENTS_FILE).is_file():
         if dry_run:
             with page_locked(page_dir):
                 plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
             return {"page": str(page_dir), "changed": plan.changed}
-        unready = _unready(
-            page_dir, _revendor(page_dir, selected, session_harness(), theme=theme)
-        )
-        if unready:
+        if unready := _unready(
+            page_dir, _revendor(page_dir, selected, harness, theme=theme)
+        ):
             note(unready)
-        return {"page": str(page_dir)}
-    if dry_run:
-        raise Refused(f"{page_dir} is not initialized")
-    with restarting_server(page_dir, session_harness()), page_locked(page_dir):
-        try:
-            _init_page(page_dir, selected, theme=theme)
-        except BaseException:
-            if made and not any(page_dir.iterdir()):
-                page_dir.rmdir()
-            raise
+    else:
+        if dry_run:
+            raise Refused(f"{page_dir} is not initialized")
+        with restarting_server(page_dir, harness), page_locked(page_dir):
+            try:
+                _init_page(page_dir, selected, theme=theme)
+            except BaseException:
+                if made and not any(page_dir.iterdir()):
+                    page_dir.rmdir()
+                raise
+    if harness is not None:
+        # The copy the session loaded may not read the page at this protocol.
+        select_checkout(harness.session)
     return {"page": str(page_dir)}
 
 
-def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
+def renew_layer(
+    page_dir: Path, harness: Harness | None, *, command: bool
+) -> Finding | None:
     """Re-vendor a page vendored at an older page protocol, which this Leaf cannot
     serve (`event_contracts.write_refusal`), for the session `harness` names, and say
     what still holds the page back, for its agent to act on.
@@ -138,6 +143,9 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     vendored, which `_plan_page` refuses. A layer documenting an x- key this Leaf
     does not admit stays refused too: the key may be one a newer Leaf added at the
     same protocol, which a re-vendor here would strip.
+
+    A `command` from a checkout also selects that checkout to deliver for the
+    session (`session_runtime.select_checkout`); a hook leaves the selection alone.
 
     What it finds is why the re-vendor was refused, or the `page check` errors that
     keep index.html from activating under the new layer, since a source an older
@@ -170,11 +178,14 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     if not renewable():
         return None
     try:
-        return _unready(page_dir, _revendor(page_dir, None, harness, renewable))
+        errors = _revendor(page_dir, None, harness, renewable)
     except Refused as error:
         return Finding(
             "revendor-refused", values={"page": str(page_dir), "error": str(error)}
         )
+    if command and harness is not None:
+        select_checkout(harness.session)
+    return _unready(page_dir, errors)
 
 
 def _revendor(
@@ -197,11 +208,7 @@ def _revendor(
     if not plan.changed:
         return []
     with restarting_server(page_dir, harness), page_locked(page_dir):
-        errors = _init_page(page_dir, selected, still, theme=theme)
-    if harness is not None:
-        # The session's own copy may not read the page at this protocol.
-        select_checkout(harness.session)
-    return errors
+        return _init_page(page_dir, selected, still, theme=theme)
 
 
 def _unready(page_dir: Path, errors: list[Finding]) -> Finding | None:

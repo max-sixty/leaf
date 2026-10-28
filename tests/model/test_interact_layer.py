@@ -365,7 +365,7 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
         interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
         == vendored
     )
-    assert vendoring_model.renew_layer(claimed, None) is None
+    assert vendoring_model.renew_layer(claimed, None, command=True) is None
     assert (claimed / "registry.json").read_bytes() == registry
 
 

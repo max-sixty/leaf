@@ -10,9 +10,9 @@ launcher (`delivering_launcher`) before they read a page or change a turn; the
 Codex delivery adapter follows the selection alone (`selected_launcher`):
 
 - the launcher the session selected, while it exists: the checkout a user preview
-  serves (`dev/leaf_dev/commands/preview.py`), or a checkout that re-vendored one
-  of the session's pages (`vendoring._revendor`), whose protocol the session's own
-  copy may not speak yet;
+  serves (`dev/leaf_dev/commands/preview.py`), or a checkout whose command
+  re-vendored one of the session's pages (`select_checkout`), whose protocol the
+  session's own copy may not speak yet;
 - otherwise, from a copy Claude Code installed, the copy it has installed since,
   which the marketplace sweep moves to each new commit;
 - otherwise this one.
@@ -123,15 +123,18 @@ def hand_off_command(argv: list[str]) -> None:
 
 
 def select_checkout(session_id: str) -> None:
-    """Select this Leaf for the session's delivery where it runs from a checkout
-    and another Leaf delivers, as it re-vendors one of the session's pages past the
-    copy the session loaded (`vendoring._revendor`). A hook runs the delivering
-    Leaf already, so it selects nothing and leaves the lifecycle record its own
-    readings compare against unchanged."""
+    """Select this Leaf for the session's delivery where it runs from a checkout,
+    as a command re-vendors one of the session's pages (`vendoring`), since the
+    copy the session loaded may not read the page at this protocol. A checkout
+    can't tell which copy the session's hooks run, so it selects itself whenever
+    the session lives. Only a command selects: a hook runs the delivering Leaf
+    already, and a write to the lifecycle record would change the snapshot its own
+    readings compare against."""
+    record = session_record(session_id)
     if (
         not plugin_cache_copy(PLUGIN_ROOT)
-        and session_record(session_id) is not None
-        and delivering_launcher(session_id) != own_launcher()
+        and record is not None
+        and record["ended"] is None
     ):
         select_launcher(session_id, own_launcher())
 

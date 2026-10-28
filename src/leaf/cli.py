@@ -58,7 +58,7 @@ def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
     from leaf.harness import session_harness
     from leaf.vendoring import renew_layer
 
-    if unready := renew_layer(page_dir, session_harness()):
+    if unready := renew_layer(page_dir, session_harness(), command=True):
         note(unready)
     return page_dir
 

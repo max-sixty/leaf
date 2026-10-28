@@ -37,6 +37,7 @@
 // A containing widget can create a pair absent from the authored document.
 import "/vendor/lf-shot-initial.js";
 import {
+  setScroll,
   afterPresentation,
   announce,
   once,
@@ -158,7 +159,7 @@ customElements.define(
               peer.scrollLeft !== viewport.scrollLeft ||
               peer.scrollTop !== viewport.scrollTop
             )
-              peer.scrollTo({
+              setScroll(peer, {
                 left: viewport.scrollLeft,
                 top: viewport.scrollTop,
                 behavior: "instant",

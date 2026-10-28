@@ -589,17 +589,26 @@ const SCROLL = {
 	capture: true,
 	passive: true
 };
+function announceScroll(box) {
+	for (const listener of scrollListeners) listener(box);
+}
+function setScroll(box, options) {
+	const { scrollTop, scrollLeft } = box;
+	const { behavior = "instant" } = options;
+	box.scrollTo({
+		...options,
+		behavior
+	});
+	if (behavior === "instant" && (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft)) announceScroll(box);
+}
 const heardIn = (stage) => (event) => {
 	if (event.target.getRootNode() !== stage) return;
-	for (const listener of scrollListeners) listener(event);
+	announceScroll(event.target === document ? document.scrollingElement : event.target);
 };
+document.addEventListener("scroll", heardIn(document), SCROLL);
 function watchScrolls(listener) {
 	scrollListeners.add(listener);
-	document.addEventListener("scroll", listener, SCROLL);
-	return () => {
-		scrollListeners.delete(listener);
-		document.removeEventListener("scroll", listener, SCROLL);
-	};
+	return () => scrollListeners.delete(listener);
 }
 const SETTLE_MS = 80;
 const settleListeners = /* @__PURE__ */ new Set();
@@ -1444,4 +1453,4 @@ function textWidth(text, font) {
 }
 
 //#endregion
-export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, actionElement, actionIcon, actionName, actionOffers, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, authoredBody, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, drawsFirst, elementBox, ensureSyntaxLanguage, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, fragmentId, frameFor, frameVisibility, holdRendering, iconElement, iconMarkup, inBaseLayer, initialOrigin, initialParent, initialRender, initialSource, isNativeLayer, isStage, layoutChanged, liveStages, measure, motion, motionEasing, motionPlays, motionTime, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, onFrameVisibility, onMotionPreferenceChange, once, pagePresented, pageUpgraded, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restoreInitialSource, returnDuration, revealRegisteredVisualPart, revealsVisualParts, scrollBehavior, scrollGlides, scrolling, shadowHost, showAction, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, unmarkedCopy, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };
+export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, actionElement, actionIcon, actionName, actionOffers, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, authoredBody, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, drawsFirst, elementBox, ensureSyntaxLanguage, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, fragmentId, frameFor, frameVisibility, holdRendering, iconElement, iconMarkup, inBaseLayer, initialOrigin, initialParent, initialRender, initialSource, isNativeLayer, isStage, layoutChanged, liveStages, measure, motion, motionEasing, motionPlays, motionTime, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, onFrameVisibility, onMotionPreferenceChange, once, pagePresented, pageUpgraded, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restoreInitialSource, returnDuration, revealRegisteredVisualPart, revealsVisualParts, scrollBehavior, scrollGlides, scrolling, setScroll, shadowHost, showAction, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, unmarkedCopy, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };

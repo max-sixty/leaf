@@ -82,10 +82,15 @@ import { startScroll, reachable, pageScroller } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
 import { nextRender } from "./rendering.js";
 import { renderedParent, renderedUnder } from "./shadow.js";
+import { setScroll } from "./arrivals.js";
 
 const land = (box, by, behavior) => {
   if (behavior !== "instant") startScroll(box);
-  box.scrollBy({ ...by, behavior });
+  setScroll(box, {
+    top: box.scrollTop + (by.top ?? 0),
+    left: box.scrollLeft + (by.left ?? 0),
+    behavior,
+  });
 };
 
 // A destination's landing margin on one side. A range has none of its own and takes the

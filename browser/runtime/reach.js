@@ -1,7 +1,7 @@
 /* Keyboard reachability, containment, the sticky-header slot, and continuation paint for
    scrollable page and shadow content. */
 
-import { watchArrivals } from "./arrivals.js";
+import { watchArrivals, watchScrolls } from "./arrivals.js";
 import { tabStops, wearsLentStop } from "./focus.js";
 import { LENT_REACH_STOP, TEXT_BOX } from "./control-selectors.js";
 import { scrollsBy, userScrollport } from "./geometry.js";
@@ -116,15 +116,16 @@ const sideways = new Map();
 // because the pane's fixed lower edge would otherwise keep promising another part of
 // the reading after the user reaches the end.
 const downwards = new Map();
-const readingScrolled = (event) => paintReadingReach(event.currentTarget);
-const sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget, true);
+watchScrolls((box) => {
+  if (downwards.has(box)) paintReadingReach(box);
+  if (sideways.has(box)) paintSidewaysReach(box, true);
+});
 export function reachReadingScroller(el, paintContinuation) {
   el.classList.toggle("scroll", true);
   downwards.set(el, paintContinuation);
   sweep(el);
   paintReach();
   watchReach(el);
-  el.addEventListener("scroll", readingScrolled, { passive: true });
   paintReadingReach(el);
   // A host moved in one script lets go of its body and registers it again before the
   // script ends, so the cue leaves when the script does, and only a body nobody reached again
@@ -132,7 +133,6 @@ export function reachReadingScroller(el, paintContinuation) {
   return () => {
     downwards.delete(el);
     if (!watched(el)) unwatchReach(el);
-    el.removeEventListener("scroll", readingScrolled);
     afterScript(() => {
       if (!downwards.has(el)) {
         keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
@@ -143,17 +143,14 @@ export function reachReadingScroller(el, paintContinuation) {
 }
 
 const readingPaints = new Set();
-let readingPaintQueued = false;
 function paintReadingReach(el) {
   // End-following owners finish their scroll after registering or resizing the
-  // region. Read each final place once in the render pass before it paints.
+  // region. Read its final position after this script, including resize delivery,
+  // so the cue paints with the content.
   readingPaints.add(el);
-  if (readingPaintQueued) return;
-  readingPaintQueued = true;
-  nextRender(paintReadingReachNow);
+  afterScript(paintReadingReachNow);
 }
 function paintReadingReachNow() {
-  readingPaintQueued = false;
   const pending = [...readingPaints];
   readingPaints.clear();
   for (const el of pending) {
@@ -257,7 +254,7 @@ function forgetSurface(el) {
     mayScroll.delete(el);
     if (!claimedStops.has(el)) returnStop(el, authored);
   }
-  if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
+  sideways.delete(el);
   waiting.delete(el);
   keeps(el, PAGE_PAINT_ATTRIBUTE.scrolls, null);
   keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, null);
@@ -280,7 +277,6 @@ function classify(el, style) {
   asked.add(el);
   paintSlot(el, style);
   if (!userScrollport(style.overflowX) && sideways.delete(el)) {
-    el.removeEventListener("scroll", sidewaysScrolled);
     keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, null);
     keeps(el, PAGE_PAINT_ATTRIBUTE.moreBefore, null);
     keeps(el, PAGE_PAINT_ATTRIBUTE.moreAfter, null);
@@ -303,7 +299,6 @@ function classify(el, style) {
   if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX)) {
     if (!sideways.has(el)) {
       watchReach(el);
-      el.addEventListener("scroll", sidewaysScrolled, { passive: true });
     }
     sideways.set(el, style.direction);
   }
@@ -403,7 +398,7 @@ function paintSidewaysReach(el, readStyle = false) {
 function gone(el) {
   if (el.isConnected) return false;
   mayScroll.delete(el);
-  if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
+  sideways.delete(el);
   downwards.delete(el);
   waiting.delete(el);
   if (queried.delete(el)) queries.unobserve(el);

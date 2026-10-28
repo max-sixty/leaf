@@ -1,8 +1,12 @@
 /* Blocks of source text own a copy control at their top right: every document code
-   block, and any widget block that asks with `copyBlock`, such as a code listing or a
-   draft's Markdown. Document controls stand in chrome so authored sibling selectors
-   keep their meaning. Their sources read their current text on activation; widgets
-   supply their source before rendering line numbers, annotations, or other words. CSS
+   block, every block a widget declares, such as a code listing, and any widget block
+   that asks with `copyBlock`, such as a draft's Markdown among its own controls.
+   Document controls stand in chrome so authored sibling selectors keep their meaning.
+   A declared block carries `data-lf-copy`, naming what it holds, and its `lfCopy()`
+   returns its text, the source the widget drew line numbers, annotations or other words
+   over; its control stands right after it, in the widget's tree. A widget declaring
+   one imports nothing from Leaf to do it, so a page without Leaf, which reads no
+   declaration, shows no control. Sources read their current text on activation. CSS
    anchors keep the control at the block's right edge (block-controls.js). Widgets
    connect their final styled block before requesting the control.
    Enter on a block the user is on copies it. That press is a register row
@@ -37,6 +41,7 @@ import { skipped } from "./shown-box.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { focusDestination, onCurrentLocation } from "./focus.js";
 import { upFrom } from "./shadow.js";
+import { move } from "./dom-move.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
 
@@ -122,7 +127,32 @@ export function copyBlock(block, source, noun) {
   return copy;
 }
 
+// A declared block's control stands after it, in the widget's tree, until the block
+// leaves or stops declaring. Standing it there is a sibling arriving beside the block,
+// which asks again, so a block whose control already stands is passed by.
+const DECLARED = "[data-lf-copy]";
+function prepareDeclaredBlocks(blocks) {
+  const prepared = blocks
+    .filter((block) => controls.get(block)?.previousSibling !== block)
+    .map((block) => {
+      const noun = block.getAttribute("data-lf-copy");
+      return [block, noun, prepareCodeBlock(block, () => block.lfCopy(), noun)];
+    });
+  for (const [block, noun, pending] of prepared) {
+    const copy = aimControl(pending);
+    move(block.parentNode, copy, block.nextSibling);
+    declareCopy(block, copy, noun);
+  }
+}
+
 export function watchCodeBlocks() {
+  watchArrivals(DECLARED, ["data-lf-copy"], {
+    arriveBatch: prepareDeclaredBlocks,
+    leave(block) {
+      controls.get(block)?.remove();
+      projectCommandScope(block, COPY_SCOPE, null);
+    },
+  });
   // Native prose blocks scroll sideways, including in rendered thread messages.
   watchArrivals(
     "pre, table:not([role='presentation']), [data-lf-content='data']:not([data-lf-verbatim])",
@@ -195,7 +225,7 @@ export function watchCodeBlocks() {
       }
     }
   };
-  watchArrivals("pre:has(> code)", ["style"], {
+  watchArrivals(`pre:has(> code):not(${DECLARED})`, ["style"], {
     arriveBatch: prepareDocumentBlocks,
     leave(pre) {
       if (deferred.delete(pre)) revealed.unobserve(pre);

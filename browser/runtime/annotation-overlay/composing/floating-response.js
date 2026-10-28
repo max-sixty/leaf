@@ -23,7 +23,8 @@
    presenter writes those attributes and never the bar's visibility, and composition
    writes only whether the bar stands inline (`data-lf-presentation`), so neither leaves
    a visibility behind for the other to undo. */
-import { cancelRender, nextRender, sizeObserver } from "../../rendering.js";
+import { setScroll } from "../../arrivals.js";
+import { cancelRender, nextFrame, nextRender, sizeObserver } from "../../rendering.js";
 import { boxMotion } from "../../box-motion.js";
 import { sameAnchor } from "../../anchor-coordinate.js";
 import { declareOffFlowSurface } from "../../off-flow.js";
@@ -39,7 +40,7 @@ import { blockAt, pageRange, quoteFrom, segmentsIn } from "../../passages.js";
 import { pageSelection, selectionAnchor } from "../../composing/capture.js";
 import { closeLayer, drawn, holdFocus } from "../../focus.js";
 import { coarsePointer } from "../../pointer.js";
-import { LAYOUT } from "../../widget-elements.js";
+import { LAYOUT } from "../../widget-upgrade.js";
 import { under } from "../../shadow.js";
 import { union } from "../../rect.js";
 import { floatingPlacement, floatingUi, heldEdges } from "../floating.js";
@@ -52,6 +53,7 @@ import {
 } from "../comment-placement.js";
 import { pointBand } from "../../pointed-place.js";
 import { keeps, roomPx } from "../../keeps.js";
+import { pageScroller, placeKept } from "../../scrolling.js";
 
 export function createFloatingResponsePlacement({
   bar: fabBar,
@@ -440,16 +442,16 @@ export function createFloatingResponsePlacement({
           roomPx(Math.max(0, boundary.width / scale)),
         );
     };
-    // The frame may grow to the whole boundary on any side, past the room its held edge
+    // The frame may grow to its whole room (`fit`'s) on any side, past the room its held edge
     // leaves, since shift slides it inside. Native tracks reserve the furniture and give
     // the editor what remains. Typing never scrolls the page to make room. The box grows
     // from the edge that holds it, then slides inside the window, over its passage if it
     // must, and once it fills the window scrolls its own words.
-    const setHeight = (scale) => {
+    const setHeight = (room, scale) => {
       if (!response.open) return;
       fabBar.style.setProperty(
         "--lf-float-h",
-        roomPx(Math.max(0, boundary.height / scale)),
+        roomPx(Math.max(0, room.height / scale)),
       );
     };
     fabPlacement.choose({
@@ -480,14 +482,14 @@ export function createFloatingResponsePlacement({
           column: place.column,
           margin: place.margin,
           boundary,
-          fit({ width, scale }) {
+          fit({ width, room, scale }) {
             if (!stillCurrent()) return;
             setWidth(width, scale.x);
-            setHeight(scale.y);
+            setHeight(room, scale.y);
             const frame = fabBar.getBoundingClientRect();
             if (
-              Math.ceil(frame.width) > Math.ceil(boundary.width) ||
-              Math.ceil(frame.height) > Math.ceil(boundary.height) ||
+              Math.ceil(frame.width) > Math.ceil(room.width) ||
+              Math.ceil(frame.height) > Math.ceil(room.height) ||
               (response.open && nativeRowEnd() > fabBar.clientHeight)
             )
               withholdFab();
@@ -555,6 +557,27 @@ export function createFloatingResponsePlacement({
     returning?.();
   }
   function mount() {
+    // Chromium can reveal the caret by scrolling the document before it delivers
+    // `input`, even though this editor is in a fixed frame that will fit the new
+    // text inside the window. Keep the reader's page place in that same input task;
+    // a deliberate wheel or navigation is a separate gesture.
+    let beforeInputScroll = null;
+    let inputEpoch = 0;
+    fabInput.addEventListener("lf-before-edit", () => {
+      beforeInputScroll =
+        response.open && response.floating ? pageScroller.scrollTop : null;
+      const epoch = ++inputEpoch;
+      nextFrame(() => {
+        if (inputEpoch === epoch) beforeInputScroll = null;
+      });
+    });
+    fabInput.addEventListener("input", () => {
+      if (beforeInputScroll === null) return;
+      if (pageScroller.scrollTop !== beforeInputScroll) {
+        setScroll(pageScroller, { top: beforeInputScroll, behavior: "instant" });
+        placeKept(pageScroller);
+      }
+    });
     // Widgets declare moves inside a stable outer box here. Scroll has its own
     // mechanical owner and never emits this geometry-invalidating publication.
     document.addEventListener(LAYOUT, (event) => {

@@ -5,14 +5,38 @@ module owes.
 
 ## Commands and keyboard routes
 
-A widget declares each command once, at upgrade, with
-`commands(element, title, rows, options)`; `options` is the scope's `when`, alone or as
-`{when}`.
+A widget declares its commands as data on the element they apply in: set the element's
+`lfCommands` to the scope and call `commandsChanged(element)`. The scope holds `title`,
+the heading the command reference lists it under, and `rows` ("Command rows"). It may
+also hold `when`, whether the page has the scope at all, which gates the reference as a
+row's own `when` gates its press; `ready` (`module-authoring.md`, "Startup and
+presentation"); `claims` ("How scopes compose"); and `escape: "inner"`, for a scope
+whose own Escape step comes before every step outside it.
+
+Leaf reads the declaration when `commandsChanged` runs, binds its keys, lists them in
+the command reference and hints, and is the only writer of `aria-keyshortcuts`. A page
+without Leaf reads nothing, so a widget that also runs there (`module-authoring.md`, "A
+widget that also runs off Leaf") binds no key. Declare at upgrade, once the element
+exists; it may still be out of the page.
+
+Assigning a new object to `lfCommands` and calling `commandsChanged` replaces the
+scope, and Leaf checks the new rows then: `commandsChanged` throws where one is
+malformed. `null` withdraws the scope. Calling `commandsChanged` with the same object
+only has Leaf read its rows' titles and availability again, so a row or title edited in
+place goes unchecked; assign a new object to change them.
+
+```javascript
+this.lfCommands = {
+  title: "On a code block",
+  rows: [{ id: "code.wrap", keys: ["w"], title: "wrap lines", run: toggleWrap }],
+};
+commandsChanged(this);
+```
 
 For controls Leaf draws, such as margin entries, build the scope as a value with
 `commandScope(title, rows, options)` and put it on the entry's `scope`
 (`module-annotations.md`, "Margin contributions"). Where the same commands also apply to
-the widget's own elements, attach that value with `commands(element, scope)`:
+the widget's own elements, that value is their `lfCommands`:
 
 ```javascript
 const actions = commandScope("In a classifier", [
@@ -28,7 +52,8 @@ const actions = commandScope("In a classifier", [
     run: () => classify("pass"),
   },
 ]);
-commands(classifier, actions);
+classifier.lfCommands = actions;
+commandsChanged(classifier);
 ```
 
 In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
@@ -57,7 +82,13 @@ row's keys mean different things, `routes` lists subcommands, each with its own 
 and runs each route.
 
 `run(binding, context)` performs the command; a row without `run` names a press the
-browser or an outer handler makes. `control` is the visible element that activates it.
+browser or an outer handler makes, and one that names a `control` is pressed by a
+click on it. `control` is the visible element that activates it. `lands(from)` says
+where the user stands after Leaf runs the row for a key, a command-reference pick or
+a click on its `control`: Leaf calls it right after the run, so it reads the state the
+run left, with the element the press came from (where the user was for a key or a
+pick, the button for a click), and puts the user on the element it returns as a move,
+or leaves them for `null`. A margin entry's activation keeps its own focus handling.
 `when` says whether it is available, and a route may have its own. `reach` is the short
 phrase the command reference shows while it isn't, such as `in an open draft editor`.
 Set `runFromCommandReference: false` for a step the reference can't run without a choice
@@ -72,19 +103,19 @@ with `notice("Edit kept")`.
 
 Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
 a widget's state or the threads. For any other state it reads, hold the value in a
-`signal` or call `paintKeys()` after changing it.
+`signal` or call `commandsChanged(element)` after changing it.
 
 ### How scopes compose
 
 A key goes first to the scope on the focused control, then to the widgets around it,
-then to the page. A scope takes only keys whose rows have a `run`, so other keys pass
-outward. A row keeps its key while unavailable, so the key never falls through to a
+then to the page. A scope takes only keys whose rows make a press, by a `run` or by
+naming a `control` Leaf clicks, so other keys pass outward. A row keeps its key while unavailable, so the key never falls through to a
 different meaning further out; an unavailable Escape, though, passes on to the next
 Escape. Text fields keep their editing keys ahead of every widget scope.
 
-A menu or other scope that covers the page passes `allButCommandReference` as its
-`claims` option, so the page's keys wait while the user is in it and only the command
-reference still opens.
+A menu or other scope that covers the page gives `allButCommandReference` as its
+declaration's `claims`, so the page's keys wait while the user is in it and only the
+command reference still opens.
 
 Give a native button's row both `control` and `run`, and Leaf runs `run` for its click
 and its key alike. Don't add a click listener, and don't call the button's own `click()`
@@ -131,6 +162,10 @@ whose two returned rows go into the list's scope: ArrowUp and ArrowDown step, Ho
 End reach the ends, and each step announces a position such as `Option 3 of 7`. `rows()`
 returns the list at each press, `landed(row)` runs after a move, and `scroll: false`
 keeps the page still.
+
+A row whose press carries the user along a list of its own, as a timeline's arrows
+carry a user on its step list to the new step's row, declares `lands(from)` ("Command
+rows") rather than moving focus in its `run`.
 
 A widget that steps through something itself, such as a diff's hunks, calls
 `beginWalk(key, noun, read)` at each step and announces what it returns, such as

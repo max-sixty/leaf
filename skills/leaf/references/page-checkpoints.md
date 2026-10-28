@@ -2,7 +2,7 @@
 
 ## Pre-handover review
 
-The main skill's "Review an important page in the browser" step says when a page takes this review.
+The main skill's "Publish and review" section says when a page takes this review.
 It adds the browser render check, in both colour schemes, to the markup check every
 activation runs:
 
@@ -50,9 +50,9 @@ with pointer and keyboard, and check that each destination leaves the user orien
 
 For a page with obligations on On me, the check also saves the window at each of the first
 eight as `m` reaches it from the top (`conversation-loop.md`, "The On lists"). At each,
-confirm that the question, premise, alternatives and evidence are visible together,
-that the numbers shown match the actions offered, and that the next `m` reaches the next
-item on the user's On me list.
+review the question against `authoring-on-me.md`, "On the page", and check that the
+numbers shown match the actions offered and the next `m` reaches the next item on the
+user's On me list.
 
 If you can't see the rendered page, review the words, evidence and choices from the
 active HTML and `leaf page state <page>`, and report the visual and keyboard review as

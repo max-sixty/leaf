@@ -102,7 +102,7 @@
   },
   "lf-num": {
     "description": "A measured number in prose, tied to the data run that produced it.",
-    "x-instructions": "Write the value with its unit as the element's text. Bind `source` to the feed that measures it, and set `run` to the receipt `leaf data set` returned. Add `via` when the source id doesn't say which command or query produced it.",
+    "x-instructions": "Write the value with its unit as the element's text, with `source` naming the feed that measures it. Write that element into the page before calling `leaf data set`, then set `run` to the returned receipt. Add `via` when the source id doesn't say which command or query produced it.",
     "type": "object",
     "properties": {
       "id": {
@@ -140,8 +140,8 @@
     "x-example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
-    "description": "A text file from page data with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
-    "x-instructions": "Bind `source` to the page's data source and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. The listing, or with a preview each tab, scrolls inside a box `--lf-bound` tall, 28rem by default, however long the text. To start it collapsed, put it inside `details`.",
+    "description": "Text from page data or a widget output, with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
+    "x-instructions": "Bind `source` to the page's data source, or `for` to a widget publishing a `document` output and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. The listing, or with a preview each tab, scrolls inside a box `--lf-bound` tall, 28rem by default, however long the text. To start it collapsed, put it inside `details`.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -163,22 +163,39 @@
       },
       "language": {
         "type": "string"
+      },
+      "for": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": ["id", "source"],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-data": {
       "document": {
         "contract": "text-document",
         "source": "source",
+        "reference": "for",
+        "output": "document",
         "property": "value"
       }
     },
     "x-language": "language",
     "x-bound": "start",
     "x-upgrade": true,
-    "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>"
+    "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>",
+    "oneOf": [
+      {
+        "required": ["source"]
+      },
+      {
+        "required": ["for"]
+      }
+    ],
+    "x-refers": {
+      "for": {}
+    }
   },
   "lf-toc": {
     "description": "An outline of the document\u2019s h2\u2013h6 headings for navigating its sections and showing the reader\u2019s position.",
@@ -320,7 +337,7 @@
   },
   "lf-option": {
     "description": "One alternative in a decision: a compact label, or a card showing what choosing it gives the user.",
-    "x-instructions": "Word, label and illustrate the alternatives as `references/authoring-on-me.md` says. A card opens with its small.tag labels, then `<small class=\"tag ok\">recommended</small>` on the option you advise, then a `<strong>` title and a sentence naming its consequence, then any picture as block HTML, such as an svg.drawing. Give your reason for the recommendation in prose beside the group, such as the `lf-ask`'s paragraph, so each card states only what choosing it does. Direct text takes inline Markdown. `chosen` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the group's answer, such as a board column (`authoring-on-me.md`, \"One decision in its section and on a board\").",
+    "x-instructions": "Word, label and illustrate the alternatives as `references/authoring-on-me.md` says. Use a direct `<strong>` child for a card's title. Follow it with any consequence the title or labels leave unstated, and put pictures in block HTML, such as `svg.drawing`. Mark the option you advise with `<small class=\"tag ok\">recommended</small>`. Give your reason for the recommendation in prose beside the group, such as the `lf-ask`'s paragraph, so each card states only what choosing it does. Direct text takes inline Markdown. `chosen` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the group's answer, such as a board column (`authoring-on-me.md`, \"One answer in its section and on a board\").",
     "type": "object",
     "properties": {
       "id": {
@@ -509,7 +526,7 @@
   },
   "lf-card": {
     "description": "One board card whose identity and comments survive user moves.",
-    "x-instructions": "Lead with a `<strong>` title and follow with prose. Keep its id stable across moves. Use `$restated` to withdraw the user's moves. `shows` makes the card a view of a decision widget's answer: it stands in the column whose `value` that answer names, and moving it changes the answer (`authoring-on-me.md`, \"One decision in its section and on a board\").",
+    "x-instructions": "Lead with a `<strong>` title and follow with prose. Keep its id stable across moves. Use `$restated` to withdraw the user's moves. `shows` makes the card a view of a decision widget's answer: it stands in the column whose `value` that answer names, and moving it changes the answer (`authoring-on-me.md`, \"One answer in its section and on a board\").",
     "type": "object",
     "properties": {
       "id": {

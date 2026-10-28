@@ -12,6 +12,7 @@ import socket
 import subprocess
 import sys
 import threading
+from datetime import datetime, timedelta
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -33,6 +34,7 @@ from interact_support import (
     available_loopback_port,
     codex_records,
     declare_idle,
+    declare_work,
     declared,
     delivered,
     delivered_ref,
@@ -1757,10 +1759,15 @@ def test_codex_tool_hook_reads_a_quiet_page_without_the_page_model(
     """Codex runs its tool hook after every tool call, so where the task's page holds
     no new input the hook reads the claim, the log and the delivery records without
     importing the page model and its validators, which cost about 70 ms of CPU a
-    call (measured on macOS). Input to deliver may import them."""
+    call (measured on macOS). Input to deliver may import them, as may the status
+    check each renewal interval (`hook_transport.status_check_due`), which this
+    session made a moment ago."""
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "user-turn")
     cleanup_model.open_session_turn("codex-thread", "user-turn")
+    cleanup_model.session_file(
+        "codex-thread", cleanup_model.STATUS_CHECKED_SUFFIX
+    ).touch()
     program = """
 import json, sys
 from leaf.hooks import cmd_hook
@@ -1792,6 +1799,38 @@ print(json.dumps(sorted(name for name in heavy if name in sys.modules)))
     )
     [offer], _ = hook()
     assert json.loads(offer)["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
+
+
+def test_codex_tool_hook_reminds_the_task_of_a_status_line_left_standing(
+    page_dir, codex_loop, capsys
+):
+    """Codex's tool hook carries the same reminder Claude Code's tool batches do
+    (`hook_transport.status_reminders`) when the task's working line has stood a
+    renewal interval."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    cleanup_model.open_session_turn("codex-thread", "user-turn")
+    stood = datetime.now().astimezone() - timedelta(minutes=3)
+    declare_work(
+        page_dir,
+        "reading the traces",
+        ts=stood.isoformat(timespec="seconds"),
+        session="codex-thread",
+        turn="user-turn",
+    )
+    hooks_model.cmd_hook(
+        "codex",
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "codex-thread",
+            "turn_id": "user-turn",
+        },
+    )
+    output = json.loads(capsys.readouterr().out)
+    assert (
+        '"reading the traces" for 3 min'
+        in (output["hookSpecificOutput"]["additionalContext"])
+    )
 
 
 def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
@@ -2359,7 +2398,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
     )
     [(path, _)] = codex_records("codex-thread")
     lease = adapter_lease("codex-thread", None)
-    waiter = leases_model.take_lease(
+    waiter = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, "codex-thread")
     )
     assert waiter

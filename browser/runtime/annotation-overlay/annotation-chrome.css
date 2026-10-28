@@ -340,8 +340,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      card's own border, a frame in a frame with the reply field a third box inside
      that. The reply field keeps its box, since that is the thing typed into. The ring is
      still the thread's focus; the card's face only carries it, and its surface while the
-     card moves. */
-  .lf-margin-preview-card:has(.lf-page-thread[data-lf-focus-visible]) {
+     card moves. A message holding focus, as Next on me leaves the reply it lands on,
+     rings the card too (below), since the keys it answers act on its thread. */
+  .lf-margin-preview-card:has(
+    .lf-page-thread[data-lf-focus-visible],
+    .lf-page-thread .lf-msg[data-lf-focus-visible]
+  ) {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
@@ -750,11 +754,53 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     z-index: 1;
     background-color: var(--lf-msg-ground);
   }
+  /* A message holding visible focus wears no ring of its own: the card wears it
+     (above). The message's own outline also painted under its sticky head, which cut
+     its top away. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg[data-lf-focus-visible] {
+    outline: none;
+  }
   .lf-margin-thread
     .lf-thread-transcript
     .lf-msg:not(:has(.lf-msg-control))
     > .lf-msg-head {
     padding-inline-end: 0;
+  }
+  /* A later message's controls, its Edit and Copy and an open rewrite's Discard and
+     Save, stand at the card's edge on its head line, in the track the actions keep
+     beside the first message's head, rather than where the head ends, a track short
+     of the edge, which stood them mid-card. So the head keeps no room for them. They
+     follow the message rather than its sticking head, and stand over its head row's
+     cell in that track (below). While the head line shares the actions' line, Edit
+     and Copy stand aside (`data-lf-beside-actions`, thread-preview.js): no ground
+     under the actions hides what passes beneath them, since the cells give the
+     message's own. */
+  .lf-margin-thread
+    .lf-thread-transcript
+    .lf-msg:not(:nth-child(1 of .lf-msg, .lf-thread-checkpoint)) {
+    /* Keep the controls in this box both during its translation and at rest.
+       Anchoring to the message itself loses that anchor when a translation makes
+       the message the controls' containing block. */
+    position: relative;
+    & > .lf-msg-head {
+      padding-inline-end: 0;
+    }
+    & > :is(.lf-msg-copy, .lf-msg-edit),
+    & .lf-msg-edit-actions {
+      z-index: 1;
+      position-anchor: auto;
+      inset-block-start: calc(var(--lf-msg-head-height) / 2);
+      inset-inline-end: 0;
+    }
+    &[data-lf-beside-actions] > :is(.lf-msg-copy, .lf-msg-edit) {
+      visibility: hidden;
+    }
+    /* Under a finger Copy is left out (controls.css), so Edit takes the edge. */
+    @media (hover: hover) and (pointer: fine) {
+      &:has(> .lf-msg-copy) > .lf-msg-edit {
+        inset-inline-end: calc(var(--lf-msg-control-width) + var(--lf-msg-edit-gap));
+      }
+    }
   }
   /* A short name keeps its whole width even where the shared cap
      (components/surfaces.css) would cut it in a narrowed head; it shortens only once

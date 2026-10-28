@@ -109,6 +109,32 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
     assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
 
 
+@pytest.mark.parametrize(
+    "ref, code",
+    [
+        ("/media/shot.png", "unserved-media"),
+        ("/media/0000000000000001.png", "missing-media"),
+    ],
+)
+def test_the_reply_door_reads_a_message_stylesheet_as_the_capture_does(
+    page_dir, ref, code
+):
+    """A picture a message names in a style attribute is one the page delivers as
+    surely as one in an attribute, so the reply door reads its CSS through the
+    reader the page's capture uses, and refuses a picture the page won't answer."""
+    publish(page_dir)
+    opened = comment(
+        page_dir,
+        "--text",
+        "Look:",
+        "--markup",
+        f'<p style="background-image: url({ref})">Shown</p>',
+    )
+    assert opened.exit_code == 1, opened.output
+    assert code in opened.output, opened.output
+    assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "comment"]
+
+
 def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir):
     """A message names its picture in Markdown, where the markup reading cannot see it.
 

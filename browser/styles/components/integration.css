@@ -6,7 +6,11 @@
   max-width: 100%;
   max-height: min(60vh, 480px);
 }
-:is(.lf-btn, .button):is([aria-pressed="true"], [aria-checked="true"]) {
+/* A toggle's selected face, a word's or a symbol's. */
+:is(.lf-btn, .button, .lf-icon-action):is(
+  [aria-pressed="true"],
+  [aria-checked="true"]
+) {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--chip);
@@ -122,7 +126,8 @@ html[data-lf-draw-mode] main {
 }
 /* A heading's link stands in the gutter before its first line, centered on that line
    (heading-links.js writes where the line stands in the heading's box), and at the
-   heading's far end where the gutter has no room for it. It shows as Copy does. */
+   heading's far end where the gutter has no room for it. It shows as Copy does, and is
+   a symbol (controls.css, `.lf-icon-action`) a line tall. */
 :root {
   --lf-heading-link-size: var(--lf-line);
 }
@@ -153,38 +158,16 @@ html[data-lf-draw-mode] main {
       (1 - clamp(0, sign(var(--lf-heading-link-room)) + 1, 1)) *
       (anchor(right, 9999px) - anchor(left, 9999px))
   );
+  --lf-icon-action-face: var(--lf-heading-link-size);
   width: var(--lf-heading-link-size);
   height: var(--lf-heading-link-size);
   z-index: 1;
-  font-size: 0;
-  line-height: 0;
   opacity: 0;
   pointer-events: none;
 }
 .lf-heading-link:is(.lf-heading-link-shown, :hover, [data-lf-focus-within]) {
   opacity: 1;
   pointer-events: auto;
-}
-.lf-heading-link::part(button) {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: var(--lf-heading-link-size);
-  height: var(--lf-heading-link-size);
-  padding: 0;
-  border: 0;
-  border-radius: var(--r);
-  background: none;
-  color: var(--muted);
-  font-size: var(--t-5);
-}
-.lf-heading-link::part(button):hover {
-  color: var(--ink);
-}
-.lf-heading-link::part(button)::after {
-  content: "";
-  position: absolute;
-  inset: min(0px, (100% - var(--aim-floor)) / 2);
 }
 /* A recording's bar lies over its foot, inset as Copy is from a code block's corner, in
    a control's face: paper, a hairline and the theme's radius (video-controls.js). It
@@ -232,32 +215,23 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
-.lf-video-play,
-.lf-video-full-screen {
+/* Play and Full screen are symbols (controls.css, `.lf-icon-action`) as tall as the
+   bar inside its border, standing flush with its ends. */
+.lf-video-controls {
+  --lf-icon-action-face: calc(var(--lf-video-bar-h) - 2px);
+}
+:is(.lf-video-play, .lf-video-full-screen) {
   flex: none;
-  display: grid;
-  place-items: center;
-  position: relative;
-  inline-size: max(var(--lf-video-bar-h) - 2px, var(--aim-floor));
-  block-size: 100%;
-  padding: 0;
-  border: 0;
-  border-radius: var(--r);
-  background: none;
-  color: var(--ink);
-  &:hover {
-    background: var(--chip);
-  }
+  /* Flush with the bar's edge, the ring stays inside the press. */
   &[data-lf-focus-visible] {
-    outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
-  & > .lf-video-icon {
-    grid-area: 1 / 1;
-  }
 }
-.lf-video-controls:not([data-playing]) .lf-video-icon[data-lf-icon="pause"],
-.lf-video-controls[data-playing] .lf-video-icon[data-lf-icon="play"] {
+.lf-video-play > .lf-action-icon {
+  grid-area: 1 / 1;
+}
+.lf-video-controls:not([data-playing]) .lf-video-play > [data-lf-icon="pause"],
+.lf-video-controls[data-playing] .lf-video-play > [data-lf-icon="play"] {
   visibility: hidden;
 }
 .lf-video-time {

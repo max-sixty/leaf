@@ -11,7 +11,6 @@ import "/widgets/lf-shot.js";
 import {
   LeafElement,
   html,
-  iconTemplate,
   nothing,
   repeat,
   ref,
@@ -19,11 +18,9 @@ import {
   generated,
   offered,
   offeredAction,
-  commands,
   cycledRow,
   beginWalk,
   listWalkPosition,
-  paintKeys,
   holdFocus,
   focused,
   scrollIntoView,
@@ -42,18 +39,17 @@ import {
   registerReadingRegion,
   compoundReadingRegionId,
   preserveReadingRegions,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 // A popover's way out wears the face of every surface's close control in Leaf: the
 // cross, named for what it closes (runtime/widget-elements.js, `closeControl`).
 const closeButton = (popover, name) =>
   html`<button
-    ${offeredAction("symbol", "", name, { title: `${name} (Esc)` })}
+    ${offeredAction("symbol", "", name, { title: `${name} (Esc)`, action: "close" })}
     popovertarget=${popover}
     popovertargetaction="hide"
-  >
-    ${iconTemplate("cross", "lf-action-icon")}
-  </button>`;
+  ></button>`;
 const fact = (name, value) =>
   html`<div>
     <dt ${generated({ says: true })}>${name}</dt>
@@ -108,63 +104,68 @@ customElements.define(
     setup() {
       const selectedControl = (selector) => () =>
         this.#entries.get(this.#selected)?.article.querySelector(selector);
-      commands(this, "In a visual review", [
-        {
-          id: "visual.next-case",
-          title: "Next case",
-          travels: true,
-          keys: ["n"],
-          when: () => this.#entries.size > 1,
-          run: () => this.#step(1),
-        },
-        {
-          id: "visual.previous-case",
-          title: "Previous case",
-          travels: true,
-          keys: ["Shift+n"],
-          when: () => this.#entries.size > 1,
-          run: () => this.#step(-1),
-        },
-        {
-          id: "visual.approve",
-          title: "Toggle Looks right",
-          keys: ["a"],
-          decision: true,
-          control: selectedControl(".lf-vr-approval-input"),
-          when: () =>
-            Boolean(this.#selected) && this.controller.read().actions.review.available,
-          run: () =>
-            this.#review(
-              this.#entries.get(this.#selected).record,
-              !this.#approved(this.#selected),
-            ),
-        },
-        {
-          id: "visual.feedback",
-          title: "Add feedback",
-          keys: ["c"],
-          control: selectedControl(".lf-vr-feedback"),
-          when: () => Boolean(this.#selected),
-          run: () =>
-            threadSurface(this).open(this.#entries.get(this.#selected).article),
-        },
-        {
-          id: "visual.inspection",
-          title: "Capture details",
-          keys: ["i"],
-          control: selectedControl(".lf-vr-inspect"),
-          when: () => Boolean(this.#selected),
-          run: () => this.#inspection(),
-        },
-        {
-          id: "visual.next-remaining",
-          title: "Next unchecked case",
-          keys: [],
-          control: selectedControl(".lf-vr-next"),
-          when: () => Boolean(this.#nextUnchecked()),
-          run: () => this.#select(this.#nextUnchecked().id, true),
-        },
-      ]);
+      this.lfCommands = {
+        title: "In a visual review",
+        rows: [
+          {
+            id: "visual.next-case",
+            title: "Next case",
+            travels: true,
+            keys: ["n"],
+            when: () => this.#entries.size > 1,
+            run: () => this.#step(1),
+          },
+          {
+            id: "visual.previous-case",
+            title: "Previous case",
+            travels: true,
+            keys: ["Shift+n"],
+            when: () => this.#entries.size > 1,
+            run: () => this.#step(-1),
+          },
+          {
+            id: "visual.approve",
+            title: "Toggle Looks right",
+            keys: ["a"],
+            decision: true,
+            control: selectedControl(".lf-vr-approval-input"),
+            when: () =>
+              Boolean(this.#selected) &&
+              this.controller.read().actions.review.available,
+            run: () =>
+              this.#review(
+                this.#entries.get(this.#selected).record,
+                !this.#approved(this.#selected),
+              ),
+          },
+          {
+            id: "visual.feedback",
+            title: "Add feedback",
+            keys: ["c"],
+            control: selectedControl(".lf-vr-feedback"),
+            when: () => Boolean(this.#selected),
+            run: () =>
+              threadSurface(this).open(this.#entries.get(this.#selected).article),
+          },
+          {
+            id: "visual.inspection",
+            title: "Capture details",
+            keys: ["i"],
+            control: selectedControl(".lf-vr-inspect"),
+            when: () => Boolean(this.#selected),
+            run: () => this.#inspection(),
+          },
+          {
+            id: "visual.next-remaining",
+            title: "Next unchecked case",
+            keys: [],
+            control: selectedControl(".lf-vr-next"),
+            when: () => Boolean(this.#nextUnchecked()),
+            run: () => this.#select(this.#nextUnchecked().id, true),
+          },
+        ],
+      };
+      commandsChanged(this);
     }
 
     #reconcile(run) {
@@ -377,7 +378,7 @@ customElements.define(
         return true;
       });
       this.#restoreFocus = null;
-      paintKeys();
+      commandsChanged(this);
     }
 
     #review(record, approved) {

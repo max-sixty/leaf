@@ -199,31 +199,13 @@ def fragment_style_errors(parser: SourceDocument) -> list[Finding]:
     return errors + authored_allocation_errors(parser)
 
 
-def media_errors(parser: SourceDocument, page_dir: Path) -> list[Finding]:
-    """A /media/ reference the page directory can't answer, which renders as a broken
-    image. The render gate would catch it as a 404, but that runs once a page; this
-    runs at every door markup comes through, and a missing file is as deterministic as
-    a missing id.
-
-    Both doors, because a widget carrying pictures is exactly the shape an agent sends
-    in a reply — here is what it looks like now, and after — and the fragment door was
-    the one that didn't ask. A version can be rewritten; a reply is frozen in an
-    append-only log the moment it is accepted, so an unanswerable reference posted
-    there is two broken images for as long as the page exists, and no later check
-    would ever mention them.
-
-    Asked at each door rather than in the vocabulary contract, for the reason
-    `check_markup` gives where that choice is made."""
-    return _unanswered_media(parser.authoring.media_refs, page_dir)
-
-
 def text_media_errors(text: str, page_dir: Path) -> list[Finding]:
     """The same reference in a message's Markdown, which is the other way one arrives.
 
-    Markup names a picture in an attribute, where the parsed reading above finds it;
-    a message names one as a Markdown destination, which that reading cannot see — so
-    an agent sending a screenshot, the very shape `media_errors` was written for, came
-    through the one door that never asked. `check_markup` runs only when `--markup` is
+    Markup names a picture in an attribute or a stylesheet, where the parsed reading
+    finds it (`revision_artifact.uncaptured_errors`); a message names one as a
+    Markdown destination, which that reading cannot see — so an agent sending a
+    screenshot came through the one door that never asked. `check_markup` runs only when `--markup` is
     given, and text on its own reached the log unread.
 
     A reference is a rendered link or image destination, never a scan of the words.
@@ -237,10 +219,10 @@ def text_media_errors(text: str, page_dir: Path) -> list[Finding]:
         if (url := child.attrGet("href" if child.type == "link_open" else "src"))
         and url.startswith(f"/{MEDIA_DIR}/")
     }
-    return _unanswered_media(refs, page_dir)
+    return unanswered_media(refs, page_dir)
 
 
-def _unanswered_media(refs, page_dir: Path) -> list[Finding]:
+def unanswered_media(refs, page_dir: Path) -> list[Finding]:
     """Every `/media/…` reference the page will not answer: one whose name the server
     never serves (`schema.MEDIA_DIGEST`), whatever the directory holds under it, and
     one the directory has not got."""

@@ -20,10 +20,11 @@ check that way and put anything needing a browser in the browser half. The rules
 in `validation/source.py` and `validation/markup.py`; these are the decisions behind
 them:
 
-- Page code runs after the runtime has read the page: inline modules, deferred classic
-  script files, or their literal local import graphs under `/page/`, never
-  parser-blocking or `async` scripts. Anything on another server is named by its
-  http(s) URL and loaded as written.
+- Page code may be any script, classic or module, inline or a file, with its literal
+  local import graph under `/page/`. Delivery defers a classic script and drops
+  `async` (`revision_delivery._deferred`), so every script runs after the runtime has
+  read the page and while it listens for errors. Anything on another server is named
+  by its http(s) URL and loaded as written.
 - The runtime, theme, page identity and declarations about the whole document (a
   `<base>`, an http-equiv `<meta>`, an import map) belong to delivery, which inserts
   them at the start of `<head>`, so source may not author them. Message markup may not
@@ -35,9 +36,22 @@ them:
   vocabulary may all change. The check reports the threads that move (events.md,
   "Anchors"), and activation records them in the same page transaction as the
   revision.
+- The check captures the revision (`revision_artifact.capture_artifact`) whenever
+  the page's vocabulary reads, whatever the markup holds, so one run reports both.
+  Each problem has one owner. The document's markup is the markup rules'. The
+  capture owns what delivery can't deliver: each reference, a `/media/` file the
+  page won't answer, whether markup or a stylesheet names it, and CSS that
+  delivery's own reader (`revision_artifact._read_css`) can't read, in a file or
+  any sheet delivery rewrites in the document, which the capture finds by
+  delivery's own walk (`structure.delivered_elements`), templates and shadow roots
+  included. What that reader reads whole but a browser drops, such as `broken;`
+  in a rule, the source check reports as `css-dropped` advice, a severity
+  `styles.DROPPED_SEVERITY` sets alone. A message, which no capture
+  reads, asks what the capture would refuse at its own gate
+  (`revision_artifact.uncaptured_errors`).
 
 The effective registry is validated only where it differs from the active revision's
-captured copy. Vendored sheets are validated when `page init` composes them.
+captured copy. A layer's sheets are validated whenever a Leaf composes it.
 
 A reference to a thread, such as a widget's `resolves`, is checked against the thread
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening
@@ -114,8 +128,7 @@ They are the command's, so the suite takes none.
 
 The gate serves its probe modules and the runtime they import from the Leaf running
 the command (`runtime_selection.py`), so the probes always meet the runtime they were
-written for. The vendored layer is the page's to keep, so the gate does not re-vendor
-it.
+written for.
 
 ## Passages
 

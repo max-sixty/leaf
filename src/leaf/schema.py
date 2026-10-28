@@ -453,8 +453,9 @@ EXTENSION_SCHEMA = {
         # reserves only what an occurrence's data-height states.
         "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
         "x-history": {"const": True},
-        # A captured classic bundle registering one synchronous DOM producer. Delivery
-        # runs it after each occurrence closes; the module adopts its existing nodes.
+        # A captured classic script registering a synchronous Lit view factory. Delivery
+        # supplies lfInitial.lit before it runs, then draws each complete host;
+        # the module continues that view in its existing rendering root.
         "x-initial": {
             "type": "string",
             "pattern": r"^/(?:[a-z0-9-]+/)*[a-z0-9.-]+\.js$",
@@ -512,96 +513,94 @@ _CLAUSES = {
         "additionalProperties": False,
     },
 }
-# The shape of the shared layer facts a complete vocabulary carries, each read
-# directly by its consumers: a string `$tones.names` would answer the tone check's
-# membership test by substring, and a token without a `glyph` paints nothing. What
-# names another fact, or needs more than a shape (a clause's `when` and a contract's
-# `schema` are JSON Schemas, `resources` are JMESPath), `registry.layer` checks.
-LAYER_FACTS_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "$events": {
-            "type": "object",
-            "properties": {
-                "kinds": {"type": "object"},
-                "handling": {"type": "object", "additionalProperties": _CLAUSES},
-                "answering": {"type": "object", "additionalProperties": _CLAUSES},
-            },
-            "required": ["kinds", "handling", "answering"],
+# The shape of each shared layer fact a complete vocabulary carries, every one
+# required and each held to its schema on its own (`registry.layer.check_layer_facts`).
+# Its consumers read each directly: a string `$tones.names` would answer the tone
+# check's membership test by substring, and a token without a `glyph` paints nothing.
+# What names another fact, or needs more than a shape (a clause's `when` and a
+# contract's `schema` are JSON Schemas, `resources` are JMESPath), `registry.layer`
+# checks.
+LAYER_FACTS = {
+    "$events": {
+        "type": "object",
+        "properties": {
+            "kinds": {"type": "object"},
+            "handling": {"type": "object", "additionalProperties": _CLAUSES},
+            "answering": {"type": "object", "additionalProperties": _CLAUSES},
         },
-        "$languages": {
-            "type": "object",
-            "properties": {
-                "names": _UNIQUE_NAMES,
-                "paths": {"type": "object", "additionalProperties": {"type": "string"}},
-            },
-            "required": ["names", "paths"],
+        "required": ["kinds", "handling", "answering"],
+    },
+    "$languages": {
+        "type": "object",
+        "properties": {
+            "names": _UNIQUE_NAMES,
+            "paths": {"type": "object", "additionalProperties": {"type": "string"}},
         },
-        "$tones": {
-            "type": "object",
-            "properties": {"names": _UNIQUE_NAMES},
-            "required": ["names"],
-        },
-        "$data": {
-            "type": "object",
-            "properties": {
-                "description": _NONEMPTY,
-                "contracts": {
+        "required": ["names", "paths"],
+    },
+    "$tones": {
+        "type": "object",
+        "properties": {"names": _UNIQUE_NAMES},
+        "required": ["names"],
+    },
+    "$data": {
+        "type": "object",
+        "properties": {
+            "description": _NONEMPTY,
+            "contracts": {
+                "type": "object",
+                "propertyNames": {"pattern": f"^(?:{DATA_CONTRACT_NAME})$"},
+                "additionalProperties": {
                     "type": "object",
-                    "propertyNames": {"pattern": f"^(?:{DATA_CONTRACT_NAME})$"},
-                    "additionalProperties": {
-                        "type": "object",
-                        "properties": {
-                            "description": _NONEMPTY,
-                            "schema": {"type": "object"},
-                            "instructions": INSTRUCTIONS_SCHEMA,
-                            # Null reads as absent (`data.deferred_records`).
-                            "records": {
-                                "type": ["object", "null"],
-                                "properties": {
-                                    "items": _NONEMPTY,
-                                    "key": _NONEMPTY,
-                                    "deferred": _NONEMPTY,
-                                },
-                                "required": ["items", "key"],
-                                "additionalProperties": False,
+                    "properties": {
+                        "description": _NONEMPTY,
+                        "schema": {"type": "object"},
+                        "instructions": INSTRUCTIONS_SCHEMA,
+                        # Null reads as absent (`data.deferred_records`).
+                        "records": {
+                            "type": ["object", "null"],
+                            "properties": {
+                                "items": _NONEMPTY,
+                                "key": _NONEMPTY,
+                                "deferred": _NONEMPTY,
                             },
-                            "resources": {"type": "array", "items": _NONEMPTY},
+                            "required": ["items", "key"],
+                            "additionalProperties": False,
                         },
-                        "required": ["description", "schema"],
-                        "additionalProperties": False,
+                        "resources": {"type": "array", "items": _NONEMPTY},
                     },
+                    "required": ["description", "schema"],
+                    "additionalProperties": False,
                 },
             },
-            "required": ["description", "contracts"],
-            "additionalProperties": False,
         },
-        "$reactions": {
-            "type": "object",
-            "properties": {
-                "tokens": {
-                    "type": "object",
-                    "propertyNames": {"pattern": f"^(?:{HTML_NAME})$"},
-                    "additionalProperties": {
-                        "type": "object",
-                        # A glyph is a mark: at most four code points.
-                        "properties": {
-                            "glyph": {
-                                "type": "string",
-                                "pattern": r"\S",
-                                "maxLength": 4,
-                            },
-                            "settles": {"type": "boolean"},
-                        },
-                        "required": ["glyph"],
-                        "additionalProperties": False,
-                    },
-                }
-            },
-            "required": ["tokens"],
-        },
+        "required": ["description", "contracts"],
+        "additionalProperties": False,
     },
-    "required": ["$events", "$languages", "$tones", "$data", "$reactions"],
+    "$reactions": {
+        "type": "object",
+        "properties": {
+            "tokens": {
+                "type": "object",
+                "propertyNames": {"pattern": f"^(?:{HTML_NAME})$"},
+                "additionalProperties": {
+                    "type": "object",
+                    # A glyph is a mark: at most four code points.
+                    "properties": {
+                        "glyph": {
+                            "type": "string",
+                            "pattern": r"\S",
+                            "maxLength": 4,
+                        },
+                        "settles": {"type": "boolean"},
+                    },
+                    "required": ["glyph"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["tokens"],
+    },
 }
 # The keys whose value names attributes of the widget's own schema, in whichever shape
 # each carries the names: a list, a mapping keyed by them, or one name. One rule for all
@@ -625,8 +624,10 @@ ATTRIBUTE_KEYS = (
 KERNEL = PLUGIN_ROOT / "dist" / "kernel"
 BUNDLED_PACKAGES = PLUGIN_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
-# The files `page init` writes at the top of a page directory.
-VENDORED_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
+# A page's layer record (`registry.storage.LAYER`): the packages it selects.
+LAYER_FILE = "layer.json"
+# The top-level files a composed layer serves beside the page (`layer.compose_layer`).
+LAYER_TOP_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
 # A package's source contributions are composed into the page files above. Their
 # roles depend on their filenames, not on whether the package declares widgets.
 PACKAGE_STYLES = (
@@ -637,18 +638,18 @@ PACKAGE_STYLES = (
 PACKAGE_FILES = (*PACKAGE_STYLES, "registry.json", "icon.svg")
 # The layer's browser directories, which packages add to.
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
-# What the Leaf serving a page supplies rather than its vendored layer: the runtime's
+# What the Leaf serving a page supplies beside the layer it composes: the runtime's
 # entry and ASSETS's files under these directories (`runtime_selection`).
 RUNTIME_ENTRY = "leaf.js"
 RUNTIME_DIRS = ("runtime", "vendor")
 INSTRUCTIONS_DIR = "instructions"
 PACKAGE_DIRS = (*BROWSER_DIRS, INSTRUCTIONS_DIR)
 # A package's own command-line tools, run by `leaf package run` from wherever the
-# package is installed or bundled. A page never vendors them: they are the agent's.
+# package is installed or bundled. A page never copies them: they are the agent's.
 SCRIPTS_DIR = "scripts"
 INSTRUCTIONS_FILE = re.compile(rf"{HTML_NAME}\.md")
-# Media the page shows, named by the hash of their bytes (`page media`). Not vendored
-# — they are the page's content, not the layer's — but served like it, and the
+# Media the page shows, named by the hash of their bytes (`page media`). They are the
+# page's content, not the layer's, but served like it, and the
 # naming is what keeps the directory's promise: same name, same bytes, so a
 # version the user approved cannot show them something else later.
 MEDIA_DIR = "media"
@@ -674,6 +675,9 @@ MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
 FILE_BINDINGS_FILE = "files.json"
 DATA_DIR = "data"
+# The page's copies of the packages it selects by path (`vendoring`), which every
+# Leaf reading the page composes in place of a directory only `page init` could see.
+PACKAGES_DIR = "packages"
 # The diagnostic request and interaction trace (`interaction_log.py`).
 INTERACTIONS_FILE = "observations.jsonl"
 PREVIEW_FILE = "preview.json"
@@ -702,20 +706,21 @@ SESSION_FILES = (
 )
 # Process declarations, leases, browser observations and diagnostics are disposable.
 PAGE_PROCESS_FILES = (*SESSION_FILES, INTERACTIONS_FILE)
-# The files Leaf writes in a page directory as it runs. With the author's index.html,
-# the vendored files, and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
+# The files Leaf writes in a page directory as it runs. With the author's index.html
+# and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
 PAGE_STATE_FILES = (
+    LAYER_FILE,
     EVENTS_FILE,
     INTERACTIONS_FILE,
     FILE_BINDINGS_FILE,
     *SESSION_FILES,
 )
-PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
-PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, DATA_DIR, "page")
+PAGE_OWNED_FILES = ("index.html", *PAGE_STATE_FILES)
+PAGE_OWNED_DIRS = ("revisions", MEDIA_DIR, DATA_DIR, "page", PACKAGES_DIR)
 # A revision's and a version's file name, without `.html`.
 REVISION_NAME = r"r(?P<revision>[1-9][0-9]*)-[a-f0-9]{16}"
 VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
-# The directories of a page's URL namespace beneath its root, beside its vendored
+# The directories of a page's URL namespace beneath its root, beside its layer's top
 # files: its API, its browser layer, and what its session writes after a publish (the
 # media it adds, the revisions it activates, the versions it stamps). The website
 # adapter routes exactly these and those files to a page, and so does the Worker in
@@ -743,8 +748,8 @@ MODULE_EXTENSION = (
 # Share safe path segments with vendor files, excluding traversal segments.
 BROWSER_FILE = r"(?:(?!\.{1,2}/)[^/\\\x00-\x1f]+/)*(?!\.{1,2}$)[^/\\\x00-\x1f]+"
 # What the server exposes from a page: the browser layer, media, immutable revisions,
-# and event-backed version addresses. Agent-side instructions stay vendored but are read
-# only through the CLI.
+# and event-backed version addresses. A layer's agent-side instructions are read only
+# through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.
 DIR_FILES = {
@@ -758,7 +763,7 @@ DIR_FILES = {
 SERVED_PATH = re.compile(
     "/(?:"
     + "|".join(
-        [re.escape(f) for f in VENDORED_FILES]
+        [re.escape(f) for f in LAYER_TOP_FILES]
         + [f"{d}/{DIR_FILES[d]}" for d in (*BROWSER_DIRS, MEDIA_DIR)]
         + [rf"versions/{VERSION_NAME}\.html"]
         + [rf"revisions/{REVISION_NAME}\.html"]

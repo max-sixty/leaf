@@ -1,23 +1,17 @@
-import { PAGE_PAINT_ATTRIBUTE, afterScript, bindQueuedWork, cancelRender, dataBody, frameFor, measure, nextAnimation, nextFrame, nextRender, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, sizeObserver, skipped, under, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
-import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, selectsAll, takesLetters, typesText, x } from "./bundle-dom-move.js";
-import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, html, inUi, isElementName, isReaction, keyed, lastMovedAt, layerRoot, live, loadShadowRules, marks, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, share, stateSpecs, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-layer-stack.js";
-import { LayerRefused, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live as live$1, notice, offer, offered, offeredAction, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
-import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
+import { PAGE_PAINT_ATTRIBUTE, afterScript, authoredBody, backgroundFlash, bindQueuedWork, cancelRender, dataBody, flashDuration, foldBlock, frameFor, initialOrigin, initialParent, initialSource, layoutChanged, measure, motion, motionPlays, nextAnimation, nextFrame, nextRender, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, restoreInitialSource, scrollBehavior, setScroll, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, under, unmarkedCopy, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
+import { CARET_KEYS, COLLAPSE as COLLAPSE$1, J, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, W, Z, adoptRegistry, agentName, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, deepFocus, drawn as drawn$2, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focused, foldWidgetStates, holdCurrentLocation, holdFocus, html, inUi, inputCount, isElementName, isReaction, keeps, keepsHidden, keyed, lastMovedAt, layerRoot, layoutPx, live, loadShadowRules, marks, messageKey, move, moved, nothing, obligationValue, offlineData, offlineInteractive, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, pageClaimed, pageUrl, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectsAll, share, stateSpecs, tagsDeclaring, takesLetters, threadKey, threadNames, tick, tokenEntry, turns, typesText, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, x } from "./bundle-layer-stack.js";
+import { LayerRefused, PRESS, PRESSABLE, actionTemplate, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, keys, labelOf, live as live$1, notice, offer, offerAction, offered, offeredAction, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
+import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { clippedContents, clippedPlace, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { alreadyShown, copyControl, fitsWhole, landedBox, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
-import { backgroundFlash, flashDuration, foldBlock, isCanonicalMediaUrl, motion, motionPlays, readAttachedMedia, scopedMediaUrl, scrollBehavior, writeAttachedMedia } from "./bundle-media.js";
+import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 //#region runtime/document-identity.js
 const servedRevision = document.querySelector("meta[name=\"lf-revision\"][data-lf-runtime]")?.content;
 const servedStampMarker = document.querySelector("meta[name=\"lf-version\"][data-lf-runtime]");
 const servedExecutable = document.querySelector("meta[name=\"lf-executable\"][data-lf-runtime]")?.content;
-const documentWidgetDigests = (doc) => {
-	const stated = doc.querySelector("meta[name=\"lf-widgets\"][data-lf-runtime]")?.content;
-	return stated ? JSON.parse(stated) : {};
-};
-const servedWidgets = documentWidgetDigests(document);
 function initializeServedDocument() {
 	applicationState.identify(servedRevision ? parseInt(servedRevision, 10) : null, servedStampMarker ? parseInt(servedStampMarker.content, 10) : null, LIVE_ROOT);
 	servedStampMarker?.remove();
@@ -357,7 +351,7 @@ function pageReading({ bodies }) {
 }
 const pageReadingBlock = () => pageReading({ bodies: false });
 function landingPlace(from = null) {
-	if (from && !inChrome(from)) {
+	if (from && from !== document.body && !inChrome(from)) {
 		const blocks = textBlocks(from);
 		const own = blocks.length ? blocks : [blockAt(from)].filter(Boolean);
 		const shown = blocksOnScreen(readingRegionFor(from), own).next().value?.[0];
@@ -609,7 +603,7 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 	const currentLocation = destination && under(destination, body) ? destination : null;
 	if (!currentLocation || !sameScroller(view, box)) {
 		if (view.end) scrollToEnd(box);
-		else if (view.start && sameScroller(view, box)) box.scrollTo({
+		else if (view.start && sameScroller(view, box)) setScroll(box, {
 			top: 0,
 			behavior: "instant"
 		});
@@ -623,12 +617,12 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 				const found = targetElement(resolveAnchor({ section: view.section }));
 				const section = found && drawsLandmark(found) ? found : null;
 				if (section) {
-					if (under(box, section)) box.scrollTo({
+					if (under(box, section)) setScroll(box, {
 						top: rawOffsetFits(view, box) ? view.y : 0,
 						behavior: "instant"
 					});
 					else moveScrollerBy(box, shownBox(section).top - boxTop - view.sectionTop);
-				} else if (rawOffsetFits(view, box)) box.scrollTo({
+				} else if (rawOffsetFits(view, box)) setScroll(box, {
 					top: view.y,
 					behavior: "instant"
 				});
@@ -899,13 +893,13 @@ function prepareEntry() {
 		}
 		const arrival = [scrollX, scrollY];
 		if (window.location.href !== sourceUrl || history.state !== sourceState) replaceEntry(sourceUrl, sourceState);
-		window.scrollTo({
+		setScroll(pageScroller, {
 			left: offset[0],
 			top: offset[1],
 			behavior: "instant"
 		});
 		pushEntry(url, state);
-		window.scrollTo({
+		setScroll(pageScroller, {
 			left: arrival[0],
 			top: arrival[1],
 			behavior: "instant"
@@ -949,7 +943,7 @@ function mountHistory({ followFragment, returnToFragment }) {
 					const placed = await work;
 					if (!mayReturn()) return;
 					if (!handler || placed === false) {
-						if (place) window.scrollTo({
+						if (place) setScroll(pageScroller, {
 							left: place.offset[0],
 							top: place.offset[1],
 							behavior: "instant"
@@ -979,98 +973,8 @@ function claimed$1(url) {
 }
 
 //#endregion
-//#region runtime/syntax-languages.js
-const syntaxLanguages = {
-	"bash": () => import("/vendor/syntax/bash.js"),
-	"css": () => import("/vendor/syntax/css.js"),
-	"diff": () => import("/vendor/syntax/diff.js"),
-	"go": () => import("/vendor/syntax/go.js"),
-	"html": () => import("/vendor/syntax/html.js"),
-	"java": () => import("/vendor/syntax/java.js"),
-	"javascript": () => import("/vendor/syntax/javascript.js"),
-	"json": () => import("/vendor/syntax/json.js"),
-	"markdown": () => import("/vendor/syntax/markdown.js"),
-	"python": () => import("/vendor/syntax/python.js"),
-	"rust": () => import("/vendor/syntax/rust.js"),
-	"sql": () => import("/vendor/syntax/sql.js"),
-	"toml": () => import("/vendor/syntax/toml.js"),
-	"typescript": () => import("/vendor/syntax/typescript.js"),
-	"yaml": () => import("/vendor/syntax/yaml.js")
-};
-const syntaxLanguageNames = {
-	"shellscript": "bash",
-	"bash": "bash",
-	"sh": "bash",
-	"shell": "bash",
-	"zsh": "bash",
-	"css": "css",
-	"diff": "diff",
-	"go": "go",
-	"html": "html",
-	"java": "java",
-	"javascript": "javascript",
-	"js": "javascript",
-	"cjs": "javascript",
-	"mjs": "javascript",
-	"json": "json",
-	"markdown": "markdown",
-	"md": "markdown",
-	"python": "python",
-	"py": "python",
-	"rust": "rust",
-	"rs": "rust",
-	"sql": "sql",
-	"toml": "toml",
-	"typescript": "typescript",
-	"ts": "typescript",
-	"cts": "typescript",
-	"mts": "typescript",
-	"yaml": "yaml",
-	"yml": "yaml"
-};
-
-//#endregion
 //#region runtime/syntax.js
 const registry = runtime.registry;
-let tokenizerReady;
-const tokenizer = () => tokenizerReady ??= import("/vendor/syntax.esm.js");
-const languagesReady = /* @__PURE__ */ new Map();
-function ensureSyntaxLanguage(lang) {
-	if (!lang) return tokenizer();
-	if (!languagesReady.has(lang)) {
-		const load = syntaxLanguages[lang];
-		if (!load) throw new Error(`no ${lang} grammar — rebuild syntax from registry.json`);
-		languagesReady.set(lang, Promise.all([tokenizer(), load()]).then(async ([shared, grammar]) => {
-			await shared.registerLanguage(lang, grammar.default);
-			return shared;
-		}));
-	}
-	return languagesReady.get(lang);
-}
-async function syntax(source, lang) {
-	const tokens = await (await ensureSyntaxLanguage(lang)).tokenize(source, lang);
-	if (tokens.map((t) => t.text).join("") !== source) throw new Error(`the ${lang} tokenizer did not return the source unchanged`);
-	return tokens;
-}
-const synNodes = (tokens) => tokens.map(({ text, style }) => {
-	if (!Object.keys(style).length) return document.createTextNode(text);
-	const span = document.createElement("span");
-	span.dataset.lfSyn = "";
-	for (const [property, value] of Object.entries(style)) span.style.setProperty(property, value);
-	span.textContent = text;
-	return span;
-});
-function tokenLines(tokens) {
-	const lines = [[]];
-	for (const { text, style } of tokens) text.split("\n").forEach((part, i) => {
-		if (i) lines.push([]);
-		if (part) lines.at(-1).push({
-			text: part,
-			style
-		});
-	});
-	return lines;
-}
 const langForPath = (path) => registry.$languages.paths[path.split("/").pop().split(".").slice(1).pop()?.toLowerCase()];
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
@@ -1131,6 +1035,13 @@ function quietWord(el, word) {
 	});
 	generatedElement(span, { says: false });
 	move(el, span, title ? title.nextSibling : el.firstChild);
+}
+function watchQuietWords() {
+	const { quiet } = PAGE_PAINT_ATTRIBUTE;
+	watchArrivals(`[${quiet}]`, [quiet], {
+		arrive: (el) => quietWord(el, el.getAttribute(quiet)),
+		leave: (el) => quietWord(el, "")
+	});
 }
 const isExternalPageLink = (link) => document.documentElement.lfInitial.externalLinks.matches(link);
 function watchExternalLinks() {
@@ -1375,7 +1286,30 @@ function copyBlock(block, source, noun) {
 	declareCopy(block, copy, noun);
 	return copy;
 }
+const DECLARED = "[data-lf-copy]";
+function prepareDeclaredBlocks(blocks) {
+	const prepared = blocks.filter((block) => controls.get(block)?.previousSibling !== block).map((block) => {
+		const noun = block.getAttribute("data-lf-copy");
+		return [
+			block,
+			noun,
+			prepareCodeBlock(block, () => block.lfCopy(), noun)
+		];
+	});
+	for (const [block, noun, pending] of prepared) {
+		const copy = aimControl(pending);
+		move(block.parentNode, copy, block.nextSibling);
+		declareCopy(block, copy, noun);
+	}
+}
 function watchCodeBlocks() {
+	watchArrivals(DECLARED, ["data-lf-copy"], {
+		arriveBatch: prepareDeclaredBlocks,
+		leave(block) {
+			controls.get(block)?.remove();
+			projectCommandScope(block, COPY_SCOPE, null);
+		}
+	});
 	watchArrivals("pre, table:not([role='presentation']), [data-lf-content='data']:not([data-lf-verbatim])", [], {
 		arrive: (block) => block.classList.toggle("scroll", true),
 		leave: () => {}
@@ -1415,7 +1349,7 @@ function watchCodeBlocks() {
 			}
 		}
 	};
-	watchArrivals("pre:has(> code)", ["style"], {
+	watchArrivals(`pre:has(> code):not(${DECLARED})`, ["style"], {
 		arriveBatch: prepareDocumentBlocks,
 		leave(pre) {
 			if (deferred.delete(pre)) revealed.unobserve(pre);
@@ -1648,7 +1582,8 @@ function makeLink(heading) {
 		label: "Copy link to section",
 		success: "Link copied",
 		error: "Unable to copy link",
-		icon: "link"
+		action: "copy-link",
+		role: "symbol"
 	});
 	control.tabIndex = -1;
 	const link = {
@@ -1802,11 +1737,10 @@ function paintRecordingControls(video, bar, enterFullScreen) {
 	keeps(bar, "role", "group");
 	keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
 	render$1(html`<button
-        ${offered("lf-video-play")}
+        ${offeredAction("symbol", "lf-video-play", !video.paused ? "Pause recording" : "Play recording", { action: "play" })}
         tabindex="-1"
-        aria-label=${!video.paused ? "Pause recording" : "Play recording"}
       >
-        ${iconTemplate("play", "lf-video-icon")}${iconTemplate("pause", "lf-video-icon")}
+        ${actionTemplate("pause", "lf-action-icon")}
       </button>
       <input
         ${offered("lf-video-time")}
@@ -1824,12 +1758,9 @@ function paintRecordingControls(video, bar, enterFullScreen) {
 	}}
       />
       ${enterFullScreen ? html`<button
-              ${offered("lf-video-full-screen")}
+              ${offeredAction("symbol", "lf-video-full-screen", "Full screen", { action: "expand" })}
               tabindex="-1"
-              aria-label="Full screen"
-            >
-              ${iconTemplate("expand", "lf-video-icon")}
-            </button>` : nothing}`, bar);
+            ></button>` : nothing}`, bar);
 }
 function prepare(video) {
 	const bar = offer("div", "lf-video-controls");
@@ -2692,7 +2623,7 @@ async function importWidgets(scope) {
 	await importWidgetModules(scope);
 }
 async function installDocument(scope) {
-	const presentation = attachApplicationPresentation("document:installation", scope);
+	const presentation = attachApplicationPresentation("document:installation");
 	try {
 		rememberPassageParts(scope);
 		rememberAuthoredParents(scope);
@@ -2707,6 +2638,7 @@ async function installDocument(scope) {
 		});
 		commitWidgetDescriptors(descriptors);
 		watchExternalLinks();
+		watchQuietWords();
 		watchCodeBlocks();
 		watchHeadingLinks();
 		watchVideos();
@@ -2717,7 +2649,7 @@ async function installDocument(scope) {
 	}
 }
 async function patchDocument(scope, patch) {
-	const presentation = attachApplicationPresentation("document:patch", scope);
+	const presentation = attachApplicationPresentation("document:patch");
 	try {
 		const { roots, widgets, ...result } = patch();
 		await settle(presentation, scope, roots, () => whenWidgetsPresented(widgets));
@@ -2728,7 +2660,7 @@ async function patchDocument(scope, patch) {
 }
 async function settle(presentation, scope, arrived, presented) {
 	const painted = Promise.all(arrived.map(paintDeclaredWords));
-	const presenting = presentation.present(scope);
+	const presenting = presentation.present();
 	presenting.resolve(painted);
 	await presenting.ready;
 	await presented();
@@ -2749,8 +2681,7 @@ async function upgradeWidgets({ buildReactionBar }) {
 //#endregion
 //#region runtime/storage.js
 const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
-const { stored, tabStore: initialTabStore } = document.documentElement.lfStorage;
-const tabStore = initialTabStore;
+const { stored } = document.documentElement.lfStorage;
 const views$1 = (holder) => holder.ownerDocument.documentElement.lfViews;
 const openingView = (holder, members, fallback) => views$1(holder).opening(holder, members, fallback);
 const keepView = (holder, member) => views$1(holder).keep(holder, member);
@@ -3451,10 +3382,10 @@ function followBoxGrowth(input) {
 	const grew = height - (rowHeights.get(input) ?? height);
 	rowHeights.set(input, height);
 	const by = Math.max(0, Math.min(grew, covered(reply)));
-	if (by) scrollerFor(reply).scrollBy({
-		top: by,
-		behavior: "instant"
-	});
+	if (by) {
+		const box = scrollerFor(reply);
+		setScroll(box, { top: box.scrollTop + by });
+	}
 	if (!onScreen(reply)) revealWritingArea(held, input, reply);
 }
 function readBoxPlace(input) {
@@ -3616,11 +3547,8 @@ var MessageEditor = class {
 		this.input = offer(TEXT_FIELD);
 		this.input.name = "edit";
 		const actions = offer("span", "lf-msg-edit-actions");
-		const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
+		const cancel = offerAction("symbol", "lf-msg-control lf-msg-edit-cancel", void 0, { action: "discard" });
 		cancel.type = "button";
-		cancel.setAttribute("aria-label", "Discard");
-		cancel.title = "Discard";
-		cancel.append(iconElement("cross", "lf-msg-control-icon"));
 		actions.append(cancel);
 		this.foot = document.createElement("span");
 		this.foot.className = "lf-msg-edit-foot";
@@ -3676,7 +3604,7 @@ var MessageEditor = class {
 			accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
 			sends: "save",
 			sendClass: "lf-msg-control lf-msg-edit-save",
-			icon: "save",
+			action: "save",
 			submitIn: actions,
 			sentMedia: true,
 			save: (value) => {
@@ -3925,15 +3853,11 @@ var ReactionStripView = class {
 		this.#model = model;
 		this.node.classList.toggle("lf-open", model.latest);
 		render$1(html` <button
-          ${offered("lf-msg-control lf-react-trigger")}
+          ${offeredAction("symbol", "lf-msg-control lf-react-trigger", void 0, { action: "react" })}
           aria-expanded="false"
           aria-controls=${this.#paletteId}
-          aria-label="Add reaction"
-          title="Add reaction"
           @click=${() => this.#registration.toggle()}
-        >
-          ${iconTemplate("reaction", "lf-msg-control-icon")}
-        </button>
+        ></button>
         <span
           class="lf-react-palette"
           id=${this.#paletteId}
@@ -3950,7 +3874,6 @@ var ReactionStripView = class {
                 title=${choice.label}
                 aria-label=${choice.label}
                 aria-pressed=${String(Boolean(choice.inForce))}
-                aria-busy=${String(Boolean(choice.inForce?.pending))}
                 @click=${() => this.#press(choice.name)}
               >
                 <span class="lf-react-glyph">${choice.glyph}</span>
@@ -4046,12 +3969,16 @@ function prepareAuthoredMessage(message, thread) {
 			authored,
 			descriptors,
 			nodes,
-			root: template.content
+			root: template.content,
+			preparation: null
 		});
 	}
 	const prepared = authoredMessages.get(key);
 	for (const descriptor of prepared.descriptors.descriptors.values()) if (descriptor.document.thread !== thread || descriptor.document.message !== message.id) throw new TypeError("an authored message changed its frozen document identity");
-	return prepared;
+	return prepared.preparation ??= importWidgets(prepared.root).then(() => prepared, (error) => {
+		prepared.preparation = null;
+		throw error;
+	});
 }
 const authoredMessage = (message) => {
 	const prepared = authoredMessages.get(message.attempt ?? message.id);
@@ -4134,6 +4061,7 @@ function messageReading(message, { authoredRank = 0, reactions, workflows, leave
 			glyph: token?.glyph ?? "",
 			authored: message.body.kind === "authored"
 		}),
+		markdown: kind === "reaction" ? null : [message.text, message.markup].filter(Boolean).join("\n\n"),
 		authoredRank,
 		reactions
 	});
@@ -4142,6 +4070,7 @@ var MessageView = class {
 	#commands;
 	#model = null;
 	#reaction = null;
+	#copy = null;
 	#authored = null;
 	#authoredTake = 0;
 	#dressed = false;
@@ -4231,7 +4160,9 @@ var MessageView = class {
       <div class="lf-msg-head" data-lf-reflow="text">
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          >${dated ? html`<time datetime=${model.timestamp}>${model.age}</time>` : nothing}${model.unread ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>` : nothing}
+          >${dated ? html`<time datetime=${model.timestamp}>${model.age}</time>` : nothing}${model.unread ? html`<span class="lf-msg-new lf-unread-dot"
+                  ><span class="lf-quiet">New</span></span
+                >` : nothing}
           ${receipt}
           ${model.leaves ? html`<span class="lf-msg-leaves">${model.leaves}</span>` : nothing}
           ${model.failure ? html`<span class="lf-msg-failure">${NOT_ANSWERED}</span>` : nothing}
@@ -4247,14 +4178,10 @@ var MessageView = class {
       </div>
     `;
 		const rewrite = model.editable && !editing ? html`<button
-            ${offered("lf-msg-control lf-msg-edit")}
+            ${offeredAction("symbol", "lf-msg-control lf-msg-edit", "Edit message", { action: "edit" })}
             tabindex="-1"
-            aria-label="Edit message"
-            title="Edit message"
             @click=${() => this.openEdit()}
-          >
-            ${iconTemplate("edit", "lf-msg-control-icon")}
-          </button>` : nothing;
+          ></button>` : nothing;
 		render$1(html`
         ${header}
         <div
@@ -4264,6 +4191,7 @@ var MessageView = class {
           ${model.body.drawing ? html`<span class="lf-drawing-reference">Drawing comment</span>` : nothing}
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
+        ${model.markdown && !editing ? this.#copyControl(model.markdown) : nothing}
         ${strip} ${rewrite}
       `, this.node);
 		if (this.#authored && !this.#dressed) {
@@ -4303,6 +4231,20 @@ var MessageView = class {
 	}
 	get editing() {
 		return this.#editor !== null;
+	}
+	#copyControl(markdown) {
+		if (!this.#copy) {
+			this.#copy = copyControl("lf-msg-control lf-msg-copy", {
+				role: "symbol",
+				label: "Copy as Markdown",
+				success: "Message copied as Markdown",
+				error: "Message not copied · select its words to copy"
+			});
+			this.#copy.tabIndex = -1;
+			this.#copy.title = "Copy as Markdown";
+		}
+		if (this.#copy.value !== markdown) this.#copy.value = markdown;
+		return this.#copy;
 	}
 	#body(body) {
 		if (body.kind === "reaction") return html`<div class="lf-msg-text">
@@ -5082,7 +5024,7 @@ function setRenderedChildren(parent, nodes) {
 	patchChildren(parent, parent, after, {
 		pairs: new Map([...sourceNodes(parent)].map((node) => [node, node])),
 		arrive: (node) => node,
-		sameValue: (name, held, wanted) => held === wanted,
+		sameValue: (held, wanted) => held === wanted,
 		touched: () => {},
 		declared: () => false,
 		body: () => null,
@@ -5146,9 +5088,9 @@ function sourceOwns(source, target, rules) {
 function retainedWithin(before, after, target, rules) {
 	const live = rules.pairs.get(before);
 	if (!live || !sourceOwns(before, target, rules)) return false;
-	if (kept(before, after, rules)) return true;
+	if (rules.same(before, after)) return true;
 	if (live === target) return false;
-	if (before.attributes.length !== after.attributes.length || [...before.attributes].some(({ name, value }) => !after.hasAttribute(name) || !rules.sameValue(name, value, after.getAttribute(name)))) return false;
+	if (before.attributes.length !== after.attributes.length || [...before.attributes].some(({ name, value }) => !after.hasAttribute(name) || !rules.sameValue(value, after.getAttribute(name)))) return false;
 	const children = [...tree(before).childNodes];
 	const matches = new Map([...matchNodes(children, [...tree(after).childNodes])].map(([wanted, held]) => [held, wanted]));
 	for (const held of children) {
@@ -5156,7 +5098,7 @@ function retainedWithin(before, after, target, rules) {
 		if (node?.nodeType !== Node.ELEMENT_NODE || !sourceOwns(held, target, rules)) continue;
 		const wanted = matches.get(held);
 		if (!wanted) return false;
-		if (!(atomic(held, wanted, node, rules) ? kept(held, wanted, rules) : retainedWithin(held, wanted, target, rules))) return false;
+		if (!(atomic(held, wanted, node, rules) ? rules.same(held, wanted) : retainedWithin(held, wanted, target, rules))) return false;
 	}
 	return true;
 }
@@ -5172,7 +5114,7 @@ function patchAttributes(live, before, after, rules) {
 	}
 	for (const { name, value } of after.attributes) {
 		const held = before.getAttribute(name);
-		if (held !== null && rules.sameValue(name, held, value)) continue;
+		if (held !== null && rules.sameValue(held, value)) continue;
 		if (name === "class") {
 			live.classList.remove(...tokens$1(held ?? ""));
 			live.classList.add(...tokens$1(value));
@@ -5225,7 +5167,7 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
 		}
 		if (node.nodeType !== Node.ELEMENT_NODE) writeText(live, node.data);
 		else if (!atomic(before, node, live, rules)) patchTree(before, node, rules);
-		else if (!kept(before, node, rules)) {
+		else if (!rules.same(before, node)) {
 			evict(before, live, rules);
 			placed.push(rules.arrive(node, liveParent));
 			continue;
@@ -5245,7 +5187,6 @@ function pairInterior(before, after, rules) {
 	});
 }
 const atomic = (before, after, live, rules) => before.matches("style, link[rel~=\"stylesheet\" i]") || rules.declared(before) && !rules.reaches(before, after) || [...tree(before).childNodes].some((node) => rules.pairs.get(node)?.parentNode !== holder(live, rules));
-const kept = (before, after, rules) => rules.declared(before) ? rules.unchanged(before, after) : rules.same(before, after);
 function matchNodes(held, wanted) {
 	const matches = /* @__PURE__ */ new Map();
 	const matched = /* @__PURE__ */ new Set();
@@ -5308,9 +5249,7 @@ const interchangeable = (held, wanted) => held.nodeType === wanted.nodeType && (
 
 //#endregion
 //#region runtime/thread/folding.js
-const pendingSettlement = (entries, id) => pendingForParent(entries, id, ["resolve", "unresolve"]);
 async function settleThread({ parent, key, resolved, prepareLanding, pendingEntries, actions, landedAway, returnToThread }) {
-	if (pendingSettlement(pendingEntries(), parent())) return;
 	const land = prepareLanding?.();
 	const since = inputCount();
 	const attempt = randomId();
@@ -5321,7 +5260,7 @@ async function settleThread({ parent, key, resolved, prepareLanding, pendingEntr
 	await landGesture({
 		land,
 		answer,
-		pending: () => Boolean(pendingSettlement(pendingEntries(), parent())),
+		pending: () => pendingEntries().some((entry) => entry.event.attempt === attempt),
 		refused: async () => {
 			const mayReturn = retainUserIntent({ since });
 			await whenDocumentPresented();
@@ -6583,13 +6522,15 @@ function threadTodos(todos, done) {
 	return html`<ul class="lf-thread-todos">
     ${todos.map((todo) => html`<li class="lf-thread-todo">
           <span class="lf-thread-todo-title">To-do · ${todo.title}</span
-          ><button ${offeredAction("word")} @click=${() => done(todo.id)}>Done</button>
+          ><button
+            ${offeredAction("symbol", "", void 0, { action: "done" })}
+            @click=${() => done(todo.id)}
+          ></button>
         </li>`)}
   </ul>`;
 }
 function threadReading(thread, surface, commands) {
 	const resolved = Boolean(thread.resolved);
-	const settling = Boolean(thread.settling);
 	const kind = resolved ? "unresolve" : "resolve";
 	const word = resolved ? "Reopen" : "Resolve";
 	const label = resolved ? word : "Resolve thread";
@@ -6621,8 +6562,7 @@ function threadReading(thread, surface, commands) {
 		settlement: Object.freeze({
 			kind,
 			word,
-			label,
-			pending: settling
+			label
 		}),
 		reply: replyAvailable(thread),
 		todos: Object.freeze(thread.userTodos.map(({ id, title }) => Object.freeze({
@@ -6914,21 +6854,15 @@ var ThreadView = class {
 		const word = reopen ? "Reopen" : "Resolve";
 		const label = reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
 		return html`<button
-      ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve")}
-      aria-busy=${state.pending ? "true" : nothing}
-      aria-label=${label}
-      title=${label}
+      ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve", label, { action: reopen ? "reopen" : "resolve" })}
       ${commandsOn(`On a thread's ${word} button`, (button) => [{
 			id: reopen ? "thread.reopen" : "thread.resolve",
 			keys: PRESS,
 			title: word.toLowerCase(),
 			control: button,
-			when: () => !this.#shown.value.settlement?.pending,
 			run: this.#settle
 		}])}
-    >
-      ${iconTemplate("check", "lf-action-icon")}
-    </button>`;
+    ></button>`;
 	}
 	#showNews() {
 		if (!this.#model?.news) return;
@@ -7684,8 +7618,10 @@ function restoreCarry(records, held = /* @__PURE__ */ new Map(), handoffFocus = 
 	return () => {
 		for (const [arrived, record] of positions) {
 			if (!arrived.isConnected) continue;
-			if (record.scrollTop) arrived.scrollTop = record.scrollTop;
-			if (record.scrollLeft) arrived.scrollLeft = record.scrollLeft;
+			if (record.scrollTop || record.scrollLeft) setScroll(arrived, {
+				top: record.scrollTop || arrived.scrollTop,
+				left: record.scrollLeft || arrived.scrollLeft
+			});
 		}
 		restoreFocus(true);
 	};
@@ -8697,7 +8633,6 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		source: authoredSource,
 		pairs: sourcePairs
 	});
-	let authoredWidgets = servedWidgets;
 	let authoredRoot = layerRoot(document);
 	const VIEW_KEY = "lf-view";
 	const HANDOFF_KEY = "lf-revision-handoff";
@@ -8774,20 +8709,6 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		marker.content = String(revision.revision);
 	}
 	const upgraded = (element) => Boolean(registry$1[element.localName]?.["x-upgrade"]);
-	function widgetKeys(source) {
-		const keys = /* @__PURE__ */ new Map();
-		const counts = /* @__PURE__ */ new Map();
-		for (const element of elementsWithin(source)) {
-			if (!upgraded(element)) continue;
-			if (element.id) keys.set(element, element.id);
-			else {
-				const seen = counts.get(element.localName) ?? 0;
-				counts.set(element.localName, seen + 1);
-				keys.set(element, `${element.localName}#${seen}`);
-			}
-		}
-		return keys;
-	}
 	function* elementsWithin(root) {
 		const inner = root.localName === "template" ? root.content : root;
 		for (const child of inner.children) {
@@ -8795,23 +8716,23 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 			yield* elementsWithin(child);
 		}
 	}
-	const RESOURCE_ATTRIBUTES = [
-		"src",
-		"href",
-		"srcset",
-		"poster",
-		"data",
-		"style"
-	];
-	const unrooted = (value, root) => root && value.includes(root) ? value.split(root).join("/") : value;
-	const sameValue = (name, held, value, arrivingRoot) => RESOURCE_ATTRIBUTES.includes(name) ? unrooted(held, authoredRoot) === unrooted(value, arrivingRoot) : held === value;
+	const deferredScript = "data:text/javascript;charset=utf-8,";
+	const unrooted = (value, root) => {
+		if (value.startsWith(deferredScript)) {
+			value = deferredScript + value.slice(35).replace(/^(?:%0A)+/, "");
+			if (root) value = value.split(encodeURIComponent(root)).join("%2F");
+		}
+		return root && value.includes(root) ? value.split(root).join("/") : value;
+	};
+	const sameValue = (held, value, arrivingRoot) => unrooted(held, authoredRoot) === unrooted(value, arrivingRoot);
 	function sameAuthoredMarkup(before, after, arrivingRoot) {
+		if (before.isEqualNode(after)) return true;
 		const strip = (element, root) => {
 			const copy = element.cloneNode(true);
 			if (!root) return copy;
-			for (const node of [copy, ...elementsWithin(copy)]) for (const name of RESOURCE_ATTRIBUTES) {
-				const value = node.getAttribute(name);
-				if (value?.includes(root)) node.setAttribute(name, unrooted(value, root));
+			for (const node of [copy, ...elementsWithin(copy)]) {
+				if (node.matches("style, script")) node.textContent = unrooted(node.textContent, root);
+				for (const attribute of node.attributes) attribute.value = unrooted(attribute.value, root);
 			}
 			return copy;
 		};
@@ -8828,23 +8749,15 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		return sameAuthoredMarkup(shell(before, members), shell(after, members), arrivingRoot);
 	};
 	function patchRules(doc) {
-		const source = pageDocument(doc);
-		const arrivingWidgets = documentWidgetDigests(doc);
 		const arrivingRoot = layerRoot(doc);
-		const heldKeys = widgetKeys(authoredSource);
-		const arrivingKeys = widgetKeys(source);
 		return {
 			pairs: sourcePairs,
 			contains: under,
 			declared: upgraded,
 			body: authoredBody,
 			reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
-			unchanged: (before, after) => {
-				const digest = authoredWidgets[heldKeys.get(before)];
-				return Boolean(digest) && arrivingWidgets[arrivingKeys.get(after)] === digest;
-			},
 			same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
-			sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot)
+			sameValue: (held, value) => sameValue(held, value, arrivingRoot)
 		};
 	}
 	function captureEditingContinuity() {
@@ -8888,14 +8801,13 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		const outgoing = authoredSource;
 		const carry = captureCarry(live, authoredSource);
 		const source = pageDocument(doc);
-		const arrivingWidgets = documentWidgetDigests(doc);
 		const arrivingRoot = layerRoot(doc);
 		const rules = patchRules(doc);
 		revisionDocuments.delete(target.revision);
 		const isAuthored = authored(live);
 		const generated = (node) => (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) && !isAuthored(node);
 		const arrived = [];
-		const descriptorStages = [];
+		const arrivedDescriptors = /* @__PURE__ */ new Map();
 		const prior = readApplication().document;
 		rememberAuthoredParents(source);
 		const sourceAuthored = stageAuthoredStates(source, /* @__PURE__ */ new Map());
@@ -8910,12 +8822,17 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 			if (arriving.nodeType === Node.ELEMENT_NODE) {
 				rememberPassageParts(arriving);
 				rememberAuthoredParents(arriving, parent);
-				const descriptors = stageWidgetDescriptors(arriving, {
-					kind: "page",
-					revision: target.revision
-				});
-				descriptorStages.push(descriptors);
-				commitWidgetDescriptors(descriptors);
+				const bindings = [];
+				for (const element of [arriving, ...arriving.querySelectorAll("[id]")]) {
+					const descriptor = sourceDescriptors.descriptors.get(element.id);
+					if (!descriptor) continue;
+					bindings.push({
+						element,
+						descriptor
+					});
+					arrivedDescriptors.set(element.id, descriptor);
+				}
+				commitWidgetDescriptors({ bindings });
 				formatDeclaredMarkdown(arriving);
 				arrived.push(arriving);
 			}
@@ -8942,13 +8859,10 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 				widgets: arrived.flatMap((root) => [root, ...elementsWithin(root)]).filter((element) => upgraded(element) && element.id).map((element) => element.id)
 			};
 		});
-		authoredWidgets = arrivingWidgets;
 		authoredSource = source;
 		authoredRoot = arrivingRoot;
 		const nextAuthored = new Map([...prior.authored].filter(([id]) => prior.descriptors.get(id)?.document.kind === "thread"));
 		for (const [id, value] of sourceAuthored) nextAuthored.set(id, value);
-		const arrivedDescriptors = /* @__PURE__ */ new Map();
-		for (const stage of descriptorStages) for (const [id, value] of stage.descriptors) arrivedDescriptors.set(id, value);
 		const descriptors = /* @__PURE__ */ new Map();
 		for (const [id, incoming] of sourceDescriptors.descriptors) descriptors.set(id, arrivedDescriptors.get(id) ?? prior.descriptors.get(id) ?? incoming);
 		for (const [id, descriptor] of prior.descriptors) if (descriptor.document.kind === "thread") descriptors.set(id, descriptor);
@@ -9667,4 +9581,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quietWord, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep, workflowVoice };
+export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep, workflowVoice };

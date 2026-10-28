@@ -3,13 +3,13 @@
  * says the same words in its status line, since focus need not be on the control to
  * have pressed it. Every copy Leaf offers is this one control, so a code block and the
  * floating panel's About rows look and answer alike. Its icons are Leaf's (icons.js),
- * `icon` at rest and the check or cross for the result, since Web Awesome's glyphs fill
+ * its action's at rest and the check or cross for the result, since Web Awesome's glyphs fill
  * their box and stood larger than the icons beside them at one size.
  * A control wrapping a trigger of its own wears that trigger's face
  * instead of the icon. A failed copy remains an error after the control's transient
  * face changes again; Web Awesome announces the outcome itself. */
 import { offer, offerActionElement } from "./widget-elements.js";
-import { iconElement } from "./icons.js";
+import { actionElement, iconElement } from "./icons.js";
 import { notice } from "./notifications.js";
 import { raiseError } from "./errors.js";
 import { focused, focusDestination } from "./focus.js";
@@ -44,21 +44,34 @@ function copyThroughSelection(value, trigger) {
   }
 }
 
-/** A copy control named `label`, drawn with `icon`, that says `success` or `error`
- * once pressed, wearing the face of `role` where one is given (`offerAction`). */
+/** A copy control named `label`, drawn with `action`'s symbol, that says `success` or
+ * `error` once pressed, wearing the face of `role` where one is given (`offerAction`).
+ * Web Awesome draws the symbol from its slot and names the control from `copyLabel`,
+ * so the role lends its face and the symbol in that slot. */
 export function copyControl(
   className,
-  { label = "", success, error, icon = "copy", role = undefined },
+  { label = "", success, error, action = "copy", role = undefined },
 ) {
   const copy = role
-    ? offerActionElement(document.createElement("wa-copy-button"), role, className)
+    ? offerActionElement(
+        document.createElement("wa-copy-button"),
+        role,
+        className,
+        undefined,
+        { action },
+      )
     : offer("wa-copy-button", className);
-  for (const [name, slot] of [
-    [icon, "copy-icon"],
-    ["check", "success-icon"],
-    ["cross", "error-icon"],
+  // A role draws its action's symbol as the host's first child, which the copy icon's
+  // slot then takes.
+  const symbol =
+    copy.querySelector(":scope > svg[data-lf-icon]") ??
+    actionElement(action, "lf-copy-icon");
+  for (const [icon, slot] of [
+    [symbol, "copy-icon"],
+    [iconElement("check", "lf-copy-icon"), "success-icon"],
+    [iconElement("cross", "lf-copy-icon"), "error-icon"],
   ])
-    copy.append(Object.assign(iconElement(name, "lf-copy-icon"), { slot }));
+    copy.append(Object.assign(icon, { slot }));
   if (label) copy.copyLabel = label;
   copy.successLabel = success;
   copy.errorLabel = error;

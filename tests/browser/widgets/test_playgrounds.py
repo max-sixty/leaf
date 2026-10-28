@@ -174,9 +174,14 @@ def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, se
     assert (
         card.evaluate("e => getComputedStyle(e, '::before').content") == '"Field note"'
     )
+    inputs = page.locator("#card-playground input").element_handles()
+    assert inputs
     held.pop().continue_()
     wait_until_ready(page)
     expect(card).to_have_css("border-radius", "12px")
+    # The live renderer takes the initial template's parts, preserving native fields.
+    assert page.locator("#card-playground input").count() == len(inputs)
+    assert page.evaluate("inputs => inputs.every(input => input.isConnected)", inputs)
 
 
 def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
@@ -592,12 +597,18 @@ def test_a_playground_reports_a_contributor_view_that_cannot_draw_its_edit(
 
 def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, serve):
     """With its controls on the stage, a playground in a short workspace keeps at least
-    half the window for the stage, and its actions stay in the window below it. A
-    long instruction scrolls inside the popover it opens in."""
+    half the window for the stage. Presets stay visible and Tab brings its actions
+    above the floating panel; a long instruction scrolls inside its popover."""
     source = leaf_page(
         "Short alert workspace",
-        '<lf-ask id="short-ask"><h1>Tune alert policies</h1>'
+        "<header><h1>Tune alert policies</h1>"
+        "<p>Compare the last month of incidents before setting the latency window. "
+        "Keep every real incident visible while reducing unnecessary pages for the "
+        "on-call engineer.</p></header>"
         '<lf-playground id="short-config" data-width="available">'
+        '<lf-playground-preset label="Suggested window">'
+        '<lf-playground-setting for="latency" value="5"></lf-playground-setting>'
+        "</lf-playground-preset>"
         "<lf-playground-preview><h2>Checkout latency</h2>"
         "<p>The last incident lasted seven minutes. Tune its alert beside this evidence.</p>"
         '<lf-playground-control name="latency" label="Latency window" kind="range" '
@@ -606,28 +617,44 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
         + "Include alert evidence, validation, routing and deployment instructions. "
         * 100
         + '<span id="instruction-end">Finish with the rollback procedure.</span>'
-        "</lf-playground-output></lf-playground></lf-ask>",
+        "</lf-playground-output></lf-playground>",
         layout="workspace",
     )
     page = open_page(browser, serve(source))
     resized(page, 900, 500)
     playground = page.locator("#short-config")
     preview = playground.locator(".lf-playground-preview-body")
-    expect(playground.locator(".lf-playground-controls-region")).to_have_count(0)
+    expect(
+        playground.get_by_role("button", name="Suggested window")
+    ).to_be_in_viewport()
     split = playground.locator(".lf-playground-split").bounding_box()
     assert preview.bounding_box()["width"] == pytest.approx(split["width"], abs=1)
     stage = playground.locator(".lf-playground-preview-region").bounding_box()
     assert stage["height"] >= 500 / 2 - 0.5
     submit = playground.get_by_role("button", name="Use these settings")
-    expect(submit).to_be_in_viewport()
-    playground.get_by_role("button", name="Show instruction").click()
+    slider = playground.get_by_role("slider", name="Latency window")
+    slider.press("ArrowRight")
+    reset = playground.get_by_role("button", name="Reset", exact=True)
+    reveal = playground.get_by_role("button", name="Show instruction")
+    for key, target in [("Tab", reset), ("Tab", reveal), ("Shift+Tab", reset)]:
+        page.keyboard.press(key)
+        expect(target).to_be_focused()
+        assert target.evaluate("""node => {
+          const box = node.getBoundingClientRect();
+          return [box.left + box.width / 4, box.right - box.width / 4].every(x =>
+            [box.top + box.height / 4, box.bottom - box.height / 4].every(y =>
+              node.contains(document.elementFromPoint(x, y))));
+        }"""), f"{key} left {target.get_attribute('aria-label')} covered"
+    page.keyboard.press("Enter")
+    expect(slider).to_have_value("5")
+    page.keyboard.press("Tab")
+    page.keyboard.press("Enter")
     body = playground.locator(".lf-playground-instruction-body")
     assert body.evaluate("node => node.scrollHeight > node.clientHeight + 1")
     end = page.locator("#instruction-end")
     end.scroll_into_view_if_needed()
     expect(end).to_be_in_viewport()
     page.keyboard.press("Escape")
-    slider = playground.get_by_role("slider", name="Latency window")
     slider.press("ArrowRight")
     expect(slider).to_have_value("6")
     view = preview.bounding_box()
@@ -796,8 +823,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
 ):
     """A playground is a workspace with its relationship declared: the preview is the
     stage, with the controls and the instruction they write in a rail beside it. While
-    the root workspace fills the window each region scrolls on its own, the controls
-    under their fixed presets and the instruction with its actions; where it
+    the root workspace fills the window the preview and controls scroll on their own,
+    the controls under their fixed presets, while the actions scroll with their holder; where it
     doesn't, the page scrolls all three, and a narrow one stacks the regions. A window
     shorter than 480px keeps the rail beside the stage but doesn't hold it in view,
     since the rail would show a few lines and its actions only by scrolling inside it.
@@ -830,7 +857,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
           leaf.scrollerFor(body) === body ? 'own' :
           leaf.scrollerFor(body) === document.scrollingElement ? 'page' :
           leaf.scrollerFor(body) === playground.querySelector('.lf-playground-rail')
-            ? 'rail' : 'other'),
+            ? 'rail' : leaf.scrollerFor(body).contains(body) ? 'ancestor' : 'unrelated'),
         sideBySide: Math.abs(previewBox.top - controlsBox.top) < 1
           && controlsBox.left >= previewBox.right
           && Math.abs(instructionBox.left - controlsBox.left) < 1
@@ -856,8 +883,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         "controlsId": "lf-region:notification-playground:controls",
         "previewId": "lf-region:notification-playground:preview",
         "instructionId": "lf-region:notification-playground:instruction",
-        "scroll_behaviors": ["bounded", "bounded", "bounded"],
-        "scrollers": ["own", "own", "own"],
+        "scroll_behaviors": ["bounded", "bounded", "flow"],
+        "scrollers": ["own", "own", "ancestor"],
         "sideBySide": True,
         "presetsHeadControls": True,
         "pageScrolls": False,
@@ -1425,7 +1452,7 @@ def test_a_quoted_playground_draws_no_box_its_preview_wrote_only_for_controls(
     expect(page.locator("#quoted-latency-settings")).to_be_hidden()
     expect(page.locator("#quoted-latency-evidence")).to_be_visible()
     expect(page.locator("#quoted-rate-settings")).to_have_text(
-        "Pages payments on-call."
+        "Pages payments on-call.", use_inner_text=True
     )
     expect(page.locator("#quoted-alerts-instruction")).to_contain_text(
         "payments-p99-latency to page over 800ms"

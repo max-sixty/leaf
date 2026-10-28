@@ -8,7 +8,6 @@ import {
   presentContributionEntry,
   presentContributionReceipts,
   registerContribution,
-  relabel,
   whileConnected,
 } from "/runtime/widget-api.js";
 
@@ -63,8 +62,6 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       const initial = initialRender(this);
-      for (const { node, words } of initial.labels)
-        relabel(node, words, { says: false });
       initial.samples.forEach(wireSample);
       whileConnected(this, () => {
         const projection = this.#registerProjection(initial.result);

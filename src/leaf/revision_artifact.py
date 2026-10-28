@@ -3,12 +3,11 @@
 Logical resource URLs are rooted at the page (``/page/app.js``,
 ``/runtime/widget-api.js``). Page imports use literal, unescaped URL strings;
 Tree-sitter reads JavaScript and tinycss2 reads CSS. Only the declared public
-layer entry points may cross from authored code into the layer. Capturing the
-vendored layer whole also preserves its declaration-driven dynamic imports, and
-capturing `page/` whole lets page code fetch any of its files (`page_files`). The
-runtime is not captured: the Leaf delivering a revision supplies it
-(`runtime_selection`), so the public entry points are addresses a capture names but
-never holds.
+layer entry points may cross from authored code into the layer. Neither the layer
+nor the runtime is captured: the Leaf delivering a revision supplies both
+(`runtime_selection`), the layer composed from the selection the manifest names, so
+the public entry points are addresses a capture names but never holds. Capturing
+`page/` whole lets page code fetch any of its files (`page_files`).
 
 A bundle contains exact source bytes, resources, MIME
 types, the effective registry, and implementation provenance. Its canonical
@@ -49,7 +48,6 @@ from functools import cache, cached_property, lru_cache, partial
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 
-import turbohtml
 from pywhatwgurl import URL
 
 from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
@@ -57,26 +55,28 @@ from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import is_element_name
+from leaf.registry.storage import revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
-from leaf.schema import (
-    BROWSER_DIRS,
-    CONTENT_TYPES,
-    SERVED_PATH,
-    VENDORED_FILES,
-)
+from leaf.schema import CONTENT_TYPES
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
     annotation_mode,
+    delivered_sheets,
     links_with_rel,
     script_kind,
 )
+from leaf.styles import dropped_css
+from leaf.validation.markup import unanswered_media
 
 PUBLIC_MODULES = (
     "/runtime/widget-api.js",
     "/runtime/portable-api.js",
     "/vendor/floating-ui.esm.js",
 )
+# The page's own declarations, which a revision captures beside its modules; the
+# layer they compose over is the reading Leaf's.
+PAGE_DECLARATIONS = "/page/registry.json"
 
 
 _RESOURCE_TYPES = {
@@ -125,21 +125,36 @@ def _javascript_reader():
 
 
 class ArtifactError(Rejected):
-    """A candidate cannot be captured as a complete local revision, refused with the
-    one finding that says why."""
-
-    def __init__(self, finding: Finding):
-        super().__init__([finding])
+    """A candidate cannot be captured as a complete local revision, refused with every
+    finding that says why. A capture reports each problem in every file it reads, so
+    an author repairs them all from one check (`_collect`)."""
 
 
-def artifact_error(code: str, file=None, specifier=None, /, **values):
-    """The refusal of one capture problem: `code` names it, `file` the file it was
-    read in, `specifier` the reference in that file it concerns."""
+def _capture_finding(code: str, file=None, specifier=None, /, **values) -> Finding:
+    """One capture problem: `code` names it, `file` the file it was read in,
+    `specifier` the reference in that file it concerns."""
     if file is not None:
         values["file"] = str(file)
     if specifier is not None:
         values["specifier"] = specifier
-    return ArtifactError(Finding(code, values=values))
+    return Finding(code, values=values)
+
+
+def artifact_error(code: str, file=None, specifier=None, /, **values):
+    """The refusal of one capture problem (`_capture_finding`)."""
+    return ArtifactError([_capture_finding(code, file, specifier, **values)])
+
+
+def _collect(refused: list[Finding], read, *args, **kwargs):
+    """`read(*args, **kwargs)`, or None with what it refused added to `refused`, so a
+    capture goes on to the next reference and refuses once with every finding. What
+    depended on the refused read, such as the imports of a file that can't be read,
+    is skipped rather than reported again."""
+    try:
+        return read(*args, **kwargs)
+    except ArtifactError as error:
+        refused.extend(error.findings)
+        return None
 
 
 def _digest(data: bytes) -> str:
@@ -186,6 +201,8 @@ class RevisionArtifact:
     html: bytes
     resources: Mapping[str, Resource]
     manifest: bytes
+    # The page whose package copies the manifest's layer names (`vendoring`).
+    page_dir: Path
 
     @cached_property
     def digest(self) -> str:
@@ -193,7 +210,14 @@ class RevisionArtifact:
 
     @cached_property
     def registry(self) -> dict:
-        return json.loads(self.resources["/registry.json"].data)
+        """The vocabulary this Leaf reads the revision in: its own declarations over
+        the layer its manifest selects (`registry.storage.revision_vocabulary`)."""
+        declarations = self.resources.get(PAGE_DECLARATIONS)
+        return revision_vocabulary(
+            json.loads(self.manifest),
+            declarations.data if declarations is not None else None,
+            self.page_dir,
+        )
 
     @cached_property
     def entries(self) -> list[str]:
@@ -227,11 +251,6 @@ class RevisionArtifact:
         """The captured module graph's executable identity."""
         return json.loads(self.manifest)["executable"]
 
-    @cached_property
-    def widgets(self) -> dict:
-        """What each declared widget in this revision's page was written as."""
-        return json.loads(self.manifest)["widgets"]
-
 
 def dependency_reference(
     specifier: str, importer: str, *, module=False
@@ -257,8 +276,9 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
     return resolved
 
 
-@lru_cache(maxsize=512)
-def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ...]:
+def javascript_imports(
+    data: bytes, path: str, refused: list[Finding] | None = None
+) -> tuple[tuple[int, int, str], ...]:
     """The exact string-literal spans of static exports/imports and import().
 
     A computed import() binds when it runs, so capture neither follows nor refuses it:
@@ -268,12 +288,26 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
     This reads imports, not syntax: the browser judges the module, and its error
     reaches the agent through `page check` or the watcher.
 
+    An import it refuses is added to `refused`, and the rest are returned; without a
+    list to collect them, every refused import is raised together."""
+    imports, problems = _javascript_imports(data, path)
+    if refused is not None:
+        refused.extend(problems)
+    elif problems:
+        raise ArtifactError(list(problems))
+    return imports
+
+
+@lru_cache(maxsize=512)
+def _javascript_imports(data: bytes, path: str):
+    """`javascript_imports`, with the imports it refuses beside the rest.
+
     A layer's modules are the same bytes in every page that selects them, and parsing
     a vendored bundle takes about a second, so a process reads each module once."""
     try:
         data.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise artifact_error("script-not-utf8", path) from error
+    except UnicodeDecodeError:
+        return (), (_capture_finding("script-not-utf8", path),)
     from tree_sitter import QueryCursor
 
     parser, import_nodes = _javascript_reader()
@@ -285,6 +319,7 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
         key=lambda node: (node.start_byte, -node.end_byte),
     )
     imports = []
+    refused = []
     for node in nodes:
         literal = None
         if node.type in {"import_statement", "export_statement"}:
@@ -306,14 +341,18 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
             # These are JavaScript literals, not HTML resource URLs. The reader
             # does not decode JS string escapes, and bare imports require a map.
             if "\\" in specifier:
-                raise artifact_error("dependency-not-local", path, specifier)
+                refused.append(
+                    _capture_finding("dependency-not-local", path, specifier)
+                )
+                continue
             absolute = URL.parse(specifier)
             if absolute is not None:
                 specifier = absolute.href
             elif not specifier.startswith(("/", "./", "../")):
-                raise artifact_error("module-not-local", path, specifier)
+                refused.append(_capture_finding("module-not-local", path, specifier))
+                continue
             imports.append((literal.start_byte, literal.end_byte, specifier))
-    return tuple(imports)
+    return tuple(imports), tuple(refused)
 
 
 def _css_meaningful(tokens) -> list:
@@ -321,12 +360,19 @@ def _css_meaningful(tokens) -> list:
 
 
 def _is_stylesheet_url(url: str) -> bool:
-    reference = dependency_reference(url, "/index.css")
+    """Whether an `@import` names a stylesheet. A URL no sheet may load is refused
+    where the sheet's references are resolved, so it isn't refused here."""
+    try:
+        reference = dependency_reference(url, "/index.css")
+    except ArtifactError:
+        return True
     return reference is None or Path(reference[0]).suffix == ".css"
 
 
-def _css_references(tokens):
-    """Yield each token in parsed CSS whose value is a URL the stylesheet loads.
+def _css_references(tokens, refused: list[Finding], invalid: list):
+    """Yield each token in parsed CSS whose value is a URL the stylesheet loads, add
+    each one it refuses to `refused`, and each parse error to `invalid`, which
+    `_read_css` reports as the sheet's syntax error rather than a refused URL.
 
     Those are a `url()` in either spelling, a string argument of `image-set()`, and
     the string form of a top-level `@import`. An `@import` nested in a block is
@@ -344,33 +390,41 @@ def _css_references(tokens):
             nested_import = True
             continue
         if token.type == "error":
-            raise artifact_error("css-invalid", error=token.message)
-        if token.type == "url":
+            invalid.append(token)
+        elif token.type == "url":
             yield token
         elif token.type == "function" and token.lower_name == "url":
             values = _css_meaningful(token.arguments)
-            if len(values) != 1 or values[0].type != "string":
-                raise artifact_error("css-url")
-            yield values[0]
+            if len(values) == 1 and values[0].type == "string":
+                yield values[0]
+            # A parse error among its arguments is the sheet's syntax error, which
+            # the walk into them below records, so the url() isn't refused too.
+            elif not any(value.type == "error" for value in values):
+                refused.append(_capture_finding("css-url"))
         elif token.type == "function" and token.lower_name in {
             "image-set",
             "-webkit-image-set",
         }:
             yield from (item for item in token.arguments if item.type == "string")
         elif token.type == "at-rule" and token.lower_at_keyword == "import":
+            # The prelude is read here once, and a refused import loads nothing, so
+            # its URLs are neither followed nor refused again.
             values = _css_meaningful(token.prelude)
+            before = (len(refused), len(invalid))
+            imported = list(_css_references(token.prelude, refused, invalid))
             if values and values[0].type == "string":
-                if not _is_stylesheet_url(values[0].value):
-                    raise artifact_error("css-import")
-                yield values[0]
-            else:
-                imported = list(_css_references(token.prelude))
-                if not imported or not _is_stylesheet_url(imported[0].value):
-                    raise artifact_error("css-import")
+                imported.insert(0, values[0])
+            if (len(refused), len(invalid)) != before:
+                continue
+            if not imported or not _is_stylesheet_url(imported[0].value):
+                refused.append(_capture_finding("css-import"))
+                continue
+            yield from imported
+            continue
         for attribute in ("prelude", "content", "arguments", "value"):
             nested = getattr(token, attribute, None)
             if isinstance(nested, list):
-                yield from _css_references(nested)
+                yield from _css_references(nested, refused, invalid)
 
 
 def _parse_css(source: str, declarations: bool):
@@ -386,6 +440,10 @@ def _parse_css(source: str, declarations: bool):
 class _CssReading:
     """One stylesheet's parse, kept as its serialization around the URLs it loads.
 
+    `refused` holds what the walk refused, which no address can deliver, and
+    `invalid` each syntax error in the parse, which none can deliver either: this
+    reader is the one judge of what a sheet must not hold, and `styles.dropped_css`
+    reports only what it reads but a browser drops.
     `references` holds each URL token as `_css_references` finds it, as its value,
     its written representation and its type. `segments` is the serialized sheet
     split around them, one more segment than references, or None where the split
@@ -399,6 +457,8 @@ class _CssReading:
     references: tuple[tuple[str, str, str], ...]
     segments: tuple[str, ...] | None
     order: tuple[int, ...] = ()
+    refused: tuple[Finding, ...] = ()
+    invalid: tuple[Finding, ...] = ()
 
 
 # Delimits each URL in a sheet's serialization while `_read_css` splits it. Private
@@ -410,21 +470,45 @@ _CSS_MARK = ("", "")
 def _read_css(source: str, declarations: bool) -> _CssReading:
     """Parse a stylesheet once for every address it is delivered at.
 
-    A sheet's text is the same for every page that vendored the same layer and every
+    A sheet's text is the same for every page that selects the same layer and every
     revision that captured it, while the address it is delivered at names one
     revision. Parsing the composed theme takes a few hundred milliseconds, which a
     parse keyed on the address paid again for every new revision's first document.
     The bound is in entries: a document's `style` attributes are sheets too, and a
     few large layer sheets must outlast a page's worth of them."""
     tokens = _parse_css(source, declarations)
-    found = list(_css_references(tokens))
+    refused = []
+    invalid = []
+    found = list(_css_references(tokens, refused, invalid))
     references = tuple(
         (token.value, token.representation, token.type) for token in found
     )
-    if any(mark in source for mark in _CSS_MARK) or len(set(map(id, found))) != len(
-        found
+    # A refused or invalid sheet is never delivered (`rewrite_css`), and its parse
+    # may hold nodes tinycss2 can't serialize, so it isn't split.
+    if (
+        refused
+        or invalid
+        or any(mark in source for mark in _CSS_MARK)
+        or len(set(map(id, found))) != len(found)
     ):
-        return _CssReading(references, None)
+        return _CssReading(
+            references,
+            None,
+            refused=tuple(refused),
+            invalid=tuple(
+                {
+                    (node.source_line, node.source_column, node.message): Finding(
+                        "css-syntax",
+                        values={
+                            "row": node.source_line,
+                            "column": node.source_column,
+                            "message": node.message,
+                        },
+                    )
+                    for node in invalid
+                }.values()
+            ),
+        )
     for index, token in enumerate(found):
         token.representation = f"{_CSS_MARK[0]}{index}{_CSS_MARK[1]}"
     import tinycss2
@@ -439,17 +523,83 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
 
 
 def css_dependencies(
-    source: str, path: str, declarations: bool = False
+    source: str,
+    sheet: str,
+    declarations: bool = False,
+    refused: list[Finding] | None = None,
 ) -> tuple[str, ...]:
-    """The URLs the CSS in the file at `path` loads. The parse is shared by every
-    file with the same text (`_read_css`), so a refusal of the text is told its file
-    here."""
-    try:
-        reading = _read_css(source, declarations)
-    except ArtifactError as error:
-        [finding] = error.findings
-        raise ArtifactError(finding.but(values={"file": path})) from None
+    """The URLs a stylesheet loads, collecting what delivery's reader can't read in
+    it as `javascript_imports` does: each syntax error, and each URL no address can
+    deliver. `sheet` names the stylesheet as its author finds it: a file's path, the
+    page's <style>, or one element's style attribute. The parse is shared by every
+    sheet with the same text (`_read_css`), so a refusal of the text is told its
+    sheet here."""
+    reading = _read_css(source, declarations)
+    problems = [
+        *(finding.but(values={"sheet": sheet}) for finding in reading.invalid),
+        *(finding.but(values={"file": sheet}) for finding in reading.refused),
+    ]
+    if refused is not None:
+        refused.extend(problems)
+    elif problems:
+        raise ArtifactError(problems)
     return tuple(value for value, _, _ in reading.references)
+
+
+def css_drops(
+    source: str, sheet: str, declarations: bool = False
+) -> tuple[Finding, ...]:
+    """What a browser drops from a sheet delivery's reader reads whole
+    (`styles.dropped_css`), and nothing from one it refuses, whose syntax error
+    `css_dependencies` reports and whose later rules a reparse would only misread.
+    `sheet` names it as `css_dependencies` does."""
+    if _read_css(source, declarations).invalid:
+        return ()
+    return dropped_css(source, sheet, block=declarations)
+
+
+def document_drops(document: SourceDocument) -> list[Finding]:
+    """`css_drops` for every sheet delivery rewrites in `document`
+    (`structure.delivered_sheets`)."""
+    return [
+        finding
+        for css, sheet, declarations in delivered_sheets(document)
+        for finding in css_drops(css, sheet, declarations)
+    ]
+
+
+def css_syntax_errors(
+    source: str, sheet: str, declarations: bool = False
+) -> list[Finding]:
+    """Every syntax error in a stylesheet: what delivery's reader can't read
+    (`css-syntax`), or else what it reads but a browser drops (`css_drops`).
+    `sheet` names it as `css_dependencies` does."""
+    return [
+        *(
+            finding.but(values={"sheet": sheet})
+            for finding in _read_css(source, declarations).invalid
+        ),
+        *css_drops(source, sheet, declarations),
+    ]
+
+
+def uncaptured_errors(document: SourceDocument, page_dir: Path) -> list[Finding]:
+    """What a capture would refuse in markup no capture reads, such as a message's,
+    which is frozen in the log once admitted: what delivery's reader can't read in
+    the stylesheets it writes (`css_dependencies`), and each `/media/` file it names
+    that the page won't answer (`unanswered_media`), in an attribute or a
+    stylesheet. Its stylesheets are every one delivery rewrites
+    (`structure.delivered_sheets`), its samples' included; a sample child's
+    attributes its own reading names (`validation.source.uncaptured_sample_errors`).
+    A page's own markup the capture reads (`_capture_artifact`)."""
+    refused = []
+    media = set(document.authoring.media_refs)
+    for css, sheet, declarations in delivered_sheets(document):
+        for specifier in css_dependencies(css, sheet, declarations, refused=refused):
+            path = _collect(refused, resolve_dependency, specifier, "/index.html")
+            if path is not None and path.startswith("/media/"):
+                media.add(path)
+    return [*refused, *unanswered_media(media, page_dir)]
 
 
 def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
@@ -465,6 +615,16 @@ def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
     from tinycss2.serializer import serialize_string_value
 
     reading = _read_css(source, declarations)
+    if reading.refused or reading.invalid:
+        raise ArtifactError(
+            [
+                *(
+                    finding.but(values={"sheet": "stylesheet"})
+                    for finding in reading.invalid
+                ),
+                *reading.refused,
+            ]
+        )
     targets = {value: address(value) for value, _, _ in reading.references}
     if all(target == value for value, target in targets.items()):
         return source
@@ -482,20 +642,29 @@ def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
 
 
 def _rewrite_parsed(source: str, targets: dict, declarations: bool) -> str:
-    """`rewrite_css` over a fresh parse, for an omitted URL or an unsplit sheet."""
+    """`rewrite_css` over a fresh parse, for an omitted URL or an unsplit sheet, which
+    `rewrite_css` has read with nothing refused."""
     import tinycss2
     from tinycss2.serializer import serialize_string_value
 
     tokens = _parse_css(source, declarations)
+    ignored = []
     omitted = {reference for reference, value in targets.items() if value is None}
 
     def available(entries):
         kept = []
         for entry in entries:
+            # A declaration the browser drops, such as `broken;`, parses as an error
+            # node, which can't be serialized; drop it as the browser does.
+            if entry.type == "error":
+                continue
             if entry.type == "declaration" or (
                 entry.type == "at-rule" and entry.lower_at_keyword == "import"
             ):
-                if any(token.value in omitted for token in _css_references([entry])):
+                if any(
+                    token.value in omitted
+                    for token in _css_references([entry], ignored, ignored)
+                ):
                     continue
             elif getattr(entry, "content", None) is not None:
                 children = available(tinycss2.parse_blocks_contents(entry.content))
@@ -507,7 +676,7 @@ def _rewrite_parsed(source: str, targets: dict, declarations: bool) -> str:
 
     if omitted:
         tokens = available(tokens)
-    for token in list(_css_references(tokens)):
+    for token in list(_css_references(tokens, ignored, ignored)):
         value = targets[token.value]
         if value == token.value:
             continue
@@ -530,8 +699,8 @@ def _path_stamp(path: Path) -> tuple:
 
 def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     """Name every mutable filesystem input from which a capture may read."""
-    paths = [page_dir / name for name in VENDORED_FILES]
-    for name in (*BROWSER_DIRS, "page", "media"):
+    paths = []
+    for name in ("page", "media"):
         root = page_dir / name
         paths.append(root)
         if root.is_dir() and not root.is_symlink():
@@ -597,7 +766,9 @@ def capture_local_resource(page_dir: Path, path: str) -> Resource:
     read exact bytes here. Callers own URL admission before supplying a path. A file
     under `page/` or `media/` whose real path leaves its directory is refused, so a
     symlink never puts a file from elsewhere on the machine into a revision, and from
-    there into a published site or an export.
+    there into a published site or an export. A `/media/` path the page won't answer
+    is refused in the words the message door uses (`unanswered_media`), wherever the
+    page names it: an attribute, a stylesheet or its data.
     """
     source = page_dir / path.removeprefix("/")
     root = page_dir / ("page" if path.startswith("/page/") else "media")
@@ -606,6 +777,10 @@ def capture_local_resource(page_dir: Path, path: str) -> Resource:
         or not source.resolve().is_relative_to(root.resolve())
     ):
         raise artifact_error("dependency-symlink", path)
+    if path.startswith("/media/") and (
+        unanswered := unanswered_media([path], page_dir)
+    ):
+        raise ArtifactError(unanswered)
     try:
         data = source.read_bytes()
     except OSError as error:
@@ -640,19 +815,32 @@ def page_files(page_dir: Path) -> list[str]:
     return sorted(files)
 
 
-def resource_dependencies(path: str, data: bytes, mime: str) -> tuple[str, ...]:
-    """The local dependencies of an authored module or stylesheet."""
+def resource_dependencies(
+    path: str, data: bytes, mime: str, refused: list[Finding] | None = None
+) -> tuple[str, ...]:
+    """The local dependencies of an authored module or stylesheet, collecting each
+    reference it refuses as `javascript_imports` does, with what delivery's reader
+    can't read in a stylesheet (`css_dependencies`). A file that can't be read as
+    text has no references to follow."""
+    problems = []
     edges = []
     if mime == "application/javascript" and path.startswith("/page/"):
-        for _, _, specifier in javascript_imports(data, path):
-            edges.append(resolve_dependency(specifier, path, module=True))
-    elif mime == "text/css" and path.startswith(("/page/", "/media/")):
+        for _, _, specifier in javascript_imports(data, path, problems):
+            edges.append(
+                _collect(problems, resolve_dependency, specifier, path, module=True)
+            )
+    elif mime == "text/css" and path.startswith("/page/"):
         try:
             css = data.decode("utf-8")
-        except UnicodeDecodeError as error:
-            raise artifact_error("css-not-utf8", path) from error
-        for specifier in css_dependencies(css, path):
-            edges.append(resolve_dependency(specifier, path))
+        except UnicodeDecodeError:
+            problems.append(_capture_finding("css-not-utf8", path))
+        else:
+            for specifier in css_dependencies(css, path, refused=problems):
+                edges.append(_collect(problems, resolve_dependency, specifier, path))
+    if refused is not None:
+        refused.extend(problems)
+    elif problems:
+        raise ArtifactError(problems)
     return tuple(dict.fromkeys(edge for edge in edges if edge is not None))
 
 
@@ -661,27 +849,42 @@ class _ResourceCapture:
 
     Record a resource before following its edges, so each path is read once. The
     explicit worklist keeps graph depth independent of Python's call stack. A public
-    entry point an authored module imports is the runtime's, which the delivering Leaf
-    supplies, so capture skips it unless the vendored layer holds its own (`vendored`),
-    as a package replacing a vendor module does; the layer's files are added first.
+    entry point an authored module imports is the runtime's or the layer's, which the
+    delivering Leaf supplies, so capture skips it.
+
+    A path is visited once whether or not it could be captured, and what a capture
+    refuses goes to `refused`: a file that can't be read is not followed, and a
+    refused reference is not followed.
     """
 
     def __init__(self, read_resource: Callable[[str], Resource]) -> None:
         self.read_resource = read_resource
         self.resources: dict[str, Resource] = {}
+        self.visited: set[str] = set()
+        self.refused: list[Finding] = []
 
-    def add(self, path: str, *, vendored: bool = False) -> None:
+    def add(self, path: str) -> None:
         pending = [path]
         while pending:
             path = pending.pop()
-            if path in self.resources or (path in PUBLIC_MODULES and not vendored):
+            if path in self.visited or path in PUBLIC_MODULES:
                 continue
-            vendored = False  # what it imports is a dependency
-            resource = self.read_resource(path)
+            self.visited.add(path)
+            resource = _collect(self.refused, self.read_resource, path)
+            if resource is None:
+                continue
             data = resource.data
-            edges = resource_dependencies(path, data, resource.mime)
             self.resources[path] = Resource(data, resource.mime)
+            edges = resource_dependencies(path, data, resource.mime, self.refused)
             pending.extend(reversed(edges))
+
+
+def _layer_files(registry: dict, page_dir: Path) -> Mapping[str, bytes]:
+    """The files of the layer `registry`'s `$layer` selects, which the delivering Leaf
+    serves beside the revision (`runtime_selection.executing`): a document may name
+    one, such as the layer's icon, without the revision capturing it."""
+    layer = registry.get("$layer")
+    return selected(layer, page_dir).files if layer else {}
 
 
 def _capture_artifact(
@@ -696,33 +899,29 @@ def _capture_artifact(
     """Build a capture after its public wrapper has identified every input."""
     capture = _ResourceCapture(read_resource)
     resources = capture.resources
+    refused = capture.refused
+    admit = partial(_collect, refused)
 
-    # The layer's own imports are trusted and include computed widget module URLs.
-    # Preserve the complete selected payload rather than infer that dynamic graph.
-    for name in VENDORED_FILES:
-        if (page_dir / name).is_file():
-            capture.add("/" + name)
-    for directory in BROWSER_DIRS:
-        for path in sorted((page_dir / directory).rglob("*")):
-            if path.is_file() and SERVED_PATH.fullmatch(
-                "/" + path.relative_to(page_dir).as_posix()
-            ):
-                capture.add("/" + path.relative_to(page_dir).as_posix(), vendored=True)
-    resources["/registry.json"] = Resource(_json(registry), "application/json")
+    # The layer is the reading Leaf's (`registry.storage.revision_vocabulary`), so a
+    # revision captures only what its page owns: `page/`, its declarations among it,
+    # and what its document names. Its manifest names the layer's selection.
     for tag, entry in registry.items():
-        if is_element_name(tag) and (initial := entry.get("x-initial")):
+        if (
+            is_element_name(tag)
+            and (initial := entry.get("x-initial"))
+            and initial.startswith("/page/")
+        ):
             capture.add(initial)
 
     if widget_sources is None:
         widget_sources = {
             tag: f"widgets/{tag}.js"
             for tag, entry in registry.items()
-            if is_element_name(tag)
-            and entry.get("x-upgrade")
-            and f"/widgets/{tag}.js" in resources
+            if is_element_name(tag) and entry.get("x-upgrade")
         }
     for source in widget_sources.values():
-        capture.add("/" + source.lstrip("/"))
+        if source.startswith("page/"):
+            capture.add("/" + source)
 
     entries = []
     documents = [document]
@@ -732,55 +931,68 @@ def _capture_artifact(
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
             for _, _, specifier in javascript_imports(
-                script["body"].encode("utf-8"), "/index.html"
+                script["body"].encode("utf-8"), "/index.html", refused
             ):
                 entries.append(
-                    resolve_dependency(specifier, "/index.html", module=True)
+                    admit(resolve_dependency, specifier, "/index.html", module=True)
                 )
         for script in authored.authoring.external_scripts:
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
-            path = resolve_dependency(
-                script["attrs"]["src"], "/index.html", module=True
+            path = admit(
+                resolve_dependency, script["attrs"]["src"], "/index.html", module=True
             )
             if path is None:
                 continue
             if not path.startswith("/page/"):
-                raise artifact_error("script-outside-page", path)
+                refused.append(_capture_finding("script-outside-page", path))
+                continue
             entries.append(path)
         for link in links_with_rel(authored.authoring.links, "stylesheet"):
-            path = resolve_dependency(link["attrs"].get("href", ""), "/index.html")
+            path = admit(
+                resolve_dependency, link["attrs"].get("href", ""), "/index.html"
+            )
             if path is None:
                 continue
             if Path(path).suffix != ".css":
-                raise artifact_error("stylesheet-type", path)
+                refused.append(_capture_finding("stylesheet-type", path))
+                continue
             entries.append(path)
-        for sheet in authored.authoring.style_blocks:
-            for specifier in css_dependencies(sheet["css"], "/index.html"):
-                entries.append(resolve_dependency(specifier, "/index.html"))
-        for inline in authored.authoring.inline_styles:
-            for specifier in css_dependencies(
-                inline["style"], "/index.html", declarations=True
-            ):
-                entries.append(resolve_dependency(specifier, "/index.html"))
         for specifier in authored.authoring.resource_refs:
-            reference = dependency_reference(specifier, "/index.html")
+            reference = admit(dependency_reference, specifier, "/index.html")
             if reference is None or reference[0] in resources:
                 continue
-            entries.append(resolve_dependency(specifier, "/index.html"))
+            if not reference[0].startswith(("/page/", "/media/")) and (
+                reference[0] in _layer_files(registry, page_dir)
+            ):
+                continue
+            entries.append(admit(resolve_dependency, specifier, "/index.html"))
+    # Every sheet delivery rewrites, which a template's or a shadow root's contents
+    # hold as well as the document, so a sample's are among its page's.
+    for css, sheet, declarations in delivered_sheets(document):
+        for specifier in css_dependencies(css, sheet, declarations, refused=refused):
+            entries.append(admit(resolve_dependency, specifier, "/index.html"))
     entries = [entry for entry in entries if entry is not None]
     for entry in entries:
         capture.add(entry)
-    # The rest of `page/` after what the document names, so a refusal names a file the
-    # author wrote a reference to before one nothing names.
+    # The rest of `page/` after what the document names, so findings name the files
+    # the author wrote a reference to before those nothing names.
     for path in page_files(page_dir):
         capture.add(path)
+    if refused:
+        # A sample repeats its page's references, and a document may repeat one:
+        # each problem is reported once.
+        raise ArtifactError(list(dict.fromkeys(refused)))
 
     implementations = {
         tag: {
             "path": "/" + source.lstrip("/"),
             "owner": "page" if source.startswith("page/") else "layer",
-            "digest": resources["/" + source.lstrip("/")].digest,
+            **(
+                {"digest": resources["/" + source].digest}
+                if source.startswith("page/")
+                else {}
+            ),
         }
         for tag, source in widget_sources.items()
     }
@@ -791,13 +1003,12 @@ def _capture_artifact(
     # prose, and markup are absent because an open document can be given all of
     # them, and a revision that only edits those should keep the user's document.
     #
-    # The vocabulary is digested without `$layer`, which describes the vendoring
-    # run rather than the code it installed: its fingerprint and producer commit
-    # say where a layer was built. Its generation is the one part a document runs
-    # under, since a tab speaks it to the server (`runtime/layer-client.js`), so a
-    # re-vendor gives every later revision a new executable and the tab a new
-    # document. The runtime's modules are not captured; a runtime change reaches an
-    # open document as a server that refuses it (`runtime_selection`).
+    # The vocabulary is digested without `$layer`, whose selection the vocabulary
+    # already reflects. Its generation is the one part a document runs under, since
+    # a tab speaks it to the server (`runtime/layer-client.js`), so a new selection
+    # gives every later revision a new executable and the tab a new document. The
+    # runtime's and the layer's modules are not captured; a change to either reaches
+    # an open document as a server that refuses it (`runtime_selection`).
     executable = _digest(
         _canonical_json(
             {
@@ -838,37 +1049,12 @@ def _capture_artifact(
             }
         )
     )
-    # What each declared widget in the authored page was written as, one digest per id.
-    # A user's open document keeps the widgets a revision did not rewrite, and only
-    # the capture still holds the markup to say which those are: after upgrade a
-    # controller owns every widget's children, so the page cannot answer for itself.
-    # Digested from the parsed tree before delivery rewrites resource URLs, so two
-    # revisions of one widget differ only where its author changed it.
-    main = document.tree.select_one("main")
-    widgets = {}
-    unnamed: dict[str, int] = {}
-    for element in main.descendants if main is not None else ():
-        if not isinstance(element, turbohtml.Element):
-            continue
-        if not registry.get(element.tag, {}).get("x-upgrade"):
-            continue
-        # An unnamed widget is as much the user's as a named one. Without a key it
-        # could never answer that its markup was unchanged, so every revision rebuilt
-        # it and took whatever the user had open in it; `page-authoring.md` never
-        # asked an author to name one, and the shipped examples do not.
-        name = element.attrs.get("id")
-        if not name:
-            seen = unnamed.get(element.tag, 0)
-            unnamed[element.tag] = seen + 1
-            name = f"{element.tag}#{seen}"
-        widgets[name] = _digest(element.html.encode("utf-8"))
     manifest = _canonical_json(
         {
             "html": _digest(document.data),
             "title": document.authoring.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
-            "widgets": widgets,
             "public_modules": list(PUBLIC_MODULES),
             "layer": layer,
             "declarations": dict(declaration_sources or {}),
@@ -882,7 +1068,9 @@ def _capture_artifact(
             },
         }
     )
-    return RevisionArtifact(document.data, MappingProxyType(resources), manifest)
+    return RevisionArtifact(
+        document.data, MappingProxyType(resources), manifest, page_dir
+    )
 
 
 def artifact_name(revision: int, artifact: RevisionArtifact) -> str:
@@ -977,7 +1165,7 @@ def staged_reading(page_dir: Path, name: str) -> SourceReading:
     bundle = page_dir / "revisions" / name
     return SourceReading(
         SourceDocument((bundle / "index.html").read_bytes().decode("utf-8")),
-        _shared_registry((bundle / "resources" / "registry.json").read_bytes()),
+        _bundle_vocabulary(bundle),
     )
 
 
@@ -1096,11 +1284,10 @@ class RevisionReading(SourceReading):
 
     @cached_property
     def registry(self) -> dict:
-        """The captured vocabulary, shared read-only with every revision that
-        captured the same bytes (`_shared_registry`)."""
-        return _shared_registry(
-            (self.bundle / "resources" / "registry.json").read_bytes()
-        )
+        """The vocabulary this Leaf reads the revision in, shared read-only with
+        every revision that selects the same layer and declares the same
+        (`registry.storage.revision_vocabulary`)."""
+        return _bundle_vocabulary(self.bundle)
 
     @cached_property
     def inventory(self):
@@ -1281,17 +1468,14 @@ def active_enclosing(page_dir: Path) -> dict:
     return read_revision(page_dir, revision).enclosing
 
 
-@lru_cache(maxsize=16)
-def _shared_registry(data: bytes) -> dict:
-    """Parse once for all the revisions that captured the same vocabulary.
-
-    Revisions rewrite the authored page far more often than they re-vendor the layer,
-    so a long history holds a handful of distinct registries. Keying the parse on the
-    exact captured bytes keeps what the held revision readings retain proportional to
-    those rather than to the revision count. A reading is shared, so it is read-only,
-    on the same terms as ``RevisionArtifact.registry``.
-    """
-    return json.loads(data)
+def _bundle_vocabulary(bundle: Path) -> dict:
+    """The vocabulary of a stored bundle, as `RevisionArtifact.registry` reads it."""
+    declarations = bundle / ("resources" + PAGE_DECLARATIONS)
+    return revision_vocabulary(
+        json.loads((bundle / "manifest.json").read_bytes()),
+        declarations.read_bytes() if declarations.is_file() else None,
+        bundle.parent.parent,
+    )
 
 
 def _materialize(path: Path, bundle: Path) -> RevisionArtifact:
@@ -1306,7 +1490,9 @@ def _materialize(path: Path, bundle: Path) -> RevisionArtifact:
         for logical, record in manifest["resources"].items()
     }
     html = path.read_bytes()
-    artifact = RevisionArtifact(html, MappingProxyType(resources), manifest_bytes)
+    artifact = RevisionArtifact(
+        html, MappingProxyType(resources), manifest_bytes, bundle.parent.parent
+    )
     if not path.stem.endswith(artifact.digest.removeprefix("sha256:")[:16]):
         raise artifact_error("manifest-digest", bundle)
     return artifact

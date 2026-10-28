@@ -248,6 +248,19 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
   assert.match(pageText().raw, /Alpha.*Gamma/s);
 });
 
+// A page script's own custom element attaches a root no declaration vouches for. The
+// file reading can't know a script will, so the page reading leaves the root's words out
+// and reads the host by its light children, slotted or not, exactly as the file does.
+test("an undeclared shadow tree is opaque, and its host reads by its children", () => {
+  Object.assign(registry, { $layer: { generation: "passage-undeclared-root" } });
+  document.body.innerHTML =
+    '<main><p>Before</p><author-card><span slot="lead">Lead</span>Loose</author-card>' +
+    "<p>After</p></main>";
+  document.querySelector("author-card").attachShadow({ mode: "open" }).innerHTML =
+    '<h3>Shadow</h3><slot name="lead"></slot>';
+  assert.equal(pageText().raw.replace(/\0+/g, " "), "Before Lead Loose After");
+});
+
 // The walk carries what it knows down the tree rather than climbing from each word, so
 // the places where a climb would have stopped are where a carried context has to start
 // over: `closest` stops at a shadow root, and a slotted node reads where its host

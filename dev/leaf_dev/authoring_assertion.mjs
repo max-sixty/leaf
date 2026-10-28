@@ -25,7 +25,9 @@ export default async function grade(output, context, load = loadApiProvider) {
     if (context.providerResponse.error) throw new Error(context.providerResponse.error);
     const { diagnostics, work, checks } = context.providerResponse.metadata;
     if (!checks.completed)
-      throw new Error("Native author did not complete; inspect retained native evidence.");
+      throw new Error(
+        "Native author did not complete; inspect retained native evidence.",
+      );
     const pages = Object.fromEntries(
       Object.entries(diagnostics.comparison.phases).map(([suffix, phase]) => [
         suffix ? "before_decision" : "final",
@@ -47,10 +49,16 @@ export default async function grade(output, context, load = loadApiProvider) {
     });
     response = await provider.callApi(
       `Judge the completed task against this criterion:
-${diagnostics.criterion}
+${diagnostics.criterion ?? ""}
 ${context.config.rubric}
 
-Request, later user messages and original browser decision task:
+Saved request and later user messages:
+${diagnostics.comparison.brief}
+
+Original browser decision task:
+${diagnostics.comparison.decision_task ?? ""}
+
+Author output and feedback:
 ${output}
 
 The final page is the author's result after all user feedback. The optional

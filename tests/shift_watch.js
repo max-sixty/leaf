@@ -3081,6 +3081,33 @@
   };
   // The credit owners retain their accepted terms. A failing comparison keeps
   // these exact terms until paint admission; reporting never re-runs the solver.
+  // Keep the sampled endpoints even when no term was accepted: otherwise zero
+  // credit cannot distinguish a missing owner from a missing or ineligible sample.
+  const motionEvidence = (node, from, to, selected) => {
+    const ancestors = new Set([
+      ...ancestryAt(node, from),
+      ...ancestryAt(node, to),
+      node,
+    ]);
+    const candidates = new Set([
+      ...selected,
+      ...renderings.flatMap((rendering) => [...rendering.own]),
+    ]);
+    const endpoint = (sample) =>
+      sample ? { at: sample.at, values: sample.values } : null;
+    return [...candidates]
+      .filter((animation) => ancestors.has(animation.effect?.target))
+      .map((animation) => {
+        const samples = animated.get(animation) ?? [];
+        return {
+          target: animation.effect.target,
+          selected: selected.includes(animation),
+          properties: effectProperties(animation),
+          before: endpoint(samples.findLast((sample) => sample.at <= from)),
+          after: endpoint(samples.findLast((sample) => sample.at <= to)),
+        };
+      });
+  };
   const motionComparison = (
     from,
     to,
@@ -3090,6 +3117,8 @@
     layoutAfter,
     scroll,
     motion,
+    node,
+    selected,
   ) => {
     const observed = { left: after.left - before.left, top: after.top - before.top };
     return {
@@ -3104,6 +3133,7 @@
       },
       scroll_terms: scroll.terms,
       animation_terms: motion.terms,
+      animations: motionEvidence(node, from, to, selected),
     };
   };
   const pendingMotion = [];
@@ -3212,6 +3242,8 @@
                 { left: nextLeft, top: nextTop },
                 scroll,
                 motion,
+                node,
+                animations,
               ),
             });
         }
@@ -3345,6 +3377,8 @@
               to,
               scroll,
               motion,
+              node,
+              typing.moving,
             ),
           ],
         },

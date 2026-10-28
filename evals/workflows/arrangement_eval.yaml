@@ -469,11 +469,11 @@ cases:
             rollout's live state as of 16:35 reads at a glance: eu-west back on 4.11 at
             0.33%, 4.12.1 with the 10 s timeout going to eu-west at 1% at 17:30, the other
             regions continuing on 4.12. Figures from 15:40 that are no longer current are
-            labelled with their time or replaced. The eu-west write-up reads in order as a
-            document: what happened, the cause (payments-sdk 7.2's 3 s connect timeout,
+            labelled with their time or replaced. The eu-west write-up makes the incident understandable to the team
+            reading it tomorrow: what happened, the cause (payments-sdk 7.2's 3 s connect timeout,
             confirmed by Dana at 15:52), the decision to roll eu-west back and ship 4.12.1,
-            and the follow-ups with the confirmed one marked done. The write-up is not
-            split into equal tiles or squeezed beside the status where it is hard to read.
+            and the follow-ups with the confirmed one marked done. The prose has enough width to read
+            comfortably at every declared viewport.
             The user's comment thread on the follow-up remains reachable with its answer."
   queue-hand-off:
     inputs:

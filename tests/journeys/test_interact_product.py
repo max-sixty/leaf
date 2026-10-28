@@ -121,13 +121,14 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     assert seeded, "no example ships a log; this gate is reading nothing"
     read = 0
     for example in seeded:
-        # Only pages carrying message markup exercise this door. A page whose
-        # log holds plain threads is covered by the complete fixture check.
+        # Only messages carrying markup or obligations exercise this door. Plain
+        # threads are covered by the complete fixture check.
         # Use the log writer's separator: splitlines() also splits message U+2028.
         fragments = [
-            event["markup"]
+            event
             for line in example.with_suffix(".jsonl").read_text().split("\n")
-            if line.strip() and (event := json.loads(line)).get("markup")
+            if line.strip()
+            and ((event := json.loads(line)).get("markup") or event.get("obligation"))
         ]
         if not fragments:
             continue
@@ -141,7 +142,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         opened = comment(d, "--text", "what a user would ask")
         assert opened.exit_code == 0, opened.output
         root = json.loads(opened.output)["id"]
-        for markup in fragments:
+        for event in fragments:
             read += 1
             posted = CliRunner().invoke(
                 cli_model.cli,
@@ -151,16 +152,16 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
                     str(d),
                     root,
                     "--text",
-                    "carrying it",
-                    "--markup",
-                    markup,
+                    event["text"],
+                    *(["--markup", event["markup"]] if event.get("markup") else []),
+                    *(["--obligation"] if event.get("obligation") else []),
                 ],
             )
             assert posted.exit_code == 0, (
-                f"{example.name} seeds markup the reply door would refuse:\n"
+                f"{example.name} seeds a message the reply door would refuse:\n"
                 f"{posted.output}"
             )
     assert read, (
-        "no seeded event carries markup, so this read nothing — see "
+        "no seeded event carries markup or an obligation, so this read nothing — see "
         "examples/AGENTS.md on what a log is for"
     )

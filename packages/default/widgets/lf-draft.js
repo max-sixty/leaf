@@ -66,7 +66,6 @@ import {
   commandScope,
   motion,
   returnDuration,
-  iconTemplate,
   html,
   render,
   offered,
@@ -75,11 +74,9 @@ import {
   LeafElement,
   offer,
   TEXT_FIELD,
-  paintKeys,
   quoted,
   sendDraft,
   raiseError,
-  commands,
   copyBlock,
   saveDraft,
   loadDraft,
@@ -98,14 +95,14 @@ import {
   focused,
   onPressAway,
   PRESSABLE,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
-// Each control's key, name and mark. Save and Discard wear a message rewrite's
-// symbols (thread/message-edit.js): the save mark, since a check is Resolve and Done.
-const ACTIONS = [
-  ["edit", "Edit", "edit"],
-  ["save", "Save", "save"],
-  ["cancel", "Discard", "cross"],
+// Each control's key and the action whose mark it shows.
+const TOOLS = [
+  ["edit", "edit"],
+  ["save", "save"],
+  ["cancel", "discard"],
 ];
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -320,7 +317,8 @@ customElements.define(
           keep: () => this.#commit(),
         },
       ]);
-      commands(this, this.#commandScope);
+      this.lfCommands = this.#commandScope;
+      commandsChanged(this);
     }
 
     #control(key) {
@@ -338,22 +336,21 @@ customElements.define(
         html`<span ${offered("lf-draft-status")} role="status"
             >${this.#failed ? "Save failed. The edit is kept." : ""}</span
           >
-          ${ACTIONS.map(([key, title, icon]) => {
-            const retry = key === "save" && this.#failed;
-            const name = retry ? "Retry" : title;
-            return html`<button
-              ${offeredAction("mark", "", name)}
-              data-lf-draft-action=${key}
-              ?hidden=${key === "edit" ? editing : !editing}
-              aria-expanded=${key === "edit" ? String(editing) : nothing}
-            >
-              ${iconTemplate(retry ? "retry" : icon, "lf-mark-icon")}
-            </button>`;
-          })}
+          ${TOOLS.map(
+            ([key, action]) =>
+              html`<button
+                ${offeredAction("mark", "", undefined, {
+                  action: key === "save" && this.#failed ? "retry" : action,
+                })}
+                data-lf-draft-action=${key}
+                ?hidden=${key === "edit" ? editing : !editing}
+                aria-expanded=${key === "edit" ? String(editing) : nothing}
+              ></button>`,
+          )}
           ${this.#copy}`,
         this.#tools,
       );
-      paintKeys();
+      commandsChanged(this);
     }
 
     #available() {
@@ -405,7 +402,8 @@ customElements.define(
       // being the innermost scope's is what keeps the runtime's own rung from running
       // behind it and closing a panel too.
       this.#editor = editor;
-      commands(editor, this.#commandScope);
+      editor.lfCommands = this.#commandScope;
+      commandsChanged(editor);
       this.#body.after(editor);
       // Its toolbar stands inside the draft, so Discard and Copy are no press away.
       this.#stopPressAway = onPressAway(

@@ -202,9 +202,15 @@ def task_anchor(subject: str) -> str:
 
 
 def task_title(columns: dict) -> str:
-    """Use the saved case's human-facing description; ids still own grouping."""
+    """Name the saved case and its run scope; ids still own grouping."""
     title = next(iter(columns.values()))[0]["title"]
-    return title[:1].upper() + title[1:]
+    title = title[:1].upper() + title[1:]
+    groups = {
+        sample.get("run_group") for members in columns.values() for sample in members
+    }
+    if len(groups) == 1 and (group := next(iter(groups))):
+        return f"{group} · {title}"
+    return title
 
 
 def measures(sample: dict) -> dict:
@@ -561,6 +567,23 @@ def sample_anchor(sample: dict) -> str:
     )
 
 
+def phase_label(sample: dict, phase: str) -> str:
+    """A scheduled final turn is not a final output when the author never finished."""
+    saved = sample["diagnostics"].get("phases", {}).get(phase)
+    if saved is None:
+        return "Output unavailable"
+    if saved.get("trace", {}).get("completed") is False:
+        return "Saved output · author turn incomplete"
+    roles = sample["diagnostics"]["comparison"]["phases"]
+    if phase == "1":
+        return "Initial output"
+    if phase == roles.get("_before_decision"):
+        return "Before decision"
+    if phase == roles.get(""):
+        return "Final output"
+    return f"Revision {phase}"
+
+
 def linked_file(page: Path, path: Path, output_url: str | None, label: str) -> str:
     """Copy exact evidence into the explicitly served report bundle."""
     if not path.is_file():
@@ -829,7 +852,6 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
     sources = []
     final_view = ""
     final = str(comparison["phases"][""])
-    before_decision = comparison["phases"].get("_before_decision")
     for phase, saved in sorted(
         diagnostics["phases"].items(), key=lambda item: int(item[0])
     ):
@@ -874,21 +896,18 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
             screens_view += "</div>"
         content = f'<p class="sample-links">{exported}</p>{screens_view}'
         if phase == final:
-            role = "Initial output" if phase == "1" else "Final output"
+            role = phase_label(sample, phase)
             final_view = (
                 f'<section id="{anchor}-p{phase}"><h3>{role} · revision {phase}</h3>'
                 f"{content}</section>"
             )
         else:
-            role = (
-                " · before decisions"
-                if phase == before_decision
-                else " · initial output"
-                if phase == "1"
-                else ""
-            )
+            role = phase_label(sample, phase)
+            title = f"Revision {phase}"
+            if role != title:
+                title += f" · {role.lower()}"
             history.append(
-                f'<details id="{anchor}-p{phase}"><summary>Revision {phase}{role}</summary>'
+                f'<details id="{anchor}-p{phase}"><summary>{escape(title)}</summary>'
                 f"{content}</details>"
             )
     traces = [
@@ -1205,7 +1224,7 @@ def journey_outputs(page: Path, step: dict, samples: dict) -> str:
             f'<section id="{anchor}"><h5>{escape(reference["label"])}</h5>'
             '<p class="sample-links">'
             + sample.get("exports", {}).get(phase, "Saved output unavailable")
-            + f'<a href="#{sample_anchor(sample)}-p{phase}">Revision {escape(phase)} and details</a></p>'
+            + f'<a href="#{sample_anchor(sample)}-p{phase}">{escape(phase_label(sample, phase))} and details</a></p>'
             + ("".join(views) or "<p>No screenshots recorded.</p>")
             + "</section>"
         )
@@ -1527,7 +1546,7 @@ def implementation_summary(
 
 
 def report_introduction(
-    found: dict, *, story: bool, discovery: bool, implementation: str = ""
+    found: dict, latest: str, *, story: bool, discovery: bool, implementation: str = ""
 ) -> str:
     """Explain the visible navigation and distinguish interventions from evidence."""
     outputs_label = "Hill-climbing journey" if story else "Outputs"
@@ -1548,7 +1567,8 @@ def report_introduction(
         navigation.append('<a href="#observations">Exploration</a>')
     return (
         '<lf-tab id="report-introduction" label="Introduction">'
-        '<section id="report-map"><h2>How this report is organized</h2>'
+        + latest
+        + '<section id="report-map"><h2>How this report is organized</h2>'
         "<p>We are testing changes to Leaf and its authoring instructions, and improving "
         "the hill-climb process used to evaluate them.</p>"
         '<table id="report-destinations"><thead><tr><th>View</th><th>What it shows</th></tr></thead><tbody>'
@@ -1674,22 +1694,9 @@ def review_sections(
             phases = []
             labels = []
             for side, sample in (("before", before), ("after", after)):
-                roles = (sample["diagnostics"].get("comparison") or {}).get(
-                    "phases", {}
-                )
                 phase = reference_phase(sample, comparison[side])
                 phases.append(phase)
-                role = (
-                    "Initial page"
-                    if phase == "1"
-                    else "Before decision"
-                    if phase == roles.get("_before_decision")
-                    else "Final output"
-                    if phase == roles.get("")
-                    else f"Revision {phase}"
-                    if phase
-                    else "Output unavailable"
-                )
+                role = phase_label(sample, phase)
                 condition = {"html": "Plain HTML", "leaf": "Leaf"}.get(
                     sample["diagnostics"].get("condition")
                 )
@@ -1854,7 +1861,7 @@ def eval_report(
                         sample["run"].resolve(), sample["sample"]
                     ]
                     sample["run_group"] = (
-                        "This journey"
+                        "Latest run"
                         if sample["run"].resolve() in latest_runs
                         else "Reference output"
                     )
@@ -1903,7 +1910,6 @@ def eval_report(
         + judge_preferences(page, records, found, assessment, output_url)
         + story
         + f'<lf-tab id="scores" label="{index_label}" group="Overview">'
-        + introduction
         + overview(found)
         + f"<details><summary>Runs and score definitions</summary>{runs_text}"
         "<p>Checks are execution assertions. Quality shows recorded live, visual or text rubric "
@@ -1926,6 +1932,7 @@ def eval_report(
             '<lf-tabs id="review-views" data-width="available">'
             + report_introduction(
                 found,
+                introduction,
                 story=bool(story),
                 discovery=bool(discovery),
                 implementation=implementation_summary(

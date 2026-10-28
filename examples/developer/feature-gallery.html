@@ -6,6 +6,7 @@
       name="description"
       content="Leaf's core page vocabulary on one synthetic page, with live examples and its core interactions to try in live samples."
     />
+    <script type="module" src="/page/generated-sample.js"></script>
     <style>
       @import url("/page/theme.css");
 
@@ -237,7 +238,7 @@
     <script type="module">
       import {
         afterPresentation,
-        commands,
+        commandsChanged,
         connection,
         generate,
         keepsText,
@@ -334,17 +335,22 @@
 
       const localNote = document.querySelector("#bg-shortcut-note");
       const focusNote = document.querySelector("#bg-shortcut-focus-note");
-      commands(document.querySelector("#bg-local-shortcuts"), "In the note sample", [
-        {
-          id: "note.focus",
-          contextKeys: ["1"],
-          control: focusNote,
-          bindingBadge: null,
-          title: "Write note",
-          description: "Focus the sample note",
-          run: () => localNote.focus(),
-        },
-      ]);
+      const localShortcuts = document.querySelector("#bg-local-shortcuts");
+      localShortcuts.lfCommands = {
+        title: "In the note sample",
+        rows: [
+          {
+            id: "note.focus",
+            contextKeys: ["1"],
+            control: focusNote,
+            bindingBadge: null,
+            title: "Write note",
+            description: "Focus the sample note",
+            run: () => localNote.focus(),
+          },
+        ],
+      };
+      commandsChanged(localShortcuts);
 
       const pageRoot = document.querySelector(
         'link[rel="canonical"][data-lf-runtime]',
@@ -3335,6 +3341,22 @@ switch --readers checkout-api,orders-api</code></pre>
               ></lf-text-document>
             </section>
 
+            <section id="bg-widget-document">
+              <p class="eyebrow bg-feature-elements">lf-text-document</p>
+              <h3>A document from a widget</h3>
+              <p>
+                Press Update document to publish a new release note. Preview and Source
+                read the same output; updating it keeps your selected view.
+              </p>
+              <lf-document-gallery id="bg-document-producer"></lf-document-gallery>
+              <lf-text-document
+                id="bg-produced-document"
+                for="bg-document-producer"
+                label="live-release-note.md"
+                preview="markdown"
+              ></lf-text-document>
+            </section>
+
             <section id="bg-measurement-lag">
               <p class="eyebrow bg-feature-elements">lf-num</p>
               <h3>
@@ -3523,6 +3545,20 @@ switch --readers checkout-api,orders-api</code></pre>
             <lf-option id="bg-delivery-express">Express delivery</lf-option>
           </lf-options>
         </lf-sample>
+      </section>
+      <section id="bg-generated-sample-section">
+        <h2>A sample created by a page module</h2>
+        <p>
+          Press Create sample, choose a delivery, then use Undo in the sample. Remove
+          sample releases its temporary history; creating it again starts fresh. This
+          fixture supplies fixed source and makes no model request.
+        </p>
+        <div>
+          <button id="bg-create-sample" type="button">Create sample</button>
+          <button id="bg-remove-sample" type="button" disabled>Remove sample</button>
+        </div>
+        <p id="bg-generated-sample-status" role="status"></p>
+        <div id="bg-generated-sample-preview"></div>
       </section>
     </main>
   </body>

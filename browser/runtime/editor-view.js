@@ -15,6 +15,7 @@
  * this one: that keeps CodeMirror off the opening of a page that never edits, and a
  * caller that imports CodeMirror statically still gets the class synchronously.
  */
+import { setScroll } from "./arrivals.js";
 import { canPlaceFocus } from "./focus.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { clamp, union } from "./rect.js";
@@ -134,9 +135,9 @@ function editorViewOver({
       yMargin,
       side,
     );
-    port.scrollBy({
-      left: port.scrollWidth > port.clientWidth ? x / scaleX : 0,
-      top: port.scrollHeight > port.clientHeight ? y / scaleY : 0,
+    setScroll(port, {
+      left: port.scrollLeft + (port.scrollWidth > port.clientWidth ? x / scaleX : 0),
+      top: port.scrollTop + (port.scrollHeight > port.clientHeight ? y / scaleY : 0),
       behavior: "instant",
     });
   }

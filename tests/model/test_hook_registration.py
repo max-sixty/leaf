@@ -36,6 +36,43 @@ from leaf import state as cleanup_model
 REGISTRATIONS = {"claude-code": "hooks.json", "codex": "codex.json"}
 
 
+def test_an_older_installed_copy_delivers_through_the_copy_installed_since(
+    tmp_path, monkeypatch
+):
+    """Claude Code installs an update beside the copy a running session loaded and
+    records it in `installed_plugins.json`; the older copy's delivery runs the newer
+    one, and a checkout, which someone chose to run, runs itself."""
+    from leaf import session_runtime
+
+    cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
+    launchers = {}
+    for version in ("0a0a0a0a0a0a", "1b1b1b1b1b1b"):
+        launcher = cache / version / "bin" / "leaf"
+        launcher.parent.mkdir(parents=True)
+        launcher.write_text("#!/bin/sh\n")
+        launcher.chmod(0o755)
+        launchers[version] = launcher.resolve()
+    (tmp_path / "plugins" / "installed_plugins.json").write_text(
+        json.dumps(
+            {"plugins": {"leaf@leaf": [{"installPath": str(cache / "1b1b1b1b1b1b")}]}}
+        )
+    )
+    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", cache / "0a0a0a0a0a0a")
+    assert session_runtime.delivering_launcher("") == launchers["1b1b1b1b1b1b"]
+    # A bare command from the older copy runs the newer one, a hook its own way.
+    ran = []
+    monkeypatch.setattr(
+        session_runtime.os, "execve", lambda path, argv, env: ran.append(argv)
+    )
+    session_runtime.hand_off_command(["page", "state", "p"])
+    session_runtime.hand_off_command(["hook", "--harness", "claude-code"])
+    assert ran == [[str(launchers["1b1b1b1b1b1b"]), "page", "state", "p"]]
+    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", cache / "1b1b1b1b1b1b")
+    assert session_runtime.delivering_launcher("") == launchers["1b1b1b1b1b1b"]
+    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", tmp_path / "checkout")
+    assert session_runtime.installed_launcher() is None
+
+
 def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypatch):
     """An installed hook preserves stdin and defers lifecycle to the checkout.
 
@@ -80,8 +117,10 @@ def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypat
     }
     assert cleanup_model.session_record("selected-runtime") == before
 
+    # A selection whose checkout is gone falls back to the Leaf running, which
+    # refuses whatever page it can't read itself.
     selected.unlink()
-    refused = subprocess.run(
+    fallen_back = subprocess.run(
         [*LEAF_COMMAND, "hook", "--harness", "codex"],
         input=json.dumps(payload),
         capture_output=True,
@@ -89,12 +128,10 @@ def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypat
         timeout=STATED_TIMEOUT,
         check=False,
     )
-    assert refused.returncode == 1
-    assert "selected Leaf launcher is unavailable" in refused.stderr
-    assert cleanup_model.session_record("selected-runtime") == before
+    assert fallen_back.returncode == 0, fallen_back.stderr
+    assert "argv" not in fallen_back.stdout
 
-    # A new generation returns to the installed default; the stale selection is
-    # never silently substituted while its generation still owns feedback.
+    # A new generation returns to the installed default.
     cleanup_model.end_session("selected-runtime")
     cleanup_model.ensure_session("selected-runtime", {})
     assert "launcher" not in cleanup_model.session_record("selected-runtime")

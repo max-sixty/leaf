@@ -5084,6 +5084,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let menuDrawn = false;
 	let query = "";
 	let searching = false;
+	const unfolded = /* @__PURE__ */ new Set();
 	let pageSearch = null;
 	const threadSearchInput = shell("search");
 	const threadSearch = {
@@ -5323,11 +5324,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const queues = readQueues();
 		return queues.phase === "ready" ? queues.on_user.length : 0;
 	};
-	const threadStatus = (thread, { headed }) => {
+	const threadStatus = (thread) => {
 		const attention = thread.resolved ? null : threadAttention(thread, agentName());
-		const word = thread.resolved ? !headed && "Resolved" : attention?.label;
+		const word = thread.resolved ? "Resolved" : attention?.label;
+		const since = thread.resolved ? shortAgo(thread.resolved.ts) : "";
 		const draft = draftHasContent(replyContext(thread.key)) && "Draft";
-		return html`${word ? html`<span data-voice=${attention?.voice ?? "agent"}>${word}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+		return html`${word ? html`<span data-voice=${attention?.voice ?? "agent"}>${word}</span>` : nothing}${since ? html` <span class="lf-fp-age">${since}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
 	};
 	const rows = () => pageControls();
 	const VIEWS = Object.freeze({
@@ -5336,7 +5338,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			quiet: () => true,
 			draw: () => threadsView(),
 			controls: () => threadsControls(),
-			rows: ".lf-fp-thread"
+			rows: ".lf-fp-thread, .lf-fp-settled"
 		},
 		thread: {
 			key: (route) => `thread:${route.thread}`,
@@ -5486,6 +5488,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const before = trail.value.at(-1);
 		trail.value = [];
 		searching = false;
+		unfolded.clear();
 		transition(before, { handedOn });
 	}
 	function putAwayThen(run) {
@@ -5649,6 +5652,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	let refitting = false;
 	let drawnSections = null;
+	let landingKeys = null;
 	function refit() {
 		room = null;
 		drawnSections = null;
@@ -6131,14 +6135,20 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	const joinedNotice = newsNotice();
 	function showJoined() {
-		const keys = new Set(threadsListing().joined.map(({ thread }) => thread.key));
+		const { joined } = threadsListing();
+		const keys = new Set(joined.map(({ thread }) => thread.key));
 		const pressed = focused() === joinedNotice.node;
+		if (joined.every(({ now }) => now === "resolved") && !unfolded.has("resolved")) {
+			unfolded.add("resolved");
+			refit();
+		}
 		drawnSections = null;
+		landingKeys = keys;
 		paint();
+		landingKeys = null;
 		const row = threadRows().find((candidate) => keys.has(candidate.dataset.key));
 		if (!row) return null;
 		scrollIntoView(row, { block: "nearest" });
-		rove(threadRows(), row);
 		if (pressed) focusDestination(row, "move");
 		return null;
 	}
@@ -6156,11 +6166,30 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       ><span class="lf-fp-news-outlet">${joinedNotice.node}</span></span
     >`;
 	}
+	function settledHeading(key, title, count) {
+		const open = unfolded.has(key);
+		return html`<h3 class="lf-label lf-fp-on-group lf-fp-settled-group">
+      <button
+        type="button"
+        class="lf-fp-face lf-fp-settled lf-disclosure-marker"
+        aria-expanded=${open ? "true" : "false"}
+        @click=${() => {
+			if (open) unfolded.delete(key);
+			else unfolded.add(key);
+			refit();
+			paint();
+		}}
+      >
+        <span class="lf-fp-label">${title}</span
+        ><span class="lf-fp-count">${count}</span>
+      </button>
+    </h3>`;
+	}
 	function threadsView() {
 		const { rows, searched } = threadsListing();
 		const listed = rows.filter(({ section }) => section !== "resolved").map(({ thread }) => thread);
 		const resolved = rows.filter(({ section }) => section === "resolved").map(({ thread }) => thread);
-		const row = (thread, headed) => html`<button
+		const row = (thread) => html`<button
         type="button"
         class="lf-fp-face lf-fp-thread"
         data-key=${thread.key}
@@ -6176,14 +6205,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
           >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
         >
         <span class="lf-fp-label">${threadHeading(thread)}</span>
-        <span class="lf-fp-value">${threadStatus(thread, { headed })}</span>
+        <span class="lf-fp-value">${threadStatus(thread)}</span>
       </button>`;
+		const rowsOf = (threads) => repeat(threads, (thread) => thread.key, row);
 		return html`<div class="lf-fp-list">
-      ${listed.length ? repeat(listed, (thread) => thread.key, (thread) => row(thread, false)) : inventoried() ? html`<p class="lf-fp-empty">
+      ${listed.length ? rowsOf(listed) : inventoried() ? html`<p class="lf-fp-empty">
                 ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
               </p>` : nothing}
-      ${resolved.length ? html`<h3 class="lf-fp-ended">Resolved</h3>
-              ${repeat(resolved, (thread) => thread.key, (thread) => row(thread, true))}` : nothing}
+      ${resolved.length ? html`<hr class="lf-fp-on-rule" />
+              ${settledHeading("resolved", "Resolved", resolved.length)}
+              ${unfolded.has("resolved") ? rowsOf(resolved) : nothing}` : nothing}
       ${inventoried() ? nothing : html`<p class="lf-fp-empty">
               ${readThreads().phase === "offline" ? "Current threads are unavailable while the server is offline." : "Loading current threads…"}
             </p>`}
@@ -7183,7 +7214,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			fitted = outlet;
 		}
 		const listed = listRows();
-		rove(listed, listed.includes(focused()) ? focused() : listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]);
+		rove(listed, listed.includes(focused()) ? focused() : listed.find((row) => landingKeys?.has(row.dataset.key)) ?? listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]);
 		if (leavesReply && hadEditorFocus && !search) focusDestination(leaf, "return");
 		if (caretToField && !replying && !search) {
 			caretToField = false;

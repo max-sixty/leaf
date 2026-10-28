@@ -309,7 +309,7 @@ def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
     identity = harness_model.session_harness()
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, identity.session)
     )
     assert lease

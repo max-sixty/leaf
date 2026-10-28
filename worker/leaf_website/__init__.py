@@ -72,7 +72,7 @@ from leaf.harness import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, PostRoute, scope_page_urls
 from leaf.interaction_log import append_interactions
-from leaf.leases import release_lease, take_lease, waiter_lease_path
+from leaf.leases import release_lease, take_wait_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
@@ -767,7 +767,7 @@ class WebsiteCodexHarness:
         if thread_id in self.waiter_leases:
             return
         path = waiter_lease_path(page_dir, thread_id)
-        lease = take_lease(path)
+        lease = take_wait_lease(path)
         if lease is None:
             raise RuntimeError("another Leaf waiter already owns this Codex task")
         self.waiter_leases[thread_id] = lease

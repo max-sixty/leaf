@@ -788,15 +788,6 @@ _TEXT = {
     "unnamed-sample": lambda at, v: (
         f"<template data-sample> at line {v['line']}: needs a stable id"
     ),
-    "async-script": lambda at, v: (
-        f"<script async> (line {v['line']}) runs whenever it arrives, which can be"
-        " before Leaf reads the page; leave async off"
-    ),
-    "parser-blocking-script": lambda at, v: (
-        f"{_line(at, v)} runs while the page is still parsing, before Leaf reads it;"
-        ' write inline JavaScript as <script type="module">, and load a classic script'
-        " file with <script defer src>"
-    ),
     "document-declaration": lambda at, v: (
         f"{_line(at, v)} declares something about the whole document, which delivery"
         " owns"
@@ -1627,8 +1618,8 @@ _TEXT = {
         f"{v['page']} was vendored at page protocol {v['vendored']} by a newer Leaf"
         f" ({v['vendored_by']}), and this Leaf ({v['leaf']}) speaks protocol"
         f" {v['protocol']}, so it can neither serve nor re-vendor the page. Use a"
-        f" Leaf at protocol {v['vendored']} or later; in Claude Code,"
-        " `/reload-plugins` loads an installed update."
+        f" Leaf at protocol {v['vendored']} or later, such as the one that vendored"
+        " it."
     ),
     "retired-layer": lambda at, v: _unservable_layer(
         v,

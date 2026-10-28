@@ -99,7 +99,7 @@ fabInput.name = "comment";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
 const fab = responseAction(el("button", "lf-ui lf-fab"), {
-  icon: "comment",
+  action: "comment",
   label: "Comment",
   behavior: "disclosure",
 });
@@ -111,7 +111,7 @@ fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
 const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
-  icon: "edit",
+  action: "suggest",
   label: "Suggest",
   collapse: true,
 });
@@ -121,7 +121,7 @@ export const fabOptionsTrigger = offerAction(
   "symbol",
   "lf-response-trigger",
   "Other responses",
-  { icon: "more" },
+  { action: "more" },
 );
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
@@ -301,7 +301,7 @@ export function createSelectionComposer({
   function syncSuggestMode() {
     const suggest = !suggestionMode;
     responseAction(fabSuggest, {
-      icon: suggest ? "edit" : "comment",
+      action: suggest ? "suggest" : "comment",
       label: suggest ? "Suggest" : "Comment",
       collapse: true,
     });

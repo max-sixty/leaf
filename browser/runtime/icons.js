@@ -4,9 +4,9 @@
 
 import { html } from "/runtime/framework.js";
 
-import { iconMarkup } from "./icon-paths.js";
+import { actionIcon, iconMarkup } from "./icon-paths.js";
 
-export { iconElement } from "./icon-paths.js";
+export { actionElement, iconElement, showAction } from "./icon-paths.js";
 
 /** A Lit icon template; a parent refresh keeps its SVG and rewrites only a changed icon. */
 export function iconTemplate(icon, className = "lf-margin-entry-icon") {
@@ -19,3 +19,8 @@ export function iconTemplate(icon, className = "lf-margin-entry-icon") {
     .innerHTML=${iconMarkup(icon)}
   ></svg>`;
 }
+
+/** The template of `action`'s symbol (icon-paths.js, `ACTIONS`), for a press whose
+    face no role draws, such as the floating panel's. */
+export const actionTemplate = (action, className) =>
+  iconTemplate(actionIcon(action), className);

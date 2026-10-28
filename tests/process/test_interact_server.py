@@ -3309,7 +3309,9 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
     record_claim(page_dir, turn_opened=stamp)
     declare(page_dir, ts=stamp)
     declare_work(page_dir, "measuring", ts=stamp)
-    waiter = leases_model.take_lease(leases_model.waiter_lease_path(page_dir, "s1"))
+    waiter = leases_model.take_wait_lease(
+        leases_model.waiter_lease_path(page_dir, "s1")
+    )
     publisher = server_rows_model.RowPublisher(page_dir, "clock-server")
     monkeypatch.setattr(
         server_rows_model,

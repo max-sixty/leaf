@@ -20,10 +20,11 @@ check that way and put anything needing a browser in the browser half. The rules
 in `validation/source.py` and `validation/markup.py`; these are the decisions behind
 them:
 
-- Page code runs after the runtime has read the page: inline modules, deferred classic
-  script files, or their literal local import graphs under `/page/`, never
-  parser-blocking or `async` scripts. Anything on another server is named by its
-  http(s) URL and loaded as written.
+- Page code may be any script, classic or module, inline or a file, with its literal
+  local import graph under `/page/`. Delivery defers a classic script and drops
+  `async` (`revision_delivery._deferred`), so every script runs after the runtime has
+  read the page and while it listens for errors. Anything on another server is named
+  by its http(s) URL and loaded as written.
 - The runtime, theme, page identity and declarations about the whole document (a
   `<base>`, an http-equiv `<meta>`, an import map) belong to delivery, which inserts
   them at the start of `<head>`, so source may not author them. Message markup may not

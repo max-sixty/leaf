@@ -319,12 +319,9 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     """The layer's two stylesheets: each contribution in its role's cascade tier,
     in input order. Leaf places sheets and rewrites none of their rules.
 
-    A sheet's filename sets its role. elements.css holds a package's page-wide
-    defaults, element rules and idioms, in lf-base after the kernel's own and before
-    every package's widget defaults, so a widget's rule outranks them on a tie as it
-    outranks the kernel's: a theme's look, such as the bundled `reading`, stands
-    there. widgets.css holds a package's widget defaults in lf-base.
-    widget-shadow.css holds rules for both trees, in lf-base in the
+    A sheet's filename sets its role. widgets.css holds a package's defaults in
+    lf-base, below Layouts: a widget's own, and a theme's element rules and idioms,
+    such as the bundled `reading` look. widget-shadow.css holds rules for both trees, in lf-base in the
     document and lf-shadow in every declared shadow tree. Leaf adds no scope around
     either, so each names the widgets it styles: by tag in the document, and by
     `:host(tag)` in a shadow tree, where a rule reaches everything the tree holds,
@@ -350,8 +347,6 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     place(theme, "lf-base", kernel, "shadow.css")
     place(shadow, "lf-shadow", kernel, "shadow.css")
     place(theme, "lf-base", kernel, "theme.css")
-    for root in packages:
-        place(theme, "lf-base", root, "elements.css")
     for root in packages:
         place(theme, "lf-base", root, "widget-shadow.css")
         place(shadow, "lf-shadow", root, "widget-shadow.css")

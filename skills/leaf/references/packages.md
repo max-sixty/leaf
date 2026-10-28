@@ -67,8 +67,7 @@ Every package uses this layout, and every file is optional:
 ```text
 package/
 ├── registry.json       element declarations and shared $ declarations
-├── elements.css        page-wide element and idiom defaults, beneath widgets
-├── widgets.css         defaults for this package's widgets
+├── widgets.css         defaults: its widgets', and a theme's element rules
 ├── widget-shadow.css   widget defaults also loaded in their shadow trees
 ├── theme.css           page-wide theme inputs and presentation
 ├── instructions/       Markdown instructions named for their audiences
@@ -93,16 +92,14 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 Choose a stylesheet by the contribution it makes. A package may supply any combination;
 adding a widget does not change its theme styling.
 
-| Sheet               | Document                                        | Declared shadow trees |
-| ------------------- | ----------------------------------------------- | --------------------- |
-| `elements.css`      | `lf-base`, before every package's widget sheets | —                     |
-| `widgets.css`       | `lf-base`                                       | —                     |
-| `widget-shadow.css` | `lf-base`                                       | `lf-shadow`           |
-| `theme.css`         | Page-wide in `lf-theme`                         | —                     |
+| Sheet               | Document                | Declared shadow trees |
+| ------------------- | ----------------------- | --------------------- |
+| `widgets.css`       | `lf-base`               | —                     |
+| `widget-shadow.css` | `lf-base`               | `lf-shadow`           |
+| `theme.css`         | Page-wide in `lf-theme` | —                     |
 
-Page-wide defaults that a widget's own rules should outrank, such as element rules and
-idioms, go in `elements.css`; widget defaults rank with them, below Layouts; theme
-contributions rank above them. Leaf orders
+Defaults, a widget's own and a theme's element rules and idioms, go in `widgets.css`,
+below Layouts; theme contributions rank above them. Leaf orders
 the cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-theme`,
 `lf-state`. A shared shadow sheet precedes its document-only sheet; later selected
 packages win ties. The page's own CSS is unlayered above these normal rules. Layouts

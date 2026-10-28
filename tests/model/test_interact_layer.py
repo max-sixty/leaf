@@ -2231,7 +2231,7 @@ def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path)
         json.dumps({"lf-contribution": element_declaration("lf-contribution")})
     )
     assert layer_model.composed_sheets([schema_model.ASSETS, package]) == before
-    for name in ("elements.css", "widgets.css", "widget-shadow.css"):
+    for name in ("widgets.css", "widget-shadow.css"):
         (package / name).write_text("lf-contribution { color: green; }")
     staged = tmp_path / "installed"
     staged.mkdir()

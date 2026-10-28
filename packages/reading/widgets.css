@@ -2,9 +2,8 @@
  * another or none (`leaf page init --theme`, `--no-theme`). It holds the body's type
  * and colour, the page's ground, a wide page's and a page of parts' title, and the class
  * idioms its registry declares. As the package's
- * `elements.css`, its rules stand in `lf-base` after Leaf's core sheet and before every
- * widget's defaults, so a widget's own rule and the page's sheet outrank them as they
- * outrank Leaf's. It sets
+ * `widgets.css`, its rules stand in `lf-base` beside widgets' defaults and below
+ * Layouts, so a Layout and the page's sheet outrank them as they outrank Leaf's. It sets
  * `--lf-reading-face: 1` on the root, which gives the page's markup the face Leaf's
  * own surfaces read in (headings, prose, lists, tables, code, quotes, figures,
  * disclosures, definitions, rules and pictures, browser/styles/components/reading.css),

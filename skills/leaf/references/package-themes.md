@@ -2,10 +2,10 @@
 
 Read with [packages.md](packages.md), which holds the package contract and how styles
 compose. A theme is a page's look: a package whose rules style the page as a whole,
-whether or not it also declares widgets. Defaults that a widget's own rules and the
-page's sheet should outrank, such as element rules, belong in `elements.css`, in the
-layer with Leaf's own defaults; rules meant to win over widget defaults and Layouts
-belong in `theme.css`. Idioms belong in either, declared in the package's registry.
+whether or not it also declares widgets. Defaults that Layouts and the page's sheet
+should outrank, such as element rules, belong in `widgets.css`, in the layer with
+Leaf's own defaults; rules meant to win over widget defaults and Layouts belong in
+`theme.css`. Idioms belong in either, declared in the package's registry.
 
 ## Personal themes
 

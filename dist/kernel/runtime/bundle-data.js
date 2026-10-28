@@ -3853,26 +3853,26 @@ var ReactionStripView = class {
 		this.#model = model;
 		this.node.classList.toggle("lf-open", model.latest);
 		render$1(html`<span
-          class="lf-react-palette"
-          id=${this.#paletteId}
-          popover="auto"
-          role="group"
-          @toggle=${(event) => {
+        class="lf-react-palette"
+        id=${this.#paletteId}
+        popover="auto"
+        role="group"
+        @toggle=${(event) => {
 			if (event.newState === "closed") this.#registration.close();
 		}}
-          aria-label="Reactions for this reply"
-        >
-          ${repeat(model.choices, (choice) => choice.name, (choice) => html` <button
-                ${offered(`lf-react ${HOLDS_WORD}`)}
-                data-token=${choice.name}
-                title=${choice.label}
-                aria-label=${choice.label}
-                aria-pressed=${String(Boolean(choice.inForce))}
-                @click=${() => this.#press(choice.name)}
-              >
-                <span class="lf-react-glyph">${choice.glyph}</span>
-              </button>`)}
-        </span>`, this.node);
+        aria-label="Reactions for this reply"
+      >
+        ${repeat(model.choices, (choice) => choice.name, (choice) => html` <button
+              ${offered(`lf-react ${HOLDS_WORD}`)}
+              data-token=${choice.name}
+              title=${choice.label}
+              aria-label=${choice.label}
+              aria-pressed=${String(Boolean(choice.inForce))}
+              @click=${() => this.#press(choice.name)}
+            >
+              <span class="lf-react-glyph">${choice.glyph}</span>
+            </button>`)}
+      </span>`, this.node);
 		return this.node;
 	}
 	trigger = html`<button

@@ -1596,9 +1596,6 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 expect(
                     page.locator("#pr-exact-patch .lf-diff-line > [data-line]:focus")
                 ).to_have_count(1)
-                # The landing then scrolls the page smoothly, which no animation
-                # `page_at_rest` waits on stands for.
-                scroll_settled(page)
             page_at_rest(page)
             if surface := RING_SCOPE_SURFACE.get(scope):
                 assert page.locator(surface).count() == 1, (

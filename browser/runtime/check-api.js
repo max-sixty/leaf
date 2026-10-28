@@ -92,7 +92,7 @@ export { threadCounts } from "./thread/model.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
-export { scrollGlides, watchScrollEnds } from "./arrivals.js";
+export { scrollGlides, scrolling, watchScrollEnds } from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
 export {
   chromeSheet,

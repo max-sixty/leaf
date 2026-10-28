@@ -6,14 +6,24 @@ module owes.
 ## Commands and keyboard routes
 
 A widget declares its commands as data on the element they apply in: set the element's
-`lfCommands` to the scope, `{title, rows, when}`, and call `commandsChanged(element)`.
-Leaf reads the declaration then, and `commandsChanged` throws where a row is malformed.
-Leaf binds its keys, lists them in the command reference
-and hints, and is the only writer of `aria-keyshortcuts`; a page without Leaf reads
-nothing, so a widget that also runs there (`module-authoring.md`, "A widget that also
-runs off Leaf") binds no key. Declare at upgrade, once the element exists; it may still
-be out of the page. Setting a new declaration and calling `commandsChanged` again
-replaces the scope, and `null` withdraws it. `when` is optional.
+`lfCommands` to the scope and call `commandsChanged(element)`. The scope holds `title`,
+the heading the command reference lists it under, and `rows` ("Command rows"). It may
+also hold `when`, whether the page has the scope at all, which gates the reference as a
+row's own `when` gates its press; `ready` (`module-authoring.md`, "Startup and
+presentation"); `claims` ("How scopes compose"); and `escape: "inner"`, for a scope
+whose own Escape step comes before every step outside it.
+
+Leaf reads the declaration when `commandsChanged` runs, binds its keys, lists them in
+the command reference and hints, and is the only writer of `aria-keyshortcuts`. A page
+without Leaf reads nothing, so a widget that also runs there (`module-authoring.md`, "A
+widget that also runs off Leaf") binds no key. Declare at upgrade, once the element
+exists; it may still be out of the page.
+
+Assigning a new object to `lfCommands` and calling `commandsChanged` replaces the
+scope, and Leaf checks the new rows then: `commandsChanged` throws where one is
+malformed. `null` withdraws the scope. Calling `commandsChanged` with the same object
+only has Leaf read its rows' titles and availability again, so a row or title edited in
+place goes unchecked; assign a new object to change them.
 
 ```javascript
 this.lfCommands = {

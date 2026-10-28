@@ -95,6 +95,9 @@ function offsetsAreNumbers(marks, place = "marks") {
 customElements.define(
   "lf-chart",
   class extends HTMLElement {
+    // The height every drawing takes, read at the first (`paint`).
+    #height;
+
     connectedCallback() {
       if (!once(this)) return;
       // A chart is drawn to the room it has, so the first draw waits for a box. On the
@@ -123,7 +126,7 @@ customElements.define(
         this.paint(Plot, body);
         this.classList.add("lf-rendered");
         // Only the width is watched, and only when it lands on a new whole pixel; the
-        // height is stated and stays. The redraw is scheduled after ResizeObserver
+        // height is the first drawing's and stays. The redraw is scheduled after ResizeObserver
         // delivery, so the layout a paint reads never lands inside the delivery cycle
         // that asked for it, which the browser reports as undelivered notifications.
         // A failed redraw ends the watch: the failure replaced the drawing, and a
@@ -148,11 +151,13 @@ customElements.define(
       }
     }
 
-    // Drawn to the box's height as well as its width. Once drawn the box is the
-    // drawing's, so a redraw for a new width reads the height the last drawing filled.
+    // Drawn to the box's height as well as its width. The height is read once, at the
+    // first drawing, while the page still holds the box at it: once drawn the box is
+    // the drawing's, and a box a grid or flex row stretches would hand a redraw the
+    // row's height, a taller neighbour's.
     paint(Plot, body) {
       const width = Math.round(this.clientWidth);
-      const box = this.clientHeight;
+      const box = (this.#height ??= this.clientHeight);
       this.drawing.replaceChildren(this.plot(Plot, body, width, box));
       // A legend Plot sets beside the drawing takes its own height, which only laying it
       // out says, so a chart with one is drawn again into the room the legend leaves.

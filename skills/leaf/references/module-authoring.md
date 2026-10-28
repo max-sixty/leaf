@@ -60,7 +60,9 @@ ignores:
   and keyboard routes"). A plain page binds none and advertises none.
 - A Copy control: a block's `data-lf-copy` and `lfCopy()` (`module-reading.md`,
   "Code"), and a quiet word: `data-lf-quiet` (`module-scroll-and-motion.md`,
-  "Notices and spoken words").
+  "Notices and spoken words"). Leaf finds these in the page and in the shadow stages
+  it builds (`shadowStage`), not in a shadow root a page script attaches itself, where
+  the widget shows neither.
 - Working state in `tabStore`, which keeps nothing on a plain page: a read there
   answers null.
 

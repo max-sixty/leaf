@@ -85,7 +85,7 @@ def plain_page() -> str:
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>Plain page</title>
 <script type="importmap">{json.dumps(layer_import_map(ROOT))}</script>
-<style>{tags} {{ display: block; }}</style>
+<style>{tags} {{ display: flow-root; }}</style>
 <script>
   window.heard = [];
   addEventListener("error", (event) => heard.push({{

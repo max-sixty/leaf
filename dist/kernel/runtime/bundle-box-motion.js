@@ -1,8 +1,9 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { TEXT_FIELD, afterSettling, atLayoutPrecision, cancelRender, keeps, layoutPx, move, nextRender, onUserInput } from "./bundle-dom-move.js";
+import { afterSettling, cancelRender, nextRender } from "./bundle-portable.js";
+import { TEXT_FIELD, atLayoutPrecision, keeps, layoutPx, move, onUserInput } from "./bundle-dom-move.js";
 import { el } from "./bundle-layer-client.js";
-import { hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-geometry.js";
 import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, contentRides, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";
+import { hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-geometry.js";
 import { inChrome } from "./bundle-passages.js";
 import { motionEasing, motionPlays, motionTime, playMotion } from "./bundle-media.js";
 
@@ -982,28 +983,30 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			});
 			const reach = Math.max(0, rtl ? dx : -dx, -dy);
 			if (reach > 0) hold(part.element, "overflow", "visible");
+			const caretRoom = 2;
+			const fieldCut = cut().map((side, index) => side - (index % 2 ? caretRoom : 0));
 			start(part.element, [{
 				"--lf-field-carry": `${dx}px ${dy}px`,
-				"--lf-field-cut": cut().map((side) => `${side}px`).join(" "),
-				"--lf-field-reach": `${reach}px`
+				"--lf-field-cut": fieldCut.map((side) => `${side}px`).join(" "),
+				"--lf-field-reach": `${Math.max(caretRoom, reach)}px`
 			}, {
 				"--lf-field-carry": "0px 0px",
-				"--lf-field-cut": "0px 0px 0px 0px",
-				"--lf-field-reach": `${reach}px`
+				"--lf-field-cut": `0px -${caretRoom}px 0px -${caretRoom}px`,
+				"--lf-field-reach": `${Math.max(caretRoom, reach)}px`
 			}]);
 		}
 		function grow(part, from) {
 			const to = part.box;
 			motions.set(part.element, {
-				from,
+				from: to,
 				to
 			});
-			const drawnTo = shifted(to, ...carriedBy(0)(part.element.parentElement));
+			carry(part, to);
 			cutFrom(part.element, [
-				from.top - drawnTo.top,
-				drawnTo.right - from.right,
-				drawnTo.bottom - from.bottom,
-				from.left - drawnTo.left
+				from.top - to.top,
+				to.right - from.right,
+				to.bottom - from.bottom,
+				from.left - to.left
 			].map((inset) => Math.max(0, inset)), radiusOf(part.style));
 		}
 		function reveal(part, frame, siblings) {
@@ -1168,9 +1171,9 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 				if (!sized && rings(style)) drawRing(element, style, from, to);
 				else if (!sized && paints(style) && !part.holdsWindow) carries ? carryContent(part, from) : grow(part, from);
 				if (!same(from, to)) motions.set(element, {
-					...motions.get(element),
 					from,
 					to,
+					...motions.get(element),
 					frames: true
 				});
 			}

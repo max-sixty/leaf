@@ -1,7 +1,7 @@
 /* A bounded navigator keeps the file listing beside the evidence it navigates.
  * Fill a definite allocation; in flow, --lf-file-tree-height chooses the bounded
  * height. Reserve that frame before the optional renderer arrives. */
-:scope:is(lf-file-tree) {
+lf-file-tree {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -32,15 +32,10 @@
 }
 @media screen {
   @container style(--lf-full-height: 1) {
-    :scope:is(lf-file-tree) {
+    lf-file-tree {
       block-size: 100%;
       min-block-size: 0;
       margin-block: 0;
     }
   }
-}
-.lf-file-tree-empty {
-  margin: 0;
-  padding: 0.75rem 1rem;
-  color: var(--muted);
 }

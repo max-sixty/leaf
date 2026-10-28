@@ -21,18 +21,12 @@ import {
 } from "../focus.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { closestAcross } from "../passages.js";
-import { SAYS_IN, THREAD } from "./selectors.js";
+import { SAYS_IN, THREAD, threadPart, wholeThread } from "./selectors.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { dismissReplyAt, replyDraftContext } from "./replies.js";
 import { threadList } from "./state.js";
-import {
-  focusedThreadTarget,
-  focusThread,
-  threadReplyInput,
-  threadPart,
-  wholeThread,
-} from "./focus.js";
+import { focusedThreadTarget, focusThread, threadReplyInput } from "./focus.js";
 
 export { scrollThreadIntoView } from "./reply-landing.js";
 const threadReturns = new WeakMap();
@@ -44,7 +38,7 @@ export function threadInput(node) {
 
 const heldThreadOrSeat = () => focused() && closestAcross(focused(), SAYS_IN);
 // The thread the user writes in from where they are, whole where it is drawn in
-// pieces (focus.js, `wholeThread`), and its box.
+// pieces (selectors.js, `wholeThread`), and its box.
 export const currentLocationThread = () => {
   const held = heldThreadOrSeat();
   const box = threadReplyInput(held);
@@ -150,7 +144,7 @@ const resolutionControl = (thread) =>
   thread ? threadPart(thread, "settlement") : null;
 
 // A box a presentation declares as its thread's reply may stand outside the thread
-// (focus.js, `threadPart`), so landing in one asks for the box alone.
+// (selectors.js, `threadPart`), so landing in one asks for the box alone.
 function prepareLanding({ held = null, box, route = null }) {
   if (!box) return false;
   held ??= closestAcross(box, SAYS_IN);
@@ -198,10 +192,10 @@ export function createThreadLanding() {
  * click on its words focuses, the quote, a link in a reply; and on the element whose
  * thread a card shows beside it, which is one place with it, as `c` there continues that
  * thread. `r` settles the thread from any of them, since a control, a widget, or a text
- * box that owns a letter is walked first. Enter replies or reopens only from the card,
- * where no control inside has an Enter of its own to lose. The reopen button tells the
- * two states apart; absent a thread, the reference describes the open state users first
- * meet. */
+ * box that owns a letter is walked first. Enter replies only from the card, where no
+ * control inside has an Enter of its own to lose; where a resolved thread draws no reply
+ * box, as a resolved card doesn't, it reopens the thread into the box instead. Absent a
+ * thread, the reference describes the open state users first meet. */
 export function declareThreadKeys(landIn, threadHere) {
   pageScope("thread", {
     title: "In a thread",
@@ -214,7 +208,10 @@ export function declareThreadKeys(landIn, threadHere) {
         touch: false,
         keys: ["Enter"],
         title: () =>
-          resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
+          !threadInput(cardThread()) &&
+          resolutionControl(cardThread())?.matches(".lf-reopen")
+            ? "reopen"
+            : "reply",
         when: () =>
           Boolean(threadInput(cardThread())) ||
           resolutionControl(cardThread())?.matches(
@@ -224,11 +221,9 @@ export function declareThreadKeys(landIn, threadHere) {
         // contain a widget with an editor of its own before the reply box in DOM order.
         run: () => {
           const thread = cardThread();
-          const reopen = resolutionControl(thread)?.matches(".lf-reopen")
-            ? resolutionControl(thread)
-            : null;
-          if (reopen) reopen.click();
-          else landIn({ held: thread, box: threadInput(thread) });
+          const box = threadInput(thread);
+          if (box) landIn({ held: thread, box });
+          else resolutionControl(thread).click();
         },
       },
       {

@@ -219,3 +219,19 @@ test("a live server's error is its fault, while a gateway with nothing behind it
     assert.deepEqual(await beginRead(), { state: null, fault: null }, `HTTP ${status}`);
   }
 });
+
+test("a state body lost in transit is no answer, while malformed JSON remains a fault", async (t) => {
+  t.mock.method(globalThis.AbortSignal, "timeout", () => new AbortController().signal);
+  let answer = new Response(
+    new globalThis.ReadableStream({
+      start(controller) {
+        controller.error(new TypeError("Failed to fetch"));
+      },
+    }),
+  );
+  t.mock.method(globalThis, "fetch", async () => answer);
+  assert.deepEqual(await beginRead(), { state: null, fault: null });
+  answer = new Response("{");
+  const result = await beginRead();
+  assert.ok(result.error instanceof SyntaxError);
+});

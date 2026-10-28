@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { render } from "/runtime/widget-api.js";
 import { initialRender } from "/runtime/initial-render.js";
 import { tabStore } from "/runtime/storage.js";
 import { ACTIVITY_VIEW } from "../../packages/default/widgets/activity-view.js";
@@ -34,6 +35,7 @@ test("Activity's retained rows keep their nodes, focus and live targets through 
   tabStore.set(ACTIVITY_VIEW + host.id, JSON.stringify(first));
   document.body.append(host, destination);
   const drawing = initialRender(host);
+  const renderReading = (...args) => render(drawing.render(...args), host, { host });
   const notice = drawing.notice;
   const items = [...drawing.list.children];
   const link = items[0].querySelector("a");
@@ -47,7 +49,7 @@ test("Activity's retained rows keep their nodes, focus and live targets through 
   try {
     assert.equal(drawing.restored, true);
     assert.equal(initialRender(host), drawing);
-    drawing.paint(first, live);
+    renderReading(first, live);
     assert.equal(drawing.notice, notice);
     assert.deepEqual([...drawing.list.children], items);
     assert.equal(items[0].querySelector("a"), link);
@@ -56,26 +58,26 @@ test("Activity's retained rows keep their nodes, focus and live targets through 
     assert.equal(link.getAttribute("href"), "#activity-destination");
     link.focus();
     const reordered = reading([thread, { ...widget, label: "Renamed", undone: true }]);
-    drawing.paint(reordered, live);
+    renderReading(reordered, live);
     assert.deepEqual([...drawing.list.children], [items[1], items[0]]);
     assert.equal(document.activeElement, link);
     assert.equal(link.textContent, "Renamed");
     assert.equal(items[0].hasAttribute("data-lf-undone"), true);
     destination.remove();
-    drawing.paint(reordered, live);
+    renderReading(reordered, live);
     assert.equal(items[0].querySelector("a"), link);
     assert.equal(document.activeElement, link);
     assert.equal(link.hasAttribute("href"), false);
     assert.equal(link.getAttribute("tabindex"), "-1");
     document.body.append(destination);
-    drawing.paint(reordered, live);
+    renderReading(reordered, live);
     assert.equal(link.getAttribute("href"), "#activity-destination");
     assert.equal(link.hasAttribute("tabindex"), false);
     button.click();
     assert.deepEqual(opened, ["thread-1"]);
-    drawing.paint({ ...reordered, open: false }, live);
+    renderReading({ ...reordered, open: false }, live);
     assert.equal(drawing.list.hidden, true);
-    drawing.paint({ ...reordered, open: false }, { ...live, printing: true });
+    renderReading({ ...reordered, open: false }, { ...live, printing: true });
     assert.equal(drawing.list.hidden, false);
   } finally {
     tabStore.set(ACTIVITY_VIEW + host.id, null);

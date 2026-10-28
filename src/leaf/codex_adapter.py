@@ -133,7 +133,7 @@ ADAPTER = Record(
             },
             {
                 "launcher": described(
-                    "The immutable runtime running the adapter.", {"type": "string"}
+                    "The launcher running the adapter.", {"type": "string"}
                 )
             },
         ),

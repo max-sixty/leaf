@@ -50,7 +50,8 @@
    arrival. Mechanical returns, programmatic arrivals and scrolling are not choices
    of another passage. Each consumer interprets that target in its own domain. */
 import { nextRender, sizeObserver } from "./rendering.js";
-import { landingBand, shownRect, skipped, userScrollport } from "./geometry.js";
+import { landingBand, shownRect, userScrollport } from "./geometry.js";
+import { skipped } from "./shown-box.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";

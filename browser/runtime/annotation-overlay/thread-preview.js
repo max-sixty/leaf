@@ -40,7 +40,7 @@ import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
-import { slotTop } from "../geometry.js";
+import { showsContents, slotTop } from "../geometry.js";
 import {
   focusDestination,
   holdFocus,
@@ -59,6 +59,7 @@ import { effectiveScroller, registerReadingRegion } from "../reading-regions.js"
 import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { boxMotion } from "../box-motion.js";
+import { paintKeysWithin } from "../keyboard/scopes.js";
 import { closestAcross } from "../passages.js";
 import { threadIdNamed } from "../thread/state.js";
 import { turns } from "../thread/model.js";
@@ -126,10 +127,10 @@ export function createThreadPreview({
     "symbol",
     "lf-margin-preview-step",
     "Previous thread",
-    { icon: "previous" },
+    { action: "previous" },
   );
   const previewNext = offerAction("symbol", "lf-margin-preview-step", "Next thread", {
-    icon: "next",
+    action: "next",
   });
   previewNav.append(previewPrevious, previewPosition, previewNext);
   // Open in panel moves the card's thread into the floating panel's view of it, which
@@ -139,7 +140,7 @@ export function createThreadPreview({
     "symbol",
     "lf-margin-preview-expand",
     "Open in panel",
-    { icon: "expand" },
+    { action: "expand" },
   );
   const previewList = el("div", "lf-margin-preview-list");
   let dismiss = () => {};
@@ -294,9 +295,8 @@ export function createThreadPreview({
           // A head sticks only while its own message is under it. Follow its real
           // lower edge as the next message pushes it away; between messages the
           // transcript's edge is the cut. A declared head height cannot say this.
-          // The scroll clip includes focus-ring room above where the heads stick, which
-          // the heads and the actions cover once anything is scrolled away
-          // (`--lf-thread-room-cover`); at the top a message's ring still has it.
+          // Once anything is scrolled away, the head rows cover the room above them
+          // (`data-lf-scrolled`, annotation-chrome.css).
           let edge = 0;
           let height = above ? 12 : 0;
           const room = slotTop(transcript);
@@ -318,7 +318,7 @@ export function createThreadPreview({
           const card = transcript.parentElement;
           card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
           card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
-          card.style.setProperty("--lf-thread-room-cover", layoutPx(above ? room : 0));
+          keeps(card, "data-lf-scrolled", above ? "" : null);
         },
       });
   }
@@ -722,7 +722,7 @@ export function createThreadPreview({
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
       ".lf-page-thread > .lf-thread-reply";
     const lastShown = [...previewList.querySelectorAll(messageSelector)].findLast(
-      (node) => node.checkVisibility(),
+      (node) => showsContents(node),
     );
     const lastBox = lastShown?.getBoundingClientRect();
     const listBox = session.transcript?.getBoundingClientRect();
@@ -906,6 +906,7 @@ export function createThreadPreview({
     keeps(preview, "inert", null);
     buildThreadCard(entry, selected.id);
     const positioned = placedThreadPreview();
+    paintKeysWithin(preview);
     return positioned;
   }
 
@@ -931,6 +932,9 @@ export function createThreadPreview({
       for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
       keepsHidden(preview, true);
       keeps(preview, "inert", null);
+      // Rows inside the retained card can read whether its reply box is shown.
+      // Hiding after the fade is later than the focus move that closed the card.
+      paintKeysWithin(preview);
     };
     const fade = preview.hidden
       ? null

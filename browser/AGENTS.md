@@ -105,8 +105,9 @@ representative desktop viewport.
   the screen, where scroll anchoring absorbs it, or below it. Anywhere else it waits
   behind a fixed-size control until the reader goes to it, and an editor in use stays
   still. Check: `test_news_just_after_a_press_moves_nothing`. Owners:
-  `thread/held-news.js`, `newsMoves` in `thread/thread-card.js`, and
-  `reading-continuity.js` for a hidden tab. The user chose one exception: the answer
+  `thread/held-news.js`, `newsMoves` in `thread/thread-card.js`, `threadsListing` in
+  `floating-panel.js` for the rows of Threads, and `reading-continuity.js` for a
+  hidden tab. The user chose one exception: the answer
   they wait for in the floating panel's thread grows that view upward while its
   controls stay put (`fitAnswer` in `floating-panel.js`, credited by `appendGrowth` in
   `tests/shift_watch.js`).
@@ -134,11 +135,17 @@ representative desktop viewport.
   "The document starts state; the log changes it"). `standGesture` in `drafts.js`
   handles a send and the refusal that returns the words to their box. The new content
   and its Undo confirm success, so success needs no notice beyond the announcement
-  for a listener. A gesture that moves the
+  for a listener. The pressed control draws from the same reading, the pending
+  gesture included, so it stays live: no busy or disabled face while the gesture
+  travels, and a second press does what the control then says, such as Undo, which
+  names a pending gesture by its attempt. A refusal restores the server's state, and
+  delivery says why in the notice seat. A gesture that moves the
   user, such as resolving a thread, leaves them at its place again when it is refused
-  or undone (`undo.js` owns where undo leaves the user). A result only the log can supply waits with `aria-busy`, shown
-  after a delay so a fast answer shows nothing. Persistent status text is for a
-  state the user must return to, such as a failure.
+  or undone (`undo.js` owns where undo leaves the user). Content whose result only
+  the log can supply, such as a message being sent or an upload, waits with
+  `aria-busy`; a control a package marks busy fades after a delay, so a fast answer
+  shows nothing, and keeps its cursor. Persistent status text is for a state the user
+  must return to, such as a failure.
 
 ### Words stay where they were typed
 
@@ -181,11 +188,15 @@ representative desktop viewport.
 - **Leaf's controls are few, and each shows a symbol where a standard symbol for its
   action exists, and its word where none does.** A standard symbol is one readers
   already know for that action from the software they use, such as ✕ for close, ✓ for
-  done, ‹ and › for back and next, and the symbols for play, pause, copy and undo, so
+  resolve, ‹ and › for back and next, and the symbols for play, pause, copy and undo, so
   they can tell what the control does before hovering it. The words on Leaf's controls
   compete with the page's own words for the reader's attention, and a symbol is
-  smaller and quieter. Draw it from `runtime/icon-paths.js` and give the control its
-  name as tooltip and accessible name, without the word beside the symbol. One control
+  smaller and quieter. The control names its action from `ACTIONS` in
+  `runtime/icon-paths.js`, which gives it the action's symbol, and says its name as
+  tooltip and accessible name, without the word beside the symbol. An action shows one
+  symbol, or one word, wherever Leaf offers it, so a reader who learns it in one place
+  knows it in every other, and a press names an action, never an icon, so its symbol
+  can't drift. One control
   whose symbol follows its state, such as play turning to pause, replaces a button for
   each state. A symbol that is only related to the action, such as a speech bubble for
   answering a question, leaves the reader guessing, and a tooltip doesn't fix that:
@@ -229,7 +240,9 @@ the reason in `data-lf-startup-error`, and every widget shows its readable fallb
 `runtime/bootstrap.js` runs in a served page only, holds keys pressed before upgrade
 and shows a startup failure.
 
-Content modules import only `runtime/widget-api.js`, the public helper surface. Owners
+Content modules import only `runtime/widget-api.js`, the public helper surface, or a
+widget that also runs off Leaf only its part any document loads,
+`runtime/portable-api.js`, whose header says what its homes owe. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
 `.dependency-cruiser.mjs` enforces these boundaries and rejects cycles, so imports use
@@ -244,10 +257,10 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Undo and withdrawal                                                                                         | `undo.js`                                                                                                                                                |
 | State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `obligations/model.js`, `queues.js`                               |
 | Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                         |
-| Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `widget-elements.js`                                                                                                     |
+| Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `portable-api.js`, `widget-elements.js`, `widget-upgrade.js`                                                             |
 | External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                |
 | Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`                                                    |
-| Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`                           |
+| Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `shown-box.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`           |
 | Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `page-controls.js`                                                                                   |
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                       |
 | Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                     |
@@ -267,7 +280,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                        |
 | Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `leaf-element.js`                                                                               |
 | Child pages                                                                                                 | `sample*.js`                                                                                                                                             |
-| Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `page-sheets.js`                                                                                       |
+| Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `base-layer.js`                                                                                        |
 | Paint that belongs to an element while it is in the page, whoever added it                                  | `arrivals.js`                                                                                                                                            |
 | Utilities                                                                                                   | `abort.js`, `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js`                                   |
 
@@ -300,9 +313,9 @@ these rules on every corpus page.
 
 Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py` declares
 (`../skills/leaf/references/packages.md`, "Styles and composition"). A widget package's rules
-reach only its own widgets (`widget_confinement`), so a rule several packages need
-belongs in the kernel. Page and theme-package rules skip the chrome and every `.lf-ui`
-control unless a sheet is granted access (`runtime/page-sheets.js`).
+name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules reach widget
+controls as they reach the page's own; the chrome keeps unlayered page rules up to one
+class's weight off itself (`styles/chrome-guard.css`).
 
 A `:has()` rule can turn a local write into a restyle of the whole page or chrome. An
 unkeyed rightmost compound widens what it invalidates, and a condition on the chrome
@@ -411,6 +424,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | When none of some nodes is seen any more                                                              | `geometry.js` `whenNone`                                                           |
 | How much of the window the page shows                                                                 | `geometry.js` `shownWindow`                                                        |
 | The window's box, less its scrollbars                                                                 | `geometry.js` `layoutWindow`                                                       |
+| Whether a box shows what it holds, not only its own box as one hidden until found does                | `geometry.js` `showsContents`                                                      |
 | Whether the page shows a node at all, and what it shows of a sample it holds                          | `geometry.js` `presented`, `frameView`, `watchRoom`                                |
 | Whether a box placed against a target belongs in layout yet                                           | `geometry.js` `nearWindow`, `nearObserver`                                         |
 | Where an element or Range destination is, and how much of it survives clipping                        | `geometry.js` `placeBox`, `clippedPlace`                                           |

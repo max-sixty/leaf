@@ -30,7 +30,9 @@ pnpm run eval:view
   another version of Leaf through it. The hosted `website-replies` experiment
   requires producer-owned hosted-turn diagnostics in each arm; an arm without
   them is refused before a native turn starts.
-- **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. The selected harness uses its model pin in `dev/leaf_dev/arms.py`.
+- **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. Author
+  models use `MODELS` in `dev/leaf_dev/arms.py`; judging uses the separate
+  `JUDGE_MODELS` pins. The hill-climbing playbook owns judge selection.
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks whose
   `metadata.conditions` declare one; `both` runs it beside Leaf. The control gets
   the same request, revisions and judge with no Leaf skill, runtime or widgets.
@@ -155,17 +157,35 @@ uv run python -m http.server 57912 --bind 0.0.0.0 --directory ~/.tmp/leaf/eval-c
 Start the report with `bin/leaf server start ~/.tmp/leaf/eval-comparison` in another
 terminal. Without `--output-url`, the report names exported files without linking
 to an unavailable server. Regenerate the same report with additional run directories
-to keep one entry point for a campaign.
+to keep one entry point for a hill-climbing journey.
 
-For an improvement campaign, pass `--review FILE` with an agent-authored JSON
+For a hill-climbing journey, pass `--review FILE` with an agent-authored JSON
 assessment. The report is a workspace: its title and navigation stay in view
-while the selected result scrolls. **Changes tested** opens one intervention at a
-time, with an explicitly labeled recommendation and matched before/after outputs.
+while the selected result scrolls. **Introduction** opens first and explains the
+visible navigation, the changes being evaluated and their evidence. **Changes
+tested** opens one intervention or diagnostic at a time: Leaf code and authoring
+instructions, or evaluation tooling and the hill-climb skill, with an explicit
+recommendation. Its evidence can include an unchanged plain HTML reference.
 Before/after captures use Leaf’s comparison viewer for Slider, Pair and pixel views,
 with shared scale and synchronized scrolling at 100%. Output links sit below the
-viewer. Other paired captures share caption and image rows, including when their
-links wrap. **Latest outputs** separates the
-current validation from earlier attempts in **All outputs**. Run identifiers,
+viewer. HTML-versus-Leaf references use labeled **Plain HTML** and **Leaf** columns,
+without implying a before/after intervention. Other paired captures share caption and image rows, including when their
+links wrap. **Outputs** has one overview and a browser for every saved output;
+rows distinguish this journey from reference outputs reused from other runs.
+With an authored `journey`, **Hill-climbing journey** contains **Story
+& outputs** before the output index. The story explains what each attempt revealed and
+why it led to the next, with the saved screenshots and interactive pages beside
+each attempt, while **Changes tested** keeps the proposed changes and
+retention decisions separate. An experiment tests one hypothesis; the journey connects
+those experiments and their outputs. A run is one eval execution, identified in the
+output’s details. Each lane preserves its supplied step order;
+parallel lanes need no invented global chronology. Steps link to existing output revisions
+or comparisons, so the story and result browser share the evidence.
+The horizontal row starts with **Story & outputs** and **Output index**, followed by
+the saved task tabs. These are views of the same outputs, not additional experiments. Task tabs and
+the output index follow their first appearance in the journey; tasks outside the
+journey follow alphabetically. Without a journey, tasks are alphabetical.
+Single-choice groups appear directly, with tabs only for alternatives. Run identifiers,
 costs, source code and methodology sit in details beside the output they describe.
 Checks distinguish a finished author, a saved output and render validation;
 quality assessments retain their criteria and reasons. The agent supplies the
@@ -173,16 +193,18 @@ causal interpretation; the renderer never infers improvement from a passing scor
 or calls feedback turns independent before/after authors.
 
 Keep the review beside the run results. Paths below are absolute, and every run
-referenced by the review is also an argument to `eval-report`. A latest run group
-can include several executions, such as a short case and a longer workflow.
+referenced by the review is also an argument to `eval-report`. The `latest.runs`
+field identifies the journey's executions, including its baselines and unsuccessful
+candidates; other supplied runs are reference outputs. It can include several
+executions, such as a short case and a longer workflow.
 
 ```json
 {
-  "title": "UI improvement campaign",
+  "title": "Hill-climbing journey",
   "latest": {
     "title": "Latest validation",
     "runs": ["/absolute/path/to/run"],
-    "summary": "What this run establishes and what it cannot establish.",
+    "summary": "What this journey establishes and what it cannot establish.",
     "findings": [
       {
         "run": "/absolute/path/to/run",
@@ -191,6 +213,40 @@ can include several executions, such as a short case and a longer workflow.
       }
     ]
   },
+  "journey": [
+    {
+      "id": "journey-navigation",
+      "title": "Patch navigation",
+      "summary": "What this path set out to learn and where it ended.",
+      "steps": [
+        {
+          "id": "journey-navigation-baseline",
+          "title": "The baseline changed the question",
+          "body": "What we observed, tried, learned, and chose to do next.",
+          "outputs": [
+            {
+              "label": "Leaf baseline",
+              "run": "/absolute/path/to/run",
+              "sample": "saved-sample-id",
+              "phase": "1"
+            },
+            {
+              "label": "Plain HTML control",
+              "run": "/absolute/path/to/control-run",
+              "sample": "saved-control-id",
+              "phase": "1"
+            }
+          ],
+          "links": [
+            {
+              "label": "Inspect the comparison",
+              "target": "#experiment-change-name-comparison-1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
   "experiments": [
     {
       "id": "change-name",
@@ -219,11 +275,30 @@ can include several executions, such as a short case and a longer workflow.
 ```
 
 The optional `label` fields shorten navigation without shortening the evidence's
-title; a comparison's optional `summary` gives the assessment beside its images,
-with the full `finding` in details. Use empty comparison/evidence arrays where
+title; a comparison's optional `summary` gives a short assessment beside its images,
+with the full `finding` visible below. Use empty comparison/evidence arrays where
 no such evidence exists, and say why in the assessment. Screenshot evidence
 renders inline; other files are linked.
+The optional `journey` is authored interpretation, not a chronology inferred from
+scores or file timestamps. Its lane and step IDs are stable page anchors; link
+targets are report fragments such as an experiment or a saved sample revision.
+Each step's optional `outputs` references retained samples in the supplied runs,
+using the same `run`, `sample` and optional `phase` fields as a comparison, plus a
+visible `label`. Their screenshots and direct interactive-page links appear inline.
+The first shared captured viewport is shown when available; otherwise each output
+shows its first viewport at its labelled recorded dimensions. Other viewports are
+disclosures, not extra tabs. Pair a Leaf attempt with the retained HTML control to
+let the reader inspect both without leaving the story for the proposed changes.
+Each `before` or `after` reference can select a saved revision with `"phase": "1"`;
+omitting it selects the final revision. Captures and output links use that same
+revision. Choose the state the change affects, such as the initial page before a
+later user request corrects its layout, or the controls before a decision is recorded.
 Same-page runtime probes and sequential repairs describe that scope explicitly.
+Saved-output views lead with the page and its interactive copy. Earlier revisions
+and additional captured sizes remain available beneath it; checks and recorded
+reviews share one disclosure, and the request, sources and run metadata share another.
+An optional top-level `review_context` states qualifications that apply to the
+recorded reviews, beside those reviews even when the reader opens an output directly.
 Without a review, the report remains a result browser and says no change-retention
 assessment was supplied.
 

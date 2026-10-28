@@ -12,7 +12,6 @@ import { landingPlace } from "./runtime/reading-place.js";
 import { claimTraversals, mountHistory, replaceEntry } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
-import { keepPageRulesOffLayer } from "./runtime/page-sheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
@@ -147,13 +146,12 @@ import { mediaViewer } from "./runtime/media.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
 
 // The boot runs in a function, since a compiled module awaits nothing at its top
-// level (`topLevelAwait` in build/runtime-bundle.mjs says why). A failure
+// level (`topLevelAwaitRule` in eslint.config.mjs says why). A failure
 // still reaches the window as the uncaught error a rejected module evaluation was,
 // which the prepaint reads as a startup fault.
 async function boot() {
   await document.documentElement.lfSample?.ready;
   initializeServedDocument();
-  keepPageRulesOffLayer();
   holdArrivingBounds();
 
   // A published shell may bundle the entry without publishing its source modules beside
@@ -305,6 +303,7 @@ async function boot() {
     focusForNavigation,
     threadFocusTarget: (id, options) =>
       app.threadDestinations.threadFocusTarget(id, options),
+    clearFor: (destination, landed) => floatingPanel?.clearFor(destination, landed),
     announce,
   });
   const landing = createThreadLanding();
@@ -664,7 +663,7 @@ async function boot() {
     paintTargetPickerHints: targets.paintTargetPickerHints,
     paintCommandHints: commandHints.paint,
     paintCoreControls,
-    paintInputs: inputs.paintInputs,
+    publishInputHint: inputs.publishInputHint,
   };
 
   if (!offlineInteractive) {
@@ -738,7 +737,7 @@ async function boot() {
     // Exports retain image inspection, but no page controls. Their other current location is
     // what a widget's own box shows, such as an options group's addition field.
     mountRepaint({
-      paintInputs: inputs.paintInputs,
+      publishInputHint: inputs.publishInputHint,
       paintCloseRequests,
       reflectFirstScopes,
       reflectKeys,

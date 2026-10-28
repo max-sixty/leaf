@@ -312,7 +312,8 @@ def test_playground_examples_keep_their_offline_interaction_mode(
         "request",
         lambda request: (
             external.append(request.url)
-            if request.url != document_url and not request.url.startswith("data:")
+            if request.url != document_url
+            and not request.url.startswith(("data:", "blob:"))
             else None
         ),
     )

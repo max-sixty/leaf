@@ -22,7 +22,7 @@
  * The framework (`runtime/framework.js` and the modules behind it) is written as
  * JavaScript the type check reads, so a page serves its source as it does every other
  * runtime module. Its third-party packages are minified builds from the lock and the
- * adaptations below. Delivery inlines Lit only when an initial producer needs it,
+ * adaptations below. Delivery inlines Lit when a page declares an initial producer,
  * mapping `vendor/lit.js` to that instance's facade; otherwise it loads as a normal
  * module (`build/lit.mjs`). Both outputs share the same namespace source, and a page
  * loads one implementation. Signals are the framework's own: the kernel compiles
@@ -169,7 +169,7 @@ async function litModule() {
   ];
 }
 
-// Every schema a page vendored at the current protocol relies on, and every record's,
+// Every schema a page's log at the current protocol relies on, and every record's,
 // as it last stood (`protocol.mjs`). It is an output, so a build that passes moves it
 // forward. A build refuses a change that breaks it.
 const baselineName = "build/browser/protocol-baseline.json";
@@ -194,7 +194,7 @@ async function protocolOutputs() {
   const refused = protocolBreaks(baseline, held);
   if (refused.length)
     throw new Error(
-      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in browser/runtime/kernel-registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
+      `A page's log at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in browser/runtime/kernel-registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
     );
   return {
     contract: await contractTypes(new URL("../../", import.meta.url), schemas),

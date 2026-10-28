@@ -372,7 +372,9 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
         first_line,
     )
     unmoved()
-    field = message.locator(".lf-msg-editor > .lf-compose-field").bounding_box()
+    field = message.locator(
+        ".lf-msg-editor > leaf-composition-field > .lf-compose-field"
+    ).bounding_box()
     reply_field = reply_row(page, thread).locator(".lf-compose-field").bounding_box()
     # The panel's reply box stands in its field, under the view and across the row, so
     # there the rewrite takes its height alone; Feed draws its reply box at the part's
@@ -419,6 +421,16 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     round_trip(page)
     rendered(page)
     unmoved()
+
+    # Editing an earlier message is still work in this thread; the reply being
+    # composed keeps its own words while the rewrite opens and closes beside it.
+    write(reply, "My unfinished reply.")
+    message.get_by_role("button", name="Edit message", exact=True).click()
+    expect(editor).to_be_focused()
+    expect(reply).to_have_js_property("value", "My unfinished reply.")
+    page.keyboard.press("Escape")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "My unfinished reply.")
 
 
 # Words that wrap on every surface, and a picture under them.

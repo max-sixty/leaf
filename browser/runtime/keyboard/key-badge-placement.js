@@ -30,7 +30,6 @@ import {
 } from "../geometry.js";
 import { clamp, intersect, overlaps } from "../rect.js";
 import { renderedUnder } from "../shadow.js";
-import { setChildren } from "../dom-children.js";
 
 // A rectangle, or nothing where its edges crossed. `clippedTop` records that the source
 // box began above the room the user has, which a chip hung on the surviving corner
@@ -196,8 +195,8 @@ export function keyBadgePlacement() {
     });
   }
 
-  // Put every binding chip in its seat (chip-seats.js) in one write and measure them
-  // before seating or hiding any. Each names its chip, the control it labels, and the
+  // Measure every rendered binding chip before seating or hiding any. Each names
+  // its seat (chip-seats.js), the control it labels, and the
   // corner box the chip hangs off; a chip moves to the first corner of that box whose
   // place, pulled back inside the window, covers no other control and no chrome or
   // badge, and failing every one keeps the first corner's place where that is free. A
@@ -205,11 +204,10 @@ export function keyBadgePlacement() {
   // writes nothing.
   function paint(seats, chips) {
     const { right, bottom } = layoutWindow();
-    const measured = chips.map(({ chip, owner, corner }) => {
-      const seat = seats.seat(owner);
-      if (chip.parentElement !== seat) setChildren(seat, [chip]);
-      return { chip, seat, owner, corner };
-    });
+    const measured = chips.map((one) => ({
+      ...one,
+      chip: one.seat.firstElementChild,
+    }));
     for (const one of measured) one.start = seats.boxAt(one.seat, one.corner);
     const free = (box) =>
       box.right > box.left &&

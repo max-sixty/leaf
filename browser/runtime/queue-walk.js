@@ -549,7 +549,7 @@ export function createQueueWalk({
         keys: ["x"],
         title: "done",
         exit: true,
-        icon: "check",
+        action: "done",
         when: () => Boolean(doneTodo()),
         run: () => {
           const todo = doneTodo();
@@ -611,12 +611,23 @@ export function createQueueWalk({
   }
 
   // On me's list as the panel draws it: its groups, the grouping they stand in and the
-  // user's choice of it, and the heading each item's row names as its place.
+  // user's choice of it, the heading each item's row names as its place, and whether
+  // one of its items is arrived at on `node`, as a walk standing there would be on it
+  // (`currentLocationStop`), so On me's card shows what travel took the user to.
   const onMe = Object.freeze({
     groups: onMeGroups,
     grouping,
     choose: (value) => chosenGrouping.write(value),
     place: itemPlace,
+    lists: (node) =>
+      Boolean(
+        node &&
+        currentLocationStop(stops(), {
+          kind: "current-location",
+          node,
+          place: node,
+        }),
+      ),
   });
 
   return { mount, arriveAtItem, arrivesAt, onMe, nextWithin };

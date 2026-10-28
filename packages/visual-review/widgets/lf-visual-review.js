@@ -11,7 +11,6 @@ import "/widgets/lf-shot.js";
 import {
   LeafElement,
   html,
-  iconTemplate,
   nothing,
   repeat,
   ref,
@@ -48,12 +47,10 @@ import {
 // cross, named for what it closes (runtime/widget-elements.js, `closeControl`).
 const closeButton = (popover, name) =>
   html`<button
-    ${offeredAction("symbol", "", name, { title: `${name} (Esc)` })}
+    ${offeredAction("symbol", "", name, { title: `${name} (Esc)`, action: "close" })}
     popovertarget=${popover}
     popovertargetaction="hide"
-  >
-    ${iconTemplate("cross", "lf-action-icon")}
-  </button>`;
+  ></button>`;
 const fact = (name, value) =>
   html`<div>
     <dt ${generated({ says: true })}>${name}</dt>
@@ -165,22 +162,6 @@ customElements.define(
           run: () => this.#select(this.#nextUnchecked().id, true),
         },
       ]);
-      whileConnected(this, (signal) => {
-        this.addEventListener(
-          "lf-reveal",
-          (event) => {
-            const { target, mayReveal, present, replacedView } = event.detail;
-            if (!mayReveal()) return;
-            const entry = [...this.#entries.values()].find((item) =>
-              item.article?.contains(target),
-            );
-            if (!entry || entry.record.id === this.#selected) return;
-            replacedView();
-            present(this.#select(entry.record.id));
-          },
-          { signal },
-        );
-      });
     }
 
     #reconcile(run) {
@@ -426,8 +407,10 @@ customElements.define(
       return html`<article
         class="lf-vr-case"
         id=${`${this.id}-${record.id}`}
-        aria-hidden=${record.id !== this.#selected ? "true" : "false"}
+        hidden=${record.id !== this.#selected ? "until-found" : nothing}
         ?inert=${record.id !== this.#selected}
+        @beforematch=${(event) =>
+          event.target === event.currentTarget && this.#select(record.id)}
         ${ref(entry.place)}
       >
         <div class="lf-vr-caption">

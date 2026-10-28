@@ -2,7 +2,7 @@
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the current location ring says
  * are one lf-ask. */
-:scope:is(lf-ask) {
+lf-ask {
   display: block;
 }
 /* The ring the user stands in (chrome.css, `[data-lf-obligation]`) stands outside the
@@ -12,14 +12,14 @@
  * box. Its content can cover an inset outline, so the band is painted on a
  * non-interactive overlay above the question's children. Drawn inside everywhere, it
  * ran over the first letter of every line the question holds. */
-:scope:is(lf-ask)[data-lf-obligation] {
+lf-ask[data-lf-obligation] {
   position: relative;
   /* The ring moves to the overlay below. The chrome draws it on the decision from its
      unlayered sheet, which outranks this layer, and `--lf-obligation-ring` can't stand
      it down here without standing down the overlay, which inherits it. */
   outline: none !important;
 }
-:scope:is(lf-ask)[data-lf-obligation]::after {
+lf-ask[data-lf-obligation]::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -29,7 +29,7 @@
   outline-offset: var(--focus-ring-gap);
 }
 @container style(--lf-full-height: 1) {
-  :scope:is(lf-ask)[data-lf-obligation]::after {
+  lf-ask[data-lf-obligation]::after {
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
 }
@@ -50,17 +50,17 @@
  * `--lf-block-frame`), and where the block keeps to its holder (`data-lf-kept`,
  * prepaint.js) it lends no reach. An lf-ask granted room itself is a breakout already. */
 @media screen {
-  :scope:is(lf-ask) {
+  lf-ask {
     box-sizing: border-box;
     max-inline-size: var(--lf-measure);
   }
-  :scope:is(lf-ask):has(> [data-lf-space="wide"]) {
+  lf-ask:has(> [data-lf-space="wide"]) {
     max-inline-size: max(var(--lf-measure), var(--wide));
   }
-  :scope:is(lf-ask):has(> [data-lf-space="available"]) {
+  lf-ask:has(> [data-lf-space="available"]) {
     max-inline-size: none;
   }
-  :scope:is(lf-ask):not([data-lf-space]):has(> [data-lf-space]:not([data-lf-kept])) {
+  lf-ask:not([data-lf-space]):has(> [data-lf-space]:not([data-lf-kept])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
     padding-left: var(--lf-grow-l);
@@ -68,30 +68,40 @@
     --lf-breakout: 1;
   }
 }
-/* An lf-ask whose evidence includes a figure before its option list, or in its options,
- * outruns a window when its options stack: the cards land one under another, below the
- * figure they turn on or each as tall as its own picture. A figure is an image, drawing or
- * table, or a widget whose entry says it draws a picture (`x-visual`, painted
- * `data-lf-visual`), so any package's chart counts without this rule naming it. It asks its option list to lay them across instead (`--lf-options-across`,
- * said on the lf-ask and read by its own children; options.css), so the cards stand side
- * by side where the lf-ask's width holds them all, and stack where it doesn't. Options
- * that each hold what choosing them gives then read as one comparison, each picture
- * above its own pick; a group given `data-width` lays them across its own width.
- * The content decides, so there is no attribute for it: an lf-ask of words alone keeps its
- * cards reading down, since there the cards are most of what the reader weighs. The rule
- * reads only those relations: a figure before the list, or one anywhere in an option,
- * such as an image wrapped in the link that opens it. Where the heading sits, and what
- * follows the list, change nothing. The list is the lf-ask's own child because the
- * variable that says so does not inherit.
+/* An lf-ask whose evidence is a figure before its option list outruns a window when its
+ * options stack: the cards land one under another, below the figure they turn on. A
+ * figure is an image, drawing or table, or a widget whose entry says it draws a picture
+ * (`x-visual`, painted `data-lf-visual`), so any package's chart counts without this
+ * rule naming it. It asks its option list to lay them across instead
+ * (`--lf-options-across`, said on the lf-ask and read by its own children;
+ * options.css), so the cards stand side by side under the figure where the lf-ask's
+ * width holds them all, and stack where it doesn't; a group given `data-width` lays
+ * them across its own width. The content decides, so there is no attribute for it: an
+ * lf-ask of words alone keeps its cards reading down, since there the cards are most of
+ * what the reader weighs. Where the heading sits, and what follows the list, change
+ * nothing. The list is the lf-ask's own child because the variable that says so does
+ * not inherit.
  *
  * It replaced a 16rem options track that floated the evidence beside a sticky list at
  * 50rem and wider. The track held only for a list no taller than its evidence: three
  * cards with drawings beside a five-row table left the window's width beside the table
  * empty, and the reading column was too narrow for it, so every such lf-ask had to ask
- * for the wide measure. */
-:scope:is(lf-ask):has(
-    > :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options,
-    > lf-options > lf-option :is(figure, img, svg, table, [data-lf-visual])
+ * for the wide measure.
+ *
+ * Options holding a figure of their own, or a video, keep reading down, each figure at
+ * the size its author gave it. Laid across, a card's share of the row shrank every
+ * figure in it, words and all: a panel captured 580px wide stood 248px wide in one of
+ * two cards, and three drawings authored 300px wide stood 207px wide, and the user
+ * found such figures too small to read (27 October). That reverses #2634, which laid
+ * them across so each picture stood over its own pick and the pictures compared in one
+ * row: the comparison cost the figures their legibility. A control the runtime draws in
+ * an option (`.lf-ui`), such as a nested group's Send, is no figure. */
+lf-ask:has(> :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options):not(
+    :has(
+      > lf-options
+        > lf-option
+        :is(figure, img, svg, table, video, [data-lf-visual]):not(.lf-ui *)
+    )
   ) {
   --lf-options-across: 1;
 }
@@ -107,21 +117,21 @@
  * followed by a note is context, and would otherwise shrink to make room for the note and
  * draw its instruction over it. */
 @container style(--lf-full-height: 1) {
-  :scope:is(lf-ask) {
+  lf-ask {
     display: flex;
     flex-direction: column;
   }
-  :scope:is(lf-ask) > * {
+  lf-ask > * {
     flex: none;
   }
-  :scope:is(lf-ask):has(
-      > :nth-last-child(1 of :not(script, style, template)):not(
-          :nth-child(1 of :not(script, style, template))
-        )
-    ) {
+  lf-ask:has(
+    > :nth-last-child(1 of :not(script, style, template)):not(
+        :nth-child(1 of :not(script, style, template))
+      )
+  ) {
     --lf-full-height: inherit;
   }
-  :scope:is(lf-ask)
+  lf-ask
     > :nth-last-child(1 of :not(script, style, template)):not(
       :nth-child(1 of :not(script, style, template))
     ) {

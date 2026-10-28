@@ -20,10 +20,11 @@ check that way and put anything needing a browser in the browser half. The rules
 in `validation/source.py` and `validation/markup.py`; these are the decisions behind
 them:
 
-- Page code runs after the runtime has read the page: inline modules, deferred classic
-  script files, or their literal local import graphs under `/page/`, never
-  parser-blocking or `async` scripts. Anything on another server is named by its
-  http(s) URL and loaded as written.
+- Page code may be any script, classic or module, inline or a file, with its literal
+  local import graph under `/page/`. Delivery defers a classic script and drops
+  `async` (`revision_delivery._deferred`), so every script runs after the runtime has
+  read the page and while it listens for errors. Anything on another server is named
+  by its http(s) URL and loaded as written.
 - The runtime, theme, page identity and declarations about the whole document (a
   `<base>`, an http-equiv `<meta>`, an import map) belong to delivery, which inserts
   them at the start of `<head>`, so source may not author them. Message markup may not
@@ -37,7 +38,7 @@ them:
   revision.
 
 The effective registry is validated only where it differs from the active revision's
-captured copy. Vendored sheets are validated when `page init` composes them.
+captured copy. A layer's sheets are validated whenever a Leaf composes it.
 
 A reference to a thread, such as a widget's `resolves`, is checked against the thread
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening
@@ -114,8 +115,7 @@ They are the command's, so the suite takes none.
 
 The gate serves its probe modules and the runtime they import from the Leaf running
 the command (`runtime_selection.py`), so the probes always meet the runtime they were
-written for. The vendored layer is the page's to keep, so the gate does not re-vendor
-it.
+written for.
 
 ## Passages
 

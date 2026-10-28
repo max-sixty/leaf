@@ -5,12 +5,13 @@
  * passage inside one, or a part of a widget, such as a projected datum or a visual
  * part. A thread travels to its anchor's place, a fragment link to its element, an obligation
  * to its own arrival region, and a module's `navigateToDatum` to the part its
- * reference names. Every route shares two steps: `revealAddressed` draws the part,
- * and `reveal` opens what holds it. Each
+ * reference names. Every route shares three steps: `revealAddressed` draws the part,
+ * `reveal` opens what holds it, and `clearFor` puts away a surface that would stand
+ * over it where it lands (floating-panel.js). Each
  * route says where it lands, what takes focus and how to scroll; `arrive` then does
- * the reveal, painting, focus and scrolling, and no route does them itself. When the
- * reveal replaces a visible view, the destination lands at once instead of scrolling
- * from the old view's position.
+ * the reveal, clearing, painting, focus and scrolling, and no route does them itself.
+ * When the reveal replaces a visible view, the destination lands at once instead of
+ * scrolling from the old view's position.
  *
  * Travel gets the current threads and the synchronous thread refresh from the
  * application root, so geometry code never imports the presenter. A navigation step keeps the
@@ -40,6 +41,7 @@ import {
   landingBand,
   placeBox,
   placeHolder,
+  showsContents,
   shownBox,
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
@@ -50,7 +52,7 @@ import {
 } from "./reading-regions.js";
 import { prepareEntry } from "./history.js";
 import { pageScroller, stopScroll } from "./scrolling.js";
-import { scrollIntoView } from "./landing-scroll.js";
+import { landedBox, scrollIntoView } from "./landing-scroll.js";
 import { PRESSABLE, reveal } from "./widget-elements.js";
 import { threadNamed } from "./thread/state.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
@@ -77,6 +79,7 @@ export function scrollToFragment(element) {
  *   refreshThread: () => unknown,
  *   focusForNavigation: any,
  *   threadFocusTarget: any,
+ *   clearFor: (destination: {where: any, focus?: any}, landed: DOMRect | null) => void,
  *   announce: any,
  * }} travel */
 export function createAnchorTravel({
@@ -84,6 +87,7 @@ export function createAnchorTravel({
   refreshThread,
   focusForNavigation,
   threadFocusTarget,
+  clearFor,
   announce,
 }) {
   let travelIntent = 0;
@@ -130,6 +134,10 @@ export function createAnchorTravel({
   // Resolve fresh after exposure, presentation and focus. A replaced view lands
   // immediately so it never paints at the old view's offset; final placement alone
   // commits the prepared departure, after the destination still stands through focus.
+  // The destination is laid out by then, so where it will land can be read
+  // (`landedBox`), or where it stands for an arrival that scrolls nothing, and a
+  // surface that would stand over it there goes before focus moves to it (`clearFor`):
+  // closing a view the user stood in hands focus on, which the retained intent carries.
   // An empty scroll list preserves the reader's existing scroll, as a continuation
   // can request. Visibility conditions on a placement are read after cancellation.
   async function arrive(resolve, { intent, present = null, departure = null }) {
@@ -159,6 +167,10 @@ export function createAnchorTravel({
       intent.handoff(() => {
         const destination = resolve();
         if (!destination?.where) return;
+        clearFor(
+          destination,
+          destination.scroll.length ? landedBox(destination.where) : null,
+        );
         if (destination.focus)
           focusForNavigation(destination.focus, "move", { caret: destination.caret });
         const current = resolve();
@@ -350,9 +362,7 @@ export function createAnchorTravel({
   // the fragment rule itself (`scrollToFragment`).
   function returnToFragment(url) {
     const where = fragmentTarget(url.hash);
-    return where && !where.checkVisibility()
-      ? fragmentNavigationStep(url, false)
-      : null;
+    return where && !showsContents(where) ? fragmentNavigationStep(url, false) : null;
   }
 
   function fragmentNavigationStep(url, focus) {

@@ -14,6 +14,7 @@ from render_cases_layout import (
     current_location_ring,
     mark_edges,
     ring_faults,
+    ring_rule,
     rings_drawn,
     token_colour,
 )
@@ -38,6 +39,26 @@ from leaf import data as data_model
 from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def test_the_ring_rule_reading_uses_browser_serialization(browser):
+    """Formatting cannot hide a matched ring rule or credit an unmatched selector."""
+    page = browser.new_page()
+    page.set_content("""
+      <style>
+        @scope (.surface) {
+          .absent, .carrier:has(
+            > :is(button,input)
+          )[data-note="x,  y"] { outline: var(--focus-ring); }
+        }
+      </style>
+      <div class="surface"><div class="carrier" data-note="x,  y">
+        <button>Read</button>
+      </div></div>
+    """)
+    assert ring_rule(page.locator(".carrier")) == (
+        '@scope (.surface) { .carrier:has(> :is(button, input))[data-note="x,  y"]'
+    )
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -382,7 +403,7 @@ customElements.define('lf-button-pairs', class extends HTMLElement {
       ['mode-on', 'word'],
       ['mode-off', 'word'],
     ]) {
-      const button = offerAction(role, '', id, {icon});
+      const button = offerAction(role, '', id, {action: icon});
       button.id = id;
       if (id.startsWith('mode-')) button.setAttribute('aria-pressed', String(id === 'mode-on'));
       this.append(button);
@@ -1192,7 +1213,6 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
     page = open_page(browser, serve(RING_PROBE_PAGE))
     page.evaluate("""() => {
       const sheet = document.createElement('style');
-      sheet.setAttribute('data-controls', '');
       document.head.append(sheet);
       sheet.textContent = `
         #ring-holder { position: relative; height: 200px; }

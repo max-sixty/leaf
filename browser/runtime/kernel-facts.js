@@ -4,8 +4,8 @@
    reads it from the serving Leaf's runtime (`leaf.registry.kernel`), and so does the
    browser: a page runs the serving Leaf's runtime (`runtime_selection`), and no layer
    can replace one of its files. A page's own `/registry.json` is its composed
-   vocabulary (`registry.js`), whose copy of these facts came from the Leaf that
-   vendored it, so the runtime doesn't read them there.
+   vocabulary (`registry.js`), and the runtime reads these facts here rather than
+   there.
 
    Imported as a JSON module, the table is part of the module graph: it has arrived
    before any module here evaluates, so the pure folds read it synchronously. The

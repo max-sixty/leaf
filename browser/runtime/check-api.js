@@ -26,7 +26,6 @@ export {
 export {
   shownBand,
   shownBox,
-  skipped,
   shownRect,
   visibleBand,
   landingBand,
@@ -37,6 +36,7 @@ export {
   stackLevel,
   shownParts,
 } from "./geometry.js";
+export { skipped } from "./shown-box.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export { authoredBody } from "./initial-render.js";
 export {
@@ -92,7 +92,7 @@ export { threadCounts } from "./thread/model.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
-export { scrollGlides, watchScrollEnds } from "./arrivals.js";
+export { scrollGlides, scrolling, watchScrollEnds } from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
 export {
   chromeSheet,
@@ -124,4 +124,4 @@ export { WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
 
 export { observeOutputs } from "./data.js";
-export { selfComparison, servedElements } from "./version.js";
+export { servedElements } from "./version.js";

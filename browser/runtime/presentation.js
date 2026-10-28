@@ -6,7 +6,7 @@
    The page has three readiness facts, all three written on `body` rather than on the
    root element. A reader waiting on the root sees an empty `dataset` forever, with every
    module loaded, nothing logged and nothing failed — which reads exactly like a page
-   that never started, and sends the search to the server, the page key and the vendored
+   that never started, and sends the search to the server, the page key and the page's
    layer in turn:
 
    - `data-lf-upgraded` means widget imports, asynchronous upgrades, geometry, and

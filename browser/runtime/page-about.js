@@ -42,20 +42,6 @@ const shortCommit = (provenance) =>
   provenance.commit
     ? `${provenance.commit.slice(0, 8)}${provenance.dirty ? "+" : ""}`
     : "unknown";
-// Another payload's diagnostics, each line led by how it relates to the page.
-const otherPayloadLines = (relation, provenance) => [
-  ...(provenance.commit ? [`${relation} commit: ${provenance.commit}`] : []),
-  ...(provenance.dirty !== undefined ? [`${relation} dirty: ${provenance.dirty}`] : []),
-  ...payloadDateLines(provenance).map((line) => `${relation} ${line}`),
-];
-// Where another Leaf serves the page (`identity.served_by`), whose runtime the page runs, it
-// stands beside the Leaf that vendored the page's layer with its age, so whoever meets
-// a problem can tell how far apart the two are (AGENTS.md, "Pages across Leaf
-// updates").
-const servedBy = (identity) =>
-  identity.served_by
-    ? ` · served by ${shortCommit(identity.served_by)}${payloadAge(identity.served_by) ? ` · ${payloadAge(identity.served_by)}` : ""}`
-    : "";
 
 if (SHARE_ROOT)
   registerPageControl({
@@ -111,7 +97,7 @@ function previewLabel() {
   const kind = preview().interaction === "user" ? "User" : "Preview";
   const stem = `${kind} · ${preview().checkout}${producer.commit ? `@${producer.commit}` : ""}`;
   const age = payloadAge(producer);
-  return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${servedBy(identity)}`;
+  return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}`;
 }
 function previewDiagnostics() {
   const identity = pageIdentity();
@@ -125,7 +111,6 @@ function previewDiagnostics() {
     ...(producer.commit ? [`commit: ${producer.commit}`] : []),
     ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
     ...payloadDateLines(producer),
-    ...(identity.served_by ? otherPayloadLines("served by", identity.served_by) : []),
     `started: ${started}`,
     ...runtimeLines(),
     `layer generation: ${identity.layer.generation}`,
@@ -154,11 +139,11 @@ function runtimeLines() {
   return delivery.runtime ? [`runtime: ${delivery.runtime}`] : [];
 }
 
-// The vendored layer names the Leaf version that composed this page's registry, theme
-// and widgets. It can remain older than the plugin now installed in the harness, so
-// this reads the provenance captured by `page init` rather than a live package or
-// server version. Pages built outside Git retain a stable identity through the
-// composed layer fingerprint.
+// The layer names the Leaf that composed this page's registry, theme and widgets:
+// the one serving it, which also supplies its runtime
+// (`registry.storage.served_layer`). It can be older than the plugin now installed in
+// the harness, since a server keeps the code it started with. Pages built outside Git retain a stable identity through
+// the composed layer fingerprint.
 function layerIdentity(identity) {
   const producer = identity.layer.producer ?? {};
   const fingerprint = identity.layer.fingerprint;
@@ -174,7 +159,7 @@ const layerShown = () => {
 function layerNamed() {
   const identity = pageIdentity();
   const age = payloadAge(identity.layer.producer ?? {});
-  return `Leaf ${layerIdentity(identity)}${age ? ` · ${age}` : ""}${servedBy(identity)}`;
+  return `Leaf ${layerIdentity(identity)}${age ? ` · ${age}` : ""}`;
 }
 function layerDiagnostics() {
   const identity = pageIdentity();
@@ -185,7 +170,6 @@ function layerDiagnostics() {
     ...(producer.commit ? [`commit: ${producer.commit}`] : []),
     ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
     ...payloadDateLines(producer),
-    ...(identity.served_by ? otherPayloadLines("served by", identity.served_by) : []),
     ...(fingerprint ? [`fingerprint: ${fingerprint}`] : []),
     `generation: ${identity.layer.generation}`,
     ...runtimeLines(),

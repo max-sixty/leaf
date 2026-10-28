@@ -524,9 +524,9 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     assert card["right"] <= boundary["right"] + 1
 
 
-def test_send_opens_the_card_a_reopen_shows(browser, serve):
-    """The card Send opens from a one-line comment is the card its margin marker
-    reopens: the same width, at least the card's minimum, at the same place."""
+def test_send_and_reopen_keep_the_card_minimum_and_attachment(browser, serve):
+    """Send keeps the comment frame's width, already at least the card minimum. Reopening
+    chooses its width afresh for the thread's contents, at the same attachment."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )
@@ -537,11 +537,17 @@ def test_send_opens_the_card_a_reopen_shows(browser, serve):
     )
     page.keyboard.insert_text("Keep the runner fixed.")
     rendered(page)
+    frame = page.evaluate(RECT, ".lf-fab-bar")
+    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
+    assert frame["right"] - frame["left"] >= minimum - 0.5, (frame, minimum)
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")
     rendered(page)
     sent = page.evaluate(RECT, ".lf-margin-preview")
+    assert sent["right"] - sent["left"] == pytest.approx(
+        frame["right"] - frame["left"], abs=0.5
+    ), (frame, sent)
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(card).to_be_hidden()
@@ -549,9 +555,11 @@ def test_send_opens_the_card_a_reopen_shows(browser, serve):
     expect(card).to_have_css("opacity", "1")
     rendered(page)
     reopened = page.evaluate(RECT, ".lf-margin-preview")
-    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
     assert reopened["right"] - reopened["left"] >= minimum - 0.5, (reopened, minimum)
-    assert sent == pytest.approx(reopened, abs=0.5), (sent, reopened)
+    edges = ("left", "top", "bottom")
+    assert {edge: sent[edge] for edge in edges} == pytest.approx(
+        {edge: reopened[edge] for edge in edges}, abs=0.5
+    ), (sent, reopened)
 
 
 @pytest.mark.parametrize(
@@ -575,7 +583,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     read Chrome's actual compositor screenshots. The initial passage rectangle, box
     height, side and gap supply the expected attachment independently of the return.
     """
-    marker_style = f"""<style data-controls>
+    marker_style = f"""<style>
       #paint-target {{ background: {SUBJECT_MARK}; }}
       .lf-fab-bar {{ outline: 8px solid {FOLLOWER_MARK} !important; }}
     </style>"""
@@ -1695,7 +1703,7 @@ def test_a_comment_box_on_words_alone_in_a_scroller_paints_in_the_frame_they_scr
                 + "Export tenants."
                 + "<br>" * 60
                 + '</p><div style="height:1200px"></div>',
-                head=f"<style data-controls>#quote {{ height:320px; overflow:auto; color:{SUBJECT_MARK};"
+                head=f"<style>#quote {{ height:320px; overflow:auto; color:{SUBJECT_MARK};"
                 " font: 900 72px/1 sans-serif; -webkit-text-stroke: 6px currentColor; }"
                 f" .lf-fab-bar {{ outline: 8px solid {FOLLOWER_MARK} !important; }}</style>",
             )

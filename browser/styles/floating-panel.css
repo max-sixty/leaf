@@ -1327,7 +1327,8 @@
     align-items: center;
   }
   /* A version's press has no value, key or chevron, so it gives the end column it would
-     keep for them to its words, which stay on one line. */
+     keep for them to its words, which stay on one line; its number's digits share one
+     width, so v1's note starts where v2's does. */
   .lf-fp-version > .lf-fp-item {
     grid-column: 1;
     grid-template-columns: minmax(0, 1fr);
@@ -1338,6 +1339,7 @@
   .lf-fp-version > .lf-fp-item > .lf-fp-label {
     display: block;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
   .lf-fp-version > :is(.lf-fp-compare, .lf-fp-showing) {
     grid-column: 2;

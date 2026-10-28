@@ -142,7 +142,7 @@ def with_leaf_resources(schema: dict) -> dict:
 
 
 def schema_resource_registry(schema: dict):
-    """One self-contained resource graph for a vendored JSON Schema."""
+    """One self-contained resource graph for a JSON Schema."""
     resource = DRAFT202012.create_resource(schema)
     registry = Registry().with_resource("", resource).crawl()
     return resource, registry

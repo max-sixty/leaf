@@ -14,6 +14,7 @@ export function copyableText(label, value) {
           label: `Copy ${label}`,
           success: `${label[0].toUpperCase()}${label.slice(1)} copied`,
           error: `${label[0].toUpperCase()}${label.slice(1)} not copied · select the text to copy`,
+          role: "symbol",
         });
         copy.value = value;
         return copy;

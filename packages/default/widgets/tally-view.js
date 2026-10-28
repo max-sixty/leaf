@@ -23,7 +23,7 @@ export function initialTally(host, { generatedElement, offerActionElement, keeps
     advance = onNext;
     keeps(host, "data-lf-ready", ready ? "" : null);
     return html`<span class="lf-tally-face" ${ref(mark)}>
-      <span class=${done ? "lf-tally-count lf-tally-done" : "lf-tally-count"}>
+      <span class=${done ? "lf-tally-count tag ok" : "lf-tally-count tag"}>
         <span class="lf-tally-room" aria-hidden="true">${generic}</span>
         <span class="lf-tally-room" aria-hidden="true">${named}</span>
         <span class="lf-tally-words">${words}</span>

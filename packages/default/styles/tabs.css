@@ -178,21 +178,14 @@ lf-tabs.lf-rendered > lf-tab {
     }
   }
 }
-/* A tab counts the passages the version diff marks. An empty count takes no room. */
+/* A tab counts the passages the version diff marks (theme.css, `.lf-change-count`).
+   An empty count takes no room. */
 .lf-tabdiff {
-  font-size: var(--t-6);
+  font-weight: 400;
   margin-left: 6px;
-  padding: var(--chip-pad);
-  line-height: var(--chip-lh);
-  border-radius: var(--chip-r);
 }
 .lf-tabdiff:empty {
   display: none;
-}
-.lf-tabdiff {
-  font-weight: 400;
-  background: var(--add-tint);
-  color: var(--ok-ink);
 }
 /* One panel at a time is the whole of what the strip's handler does, so it is
  * offered only in the live page and the rest is what the markup already says.
@@ -240,7 +233,7 @@ lf-tabs.lf-rendered > lf-tab {
     overflow-y: hidden;
     scrollbar-width: none;
     scroll-padding-inline: var(--lf-tabstrip-press);
-    --lf-tabstrip-press: 36px;
+    --lf-tabstrip-press: max(36px, var(--aim-floor));
     --lf-more-fade-to: #000;
   }
   lf-tabs.lf-rendered > lf-tab::before,
@@ -671,12 +664,11 @@ lf-tabs.lf-rendered > lf-tab {
   }
   .lf-tabstrip-scroll > span {
     position: absolute;
-    inset-block: 0 1px;
+    inset-block: 0;
     inline-size: var(--lf-tabstrip-press);
+    padding-inline: 8px;
     display: flex;
     align-items: center;
-    font-size: 22px;
-    line-height: 1;
     color: var(--muted);
     cursor: pointer;
   }
@@ -687,33 +679,24 @@ lf-tabs.lf-rendered > lf-tab {
   .lf-tabstrip-scroll > span:hover {
     color: var(--ink);
   }
-  .lf-tabstrip-scroll[data-to="start"] > span::before {
-    content: "‹" / "";
-  }
-  .lf-tabstrip-scroll[data-to="end"] > span::before {
-    content: "›" / "";
-  }
   .lf-tabstrip-scroll[data-to="start"] > span {
     inset-inline-start: 0;
     justify-content: flex-start;
-    background: linear-gradient(to right, var(--lf-tabstrip-bg) 55%, transparent);
+    background: linear-gradient(to right, var(--lf-tabstrip-bg) 75%, transparent);
   }
   .lf-tabstrip-scroll[data-to="end"] > span {
     inset-inline-end: 0;
     justify-content: flex-end;
-    background: linear-gradient(to left, var(--lf-tabstrip-bg) 55%, transparent);
+    background: linear-gradient(to left, var(--lf-tabstrip-bg) 75%, transparent);
   }
   .lf-tabstrip-scroll[data-to="start"]:dir(rtl) > span {
-    background: linear-gradient(to left, var(--lf-tabstrip-bg) 55%, transparent);
+    background: linear-gradient(to left, var(--lf-tabstrip-bg) 75%, transparent);
   }
   .lf-tabstrip-scroll[data-to="end"]:dir(rtl) > span {
-    background: linear-gradient(to right, var(--lf-tabstrip-bg) 55%, transparent);
+    background: linear-gradient(to right, var(--lf-tabstrip-bg) 75%, transparent);
   }
-  .lf-tabstrip-scroll[data-to="start"]:dir(rtl) > span::before {
-    content: "›" / "";
-  }
-  .lf-tabstrip-scroll[data-to="end"]:dir(rtl) > span::before {
-    content: "‹" / "";
+  .lf-tabstrip-scroll:dir(rtl) .lf-tabstrip-scroll-icon {
+    scale: -1 1;
   }
   /* A page tab is a section of the page, not a box on it: like `main`, it trims its
      * edges (so its first line trims under the strip) and draws nothing, so a wide

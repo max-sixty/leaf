@@ -297,7 +297,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
     stamp_page(serve.page_dir, source, "Refresh the document")
     wait_for_revision(page, 2)
     expect(page.locator('#gate-milestone [data-lf-said="label"]')).to_have_count(1)
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry = registry_storage.read_page_registry(serve.page_dir).registry
     cases = [
         ("#gate-milestone strong", "Build feeders", "gate-milestone"),
         ("#gate-milestone", "Two classic models.", "gate-milestone"),
@@ -451,7 +451,7 @@ def test_browser_and_file_captures_agree_on_a_sidebar_tracks_blocks(browser, ser
     page = open_page(browser, live_url(serve(SIDEBAR_TRACK_PAGE)))
     resized(page, 1440, 900)
     expect(page.locator("#track > [data-lf-track-body] > #owners")).to_have_count(1)
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry = registry_storage.read_page_registry(serve.page_dir).registry
     cases = [
         ("#owners p", "payments on-call", "owners", "#owners p", "payments on-call"),
         ("#verdict p", "two follow-ups.", "track", "#owners h2", "Owners"),
@@ -521,7 +521,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, 
     url = live_url(serve(markup))
     page = open_page(browser, url)
     quote = "Release context. Which plan should lead?"
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry = registry_storage.read_page_registry(serve.page_dir).registry
     expected = anchor_capture_model.capture_anchor(
         structure_model.SourceDocument(markup), registry, quote, "review"
     )

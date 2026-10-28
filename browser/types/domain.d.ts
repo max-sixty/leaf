@@ -101,7 +101,6 @@ export interface Thread {
   })[];
   unread: readonly ContentVersion[];
   attention: Attention;
-  settling?: "resolve" | "unresolve";
 }
 export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {
   localParent?: string;

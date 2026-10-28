@@ -153,6 +153,9 @@ class PagePool:
                 kept[relative] = identity
             else:
                 path.unlink()
+        # A test may remove the page itself, and an initialized page may hold no
+        # directory that would make it again.
+        page.mkdir(exist_ok=True)
         for relative in shape.directories:
             (page / relative).mkdir(parents=True, exist_ok=True)
         for relative in stamp:
@@ -296,7 +299,8 @@ def initialized_page(_page_pool, tmp_path):
                 step(target)
 
         resolved = tuple(
-            root.resolve() for root in layer_model.resolve_packages(packages)
+            root.resolve()
+            for root in layer_model.resolve_packages(packages, Path.cwd())
         )
         if any(root.is_relative_to(own) for root in resolved):
             initialize(destination)

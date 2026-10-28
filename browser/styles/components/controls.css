@@ -98,21 +98,13 @@
   border-color: transparent;
   background: transparent;
 }
-.lf-react:not(.lf-margin-entry):is(
-    [aria-pressed="true"],
-    :hover,
-    [data-lf-focus],
-    [aria-busy="true"]
-  ) {
+.lf-react:not(.lf-margin-entry):is([aria-pressed="true"], :hover, [data-lf-focus]) {
   color: var(--ink-2);
   border-color: var(--border-2);
   background: var(--chip);
 }
 .lf-react.lf-response-action:where(:not([aria-pressed="true"])) {
   background: var(--card);
-}
-.lf-react[aria-busy="true"] {
-  opacity: 0.55;
 }
 /* A reaction's word, while a press on it is held or it has focus
    (held-word.js): the focused or held reading of a face that is

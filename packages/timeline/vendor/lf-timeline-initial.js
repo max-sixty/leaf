@@ -58,6 +58,9 @@
     add: '<path d="M8 3v10M3 8h10"/>',
     change: '<path d="M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13"/>',
     check: '<path d="m3 8.25 3.15 3.15L13 4.75"/>',
+    // A task app's ticked circle, for the to-do the user ends: a bare check is Resolve's,
+    // and a to-do on a thread stands under its thread's Resolve.
+    checked: '<circle cx="8" cy="8" r="5.5"/><path d="m5.6 8.15 1.7 1.7 3.1-3.3"/>',
     comment: '<path d="M3 3.25h10v7H7.25L4 12.75v-2H3z"/>',
     // The common copy glyph: the front sheet at the bottom right. Mirrored, with the front
     // sheet at the bottom left, two squares read as a window's Restore button.
@@ -128,7 +131,7 @@
     "copy-link": { name: "Copy link", icon: "link" },
     dictate: { name: "Dictate", icon: "microphone" },
     discard: { name: "Discard", icon: "cross" },
-    done: { name: "Done", icon: "check" },
+    done: { name: "Done", icon: "checked" },
     edit: { name: "Edit", icon: "edit" },
     expand: { name: "Expand", icon: "expand" },
     find: { name: "Find", icon: "search" },

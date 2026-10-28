@@ -6,7 +6,7 @@ from urllib.parse import unquote, urljoin, urlsplit
 
 import pytest
 import tinycss2
-from interact_support import PAGE
+from interact_support import PAGE, package_path, page_packages
 
 from leaf import revisioning as revisioning_model
 from leaf.exporting import AssetInliner, ReadableAssets
@@ -161,7 +161,6 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
         1,
         None,
         executable="sha256:fixture",
-        widgets={},
         resources=resources,
         registry=registry,
         delivery=Delivery(
@@ -415,8 +414,11 @@ def test_a_revision_shares_the_files_it_captured_unchanged(page_dir):
     bytes, and writes the ones that changed."""
     sheet = page_dir / "page" / "style.css"
     sheet.parent.mkdir(exist_ok=True)
+    (page_dir / "page" / "base.css").write_text("main { margin: 0; }")
     source = PAGE.replace(
-        "</head>", '<link rel="stylesheet" href="page/style.css"></head>'
+        "</head>",
+        '<link rel="stylesheet" href="page/base.css">'
+        '<link rel="stylesheet" href="page/style.css"></head>',
     )
 
     def activate(text, css):
@@ -487,6 +489,7 @@ def test_authored_lazy_positioning_import_uses_the_runtimes_public_provider(page
     capture: the Leaf delivering it supplies the provider with its runtime."""
     provider = "/vendor/floating-ui.esm.js"
     module = f'export const position = () => import("{provider}");'
+    (page_dir / "page").mkdir()
     (page_dir / "page" / "position.js").write_text(module)
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -509,16 +512,29 @@ def test_authored_lazy_positioning_import_uses_the_runtimes_public_provider(page
     ).data.decode() == module.replace(provider, ROOT + provider)
 
 
-def test_a_vendored_replacement_of_a_public_provider_is_captured_and_served(page_dir):
+def test_a_package_replacement_of_a_public_provider_is_served(page_dir):
     """A package may replace a public vendor module, and the page then runs its own:
-    the revision captures the vendored file, which wins over the runtime's."""
+    the layer's file wins over the runtime's, and the revision captures neither."""
+    from click.testing import CliRunner
+
+    from leaf import cli as cli_model
+
     provider = "/vendor/floating-ui.esm.js"
     own = b"export const computePosition = () => 'the package\\'s own';"
-    (page_dir / provider[1:]).write_bytes(own)
+    package = page_dir.parent / "positioning"
+    (package / "vendor").mkdir(parents=True)
+    (package / provider[1:]).write_bytes(own)
+    selection = (*page_packages(), package_path(package))
+    initialized = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "init", str(page_dir)]
+        + [arg for name in selection for arg in ("--package", name)],
+    )
+    assert initialized.exit_code == 0, initialized.output
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
     artifact = read_artifact(page_dir, activated.revision)
-    assert artifact.resources[provider].data == own
+    assert provider not in artifact.resources
     assert executing(artifact).resources[provider].data == own
 
 
@@ -709,7 +725,6 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
         1,
         None,
         executable="sha256:fixture",
-        widgets={},
         resources={},
         registry={},
         delivery=Delivery(
@@ -772,7 +787,6 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         1,
         None,
         executable="sha256:fixture",
-        widgets={},
         resources={"/media/a.png": png(1200, 750), "/media/b.png": png(1100, 800)},
         registry=registry,
         delivery=Delivery(address=ADDRESS),

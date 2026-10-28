@@ -1142,7 +1142,7 @@ button.lf-primary-news {
   color: var(--ink-2);
   font-weight: 600;
 }
-.lf-thread-todo > .lf-btn {
+.lf-thread-todo > .lf-icon-action {
   flex: none;
   white-space: nowrap;
 }

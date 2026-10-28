@@ -63,10 +63,13 @@ ignores:
   "Notices and spoken words"). Leaf finds these in the page and in the shadow stages
   it builds (`shadowStage`), not in a shadow root a page script attaches itself, where
   the widget shows neither.
+- Comment targets: `registerVisualParts` (`module-annotations.md`, "Visual parts"),
+  which only Leaf reads.
 - Working state in `tabStore`, which keeps nothing on a plain page: a read there
   answers null.
 
-`lf-chart` and `lf-code` in the default package are the worked examples.
+`lf-chart` and `lf-code` in the default package and `lf-diagram` in the diagram package
+are the worked examples.
 
 ## What a behavior module owes
 

@@ -304,7 +304,8 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
     // opens over the page in a popover (lf-playground.js); its words also reach the
     // agent's thread once sent. Shown at rest, a long instruction took more of the
     // playground's room than the controls that wrote it (2026-10-25).
-    const actions = node("div", "lf-playground-actions");
+    // Actions stay whole and pass swipes to the workspace, as a pane's footer does.
+    const actions = node("footer", "lf-playground-actions");
     reset = offerAction("symbol", "lf-playground-reset", "Reset");
     reset.append(iconElement("retry", "lf-action-icon"));
     instruction = node("div", "lf-playground-instruction");

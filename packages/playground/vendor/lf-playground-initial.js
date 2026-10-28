@@ -302,7 +302,7 @@
         preset.append(button);
         presetButtons.set(preset, button);
       }
-      const actions = node("div", "lf-playground-actions");
+      const actions = node("footer", "lf-playground-actions");
       reset = offerAction("symbol", "lf-playground-reset", "Reset");
       reset.append(iconElement("retry", "lf-action-icon"));
       instruction = node("div", "lf-playground-instruction");

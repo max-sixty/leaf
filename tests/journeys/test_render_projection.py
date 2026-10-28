@@ -65,6 +65,7 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import structure as structure_model
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.render_gate import version as render_gate_model
@@ -397,7 +398,10 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
         "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
     )
     document = structure_model.SourceDocument(contradicted)
-    with preview_server(d, document, files_model.latest_revision(d) + 1) as at:
+    snapshot = capture_page_snapshot(
+        d, document, files_model.latest_revision(d) + 1, url="/"
+    )
+    with preview_server(d, snapshot) as at:
         assert render_gate_model.render_version(browser, at).failures == []
     stamp_page(d, contradicted, "t")
     page = open_page(browser, url.replace("v1.html", "v2.html"))

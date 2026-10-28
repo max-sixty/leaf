@@ -22,12 +22,6 @@ from leaf.registry.storage import layer_metadata
 from .source import check_source, moved_threads, source_advice
 
 
-def cmd_check(page_dir: Path, render: bool = False) -> dict:
-    """Check the mutable source without activating or stamping it."""
-    with page_locked(page_dir):
-        return _check(page_dir, render)
-
-
 def leaf_versions(page_dir: Path) -> list[Finding]:
     """The Leaf that vendored the page beside the one checking it, where they differ.
 
@@ -55,7 +49,8 @@ def leaf_versions(page_dir: Path) -> list[Finding]:
     ]
 
 
-def _check(page_dir: Path, render: bool) -> dict:
+def cmd_check(page_dir: Path, render: bool = False) -> dict:
+    """Freeze the checked source before running slow, read-only browser work."""
     from leaf.event_contracts import write_refusal
 
     def reported(status, findings, browser=None):
@@ -65,33 +60,42 @@ def _check(page_dir: Path, render: bool) -> dict:
             "browser": browser.json() if browser else None,
         }
 
-    # A page this Leaf can neither serve nor write passes no check of its source: the
-    # re-vendor that repairs it comes first (`layer.incompatible_layer`).
-    if refusal := write_refusal(page_dir):
-        return reported(1, [refusal])
-    events = read_events(page_dir)
-    result = check_source(page_dir, events)
-    active = max(list_revisions(page_dir), default=0)
-    found = [
-        *result.errors,
-        *moved_threads(page_dir, events, active - 1, result),
-        *source_advice(page_dir, result),
-        *leaf_versions(page_dir),
-    ]
-    if result.errors:
-        return reported(1, found)
-    from leaf.render_gate.page_code import needs_browser
+    with page_locked(page_dir):
+        # A page this Leaf can neither serve nor write passes no check of its source: the
+        # re-vendor that repairs it comes first (`layer.incompatible_layer`).
+        if refusal := write_refusal(page_dir):
+            return reported(1, [refusal])
+        events = read_events(page_dir)
+        result = check_source(page_dir, events)
+        active = max(list_revisions(page_dir), default=0)
+        found = [
+            *result.errors,
+            *moved_threads(page_dir, events, active - 1, result),
+            *source_advice(page_dir, result),
+            *leaf_versions(page_dir),
+        ]
+        if result.errors:
+            return reported(1, found)
+        from leaf.render_gate.page_code import needs_browser
 
-    runs_code = needs_browser(result.document, result.artifact)
-    if not (runs_code or render):
-        return reported(0, found)
+        runs_code = needs_browser(result.document, result.artifact)
+        if not (runs_code or render):
+            return reported(0, found)
+        from leaf.page_snapshot import capture_page_snapshot
+
+        snapshot = capture_page_snapshot(
+            page_dir,
+            result.document,
+            result.revision.candidate,
+            url="/",
+            artifact=result.artifact,
+        ).through(events[-1]["seq"] if events else 0)
+
     from leaf.render_gate.command import browser_check
 
     browser = browser_check(
         page_dir,
-        result.document,
-        result.revision.candidate,
-        result.artifact,
+        snapshot,
         page_code=runs_code,
         render=render,
     )

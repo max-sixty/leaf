@@ -6,6 +6,7 @@ import re
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
+from render_cases_layout import SHOT_SRC, SHOTS
 from render_harness import (
     ROOT,
     displayed,
@@ -676,6 +677,82 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["panel"] == boxes["content"], boxes
     assert boxes["strip"]["left"] == boxes["content"]["left"], boxes
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_onto_a_nested_workspace_link_clears_the_floating_panel(
+    request, serve, engine
+):
+    """The workspace's tab scroller clears the collapsed panel on native Tab,
+    including when an outer tab transfers its end clearance to nested views."""
+    source = leaf_page(
+        "Review evidence",
+        '<header><h1>Review evidence</h1></header><lf-tabs id="views">'
+        '<lf-tab id="changes" label="Changes"><lf-tabs id="experiments">'
+        '<lf-tab id="runtime" label="Runtime">'
+        '<div style="height:380px"></div>'
+        '<p style="text-align:center"><a id="output" href="#runtime">'
+        "Try the output</a></p>"
+        + "<p>Further evidence.</p>" * 20
+        + "</lf-tab></lf-tabs></lf-tab></lf-tabs>",
+        layout="workspace",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 900, 600)
+    page.get_by_role("tab", name="Changes", exact=True).click()
+    for _ in range(4):
+        page.keyboard.press("Tab")
+    link = page.locator("#output")
+    expect(link).to_be_focused()
+    scroll_settled(page)
+    position = link.evaluate("""link => {
+      const box = link.getBoundingClientRect();
+      const hits = [box.top + 1, box.bottom - 1].map(y =>
+        document.elementFromPoint(box.x + box.width / 2, y));
+      return {exposed: hits.every(hit => hit === link || link.contains(hit)),
+        link: box.toJSON(), hits: hits.map(hit => hit?.tagName)};
+    }""")
+    assert position["exposed"], position
+
+
+def test_a_hidden_workspace_tab_preserves_lazy_image_dimensions(browser, serve):
+    """Inactive views keep their column width and zero height, so sized lazy images
+    reserve their aspect ratio before the reader opens the view or its disclosure."""
+    src = SHOT_SRC["before"]
+    source = leaf_page(
+        "Saved evidence",
+        '<header><h1>Saved evidence</h1></header><lf-tabs id="views">'
+        '<lf-tab id="intro" label="Introduction"><p>Introduction.</p></lf-tab>'
+        '<lf-tab id="saved" label="Saved"><lf-tabs id="outputs">'
+        '<lf-tab id="output" label="Output"><figure><details>'
+        "<summary>More screens</summary>"
+        f'<img id="capture" src="{src}" alt="Saved screen" loading="lazy"'
+        ' width="600" height="300" style="aspect-ratio:2/1">'
+        "</details></figure></lf-tab></lf-tabs></lf-tab></lf-tabs>",
+        layout="workspace",
+    )
+    page = browser.new_page(viewport={"width": 900, "height": 600})
+    cdp = page.context.new_cdp_session(page)
+    cdp.send("Audits.enable")
+    issues = []
+    cdp.on("Audits.issueAdded", lambda event: issues.append(event["issue"]["code"]))
+    page.goto(serve(source, media={src: SHOTS["before"]}))
+    wait_until_ready(page)
+    dimensions = page.locator("#capture").evaluate("""image => {
+      const tab = document.getElementById('saved').getBoundingClientRect();
+      const box = image.getBoundingClientRect();
+      return {tab: {width: tab.width, height: tab.height},
+        image: {width: box.width, height: box.height}};
+    }""")
+    assert dimensions["tab"]["height"] == 0, dimensions
+    assert dimensions["image"]["width"] > 0, dimensions
+    assert dimensions["image"]["height"] == pytest.approx(
+        dimensions["image"]["width"] / 2
+    ), dimensions
+    assert "LazyLoadImageIssue" not in issues
+    page.get_by_role("tab", name="Saved", exact=True).click()
+    page.get_by_text("More screens", exact=True).click()
+    page.wait_for_function("document.getElementById('capture').naturalWidth > 0")
 
 
 def test_a_workspace_page_tab_gives_its_only_block_its_box_before_upgrade(

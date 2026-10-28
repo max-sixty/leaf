@@ -3949,6 +3949,57 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     ] == []
 
 
+def test_page_check_releases_the_page_while_its_frozen_browser_runs(
+    page_dir, monkeypatch
+):
+    """A slow read-only check neither blocks writers nor incorporates their changes."""
+    from leaf import thread as thread_model
+    from leaf.render_gate import command as browser_command
+    from leaf.render_gate.version import RenderReading
+    from leaf.validation.command import cmd_check
+
+    started, release = threading.Event(), threading.Event()
+
+    def held_browser(browser, url, **kwargs):
+        state_url = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
+        status, before = fetch(state_url, token=None)
+        assert status == 200
+        started.set()
+        assert release.wait(COMPOSITE_TIMEOUT)
+        assert fetch(state_url, token=None) == (200, before)
+        return RenderReading([], [], [])
+
+    monkeypatch.setattr(
+        browser_command, "run_in_browser", lambda read: (read(None), "held browser")
+    )
+    monkeypatch.setattr(browser_command, "run_page_code", lambda *args: [])
+    monkeypatch.setattr(browser_command, "render_version", held_browser)
+    monkeypatch.setattr(browser_command, "save_screens", lambda *args: None)
+    with ThreadPoolExecutor(2) as pool:
+        checking = pool.submit(cmd_check, page_dir, render=True)
+        try:
+            wait_for(
+                lambda: started.is_set() or checking.done(),
+                bool,
+                failure="Check did not reach browser",
+            )
+            assert started.is_set(), checking.result()
+            updating = pool.submit(
+                thread_model.cmd_comment,
+                page_dir,
+                "",
+                "",
+                "",
+                "Arrived during the check",
+                "",
+            )
+            updating.result(STATED_TIMEOUT)
+            assert not checking.done()
+        finally:
+            release.set()
+        assert checking.result()["status"] == 0
+
+
 def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     """A browser check cannot combine state written after its candidate was frozen."""
     now = datetime.now().astimezone().replace(microsecond=0)

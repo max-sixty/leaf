@@ -63,6 +63,7 @@ from render_harness import (
 from leaf import render_checks as render_checks_model
 from leaf.files import latest_revision
 from leaf.findings import Finding
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
@@ -755,9 +756,13 @@ def test_page_fixture_renders(browser, serve, source):
     (`untouched_resize_findings`)."""
     url = serve(source)
     revision = latest_revision(serve.page_dir)
-    with preview_server(
-        serve.page_dir, read_revision(serve.page_dir, revision).document, revision
-    ) as preview:
+    snapshot = capture_page_snapshot(
+        serve.page_dir,
+        read_revision(serve.page_dir, revision).document,
+        revision,
+        url="/",
+    )
+    with preview_server(serve.page_dir, snapshot) as preview:
         gate = render_gate_model.render_version(browser, preview).failures
     # Reduced motion, which the still_page asks for, also holds the sort film still
     # while the scroll pass measures its writes.

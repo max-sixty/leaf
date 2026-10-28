@@ -335,11 +335,13 @@ def _plan_page(
         previous,
     )
     copied = {root.name: root for root in copies.values()}
-    changed = record != previous or any(
+    if record == previous and any(
         _package_files(root) != _package_files(page_dir / PACKAGES_DIR / name)
         for name, root in copied.items()
-    )
-    return _PagePlan(record, copied, changed)
+    ):
+        # A copy's new bytes change what an open document runs under.
+        record = {**record, "generation": secrets.token_hex(16)}
+    return _PagePlan(record, copied, record != previous)
 
 
 def _copies(selected: tuple[str, ...]) -> dict[str, Path]:

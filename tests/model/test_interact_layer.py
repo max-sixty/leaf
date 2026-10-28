@@ -4027,7 +4027,8 @@ def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
 ):
     """A saved version keeps the package it was written with: dropping the package
     from the selection leaves its copy for the revisions that name it, and an edit to
-    the package reaches them at a new address, never under one a browser cached."""
+    the package reaches them at a new address, never under one a browser cached, and
+    as a new generation, which an open document reloads on."""
     from leaf.revision_artifact import read_artifact
     from leaf.revisioning import activate_source
     from leaf.runtime_selection import execution_identity
@@ -4042,10 +4043,12 @@ def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
     (page / "index.html").write_text(PLAIN_PAGE)
     assert activate_source(page).error is None
     first = execution_identity(read_artifact(page, 1))
+    generation = registry_storage.layer_record(page)["generation"]
 
     (custom / "widgets" / "helper.js").write_text("export const value = 2;\n")
     assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
     assert execution_identity(read_artifact(page, 1)) != first
+    assert registry_storage.layer_record(page)["generation"] != generation
 
     cleared = CliRunner().invoke(
         cli_model.cli, ["page", "init", "--no-packages", str(page)]

@@ -1205,7 +1205,9 @@ function editorViewOver({ Compartment, Direction, EditorState, EditorView, State
 //#region runtime/composing/field-editor.js
 const touches = (state, from, to) => state.selection.ranges.some((range) => range.from <= to && range.to >= from);
 const read = (state) => {
-	return placedMarkdownTokens(state.doc.toString());
+	const source = state.doc.toString();
+	if (state.doc.line(state.doc.lines).text.trim()) return placedMarkdownTokens(source);
+	return placedMarkdownTokens(`${source}x`).filter(({ token, to }) => token.block || to <= source.length);
 };
 const FACE_PROBE = "<div></div><p></p><h1></h1><h2></h2><h3></h3><h4></h4><h5></h5><h6></h6><pre></pre><blockquote></blockquote><ul><li></li><li></li></ul><ol></ol><div></div>";
 const collapsed = (a, b) => Math.max(a, b, 0) + Math.min(a, b, 0);
@@ -1248,7 +1250,6 @@ function readFaces(field, display) {
 	rules.push(`.lf-face-gap { line-height: ${GAP} }`, `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`, `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`, `.lf-face-rule { line-height: 0 }`, `.lf-face-gap-above { padding-block-start: ${GAP} }`, `.lf-face-fence-open { line-height: ${pre.padStart}px }`, `.lf-face-fence-close { line-height: ${pre.padEnd}px }`, `.lf-face-code { padding-inline: ${pre.inset} }`, `.lf-face-quote { margin-inline-start: ${quote.indent}; --quote-inset: ${quote.inset} }`, `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`, `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`, `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`, `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`, `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`, `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`);
 	return rules.join("\n");
 }
-const codeEnd = (state, { token, to, markers }) => token.type === "fence" && token.level === 0 && markers.length < 2 && to === state.doc.length ? to + 1 : to;
 const blockTag = (token) => token.type === "fence" || token.type === "code_block" ? "pre" : token.tag;
 function standBlocks(state, blocks, out, line) {
 	const lines = (from, to, each) => {
@@ -1272,8 +1273,7 @@ function standBlocks(state, blocks, out, line) {
 	const open = [];
 	let item = null;
 	const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
-	for (const placed of blocks) {
-		const { token, from, to, markers, contentLines } = placed;
+	for (const { token, from, to, markers, contentLines } of blocks) {
 		if (!token.block) continue;
 		const tag = blockTag(token);
 		if (token.type === "heading_open") {
@@ -1282,7 +1282,7 @@ function standBlocks(state, blocks, out, line) {
 				for (const [at] of markers) if (!lineTouched(at)) named(state.doc.lineAt(at).from, "lf-face-rule");
 			}
 		} else if (token.type === "fence" || token.type === "code_block") {
-			lines(from, codeEnd(state, placed), (each) => named(each.from, "lf-face-code"));
+			lines(from, to, (each) => named(each.from, "lf-face-code"));
 			const opener = state.doc.lineAt(from).number;
 			for (const [at] of token.type === "fence" ? markers : []) {
 				const fence = state.doc.lineAt(at);
@@ -1316,7 +1316,7 @@ function standBlocks(state, blocks, out, line) {
 		if (prior && prior.to < from) gapLines(prior.to, from, gap);
 		else if (prior) named(from, `lf-face-gap-above ${gap}`);
 		let end = to;
-		while (end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;
+		while (token.type !== "blockquote_open" && end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;
 		before[level] = {
 			tag,
 			to: end
@@ -1328,9 +1328,6 @@ function standBlocks(state, blocks, out, line) {
 			named(state.doc.lineAt(Math.max(from, end - 1)).from, "lf-face-quote-last");
 		}
 	}
-	const last = state.doc.line(state.doc.lines);
-	const final = before[0];
-	if (final && final.to < last.from) gapLines(final.to, last.from, `lf-ends-${final.tag} lf-starts-p`);
 }
 let loaded = null;
 const loadFieldEditor = () => loaded ??= import("/vendor/codemirror.esm.js").then((codemirror) => fieldEditor(codemirror, leafEditorView(codemirror)));
@@ -1348,7 +1345,35 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 		class: `lf-md-marker lf-md-${kind}-marker lf-md-unseen`,
 		attributes: { "aria-hidden": "true" }
 	}), Decoration.mark({ class: `lf-md-marker lf-md-${kind}-marker lf-md-mark` })]]));
-	const markerRun = Decoration.mark({ class: "lf-md-markers" });
+	const markerRun = Decoration.mark({
+		class: "lf-md-markers",
+		inclusiveEnd: true
+	});
+	class Inset extends WidgetType {
+		constructor(kind) {
+			super();
+			this.kind = kind;
+		}
+		eq(other) {
+			return other.kind === this.kind;
+		}
+		toDOM() {
+			const room = document.createElement("span");
+			room.className = `lf-md-marker lf-md-${this.kind}-marker`;
+			room.setAttribute("aria-hidden", "true");
+			return room;
+		}
+	}
+	const insets = {
+		quote: Decoration.widget({
+			widget: new Inset("quote"),
+			side: -1
+		}),
+		item: Decoration.widget({
+			widget: new Inset("item"),
+			side: -1
+		})
+	};
 	const line = (cls) => Decoration.line({ class: cls });
 	const BULLETS = [
 		"lf-md-disc",
@@ -1408,10 +1433,11 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 		const runs = [];
 		const boxes = [];
 		const lists = [];
-		const continued = /* @__PURE__ */ new Set();
+		const continued = [];
 		const code = [];
 		const opening = [];
-		const prefix = /* @__PURE__ */ new Map();
+		const held = [];
+		const after = (line, level) => Math.max(line, ...opening.filter((m) => m.line === line && m.level < level).map((m) => m.to));
 		const add = (from, to, deco) => {
 			if (from >= to) return;
 			if (deco === hide && state.doc.sliceString(from, to).includes("\n")) deco = dim;
@@ -1454,18 +1480,14 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 					add(a, b, token.markup.startsWith("#") ? syntax : shown);
 				}
 			} else if (token.type === "fence" || token.type === "code_block") {
-				const end = codeEnd(state, {
-					token,
-					to,
-					markers
-				});
-				code.push([from, end]);
+				code.push([from, to]);
 				const body = token.content.split("\n");
+				if (body.at(-1) === "") body.pop();
 				const fenced = token.type === "fence";
 				const opened = state.doc.lineAt(from).number + (fenced ? 1 : 0);
-				lines(from, end, (each) => {
+				lines(from, to, (each) => {
 					const first = each.from <= from;
-					const last = each.to + 1 >= end;
+					const last = each.to + 1 >= to;
 					const ends = [
 						first ? " lf-md-code-first" : "",
 						last ? " lf-md-code-last" : "",
@@ -1474,8 +1496,8 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 					].join("");
 					out.push(line(`lf-md-code-block${ends}`).range(each.from));
 					const kept = body[each.number - opened];
-					if (kept === void 0 || each.number - opened >= body.length - 1) return;
-					const start = prefix.get(each.from) ?? each.from;
+					if (kept === void 0) return;
+					const start = after(each.from, token.level);
 					const lead = state.doc.sliceString(start, each.to).match(/^[ \t]*/)[0].length;
 					add(start, start + lead - kept.match(/^[ \t]*/)[0].length, hide);
 				});
@@ -1485,13 +1507,21 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 				}
 			} else if (token.type === "blockquote_open") {
 				boxes.push(box(from, to, token.level, { class: "lf-md-quote lf-face-quote" }));
+				held.push({
+					from,
+					to,
+					level: token.level,
+					kind: "quote"
+				});
 				for (const [a, b] of markers) {
+					const line = state.doc.lineAt(a).from;
 					opening.push({
 						from: a,
 						to: b,
-						kind: "quote"
+						kind: "quote",
+						level: token.level,
+						line
 					});
-					prefix.set(state.doc.lineAt(a).from, b);
 				}
 			} else if (token.type === "bullet_list_open" || token.type === "ordered_list_open") {
 				while (lists.at(-1)?.to <= from) lists.pop();
@@ -1506,15 +1536,8 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 				const depth = lists.length;
 				const head = state.doc.lineAt(from);
 				const [at, end] = markers[0];
-				const start = at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length;
-				if (head.text.slice(0, start - head.from).trim()) {
-					add(start, end, dim);
-					continue;
-				}
-				continued.delete(head.from);
-				lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
-					continued.add(each.from);
-				});
+				const start = Math.max(at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length, after(head.from, token.level));
+				lines(head.to + 1, to, (each) => continued.push([each.from, token.level]));
 				const kind = list.next === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
 				const shown = state.selection.ranges.some((range) => range.from < end && range.to >= start);
 				boxes.push(box(head.from, to, token.level, shown ? { class: "lf-md-item" } : {
@@ -1522,24 +1545,44 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 					...list.next !== null && { style: `counter-set: list-item ${list.next}` }
 				}));
 				if (list.next !== null) list.next++;
+				held.push({
+					from: head.from,
+					to,
+					level: token.level,
+					kind: "item"
+				});
 				opening.push({
 					from: start,
 					to: end,
 					kind: "item",
-					shown
+					shown,
+					level: token.level,
+					line: head.from
 				});
 			}
 		}
-		for (const from of continued) {
+		const indents = /* @__PURE__ */ new Set();
+		for (const [from, level] of continued) {
 			if (code.some(([a, b]) => from >= a && from < b)) continue;
-			add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
+			if (opening.some((m) => m.kind === "item" && m.line === from)) continue;
+			const start = after(from, level);
+			if (indents.has(start)) continue;
+			indents.add(start);
+			const { to } = state.doc.lineAt(from);
+			add(start, start + state.doc.sliceString(start, to).match(/^[ \t]*/)[0].length, hide);
 		}
 		opening.sort((a, b) => a.from - b.from);
 		for (let i = 0; i < opening.length;) {
 			let j = i + 1;
 			while (j < opening.length && opening[j].from === opening[j - 1].to) j++;
-			runs.push(markerRun.range(opening[i].from, opening[j - 1].to));
-			for (const { from, to, kind, shown } of opening.slice(i, j)) out.push(markerFaces[kind][+(shown ?? touches(state, from, to))].range(from, to));
+			const run = opening.slice(i, j);
+			runs.push(markerRun.range(run[0].from, run.at(-1).to));
+			for (const { from, to, kind, shown } of run) out.push(markerFaces[kind][+(shown ?? touches(state, from, to))].range(from, to));
+			const { line } = run[0];
+			for (const container of held.filter((c) => c.from <= line && line < c.to && !opening.some((m) => m.line === line && m.level === c.level)).sort((a, b) => a.level - b.level)) {
+				const outside = run.filter((m) => m.level < container.level);
+				if (outside.length) out.push(insets[container.kind].range(outside.at(-1).to));
+			}
 			i = j;
 		}
 		standBlocks(state, placed, out, line);

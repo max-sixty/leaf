@@ -11,6 +11,7 @@ from weakref import WeakKeyDictionary
 import tinycss2
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
+from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_harness import (
@@ -1092,8 +1093,6 @@ def mark_edges(page, ident, ink):
     was multiplying first that made `round(gap * scale)` disagree with it — by a pixel the
     window below covers, until a scale of 4 makes it two. The window is kept for a device
     pixel of engine drift either side."""
-    from PIL import Image  # a dev dependency already, for the demo recorder
-
     box = page.locator(f"#{ident}").bounding_box()
     clip = {"x": math.floor(box["x"] - MARK_PAD), "y": math.floor(box["y"] - MARK_PAD)}
     clip["width"] = math.ceil(box["x"] + box["width"] + MARK_PAD) - clip["x"]
@@ -1602,6 +1601,7 @@ def rings_drawn(page):
         geometry=True,
     )
     answers = page.evaluate(RINGS_DRAWN, rectangles)
+    _read_ring_pixels(page, answers)
     drawn = []
     for seen, rule in zip(answers, rules, strict=True):
         if seen.pop("mark") and not seen["focused"] and not rule:
@@ -1609,6 +1609,56 @@ def rings_drawn(page):
         seen["rule"] = rule
         drawn.append(seen)
     return drawn
+
+
+# The share of a run's samples the ring's colour must cover. A run hit testing found
+# clear but painted over, or never painted, reads near nought.
+RUN_DRAWN = 0.9
+# The fewest unpainted samples, 4px apart, that count: a neighbour's edge blending into
+# a short run's end sample is one.
+RUN_MISSED = 3
+
+
+def _read_ring_pixels(page, answers):
+    """Add to each ring's `covers` the runs its colour is missing from in a screenshot,
+    at the samples `ringsDrawn` (focus_rings.js) found nothing in front of that takes
+    hits, and drop the samples and ink from each answer."""
+    image = None
+    for seen in answers:
+        runs, ink, ring = seen.pop("runs"), seen.pop("ink"), seen.pop("ringAt")
+        if not runs:
+            continue
+        if image is None:
+            image = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+            scale = page.evaluate("() => devicePixelRatio")
+        channels = [float(n) for n in re.findall(r"[\d.]+", ink)[:3]]
+        if ink.startswith("color("):
+            channels = [n * 255 for n in channels]
+        for run in runs:
+            painted = [
+                sum(
+                    abs(a - b)
+                    for a, b in zip(
+                        image.getpixel(
+                            (
+                                min(int(x * scale), image.width - 1),
+                                min(int(y * scale), image.height - 1),
+                            )
+                        ),
+                        channels,
+                        strict=True,
+                    )
+                )
+                < 90
+                for x, y in run["points"]
+            ]
+            share = sum(painted) / len(painted)
+            if share < RUN_DRAWN and painted.count(False) >= RUN_MISSED:
+                seen["covers"].append(
+                    f"its {run['side']} edge shows the ring at {share:.0%} of its "
+                    f"{len(painted)} samples where nothing in front takes hits: paint "
+                    f"hit testing can't see is over it, or it isn't painted (ring {ring})"
+                )
 
 
 def current_location_ring(page):

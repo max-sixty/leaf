@@ -191,6 +191,20 @@ def serving_runtime() -> ServingRuntime:
     return read_runtime()
 
 
+def execution_identity(artifact: RevisionArtifact) -> str:
+    """What a revision's resources are addressed under as this process runs them: the
+    runtime, and the layer its manifest selects, whose installed packages and the
+    page's own copies change apart from this tree. An address names the same bytes
+    for as long as a browser may cache it."""
+    layer = selected(json.loads(artifact.manifest)["layer"], artifact.page_dir)
+    return files_identity(
+        {
+            "runtime": serving_runtime().identity.encode(),
+            "layer": layer.fingerprint.encode(),
+        }
+    ).removeprefix("sha256:")[:16]
+
+
 def executing(artifact: RevisionArtifact) -> RevisionArtifact:
     """`artifact` with the resources its documents run with under this process's
     runtime and the layer its manifest selects (`ServingRuntime.resources`), its

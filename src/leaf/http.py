@@ -66,7 +66,7 @@ from .revision_delivery import (
     rebase_document,
     runtime_settings,
 )
-from .runtime_selection import executing, serving_runtime
+from .runtime_selection import executing, execution_identity, serving_runtime
 from .samples import Samples
 from .schema import (
     BINARY_TYPES,
@@ -883,15 +883,19 @@ class PageEndpoint:
         return reading.registry["$layer"]["generation"]
 
     def _artifact_root(self, revision: int) -> str:
-        return self._named_root(self._revision_name(revision).removesuffix(".html"))
+        return self._named_root(
+            self._revision_name(revision).removesuffix(".html"),
+            self._artifact(revision),
+        )
 
-    def _named_root(self, name: str) -> str:
-        """Where a revision's resources answer as this process runs them: its capture
-        and this runtime, each named by its identity, so the address names the same
-        bytes for as long as a browser may cache it."""
+    def _named_root(self, name: str, artifact: RevisionArtifact) -> str:
+        """Where a revision's resources answer as this process runs them: its capture,
+        and the runtime and layer it executes (`execution_identity`), each named by its
+        identity, so the address names the same bytes for as long as a browser may
+        cache it."""
         return (
             self.page_root.rstrip("/")
-            + f"/revisions/{name}/{serving_runtime().identity}"
+            + f"/revisions/{name}/{execution_identity(artifact)}"
         )
 
     def _document_asset_root(self, revision: int) -> str:
@@ -958,17 +962,17 @@ class PageEndpoint:
         if match is None:
             return None
         revision, name = int(match.group("revision")), match.group("name")
-        if (
-            self.source.revision_names.get(revision) != name + ".html"
-            or match.group("runtime") != serving_runtime().identity
-        ):
+        if self.source.revision_names.get(revision) != name + ".html":
+            return None
+        artifact = self._artifact(revision)
+        if match.group("runtime") != execution_identity(artifact):
             return None
         response = self._revision_resource(
-            revision, "/" + match.group("resource"), self._named_root(name)
+            revision, "/" + match.group("resource"), self._named_root(name, artifact)
         )
         if response is not None:
-            # The revision name carries its manifest digest, the runtime's identity
-            # names the runtime, and the address is in the URL, so these bytes never
+            # The revision name carries its manifest digest, the execution identity
+            # names the runtime and layer, and the address is in the URL, so these bytes never
             # change. Every document of one page shares this namespace: a gallery's
             # live samples are each a whole runtime importing the same modules, and
             # refetching each one per document queued them behind one another on the

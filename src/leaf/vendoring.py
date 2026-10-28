@@ -395,30 +395,21 @@ def _record(
 
 
 def _write_record(page_dir: Path, plan: _PagePlan) -> None:
-    """Write `plan`'s copies into the page, removing those it no longer selects,
-    then its record."""
+    """Write `plan`'s copies into the page, then its record. A copy the new selection
+    drops stays, since a stored revision's manifest may still name it."""
     held = page_dir / PACKAGES_DIR
-    kept = {
-        Path(value).name
-        for value in plan.record["packages"]
-        if value.startswith(f"./{PACKAGES_DIR}/")
-    }
-    for copy in held.iterdir() if held.is_dir() else ():
-        if copy.name not in kept:
-            shutil.rmtree(copy)
     for name, root in plan.copies.items():
         target = held / name
         if root == target.resolve():
             continue
-        staged = held / f".{name}.staged"
+        staged = held / f"{name}.staged"
         shutil.rmtree(staged, ignore_errors=True)
+        staged.mkdir(parents=True)
         for path, data in _package_files(root).items():
             (staged / path).parent.mkdir(parents=True, exist_ok=True)
             (staged / path).write_bytes(data)
         shutil.rmtree(target, ignore_errors=True)
         staged.rename(target)
-    if held.is_dir() and not any(held.iterdir()):
-        held.rmdir()
     LAYER.write(page_dir / LAYER_FILE, plan.record)
 
 

@@ -33,6 +33,7 @@ import base64
 import io
 import json
 import re
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -1418,7 +1419,7 @@ def test_send_grows_thread_around_the_words(
             ), frames
             changes = [
                 after["top"] - before["top"]
-                for before, after in zip(frames, frames[1:])
+                for before, after in pairwise(frames)
                 if abs(after["top"] - before["top"]) > 0.75
             ]
             assert len(changes) == 1 and changes[0] < 0, frames

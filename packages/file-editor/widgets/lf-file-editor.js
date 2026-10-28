@@ -51,11 +51,13 @@ import {
   handBack,
   html,
   iconTemplate,
+  namedAction,
   isNativeLayer,
   LeafElement,
   nothing,
   offered,
   offeredAction,
+  render,
   rove,
   rowWalk,
   shadowStage,
@@ -112,7 +114,6 @@ customElements.define(
       const view = (this.#view = el("div", "lf-file-editor-view lf-ui"));
       const mount = el("div", "lf-file-editor-edit");
       const comparisonMount = el("div", "lf-file-editor-comparison");
-      view.append(mount);
       shadowStage(this, [view]);
       const useFile = () => {
         if (busy || !latest) return;
@@ -200,20 +201,6 @@ customElements.define(
         owed = false,
         connected = false,
         slow = false;
-      const editor = createEditor(mount, {
-        readOnly: true,
-        onChange() {
-          generation++;
-          remember();
-          paint();
-          schedule();
-        },
-        onSave() {
-          clearTimeout(timer);
-          if (failure) retry(editor.contentDOM);
-          else void flush();
-        },
-      });
       // Landing the reader back in the editor shows them where they type.
       const returnToEditor = () => {
         focusDestination(editor.contentDOM, "return");
@@ -306,13 +293,11 @@ customElements.define(
               }${retryable ? html`&nbsp;` : nothing}<button
                 ${offered("lf-file-editor-retry")}
                 ?hidden=${!retryable}
-                aria-label="Retry"
-                title="Retry"
+                ${namedAction("retry", { className: "lf-file-editor-icon" })}
                 aria-description=${failure?.message ?? nothing}
                 aria-disabled=${busy ? "true" : nothing}
                 @click=${(event) => retry(event.currentTarget)}
-              >
-                ${iconTemplate("retry", "lf-file-editor-icon")}</button
+              ></button
               ><button
                 ${offered("lf-file-editor-conflict")}
                 ?hidden=${!conflicted}
@@ -377,6 +362,22 @@ customElements.define(
         `;
       };
       const thisBinding = this.getAttribute("binding");
+      // CodeMirror discovers its shadow root from the connected mount.
+      render(this.#template(), view, this.renderOptions);
+      const editor = createEditor(mount, {
+        readOnly: true,
+        onChange() {
+          generation++;
+          remember();
+          paint();
+          schedule();
+        },
+        onSave() {
+          clearTimeout(timer);
+          if (failure) retry(editor.contentDOM);
+          else void flush();
+        },
+      });
       function schedule(delay = 500) {
         clearTimeout(timer);
         if (connected && api.writable && !latest && !failure && dirty())
@@ -442,7 +443,8 @@ customElements.define(
           owed = true;
           return;
         }
-        busy = true;
+        // An offline read refuses immediately; no file operation is in flight.
+        busy = api.writable;
         owed = false;
         const seenGeneration = generation;
         try {

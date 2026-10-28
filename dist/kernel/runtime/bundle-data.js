@@ -1,9 +1,11 @@
-import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, afterScript, bindQueuedWork, cancelRender, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextAnimation, nextFrame, nextRender, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, renderingState, selectsAll, sizeObserver, takesLetters, typesText, under, upFrom, watchCurrentLocationIn, x } from "./bundle-dom-move.js";
-import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, iconElement, iconTemplate, keys, labelOf, layoutChanged, live, measure, notice, offer, offered, offeredAction, pagePresented, paintKeys, paintKeysWithin, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
-import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, SHADOW_LEADING_CSS, TEXT_BLOCK, adoptRegistry, agentName, annotationMarkSheets, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, clippedContents, clippedPlace, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, frameFor, growthAfterIsSeen, growthIsSeen, headerInset, html, inUi, inWindowChrome, isElementName, isReaction, keyed, landingBand, lastMovedAt, layerRoot, live as live$1, loadShadowRules, marks, marksSheet, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, placeBox, placeHolder, presented, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, seenRect, shadowRules, share, shownBox, shownRect, shownWindow, showsContents, skipped, slotTop, stateSpecs, stuckBox, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchLayers, watchOwner, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenNone, whenWidgetsPresented } from "./bundle-geometry.js";
+import { PAGE_PAINT_ATTRIBUTE, afterScript, bindQueuedWork, cancelRender, dataBody, frameFor, layoutChanged, measure, nextAnimation, nextFrame, nextRender, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, under, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
+import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, selectsAll, takesLetters, typesText, x } from "./bundle-dom-move.js";
+import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, html, inUi, isElementName, isReaction, keyed, lastMovedAt, layerRoot, live, loadShadowRules, marks, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, share, stateSpecs, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-layer-stack.js";
+import { LayerRefused, PRESS, PRESSABLE, actionTemplate, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, keys, labelOf, live as live$1, nameAction, namedAction, notice, offer, offered, offeredAction, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
-import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot } from "./bundle-passages.js";
-import { alreadyShown, copyControl, fitsWhole, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
+import { clippedContents, clippedPlace, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
+import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { alreadyShown, copyControl, fitsWhole, landedBox, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { backgroundFlash, flashDuration, foldBlock, isCanonicalMediaUrl, motion, motionPlays, readAttachedMedia, scopedMediaUrl, scrollBehavior, writeAttachedMedia } from "./bundle-media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
@@ -11,11 +13,6 @@ import { diffArrays } from "/vendor/jsdiff.esm.js";
 const servedRevision = document.querySelector("meta[name=\"lf-revision\"][data-lf-runtime]")?.content;
 const servedStampMarker = document.querySelector("meta[name=\"lf-version\"][data-lf-runtime]");
 const servedExecutable = document.querySelector("meta[name=\"lf-executable\"][data-lf-runtime]")?.content;
-const documentWidgetDigests = (doc) => {
-	const stated = doc.querySelector("meta[name=\"lf-widgets\"][data-lf-runtime]")?.content;
-	return stated ? JSON.parse(stated) : {};
-};
-const servedWidgets = documentWidgetDigests(document);
 function initializeServedDocument() {
 	applicationState.identify(servedRevision ? parseInt(servedRevision, 10) : null, servedStampMarker ? parseInt(servedStampMarker.content, 10) : null, LIVE_ROOT);
 	servedStampMarker?.remove();
@@ -977,98 +974,8 @@ function claimed$1(url) {
 }
 
 //#endregion
-//#region runtime/syntax-languages.js
-const syntaxLanguages = {
-	"bash": () => import("/vendor/syntax/bash.js"),
-	"css": () => import("/vendor/syntax/css.js"),
-	"diff": () => import("/vendor/syntax/diff.js"),
-	"go": () => import("/vendor/syntax/go.js"),
-	"html": () => import("/vendor/syntax/html.js"),
-	"java": () => import("/vendor/syntax/java.js"),
-	"javascript": () => import("/vendor/syntax/javascript.js"),
-	"json": () => import("/vendor/syntax/json.js"),
-	"markdown": () => import("/vendor/syntax/markdown.js"),
-	"python": () => import("/vendor/syntax/python.js"),
-	"rust": () => import("/vendor/syntax/rust.js"),
-	"sql": () => import("/vendor/syntax/sql.js"),
-	"toml": () => import("/vendor/syntax/toml.js"),
-	"typescript": () => import("/vendor/syntax/typescript.js"),
-	"yaml": () => import("/vendor/syntax/yaml.js")
-};
-const syntaxLanguageNames = {
-	"shellscript": "bash",
-	"bash": "bash",
-	"sh": "bash",
-	"shell": "bash",
-	"zsh": "bash",
-	"css": "css",
-	"diff": "diff",
-	"go": "go",
-	"html": "html",
-	"java": "java",
-	"javascript": "javascript",
-	"js": "javascript",
-	"cjs": "javascript",
-	"mjs": "javascript",
-	"json": "json",
-	"markdown": "markdown",
-	"md": "markdown",
-	"python": "python",
-	"py": "python",
-	"rust": "rust",
-	"rs": "rust",
-	"sql": "sql",
-	"toml": "toml",
-	"typescript": "typescript",
-	"ts": "typescript",
-	"cts": "typescript",
-	"mts": "typescript",
-	"yaml": "yaml",
-	"yml": "yaml"
-};
-
-//#endregion
 //#region runtime/syntax.js
 const registry = runtime.registry;
-let tokenizerReady;
-const tokenizer = () => tokenizerReady ??= import("/vendor/syntax.esm.js");
-const languagesReady = /* @__PURE__ */ new Map();
-function ensureSyntaxLanguage(lang) {
-	if (!lang) return tokenizer();
-	if (!languagesReady.has(lang)) {
-		const load = syntaxLanguages[lang];
-		if (!load) throw new Error(`no ${lang} grammar — rebuild syntax from registry.json`);
-		languagesReady.set(lang, Promise.all([tokenizer(), load()]).then(async ([shared, grammar]) => {
-			await shared.registerLanguage(lang, grammar.default);
-			return shared;
-		}));
-	}
-	return languagesReady.get(lang);
-}
-async function syntax(source, lang) {
-	const tokens = await (await ensureSyntaxLanguage(lang)).tokenize(source, lang);
-	if (tokens.map((t) => t.text).join("") !== source) throw new Error(`the ${lang} tokenizer did not return the source unchanged`);
-	return tokens;
-}
-const synNodes = (tokens) => tokens.map(({ text, style }) => {
-	if (!Object.keys(style).length) return document.createTextNode(text);
-	const span = document.createElement("span");
-	span.dataset.lfSyn = "";
-	for (const [property, value] of Object.entries(style)) span.style.setProperty(property, value);
-	span.textContent = text;
-	return span;
-});
-function tokenLines(tokens) {
-	const lines = [[]];
-	for (const { text, style } of tokens) text.split("\n").forEach((part, i) => {
-		if (i) lines.push([]);
-		if (part) lines.at(-1).push({
-			text: part,
-			style
-		});
-	});
-	return lines;
-}
 const langForPath = (path) => registry.$languages.paths[path.split("/").pop().split(".").slice(1).pop()?.toLowerCase()];
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
@@ -1129,6 +1036,13 @@ function quietWord(el, word) {
 	});
 	generatedElement(span, { says: false });
 	move(el, span, title ? title.nextSibling : el.firstChild);
+}
+function watchQuietWords() {
+	const { quiet } = PAGE_PAINT_ATTRIBUTE;
+	watchArrivals(`[${quiet}]`, [quiet], {
+		arrive: (el) => quietWord(el, el.getAttribute(quiet)),
+		leave: (el) => quietWord(el, "")
+	});
 }
 const isExternalPageLink = (link) => document.documentElement.lfInitial.externalLinks.matches(link);
 function watchExternalLinks() {
@@ -1373,7 +1287,30 @@ function copyBlock(block, source, noun) {
 	declareCopy(block, copy, noun);
 	return copy;
 }
+const DECLARED = "[data-lf-copy]";
+function prepareDeclaredBlocks(blocks) {
+	const prepared = blocks.filter((block) => controls.get(block)?.previousSibling !== block).map((block) => {
+		const noun = block.getAttribute("data-lf-copy");
+		return [
+			block,
+			noun,
+			prepareCodeBlock(block, () => block.lfCopy(), noun)
+		];
+	});
+	for (const [block, noun, pending] of prepared) {
+		const copy = aimControl(pending);
+		move(block.parentNode, copy, block.nextSibling);
+		declareCopy(block, copy, noun);
+	}
+}
 function watchCodeBlocks() {
+	watchArrivals(DECLARED, ["data-lf-copy"], {
+		arriveBatch: prepareDeclaredBlocks,
+		leave(block) {
+			controls.get(block)?.remove();
+			projectCommandScope(block, COPY_SCOPE, null);
+		}
+	});
 	watchArrivals("pre, table:not([role='presentation']), [data-lf-content='data']:not([data-lf-verbatim])", [], {
 		arrive: (block) => block.classList.toggle("scroll", true),
 		leave: () => {}
@@ -1413,7 +1350,7 @@ function watchCodeBlocks() {
 			}
 		}
 	};
-	watchArrivals("pre:has(> code)", ["style"], {
+	watchArrivals(`pre:has(> code):not(${DECLARED})`, ["style"], {
 		arriveBatch: prepareDocumentBlocks,
 		leave(pre) {
 			if (deferred.delete(pre)) revealed.unobserve(pre);
@@ -1649,7 +1586,8 @@ function makeLink(heading) {
 		label: "Copy link to section",
 		success: "Link copied",
 		error: "Unable to copy link",
-		icon: "link"
+		action: "copy-link",
+		role: "symbol"
 	});
 	control.tabIndex = -1;
 	const link = {
@@ -1803,11 +1741,10 @@ function paintRecordingControls(video, bar, enterFullScreen) {
 	keeps(bar, "role", "group");
 	keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
 	render$1(html`<button
-        ${offered("lf-video-play")}
+        ${offeredAction("symbol", "lf-video-play", !video.paused ? "Pause recording" : "Play recording", { action: "play" })}
         tabindex="-1"
-        aria-label=${!video.paused ? "Pause recording" : "Play recording"}
       >
-        ${iconTemplate("play", "lf-video-icon")}${iconTemplate("pause", "lf-video-icon")}
+        ${actionTemplate("pause", "lf-action-icon")}
       </button>
       <input
         ${offered("lf-video-time")}
@@ -1817,7 +1754,7 @@ function paintRecordingControls(video, bar, enterFullScreen) {
         step="any"
         max=${String(duration(video))}
         ?disabled=${!duration(video)}
-        .value=${live$1(String(video.currentTime))}
+        .value=${live(String(video.currentTime))}
         aria-label="Recording position"
         aria-valuetext=${`${clock(video.currentTime)} of ${clock(duration(video))}`}
         @input=${(event) => {
@@ -1825,12 +1762,9 @@ function paintRecordingControls(video, bar, enterFullScreen) {
 	}}
       />
       ${enterFullScreen ? html`<button
-              ${offered("lf-video-full-screen")}
+              ${offeredAction("symbol", "lf-video-full-screen", "Full screen", { action: "expand" })}
               tabindex="-1"
-              aria-label="Full screen"
-            >
-              ${iconTemplate("expand", "lf-video-icon")}
-            </button>` : nothing}`, bar);
+            ></button>` : nothing}`, bar);
 }
 function prepare(video) {
 	const bar = offer("div", "lf-video-controls");
@@ -1982,358 +1916,6 @@ function watchVideos() {
 		},
 		leave: giveBack
 	});
-}
-
-//#endregion
-//#region runtime/keyboard/disclosure.js
-const disclosureWatch = new MutationObserver((records) => {
-	for (const r of records) if (r.target.getAttribute(r.attributeName) !== r.oldValue) paintKeysWithin(r.target);
-});
-const watchDisclosures = (root) => disclosureWatch.observe(root, {
-	subtree: true,
-	attributeFilter: ["open", "aria-expanded"],
-	attributeOldValue: true
-});
-const DISCLOSE = (el) => {
-	const open = disclosed(el);
-	if (open === null) return [
-		...PRESS,
-		"ArrowLeft",
-		"ArrowRight"
-	];
-	const [back, ahead] = rowArrows(el);
-	return inChrome(el) ? PRESS : [...PRESS, open ? back : ahead];
-};
-const DISCLOSURE_SELECTOR = "details > summary, :is(button, [role=\"button\"])[aria-expanded]";
-function disclosed(el) {
-	return !el?.matches?.("details > summary, :is(button, [role=\"button\"])[aria-expanded]") ? null : el.matches("details > summary") ? el.parentElement.open : el.getAttribute("aria-expanded") === "true";
-}
-
-//#endregion
-//#region runtime/dom-children.js
-function setChildren(parent, nodes) {
-	setChildLists([[parent, nodes]]);
-}
-function setChildLists(lists) {
-	for (const [parent, nodes] of lists) orderChildren(parent, nodes);
-	for (const [parent, nodes] of lists) {
-		const keep = new Set(nodes);
-		for (const child of [...parent.childNodes]) if (!keep.has(child)) child.remove();
-	}
-}
-function orderChildren(parent, nodes) {
-	const owned = new Set(nodes);
-	order(parent, nodes, (node) => !owned.has(node));
-}
-function setRenderedChildren(parent, nodes) {
-	const after = document.createDocumentFragment();
-	after.append(...nodes);
-	patchChildren(parent, parent, after, {
-		pairs: new Map([...sourceNodes(parent)].map((node) => [node, node])),
-		arrive: (node) => node,
-		sameValue: (name, held, wanted) => held === wanted,
-		touched: () => {},
-		declared: () => false,
-		body: () => null,
-		same: (held, wanted) => held.isEqualNode(wanted),
-		generated: () => false
-	});
-}
-function order(parent, nodes, passed = () => false) {
-	const list = [...nodes];
-	const stay = staying(parent, list);
-	let cursor = parent.firstChild;
-	for (const node of list) {
-		while (cursor && passed(cursor)) cursor = cursor.nextSibling;
-		if (node === cursor) cursor = cursor.nextSibling;
-		else if (stay.has(node)) cursor = node.nextSibling;
-		else move(parent, node, cursor);
-	}
-}
-function staying(parent, nodes) {
-	const places = new Map([...parent.childNodes].map((node, at) => [node, at + 1]));
-	const size = places.size;
-	const best = new Array(size + 1).fill(-1);
-	const weightAt = new Array(size + 1).fill(0);
-	const weights = [];
-	const previous = [];
-	let last = -1;
-	nodes.forEach((node, at) => {
-		const place = places.get(node);
-		if (!place) return;
-		let before = -1;
-		for (let i = place - 1; i > 0; i -= i & -i) if (best[i] >= 0 && (before < 0 || weightAt[i] >= weights[before])) before = best[i];
-		const weight = (node.nodeType === Node.ELEMENT_NODE ? nodes.length + 1 : 1) + (before < 0 ? 0 : weights[before]);
-		weights[at] = weight;
-		previous[at] = before;
-		for (let i = place; i <= size; i += i & -i) if (best[i] < 0 || weight >= weightAt[i]) {
-			best[i] = at;
-			weightAt[i] = weight;
-		}
-		if (last < 0 || weight >= weights[last]) last = at;
-	});
-	const stay = /* @__PURE__ */ new Set();
-	for (let at = last; at >= 0; at = previous[at]) stay.add(nodes[at]);
-	return stay;
-}
-function patchTree(before, after, rules) {
-	const live = rules.pairs.get(before);
-	patchAttributes(live, before, after, rules);
-	patchChildren(holder(live, rules), tree(before), tree(after), rules);
-}
-function patchRetains(before, after, target, rules) {
-	if (!target?.isConnected) return false;
-	if (!sourceOwns(before, target, rules)) return true;
-	return retainedWithin(before, after, target, rules);
-}
-function sourceOwns(source, target, rules) {
-	const owns = (node) => rules.contains(target, rules.pairs.get(node));
-	if (owns(source)) return true;
-	for (const node of sourceNodes(source)) if (owns(node)) return true;
-	return false;
-}
-function retainedWithin(before, after, target, rules) {
-	const live = rules.pairs.get(before);
-	if (!live || !sourceOwns(before, target, rules)) return false;
-	if (kept(before, after, rules)) return true;
-	if (live === target) return false;
-	if (before.attributes.length !== after.attributes.length || [...before.attributes].some(({ name, value }) => !after.hasAttribute(name) || !rules.sameValue(name, value, after.getAttribute(name)))) return false;
-	const children = [...tree(before).childNodes];
-	const matches = new Map([...matchNodes(children, [...tree(after).childNodes])].map(([wanted, held]) => [held, wanted]));
-	for (const held of children) {
-		const node = rules.pairs.get(held);
-		if (node?.nodeType !== Node.ELEMENT_NODE || !sourceOwns(held, target, rules)) continue;
-		const wanted = matches.get(held);
-		if (!wanted) return false;
-		if (!(atomic(held, wanted, node, rules) ? kept(held, wanted, rules) : retainedWithin(held, wanted, target, rules))) return false;
-	}
-	return true;
-}
-const tree = (node) => node.localName === "template" ? node.content : node;
-const holder = (live, rules) => rules.body(live) ?? tree(live);
-function patchAttributes(live, before, after, rules) {
-	let changed = false;
-	for (const { name, value } of [...before.attributes]) {
-		if (after.hasAttribute(name)) continue;
-		if (name === "class") live.classList.remove(...tokens$1(value));
-		else live.removeAttribute(name);
-		changed = true;
-	}
-	for (const { name, value } of after.attributes) {
-		const held = before.getAttribute(name);
-		if (held !== null && rules.sameValue(name, held, value)) continue;
-		if (name === "class") {
-			live.classList.remove(...tokens$1(held ?? ""));
-			live.classList.add(...tokens$1(value));
-		} else live.setAttribute(name, value);
-		changed = true;
-	}
-	if (changed) rules.touched(live);
-}
-const tokens$1 = (value) => value.split(/\s+/).filter(Boolean);
-function writeText(node, next) {
-	const held = node.data;
-	if (held === next) return;
-	let prefix = 0;
-	while (prefix < held.length && prefix < next.length && held[prefix] === next[prefix]) prefix += 1;
-	let suffix = 0;
-	while (suffix < held.length - prefix && suffix < next.length - prefix && held[held.length - suffix - 1] === next[next.length - suffix - 1]) suffix += 1;
-	node.replaceData(prefix, held.length - prefix - suffix, next.slice(prefix, next.length - suffix));
-}
-function evict(before, live, rules) {
-	live.remove();
-	for (const inner of sourceNodes(before)) {
-		const stray = rules.pairs.get(inner);
-		if (!stray?.parentNode || live.contains(stray)) continue;
-		stray.remove();
-	}
-}
-function* sourceNodes(node) {
-	for (const child of tree(node).childNodes) {
-		yield child;
-		yield* sourceNodes(child);
-	}
-}
-function patchChildren(liveParent, beforeParent, afterParent, rules) {
-	const held = [...beforeParent.childNodes];
-	const wanted = [...afterParent.childNodes];
-	const matches = matchNodes(held, wanted);
-	const matched = new Set(matches.values());
-	for (const node of held) {
-		if (matched.has(node)) continue;
-		evict(node, rules.pairs.get(node), rules);
-	}
-	const placed = [];
-	for (const node of wanted) {
-		const before = matches.get(node);
-		const held = before && rules.pairs.get(before);
-		const live = held?.parentNode ? held : null;
-		if (!live) {
-			placed.push(rules.arrive(node, liveParent));
-			continue;
-		}
-		if (node.nodeType !== Node.ELEMENT_NODE) writeText(live, node.data);
-		else if (!atomic(before, node, live, rules)) patchTree(before, node, rules);
-		else if (!kept(before, node, rules)) {
-			evict(before, live, rules);
-			placed.push(rules.arrive(node, liveParent));
-			continue;
-		} else pairInterior(before, node, rules);
-		rules.pairs.set(node, live);
-		if (live.parentNode === liveParent) placed.push(live);
-	}
-	order(liveParent, placed, rules.generated);
-}
-function pairInterior(before, after, rules) {
-	const held = [...sourceNodes(before)];
-	const wanted = [...sourceNodes(after)];
-	if (held.length !== wanted.length) return;
-	wanted.forEach((node, at) => {
-		const live = rules.pairs.get(held[at]);
-		if (live) rules.pairs.set(node, live);
-	});
-}
-const atomic = (before, after, live, rules) => before.matches("style, link[rel~=\"stylesheet\" i]") || rules.declared(before) && !rules.reaches(before, after) || [...tree(before).childNodes].some((node) => rules.pairs.get(node)?.parentNode !== holder(live, rules));
-const kept = (before, after, rules) => rules.declared(before) ? rules.unchanged(before, after) : rules.same(before, after);
-function matchNodes(held, wanted) {
-	const matches = /* @__PURE__ */ new Map();
-	const matched = /* @__PURE__ */ new Set();
-	const byId = /* @__PURE__ */ new Map();
-	for (const node of held) if (node.nodeType === Node.ELEMENT_NODE && node.id && !byId.has(node.id)) byId.set(node.id, node);
-	for (const node of wanted) {
-		if (node.nodeType !== Node.ELEMENT_NODE || !node.id) continue;
-		const match = byId.get(node.id);
-		if (!match || match.localName !== node.localName || matched.has(match)) continue;
-		matches.set(node, match);
-		matched.add(match);
-	}
-	alignRest(held.filter((node) => !matched.has(node)), wanted.filter((node) => !matches.has(node)), matches);
-	return matches;
-}
-const COLLAPSE = /\s+/g;
-const signature = (node) => {
-	if (node.nodeType !== Node.ELEMENT_NODE) return `${node.nodeType}:${node.data}`;
-	const words = (node.localName === "template" ? node.content : node).textContent;
-	return `1:${node.localName}#${node.id}:${words.replace(COLLAPSE, " ").trim()}`;
-};
-function alignRest(held, wanted, matches) {
-	let heldAt = 0;
-	let wantedAt = 0;
-	let gapHeld = [];
-	let gapWanted = [];
-	const closeGap = () => {
-		pairInGap(gapHeld, gapWanted, matches);
-		gapHeld = [];
-		gapWanted = [];
-	};
-	for (const run of diffArrays(held.map(signature), wanted.map(signature))) {
-		const count = run.value.length;
-		if (run.added) gapWanted.push(...wanted.slice(wantedAt, wantedAt += count));
-		else if (run.removed) gapHeld.push(...held.slice(heldAt, heldAt += count));
-		else {
-			closeGap();
-			for (let at = 0; at < count; at++) matches.set(wanted[wantedAt + at], held[heldAt + at]);
-			heldAt += count;
-			wantedAt += count;
-		}
-	}
-	closeGap();
-}
-function pairInGap(held, wanted, matches) {
-	let heldAt = 0;
-	let wantedAt = 0;
-	for (const run of diffArrays(held, wanted, { comparator: interchangeable })) {
-		const count = run.value.length;
-		if (run.added) wantedAt += count;
-		else if (run.removed) heldAt += count;
-		else {
-			for (let at = 0; at < count; at++) matches.set(wanted[wantedAt + at], held[heldAt + at]);
-			heldAt += count;
-			wantedAt += count;
-		}
-	}
-}
-const interchangeable = (held, wanted) => held.nodeType === wanted.nodeType && (held.nodeType !== Node.ELEMENT_NODE || held.localName === wanted.localName && !(held.id && wanted.id));
-
-//#endregion
-//#region runtime/shadow-stage.js
-const stageStyles = /* @__PURE__ */ new WeakMap();
-function shadowStage(host, nodes) {
-	const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
-	watchArrivalsIn(root);
-	root.adoptedStyleSheets = [.../* @__PURE__ */ new Set([
-		...root.adoptedStyleSheets,
-		...annotationMarkSheets,
-		marksSheet
-	])];
-	watchDisclosures(root);
-	watchLayers(root);
-	watchCurrentLocationIn(root);
-	const rules = SHADOW_LEADING_CSS + shadowRules;
-	let style = stageStyles.get(root);
-	if (style?.textContent !== rules) {
-		style = document.createElement("style");
-		style.textContent = rules;
-		stageStyles.set(root, style);
-	}
-	setChildren(root, [style, ...nodes]);
-	for (const child of [...host.childNodes]) child.remove();
-	watchPassageRoot(root);
-	return root;
-}
-
-//#endregion
-//#region runtime/widget-upgrade.js
-const initialized = /* @__PURE__ */ new WeakSet();
-function once(el) {
-	if (initialized.has(el)) return false;
-	initialized.add(el);
-	if (!el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done)) el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");
-	return true;
-}
-const dataBody = (el) => el.querySelector(":scope > pre").textContent;
-const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
-function failSoft(el, err, source) {
-	reportFailure$1(el, err);
-	showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`, source);
-}
-function reportFailure$1(el, err) {
-	const owner = widgetOf(el);
-	reportPageError(err, `<${owner.localName}${owner.id ? ` id="${owner.id}"` : ""}> failed`);
-}
-function failSoftUnreported(el, err) {
-	showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`);
-}
-const widgetOf = (el) => {
-	let owner = el;
-	while (owner.parentElement && !owner.localName.includes("-")) owner = owner.parentElement;
-	return owner.localName.includes("-") ? owner : el;
-};
-const placers = /* @__PURE__ */ new WeakMap();
-const placesFailure = (el, place) => placers.set(el, place);
-function showFailure(el, text, source) {
-	const box = document.createElement("div");
-	box.className = "lf-error";
-	box.textContent = text;
-	if (source) {
-		const pre = document.createElement("pre");
-		pre.textContent = source;
-		box.append(pre);
-	}
-	if (placers.get(el)?.(box)) return;
-	if (el.shadowRoot) {
-		shadowStage(el, [box]);
-		return;
-	}
-	releaseTemplate(el);
-	el.replaceChildren();
-	render$1(box, el);
-}
-function releaseTemplate(el) {
-	const part = el._$litPart$;
-	if (!part) return;
-	part.setConnected(false);
-	delete el._$litPart$;
 }
 
 //#endregion
@@ -3045,7 +2627,7 @@ async function importWidgets(scope) {
 	await importWidgetModules(scope);
 }
 async function installDocument(scope) {
-	const presentation = attachApplicationPresentation("document:installation", scope);
+	const presentation = attachApplicationPresentation("document:installation");
 	try {
 		rememberPassageParts(scope);
 		rememberAuthoredParents(scope);
@@ -3060,6 +2642,7 @@ async function installDocument(scope) {
 		});
 		commitWidgetDescriptors(descriptors);
 		watchExternalLinks();
+		watchQuietWords();
 		watchCodeBlocks();
 		watchHeadingLinks();
 		watchVideos();
@@ -3070,7 +2653,7 @@ async function installDocument(scope) {
 	}
 }
 async function patchDocument(scope, patch) {
-	const presentation = attachApplicationPresentation("document:patch", scope);
+	const presentation = attachApplicationPresentation("document:patch");
 	try {
 		const { roots, widgets, ...result } = patch();
 		await settle(presentation, scope, roots, () => whenWidgetsPresented(widgets));
@@ -3081,7 +2664,7 @@ async function patchDocument(scope, patch) {
 }
 async function settle(presentation, scope, arrived, presented) {
 	const painted = Promise.all(arrived.map(paintDeclaredWords));
-	const presenting = presentation.present(scope);
+	const presenting = presentation.present();
 	presenting.resolve(painted);
 	await presenting.ready;
 	await presented();
@@ -3102,8 +2685,7 @@ async function upgradeWidgets({ buildReactionBar }) {
 //#endregion
 //#region runtime/storage.js
 const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
-const { stored, tabStore: initialTabStore } = document.documentElement.lfStorage;
-const tabStore = initialTabStore;
+const { stored } = document.documentElement.lfStorage;
 const views$1 = (holder) => holder.ownerDocument.documentElement.lfViews;
 const openingView = (holder, members, fallback) => views$1(holder).opening(holder, members, fallback);
 const keepView = (holder, member) => views$1(holder).keep(holder, member);
@@ -3971,9 +3553,7 @@ var MessageEditor = class {
 		const actions = offer("span", "lf-msg-edit-actions");
 		const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
 		cancel.type = "button";
-		cancel.setAttribute("aria-label", "Discard");
-		cancel.title = "Discard";
-		cancel.append(iconElement("cross", "lf-msg-control-icon"));
+		nameAction(cancel, "discard", { className: "lf-msg-control-icon" });
 		actions.append(cancel);
 		this.foot = document.createElement("span");
 		this.foot.className = "lf-msg-edit-foot";
@@ -4029,7 +3609,7 @@ var MessageEditor = class {
 			accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
 			sends: "save",
 			sendClass: "lf-msg-control lf-msg-edit-save",
-			icon: "save",
+			action: "save",
 			submitIn: actions,
 			sentMedia: true,
 			save: (value) => {
@@ -4281,12 +3861,9 @@ var ReactionStripView = class {
           ${offered("lf-msg-control lf-react-trigger")}
           aria-expanded="false"
           aria-controls=${this.#paletteId}
-          aria-label="Add reaction"
-          title="Add reaction"
+          ${namedAction("react", { className: "lf-msg-control-icon" })}
           @click=${() => this.#registration.toggle()}
-        >
-          ${iconTemplate("reaction", "lf-msg-control-icon")}
-        </button>
+        ></button>
         <span
           class="lf-react-palette"
           id=${this.#paletteId}
@@ -4303,7 +3880,6 @@ var ReactionStripView = class {
                 title=${choice.label}
                 aria-label=${choice.label}
                 aria-pressed=${String(Boolean(choice.inForce))}
-                aria-busy=${String(Boolean(choice.inForce?.pending))}
                 @click=${() => this.#press(choice.name)}
               >
                 <span class="lf-react-glyph">${choice.glyph}</span>
@@ -4399,12 +3975,16 @@ function prepareAuthoredMessage(message, thread) {
 			authored,
 			descriptors,
 			nodes,
-			root: template.content
+			root: template.content,
+			preparation: null
 		});
 	}
 	const prepared = authoredMessages.get(key);
 	for (const descriptor of prepared.descriptors.descriptors.values()) if (descriptor.document.thread !== thread || descriptor.document.message !== message.id) throw new TypeError("an authored message changed its frozen document identity");
-	return prepared;
+	return prepared.preparation ??= importWidgets(prepared.root).then(() => prepared, (error) => {
+		prepared.preparation = null;
+		throw error;
+	});
 }
 const authoredMessage = (message) => {
 	const prepared = authoredMessages.get(message.attempt ?? message.id);
@@ -4584,7 +4164,9 @@ var MessageView = class {
       <div class="lf-msg-head" data-lf-reflow="text">
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          >${dated ? html`<time datetime=${model.timestamp}>${model.age}</time>` : nothing}${model.unread ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>` : nothing}
+          >${dated ? html`<time datetime=${model.timestamp}>${model.age}</time>` : nothing}${model.unread ? html`<span class="lf-msg-new lf-unread-dot"
+                  ><span class="lf-quiet">New</span></span
+                >` : nothing}
           ${receipt}
           ${model.leaves ? html`<span class="lf-msg-leaves">${model.leaves}</span>` : nothing}
           ${model.failure ? html`<span class="lf-msg-failure">${NOT_ANSWERED}</span>` : nothing}
@@ -4602,12 +4184,12 @@ var MessageView = class {
 		const rewrite = model.editable && !editing ? html`<button
             ${offered("lf-msg-control lf-msg-edit")}
             tabindex="-1"
-            aria-label="Edit message"
-            title="Edit message"
+            ${namedAction("edit", {
+			label: "Edit message",
+			className: "lf-msg-control-icon"
+		})}
             @click=${() => this.openEdit()}
-          >
-            ${iconTemplate("edit", "lf-msg-control-icon")}
-          </button>` : nothing;
+          ></button>` : nothing;
 		render$1(html`
         ${header}
         <div
@@ -5412,6 +4994,251 @@ const aborted = (signal) => {
 	else signal.addEventListener("abort", () => resolve(), { once: true });
 	return promise;
 };
+
+//#endregion
+//#region runtime/dom-children.js
+function setChildren(parent, nodes) {
+	setChildLists([[parent, nodes]]);
+}
+function setChildLists(lists) {
+	for (const [parent, nodes] of lists) orderChildren(parent, nodes);
+	for (const [parent, nodes] of lists) {
+		const keep = new Set(nodes);
+		for (const child of [...parent.childNodes]) if (!keep.has(child)) child.remove();
+	}
+}
+function orderChildren(parent, nodes) {
+	const owned = new Set(nodes);
+	order(parent, nodes, (node) => !owned.has(node));
+}
+function setRenderedChildren(parent, nodes) {
+	const after = document.createDocumentFragment();
+	after.append(...nodes);
+	patchChildren(parent, parent, after, {
+		pairs: new Map([...sourceNodes(parent)].map((node) => [node, node])),
+		arrive: (node) => node,
+		sameValue: (held, wanted) => held === wanted,
+		touched: () => {},
+		declared: () => false,
+		body: () => null,
+		same: (held, wanted) => held.isEqualNode(wanted),
+		generated: () => false
+	});
+}
+function order(parent, nodes, passed = () => false) {
+	const list = [...nodes];
+	const stay = staying(parent, list);
+	let cursor = parent.firstChild;
+	for (const node of list) {
+		while (cursor && passed(cursor)) cursor = cursor.nextSibling;
+		if (node === cursor) cursor = cursor.nextSibling;
+		else if (stay.has(node)) cursor = node.nextSibling;
+		else move(parent, node, cursor);
+	}
+}
+function staying(parent, nodes) {
+	const places = new Map([...parent.childNodes].map((node, at) => [node, at + 1]));
+	const size = places.size;
+	const best = new Array(size + 1).fill(-1);
+	const weightAt = new Array(size + 1).fill(0);
+	const weights = [];
+	const previous = [];
+	let last = -1;
+	nodes.forEach((node, at) => {
+		const place = places.get(node);
+		if (!place) return;
+		let before = -1;
+		for (let i = place - 1; i > 0; i -= i & -i) if (best[i] >= 0 && (before < 0 || weightAt[i] >= weights[before])) before = best[i];
+		const weight = (node.nodeType === Node.ELEMENT_NODE ? nodes.length + 1 : 1) + (before < 0 ? 0 : weights[before]);
+		weights[at] = weight;
+		previous[at] = before;
+		for (let i = place; i <= size; i += i & -i) if (best[i] < 0 || weight >= weightAt[i]) {
+			best[i] = at;
+			weightAt[i] = weight;
+		}
+		if (last < 0 || weight >= weights[last]) last = at;
+	});
+	const stay = /* @__PURE__ */ new Set();
+	for (let at = last; at >= 0; at = previous[at]) stay.add(nodes[at]);
+	return stay;
+}
+function patchTree(before, after, rules) {
+	const live = rules.pairs.get(before);
+	patchAttributes(live, before, after, rules);
+	patchChildren(holder(live, rules), tree(before), tree(after), rules);
+}
+function patchRetains(before, after, target, rules) {
+	if (!target?.isConnected) return false;
+	if (!sourceOwns(before, target, rules)) return true;
+	return retainedWithin(before, after, target, rules);
+}
+function sourceOwns(source, target, rules) {
+	const owns = (node) => rules.contains(target, rules.pairs.get(node));
+	if (owns(source)) return true;
+	for (const node of sourceNodes(source)) if (owns(node)) return true;
+	return false;
+}
+function retainedWithin(before, after, target, rules) {
+	const live = rules.pairs.get(before);
+	if (!live || !sourceOwns(before, target, rules)) return false;
+	if (rules.same(before, after)) return true;
+	if (live === target) return false;
+	if (before.attributes.length !== after.attributes.length || [...before.attributes].some(({ name, value }) => !after.hasAttribute(name) || !rules.sameValue(value, after.getAttribute(name)))) return false;
+	const children = [...tree(before).childNodes];
+	const matches = new Map([...matchNodes(children, [...tree(after).childNodes])].map(([wanted, held]) => [held, wanted]));
+	for (const held of children) {
+		const node = rules.pairs.get(held);
+		if (node?.nodeType !== Node.ELEMENT_NODE || !sourceOwns(held, target, rules)) continue;
+		const wanted = matches.get(held);
+		if (!wanted) return false;
+		if (!(atomic(held, wanted, node, rules) ? rules.same(held, wanted) : retainedWithin(held, wanted, target, rules))) return false;
+	}
+	return true;
+}
+const tree = (node) => node.localName === "template" ? node.content : node;
+const holder = (live, rules) => rules.body(live) ?? tree(live);
+function patchAttributes(live, before, after, rules) {
+	let changed = false;
+	for (const { name, value } of [...before.attributes]) {
+		if (after.hasAttribute(name)) continue;
+		if (name === "class") live.classList.remove(...tokens$1(value));
+		else live.removeAttribute(name);
+		changed = true;
+	}
+	for (const { name, value } of after.attributes) {
+		const held = before.getAttribute(name);
+		if (held !== null && rules.sameValue(held, value)) continue;
+		if (name === "class") {
+			live.classList.remove(...tokens$1(held ?? ""));
+			live.classList.add(...tokens$1(value));
+		} else live.setAttribute(name, value);
+		changed = true;
+	}
+	if (changed) rules.touched(live);
+}
+const tokens$1 = (value) => value.split(/\s+/).filter(Boolean);
+function writeText(node, next) {
+	const held = node.data;
+	if (held === next) return;
+	let prefix = 0;
+	while (prefix < held.length && prefix < next.length && held[prefix] === next[prefix]) prefix += 1;
+	let suffix = 0;
+	while (suffix < held.length - prefix && suffix < next.length - prefix && held[held.length - suffix - 1] === next[next.length - suffix - 1]) suffix += 1;
+	node.replaceData(prefix, held.length - prefix - suffix, next.slice(prefix, next.length - suffix));
+}
+function evict(before, live, rules) {
+	live.remove();
+	for (const inner of sourceNodes(before)) {
+		const stray = rules.pairs.get(inner);
+		if (!stray?.parentNode || live.contains(stray)) continue;
+		stray.remove();
+	}
+}
+function* sourceNodes(node) {
+	for (const child of tree(node).childNodes) {
+		yield child;
+		yield* sourceNodes(child);
+	}
+}
+function patchChildren(liveParent, beforeParent, afterParent, rules) {
+	const held = [...beforeParent.childNodes];
+	const wanted = [...afterParent.childNodes];
+	const matches = matchNodes(held, wanted);
+	const matched = new Set(matches.values());
+	for (const node of held) {
+		if (matched.has(node)) continue;
+		evict(node, rules.pairs.get(node), rules);
+	}
+	const placed = [];
+	for (const node of wanted) {
+		const before = matches.get(node);
+		const held = before && rules.pairs.get(before);
+		const live = held?.parentNode ? held : null;
+		if (!live) {
+			placed.push(rules.arrive(node, liveParent));
+			continue;
+		}
+		if (node.nodeType !== Node.ELEMENT_NODE) writeText(live, node.data);
+		else if (!atomic(before, node, live, rules)) patchTree(before, node, rules);
+		else if (!rules.same(before, node)) {
+			evict(before, live, rules);
+			placed.push(rules.arrive(node, liveParent));
+			continue;
+		} else pairInterior(before, node, rules);
+		rules.pairs.set(node, live);
+		if (live.parentNode === liveParent) placed.push(live);
+	}
+	order(liveParent, placed, rules.generated);
+}
+function pairInterior(before, after, rules) {
+	const held = [...sourceNodes(before)];
+	const wanted = [...sourceNodes(after)];
+	if (held.length !== wanted.length) return;
+	wanted.forEach((node, at) => {
+		const live = rules.pairs.get(held[at]);
+		if (live) rules.pairs.set(node, live);
+	});
+}
+const atomic = (before, after, live, rules) => before.matches("style, link[rel~=\"stylesheet\" i]") || rules.declared(before) && !rules.reaches(before, after) || [...tree(before).childNodes].some((node) => rules.pairs.get(node)?.parentNode !== holder(live, rules));
+function matchNodes(held, wanted) {
+	const matches = /* @__PURE__ */ new Map();
+	const matched = /* @__PURE__ */ new Set();
+	const byId = /* @__PURE__ */ new Map();
+	for (const node of held) if (node.nodeType === Node.ELEMENT_NODE && node.id && !byId.has(node.id)) byId.set(node.id, node);
+	for (const node of wanted) {
+		if (node.nodeType !== Node.ELEMENT_NODE || !node.id) continue;
+		const match = byId.get(node.id);
+		if (!match || match.localName !== node.localName || matched.has(match)) continue;
+		matches.set(node, match);
+		matched.add(match);
+	}
+	alignRest(held.filter((node) => !matched.has(node)), wanted.filter((node) => !matches.has(node)), matches);
+	return matches;
+}
+const COLLAPSE = /\s+/g;
+const signature = (node) => {
+	if (node.nodeType !== Node.ELEMENT_NODE) return `${node.nodeType}:${node.data}`;
+	const words = (node.localName === "template" ? node.content : node).textContent;
+	return `1:${node.localName}#${node.id}:${words.replace(COLLAPSE, " ").trim()}`;
+};
+function alignRest(held, wanted, matches) {
+	let heldAt = 0;
+	let wantedAt = 0;
+	let gapHeld = [];
+	let gapWanted = [];
+	const closeGap = () => {
+		pairInGap(gapHeld, gapWanted, matches);
+		gapHeld = [];
+		gapWanted = [];
+	};
+	for (const run of diffArrays(held.map(signature), wanted.map(signature))) {
+		const count = run.value.length;
+		if (run.added) gapWanted.push(...wanted.slice(wantedAt, wantedAt += count));
+		else if (run.removed) gapHeld.push(...held.slice(heldAt, heldAt += count));
+		else {
+			closeGap();
+			for (let at = 0; at < count; at++) matches.set(wanted[wantedAt + at], held[heldAt + at]);
+			heldAt += count;
+			wantedAt += count;
+		}
+	}
+	closeGap();
+}
+function pairInGap(held, wanted, matches) {
+	let heldAt = 0;
+	let wantedAt = 0;
+	for (const run of diffArrays(held, wanted, { comparator: interchangeable })) {
+		const count = run.value.length;
+		if (run.added) wantedAt += count;
+		else if (run.removed) heldAt += count;
+		else {
+			for (let at = 0; at < count; at++) matches.set(wanted[wantedAt + at], held[heldAt + at]);
+			heldAt += count;
+			wantedAt += count;
+		}
+	}
+}
+const interchangeable = (held, wanted) => held.nodeType === wanted.nodeType && (held.nodeType !== Node.ELEMENT_NODE || held.localName === wanted.localName && !(held.id && wanted.id));
 
 //#endregion
 //#region runtime/thread/folding.js
@@ -6690,7 +6517,10 @@ function threadTodos(todos, done) {
 	return html`<ul class="lf-thread-todos">
     ${todos.map((todo) => html`<li class="lf-thread-todo">
           <span class="lf-thread-todo-title">To-do · ${todo.title}</span
-          ><button ${offeredAction("word")} @click=${() => done(todo.id)}>Done</button>
+          ><button
+            ${offeredAction("symbol", "", void 0, { action: "done" })}
+            @click=${() => done(todo.id)}
+          ></button>
         </li>`)}
   </ul>`;
 }
@@ -7021,10 +6851,8 @@ var ThreadView = class {
 		const word = reopen ? "Reopen" : "Resolve";
 		const label = reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
 		return html`<button
-      ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve")}
+      ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve", label, { action: reopen ? "reopen" : "resolve" })}
       aria-busy=${state.pending ? "true" : nothing}
-      aria-label=${label}
-      title=${label}
       ${commandsOn(`On a thread's ${word} button`, (button) => [{
 			id: reopen ? "thread.reopen" : "thread.resolve",
 			keys: PRESS,
@@ -7033,9 +6861,7 @@ var ThreadView = class {
 			when: () => !this.#shown.value.settlement?.pending,
 			run: this.#settle
 		}])}
-    >
-      ${iconTemplate("check", "lf-action-icon")}
-    </button>`;
+    ></button>`;
 	}
 	#showNews() {
 		if (!this.#model?.news) return;
@@ -7809,7 +7635,7 @@ function commandSteps(id) {
 function* namedControls(row) {
 	if (row.control) yield {
 		control: row.control,
-		active: live(row) && bindings(row).length > 0,
+		active: live$1(row) && bindings(row).length > 0,
 		press: labelOf(row),
 		shortcuts: () => ariaShortcuts([row], false)
 	};
@@ -7871,7 +7697,7 @@ function scrollToFragment(element) {
 		block: "start"
 	});
 }
-function createAnchorTravel({ anchors, refreshThread, focusForNavigation, threadFocusTarget, announce }) {
+function createAnchorTravel({ anchors, refreshThread, focusForNavigation, threadFocusTarget, clearFor, announce }) {
 	let travelIntent = 0;
 	const retainTravel = (retained = retainUserIntent()) => {
 		const intent = ++travelIntent;
@@ -7905,6 +7731,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 			intent.handoff(() => {
 				const destination = resolve();
 				if (!destination?.where) return;
+				clearFor(destination, destination.scroll.length ? landedBox(destination.where) : null);
 				if (destination.focus) focusForNavigation(destination.focus, "move", { caret: destination.caret });
 				const current = resolve();
 				if (!current?.where) return;
@@ -8822,7 +8649,6 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		source: authoredSource,
 		pairs: sourcePairs
 	});
-	let authoredWidgets = servedWidgets;
 	let authoredRoot = layerRoot(document);
 	const VIEW_KEY = "lf-view";
 	const HANDOFF_KEY = "lf-revision-handoff";
@@ -8899,20 +8725,6 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		marker.content = String(revision.revision);
 	}
 	const upgraded = (element) => Boolean(registry$1[element.localName]?.["x-upgrade"]);
-	function widgetKeys(source) {
-		const keys = /* @__PURE__ */ new Map();
-		const counts = /* @__PURE__ */ new Map();
-		for (const element of elementsWithin(source)) {
-			if (!upgraded(element)) continue;
-			if (element.id) keys.set(element, element.id);
-			else {
-				const seen = counts.get(element.localName) ?? 0;
-				counts.set(element.localName, seen + 1);
-				keys.set(element, `${element.localName}#${seen}`);
-			}
-		}
-		return keys;
-	}
 	function* elementsWithin(root) {
 		const inner = root.localName === "template" ? root.content : root;
 		for (const child of inner.children) {
@@ -8920,23 +8732,23 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 			yield* elementsWithin(child);
 		}
 	}
-	const RESOURCE_ATTRIBUTES = [
-		"src",
-		"href",
-		"srcset",
-		"poster",
-		"data",
-		"style"
-	];
-	const unrooted = (value, root) => root && value.includes(root) ? value.split(root).join("/") : value;
-	const sameValue = (name, held, value, arrivingRoot) => RESOURCE_ATTRIBUTES.includes(name) ? unrooted(held, authoredRoot) === unrooted(value, arrivingRoot) : held === value;
+	const deferredScript = "data:text/javascript;charset=utf-8,";
+	const unrooted = (value, root) => {
+		if (value.startsWith(deferredScript)) {
+			value = deferredScript + value.slice(35).replace(/^(?:%0A)+/, "");
+			if (root) value = value.split(encodeURIComponent(root)).join("%2F");
+		}
+		return root && value.includes(root) ? value.split(root).join("/") : value;
+	};
+	const sameValue = (held, value, arrivingRoot) => unrooted(held, authoredRoot) === unrooted(value, arrivingRoot);
 	function sameAuthoredMarkup(before, after, arrivingRoot) {
+		if (before.isEqualNode(after)) return true;
 		const strip = (element, root) => {
 			const copy = element.cloneNode(true);
 			if (!root) return copy;
-			for (const node of [copy, ...elementsWithin(copy)]) for (const name of RESOURCE_ATTRIBUTES) {
-				const value = node.getAttribute(name);
-				if (value?.includes(root)) node.setAttribute(name, unrooted(value, root));
+			for (const node of [copy, ...elementsWithin(copy)]) {
+				if (node.matches("style, script")) node.textContent = unrooted(node.textContent, root);
+				for (const attribute of node.attributes) attribute.value = unrooted(attribute.value, root);
 			}
 			return copy;
 		};
@@ -8953,23 +8765,15 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		return sameAuthoredMarkup(shell(before, members), shell(after, members), arrivingRoot);
 	};
 	function patchRules(doc) {
-		const source = pageDocument(doc);
-		const arrivingWidgets = documentWidgetDigests(doc);
 		const arrivingRoot = layerRoot(doc);
-		const heldKeys = widgetKeys(authoredSource);
-		const arrivingKeys = widgetKeys(source);
 		return {
 			pairs: sourcePairs,
 			contains: under,
 			declared: upgraded,
 			body: authoredBody,
 			reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
-			unchanged: (before, after) => {
-				const digest = authoredWidgets[heldKeys.get(before)];
-				return Boolean(digest) && arrivingWidgets[arrivingKeys.get(after)] === digest;
-			},
 			same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
-			sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot)
+			sameValue: (held, value) => sameValue(held, value, arrivingRoot)
 		};
 	}
 	function captureEditingContinuity() {
@@ -9013,14 +8817,13 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		const outgoing = authoredSource;
 		const carry = captureCarry(live, authoredSource);
 		const source = pageDocument(doc);
-		const arrivingWidgets = documentWidgetDigests(doc);
 		const arrivingRoot = layerRoot(doc);
 		const rules = patchRules(doc);
 		revisionDocuments.delete(target.revision);
 		const isAuthored = authored(live);
 		const generated = (node) => (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) && !isAuthored(node);
 		const arrived = [];
-		const descriptorStages = [];
+		const arrivedDescriptors = /* @__PURE__ */ new Map();
 		const prior = readApplication().document;
 		rememberAuthoredParents(source);
 		const sourceAuthored = stageAuthoredStates(source, /* @__PURE__ */ new Map());
@@ -9035,12 +8838,17 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 			if (arriving.nodeType === Node.ELEMENT_NODE) {
 				rememberPassageParts(arriving);
 				rememberAuthoredParents(arriving, parent);
-				const descriptors = stageWidgetDescriptors(arriving, {
-					kind: "page",
-					revision: target.revision
-				});
-				descriptorStages.push(descriptors);
-				commitWidgetDescriptors(descriptors);
+				const bindings = [];
+				for (const element of [arriving, ...arriving.querySelectorAll("[id]")]) {
+					const descriptor = sourceDescriptors.descriptors.get(element.id);
+					if (!descriptor) continue;
+					bindings.push({
+						element,
+						descriptor
+					});
+					arrivedDescriptors.set(element.id, descriptor);
+				}
+				commitWidgetDescriptors({ bindings });
 				formatDeclaredMarkdown(arriving);
 				arrived.push(arriving);
 			}
@@ -9067,13 +8875,10 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 				widgets: arrived.flatMap((root) => [root, ...elementsWithin(root)]).filter((element) => upgraded(element) && element.id).map((element) => element.id)
 			};
 		});
-		authoredWidgets = arrivingWidgets;
 		authoredSource = source;
 		authoredRoot = arrivingRoot;
 		const nextAuthored = new Map([...prior.authored].filter(([id]) => prior.descriptors.get(id)?.document.kind === "thread"));
 		for (const [id, value] of sourceAuthored) nextAuthored.set(id, value);
-		const arrivedDescriptors = /* @__PURE__ */ new Map();
-		for (const stage of descriptorStages) for (const [id, value] of stage.descriptors) arrivedDescriptors.set(id, value);
 		const descriptors = /* @__PURE__ */ new Map();
 		for (const [id, incoming] of sourceDescriptors.descriptors) descriptors.set(id, arrivedDescriptors.get(id) ?? prior.descriptors.get(id) ?? incoming);
 		for (const [id, descriptor] of prior.descriptors) if (descriptor.document.kind === "thread") descriptors.set(id, descriptor);
@@ -9792,4 +9597,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bodyText, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataBody, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, disclosed, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, failSoft, failSoftUnreported, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, offerComparison, onReadingInterrupted, once, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, placesFailure, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quietWord, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, reportFailure$1 as reportFailure, restorePlace, retainThreadSeats, returnPlace, revealHeld, revisionBase, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shadowStage, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, stopComparison, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDisclosures, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep, workflowVoice };
+export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, offerComparison, onReadingInterrupted, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, revisionBase, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, stopComparison, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep, workflowVoice };

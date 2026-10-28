@@ -237,7 +237,7 @@
     <script type="module">
       import {
         afterPresentation,
-        commands,
+        commandsChanged,
         connection,
         generate,
         keepsText,
@@ -334,17 +334,22 @@
 
       const localNote = document.querySelector("#bg-shortcut-note");
       const focusNote = document.querySelector("#bg-shortcut-focus-note");
-      commands(document.querySelector("#bg-local-shortcuts"), "In the note sample", [
-        {
-          id: "note.focus",
-          contextKeys: ["1"],
-          control: focusNote,
-          bindingBadge: null,
-          title: "Write note",
-          description: "Focus the sample note",
-          run: () => localNote.focus(),
-        },
-      ]);
+      const localShortcuts = document.querySelector("#bg-local-shortcuts");
+      localShortcuts.lfCommands = {
+        title: "In the note sample",
+        rows: [
+          {
+            id: "note.focus",
+            contextKeys: ["1"],
+            control: focusNote,
+            bindingBadge: null,
+            title: "Write note",
+            description: "Focus the sample note",
+            run: () => localNote.focus(),
+          },
+        ],
+      };
+      commandsChanged(localShortcuts);
 
       const pageRoot = document.querySelector(
         'link[rel="canonical"][data-lf-runtime]',

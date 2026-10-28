@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ingest health</title>
+    <meta
+      name="description"
+      content="Live health of the event ingest pipeline: throughput, lag, error rate and per-shard status."
+    />
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --surface: #12151c;
+        --surface-2: #181c25;
+        --line: #232836;
+        --ink: #e6e8ee;
+        --muted: #8a91a3;
+        --good: #34d399;
+        --warn: #fbbf24;
+        --bad: #f87171;
+        --blue: #60a5fa;
+        --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          13px/1.45 Inter,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+      }
+      main.app {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        grid-template-rows: 56px 1fr;
+        min-height: 100vh;
+      }
+      .topbar {
+        grid-column: 1 / -1;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 22px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--line);
+      }
+      .topbar h1 {
+        font-size: 16px;
+        margin: 0;
+        font-weight: 600;
+      }
+      .logo {
+        font-weight: 700;
+        font-size: 14px;
+        letter-spacing: 0.02em;
+        width: 184px;
+      }
+      .logo span {
+        color: var(--blue);
+      }
+      .pill {
+        font: 600 11px var(--mono);
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: rgb(251 191 36 / 0.12);
+        color: var(--warn);
+      }
+      .spacer {
+        flex: 1;
+      }
+      .range {
+        display: flex;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 2px;
+      }
+      .range button {
+        all: unset;
+        padding: 4px 10px;
+        border-radius: 6px;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .range button[aria-pressed="true"] {
+        background: var(--surface-2);
+        color: var(--ink);
+      }
+
+      nav.side {
+        position: sticky;
+        top: 56px;
+        align-self: start;
+        height: calc(100vh - 56px);
+        border-right: 1px solid var(--line);
+        background: var(--surface);
+        padding: 18px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      nav.side a {
+        color: var(--muted);
+        text-decoration: none;
+        padding: 7px 10px;
+        border-radius: 7px;
+        display: flex;
+        justify-content: space-between;
+      }
+      nav.side a[aria-current="page"] {
+        background: var(--surface-2);
+        color: var(--ink);
+        box-shadow: inset 2px 0 var(--blue);
+      }
+      nav.side .count {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--bad);
+      }
+      nav.side h3 {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #5b6275;
+        margin: 18px 10px 6px;
+      }
+
+      .content {
+        padding: 20px 22px 40px;
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(12, 1fr);
+        align-content: start;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+        min-width: 0;
+      }
+      .card h2 {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+        margin: 0 0 8px;
+      }
+      .kpi {
+        grid-column: span 3;
+      }
+      .kpi .value {
+        font: 600 26px/1.1 var(--mono);
+        letter-spacing: -0.02em;
+      }
+      .kpi .delta {
+        font: 12px var(--mono);
+      }
+      .up {
+        color: var(--good);
+      }
+      .down {
+        color: var(--bad);
+      }
+      .kpi svg {
+        width: 100%;
+        height: 36px;
+        margin-top: 8px;
+        display: block;
+      }
+      .chart,
+      .shards {
+        grid-column: span 12;
+      }
+      .chart svg {
+        width: 100%;
+        height: 220px;
+        display: block;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+      }
+      th,
+      td {
+        padding: 7px 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+        white-space: nowrap;
+      }
+      thead th {
+        color: var(--muted);
+        font-weight: 600;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      td.num {
+        font-family: var(--mono);
+        text-align: right;
+      }
+      .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+      }
+      .bar {
+        height: 6px;
+        border-radius: 3px;
+        background: var(--line);
+        overflow: hidden;
+        width: 120px;
+      }
+      .bar > i {
+        display: block;
+        height: 100%;
+        background: var(--blue);
+      }
+
+      @media (max-width: 1100px) {
+        .kpi {
+          grid-column: span 6;
+        }
+      }
+      @media (max-width: 700px) {
+        main.app {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: 56px auto 1fr;
+        }
+        .logo,
+        nav.side h3 {
+          display: none;
+        }
+        nav.side {
+          position: static;
+          height: auto;
+          flex-direction: row;
+          overflow-x: auto;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+          padding: 8px;
+        }
+        nav.side a {
+          white-space: nowrap;
+        }
+        .kpi {
+          grid-column: span 12;
+        }
+        .content {
+          padding: 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="logo">ingest<span>/</span>ops</div>
+        <h1>Ingest health</h1>
+        <span class="pill">DEGRADED · shard 07</span>
+        <span class="spacer"></span>
+        <div class="range" role="group" aria-label="Range">
+          <button aria-pressed="false">1h</button>
+          <button aria-pressed="true">6h</button>
+          <button aria-pressed="false">24h</button>
+        </div>
+      </header>
+      <nav class="side" aria-label="Primary">
+        <a href="#" aria-current="page">Overview</a>
+        <a href="#">Shards <span class="count">2</span></a>
+        <a href="#">Dead letters <span class="count">41</span></a>
+        <h3>Region</h3>
+        <a href="#">eu-west-1</a>
+        <a href="#">us-east-2</a>
+      </nav>
+      <div class="content" id="content">
+        <section class="card kpi" id="kpi-throughput">
+          <h2>Throughput</h2>
+          <div class="value">48.2k/s</div>
+          <div class="delta up">▲ 3.1% vs 6h</div>
+          <svg
+            data-spark="48,50,47,52,55,53,57,54,58,60,59,62"
+            viewBox="0 0 120 36"
+            preserveAspectRatio="none"
+          ></svg>
+        </section>
+        <section class="card kpi" id="kpi-lag">
+          <h2>Consumer lag</h2>
+          <div class="value">1.9 s</div>
+          <div class="delta down">▲ 0.7 s</div>
+          <svg
+            data-spark="8,9,8,10,9,12,14,13,17,19,18,21"
+            data-color="#fbbf24"
+            viewBox="0 0 120 36"
+            preserveAspectRatio="none"
+          ></svg>
+        </section>
+        <section class="card kpi" id="kpi-errors">
+          <h2>Error rate</h2>
+          <div class="value">0.42%</div>
+          <div class="delta down">▲ 0.18 pts</div>
+          <svg
+            data-spark="2,2,3,2,3,4,3,5,6,5,7,8"
+            data-color="#f87171"
+            viewBox="0 0 120 36"
+            preserveAspectRatio="none"
+          ></svg>
+        </section>
+        <section class="card kpi" id="kpi-dlq">
+          <h2>Dead letters</h2>
+          <div class="value">41</div>
+          <div class="delta up">▼ 12 since 09:00</div>
+          <svg
+            data-spark="60,58,57,55,56,52,50,49,47,45,43,41"
+            data-color="#34d399"
+            viewBox="0 0 120 36"
+            preserveAspectRatio="none"
+          ></svg>
+        </section>
+        <section class="card chart" id="chart">
+          <h2>Events per second, by region</h2>
+          <svg id="area" viewBox="0 0 800 220" preserveAspectRatio="none"></svg>
+        </section>
+        <section class="card shards" id="shards">
+          <h2>Shards</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Shard</th>
+                <th>Status</th>
+                <th>Region</th>
+                <th>Rate</th>
+                <th>Lag</th>
+                <th>Partition fill</th>
+              </tr>
+            </thead>
+            <tbody id="shard-rows"></tbody>
+          </table>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      for (const svg of document.querySelectorAll("[data-spark]")) {
+        const v = svg.dataset.spark.split(",").map(Number),
+          max = Math.max(...v),
+          min = Math.min(...v);
+        const pts = v
+          .map(
+            (y, i) =>
+              `${(i / (v.length - 1)) * 120},${34 - ((y - min) / (max - min || 1)) * 30}`,
+          )
+          .join(" ");
+        svg.innerHTML = `<polyline points="${pts}" fill="none" stroke="${svg.dataset.color || "#60a5fa"}" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+      }
+      let base = new Array(41).fill(210),
+        area = "";
+      for (const [color, phase] of [
+        ["#60a5fa", 0],
+        ["#a78bfa", 1.3],
+        ["#34d399", 2.1],
+      ]) {
+        const top = base.map(
+          (b, i) => b - (30 + 18 * Math.sin(i / 5 + phase) + 8 * Math.cos(i / 2.3)),
+        );
+        const d =
+          top.map((y, i) => `${i ? "L" : "M"}${i * 20},${y}`).join("") +
+          base
+            .slice()
+            .reverse()
+            .map((y, i) => `L${(40 - i) * 20},${y}`)
+            .join("") +
+          "Z";
+        area += `<path d="${d}" fill="${color}" fill-opacity="0.22" stroke="${color}" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+        base = top;
+      }
+      document.getElementById("area").innerHTML = area;
+      const rows = document.getElementById("shard-rows");
+      const regions = ["eu-west-1", "us-east-2", "ap-south-1"];
+      for (let i = 1; i <= 10; i++) {
+        const bad = i === 7,
+          warn = i === 3;
+        const color = bad ? "var(--bad)" : warn ? "var(--warn)" : "var(--good)";
+        rows.insertAdjacentHTML(
+          "beforeend",
+          `<tr><td>shard-${String(i).padStart(2, "0")}</td><td><span class="dot" style="background:${color}"></span>${bad ? "Stalled" : warn ? "Slow" : "Healthy"}</td><td>${regions[i % 3]}</td><td class="num">${(1.6 + (i % 5) * 0.3).toFixed(1)}k/s</td><td class="num">${bad ? "14.2" : (0.2 + (i % 4) * 0.1).toFixed(1)} s</td><td><div class="bar"><i style="width:${((i * 37) % 90) + 8}%"></i></div></td></tr>`,
+        );
+      }
+      for (const b of document.querySelectorAll(".range button"))
+        b.addEventListener("click", () =>
+          document
+            .querySelectorAll(".range button")
+            .forEach((x) => x.setAttribute("aria-pressed", String(x === b))),
+        );
+    </script>
+  </body>
+</html>

@@ -25,7 +25,8 @@
    table's edge rather than in the cell before it. Layout, resize and a change in the
    target's size place it again. */
 import { paintSet } from "./target-paint-geometry.js";
-import { el, LAYOUT } from "./widget-elements.js";
+import { el } from "./widget-elements.js";
+import { LAYOUT } from "./widget-upgrade.js";
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { keeps } from "./keeps.js";
 

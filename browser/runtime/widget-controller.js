@@ -7,12 +7,14 @@
    asynchronous preparation region (`present`), which removal pauses and reconnection
    restores. Registered preparation also holds full rendering readiness until
    completion or removal. Local editing holds the widget's drawing (`defer`) until the
-   gesture releases it. */
+   gesture releases it. A widget that draws itself without Leaf's helpers says it has
+   drawing under way with a `pending-task` event instead (`PendingTaskEvent`,
+   widget-upgrade.js), which reaches the same preparation region here. */
 import { untracked } from "/runtime/framework.js";
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
-import { failSoftUnreported } from "./widget-upgrade.js";
+import { PENDING_TASK, failSoftUnreported } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { holdRendering } from "./rendering.js";
 
@@ -95,7 +97,7 @@ function createWidgetController(owner) {
 
   const prepared = () => {
     if (!preparationHandle && owner.isConnected)
-      preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner);
+      preparationHandle = attachWidgetPresentation(descriptor.id, "preparation");
     return preparationHandle;
   };
 
@@ -116,10 +118,8 @@ function createWidgetController(owner) {
     Promise.resolve(promise).then(settled, settled);
   };
 
-  const presentPreparation = (handle, { value, completion }) =>
-    handle
-      .present(value, (reason) => failSoftUnreported(owner, reason))
-      .resolve(completion);
+  const presentPreparation = (handle, { completion }) =>
+    handle.present((reason) => failSoftUnreported(owner, reason)).resolve(completion);
 
   // The controller is an owner of its own: a paint that mounts its widget connects it,
   // and what it reads to connect is its own, never that paint's.
@@ -180,7 +180,7 @@ function createWidgetController(owner) {
       const batch = preparationBatch;
       const completion = Promise.all(batch.promises);
       batch.completion = completion;
-      preparation = { value, completion };
+      preparation = { completion };
       holdPreparation(promise);
       const handle = prepared();
       if (handle) presentPreparation(handle, preparation);
@@ -216,3 +216,12 @@ export function widgetController(owner) {
   }
   return controller;
 }
+
+// Drawing a widget announced from outside Leaf's helpers: the nearest widget the event
+// passed through on its way out holds its presentation on it, as `present` does.
+document.addEventListener(PENDING_TASK, (event) => {
+  const owner = event
+    .composedPath()
+    .find((node) => node instanceof Element && widgetDescriptor(node));
+  if (owner) widgetController(owner).present(event.complete);
+});

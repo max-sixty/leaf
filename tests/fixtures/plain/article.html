@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rotating the signing key</title>
+    <meta
+      name="description"
+      content="A runbook for rotating the release signing key without breaking verification for existing installs."
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      :root {
+        --bg: #fdfcfa;
+        --fg: #1f2328;
+        --muted: #59636e;
+        --line: #d1d9e0;
+        --link: #0969da;
+        --code-bg: #f1f3f5;
+        --warn-bg: #fff8c5;
+        --warn-line: #d4a72c;
+        color-scheme: light dark;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          16px/1.6 -apple-system,
+          "Segoe UI",
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1117;
+          --fg: #e6edf3;
+          --muted: #9198a1;
+          --line: #3d444d;
+          --link: #4493f8;
+          --code-bg: #1d232b;
+          --warn-bg: #2b2111;
+          --warn-line: #9e6a03;
+        }
+      }
+      main {
+        max-width: 46rem;
+        margin: 0 auto;
+        padding: 3rem 1.5rem 4rem;
+      }
+      h1 {
+        font-size: 2.25rem;
+        line-height: 1.2;
+        letter-spacing: -0.01em;
+        margin-bottom: 0.5rem;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 0.875rem;
+        margin-bottom: 2rem;
+      }
+      h2 {
+        font-size: 1.5rem;
+        line-height: 1.3;
+        margin: 2.5rem 0 0.75rem;
+        padding-bottom: 0.3rem;
+        border-bottom: 1px solid var(--line);
+      }
+      h3 {
+        font-size: 1.125rem;
+        margin: 1.5rem 0 0.5rem;
+      }
+      p,
+      ul,
+      ol,
+      pre,
+      table,
+      blockquote {
+        margin-bottom: 1rem;
+      }
+      ul,
+      ol {
+        padding-left: 1.5rem;
+      }
+      li + li {
+        margin-top: 0.25rem;
+      }
+      a {
+        color: var(--link);
+      }
+      code {
+        font:
+          0.875em/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        background: var(--code-bg);
+        padding: 0.15em 0.35em;
+        border-radius: 4px;
+      }
+      pre {
+        background: var(--code-bg);
+        padding: 1rem;
+        overflow: auto;
+        border-radius: 6px;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+        font-size: 0.8125rem;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9375rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--line);
+        padding: 0.4rem 0.75rem;
+        text-align: left;
+      }
+      th {
+        font-weight: 600;
+        background: var(--code-bg);
+      }
+      blockquote {
+        border-left: 4px solid var(--warn-line);
+        background: var(--warn-bg);
+        padding: 0.75rem 1rem;
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--line);
+        margin: 2rem 0;
+      }
+      kbd {
+        font:
+          0.75rem ui-monospace,
+          monospace;
+        border: 1px solid var(--line);
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        padding: 0.1em 0.4em;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Rotating the signing key</h1>
+      <p class="meta">Runbook · last exercised 14 September</p>
+
+      <p>
+        Releases are signed with an Ed25519 key held in the release vault. Installs
+        verify each download against the public half they shipped with, so a rotation
+        has to publish the new public key <em>before</em> the first release it signs.
+      </p>
+
+      <blockquote>
+        <p>
+          <strong>Do not revoke the old key</strong> until every supported install has
+          received an update that trusts the new one.
+        </p>
+      </blockquote>
+
+      <h2 id="before">Before you start</h2>
+      <ul>
+        <li>Two maintainers on a call, each with vault access.</li>
+        <li>A clean checkout of <a href="#tags">the latest release tag</a>.</li>
+        <li>About forty minutes, most of it waiting on CI.</li>
+      </ul>
+
+      <h2 id="steps">Steps</h2>
+      <ol>
+        <li>
+          Generate the new pair offline with
+          <code>signify -G -n -p next.pub -s next.sec</code>.
+        </li>
+        <li>
+          Commit <code>next.pub</code> to <code>keys/</code> and cut a release signed
+          with the <strong>old</strong> key.
+        </li>
+        <li>Wait until the update reaches at least 95% of installs.</li>
+        <li>
+          Swap the vault entry and press <kbd>Rotate</kbd> in the release console.
+        </li>
+      </ol>
+
+      <pre><code>$ signify -V -p keys/next.pub -m release.tar.gz
+Signature Verified</code></pre>
+
+      <h3 id="tags">Which tags trust which key</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Release</th>
+            <th>Signed with</th>
+            <th>Trusts</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>4.11</td>
+            <td>2023 key</td>
+            <td>2023</td>
+          </tr>
+          <tr>
+            <td>4.12</td>
+            <td>2023 key</td>
+            <td>2023, 2026</td>
+          </tr>
+          <tr>
+            <td>4.13</td>
+            <td>2026 key</td>
+            <td>2023, 2026</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <hr />
+      <p>
+        Questions go to the release channel. This runbook is reviewed after every
+        rotation.
+      </p>
+    </main>
+  </body>
+</html>

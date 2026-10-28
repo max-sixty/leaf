@@ -1,10 +1,11 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { TEXT_FIELD, afterSettling, cancelRender, keeps, move, nextRender, onUserInput } from "./bundle-dom-move.js";
+import { afterSettling, cancelRender, nextRender } from "./bundle-portable.js";
+import { TEXT_FIELD, keeps, move, onUserInput } from "./bundle-dom-move.js";
 import { el } from "./bundle-layer-client.js";
 import { contentRides } from "./bundle-content-layout.js";
 import { inChrome } from "./bundle-passages.js";
 import { motionEasing, motionPlays, motionTime, playMotion } from "./bundle-media.js";
-import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
+import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-disclosure.js";
 
 //#region runtime/target-paint.js
 var target_paint_exports = /* @__PURE__ */ __exportAll({

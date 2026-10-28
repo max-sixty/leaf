@@ -178,12 +178,22 @@ def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
     page.locator("#passage").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
+
+    def resting_box():
+        # Layout already has its final width while Send still rides the box's
+        # growth (box-motion.js). Compare their geometry only once it rests.
+        rendered(page)
+        page.wait_for_function(
+            """() => !document.querySelector('.lf-fab-bar')
+              .getAnimations({subtree: true}).some(motion =>
+                Number.isFinite(motion.effect?.getComputedTiming().endTime))"""
+        )
+        return field.bounding_box()
+
     page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
-    rendered(page)
-    before = field.bounding_box()
+    before = resting_box()
     page.keyboard.press("Space")
-    rendered(page)
-    after = field.bounding_box()
+    after = resting_box()
     assert after["height"] == pytest.approx(before["height"], abs=1)
     assert after["y"] == pytest.approx(before["y"], abs=1)
     reservation = field.evaluate("""el => {

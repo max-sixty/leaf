@@ -17,7 +17,7 @@
  * name an absent part in Threads without changing the visual's state. */
 
 import { under, upFrom } from "./shadow.js";
-import { layoutChanged } from "./widget-elements.js";
+import { layoutChanged } from "./widget-upgrade.js";
 
 const registrations = new WeakMap();
 

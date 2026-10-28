@@ -71,11 +71,12 @@ lf-activity .lf-activity-actor {
 lf-activity .lf-activity-what {
   color: var(--ink-2);
 }
+/* A row's place is drawn as the page's links are (reading.css). */
 lf-activity :is(a[href], button).lf-activity-target {
   color: var(--accent);
   text-decoration: underline;
-  text-underline-offset: 2px;
-  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  text-underline-offset: var(--link-underline-offset);
+  text-decoration-color: var(--link-underline);
 }
 lf-activity button.lf-activity-target {
   appearance: none;

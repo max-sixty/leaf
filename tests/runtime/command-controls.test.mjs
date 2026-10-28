@@ -25,6 +25,7 @@ import {
 } from "../../browser/runtime/keyboard/bindings.js";
 import { dispatchKey, keyReady } from "../../browser/runtime/keyboard/dispatch.js";
 import { applicationState } from "../../browser/runtime/semantic-state.js";
+import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
 
 // Ordinary control tests begin with saved input available; startup tests withhold it.
 beforeEach(() => applicationState.setPhase("ready"));
@@ -1426,4 +1427,32 @@ test("an announced scope says each live row's key and title", () => {
     { id: "fixture.off", keys: ["x"], title: "unavailable", when: () => false },
   ];
   assert.equal(saying(rows), "Escape cancel, g top");
+});
+
+test("a widget's declared commands stand from before it is placed until it withdraws them", () => {
+  const owner = document.createElement("section");
+  const declared = () => commandsWithin(owner).map(({ row }) => row.id);
+  // Declared while the element is out of the page, as a control built before it is
+  // placed is.
+  owner.lfCommands = {
+    title: "Declared",
+    rows: [{ id: "declared.run", title: "run", keys: ["Alt+1"], run: () => {} }],
+  };
+  commandsChanged(owner);
+  document.body.append(owner);
+  try {
+    assert.deepEqual(declared(), ["declared.run"]);
+    owner.lfCommands = null;
+    commandsChanged(owner);
+    assert.deepEqual(declared(), []);
+    // A malformed declaration is refused where the widget made it.
+    owner.lfCommands = {
+      title: "Declared",
+      rows: [{ id: "Not an id", title: "run", keys: ["Alt+1"], run: () => {} }],
+    };
+    assert.throws(() => commandsChanged(owner), /not a stable command id/);
+    assert.deepEqual(declared(), []);
+  } finally {
+    owner.remove();
+  }
 });

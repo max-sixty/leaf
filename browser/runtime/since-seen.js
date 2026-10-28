@@ -41,7 +41,7 @@ import { effect } from "/runtime/framework.js";
 import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.js";
 import { sessionIsActive } from "./layer-client.js";
 import { whenDocumentPresented } from "./semantic-state.js";
-import { tabStore } from "./storage.js";
+import { tabStore } from "./tab-store.js";
 import {
   comparisonBase,
   offerComparison,

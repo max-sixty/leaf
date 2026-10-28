@@ -83,7 +83,7 @@ the page's work has ended.
 |---|---|
 | **Page directory** | The directory containing a page’s source, revisions, selected layer, data, media and event history |
 | **Package** | One composable source directory of declarations and their payload. Its code runs in the page document beside every other script, so a package bounds reuse, not reach |
-| **Leaf layer** | One checked, vendored composition of packages |
+| **Leaf layer** | One checked composition of the packages a page selects |
 | **User session** | One browser tab's temporary interaction with a page: its focus, scroll, selection and throwaway exploration |
 | **In force** | An action, report, reaction or decision that no undo took back and no version note retracted; for each widget, unit and action kind, the latest one in force sets the state (`events.InForce`, `StateProjection.in_force`; the served event field is still called `stands`) |
 
@@ -143,7 +143,7 @@ behavior. A compound widget may own reading regions without being a pane.
 | **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the bottom of the window. Its **row** contains the leaf, the comment field, and one **seat** at the end. That seat shows the **On me mark**, with its count and a dot when a thread has an unread reply. While a view or stance is active, the seat instead shows the ✕ that closes it. A **folded** panel shows only the leaf in the window's corner |
 | **Leaf** | The mark at the row's start, coloured by the agent's state; a press opens the leaf's menu, or unfolds a folded panel |
 | **Leaf's menu** | The small menu above the leaf of the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list in the menu's place: Navigate, Annotations, About this page, Versions |
-| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, a temporary notice or a walk's position in place of a placeholder; in an open thread it shows whose turn it is and a walk's position beside the leaf, and Reply with its key at its end |
+| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, a temporary notice or a walk's position in place of a placeholder; in an open thread it shows whose turn it is and a walk's position beside the leaf, and Reply with its key at its end. A press it offers, Reply or words selected on the page, reads in ink with its key; everything else reads dim |
 | **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs On me, On *agent*, Threads and the plan) or All pages. Escape or a press on the page closes it |
 
 A view takes no width from the page and leaves it live. A thread about a passage opens
@@ -200,7 +200,7 @@ the headings over the document's height.
 | **Deck** | `lf-deck`: cards worked through one at a time, each holding its own obligations. An answered card moves on by itself; **Later** leaves one waiting for the end of the pass and records nothing |
 | **Resend** | An update a harness handed back to the user to send again: its obligation stays in On me, next actor the user, until they do |
 | **Done** | The control with which the user ends a to-do the agent gave them (`todo_end`). A widget may also call its own submit control Done |
-| **Done items** | The items that left either list, under a Done heading at the foot of the On view; resolved threads stand likewise under Resolved at the foot of Threads |
+| **Done items** | The items that left either list, under a Done heading at the foot of the On view; resolved threads stand likewise under Resolved at the foot of Threads, folded to that heading until the user opens it |
 | **Navigation step** | One move to a destination, such as a thread's passage, an obligation, or the element a followed fragment link names. It clears any surface hiding the destination, then stays put if the user already sees it, or moves and adds a history entry (`history.js`) |
 | **Navigation group** | Consecutive navigation steps, each starting where the last landed, that share one history entry, so Back returns to where the first began |
 | **Current location** | The destination the user is at, directly or through a control inside it: a thread on the page or in the panel, an obligation, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes and contents links are not destinations |

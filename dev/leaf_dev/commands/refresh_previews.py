@@ -122,8 +122,8 @@ def refresh_previews() -> None:
         staging = Path(raw_site)
         assets = bootstrap_assets(staging / "assets")
         site = staging / "site"
-        # `serve_examples` runs this checkout's website adapter, which serves only the
-        # pages this checkout's Leaf vendored.
+        # `serve_examples` runs this checkout's website adapter, which serves only
+        # pages at this checkout's page protocol.
         site_build.build_examples(site, site_build.checkout_leaf(), assets=assets)
         with serve_examples(site) as origin, tab(browser, VIEWPORT) as page:
             errors = []

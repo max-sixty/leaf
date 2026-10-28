@@ -869,16 +869,14 @@ class PageEndpoint:
 
     def _revision_layer(self, revision: int | None) -> str:
         """The generation a tab reading `revision` speaks: that revision's layer, or
-        the page's own when there is no revision or this Leaf refuses it.
+        the page's own when there is no revision.
 
         A tab whose page was re-initialized under it still holds a revision of the older
         layer, and can read an answer that carries nothing newer, such as a freshness
         token, in that layer. The newer layer reaches it as a revision whose executable
         changed, which the tab installs once the user is not in the middle of
         something (`version.js`). Named in the page's newer layer, the same answer
-        would be refused and reload the tab at once (`layer-client.js`), which is
-        what a revision this Leaf can no longer admit input against needs
-        (`incompatible_revision`): holding there would strand the user's send."""
+        would be refused and reload the tab at once (`layer-client.js`)."""
         if revision is None:
             return self.layer
         reading = self._reading(revision)

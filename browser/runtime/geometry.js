@@ -81,7 +81,11 @@ export const shellRight = () => document.body.getBoundingClientRect().right;
 // reading region's shown bounds, and `gap` holds what stands in the room that far inside
 // each of its edges. `viewport: "layout"` reads the room in the layout viewport instead,
 // the window the page scrolls through, for a caller asking whether a scroll has carried
-// something out of the page's room rather than whether the user can see it.
+// something out of the page's room rather than whether the user can see it. `across`
+// names the columns a box asking for its room stands in, where they are narrower than
+// the room: chrome beside those columns takes none of its height, as the floating
+// panel's row under the page column leaves a thread card in the margin the window's
+// whole height.
 //
 // The chrome's owner also hands over the elements it draws, and a change of their size
 // is announced as `ROOM_MOVED` (`watchRoom`), as is an occluder's (`declareOccluder`): a
@@ -125,6 +129,7 @@ export function shownWindow({
   gap = 0,
   viewport = "visual",
   item = null,
+  across = null,
 } = {}) {
   const layout = layoutWindow();
   const { offsetLeft, offsetTop, width, height } =
@@ -137,7 +142,7 @@ export function shownWindow({
   let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
   const middle = offsetTop + height / 2;
   for (const box of windowChromeBoxes(item)) {
-    if (!overlapsAcross(box, { left, right })) continue;
+    if (!overlapsAcross(box, across ?? { left, right })) continue;
     if (box.top + box.bottom < 2 * middle) top = Math.max(top, box.bottom);
     else bottom = Math.min(bottom, box.top);
   }

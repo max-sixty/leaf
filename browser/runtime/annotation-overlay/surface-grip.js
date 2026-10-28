@@ -3,7 +3,8 @@
    annotation-chrome.css draws the band and bounds where it takes a press.
 
    While the pointer is down the surface stays under it by a CSS `translate`, held
-   inside the boundary its placement would stand it in now (`bounds`). Its owner places
+   inside the boundary its placement would stand it in now (`bounds`), down to the room
+   across the columns it is carried to (comment-placement.js, `commentBoundary`). Its owner places
    it afresh only once the carry ends (`data-lf-carried`); the browser's anchoring still
    carries it through a scroll, so each frame of the carry measures the translate
    against where it stands then, and the surface stays under the pointer. On release
@@ -45,11 +46,14 @@ export function surfaceGrip({ surface, bounds, dropped }) {
     const boundary = bounds();
     held.moved ||= Math.hypot(travel.x, travel.y) >= SLOP;
     const now = surface.getBoundingClientRect();
-    const within = (at, start, end, length) =>
-      clamp(at, boundary[start], Math.max(boundary[start], boundary[end] - length));
+    const within = (room, at, start, end, length) =>
+      clamp(at, room[start], Math.max(room[start], room[end] - length));
+    const x = within(boundary, box.left + travel.x, "left", "right", now.width);
+    // Down, it is held in the room across the columns it now stands in.
+    const room = boundary.across({ left: x, right: x + now.width });
     const spot = {
-      x: within(box.left + travel.x, "left", "right", now.width),
-      y: within(box.top + travel.y, "top", "bottom", now.height),
+      x,
+      y: within(room, box.top + travel.y, "top", "bottom", now.height),
     };
     const scale = {
       x: now.width / surface.offsetWidth || 1,

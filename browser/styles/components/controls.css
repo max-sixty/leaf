@@ -200,33 +200,6 @@
     display: none;
   }
 }
-/* The control's face is the host's, as every message control's is; the button inside
-   it only fills it, and the host holds no line of its own words. The button takes the
-   press, so the reach to the aim floor is the button's (surfaces.css): one on the host
-   would take the press from it and copy nothing. */
-.lf-msg-copy {
-  font-size: 0;
-  line-height: 0;
-  &::after {
-    content: none;
-  }
-}
-.lf-msg-copy::part(button) {
-  position: relative;
-  display: grid;
-  place-items: center;
-  inline-size: 100%;
-  block-size: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-}
-.lf-msg-copy::part(button)::after {
-  content: "";
-  position: absolute;
-  inset: min(0px, (100% - var(--aim-floor)) / 2);
-}
 /* An open rewrite's Discard and Save stand in its Edit control's room and cover the
    head beyond it (response.css, `.lf-msg-edit-actions`), so the head keeps its author,
    time and labels where the message showed them. */

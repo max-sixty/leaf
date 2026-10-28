@@ -865,6 +865,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             / f"wheel-return-{region}-{route}"
         )
         evidence.mkdir(parents=True, exist_ok=True)
+        (evidence / "compositor.json").write_text(json.dumps({"traceEvents": events}))
         for index, event in enumerate(frames):
             (evidence / f"frame-{index:03}.jpg").write_bytes(
                 base64.b64decode(event["args"]["snapshot"])
@@ -895,7 +896,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
                 indent=2,
             )
         )
-        error.add_note(f"Original compositor frames and raw history: {evidence}")
+        error.add_note(f"Original compositor trace, frames and raw history: {evidence}")
         raise
 
     expect(field).to_have_js_property("value", words)

@@ -309,10 +309,11 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
 
 
 def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
-    """Words a script selects are quoted in the panel's field, and only a press there
-    comments on them: a Tab into the field writes on the page. A page draft hiding the
-    quote shows a Selection mode chip, and on a page drawing its own
-    annotations the field stands in an open comment box's place while it quotes."""
+    """Words a script selects are quoted in the panel's field beside c, the key that
+    comments on them as a press there does, while a Tab into the field writes on the
+    page. A page draft hiding the quote shows a Selection mode chip, and on a page
+    drawing its own annotations the field stands in an open comment box's place while
+    it quotes."""
     source = leaf_page(
         "Offered words",
         '<p id="first">The first passage holds its words.</p>'
@@ -328,7 +329,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
 
     select("#first")
     expect(offered).to_have_attribute(
-        "placeholder", "“The first passage holds its words.”"
+        "placeholder", "“The first passage holds its words.” c"
     )
     expect(offered).to_have_attribute("aria-label", "Comment on the selection")
     page.locator(".lf-fp-leaf").focus()
@@ -376,7 +377,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     }""")
     page.clock.resume()
     expect(offered).to_have_attribute(
-        "placeholder", "“A second passage comes after it.”"
+        "placeholder", "“A second passage comes after it.” c"
     )
     offered.click()
     expect(composer).to_be_focused()

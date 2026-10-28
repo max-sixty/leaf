@@ -788,15 +788,6 @@ _TEXT = {
     "unnamed-sample": lambda at, v: (
         f"<template data-sample> at line {v['line']}: needs a stable id"
     ),
-    "async-script": lambda at, v: (
-        f"<script async> (line {v['line']}) runs whenever it arrives, which can be"
-        " before Leaf reads the page; leave async off"
-    ),
-    "parser-blocking-script": lambda at, v: (
-        f"{_line(at, v)} runs while the page is still parsing, before Leaf reads it;"
-        ' write inline JavaScript as <script type="module">, and load a classic script'
-        " file with <script defer src>"
-    ),
     "document-declaration": lambda at, v: (
         f"{_line(at, v)} declares something about the whole document, which delivery"
         " owns"

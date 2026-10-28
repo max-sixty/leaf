@@ -513,9 +513,8 @@
 
      A press the field offers, an open thread's Reply or the words selected on the page,
      reads instead in ink with the key that makes it, so the next action stands apart
-     from the agent's words, as in every box (response.css); words standing before it
-     keep the field's dim face (floating-panel.js, `offers`). No other reading shows a
-     key. */
+     from the agent's words; words standing before it keep the dim face (`offers`, and
+     composing/input.js, `hintLead`). No other reading shows a key. */
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }

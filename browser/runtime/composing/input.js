@@ -234,11 +234,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // send the hint and its key to the empty box's far end and move none of its
       // controls as they come and go.
       hintLead = () => "",
-      // Whether the hint names the press that enters the box, as a reply box's Reply
-      // does. While the caret is elsewhere such a hint reads as that press, in ink,
-      // apart from the words standing before it; once the caret is in, it is a
-      // placeholder again (response.css).
-      offers = () => false,
       accessibleName = null,
       save,
       send,
@@ -432,7 +427,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
       const parts = status ? null : hintParts?.();
       const lead = status ? "" : hintLead();
-      keeps(ta, "data-offers", !status && !focusedHere.value && offers() ? "" : null);
       const richHint = (suffix && !status) || parts != null || lead;
       render(
         richHint

@@ -296,7 +296,7 @@ function wireReply(
   row,
   input,
   wireInput,
-  { hint, hintLead, offers, accessibleName, busy },
+  { hint, hintLead, accessibleName, busy },
 ) {
   row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
@@ -313,7 +313,6 @@ function wireReply(
   const sync = wireInput(input, {
     hint,
     hintLead,
-    offers,
     accessibleName,
     busy,
     sends: "send",
@@ -442,8 +441,7 @@ export async function restoreReplyEditing(editing, land) {
 // Native editor construction has one home; cards and package fragments share its
 // draft, input, delivery and recovery lifetime rather than constructing another one.
 // A presentation may say what its empty box reads (`hint`), what stands before that
-// (`hintLead`), whether that reads as the press entering the box (`offers`, as Reply
-// does), and is named (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
+// (`hintLead`), and is named (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
 // where its box stays for the next turn, as the floating panel's field does, land a
 // send itself (`sent`) rather than stand on the thread, told before the send draws
 // (`sending`). The view draws its row again
@@ -457,7 +455,6 @@ export function createReplyView(
     editLast = null,
     hint = "Reply",
     hintLead = () => "",
-    offers = () => true,
     accessibleName = "Reply",
     busy = () => false,
     sending = null,
@@ -472,7 +469,6 @@ export function createReplyView(
     return wireReply(key, row, input, commands.wireInput, {
       hint,
       hintLead,
-      offers,
       accessibleName,
       busy,
     });

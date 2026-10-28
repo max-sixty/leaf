@@ -5913,11 +5913,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       <button
         type="button"
         role="menuitem"
-        ${offeredAction("row", "lf-fp-face lf-fp-item lf-fp-menu-back")}
+        ${offeredAction("row", "lf-fp-face lf-fp-menu-back")}
         aria-label=${`Back to the page menu from ${titleOf(menuAt.value)}`}
         @click=${() => showMenuAt(null)}
       >
-        <span class="lf-fp-label">${iconTemplate("next", "lf-fp-chevron")}Menu</span>
+        ${iconTemplate("next", "lf-fp-chevron")}Menu
       </button>
     </div>`;
 	}

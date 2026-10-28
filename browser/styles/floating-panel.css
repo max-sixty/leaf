@@ -905,22 +905,30 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* The way back is a row (controls.css, `.lf-row`), as the menu's is: its chevron and
-     the name of where it leads, in the ink, washed under the pointer. It reaches out
-     past its words by its padding and the row's stripe room, so the words stand where
-     the view's other words start. */
-  .lf-fp-back {
+  /* The two ways back, a view's to the list it came from and the menu's to the page
+     menu, are one press: a row (controls.css, `.lf-row`) holding the chevron and the
+     name of where it leads, in the ink, washed under the pointer. It is as wide as its
+     words, since a view's way back shares its line with the thread's facts and
+     presses, where no row could run the panel's width, and in the menu that width says
+     it leaves the list rather than standing in it. Its chevron stands 8px into its
+     wash, as a menu row's words do, so the menu's way back starts on its rows' edge;
+     a view's reaches out by those 8px, so its chevron starts on the view's words. */
+  :is(.lf-fp-back, .lf-fp-menu-back) {
     flex: none;
+    align-self: flex-start;
     display: inline-flex;
     align-items: center;
     gap: 4px;
     min-height: var(--lf-fp-press);
-    margin-inline-start: -6px;
-    padding: 0 8px 0 4px;
+    padding: 0 8px 0 6px;
   }
-  .lf-fp-back .lf-fp-chevron {
+  :is(.lf-fp-back, .lf-fp-menu-back) .lf-fp-chevron {
+    flex: none;
     scale: -1 1;
     margin: 0;
+  }
+  .lf-fp-crumb > .lf-fp-back {
+    margin-inline-start: -8px;
   }
   /* The thread's facts after the way back, the news it holds, take the room the crumb
      leaves, so news arriving moves nothing else. They stand further from the controls
@@ -1295,7 +1303,6 @@
     gap: 8px;
     min-height: 34px;
     padding: 5px 8px;
-    border-radius: var(--r);
     color: inherit;
     text-decoration: none;
   }
@@ -1819,16 +1826,6 @@
     margin: auto 8px 3px;
     padding-top: 3px;
     background: var(--lf-fp-faint) content-box;
-  }
-  .lf-fp-menu-back .lf-fp-label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .lf-fp-menu-back .lf-fp-chevron {
-    flex: none;
-    margin: 0;
-    scale: -1 1;
   }
   .lf-fp-state {
     display: grid;

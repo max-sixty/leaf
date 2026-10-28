@@ -901,9 +901,11 @@ wa-copy-button.lf-icon-action {
    offer's wash (`--offer-hover`) lies over whatever ground the row has, as an image,
    so a list's own tint shows through it; a listbox's selected option is the keys'
    target, as in the command reference. The row the list stands on, `aria-current`,
-   wears the accent's tint and a stripe at its start, on a square box. Every row keeps
-   the stripe's room as a transparent border, so marking the current row moves no
-   words, and the wash, an image under the border, never hides the stripe. Rows were
+   wears the accent's tint and a stripe at its start. Every row keeps the stripe's
+   room as a transparent border, so marking the current row moves no words, and the
+   wash, an image under the border, never hides the stripe. A row is square in every
+   state, as the striped box must be, so a washed row meets the current row beside it
+   edge to edge; rounded washes left a notch where they met it. Rows were
    drawn six ways, two hovers and four current rows (weight in Versions, an ink wash
    and underline in a visual review, accent words on the tint for a recording's
    moments), until the user chose this one on 28 October. A list adds only what is
@@ -912,7 +914,7 @@ wa-copy-button.lf-icon-action {
 .lf-row {
   border: 0;
   border-inline-start: 2px solid transparent;
-  border-radius: var(--r);
+  border-radius: 0;
   background-color: transparent;
   color: var(--ink);
   font: inherit;
@@ -937,7 +939,6 @@ wa-copy-button.lf-icon-action {
 }
 .lf-row[aria-current]:not([aria-current="false"]) {
   border-inline-start-color: var(--accent);
-  border-radius: 0;
   background-color: var(--accent-tint);
   color: var(--ink);
 }

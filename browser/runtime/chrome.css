@@ -987,7 +987,6 @@ html[data-lf-region-capture] main * {
        theme.css, and the row's wash under the pointer lies over it. */
     border: 0;
     border-inline-start: 2px solid transparent;
-    border-radius: var(--r);
     background-color: var(--lf-entry-tint, transparent);
     color: inherit;
     padding: 7px 8px 7px 6px;

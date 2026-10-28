@@ -3224,7 +3224,7 @@ export function createFloatingPanel({
     const show = arrivesAt(item)
       ? html`<button
           type="button"
-          ${offeredAction("symbol", "lf-fp-show", undefined, { action: "show" })}
+          ${offeredAction("symbol", "lf-fp-show", "Show", { action: "show" })}
           @click=${() => {
             const route = trail.value.at(-1);
             void queueActions.open(queueItemKey(item)).then((arrived) => {

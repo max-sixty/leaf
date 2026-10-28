@@ -6588,7 +6588,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         </button>` : nothing;
 		const show = arrivesAt(item) ? html`<button
           type="button"
-          ${offeredAction("symbol", "lf-fp-show", void 0, { action: "show" })}
+          ${offeredAction("symbol", "lf-fp-show", "Show", { action: "show" })}
           @click=${() => {
 			const route = trail.value.at(-1);
 			queueActions.open(queueItemKey(item)).then((arrived) => {

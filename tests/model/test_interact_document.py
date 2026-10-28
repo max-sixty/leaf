@@ -678,39 +678,20 @@ def test_an_image_loads_from_any_server(page_dir):
 
 
 @pytest.mark.parametrize(
-    "authored, expected",
+    "authored, at",
     [
-        ("<script>window.x = 1;</script>", "parser-blocking-script"),
-        (
-            '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>',
-            "parser-blocking-script",
-        ),
-        (
-            '<script type="module" async src="https://unpkg.com/d3"></script>',
-            "async-script",
-        ),
+        ("<script>window.x = 1;</script>", "</main>"),
+        ('<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>', "</main>"),
+        ('<script type="module" async src="https://unpkg.com/d3"></script>', "</main>"),
+        ("<script>window.x = 1;</script>", "</body>"),
     ],
-    ids=["inline-classic", "blocking-classic", "async-module"],
+    ids=["inline-classic", "blocking-classic", "async-module", "after-main"],
 )
-def test_check_runs_each_script_after_leaf_reads_the_page(page_dir, authored, expected):
-    """A page's scripts are its author's, classic or module, from any server, but
-    each runs after Leaf reads the page."""
-    version = page_dir / "index.html"
-    version.write_text(PAGE.replace("</main>", f"{authored}</main>"))
-
-    status, findings = check_findings(page_dir)
-
-    assert status == 1
-    assert [f.code for f in findings] == [expected]
-
-
-def test_tail_script_still_requires_deferred_execution(page_dir):
-    (page_dir / "index.html").write_text(
-        PAGE.replace("</body>", "<script>window.x = 1;</script></body>")
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    assert [finding.code for finding in findings] == ["parser-blocking-script"]
+def test_a_page_runs_a_script_of_any_kind(page_dir, authored, at):
+    """A page's scripts are its author's, classic or module, from any server; delivery
+    holds each until the runtime has read the page (`revision_delivery._deferred`)."""
+    (page_dir / "index.html").write_text(PAGE.replace(at, f"{authored}{at}"))
+    assert revisioning_model.activate_source(page_dir).error is None
 
 
 def test_a_quote_crosses_an_upgraded_verbatim_wrapper(page_dir):

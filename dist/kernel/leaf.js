@@ -1326,7 +1326,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 	function commentDestination() {
 		if (offeredSelection) return {
 			...commenting("selection"),
-			box: null,
+			box: pageComment.box,
 			go: commentOnOfferedSelection
 		};
 		const here = currentTarget();
@@ -5129,11 +5129,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 		if (thread && !thread.resolved && !noticeReading().visible && !statusContextReading().goTo) return {
 			says: "turn",
-			words: "Reply"
+			words: "Reply",
+			offers: true
 		};
 		const stance = key ? null : statusContextReading().stance;
 		if (!key && selectedWords) return {
 			says: "selection",
+			offers: true,
 			words: [
 				stance,
 				navigationWords(),
@@ -5160,9 +5162,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 		return {
 			says: "turn",
-			words: "Reply"
+			words: "Reply",
+			offers: true
 		};
 	}
+	const spoken = ({ label, voice }) => html`<span data-voice=${voice ?? "agent"}>${label}</span>`;
 	function turnLead(key, input) {
 		if (fieldReading(key, input).says !== "turn") return "";
 		const thread = threadByKey(key);
@@ -5170,7 +5174,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const position = !walk?.shown ? "" : walk.kind === "thread" && walk.target === thread?.id ? `${walk.position} of ${walk.total}` : walk.text;
 		const attention = Boolean(position) && !currentLocationIn(host) ? null : threadAttention(thread, agentName());
 		if (!attention) return position;
-		return html`<span data-voice=${attention.voice}>${attention.label}</span>${position ? ` · ${position}` : ""}`;
+		return html`${spoken(attention)}${position ? ` · ${position}` : ""}`;
 	}
 	const whereTo = (key) => key ? "Reply in this thread" : "Comment on the page";
 	function saying(key, input) {
@@ -5178,6 +5182,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (input) {
 			keeps(input, "data-says", reading.says);
 			keeps(input, "data-voice", reading.voice === "leaf" ? "leaf" : null);
+			keeps(input, "data-offers", reading.offers ? "" : null);
 		}
 		return reading.words;
 	}
@@ -5323,7 +5328,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const word = thread.resolved ? "Resolved" : attention?.label;
 		const since = thread.resolved ? shortAgo(thread.resolved.ts) : "";
 		const draft = draftHasContent(replyContext(thread.key)) && "Draft";
-		return html`${word ? html`<span data-voice=${attention?.voice ?? "agent"}>${word}</span>` : nothing}${since ? html` <span class="lf-fp-age">${since}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+		return html`${word ? spoken({
+			label: word,
+			voice: attention?.voice
+		}) : nothing}${since ? html` <span class="lf-fp-age">${since}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
 	};
 	const rows = () => pageControls();
 	const VIEWS = Object.freeze({
@@ -7187,7 +7195,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		markRoom();
 		keeps(host, "data-expanded", expanded ? "" : null);
 		const reading = fieldReading(replying ? top.thread : null, input);
-		keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
+		keeps(host, "data-offers", !search && reading.offers ? "" : null);
 		keeps(host, "data-tone", status().tone || null);
 		keeps(host, "data-asks", status().asks ? "" : null);
 		render(panelTemplate(), host);

@@ -15,7 +15,7 @@ widgets, and external data.
 
 Leaf's bundled `default` package is on every page; any other package is on only the
 pages that select it. Presentation or behavior used by one page stays in that page's
-`<style>`, inline modules or `page/`. Anything reused belongs in a package:
+`<style>`, its scripts or `page/`. Anything reused belongs in a package:
 
 ```bash
 leaf package init packages/callout --widget lf-callout

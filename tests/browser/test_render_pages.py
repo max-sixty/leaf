@@ -1532,6 +1532,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + '<div data-width="wide">Room.</div></span></div>'
         + '<div id="padded" style="margin-inline: -600px; padding-inline: 600px">'
         + '<div data-width="wide">Room.</div></div>'
+        + '<div id="pinned" style="position: fixed; inset: auto 0 0 0">Pinned.</div>'
     )
     column = open_page(browser, serve(leaf_page("Column", body + extras)))
     resized(column, 1726, 900)
@@ -1560,7 +1561,8 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # An obligation that spans its block is a breakout the theme grows, so the gate reads it
     # as one, even where it reaches further than a table of two columns does; a box the
     # page pulls out of the column by its margins, an inline one, or one it grows round
-    # its block by margins and padding of its own, still stands in the margin.
+    # its block by margins and padding of its own, still stands in the margin. A fixed
+    # box across the column's edges answers for itself, as it hangs off the window.
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
         ("past-column", "<div id=pulled>"),
@@ -1864,6 +1866,7 @@ def test_what_an_outer_column_draws_outside_itself_stays_whole(
     page.keyboard.press("Tab")  # keyboard modality, so focus draws its ring
     for link in ("#first", "#last"):
         page.locator(link).focus()
+        rendered(page)
         ring = current_location_ring(page)
         assert ring, f"the link {link} the keyboard stands on wears no ring"
         assert ring["cuts"] == [], (link, ring["cuts"])

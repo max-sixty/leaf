@@ -111,8 +111,9 @@ the item alone where there is not.
 
 `scrollLimit(box)` is how far a box scrolls down, and `atScrollEnd(box)` whether it is
 there. `landingInsets(scroller)` reads a scroller's `scroll-padding`.
-`shownWindow({within, gap})` is the window's visible rectangle clear of Leaf's fixed
-chrome, narrowed to `within` and inset by `gap`.
+`shownWindow({within, gap, across})` is the window's visible rectangle clear of Leaf's
+fixed chrome, narrowed to `within` and inset by `gap`; with `across` (`{left, right}`),
+only chrome standing across those columns takes room.
 
 ### Sticky headers
 

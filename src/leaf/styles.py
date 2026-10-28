@@ -31,8 +31,10 @@ def css_stylesheet(css: str):
 
 
 # Whether a declaration or rule a browser drops refuses its sheet (`dropped_css`):
-# "error" refuses it, "advice" reports it beside a passing check.
-DROPPED_SEVERITY = "error"
+# "error" refuses it, "advice" reports it beside a passing check. Advice, by the
+# maintainer's decision: delivery reads such a sheet whole, so refusing it protects
+# nothing of Leaf's, and the browser forgives the author's mistake.
+DROPPED_SEVERITY = "advice"
 
 
 def dropped_css(css: str, sheet: str, *, block=False) -> tuple[Finding, ...]:

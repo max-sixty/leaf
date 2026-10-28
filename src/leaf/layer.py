@@ -241,11 +241,9 @@ def _stylesheet(source: Path, root: Path, opened: tuple[Path, ...]) -> str:
         css = source.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         raise Refused(f"{source} must be UTF-8")
-    if errors := [
-        error
-        for error in css_syntax_errors(css, str(source))
-        if error.severity == "error"
-    ]:
+    # A layer's sheet is a package's maintained code, so a declaration a browser
+    # drops refuses it here, though a page's own sheets only hear it as advice.
+    if errors := css_syntax_errors(css, str(source)):
         raise Refused(str(errors[0]))
     parts = []
     for node in css_stylesheet(css):

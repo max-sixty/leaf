@@ -606,9 +606,6 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         ("main { background: url(a b); }", "css-syntax", sheet),
         # A parse tinycss2 can't serialize is refused, not a crash of the check.
         ("main { color: red; } }", "css-syntax", sheet),
-        # A file's sheet answers to the rule a page's <style> does: a declaration
-        # the browser drops without a word is refused.
-        ("main { color: red; broken; }", "css-dropped", sheet),
         # An unterminated string in url() is one syntax error, not a refused URL.
         ('main { background: url("x.svg }', "css-syntax", sheet),
         (

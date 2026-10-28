@@ -45,7 +45,7 @@ them:
   any sheet delivery rewrites in the document, which the capture finds by
   delivery's own walk (`structure.delivered_elements`), templates and shadow roots
   included. What that reader reads whole but a browser drops, such as `broken;`
-  in a rule, the source check reports as `css-dropped`, whose severity
+  in a rule, the source check reports as `css-dropped` advice, a severity
   `styles.DROPPED_SEVERITY` sets alone. A message, which no capture
   reads, asks what the capture would refuse at its own gate
   (`revision_artifact.uncaptured_errors`).

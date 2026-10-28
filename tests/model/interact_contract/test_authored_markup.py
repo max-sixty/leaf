@@ -491,21 +491,14 @@ def test_a_sheet_delivery_refuses_reports_nothing_dropped(page_dir, door):
     ] == [("css-syntax", "Unmatched ]")]
 
 
-@pytest.mark.parametrize("severity", ["error", "advice"])
-def test_a_dropped_declaration_takes_its_severity_from_one_place(
-    page_dir, monkeypatch, severity
-):
-    """A declaration a browser drops is one the reader delivers, so whether it
-    refuses the page is a choice, made in `styles.DROPPED_SEVERITY` alone: at
-    advice it is reported beside a passing check and a message carrying it is
-    admitted."""
-    from leaf import styles
-
-    monkeypatch.setattr(styles, "DROPPED_SEVERITY", severity)
+def test_a_dropped_declaration_is_advice(page_dir):
+    """A declaration a browser drops is one delivery's reader reads whole, so it
+    refuses nothing of Leaf's: the check reports it beside a passing result, and a
+    message carrying it is admitted (`styles.DROPPED_SEVERITY`)."""
     (page_dir / "index.html").write_text(styled("p { color: red; broken; }"))
     status, findings = check_findings(page_dir)
     [dropped] = found(findings, "css-dropped")
-    assert (status, dropped.severity) == (int(severity == "error"), severity)
+    assert (status, dropped.severity) == (0, "advice")
     published_markup = (
         '<template id="practice" data-sample><style>p { broken; }</style>'
         "<h1>Child</h1></template>"
@@ -515,7 +508,7 @@ def test_a_dropped_declaration_takes_its_severity_from_one_place(
     refused = command_findings(
         "thread", "create", page_dir, "--text", "Try:", "--markup", published_markup
     )
-    assert [f.code for f in refused] == (["css-dropped"] if severity == "error" else [])
+    assert refused == []
 
 
 def test_a_sampled_thread_starts_as_its_source_log_leaves_it():

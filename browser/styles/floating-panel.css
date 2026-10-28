@@ -1332,6 +1332,7 @@
   .lf-fp-version > .lf-fp-item {
     grid-column: 1;
     grid-template-columns: minmax(0, 1fr);
+    align-items: center;
   }
   .lf-fp-version > .lf-fp-item > .lf-fp-end {
     display: none;

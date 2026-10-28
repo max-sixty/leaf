@@ -2277,42 +2277,43 @@ export function createFloatingPanel({
       }
       <div class="lf-fp-versions" role="none">
         ${repeat(
-        versions,
-        (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
-        (entry) =>
-          html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
-            ${menuItem(
-              html`${entry.name}${
-                entry.note
-                  ? html`<span class="lf-fp-note">${entry.note}</span>`
+          versions,
+          (entry) =>
+            `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
+          (entry) =>
+            html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
+              ${menuItem(
+                html`${entry.name}${
+                  entry.note
+                    ? html`<span class="lf-fp-note">${entry.note}</span>`
+                    : nothing
+                }`,
+                nothing,
+                () => showVersion(entry),
+                { title: entry.note, current: entry.current },
+              )}${
+                entry.current
+                  ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>`
                   : nothing
-              }`,
-              nothing,
-              () => showVersion(entry),
-              { title: entry.note, current: entry.current },
-            )}${
-              entry.current
-                ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>`
-                : nothing
-            }${
-              entry.comparable
-                ? html`<button
-                    type="button"
-                    role="menuitem"
-                    class="lf-fp-face lf-fp-quiet lf-fp-compare"
-                    aria-pressed=${String(
-                      selection.on && selection.base === entry.version,
-                    )}
-                    aria-label=${`Compare with ${entry.name}`}
-                    @click=${() =>
-                      putAwayThen(() => versionPicker.compare(entry.version))}
-                  >
-                    Compare
-                  </button>`
-                : nothing
-            }
-          </div>`,
-      )}
+              }${
+                entry.comparable
+                  ? html`<button
+                      type="button"
+                      role="menuitem"
+                      class="lf-fp-face lf-fp-quiet lf-fp-compare"
+                      aria-pressed=${String(
+                        selection.on && selection.base === entry.version,
+                      )}
+                      aria-label=${`Compare with ${entry.name}`}
+                      @click=${() =>
+                        putAwayThen(() => versionPicker.compare(entry.version))}
+                    >
+                      Compare
+                    </button>`
+                  : nothing
+              }
+            </div>`,
+        )}
       </div>
       ${
         versions.length

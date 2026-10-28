@@ -539,12 +539,6 @@ const PENDING = "pending:";
 //#region runtime/thread/model.js
 const isReaction = (message) => Boolean(message.token);
 const isAddressable = (message) => message.addressable !== false;
-const threadOffers = (thread) => ({
-	open: true,
-	reply: !thread.settling,
-	resolve: !thread.resolved && !thread.settling,
-	reopen: Boolean(thread.resolved) && !thread.settling
-});
 function reactionChoices(thread, message, tokens) {
 	if (thread.resolved || message.author !== "agent" || !isAddressable(message) || !Object.keys(tokens).length) return null;
 	const latest = thread.msgs.findLast((item) => item.author === "agent" && isAddressable(item));
@@ -657,7 +651,6 @@ function foldThreads(threads, gestures) {
 			author: "user",
 			pending: true
 		} : null;
-		thread.settling = gesture.kind;
 	}
 	for (const thread of opened) thread.bare_reaction = isReaction(thread.root) && !spoken(thread).length;
 	return [...copies, ...opened];
@@ -737,7 +730,6 @@ function readThreadRecords(threads, document, widgets, workflows, todos = [], ob
 			detached_from: thread.detached_from,
 			rewritten_from: thread.rewritten_from,
 			resolved: thread.resolved,
-			settling: thread.settling ?? null,
 			attention: thread.attention,
 			obligations: obligations.filter((obligation) => obligation.thread === thread.id),
 			todos: todos.filter((todo) => todo.owner === "agent" && todo.thread === thread.id),
@@ -745,8 +737,7 @@ function readThreadRecords(threads, document, widgets, workflows, todos = [], ob
 			workflows: workflows.filter((workflow) => workflow.thread === thread.id),
 			bare_reaction: thread.bare_reaction,
 			seat: thread.seat,
-			summaries: thread.summaries,
-			offers: threadOffers(thread)
+			summaries: thread.summaries
 		};
 	});
 }
@@ -793,7 +784,6 @@ const nameAdmitted = (event, admitted) => {
 	}
 	return named;
 };
-const pendingForParent = (entries, id, kinds = null) => entries.find((entry) => (entry.event.parent === id || entry.namedParent === id) && (!kinds || kinds.includes(entry.event.kind)));
 const actionForWidget = (descriptor, command, revision) => ({
 	kind: "action",
 	revision,
@@ -2573,4 +2563,4 @@ function dismissPopoversOutside(root) {
 }
 
 //#endregion
-export { AsyncDirective, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, LIVE_ROOT, LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PartType, SAID, SHADOW_LEADING_CSS, SHARE_ROOT, TEXT_BLOCK, UI_MARKS, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, carriesObligation, chromeSharedClasses, chromeSheet, classMap, closeNativeLayer, createPresentationSchedule, createRef, decisionFor, declarationFor, declaredRoot, describeFailure, directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, guard, hostIn, html, inUi, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerFact, layerRoot, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, moved, nativeLayers, nativeModalAdmits, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, overIn, pageClaimed, pageShadowRoots, pageUrl, pendingForParent, presentDocument, projectView, projectionOrigins, projectionRegionsPresented, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, refuseShadowRoot, registry, render, renderedChildren, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateCoordinate, stateSpecs, styleMap, tagsDeclaring, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, uiInside, unsafeHTML, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented };
+export { AsyncDirective, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, LIVE_ROOT, LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PartType, SAID, SHADOW_LEADING_CSS, SHARE_ROOT, TEXT_BLOCK, UI_MARKS, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, carriesObligation, chromeSharedClasses, chromeSheet, classMap, closeNativeLayer, createPresentationSchedule, createRef, decisionFor, declarationFor, declaredRoot, describeFailure, directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, guard, hostIn, html, inUi, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerFact, layerRoot, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, moved, nativeLayers, nativeModalAdmits, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, overIn, pageClaimed, pageShadowRoots, pageUrl, presentDocument, projectView, projectionOrigins, projectionRegionsPresented, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, refuseShadowRoot, registry, render, renderedChildren, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateCoordinate, stateSpecs, styleMap, tagsDeclaring, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, uiInside, unsafeHTML, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented };

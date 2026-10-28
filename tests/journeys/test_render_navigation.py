@@ -1842,13 +1842,16 @@ _FOCUSED_INPUT = """() => {
     + 'input:is([type=search], [type=text], :not([type])):not(:disabled, [readonly])');
 }"""
 # Each element's painted keys and availability, held in the page as a Map keyed by
-# the element, so the reading after the repaint is compared node by node.
+# the element, so the reading after the repaint is compared node by node. Hidden
+# controls have no accessible keys; a native close can hide them before its deferred
+# close event refreshes their attributes. Compare the controls a reader can use.
 _PAINTED_KEYS = """() => {
   const painted = new Map();
   const walk = root => {
     for (const element of root.querySelectorAll('*')) {
-      painted.set(element, [element.getAttribute('aria-disabled'),
-                            element.getAttribute('aria-keyshortcuts')]);
+      if (element.checkVisibility())
+        painted.set(element, [element.getAttribute('aria-disabled'),
+                              element.getAttribute('aria-keyshortcuts')]);
       if (element.shadowRoot) walk(element.shadowRoot);
     }
   };

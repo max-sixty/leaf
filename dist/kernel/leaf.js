@@ -6638,9 +6638,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		else if (item.offers?.done) answers = html`<button
         type="button"
         class="lf-fp-face lf-fp-answer"
+        aria-label="Done"
+        title="Done"
         @click=${() => queueActions.done(queueItemKey(item))}
       >
-        Done
+        ${actionTemplate("done", "lf-action-icon")}
       </button>`;
 		else if (inWords && thread) {
 			discussHere = false;

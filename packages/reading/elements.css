@@ -1,7 +1,7 @@
 /* Leaf's reading look, the bundled `reading` theme a page takes unless it names
  * another or none (`leaf page init --theme`, `--no-theme`). It holds the body's type
- * and colour, the page's ground, a wide page's and a page of parts' title, working
- * density's margins, and the class idioms its registry declares. As the package's
+ * and colour, the page's ground, a wide page's and a page of parts' title, and the class
+ * idioms its registry declares. As the package's
  * `elements.css`, its rules stand in `lf-base` after Leaf's core sheet and before every
  * widget's defaults, so a widget's own rule and the page's sheet outrank them as they
  * outrank Leaf's. It sets
@@ -86,31 +86,6 @@ html {
     font-size: var(--t-3);
     line-height: 1.25;
     letter-spacing: normal;
-  }
-}
-/* Working density (`--lf-density: working`, which the `density-working` style sets with
- * its ladder and spacing, theme.css) answered for the flow's small margins, which are
- * numbers rather than tokens. Like the element styles above, these are prose defaults.
- * A component's own spacing must win, including package rules in this same base
- * layer. */
-@container style(--lf-density: working) {
-  :is(p, ul, ol) {
-    margin-block: 6px;
-  }
-  li {
-    margin-block: 3px;
-  }
-  h2 {
-    margin-block-end: 6px;
-  }
-  h3 {
-    margin-block-end: 4px;
-  }
-  h4 {
-    margin: 10px 0 4px;
-  }
-  :is(th, td) {
-    padding: 4px 10px;
   }
 }
 /* The apparatus voice (`reading.css`, beside `summary`) for the theme's idioms. */

@@ -1295,8 +1295,8 @@ main {
  * and a widget's padding included, sets at working size; shadow trees too, since custom
  * properties cross into them. The tokens derived from the ladder are declared for this
  * scope as for the root (above), since each resolves where it is declared. The flow's
- * larger gaps are tokens restated here; its small margins are numbers, which a theme
- * restates under `--lf-density: working` (packages/reading). A column or sidebar page whose `main` takes the class, such as a
+ * larger gaps are tokens restated here; its small margins are numbers, which markup's
+ * reading face restates under `--lf-density: working` (reading.css). A column or sidebar page whose `main` takes the class, such as a
  * dashboard the reader glances at, starts at a phone's head room rather than a
  * document's 72px, as its title is set at working size too.
  *

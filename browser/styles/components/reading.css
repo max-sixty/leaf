@@ -18,7 +18,10 @@
   --lf-text-scroll-clearance: 8px;
   --lf-text-scroll-track: 15px;
 }
-:where(.lf-thread-transcript) {
+/* Markup Leaf renders from Markdown, a message's or a widget's (`markdown.js`: a block's
+   `.lf-markdown-body`, inline words' `.lf-markdown-words`), is Leaf's reading of it, so
+   it wears the face whatever theme the page takes. */
+:where(.lf-thread-transcript, .lf-markdown-body, .lf-markdown-words) {
   --lf-reading-face: 1;
 }
 :host {
@@ -556,6 +559,32 @@
   summary {
     font-family: var(--sans);
     font-variant-numeric: tabular-nums;
+  }
+  /* Working density (`--lf-density: working`, which the `density-working` style sets with
+   * its ladder and spacing, theme.css) answered for the flow's small margins, which are
+   * numbers rather than tokens, wherever the face is worn. Like the element styles above,
+   * these are prose defaults.
+   * A component's own spacing must win, including package rules in this same base
+   * layer. */
+  @container style(--lf-density: working) {
+    :is(p, ul, ol) {
+      margin-block: 6px;
+    }
+    li {
+      margin-block: 3px;
+    }
+    h2 {
+      margin-block-end: 6px;
+    }
+    h3 {
+      margin-block-end: 4px;
+    }
+    h4 {
+      margin: 10px 0 4px;
+    }
+    :is(th, td) {
+      padding: 4px 10px;
+    }
   }
 }
 /* One owner for message type and spacing on every surface, including widget shadow

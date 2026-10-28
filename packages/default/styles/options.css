@@ -91,6 +91,12 @@ lf-options:has(> lf-option > strong) > lf-option {
   padding: var(--lf-option-pad-block) var(--sp-3);
   --lf-block-frame: 1;
 }
+/* A card's add field takes the type the cards take from the page, rather than the
+   controls' face, so the words typed stand as the option they become will. */
+lf-options:has(> lf-option > strong) > .lf-another {
+  font: inherit;
+  color: inherit;
+}
 @container style(--lf-joined: 0) {
   lf-options:has(> lf-option > strong) > lf-option {
     border: 1px solid var(--rule);
@@ -770,12 +776,14 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     outline: none;
     background: transparent;
     color: inherit;
-    font: var(--lf-option-font);
+    /* The words the option they become is set in: the group's font where it states one
+       (a row), and otherwise the type the card takes from the page. */
+    font: inherit;
     line-height: var(--lf-option-line);
     resize: none;
   }
   .lf-another .lf-compose-placeholder {
-    font: var(--lf-option-font);
+    font: inherit;
     line-height: var(--lf-option-line);
   }
   .lf-another .lf-compose-submit {

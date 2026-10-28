@@ -2316,7 +2316,7 @@ function sourcePositions(markdown) {
 				} else if (token.type === "link_open") span = [from, token.meta.sourceAt];
 				else if (token.type === "link_close") span = [token.meta.sourceAt, state.pos];
 				if (token.markup === "linkify" || emitted.some((item) => item.markup === "linkify") && token.type === "text") {
-					const start = pendingFrom + markdown.linkify.match(state.src.slice(pendingFrom, state.pos)).at(-1).index;
+					const start = state.tokens.slice(count).find((item) => !emitted.includes(item))?.meta.source[1] ?? pendingFrom;
 					span = token.type === "link_open" ? [start, start] : token.type === "link_close" ? [state.pos, state.pos] : [start, state.pos];
 				} else if (emitted.some((item) => item.markup === "autolink")) span = token.type === "link_open" ? [from, from + 1] : token.type === "link_close" ? [state.pos - 1, state.pos] : [from + 1, state.pos - 1];
 				token.meta = {

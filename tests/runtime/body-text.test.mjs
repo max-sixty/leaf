@@ -219,6 +219,11 @@ test("editor tokens retain native constructs and exact source syntax after parse
     ["- [x] reader@example.com", "reader@example.com"],
     ["- [ ] reader@example.com", "reader@example.com"],
     ["https://example.com/a%20b", "https://example.com/a%20b"],
+    // The parser links a scheme after any character but a scheme's own; these are
+    // ones linkify-it's search wouldn't start a link after.
+    ["x `https://example.com", "https://example.com"],
+    ["URL=https://example.com", "https://example.com"],
+    ["参见https://example.com/a", "https://example.com/a"],
   ]) {
     const link = placedMarkdownTokens(automatic).find(
       ({ token }) => token.type === "link_open",

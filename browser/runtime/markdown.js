@@ -347,15 +347,17 @@ function sourcePositions(markdown) {
               span = [token.meta.sourceAt, state.pos];
             }
             // A bare URL's inline rule starts at its colon, with the scheme still pending.
+            // The rule takes the scheme off the pending words and pushes the rest, which
+            // end where the link starts.
             if (
               token.markup === "linkify" ||
               (emitted.some((item) => item.markup === "linkify") &&
                 token.type === "text")
             ) {
-              const matched = markdown.linkify
-                .match(state.src.slice(pendingFrom, state.pos))
-                .at(-1);
-              const start = pendingFrom + matched.index;
+              const kept = state.tokens
+                .slice(count)
+                .find((item) => !emitted.includes(item));
+              const start = kept?.meta.source[1] ?? pendingFrom;
               span =
                 token.type === "link_open"
                   ? [start, start]

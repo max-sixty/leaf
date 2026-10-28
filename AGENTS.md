@@ -74,7 +74,8 @@ checks or exports it. A change crosses that gap in one of two ways.
   session holding the page does itself on its first command or hook naming the
   page. Bump it for any change an earlier page would break on: to the event
   log, what a page sends, its vendored declarations, the public package API
-  (`widget-api.js` and what its readers return) or a record kept outside a page.
+  (`widget-api.js`, its portable part `portable-api.js`, and what their readers
+  return) or a record kept outside a page.
   The served state isn't among them, since the Leaf serving a page also supplies
   the runtime that reads it. It is Leaf's only version, so a
   record kept outside a page, such as a browser draft, carries the protocol at

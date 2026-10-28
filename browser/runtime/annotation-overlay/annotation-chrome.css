@@ -213,12 +213,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       100% - 2 * var(--lf-comment-frame-inline) + 2 * var(--lf-media-room)
     );
     margin: 0;
+    align-items: flex-start;
     pointer-events: none;
   }
   .lf-fab-bar:not([data-lf-presentation="inline"])[data-lf-placement^="top"]
     .lf-composer-media:not([hidden]) {
     inset-block: auto
       calc(100% - var(--lf-comment-frame-top) + 6px - var(--lf-media-room));
+    align-items: flex-end;
   }
   .lf-fab-bar:not([data-lf-presentation="inline"])
     .lf-composer-media:not([hidden])

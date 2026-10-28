@@ -16,7 +16,8 @@ import {
   selectEnds,
   segmentBlock,
 } from "../passages.js";
-import { shownBox, skipped } from "../geometry.js";
+import { shownBox } from "../geometry.js";
+import { skipped } from "../shown-box.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { intersect, union } from "../rect.js";

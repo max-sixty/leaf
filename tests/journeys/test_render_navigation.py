@@ -8,6 +8,7 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
+from leaf_dev.browser import show_resolved
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -1465,9 +1466,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
 
     gallery_tab("tab", name="Threads").click()
     open_threads(page)
-    expect(
-        page.locator(".lf-fp-ended ~ .lf-fp-thread[data-resolved]")
-    ).not_to_have_count(0)
+    expect(show_resolved(page)).not_to_have_count(0)
     media_thread = open_panel_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
     media_thread.locator(".lf-message-media").click()
     viewer = page.get_by_role("dialog", name="Image preview")

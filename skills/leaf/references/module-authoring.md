@@ -24,7 +24,8 @@ long it lives across revisions. A widget's declarations are in
 
 ## The helper surface
 
-Import Leaf's helpers only from `/runtime/widget-api.js`. Don't import the runtime's
+Import Leaf's helpers only from `/runtime/widget-api.js`, or its portable part ("A
+widget that also runs off Leaf"). Don't import the runtime's
 other modules, query Leaf's own chrome, or copy a runtime helper. Each helper is
 described in the section for the task it serves, and its full contract is in the header
 of the module `widget-api.js` re-exports it from. Every export is public for independent
@@ -37,6 +38,25 @@ From Lit, `widget-api.js` exports `render`, `html`, `nothing`, `repeat`, `keyed`
 `live`, `ref`, `createRef`, `classMap`, `styleMap`, `guard` and `unsafeHTML`. From
 Preact Signals it exports `signal`, for private state a command's `when` reads
 (`module-input.md`, "Command rows").
+
+### A widget that also runs off Leaf
+
+A widget that must also run on a page without Leaf's runtime, such as a chart another
+app shows, imports only from `/runtime/portable-api.js`, the part of the helper
+surface any document can load; `widget-api.js` re-exports all of it. The host maps
+`/runtime/` and `/vendor/` to a Leaf install with an import map of its own, as a Leaf
+page does, and runs none of Leaf's runtime. Such a widget extends `HTMLElement`, and
+Leaf hears from it only through standard events it dispatches on itself, which a plain
+page may ignore:
+
+- Drawing under way: `this.dispatchEvent(new PendingTaskEvent(promise))`, the Web
+  Components Community Group's `pending-task` protocol. Leaf holds the page's
+  presentation until `promise` settles, as it does for `present(promise)`
+  (`module-state.md`, "The widget controller").
+- A failure: `failSoft` and `reportFailure` dispatch an `error` event ("Upgrade"),
+  which Leaf reports to the author as the page's error.
+
+`lf-chart` in the default package is the worked example.
 
 ## What a behavior module owes
 
@@ -79,10 +99,14 @@ anything else that sends input back. Its presentation and view state still work.
 
 When an upgrade or one part of it fails, `failSoft(element, error, source)` replaces
 the widget or part with an error box naming it, with `source` beneath when given, and
-reports a page error, which fails `page check`. The widget's next draw removes the box.
+dispatches an `error` `ErrorEvent` on the element, bubbling and composed, or on the
+window while the element is out of the document. Leaf reports it as a page error
+naming the widget, which fails `page check`. The widget's next draw removes the box,
+a template render into the element included.
 A native renderer that retains its nodes can register `placesFailure(element, place)`
 to place the box beside them: `place(box)` returns true when it handles the box, and
-the renderer removes it when the failed content recovers. Where the widget shows a
+the renderer removes it when the failed content recovers. An element has one placer,
+which registering again replaces. Where the widget shows a
 failed part its own way, as `lf-diff` does for a patch it cannot draw,
 `reportFailure(element, error)` only reports.
 

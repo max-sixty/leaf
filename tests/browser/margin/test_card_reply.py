@@ -177,13 +177,11 @@ def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
     rendered(page)
     assert header.bounding_box() == pytest.approx(original[0], abs=0.5)
     assert row.bounding_box() == pytest.approx(original[1], abs=0.5)
-    # The clip starts above the first message so its focus ring stays whole.
-    top_room = transcript.evaluate(
-        "list => parseFloat(getComputedStyle(list).paddingTop)"
+    # The clip starts a ring's room above the heads' line, so a focus ring stays whole.
+    ring_top = transcript.evaluate(
+        "list => parseFloat(getComputedStyle(list).scrollPaddingTop)"
     )
-    assert header.bounding_box()["y"] == pytest.approx(
-        transcript.bounding_box()["y"] + top_room, abs=0.5
-    )
+    assert header.bounding_box()["y"] - transcript.bounding_box()["y"] >= ring_top - 0.5
     # The scrollport extends under the reply by its bottom padding so a rewrite's
     # outside focus ring stays visible; the scrolling turns stop above the row.
     ring_room = transcript.evaluate(

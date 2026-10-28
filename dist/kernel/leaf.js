@@ -6736,7 +6736,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		for (const group of groups) {
 			const headed = group.headed !== false;
 			if (rows.length && (headed || !running)) rows.push({
-				key: `rule:${queueItemKey(group.items[0])}`,
+				key: `rule:${group.key}`,
 				rule: true
 			});
 			running = !headed;

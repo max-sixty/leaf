@@ -92,7 +92,7 @@ export { threadCounts } from "./thread/model.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
-export { scrollGlides, watchScrollEnds } from "./arrivals.js";
+export { scrollGlides, scrolling, watchScrollEnds } from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
 export {
   chromeSheet,
@@ -103,7 +103,8 @@ export {
 } from "./stylesheets.js";
 export { claimed } from "./thread/surfaces.js";
 export { runtimeRootState } from "./root-state.js";
-export { tabStore, draftStore, userStore, PAGE_SCOPE } from "./storage.js";
+export { draftStore, userStore, PAGE_SCOPE } from "./storage.js";
+export { tabStore } from "./tab-store.js";
 export {
   frameVisibility,
   onFrameVisibility,

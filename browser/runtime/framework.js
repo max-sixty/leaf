@@ -1,5 +1,8 @@
 // @ts-check
 /** Internal framework facade. Content modules import runtime/widget-api.js. */
+// Leaf's Lit loads in any document and inserts natively until the page installs its
+// mover; importing it here installs that mover before the runtime's first render.
+import "./dom-move.js";
 export {
   AsyncDirective,
   Directive,

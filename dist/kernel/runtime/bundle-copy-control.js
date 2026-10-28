@@ -1,7 +1,6 @@
-import { nativeLayerHolding, nextRender, renderedParent, renderedUnder } from "./bundle-portable.js";
-import { carriedFrom, deepFocus, focusDestination, focused, inputCount, onCurrentLocation, ringBox } from "./bundle-dom-move.js";
-import "./bundle-layer-stack.js";
-import { actionElement, iconElement, notice, offer, offerActionElement, raiseError } from "./bundle-layer-client.js";
+import { actionElement, iconElement, nativeLayerHolding, nextRender, renderedParent, renderedUnder } from "./bundle-portable.js";
+import { carriedFrom, deepFocus, focusDestination, focused, inputCount, onCurrentLocation, ringBox } from "./bundle-layer-stack.js";
+import { notice, offer, offerActionElement, raiseError } from "./bundle-layer-client.js";
 import { localScrollBy, pageScroller, reachable, scrollAxes, scrollersOf, startScroll } from "./bundle-content-layout.js";
 import { clippingAxes, landingBand, nearestScrollBy, placeBox, placeHolder, seenRect, shownWindow, visibleBand } from "./bundle-geometry.js";
 

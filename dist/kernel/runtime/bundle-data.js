@@ -351,7 +351,7 @@ function pageReading({ bodies }) {
 }
 const pageReadingBlock = () => pageReading({ bodies: false });
 function landingPlace(from = null) {
-	if (from && !inChrome(from)) {
+	if (from && from !== document.body && !inChrome(from)) {
 		const blocks = textBlocks(from);
 		const own = blocks.length ? blocks : [blockAt(from)].filter(Boolean);
 		const shown = blocksOnScreen(readingRegionFor(from), own).next().value?.[0];

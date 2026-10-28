@@ -296,10 +296,19 @@ svg[data-lf-icon] {
 ) {
   --lf-msg-offered: 1;
 }
-/* Where a surface's own controls follow a message's on its head line, the surface
-   gives this rule content, and it stands in the gap after the message's controls,
-   shown with them, to part the message's controls from the surface's. */
-.lf-msg::after {
+/* Where a thread's own controls (Expand, Resolve, Close) follow its first message's
+   on that message's head line, a rule stands in the gap between them while the
+   message's show: the controls before it act on the message, those after it on the
+   whole thread. An open rewrite's Discard and Save take the thread's place past the
+   gap (response.css), so the rule leaves with it. */
+:is(.lf-thread-content, .lf-page-thread):has(
+    > :is(.lf-thread-controls, .lf-margin-thread-controls)
+  )
+  > .lf-thread-transcript
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint):has(
+    > :is(.lf-react-strip, .lf-msg-control)
+  ):not(:has(> .lf-msg-body > .lf-msg-editor))::after {
+  content: "";
   position: absolute;
   z-index: 2;
   position-anchor: --lf-msg-head;

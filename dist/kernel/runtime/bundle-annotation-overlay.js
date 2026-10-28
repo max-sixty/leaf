@@ -333,16 +333,18 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 				let edge = 0;
 				let height = above ? 12 : 0;
 				const room = slotTop(transcript);
-				if (above) {
-					const top = transcript.getBoundingClientRect().top + transcript.clientTop + room;
-					for (const head of transcript.querySelectorAll(".lf-msg-head")) {
-						const box = head.getBoundingClientRect();
-						if (!box.height || box.bottom <= top) continue;
-						if (box.top <= top) edge = box.bottom - top;
-						else {
-							height = Math.min(height, box.top - top - edge);
-							break;
-						}
+				const top = transcript.getBoundingClientRect().top + transcript.clientTop + room;
+				for (const message of transcript.querySelectorAll(":scope > .lf-msg")) {
+					const box = message.querySelector(":scope > .lf-msg-head")?.getBoundingClientRect();
+					keeps(message, "data-lf-beside-actions", above && box && box.top < top + box.height && box.bottom > top ? "" : null);
+				}
+				if (above) for (const head of transcript.querySelectorAll(".lf-msg-head")) {
+					const box = head.getBoundingClientRect();
+					if (!box.height || box.bottom <= top) continue;
+					if (box.top <= top) edge = box.bottom - top;
+					else {
+						height = Math.min(height, box.top - top - edge);
+						break;
 					}
 				}
 				const card = transcript.parentElement;

@@ -720,16 +720,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     min-height: var(--lf-msg-head-height);
     padding-inline-start: var(--sp-2);
   }
-  /* The actions follow the first message's own controls on its head line, so a rule
-     (controls.css) parts them, in the actions' padding. */
-  .lf-margin-thread
-    .lf-page-thread
-    > .lf-thread-transcript
-    > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint):has(
-      > :is(.lf-react-strip, .lf-msg-control)
-    )::after {
-    content: "";
-  }
   /* A sticky head and its words paint the message's one animated ground.
      Shared message rules own wrapping, including progress disclosures below the
      capped metadata when the card's actions leave too little inline room. */
@@ -770,8 +760,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      Save, stand at the card's edge on its head line, in the track the actions keep
      beside the first message's head, rather than where the head ends, a track short
      of the edge, which stood them mid-card. So the head keeps no room for them. They
-     follow the message rather than its sticking head, so a stuck head's controls
-     scroll on under the actions' ground rather than over the actions. */
+     follow the message rather than its sticking head, and stand over its head row's
+     cell in that track (below). While the head line shares the actions' line, Edit
+     and Copy stand aside (`data-lf-beside-actions`, thread-preview.js): no ground
+     under the actions hides what passes beneath them, since the cells give the
+     message's own. */
   .lf-margin-thread .lf-thread-transcript .lf-msg {
     anchor-name: --lf-msg-box;
     anchor-scope: --lf-msg-head, --lf-msg-box;
@@ -784,10 +777,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     }
     & > :is(.lf-msg-copy, .lf-msg-edit),
     & .lf-msg-edit-actions {
-      z-index: 0;
+      z-index: 1;
       position-anchor: --lf-msg-box;
       inset-block-start: calc(anchor(top) + var(--lf-msg-head-height) / 2);
       inset-inline-end: anchor(right);
+    }
+    &[data-lf-beside-actions] > :is(.lf-msg-copy, .lf-msg-edit) {
+      visibility: hidden;
     }
     /* Under a finger Copy is left out (controls.css), so Edit takes the edge. */
     @media (hover: hover) and (pointer: fine) {

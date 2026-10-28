@@ -103,7 +103,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
 
     # A live watcher: the guard has nothing to say, and the ending is recorded anyway.
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -347,7 +347,7 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, printing, cap
     nothing new is the turn really ending."""
     session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -696,7 +696,7 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     assert workflow["stage"] == "sent"
     # A running wait changes nothing: it only wakes the session.
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -879,7 +879,7 @@ def test_the_server_nudges_a_first_claiming_turn_escape_left_unwatched(
 
     time.sleep(0.01)
     live.update(state="idle", since=datetime.now().astimezone().isoformat())
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(claimed, "s1"))
+    lease = leases_model.take_wait_lease(leases_model.waiter_lease_path(claimed, "s1"))
     server.live_until = 0
     server.refresh()
     assert nudged == []
@@ -1228,7 +1228,9 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     envelope = json.loads(delivery)
     assert envelope["batches"][0]["events"][0]["id"] == sent["id"]
     session = service_model.page_claim(page)
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
+    lease = leases_model.take_wait_lease(
+        leases_model.waiter_lease_path(page, session["id"])
+    )
     assert lease
     try:
         # The turn ends on its own answer, and the watch wakes a turn of its own

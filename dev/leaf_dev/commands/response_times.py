@@ -53,8 +53,9 @@ with the seconds they add up to. A survey of every page touched in a week:
         sed 's:/events.jsonl$::')
 
 `prompted` waits are where nothing of Leaf's woke an idle session before the user
-typed; the transcript between admission and pickup says why, such as a hook
-refusing a page a newer Leaf re-vendored.
+typed. The watch record says whether a watch ran and the protocol its Leaf spoke,
+so one older than the page's could not read it; the transcript between admission
+and pickup says the rest, such as a hook refusing a page a newer Leaf re-vendored.
 """
 
 import json
@@ -168,6 +169,7 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
             "reply_stream_words",
             "run_context",
             "leaf_command",
+            "watch",
         ),
     )
     contexts = [
@@ -312,6 +314,9 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
         for row in observations
         if row["source"] == "cli" and row["type"] == "leaf_command"
     ]
+    watches = [
+        row for row in observations if row["source"] == "cli" and row["type"] == "watch"
+    ]
     for row in rows.values():
         answered = row["milestones"].get("answered")
         mine = [
@@ -320,7 +325,7 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
             if answered is not None and command["session"] == answered["session"]
         ]
         row["reply"] = breakdown(row, mine)
-        row["pickup"] = waited(row)
+        row["pickup"] = waited(row, watches)
         # From where the harness took the input, so a working harness's
         # commands for the work it was busy with stay out.
         took = row["milestones"].get("opened", {}).get("at", row["admitted_at"])
@@ -361,16 +366,30 @@ def breakdown(row: dict, commands: list[dict]) -> dict | None:
     return {**reply, "case": "working" if reply["busyMs"] else "waiting"}
 
 
-def waited(row: dict) -> dict | None:
+def waited(row: dict, watches: list[dict]) -> dict | None:
     """What the input waited on before its opened pickup (`pickup_wait`), where the
-    session that opened it is Claude Code's with its transcript on this machine."""
+    session that opened it is Claude Code's with its transcript on this machine,
+    with the `watch` record of that session's watch running at the admission
+    (`leaf.interaction_log.record_watch`), or None where none recorded one."""
     opened = row["milestones"].get("opened")
     if opened is None or opened["harness"] != "claude-code" or not opened["session"]:
         return None
     records = session_records(opened["session"])
     if records is None:
         return None
-    return pickup_wait(records, row["admitted_at"], opened["at"])
+    admitted = interaction_time(row["admitted_at"])
+    watch = next(
+        (
+            watch
+            for watch in watches
+            if watch["session"] == opened["session"]
+            and interaction_time(watch["started"])
+            <= admitted
+            <= interaction_time(watch["ts"])
+        ),
+        None,
+    )
+    return {**pickup_wait(records, row["admitted_at"], opened["at"]), "watch": watch}
 
 
 @cache

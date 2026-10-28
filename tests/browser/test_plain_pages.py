@@ -32,10 +32,12 @@ reduced motion, so a dark palette and a reduced-motion guard are both the author
 to answer.
 
 Every finding is against Leaf, never the page. Fix Leaf, or, where lifting the
-obstacle needs the maintainer's decision, name it in `OBSTACLES` and list it against
-each page it hits in `KNOWN`: such a page is reported as an expected failure, any
-other finding still fails it, and a listed obstacle that no longer occurs fails it
-until its entry goes.
+obstacle needs the maintainer's decision, name it in `OBSTACLES` and pin what it
+does to each page in `KNOWN`, each finding by its kind, property and elements: such a
+page is reported as an expected failure, any finding not pinned still fails it, so an
+override of the same kind reaching another property or element is caught, and a pin
+that no longer occurs fails it until it goes. A failure prints each new finding's pin
+first, ready to file; when an obstacle lifts, its entries go.
 """
 
 import shutil
@@ -55,8 +57,8 @@ from leaf.render_gate.version import render_version
 from leaf.validation.source import check_source
 
 SOURCES = sorted((ROOT / "tests" / "fixtures" / "plain").glob("*.html"))
-# The obstacles a decision has yet to lift, by the kind of finding they cause: a
-# refusal's finding code, or one of the look's kinds (`differences`).
+# The obstacles a decision has yet to lift, and below, each page's findings they
+# explain, by pin (`differences`, `checked`).
 OBSTACLES = {
     "inherited": (
         "Leaf's theme sets type and colour on body, on semantic elements (headings'"
@@ -94,14 +96,99 @@ OBSTACLES = {
     ),
 }
 KNOWN = {
-    "article": {"inherited"},
-    "dashboard": {"inherited", "scrollbar-clearance"},
-    "editorial": {"inherited", "color-scheme"},
-    "form": {"color-scheme", "canvas"},
-    "instrument": {"inherited"},
-    "module": {"inherited", "color-scheme", "canvas"},
-    "motion": {"inherited", "color-scheme", "canvas", "past-column"},
-    "script": {"parser-blocking-script"},
+    "article": {
+        "inherited": {
+            "inherited color on body and 38 more",
+            "inherited color on main > blockquote:0 and 5 more",
+            "inherited color on main > pre:0 and 1 more",
+            "inherited font-family on body and 24 more",
+            "inherited font-family on main > table:0 and 18 more",
+            "inherited font-size on body and 19 more",
+            "inherited font-size on main > pre:0",
+            "inherited font-size on main > table:0 > thead:0 > tr:0 > th:0 and 2 more",
+            "inherited font-style on main > blockquote:0 and 2 more",
+            "inherited font-variant-numeric on main > table:0 and 18 more",
+            "inherited line-height on body and 19 more",
+            "inherited line-height on main > h3:0",
+            "inherited line-height on main > pre:0",
+            "inherited line-height on main > table:0 > thead:0 > tr:0 > th:0 and 2 more",
+            "inherited line-height on main > table:0 and 15 more",
+        },
+    },
+    "dashboard": {
+        "inherited": {
+            "inherited font-family on main > div:0 > section:5 > table:0 and 89 more",
+            "inherited font-variant-numeric on main > div:0 > section:5 > table:0 and 109 more",
+            "inherited line-height on main > div:0 > section:0 > h2:0 and 5 more",
+            "inherited line-height on main > div:0 > section:5 > table:0 > thead:0 > tr:0 > th:0 and 5 more",
+            "inherited line-height on main > div:0 > section:5 > table:0 and 103 more",
+            "inherited line-height on main > header:0 > h1:0",
+            "inherited line-height on main > nav:0 > h3:0",
+        },
+        "scrollbar-clearance": {
+            "scrollbar-clearance <nav>",
+        },
+    },
+    "editorial": {
+        "color-scheme": {
+            "color-scheme on the root",
+        },
+        "inherited": {
+            "inherited color on main > blockquote:0",
+            "inherited color on main > figure:0 > figcaption:0 and 1 more",
+            "inherited font-variant-numeric on main > dl:0 > div:0 > dt:0 and 2 more",
+        },
+    },
+    "form": {
+        "canvas": {
+            "canvas around body",
+        },
+        "color-scheme": {
+            "color-scheme on the root",
+        },
+    },
+    "instrument": {
+        "inherited": {
+            "inherited font-size on main > section:1 > div:3 > code:0",
+            "inherited line-height on main > section:0 > h1:0",
+            "inherited line-height on main > section:1 > div:3 > code:0",
+            "inherited line-height on main > section:1 > h2:0",
+        },
+    },
+    "module": {
+        "canvas": {
+            "canvas around body",
+        },
+        "color-scheme": {
+            "color-scheme on the root",
+        },
+        "inherited": {
+            "inherited line-height on main > header:0 > h1:0",
+            "inherited line-height on main > section:0 > section:0 > h2:0 and 2 more",
+        },
+    },
+    "motion": {
+        "canvas": {
+            "canvas around body",
+        },
+        "color-scheme": {
+            "color-scheme on the root",
+        },
+        "inherited": {
+            "inherited font-size on main > p:0",
+            "inherited line-height on main > h1:0",
+            "inherited line-height on main > p:0",
+            "inherited line-height on main > ul:0 > li:0 > div:0 > h2:0 and 3 more",
+        },
+        "past-column": {
+            "past-column <div>",
+        },
+    },
+    "script": {
+        "parser-blocking-script": {
+            "parser-blocking-script <script>",
+        },
+    },
 }
 
 # A page that builds content after it loads says it has finished as a page does to
@@ -226,11 +313,12 @@ READ = """({props, within, mark}) => {
 SCROLL = "top => document.scrollingElement.scrollTo({top, behavior: 'instant'})"
 # Scroll events and media listeners run in the next rendering update.
 NEXT_FRAME = "() => new Promise((resolve) => requestAnimationFrame(resolve))"
-OPEN_DIALOGS = """() => {
+OPEN_DIALOGS = """open => {
   const dialogs = [...document.querySelectorAll('body > main dialog')];
-  for (const dialog of dialogs) dialog.showModal();
+  for (const dialog of dialogs) open ? dialog.showModal() : dialog.close();
   return dialogs.length;
 }"""
+SCHEME = "scheme => { document.documentElement.style.colorScheme = scheme; }"
 
 
 def _declared(styles) -> tuple[set[str], bool]:
@@ -311,9 +399,25 @@ class Arm:
         page.evaluate(SCROLL, 0)
         self.settle()
         self.dialogs = None
-        if page.evaluate(OPEN_DIALOGS):
+        if page.evaluate(OPEN_DIALOGS, True):
             self.settle()
             self.dialogs = self.read(within="dialog")
+            page.evaluate(OPEN_DIALOGS, False)
+            self.settle()
+
+    def dark_under(self, scheme: str) -> dict:
+        """The dark medium's reading with the root's colour scheme set to `scheme`, so
+        the browser's own colours resolve as they do under that scheme elsewhere."""
+        dark = next(
+            at for at, medium in enumerate(MEDIA) if medium["color_scheme"] == "dark"
+        )
+        self.page.emulate_media(**MEDIA[dark])
+        self.page.evaluate(SCHEME, scheme)
+        self.settle()
+        reading = self.read()
+        self.page.evaluate(SCHEME, "")
+        self.page.emulate_media(**MEDIA[0])
+        return reading
 
     def settle(self):
         if self.standalone:
@@ -413,19 +517,23 @@ def _styles(plain, served):
     return [change for change in changed if not follows(*change)], missing, added
 
 
-def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str]]:
-    """Each way the Leaf page's look departs from the author's, as (kind, words). The
-    kinds: a property the author declared on the element (`overridden`) or that reached
-    it from an ancestor (`inherited`), the `canvas`, a positioned box's `position`, an
-    element `missing` from the Leaf page or `added` to it, and the root's
-    `color-scheme`, where the author left it alone and Leaf's differs. That one decides
-    what every system colour resolves to under the page, so a colour that differs only in
-    the dark medium follows from it. A property that differs the same way on many
-    elements is one finding, naming the first."""
+def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str, str]]:
+    """Each way the Leaf page's look departs from the author's, as (kind, pin, words).
+    The kinds: a property the author declared on the element (`overridden`) or that
+    reached it from an ancestor (`inherited`), the `canvas`, a positioned box's
+    `position`, an element `missing` from the Leaf page or `added` to it, and the root's
+    `color-scheme`, where the author left it alone and Leaf's differs. A property that
+    differs the same way on many elements is one finding, naming the first. Its pin
+    names the property and the elements, not the values, so `KNOWN` holds still while a
+    theme's colours change but not while an override reaches anything new.
+
+    The root's colour scheme decides what every system colour resolves to under the
+    page, so where Leaf's differs, the dark medium is compared with the standalone page
+    read under Leaf's scheme: what still differs there is Leaf's doing."""
     found = []
 
-    def note(kind, words):
-        found.append((kind, words))
+    def note(kind, pin, words):
+        found.append((kind, pin, words))
 
     [root, *_], [served_root, *_] = (
         alone.media[0]["elements"],
@@ -435,27 +543,20 @@ def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str]]:
         root["style"]["color-scheme"],
         served_root["style"]["color-scheme"],
     )
-    scheme_moved = "color-scheme" not in root["authored"] and scheme != served_scheme
-    if scheme_moved:
+    readings = list(alone.media)
+    if "color-scheme" not in root["authored"] and scheme != served_scheme:
         note(
             "color-scheme",
+            "color-scheme on the root",
             f"the root's color-scheme is {served_scheme!r}, not the {scheme!r} the"
             " page leaves it at, so in a dark medium the browser draws the page's"
             " own controls, dialogs and system colours dark",
         )
+        dark = next(at for at, m in enumerate(MEDIA) if m["color_scheme"] == "dark")
+        readings[dark] = alone.dark_under(served_scheme)
 
-    def compare(label, plain, served, lit=None):
+    def compare(label, plain, served):
         changed, missing, added = _styles(plain, served)
-        if lit is not None:
-            changed = [
-                change
-                for change in changed
-                if (change[1], change[2]) in lit
-                or not (
-                    "color" in change[2]
-                    or change[2] in {"box-shadow", "background-image"}
-                )
-            ]
         alike = {}
         for kind, key, prop, now, was in changed:
             alike.setdefault((kind, prop, now, was), []).append(key)
@@ -463,11 +564,14 @@ def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str]]:
             more = f" and {len(keys) - 1} more" if len(keys) > 1 else ""
             note(
                 kind,
+                f"{kind} {prop} on {keys[0]}{more}",
                 f"{label}: {prop} is {now!r} where the author's {kind} value gives"
                 f" {was!r}, on {keys[0]}{more}",
             )
-        found.extend(("missing", f"{label}: {key} is missing") for key in missing)
-        found.extend(("added", f"{label}: Leaf adds {key}") for key in added)
+        for key in missing:
+            note("missing", f"missing {key}", f"{label}: {key} is missing")
+        for key in added:
+            note("added", f"added {key}", f"{label}: Leaf adds {key}")
         backgrounds = {"background-color", "background-image"}
         if (
             (plain["canvasShows"] or served["canvasShows"])
@@ -480,21 +584,13 @@ def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str]]:
         ):
             note(
                 "canvas",
+                "canvas around body",
                 f"{label}: the canvas around body is {served['canvas']!r},"
                 f" not {plain['canvas']!r}",
             )
-        return {(key, prop) for _, key, prop, *_ in changed}
 
-    lit = None
-    for medium, plain, served in zip(MEDIA, alone.media, leaf.media, strict=True):
-        dark = medium["color_scheme"] == "dark"
-        shown = compare(
-            " and ".join(medium.values()),
-            plain,
-            served,
-            lit if dark and scheme_moved else None,
-        )
-        lit = shown if lit is None else lit
+    for medium, plain, served in zip(MEDIA, readings, leaf.media, strict=True):
+        compare(" and ".join(medium.values()), plain, served)
     if alone.dialogs:
         compare("dialog open", alone.dialogs, leaf.dialogs)
     rest = alone.media[0]
@@ -520,6 +616,7 @@ def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str]]:
             ):
                 note(
                     "position",
+                    f"position of {element['key']} {label.split()[0]}",
                     f"{label}: {element['key']} stands at {other},"
                     f" not {element['rect']}",
                 )
@@ -559,12 +656,12 @@ def site_of(source: Path, into: Path) -> Path:
 
 @contextmanager
 def checked(browser, page_dir: Path):
-    """What `page check --render` refuses the page for, as (code, words), with the URL
+    """What `page check --render` refuses the page for, as (code, pin, words), with the URL
     the candidate it read is served at while the block runs, or None where the source
     check refused it."""
     result = check_source(page_dir, read_events(page_dir))
     if result.errors:
-        yield [(error.code, str(error)) for error in result.errors], None
+        yield [(e.code, f"{e.code} {e.at}", str(e)) for e in result.errors], None
         return
     with preview_server(
         page_dir,
@@ -585,7 +682,7 @@ def checked(browser, page_dir: Path):
                 implementations=result.artifact.implementations,
                 declaration_sources=result.artifact.declaration_sources,
             ).failures
-        yield [(finding.code, str(finding)) for finding in found], url
+        yield [(f.code, f"{f.code} {f.at}", str(f)) for f in found], url
 
 
 @pytest.mark.parametrize("source", SOURCES, ids=lambda path: path.stem)
@@ -608,10 +705,11 @@ def test_an_ordinary_page_is_drawn_as_written(
                 alone, Arm(page, standalone=False, scroll=alone.scroll)
             )
 
-    known = KNOWN.get(source.stem, set())
-    unexplained = [words for kind, words in found if kind not in known]
+    known = KNOWN.get(source.stem, {})
+    pinned = {pin for pins in known.values() for pin in pins}
+    unexplained = [f"{pin}: {words}" for _, pin, words in found if pin not in pinned]
     assert not unexplained, "\n".join(unexplained)
-    lifted = known - {kind for kind, _ in found}
-    assert not lifted, f"{sorted(lifted)} no longer occur here: remove them from KNOWN"
+    lifted = pinned - {pin for _, pin, _ in found}
+    assert not lifted, f"no longer found, so remove from KNOWN: {sorted(lifted)}"
     if known:
-        pytest.xfail("; ".join(OBSTACLES[kind] for kind in sorted(known)))
+        pytest.xfail("; ".join(OBSTACLES[obstacle] for obstacle in sorted(known)))

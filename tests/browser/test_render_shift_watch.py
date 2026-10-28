@@ -3795,6 +3795,27 @@ motion.pause();motion.currentTime=150;
     errors = take_browser_errors(page)
     assert names_move(errors, "p#trigger"), errors
     assert names_move(errors, "button#control") == bool(fault), errors
+    if fault == "child":
+        finding = next(
+            error for error in errors if is_problem(error, moved_within("button#control"))
+        )
+        comparisons = shift_evidence(finding)["comparisons"]
+        motions = [
+            animation
+            for comparison in comparisons
+            for animation in comparison["animations"]
+            if within(animation["target"], "div#panel")
+        ]
+        assert motions, comparisons
+        assert any(
+            motion["selected"]
+            and "translate" in motion["properties"]
+            and motion["before"]
+            and motion["after"]
+            and "translate" in motion["before"]["values"]
+            and "translate" in motion["after"]["values"]
+            for motion in motions
+        ), motions
 
 
 @pytest.mark.parametrize(

@@ -29,7 +29,7 @@
    shadow root does not reach. */
 
 import { nextFrame, sizeObserver } from "./rendering.js";
-import { watchOwner } from "./arrivals.js";
+import { announceScroll, watchOwner } from "./arrivals.js";
 
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI
@@ -250,8 +250,10 @@ export const SCROLL_SLACK = 2;
 // a box is resized.
 export const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= SCROLL_SLACK;
 export const scrollToEnd = (box, behavior = "instant") => {
+  const before = box.scrollTop;
   if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
   box.scrollTo({ top: scrollLimit(box), behavior });
+  if (behavior === "instant" && box.scrollTop !== before) announceScroll(box);
 };
 
 // Apply a relative movement to the scroller the caller resolved. Keeping the box explicit
@@ -268,6 +270,7 @@ export const scrollToEnd = (box, behavior = "instant") => {
 // would creep across the screen revision by revision, or frame by frame of a fold.
 const aims = new WeakMap();
 export const moveScrollerBy = (box, top, behavior = "instant") => {
+  const before = box.scrollTop;
   const aim = box.scrollTop + top;
   if (Math.abs(top) >= 0.5) {
     if (behavior !== "instant" && reachable(box, top)) startScroll(box);
@@ -276,6 +279,7 @@ export const moveScrollerBy = (box, top, behavior = "instant") => {
   if (behavior === "instant" && Math.abs(aim - box.scrollTop) < 1)
     aims.set(box, { aim, at: box.scrollTop });
   else aims.delete(box);
+  if (behavior === "instant" && box.scrollTop !== before) announceScroll(box);
 };
 // Where Leaf last aimed `box`, while it stands where that move left it, else its offset.
 // A move that landed a pixel or more off was cut off by the box's range, and names no

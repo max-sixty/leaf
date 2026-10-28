@@ -35,7 +35,7 @@
     "runtime/bounds.js": "caeeec63e8f4c1560e198a5019cb9129899b4a3df4841feb64f18efd78c0a6c0",
     "runtime/box-motion.js": "581cb3ffeefe48fe4896303ea76a23ca1ff67da743705d247b23b466bf1c4a9c",
     "runtime/carry.js": "3727249ae76e1daa4bb5252f884cdbb0f80ce568aaf9d00aba4be47928b4dda8",
-    "runtime/check-api.js": "1d6b1b9fd21f20f427c5f36be1b3d4294856e6e338e7ccf18e06c862179f568a",
+    "runtime/check-api.js": "1ba7a810f8ada3c9afd72b8913871b930c2cd255f0eb4fd08ad8c5b1ebc18554",
     "runtime/chrome.js": "3f1e3eb9fb8288f7751a330b7ffd7f92e1e363eadb6483d076a305b5fe3bfba2",
     "runtime/code-copy.js": "9a3fc62cd506b3357966ac5aa7d36b8efb3dc7086b5658dfc57e28d53dfde22a",
     "runtime/color-scheme.js": "da7a32876aea0b92a0f64226c55fc1661a99ba4841ff413a9200cc0beb5a8b69",

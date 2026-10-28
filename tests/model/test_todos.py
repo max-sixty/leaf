@@ -49,6 +49,7 @@ from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.event_contracts import append_admitted
 from leaf.findings import Rejected
+from leaf.registry import storage as registry_storage
 from leaf.served_state.page import full_state
 from leaf.state import EVENTS_FILE
 
@@ -1903,7 +1904,7 @@ def test_revendoring_can_change_x_work_while_the_target_holds_a_todo(page_dir):
     )
 
     assert result.exit_code == 0, result.output
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = registry_storage.load_registry(page_dir)
     assert "x-work" not in registry["lf-card"]
     [todo] = state_json(page_dir)["todos"]
     assert todo["subject"] == {"kind": "widget", "id": "rollout-card"}

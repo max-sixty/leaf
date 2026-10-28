@@ -67,12 +67,12 @@ def install() -> dict[str, Resource]:
     layer = compose_layer(
         layer_inputs(tuple(sorted({widget.package for widget in PORTABLE})))
     )
-    captured = {
+    files = {
         f"/{sub}/{name}": Resource(data, resource_type(name))
         for sub in BROWSER_DIRS
         for name, data in layer.directory_files[sub].items()
     }
-    return read_runtime().resources(captured)
+    return read_runtime().resources(files, {})
 
 
 def plain_page() -> str:

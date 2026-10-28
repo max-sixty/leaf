@@ -45,7 +45,6 @@ from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import file_changes as file_changes_model
-from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
@@ -59,6 +58,7 @@ from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+from leaf.registry.storage import LAYER, layer_record
 
 
 def handed(page_dir, input_id: str) -> bool:
@@ -1687,10 +1687,7 @@ def test_a_hook_renews_no_page_another_session_took_after_it_listed_its_pages(
     monkeypatch.setattr(hook_transport_model, "owned_pages", lambda _: [claimed])
 
     assert hook_transport_model.read_plans("s1") == []
-    assert (
-        files_model.read_json(claimed / "registry.json")["$events"]["protocol"]
-        == vendored
-    )
+    assert layer_record(claimed)["protocol"] == vendored
 
 
 def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypatch):
@@ -1704,13 +1701,16 @@ def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypa
     def newer_leaf_first(page_dir):
         if next(raced, False):
             # Another Leaf's own `page init` reaches the page before this one.
-            registry = files_model.read_json(page_dir / "registry.json")
-            registry["$events"]["protocol"] += 2
-            cleanup_model.write_json(page_dir / "registry.json", registry)
+            record = layer_record(page_dir)
+            (page_dir / schema_model.LAYER_FILE).unlink()
+            LAYER.write(
+                page_dir / schema_model.LAYER_FILE,
+                {**record, "protocol": record["protocol"] + 2},
+            )
         return locked(page_dir)
 
     monkeypatch.setattr(vendoring_model, "page_locked", newer_leaf_first)
-    newer = files_model.read_json(claimed / "registry.json")["$events"]["protocol"] + 2
+    newer = layer_record(claimed)["protocol"] + 2
 
     assert (
         vendoring_model.renew_layer(
@@ -1718,9 +1718,7 @@ def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypa
         )
         is None
     )
-    assert (
-        files_model.read_json(claimed / "registry.json")["$events"]["protocol"] == newer
-    )
+    assert layer_record(claimed)["protocol"] == newer
 
 
 def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
@@ -1732,8 +1730,8 @@ def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
     the same input again. It names the page protocol and the re-vendor instead, and
     the input waits on the page for the first prompt after the page is writable
     again."""
-    stamp = claimed / "registry.json"
-    vendored = stamp.read_text(encoding="utf-8")
+    stamp = claimed / schema_model.LAYER_FILE
+    vendored = layer_record(claimed)
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
@@ -1752,7 +1750,8 @@ def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
     assert hook_transport_model.INLINE_OPENING not in refused
     assert acknowledged_through(claimed) < comment["seq"]
 
-    cleanup_model.write_json(stamp, json.loads(vendored))
+    stamp.unlink()
+    LAYER.write(stamp, vendored)
     assert prompt().startswith(hook_transport_model.INLINE_OPENING)
     assert handed(claimed, comment["id"])
 

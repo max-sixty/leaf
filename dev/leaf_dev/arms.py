@@ -1107,7 +1107,7 @@ class PageClient:
         revision and the retry key, as the browser does.
 
         An answer naming another layer than the one posted on admitted nothing: the
-        page was re-vendored between the state read and the post. A tab reloads onto
+        page was re-initialized between the state read and the post. A tab reloads onto
         that layer and the user moves again, so the move is posted again under it.
         """
         layer = self.state()["layer"]["generation"]

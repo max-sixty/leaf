@@ -944,5 +944,6 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
             check=False,
         )
         assert ran.returncode == 0, ran.stderr
-        assert "re-vendor" not in ran.stderr
+        assert "re-initialized" not in ran.stderr
+        assert "older page protocol" not in ran.stderr
     assert fetch(f"{server}/api/state")[0] == 200

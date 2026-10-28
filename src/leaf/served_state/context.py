@@ -70,7 +70,7 @@ class PageRead:
     def layer(self) -> dict:
         """The layer identity a page with no active revision is served under. Read
         on first use, so a reader that never serves the page, such as delivery, does
-        not need the page's vendored registry to be readable."""
+        not need the page's registry to be readable."""
         return self.stored_layer()
 
     @cached_property

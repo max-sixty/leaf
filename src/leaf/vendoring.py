@@ -72,12 +72,13 @@ def cmd_init(
     theme: ThemeChoice = None,
     dry_run: bool = False,
 ) -> dict:
-    """Create a page, or re-vendor one inside a restart of its service.
+    """Create a page, or rewrite an existing one's layer record inside a restart of
+    its service.
 
-    Everything that can refuse a re-vendor is decided first, in a dry run with the
-    page still served, so a refused re-vendor leaves its server untouched: a
-    restart would bring this Leaf's server back over the layer the page keeps.
-    An identical installed layer and serving contract need no transition, so neither
+    Everything that can refuse the rewrite is decided first, in a dry run with the
+    page still served, so a refused one leaves its server untouched: a restart
+    would bring this Leaf's server back over a record it may not serve.
+    An unchanged record and package copies need no transition, so neither
     files nor the server change. `dry_run` reports this decision without committing.
     Only a changed contract takes the service down (`hosting.restarting_server`)
     for the init itself, which decides again under the page transaction, since the page may
@@ -92,7 +93,7 @@ def cmd_init(
     made = not page_dir.exists()
     if dry_run and made:
         raise Refused(
-            f"{page_dir} does not exist; initialize it before planning a re-vendor"
+            f"{page_dir} does not exist; initialize it before planning a change"
         )
     if made:
         _refuse_package_target(
@@ -108,7 +109,7 @@ def cmd_init(
                 plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
             return {"page": str(page_dir), "changed": plan.changed}
         unready = _unready(
-            page_dir, _revendor(page_dir, selected, session_harness(), theme=theme)
+            page_dir, _reinit(page_dir, selected, session_harness(), theme=theme)
         )
         if unready:
             note(unready)
@@ -126,30 +127,28 @@ def cmd_init(
 
 
 def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
-    """Re-vendor a page vendored at an older page protocol, which this Leaf cannot
-    serve (`event_contracts.write_refusal`), for the session `harness` names, and say
-    what still holds the page back, for its agent to act on.
+    """Take a page at an older page protocol, which this Leaf cannot serve
+    (`event_contracts.write_refusal`), to this Leaf's, for the session `harness`
+    names, and say what still holds the page back, for its agent to act on.
 
     A plugin update that bumps the page protocol reaches a running session, and its
     Leaf then refuses every page the session holds until the agent runs the
-    `leaf page init` the refusal names. That re-vendor keeps the page's log, and so
-    its threads and decisions, and its source, so it asks nothing of the agent's
-    judgment, and the first Leaf to act for the page's session makes it instead: a
-    write command naming the page (`cli.page_argument`) or a prompt or Stop hook
-    (`hook_transport.read_plans`). Only the session holding the page renews it, or
-    any caller while no live session does: another session may still run the Leaf
-    that vendored the page, which a re-vendor would lock out of it, and its own
+    `leaf page init` the refusal names. That init keeps the page's log, and so
+    its threads and decisions, its source and its selection, so it asks nothing of
+    the agent's judgment, and the first Leaf to act for the page's session makes it
+    instead: a write command naming the page (`cli.page_argument`) or a prompt or
+    Stop hook (`hook_transport.read_plans`). Only the session holding the page renews
+    it, or any caller while no live session does: another session may still run the
+    Leaf that initialized the page, which renewing would lock out of it, and its own
     first hook under this Leaf renews it. Nor does it renew a page a newer Leaf
-    vendored, which `_plan_page` refuses. A layer documenting an x- key this Leaf
-    does not admit stays refused too: the key may be one a newer Leaf added at the
-    same protocol, which a re-vendor here would strip.
+    initialized, which `_plan_page` refuses.
 
-    What it finds is why the re-vendor was refused, or the `page check` errors that
+    What it finds is why the renewal was refused, or the `page check` errors that
     keep index.html from activating under the new layer, since a source an older
     Leaf accepted may fail this one's checks. None where the page needed no
-    re-vendor or took one cleanly. Each of these readings is taken again under the
-    page lock and transaction the re-vendor holds, since another Leaf, newer or
-    older, may re-vendor the page or another session take it in between."""
+    renewal or took one cleanly. Each of these readings is taken again under the
+    page lock and transaction the renewal holds, since another Leaf, newer or
+    older, may re-initialize the page or another session take it in between."""
 
     def renewable() -> bool:
         from .event_contracts import write_refusal
@@ -175,14 +174,14 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     if not renewable():
         return None
     try:
-        return _unready(page_dir, _revendor(page_dir, None, harness, renewable))
+        return _unready(page_dir, _reinit(page_dir, None, harness, renewable))
     except Refused as error:
         return Finding(
-            "revendor-refused", values={"page": str(page_dir), "error": str(error)}
+            "renewal-refused", values={"page": str(page_dir), "error": str(error)}
         )
 
 
-def _revendor(
+def _reinit(
     page_dir: Path,
     selected: tuple[str, ...] | None,
     harness: Harness | None,
@@ -190,11 +189,11 @@ def _revendor(
     *,
     theme: ThemeChoice = None,
 ) -> list[Finding]:
-    """Re-vendor an initialized page inside a restart of its service, returning the
-    errors that keep its index.html from activating under the new layer. Everything
-    that can refuse is decided first, with the page still served, and an unchanged
-    contract restarts nothing (`cmd_init`). `still` says, under each lock, whether
-    the re-vendor is still wanted."""
+    """Rewrite an initialized page's layer record inside a restart of its service,
+    returning the errors that keep its index.html from activating under the new
+    layer. Everything that can refuse is decided first, with the page still served,
+    and an unchanged record restarts nothing (`cmd_init`). `still` says, under each
+    lock, whether the rewrite is still wanted."""
     with page_locked(page_dir):
         if not still():
             return []
@@ -206,11 +205,12 @@ def _revendor(
 
 
 def _unready(page_dir: Path, errors: list[Finding]) -> Finding | None:
-    """What a re-vendor that left `errors` tells the agent, or None for none."""
+    """What a re-initialization that left `errors` tells the agent, or None for
+    none."""
     if not errors:
         return None
     return Finding(
-        "unready-revendor",
+        "unready-reinit",
         values={"page": str(page_dir), "errors": [str(error) for error in errors]},
     )
 
@@ -249,7 +249,7 @@ def _init_page(
     # it, and a start can land in between.
     if lock_is_held(page_dir / SERVER_LOCK):
         raise Refused(
-            f"a server started on {page_dir} while it was being re-vendored; "
+            f"a server started on {page_dir} while it was being re-initialized; "
             f"re-run `leaf page init {page_dir}`"
         )
     # Successful init creates the append-only log's stable inode. A directory

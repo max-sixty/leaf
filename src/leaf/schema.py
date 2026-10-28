@@ -628,7 +628,7 @@ DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 # A page's layer record (`registry.storage.LAYER`): the packages it selects.
 LAYER_FILE = "layer.json"
 # The top-level files a composed layer serves beside the page (`layer.compose_layer`).
-VENDORED_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
+LAYER_TOP_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
 # A package's source contributions are composed into the page files above. Their
 # roles depend on their filenames, not on whether the package declares widgets.
 PACKAGE_STYLES = (
@@ -639,18 +639,18 @@ PACKAGE_STYLES = (
 PACKAGE_FILES = (*PACKAGE_STYLES, "registry.json", "icon.svg")
 # The layer's browser directories, which packages add to.
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
-# What the Leaf serving a page supplies rather than its vendored layer: the runtime's
+# What the Leaf serving a page supplies beside the layer it composes: the runtime's
 # entry and ASSETS's files under these directories (`runtime_selection`).
 RUNTIME_ENTRY = "leaf.js"
 RUNTIME_DIRS = ("runtime", "vendor")
 INSTRUCTIONS_DIR = "instructions"
 PACKAGE_DIRS = (*BROWSER_DIRS, INSTRUCTIONS_DIR)
 # A package's own command-line tools, run by `leaf package run` from wherever the
-# package is installed or bundled. A page never vendors them: they are the agent's.
+# package is installed or bundled. A page never copies them: they are the agent's.
 SCRIPTS_DIR = "scripts"
 INSTRUCTIONS_FILE = re.compile(rf"{HTML_NAME}\.md")
-# Media the page shows, named by the hash of their bytes (`page media`). Not vendored
-# — they are the page's content, not the layer's — but served like it, and the
+# Media the page shows, named by the hash of their bytes (`page media`). They are the
+# page's content, not the layer's, but served like it, and the
 # naming is what keeps the directory's promise: same name, same bytes, so a
 # version the user approved cannot show them something else later.
 MEDIA_DIR = "media"
@@ -721,7 +721,7 @@ PAGE_OWNED_DIRS = ("revisions", MEDIA_DIR, DATA_DIR, "page", PACKAGES_DIR)
 # A revision's and a version's file name, without `.html`.
 REVISION_NAME = r"r(?P<revision>[1-9][0-9]*)-[a-f0-9]{16}"
 VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
-# The directories of a page's URL namespace beneath its root, beside its vendored
+# The directories of a page's URL namespace beneath its root, beside its layer's top
 # files: its API, its browser layer, and what its session writes after a publish (the
 # media it adds, the revisions it activates, the versions it stamps). The website
 # adapter routes exactly these and those files to a page, and so does the Worker in
@@ -749,8 +749,8 @@ MODULE_EXTENSION = (
 # Share safe path segments with vendor files, excluding traversal segments.
 BROWSER_FILE = r"(?:(?!\.{1,2}/)[^/\\\x00-\x1f]+/)*(?!\.{1,2}$)[^/\\\x00-\x1f]+"
 # What the server exposes from a page: the browser layer, media, immutable revisions,
-# and event-backed version addresses. Agent-side instructions stay vendored but are read
-# only through the CLI.
+# and event-backed version addresses. A layer's agent-side instructions are read only
+# through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.
 DIR_FILES = {
@@ -764,7 +764,7 @@ DIR_FILES = {
 SERVED_PATH = re.compile(
     "/(?:"
     + "|".join(
-        [re.escape(f) for f in VENDORED_FILES]
+        [re.escape(f) for f in LAYER_TOP_FILES]
         + [f"{d}/{DIR_FILES[d]}" for d in (*BROWSER_DIRS, MEDIA_DIR)]
         + [rf"versions/{VERSION_NAME}\.html"]
         + [rf"revisions/{REVISION_NAME}\.html"]

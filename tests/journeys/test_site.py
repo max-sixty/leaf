@@ -389,7 +389,7 @@ def test_product_pages_are_published_as_complete_page_records(site):
 def test_page_layers_stay_inside_their_page_directories(site):
     """The container image keeps complete pages rather than a public layer beside them."""
     for name in (
-        *schema_model.VENDORED_FILES,
+        *schema_model.LAYER_TOP_FILES,
         "session.js",
         "runtime.js",
         "events.jsonl",

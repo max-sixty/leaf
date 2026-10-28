@@ -415,7 +415,7 @@ def test_revendoring_activates_current_delivery_handling_only_for_valid_source(
 
     assert result.exit_code == 0, result.output
     assert source.read_bytes() == unchanged_markup
-    assert ("unready-revendor" in result.output) is not valid_source
+    assert ("unready-reinit" in result.output) is not valid_source
     capsys.readouterr()
     serving(page_dir, 1)
     append_carried_log_record(

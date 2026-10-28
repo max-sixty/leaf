@@ -300,7 +300,7 @@ class PageEndpoint:
         # the deliberately unattended page for an abandoned ordinary Leaf.
         self.publication = publication
         # A website release spans its document, static layer and container image.
-        # Ordinary page servers have no release boundary beyond their vendored layer.
+        # Ordinary page servers have no release boundary beyond their layer generation.
         self.release = release
         # Empty on the ordinary one-page server. A published site and a sample's child
         # serve beneath a prefix, and only Leaf-owned routes are rewritten under it.
@@ -341,7 +341,7 @@ class PageEndpoint:
 
     @property
     def layer(self) -> str:
-        """The generation the bound page's vendored layer was composed at.
+        """The generation of the bound page's layer record.
 
         Derived rather than stored, so binding a page in `_select_page` cannot leave
         a second copy of it behind. Empty until a multiplexed transport has bound one.
@@ -871,7 +871,7 @@ class PageEndpoint:
         """The generation a tab reading `revision` speaks: that revision's layer, or
         the page's own when there is no revision or this Leaf refuses it.
 
-        A tab whose page was re-vendored under it still holds a revision of the older
+        A tab whose page was re-initialized under it still holds a revision of the older
         layer, and can read an answer that carries nothing newer, such as a freshness
         token, in that layer. The newer layer reaches it as a revision whose executable
         changed, which the tab installs once the user is not in the middle of
@@ -1029,7 +1029,7 @@ class PageEndpoint:
             return self._resource_content(resource)
         file = self.page_dir / path.lstrip("/")
         # The allowlist rejects traversal spellings; containment is the second
-        # boundary for a page directory edited or symlinked after vendoring.
+        # boundary for a page directory edited or symlinked after `page init`.
         if file.is_file() and path_is_within(file, self.page_dir):
             ctype = CONTENT_TYPES.get(Path(path).suffix, "application/octet-stream")
             resource = deliver_resource(
@@ -1437,9 +1437,9 @@ def page_endpoint(
     """Bind one page, publication view, and key to the endpoint each request becomes.
 
     The layer identity and the preview reading are read once here rather than per
-    request: they are facts about the vendored page this server was started over. So
+    request: they are facts about the layer record this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
-    or temporary, passes here before it binds, and refuses naming the re-vendor when
+    or temporary, passes here before it binds, and refuses naming `page init` when
     the page's layer is one this Leaf cannot serve (`incompatible_layer`). A
     snapshot serves the revision it froze, which its capture already judged
     (`page_snapshot.capture_page_snapshot`).
@@ -1479,7 +1479,7 @@ def page_app(endpoint, server):
     """
 
     server.samples = {}
-    server.leaf = running_leaf()
+    running_leaf()
     serving_runtime()
 
     async def app(scope, receive, send) -> None:

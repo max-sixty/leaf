@@ -37,9 +37,11 @@ launching checkout's `bin/leaf`.
 
 While it runs, `watchfiles` reports edits. Initialization decides whether the layer
 actually changed; identical saves leave the browser and server alone. A source or
-`.page/` companion edit is stamped into the live page at the same URL; a layer edit
-re-vendors through `page init`, which mints a new layer generation the browser follows
-into a fresh document. A refused update is printed and retried after the next edit.
+`.page/` companion edit is stamped into the live page at the same URL. A package or
+runtime edit restarts the server, which composes the layer afresh, and a changed
+selection goes through `page init`, which mints a new layer generation the browser
+follows into a fresh document. A refused update is printed and retried after the next
+edit.
 Fixture history, literal data seeds and earlier versions initialize a fresh slot.
 Live updates follow current markup, page-owned files, captured data files, media
 and the browser runtime. Restarting a user preview preserves its history and current
@@ -312,7 +314,7 @@ def refused(reason) -> bool:
 class PreviewService:
     """The preview's server: a process-owned one on a retained address, or for
     `--user` the page's claimed durable service, which `page init` restarts itself
-    around a re-vendor. The two modes are told apart here and nowhere else.
+    around a layer change. The two modes are told apart here and nowhere else.
     """
 
     def __init__(self, page: Path, user: bool, prepared_claim: dict | None = None):
@@ -377,7 +379,7 @@ class PreviewService:
 
     @contextlib.contextmanager
     def replacing(self):
-        """Hold a process-owned server down across a re-vendor and bring it back,
+        """Hold a process-owned server down across a layer change and bring it back,
         admitted or not, unless the preview itself is ending. `page init` restarts
         a `--user` service itself."""
         if self.user:
@@ -435,7 +437,7 @@ class PreviewService:
         its service was stopped or its claim left this session.
 
         A `--user` service still enabled but down is not ended. That is a server
-        that died, or one `page init` re-vendored but could not start again (the
+        that died, or one `page init` restarted but could not start again (the
         recorded port was taken), and the watcher tries it again."""
         from leaf.server import read_service
         from leaf.service import claim_is_active, page_claim, same_claim
@@ -630,7 +632,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     scripts = runtime / "src"
     resolved_roots = {root.resolve() for root in roots}
     # The layer reading follows a link inside a package as well as one at its root,
-    # so a vendored file can resolve outside every package root.
+    # so a layer file can resolve outside every package root.
     package = [
         path
         for path in input_paths(roots)
@@ -928,7 +930,7 @@ def serve_preview(
                 refused(error)
                 continue
             if not changes.matches(watch_roots(rebuilt)):
-                # A refresh can change which packages the page vendors, and a
+                # A refresh can change which packages the page selects, and a
                 # subscription is fixed for its lifetime. Holding the old one
                 # wherever the roots stand still keeps the edits made during the
                 # refresh, which the rust watcher collected while this was busy.
@@ -936,7 +938,7 @@ def serve_preview(
                 changes = watch_changes(rebuilt)
             watched = rebuilt
             if service.user and not service.running:
-                # A server that died, or that a re-vendor could not start again,
+                # A server that died, or that `page init` could not start again,
                 # which said why. The next watcher poll is another try.
                 service.serve_again()
             if refreshed and service.running:
@@ -1062,7 +1064,7 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
     "--runtime",
     type=click.Path(path_type=Path),
     default=ROOT,
-    help="Leaf checkout whose bin/leaf vendors the page.",
+    help="Leaf checkout whose bin/leaf initializes and serves the page.",
 )
 @click.option(
     "--slot",

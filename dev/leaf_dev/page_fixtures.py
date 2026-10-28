@@ -339,7 +339,7 @@ def read_event_lines(path: Path) -> list[dict]:
 
 
 # Run by the page's own runtime, so its admission admits each event and writes the
-# receipt: another Leaf refuses a page vendored at a different protocol, and would
+# receipt: another Leaf refuses a page at a different protocol, and would
 # write the events in its own shape rather than the page's. Each event goes through
 # the door every writer uses, so the log holds what a real page's would: admission
 # refuses an event no writer could send and writes the fields it derives, such as an

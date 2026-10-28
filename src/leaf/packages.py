@@ -263,7 +263,7 @@ def validate_package_dir(package: Path) -> list:
         raise Refused(
             f"package path {target} is owned by initialized page {page}; "
             "packages must stay separate from page-owned paths, "
-            "then run `page init` to re-vendor the page"
+            "then run `page init` again"
         )
     refuse_package_overlap(paths, protected)
     return protected

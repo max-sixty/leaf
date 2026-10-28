@@ -26,11 +26,11 @@ from .schema import (
     INSTRUCTIONS_FILE,
     JAVASCRIPT_SUFFIXES,
     KERNEL,
+    LAYER_TOP_FILES,
     PACKAGE_DIRS,
     PACKAGE_FILES,
     RUNTIME_DIRS,
     RUNTIME_ENTRY,
-    VENDORED_FILES,
 )
 from .state import PLUGIN_ROOT
 
@@ -106,7 +106,7 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
             continue
         if not root.is_dir():
             raise Refused(f"{root} must be a directory")
-        for name in VENDORED_FILES if root == ASSETS else PACKAGE_FILES:
+        for name in LAYER_TOP_FILES if root == ASSETS else PACKAGE_FILES:
             path = root / name
             if (path.exists() or path.is_symlink()) and not path.is_file():
                 raise Refused(f"{path} must be a file")
@@ -139,7 +139,7 @@ def input_paths(inputs: list[Path]) -> list[Path]:
         paths.append(root.resolve())
         paths.extend(
             path.resolve()
-            for name in (VENDORED_FILES if root == ASSETS else PACKAGE_FILES)
+            for name in (LAYER_TOP_FILES if root == ASSETS else PACKAGE_FILES)
             if ((path := root / name).exists() or path.is_symlink())
         )
         paths.extend(
@@ -477,7 +477,7 @@ def files_identity(files: dict[str, bytes]) -> str:
 
 
 def layer_fingerprint(composition: LayerComposition) -> str:
-    """Identify the complete composed layer independently of its vendoring epoch."""
+    """Identify the complete composed layer independently of its generation."""
     return files_identity(
         {
             **composition.top_files,
@@ -556,7 +556,7 @@ def incompatible_layer(page_dir: Path, record: dict) -> Finding | None:
         return None
     values = {
         "page": str(page_dir),
-        "vendored": recorded if recorded is not None else "none",
+        "recorded": recorded if recorded is not None else "none",
         "leaf": str(PLUGIN_ROOT),
         "protocol": kernel_protocol(),
     }
@@ -745,7 +745,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         )
 
     top_files = composed_sheets(roots)
-    for name in VENDORED_FILES:
+    for name in LAYER_TOP_FILES:
         if name == "registry.json" or name in top_files:
             continue
         source = next(

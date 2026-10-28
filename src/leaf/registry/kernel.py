@@ -34,9 +34,8 @@ def kernel_event_kinds() -> dict:
 
 def kernel_protocol() -> int:
     """The number of the contract between a page and the Leaf serving it, which a
-    page records by carrying the `$events` it was vendored with
-    (`layer.incompatible_layer`). It versions the records Leaf keeps outside a page
-    too (`state.Record`)."""
+    page's layer record names as `protocol` (`layer.incompatible_layer`). It
+    versions the records Leaf keeps outside a page too (`state.Record`)."""
     return _kernel_events()["protocol"]
 
 

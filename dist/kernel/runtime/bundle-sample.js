@@ -1,6 +1,5 @@
 import { frameVisibility, nextRender, onFrameVisibility, readSampleVisibility, sizeObserver, watchFrame } from "./bundle-portable.js";
-import { inputInFrame, keeps, move } from "./bundle-dom-move.js";
-import { pageUrl, runtime } from "./bundle-layer-stack.js";
+import { inputInFrame, keeps, move, pageUrl, runtime } from "./bundle-layer-stack.js";
 import { recordInteraction, requestJson } from "./bundle-layer-client.js";
 import { aborted, widgetDescriptor } from "./bundle-data.js";
 import { frameView, layoutWindow, presented, watchRoom } from "./bundle-geometry.js";

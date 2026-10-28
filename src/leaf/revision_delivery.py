@@ -62,6 +62,7 @@ from .structure import (
     UTF8_BOM,
     SourceDocument,
     annotation_mode,
+    delivered_elements,
     element_attrs,
     page_layout,
     rel_tokens,
@@ -223,114 +224,98 @@ def rebase_document(
     def rebase(reference: str) -> str:
         return _rebase(reference, "/index.html", address)
 
-    roots = [tree]
-    for root in roots:
-        for element in root.find_all(True):
-            if element.shadow_root is not None:
-                roots.append(element.shadow_root)
-            location = element.source_location
-            if location is None:
-                continue
-            attrs = element_attrs(element)
-            tag = element.tag
-            if tag == "script" and address("/leaf.js") is None:
-                start = span(location.start_tag)[0]
-                end = span(location.end_tag or location.start_tag)[1]
-                edits.append((start, end, ""))
-                continue
-            stylesheet = tag == "link" and "stylesheet" in rel_tokens(attrs)
-            if (
-                stylesheet
-                and inline_stylesheet is not None
-                and (located := page_path(attrs.get("href", ""), "/index.html"))
-            ):
-                # Preserve stylesheet declarations, such as its media and data attributes;
-                # only the linked resource's address and fetch mechanism disappear.
-                kept = _attributes(
-                    {
-                        name: value
-                        for name, value in attrs.items()
-                        if name not in {"rel", "href", "crossorigin", "integrity"}
-                    }
+    for element in delivered_elements(tree):
+        location = element.source_location
+        if location is None:
+            continue
+        attrs = element_attrs(element)
+        tag = element.tag
+        if tag == "script" and address("/leaf.js") is None:
+            start = span(location.start_tag)[0]
+            end = span(location.end_tag or location.start_tag)[1]
+            edits.append((start, end, ""))
+            continue
+        stylesheet = tag == "link" and "stylesheet" in rel_tokens(attrs)
+        if (
+            stylesheet
+            and inline_stylesheet is not None
+            and (located := page_path(attrs.get("href", ""), "/index.html"))
+        ):
+            # Preserve stylesheet declarations, such as its media and data attributes;
+            # only the linked resource's address and fetch mechanism disappear.
+            kept = _attributes(
+                {
+                    name: value
+                    for name, value in attrs.items()
+                    if name not in {"rel", "href", "crossorigin", "integrity"}
+                }
+            )
+            css = _raw_text("style", inline_stylesheet(located[0]))
+            start, end = span(location.start_tag)
+            edits.append((start, end, f"<style{kept}>{css}</style>"))
+            continue
+        # An opaque sample shares this native delivery. CORS keeps its local
+        # sheets readable by the CSSOM owners; a no-CORS link would paint but
+        # deny Leaf's layout readings. Same-origin pages
+        # retain their ordinary credentials, and external authored links stand.
+        if (
+            stylesheet
+            and "crossorigin" not in attrs
+            and page_path(attrs.get("href", ""), "/index.html") is not None
+        ):
+            _, end = span(location.start_tag)
+            at = end - (2 if source[end - 2 : end] == "/>" else 1)
+            edits.append((at, at, ' crossorigin="anonymous"'))
+        for name, value in attrs.items():
+            if name == "style":
+                delivered = rebase_css(value, "/index.html", address, declarations=True)
+            elif (tag == "script" and name == "src") or (stylesheet and name == "href"):
+                delivered = rebase(value)
+            else:
+                delivered = rewrite_attribute_references(
+                    tag, attrs, name, value, rebase
                 )
-                css = _raw_text("style", inline_stylesheet(located[0]))
-                start, end = span(location.start_tag)
-                edits.append((start, end, f"<style{kept}>{css}</style>"))
+            if delivered != value:
+                start, end = span(location.attrs[name])
+                edits.append(
+                    (
+                        start,
+                        end,
+                        f'{name}="{html.escape(delivered, quote=True)}"'
+                        if delivered is not None
+                        else "",
+                    )
+                )
+        # Delivery's own scripts (`runtime_element`) run where they stand.
+        authored = "data-lf-runtime" not in attrs
+        if authored and tag == "script" and script_kind(attrs) in {"module", "classic"}:
+            edits.extend(_deferred(source, span, location, attrs))
+        if tag in {"script", "style"} and location.end_tag is not None:
+            start = index(location.start_tag.end_line, location.start_tag.end_col)
+            end = index(location.end_tag.start_line, location.end_tag.start_col)
+            body = source[start:end]
+            if tag == "style":
+                delivered = rebase_css(body, "/index.html", address)
+            elif script_kind(attrs) in {"module", "classic"} and not attrs.get("src"):
+                delivered = rebase_module(
+                    body.encode("utf-8"), "/index.html", address
+                ).decode("utf-8")
+                if authored and script_kind(attrs) == "classic":
+                    # An inline classic script runs from a deferred `data:` file,
+                    # which keeps its global scope and sloppy mode. Its lines are
+                    # padded to where it stands, and `sourceURL` names the
+                    # document, so an error it throws names its line in index.html.
+                    line = location.start_tag.end_line
+                    text = "\n" * (line - 1) + delivered
+                    text += "\n//# sourceURL=index.html"
+                    url = "data:text/javascript;charset=utf-8," + quote(text, safe="")
+                    _, tag_end = span(location.start_tag)
+                    edits.append((tag_end - 1, tag_end - 1, f' src="{url}"'))
+                    delivered = ""
+            else:
                 continue
-            # An opaque sample shares this native delivery. CORS keeps its local
-            # sheets readable by the CSSOM owners; a no-CORS link would paint but
-            # deny Leaf's layout readings. Same-origin pages
-            # retain their ordinary credentials, and external authored links stand.
-            if (
-                stylesheet
-                and "crossorigin" not in attrs
-                and page_path(attrs.get("href", ""), "/index.html") is not None
-            ):
-                _, end = span(location.start_tag)
-                at = end - (2 if source[end - 2 : end] == "/>" else 1)
-                edits.append((at, at, ' crossorigin="anonymous"'))
-            for name, value in attrs.items():
-                if name == "style":
-                    delivered = rebase_css(
-                        value, "/index.html", address, declarations=True
-                    )
-                elif (tag == "script" and name == "src") or (
-                    stylesheet and name == "href"
-                ):
-                    delivered = rebase(value)
-                else:
-                    delivered = rewrite_attribute_references(
-                        tag, attrs, name, value, rebase
-                    )
-                if delivered != value:
-                    start, end = span(location.attrs[name])
-                    edits.append(
-                        (
-                            start,
-                            end,
-                            f'{name}="{html.escape(delivered, quote=True)}"'
-                            if delivered is not None
-                            else "",
-                        )
-                    )
-            # Delivery's own scripts (`runtime_element`) run where they stand.
-            authored = "data-lf-runtime" not in attrs
-            if (
-                authored
-                and tag == "script"
-                and script_kind(attrs) in {"module", "classic"}
-            ):
-                edits.extend(_deferred(source, span, location, attrs))
-            if tag in {"script", "style"} and location.end_tag is not None:
-                start = index(location.start_tag.end_line, location.start_tag.end_col)
-                end = index(location.end_tag.start_line, location.end_tag.start_col)
-                body = source[start:end]
-                if tag == "style":
-                    delivered = rebase_css(body, "/index.html", address)
-                elif script_kind(attrs) in {"module", "classic"} and not attrs.get(
-                    "src"
-                ):
-                    delivered = rebase_module(
-                        body.encode("utf-8"), "/index.html", address
-                    ).decode("utf-8")
-                    if authored and script_kind(attrs) == "classic":
-                        # An inline classic script runs from a deferred `data:` file,
-                        # which keeps its global scope and sloppy mode. Its lines are
-                        # padded to where it stands, and `sourceURL` names the
-                        # document, so an error it throws names its line in index.html.
-                        line = location.start_tag.end_line
-                        text = "\n" * (line - 1) + delivered
-                        text += "\n//# sourceURL=index.html"
-                        url = "data:text/javascript;charset=utf-8," + quote(
-                            text, safe=""
-                        )
-                        _, tag_end = span(location.start_tag)
-                        edits.append((tag_end - 1, tag_end - 1, f' src="{url}"'))
-                        delivered = ""
-                else:
-                    continue
-                if delivered != body:
-                    edits.append((start, end, delivered))
+            if delivered != body:
+                edits.append((start, end, delivered))
 
     return _spliced(source, edits)
 

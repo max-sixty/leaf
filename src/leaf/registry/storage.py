@@ -85,7 +85,7 @@ def selected(record: dict, page_dir: Path):
         return selected_layer(tuple(record["packages"]), theme, page_dir)
     except Refused as error:
         raise RegistryError(
-            Finding("layer-unavailable", values={"error": str(error)})
+            [Finding("layer-unavailable", values={"error": str(error)})]
         ) from None
 
 
@@ -156,7 +156,7 @@ def load_registry(page_dir: Path):
     if record is None:
         return None
     if refusal := incompatible_layer(page_dir, record):
-        raise IncompatibleLayer(refusal)
+        raise IncompatibleLayer([refusal])
     return layer_vocabulary(record, page_dir)
 
 
@@ -275,7 +275,7 @@ def layer_metadata(page_dir: Path) -> dict:
     """The page's layer identity (`layer_metadata_of`), refused before init."""
     record = layer_record(page_dir)
     if record is None:
-        raise RegistryError(Finding("no-layer", values={"page": str(page_dir)}))
+        raise RegistryError([Finding("no-layer", values={"page": str(page_dir)})])
     return layer_metadata_of(record)
 
 

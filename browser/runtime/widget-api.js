@@ -14,28 +14,12 @@
    so a widget that must also run off a Leaf page imports from there and every other
    widget keeps importing from here. */
 export * from "./portable-api.js";
-export {
-  html,
-  noChange,
-  nothing,
-  render,
-  classMap,
-  createRef,
-  guard,
-  keyed,
-  live,
-  ref,
-  repeat,
-  styleMap,
-  unsafeHTML,
-  signal,
-} from "/runtime/framework.js";
+export { signal } from "/runtime/framework.js";
 export { move } from "./dom-move.js";
 export { actionTemplate, iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { LeafElement } from "./leaf-element.js";
 export { quoted } from "./widget-descriptors.js";
-export { initialRender } from "./initial-render.js";
 export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
@@ -158,7 +142,7 @@ export {
   showReadingSubject,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-export { announce, notice } from "./notifications.js";
+export { notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
 export { alignText } from "./text-alignment.js";
 export { inChrome, says, wrote } from "./passages.js";
@@ -183,8 +167,6 @@ export {
   foldBlock,
   backgroundFlash,
   motion,
-  onMotionPreferenceChange,
-  reducedMotion,
   scrollBehavior,
 } from "./motion.js";
 // A package's routes past presentation both declare the arrival, so a widget cannot
@@ -257,5 +239,3 @@ export { tally, tallyWords } from "./obligations/tally.js";
 // The page node the user's current location stands for, through a margin entry or a
 // thread card, as `lf-deck` asks whether the user is on its open card.
 export { placeOf } from "./current-target.js";
-// The time axis the Playwright timeline and lf-timeline both draw on.
-export { assignRows, axisTicks, textWidth } from "./time-axis.js";

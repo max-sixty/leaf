@@ -240,7 +240,8 @@ readers, such as a view the widget switched to. A recorded gesture is acknowledg
 the `says` its dispatch gives (`module-state.md`, "The widget controller"). News not
 caused by the user passes `{background: true}` and waits behind what the user just did;
 `{announce: false}` only shows it. `announce(message)` only announces, for words already
-on screen.
+on screen: it dispatches an `lf-announce` event on the window carrying `message` as its
+`detail`, which Leaf says in its live region and a page without Leaf leaves unsaid.
 
 `raiseError(message)` tells the user a gesture failed, such as a value the server
 refused, and the Leaf panel shows it until they have dealt with it. Its handle's

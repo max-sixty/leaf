@@ -1,5 +1,5 @@
 {
-  "protocol": 34,
+  "protocol": 35,
   "events": {
     "ownership": {
       "derived": ["meaning","attention"],
@@ -71,7 +71,7 @@
       "schema": {"type":"object","properties":{"page":{"type":"string"},"connections":{"type":"object","additionalProperties":{"type":"object","properties":{"origin":{"type":"string"},"credential":{"type":"string"},"header":{"type":"string"},"prefix":{"type":"string"},"remaining":{"type":"integer","minimum":0}},"required":["origin","credential","header","prefix","remaining"]}}},"required":["page","connections"]}
     },
     "layer": {
-      "since": 33,
+      "since": 35,
       "schema": {"description":"A page's layer selection, `layer.json` in its directory: the packages and personal theme every Leaf that reads the page composes, the generation an open document speaks, and the page protocol a Leaf last initialized it at.","type":"object","properties":{"packages":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},"theme":{"anyOf":[{"type":"null"},{"type":"object","properties":{"name":{"type":"string","minLength":1},"source":{"enum":["explicit","default"]}},"required":["name","source"]}]},"generation":{"type":"string","minLength":1},"protocol":{"type":"integer"}},"required":["packages","theme","generation","protocol"]}
     },
     "pointed": {

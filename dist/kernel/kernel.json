@@ -102,7 +102,7 @@
     "runtime/interaction-log.js": "8010d5aee446b9ce5c6bc3f566f7054be9a8e1d26cf4690a14e39cf72a786935",
     "runtime/keeps.js": "e7d47b01a587ec72d79d6af2fbb63855cacfb583e258d5042ecf49247128b909",
     "runtime/kernel-facts.js": "c78d370d976a1a0c498aa3c51f4ec8939194c70c1f43309be106416712c006ac",
-    "runtime/kernel-registry.json": "550e0c0a7b43b928ceea7fe9fad4d858a9599a8f63981cf9b9e1450e17f4e7fe",
+    "runtime/kernel-registry.json": "756cc93af9b34c3e51039850ac208cca53fb132bea0202abcb8616cadb307b21",
     "runtime/keyboard/bindings.js": "50bf8ef73e53ea2174ce7fcd996d004122e9040814359f8263d1aaabc279a260",
     "runtime/keyboard/chip-seats.js": "96b59edd240941e50aa06dcbfc9d4117fe47a8b2ea713d56ebd60bc9fb0285ee",
     "runtime/keyboard/close-requests.js": "aebf0cbb6bc31551e378399f97ade6447b30db5be065dfc12be887babfbbe1b4",

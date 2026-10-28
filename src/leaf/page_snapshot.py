@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 import time
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
@@ -182,6 +183,14 @@ def capture_page_snapshot(
         # the page directory later moves or goes away.
         for reading in readings.values():
             _ = (reading.document, reading.registry)
+        # So does the layer each one is served under, which names the page's own
+        # package copies (`vendoring`).
+        layers = {
+            _layer_key(metadata): served_layer(metadata, page_dir)
+            for metadata in (
+                reading.registry["$layer"] for reading in readings.values()
+            )
+        }
         revision_names = {
             revision: revision_path(page_dir, revision).name for revision in revisions
         }
@@ -225,7 +234,7 @@ def capture_page_snapshot(
             revision=readings.__getitem__,
             registry=registry,
             stored_layer=lambda: layer,
-            serve_layer=lambda metadata: served_layer(metadata, page_dir),
+            serve_layer=lambda metadata: layers[_layer_key(metadata)],
             stored_data=lambda: data,
             bound_files=dict,
             versions=versions,
@@ -240,3 +249,7 @@ def capture_page_snapshot(
         others=others,
         reading=reading,
     )
+
+
+def _layer_key(metadata: dict) -> str:
+    return json.dumps(metadata, sort_keys=True)

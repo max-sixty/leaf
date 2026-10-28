@@ -2221,8 +2221,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         path: path.textContent,
         statGenerated: stat.dataset.lfGen === '1',
         // A flex row draws no native marker, so it wears Leaf's, turned its own way.
-        disclosure: getComputedStyle(d.querySelector('summary'), '::before').content
-          .includes(d.open ? 'disclosure-open' : 'disclosure-closed'),
+        disclosure: (marker => marker.maskImage.includes('svg')
+          && marker.rotate === (d.open ? '90deg' : 'none'))(
+          getComputedStyle(d.querySelector('summary'), '::before')),
         summaryAligned: Math.abs(path.getBoundingClientRect().top
           - stat.getBoundingClientRect().top) < 1,
         lines: [...d.querySelectorAll('[data-line]')].map(l => ({
@@ -3465,7 +3466,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     expect(quote).to_have_attribute("title", re.compile("no longer"))
     # With nowhere on the page to go, the view offers no way there.
     expect(
-        page.locator(".lf-fp-aux button:enabled", has_text="Show on page")
+        page.locator(".lf-fp-aux button:enabled[aria-label='Show on page']")
     ).to_have_count(0)
 
 

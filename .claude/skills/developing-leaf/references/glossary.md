@@ -26,8 +26,8 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Response** | Work owed to user input of unknown kind: “2 responses owed” |
 | **Answer** | The current value of an obligation, or the response that satisfies a user update; there is no separate Answer record |
 | **Reply** | A message in a conversation, including an answer or an unprompted message |
-| **Delivery** | How far an update has got toward the agent: **Saving…** and **Saved** on the user's side, then the agent's **Up next** (stage `queued`) and **Got it** (stage `picked_up`), handed into its turn. Got it doesn't mean work has begun |
-| **Saved** | An update Leaf has logged that no harness has queued or opened into a turn yet (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Saving…** |
+| **Delivery** | How far an update has got toward the agent: **Queued for Claude** until a harness has queued it (**Up next**, stage `queued`) or handed it into the agent's turn (**Got it**, stage `picked_up`). Got it doesn't mean work has begun |
+| **Queued for Claude** | An update no harness has queued or opened into a turn (stages `sending` and `sent`), whether or not the log has accepted it, in Leaf's italic voice with the agent's name; past the pickup grace it reads **Still queued for Claude** |
 | **On it** | The agent has explicitly started this update or to-do (stage `working`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
 | **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
@@ -43,7 +43,9 @@ composes from what it observes, such as an agent that stopped or a server it can
 reach, is Leaf's best guess at what the agent would say, and reads the same way. Only
 words the agent can't be saying, such as an instruction about the agent (“Not
 answering — nudge the terminal”), Leaf's own state (“Lost the connection —
-reconnecting”) or an error, are set apart in italic, as a script sets a stage direction
+reconnecting”), an update the agent doesn't have yet (“Queued for Claude”, which
+names the agent because the agent isn't the one speaking) or an error, are set apart
+in italic, as a script sets a stage direction
 apart from the lines (`pageStatus`, `voice`).
 
 The agent's lines take no first person, so *me* and *my* always mean the user: **Me**
@@ -198,7 +200,7 @@ the headings over the document's height.
 | **Deck** | `lf-deck`: cards worked through one at a time, each holding its own obligations. An answered card moves on by itself; **Later** leaves one waiting for the end of the pass and records nothing |
 | **Resend** | An update a harness handed back to the user to send again: its obligation stays in On me, next actor the user, until they do |
 | **Done** | The control with which the user ends a to-do the agent gave them (`todo_end`). A widget may also call its own submit control Done |
-| **Done items** | The items that left either list, under a Done heading at the foot of the On view; resolved threads stand likewise under Resolved at the foot of Threads |
+| **Done items** | The items that left either list, under a Done heading at the foot of the On view; resolved threads stand likewise under Resolved at the foot of Threads, folded to that heading until the user opens it |
 | **Navigation step** | One move to a destination, such as a thread's passage, an obligation, or the element a followed fragment link names. It clears any surface hiding the destination, then stays put if the user already sees it, or moves and adds a history entry (`history.js`) |
 | **Navigation group** | Consecutive navigation steps, each starting where the last landed, that share one history entry, so Back returns to where the first began |
 | **Current location** | The destination the user is at, directly or through a control inside it: a thread on the page or in the panel, an obligation, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes and contents links are not destinations |

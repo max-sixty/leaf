@@ -67,7 +67,11 @@ from leaf.structure import (
     script_kind,
 )
 
-PUBLIC_MODULES = ("/runtime/widget-api.js", "/vendor/floating-ui.esm.js")
+PUBLIC_MODULES = (
+    "/runtime/widget-api.js",
+    "/runtime/portable-api.js",
+    "/vendor/floating-ui.esm.js",
+)
 # The page's own declarations, which a revision captures beside its modules; the
 # layer they compose over is the reading Leaf's.
 PAGE_DECLARATIONS = "/page/registry.json"

@@ -29,7 +29,7 @@ import leaf_website as website_server
 import pytest
 from conftest import LENT_LINKED_DIRS
 from interact_support import declared, running_http_server, wait_for
-from leaf_dev.browser import panel_tab
+from leaf_dev.browser import panel_tab, show_resolved
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets
@@ -1520,9 +1520,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     assert opened and resolved, "the shipped seed must cover both thread states"
     open_threads(page)
     expect(panel_tab(page, "Threads").locator(".lf-fp-count")).to_have_text(str(opened))
-    expect(page.locator(".lf-fp-ended ~ .lf-fp-thread[data-resolved]")).to_have_count(
-        resolved
-    )
+    expect(show_resolved(page)).to_have_count(resolved)
     # Named rather than taken first: the assertion follows the shipped objection,
     # independent of where a later seed might place another thread.
     row = page.locator(".lf-fp-thread").filter(

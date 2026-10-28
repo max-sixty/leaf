@@ -362,7 +362,7 @@ export class MessageEditor {
     cancel.type = "button";
     cancel.setAttribute("aria-label", "Discard");
     cancel.title = "Discard";
-    cancel.append(iconElement("undo", "lf-msg-control-icon"));
+    cancel.append(iconElement("cross", "lf-msg-control-icon"));
     actions.append(cancel);
     // The box's last line, where the caret stands on opening: the field's own lines are
     // in a closed tree, so a mark of no size after it is what a reveal can aim at.

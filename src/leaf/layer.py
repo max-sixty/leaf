@@ -189,7 +189,7 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # The document's cascade tiers, lowest first. The chrome's form-control clearing
 # (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
 # kernel, every widget package, and each widget module's adopted sheet
-# (runtime/stylesheets.js) share one layer, so specificity, then order, rank their
+# (runtime/base-layer.js) share one layer, so specificity, then order, rank their
 # rules. The kernel's Layouts sit above it. Theme contributions
 # sit above those defaults and the Layouts (`lf-theme`), so a package
 # styles every page the way the page's own sheet styles one.
@@ -681,15 +681,16 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
     the layer holds what packages add beside it, and the registry, theme and widgets
     every root contributes."""
     from .revision_artifact import (
+        PUBLIC_MODULES,
         dependency_reference,
         javascript_imports,
     )
     from .validation.composition import incoming_registry
 
     protected = kernel_runtime_paths()
-    private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - {
-        "/runtime/widget-api.js"
-    }
+    private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - set(
+        PUBLIC_MODULES
+    )
     for root in roots:
         if root.resolve() == ASSETS.resolve():
             continue

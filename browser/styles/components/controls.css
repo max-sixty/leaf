@@ -321,6 +321,11 @@ svg[data-lf-icon] {
   color: var(--muted);
   white-space: nowrap;
 }
+/* Leaf's word for an update the agent doesn't have yet stands apart from the agent's
+   own, as the panel's italic does (`workflowVoice`). */
+.lf-msg-sending[data-voice="leaf"] {
+  font-style: italic;
+}
 .lf-msg-sending::before {
   content: "\00b7";
   margin-inline-end: 6px;
@@ -460,42 +465,62 @@ svg[data-lf-icon] {
   [hidden="until-found"] {
     content-visibility: visible;
   }
-  details > summary {
-    list-style: none;
-  }
-  details > summary::-webkit-details-marker {
-    display: none;
-  }
-  .lf-disclosure-marker::before {
+  :is(summary, .lf-disclosure-marker)::before {
     visibility: hidden;
   }
 }
-/* The disclosure marker for a summary or aria-expanded button whose layout draws none,
-   as a flex or grid summary loses its ::marker. It draws the predefined disclosure
-   counter styles a list-item summary's marker names, so it is the platform's symbol
-   and points with the text direction; Chromium draws the native marker with the same
-   glyph, while Firefox and WebKit paint their own shape. Like the native marker it
-   ends in a space: the space parts it from inline words, and falls away at the end of
-   the mark's own line where it is a flex or grid item; `nowrap` keeps the space
-   collapsible in a `pre` row. The class also drops a summary's native marker, so the
-   row shows one. The row's own rules place and colour the mark. Paper draws it no more
-   than the native marker (above), but keeps its room, since a grid row may place its
-   cells after it. */
+/* Leaf's one disclosure arrow, on every summary and on every aria-expanded button that
+   opens what follows it (`.lf-disclosure-marker`, for a row whose layout draws no
+   marker): Leaf's chevron (icon-paths.js, `next`), drawn as its icons are, pointing
+   along the text when closed and turned down when open. It replaces the browser's
+   marker, which each engine draws its own way: Firefox drew a triangle a few pixels
+   wide that read as a dot beside a 12px label (the user, 27 October 2026). It floats
+   before the words, centred on their first line with a space's room after it, so a
+   summary's leading white space still collapses as it did beside the native marker;
+   a flex or grid row's own rules place it and colour it. Paper draws it no more than
+   the native marker (above), but keeps its room, since a grid row may place its cells
+   after it. */
+summary,
 .lf-disclosure-marker {
   list-style: none;
 }
-.lf-disclosure-marker::-webkit-details-marker {
+:is(summary, .lf-disclosure-marker)::-webkit-details-marker {
   display: none;
 }
-.lf-disclosure-marker::before {
-  content: counter(lf-disclosure, disclosure-closed) " " / "";
-  white-space: nowrap;
+:is(summary, .lf-disclosure-marker)::before {
+  content: "";
+  float: inline-start;
+  inline-size: 0.5em;
+  block-size: 0.8em;
+  margin-block: calc((1lh - 0.8em) / 2);
+  margin-inline-end: 0.4em;
+  background-color: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='4.5 2 7.5 12' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 3.5 4.5 4.5L6 12.5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  forced-color-adjust: none;
+}
+:is(summary, .lf-disclosure-marker):dir(rtl)::before {
+  scale: -1 1;
 }
 :is(
+  details[open] > summary,
   details[open] > .lf-disclosure-marker,
   .lf-disclosure-marker[aria-expanded="true"]
 )::before {
-  content: counter(lf-disclosure, disclosure-open) " " / "";
+  rotate: 90deg;
+}
+/* Turned after its mirror, so it turns the other way to point down. */
+:is(
+    details[open] > summary,
+    details[open] > .lf-disclosure-marker,
+    .lf-disclosure-marker[aria-expanded="true"]
+  ):dir(rtl)::before {
+  rotate: -90deg;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :is(summary, .lf-disclosure-marker)::before {
+    transition: rotate var(--lf-motion-disclosure) ease-out;
+  }
 }
 /* The faces of Leaf's control roles, one face each: `symbol`, `word`, `commit` and
  * `mark`. A widget builds a control by its role (`offerAction`), and

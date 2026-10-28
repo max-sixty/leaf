@@ -66,6 +66,11 @@
   flex: none;
   font-size: var(--t-5);
 }
+/* The file's head is a flex row whose gap parts the arrow from the path. */
+:host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary::before {
+  align-self: center;
+  margin: 0;
+}
 /* Source paths may change with new evidence; their region gives way while the
    statistics and adjacent actions keep their trailing columns. */
 .lf-diff-path {

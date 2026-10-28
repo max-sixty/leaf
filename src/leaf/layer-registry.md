@@ -79,8 +79,8 @@ does not know.
 
 Bump the number when a Leaf at it would misread an event another Leaf at it wrote into
 the log, or a record another wrote outside it. A change to the bundled widgets, their
-registry entries, the theme or the public package API (`runtime/widget-api.js`) keeps
-the number, since the Leaf serving a page supplies all of them. A page's own widgets
+registry entries, the theme or the public package API (`runtime/widget-api.js` and
+its portable part `runtime/portable-api.js`) keeps the number, since the Leaf serving a page supplies all of them. A page's own widgets
 and an installed package's modules call that API across Leaf versions, and a bump
 would not repair them, since neither is re-composed from Leaf's tree; `page check
 --render` and `package check --render` report a module an API change breaks.

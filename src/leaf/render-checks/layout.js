@@ -89,7 +89,7 @@ export function geometryReading(open) {
 // same box, and the name every finding uses (locate.js). With `shown`, the walk keeps
 // to what the browser draws, leaving out skipped content such as a tab not chosen: a
 // reading of the view the user has asks nothing of it, and asking would make the
-// browser style and lay out each such subtree first (runtime/geometry.js, `skipped`).
+// browser style and lay out each such subtree first (runtime/shown-box.js, `skipped`).
 export function arrangedBoxes(open, { shown = false } = {}) {
   const main = pageDocument();
   if (!main) return [];

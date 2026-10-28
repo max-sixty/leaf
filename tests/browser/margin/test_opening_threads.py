@@ -624,7 +624,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
         told(page)
         # Editing keeps the reply drawn, so only the control changes, with no
         # changed room to hold behind a news notice. Both routes return to the draft.
-        reopen = preview.get_by_role("button", name="Reopen", exact=True)
+        # The check drawn done names who resolved it before Reopen.
+        reopen = preview.get_by_role("button", name=re.compile(r"· Reopen$"))
         if activation == "keyboard":
             reopen.focus()
         with sending(page, "reopen the thread beside its kept draft"):

@@ -55,11 +55,8 @@ def selected_launcher(session_id: str) -> Path | None:
     if record is None or record["ended"] is not None:
         return None
     value = record.get("launcher")
-    if value is None:
-        return None
-    launcher = Path(value)
-    if launcher.is_absolute() and launcher.is_file() and os.access(launcher, os.X_OK):
-        return launcher.resolve()
+    if value is not None and os.access(value, os.X_OK):
+        return Path(value).resolve()
     return None
 
 
@@ -73,14 +70,20 @@ def installed_launcher() -> Path | None:
     name = f"{PLUGIN_ROOT.parent.name}@{PLUGIN_ROOT.parents[1].name}"
     try:
         record = json.loads((plugins / "installed_plugins.json").read_text())
-        installs = record["plugins"][name]
+        launchers = [
+            Path(install["installPath"]) / "bin" / "leaf"
+            for install in record["plugins"][name]
+        ]
     except (OSError, ValueError, KeyError, TypeError):
         return None
-    for install in installs:
-        launcher = Path(install.get("installPath", "")) / "bin" / "leaf"
-        if launcher.is_absolute() and os.access(launcher, os.X_OK):
-            return launcher.resolve()
-    return None
+    return next(
+        (
+            launcher.resolve()
+            for launcher in launchers
+            if launcher.is_absolute() and os.access(launcher, os.X_OK)
+        ),
+        None,
+    )
 
 
 def select_launcher(session_id: str, launcher: Path) -> None:

@@ -200,6 +200,9 @@ def test_package_reading_keys_work_while_history_waits_and_after_offline_fallbac
     page.route("**/api/state*", refuse)
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-held-keys")).to_have_count(0)
+    # The notice comes down when the controller takes the queue; its next
+    # presentation frame finishes releasing the offline hold.
+    rendered(page)
     second.focus()
     page.keyboard.press("ArrowLeft")
     expect(first).to_have_attribute("aria-selected", "true")

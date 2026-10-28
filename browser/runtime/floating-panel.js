@@ -201,7 +201,7 @@ import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/selectors.js";
 import { quoteReading, threadTodos } from "./thread/thread-card.js";
 import { inPageOrder } from "./thread/placement.js";
-import { dismissReply, releaseReplies, replyAvailable } from "./thread/replies.js";
+import { dismissReply, releaseReplies } from "./thread/replies.js";
 import {
   PAGE_DRAFT,
   draftHasContent,
@@ -380,7 +380,6 @@ export function createFloatingPanel({
     const searchControls = search?.controls ?? [];
     const searchLabel = !initial && pageSearch?.open ? "Search page" : "Search threads";
     const thread = top ? (threadOf(top)?.id ?? null) : null;
-    const resting = Boolean(thread) && !replyAvailable(threadOf(top));
     const input = initial ? null : fieldInput();
     const reading = initial ? null : fieldReading(top?.thread ?? null, input);
     const selection =
@@ -398,7 +397,13 @@ export function createFloatingPanel({
       );
     const viewControls = top ? controlsTemplate(top) : nothing;
     const exit = initial ? null : fieldExit(search, top);
-    const quickHidden = initial || (search ? !exit : drafted && !seatHeld);
+    // A view's Close stands at its controls' end while the field is widened for a long
+    // draft (`expanded`), so the field takes the row's whole width rather than leave the
+    // seat's column empty down its height. The press re-wraps every line anyway, so
+    // the seat moving with it moves nothing the user didn't ask to move.
+    const closeAbove = expanded && exit?.press === close && viewControls !== nothing;
+    const quickHidden =
+      initial || closeAbove || (search ? !exit : drafted && !seatHeld);
     const notice = initial || search ? null : olderVersion();
     const peek = initial ? null : peekPresentation();
     const mode = search
@@ -481,7 +486,7 @@ export function createFloatingPanel({
               data-thread=${thread ?? nothing}
               ?data-lf-thread-view=${thread !== null}
             >
-              ${viewControls}
+              ${viewControls}${closeAbove ? quick : nothing}
             </div>
           </div>
           <div class="lf-fp-row">
@@ -530,16 +535,7 @@ export function createFloatingPanel({
             </button>
             <div class="lf-fp-field">
               <div class="lf-fp-editors" ?hidden=${Boolean(search)}>
-                ${
-                  initial
-                    ? nothing
-                    : top?.thread
-                      ? html`${replyOutlet}
-                          <p class="lf-fp-resolved" ?hidden=${!resting}>
-                            ${reading.says === "notice" ? reading.words : "Resolved"}
-                          </p>`
-                      : pageEditor().box
-                }
+                ${initial ? nothing : top?.thread ? replyOutlet : pageEditor().box}
               </div>
               <div
                 class=${`lf-fp-search-surface${searchMode === "page" ? " lf-page-search" : ""}`}
@@ -577,7 +573,9 @@ export function createFloatingPanel({
             <div class="lf-fp-row-notice" ?hidden=${!notice}>
               ${notice ? rowNoticeTemplate(notice) : nothing}
             </div>
-            <div class="lf-fp-quick" ?hidden=${quickHidden}>${quick}</div>
+            <div class="lf-fp-quick" ?hidden=${quickHidden}>
+              ${closeAbove ? nothing : quick}
+            </div>
           </div>
         </div>
       </div>
@@ -696,7 +694,7 @@ export function createFloatingPanel({
   // (browser/AGENTS.md, "A control takes only its own room"). It stood at the end of the
   // line over the field until, on 17 October, that line stopped saying where the words
   // go and so stopped standing over them. Pressing it widens the
-  // panel and stands the field half the window tall (floating-panel.css), so the words
+  // panel and gives the field more lines (floating-panel.css), so the words
   // re-wrap because the user asked. It folds back when the field empties, a send included, or on a second
   // press. The user chose this on 15 October over the panel widening by itself at the
   // third line, which re-wraps every line under the caret; no composer they compared
@@ -717,10 +715,9 @@ export function createFloatingPanel({
     markRoom();
   });
   // The mark stands while the draft runs long, and while the field is wide, where the
-  // draft may fit three lines again; a resolved thread's field takes no words.
-  let fieldRests = false;
+  // draft may fit three lines again; search's field takes no draft.
   const markRoom = () =>
-    keeps(host, "data-long", (long || expanded) && !fieldRests ? "" : null);
+    keeps(host, "data-long", (long || expanded) && !activeSearch() ? "" : null);
   lengthWatch.observe(field);
   const searchSurface = shell("search-surface");
   // The row's end: the On me mark, or the way out of the view or stance the user is in,
@@ -858,8 +855,8 @@ export function createFloatingPanel({
   let selectedWords = null;
   // What the empty field says, and whose reading it is (`says`): the newest error it
   // can say; once the caret is in a field that takes words, where they go; on the page,
-  // the selected words a press there comments on; a passing notice while one stands; a
-  // resolved thread's way back; else on the page what the agent is doing or wants, in
+  // the selected words a press there comments on; a passing notice while one stands;
+  // else on the page what the agent is doing or wants, in
   // the status's words, and in a thread whose turn it is. On the page, the stance the
   // user is in, such as Draw mode, heads a passing notice and takes the status's
   // place (keyboard/status-context.js); the leaf keeps the status's colour. While the
@@ -886,14 +883,8 @@ export function createFloatingPanel({
     // A retained field can repaint between a thread leaving the reading and its
     // route being retired. Its native row survives that interval, not its turn.
     if (key && !thread) return { says: "absent", words: "" };
-    if (input === focused() && !thread?.resolved)
-      return { says: "destination", words: whereTo(key) };
-    if (
-      thread &&
-      !thread.resolved &&
-      !noticeReading().visible &&
-      !statusContextReading().goTo
-    )
+    if (input === focused()) return { says: "destination", words: whereTo(thread) };
+    if (thread && !noticeReading().visible && !statusContextReading().goTo)
       return { says: "turn", words: "Reply", offers: true };
     const stance = key ? null : statusContextReading().stance;
     // Keep the current navigation context alongside the selection's comment offer.
@@ -913,7 +904,6 @@ export function createFloatingPanel({
         says: "notice",
         words: stance ? `${stance} · ${notice.message}` : notice.message,
       };
-    if (thread?.resolved) return { says: "turn", words: "Resolved" };
     if (stance)
       return {
         says: "stance",
@@ -952,13 +942,22 @@ export function createFloatingPanel({
     // reached (`clearFor`), names that stop alone: the user is at it now, not at this
     // thread's turn.
     const away = Boolean(position) && !currentLocationIn(host);
-    const attention = away ? null : threadAttention(thread, agentName());
+    const attention = away
+      ? null
+      : thread.resolved
+        ? { label: "Resolved", voice: "leaf" }
+        : threadAttention(thread, agentName());
     if (!attention) return position;
     return html`${spoken(attention)}${position ? ` · ${position}` : ""}`;
   }
   // Where the words go, as the focused field's placeholder says it; the thread's own
-  // name already heads its view.
-  const whereTo = (key) => (key ? "Reply in this thread" : "Comment on the page");
+  // name already heads its view. A reply to a resolved thread reopens it (events.md).
+  const whereTo = (thread) =>
+    !thread
+      ? "Comment on the page"
+      : thread.resolved
+        ? "Reply to reopen"
+        : "Reply in this thread";
   // An editor's empty words, as its own paint draws them (composing/input.js, `hint`),
   // which marks the editor with whose reading they are, so the face the theme gives that
   // reading changes in the same paint as the words (floating-panel.css). Words the agent
@@ -1048,11 +1047,11 @@ export function createFloatingPanel({
   // Leaf's reader draws into the field where the panel nominates it (`nominate`), so ↑
   // to the user's last message, the draft's editing session and Send work as in a card.
   // The panel says what the empty box reads, and a send keeps the user in the field for
-  // the next turn, landing the view at its end. A resolved thread shows no reply box,
-  // and the field's line says only that it is resolved, or a passing notice, such as
-  // the one `z` leaves when it shows the resolve it takes back next (undo.js). The
-  // user dropped "· reopen to reply" there on 23 October as unhelpful: Reopen is the
-  // view's ✓, which they chose to keep a glyph.
+  // the next turn, landing the view at its end. A resolved thread keeps its reply box,
+  // whose empty field says Resolved before Reply, and a reply reopens the thread, as
+  // the user expected on 27 October. The field once took no words there and said only
+  // Resolved, so writing in a resolved thread took Reopen first; the card's reply
+  // admission (thread/replies.js, `replyAvailable`) still works that way.
   const replyOutlet = el("div", "lf-fp-reply");
   const replyInput = () => replyOutlet.querySelector(`.lf-thread-reply ${TEXT_FIELD}`);
   const replyOptions = new Map();
@@ -1082,16 +1081,11 @@ export function createFloatingPanel({
     return replyOptions.get(key);
   };
   // The editor standing in the field now, the page's or the open thread's reply; none
-  // while search owns the field or a resolved thread says it is resolved instead.
+  // while search owns the field.
   const fieldInput = () => {
     if (activeSearch()) return null;
     const top = trail.value.at(-1);
-    const thread = threadOf(top);
-    return top?.thread
-      ? thread && replyAvailable(thread)
-        ? replyInput()
-        : null
-      : pageEditor().input;
+    return top?.thread ? (threadOf(top) ? replyInput() : null) : pageEditor().input;
   };
   const fieldExit = (search, top) =>
     search === threadSearch
@@ -2710,8 +2704,7 @@ export function createFloatingPanel({
   };
   const viewParts = Object.freeze({
     reply: (view) => {
-      const thread = openIn(view);
-      return thread && replyAvailable(thread) ? replyInput() : null;
+      return openIn(view) ? replyInput() : null;
     },
     settlement: (view) =>
       openIn(view) ? controls.querySelector(".lf-fp-settle") : null,
@@ -4087,8 +4080,6 @@ export function createFloatingPanel({
     const heading = threadOf(top)?.id ?? null;
     keeps(replyOutlet, "data-thread", heading);
     keeps(replyOutlet, "data-lf-thread-view", heading === null ? null : "");
-    const resting = Boolean(threadOf(top)) && !replyAvailable(threadOf(top));
-    keepsHidden(replyOutlet, resting);
     if (pageSearch) keepsHidden(pageSearch.input, !pageSearch.open);
     if (searchSurface.hidden !== !search) postureMoved = true;
     const input = fieldInput();
@@ -4108,7 +4099,6 @@ export function createFloatingPanel({
     keeps(host, "data-drafted", drafted ? "" : null);
     keeps(host, "data-words", words ? "" : null);
     if (!words) expanded = false;
-    fieldRests = resting || Boolean(search);
     markRoom();
     keeps(host, "data-expanded", expanded ? "" : null);
     const reading = fieldReading(replying ? top.thread : null, input);

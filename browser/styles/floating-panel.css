@@ -334,11 +334,14 @@
      mark stands over the leaf, beside the field's first line, or at the end of an open
      view's head, so it takes no room the panel had not already given it. Pressed, the
      panel widens to 1100px, where the window holds it (`--lf-fp-width`), and the field
-     stands half the window tall, up to three quarters as the words grow, so a long
-     draft has room to be read and written whatever its length. The user asked on 25
-     October for much more than the 760px it widened to before; the window's whole
-     width ran lines past 200 characters and left a long draft fewer, longer lines in a
-     shorter box.
+     stands at least six lines tall, so the wider lines don't leave it shorter than the
+     draft that brought the mark, and grows with the words up to three quarters of the
+     window, or half while a view stands above it, whose messages keep the rest. The
+     user asked on 25 October for much more than the 760px it widened to before; the
+     window's whole width ran lines past 200 characters and left a long draft fewer,
+     longer lines in a shorter box. The field first stood half the window tall however
+     little it held, which on 27 October the user found left a thread's message above
+     it too little room.
      The mark stands in its corner whether or not it shows, and fades in and out on the
      tween of the line that brings or takes it, as the fold's corner mark fades
      (`.lf-fp-minimize`), so the box's motion carries it with the corner it rides
@@ -360,7 +363,12 @@
     --lf-fp-max: 1100px;
   }
   .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
-    min-height: 50dvh;
+    min-height: calc(6lh + var(--lf-line) - 1lh);
+  }
+  .lf-floating-panel[data-expanded]:not([data-open])
+    .lf-fp-field
+    .lf-compose-field
+    > leaf-text {
     max-height: 75dvh;
   }
   /* The field holds the page's editor, or the open thread's reply box, which Leaf's
@@ -434,18 +442,6 @@
     .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
     > .lf-fp-response {
     display: block;
-  }
-  /* One line, cut as the field's placeholder is, whatever passing notice it says. */
-  .lf-fp-resolved {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    margin: 0;
-    padding: calc((var(--lf-line) - 22px) / 2) 6px;
-    color: var(--lf-fp-quiet);
-    font: 14px / 22px var(--sans);
   }
   .lf-fp-field .lf-compose-field > leaf-text {
     flex: 1;
@@ -665,6 +661,15 @@
   .lf-fp-quick > .lf-fp-chip {
     flex: 1;
   }
+  /* A view's Close at its controls' end, beside a widened field (floating-panel.js,
+     `closeAbove`), takes the face of the presses before it. */
+  .lf-fp-controls > .lf-fp-chip {
+    flex: none;
+    justify-content: center;
+    min-width: max(var(--lf-fp-press), var(--aim-floor));
+    min-height: var(--lf-fp-press);
+    padding: 0;
+  }
   .lf-fp-chip {
     position: relative;
     display: inline-flex;
@@ -681,6 +686,11 @@
   }
   .lf-fp-on-user {
     justify-content: flex-start;
+  }
+  /* The way out ends its seat, so Close stands under the last of a view's controls,
+     Resolve in a thread, rather than 11px inside it. */
+  .lf-fp-exit {
+    justify-content: flex-end;
   }
   .lf-fp-on-user[data-due] .lf-fp-num {
     color: var(--accent);

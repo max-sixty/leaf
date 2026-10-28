@@ -52,7 +52,7 @@
 import {
   agentName,
   commands,
-  showAction,
+  nameAction,
   rowArrows,
   dragging,
   focusDestination,
@@ -554,9 +554,7 @@ customElements.define(
     updated() {
       if (!this.#cards.length) return;
       const word = this.#forwardWord();
-      keeps(this.#forward, "aria-label", word);
-      keeps(this.#forward, "title", word);
-      showAction(this.#forward, this.#open.value ? "next" : "start");
+      nameAction(this.#forward, this.#open.value ? "next" : "start", { label: word });
       // Once the pass is over the end frame's button is the step back in.
       keeps(this.#forward, "hidden", this.#open.value ? null : "");
       const readings = this.#readings();

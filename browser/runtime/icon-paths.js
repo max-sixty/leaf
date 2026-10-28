@@ -129,7 +129,7 @@ export const ACTIONS = {
   retry: { name: "Retry", icon: "retry" },
   save: { name: "Save", icon: "save" },
   send: { name: "Send", icon: "send" },
-  show: { name: "Show on page", icon: "locate" },
+  show: { name: "Show", icon: "locate" },
   start: { name: "Start", icon: "start" },
   suggest: { name: "Suggest", icon: "edit" },
   undo: { name: "Undo", icon: "undo" },
@@ -142,6 +142,12 @@ export const actionIcon = (action) => {
   const named = ACTIONS[action];
   if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
   return named.icon;
+};
+
+/** The name `action` says as its press's tooltip and accessible name. */
+export const actionName = (action) => {
+  actionIcon(action);
+  return ACTIONS[action].name;
 };
 
 /** The element that draws `action`'s symbol. */
@@ -160,8 +166,8 @@ function actionFace(role, label, action) {
     return label;
   }
   if (action === undefined) throw new TypeError(`A ${role} names the action it shows`);
-  actionIcon(action);
-  return label ?? ACTIONS[action].name;
+  const name = actionName(action);
+  return label ?? name;
 }
 
 /**

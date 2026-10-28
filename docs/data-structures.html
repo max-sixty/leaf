@@ -48,16 +48,15 @@
         <p class="eyebrow">reference</p>
         <h1>Data structures</h1>
         <p class="lede" id="lede">
-          Leaf's state is JSON: the reading the server sends a page's browser, the
-          events a page's log records, and the records Leaf keeps beside the log. Each
-          table below lists one structure's fields with their types, whether each is
-          required, and what it means.
+          Leaf uses JSON for the state the server sends to the browser, the events in a
+          page's log, and the records stored beside the log. Each table below lists one
+          structure's fields with their types, whether each is required, and what it
+          means.
         </p>
         <p id="lede-source">
           The tables are generated from the schemas Leaf validates and tests against, so
           they change when the code does. An event kind's meaning is written once, in
-          <a
-            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/events.md"
+          <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/events.md"
             >Events and threads</a
           >, which each kind below links to. How the pieces fit together is on
           <a href="/how-it-works/">How it works</a>.
@@ -72,9 +71,9 @@
         <h2>Served state</h2>
         <p id="served-lede">
           The page's runtime reads the state from <code>GET /api/state</code>. The
-          definitions at the end of this section are the JSON answers to its posts; a
-          user-view or interaction post answers with no body.
-          <code>leaf page state</code> prints a selection of the same reading.
+          definitions at the end of this section describe JSON responses to POST
+          requests. The user-view and interaction endpoints return no response body.
+          <code>leaf page state</code> prints selected fields from the same state.
         </p>
         <div class="schema-list" data-schemas="served"></div>
       </section>
@@ -82,9 +81,9 @@
       <section id="events">
         <h2>Events</h2>
         <p id="events-lede">
-          Each line of a page's <code>events.jsonl</code> is one event, admitted whole
-          against its kind's schema. The first table lists the fields every kind shares;
-          each kind's table lists the rest.
+          Each line of a page's <code>events.jsonl</code> is one event, validated
+          against the schema for its kind before it is appended. The first table lists
+          the fields every kind shares; each kind's table lists the rest.
         </p>
         <div class="schema-list" data-schemas="events"></div>
       </section>

@@ -1,20 +1,6 @@
-/* `runtime/widget-api.js` and the `references/module-*.md` files describe one surface.
-
-   The module is the helper surface package behavior modules import; the references,
-   read below as one text, are that surface's documentation for package authors. Every export is one of two kinds,
-   read from the module's own source: an export below the module's `// Internal:`
-   comment serves Leaf's bundled packages and kernel widgets alone, and every other
-   export is the authoring API, which the reference documents. So:
-
-   - an authoring export is named in the reference's code, as a code span it begins,
-     a call, or an import in a code example;
-   - an internal export is named nowhere in the reference's code, and a bundled package
-     or kernel widget imports it (a name only the render gate's probes read belongs in
-     check-api.js, and a name nothing reads is deleted);
-   - a helper the reference calls, as a code span beginning `name(`, is an export,
-     unless `name` is an option or hook the reference's own code gives as an object
-     key or method, or a member, object key or parameter the runtime uses and no runtime
-     module exports: a controller's method, a hook a widget implements, a callback. */
+/* Every export of widget-api.js is a supported package capability. These checks
+   keep that surface and its authoring references together. The module loader,
+   exercised by browser tests, owns whether a package's imports actually exist. */
 
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
@@ -35,24 +21,19 @@ const scripts = (dir) =>
     .filter((name) => name.endsWith(".js") && !name.split("/").includes("vendor"))
     .map((name) => join(dir, name));
 
-// Each export's name and whether it stands below the `// Internal:` comment.
-function surface() {
-  const comments = [];
-  const program = parseModule(
-    read(join(SKILL, "assets/runtime/widget-api.js")),
-    comments,
-  );
-  const markers = comments.filter((c) => c.value.trim().startsWith("Internal:"));
-  assert.equal(markers.length, 1, "widget-api.js has one `// Internal:` comment");
-  const exports = new Map();
+// widget-api.js's exports, the portable ones it re-exports whole included.
+function surface(module = "widget-api.js") {
+  const program = parseModule(read(join(ROOT, "browser/runtime", module)));
+  const exports = new Set();
   for (const node of program.body) {
+    if (node.type === "ExportAllDeclaration")
+      for (const name of surface(node.source.value.replace(/^\.\//, "")))
+        exports.add(name);
     if (node.type !== "ExportNamedDeclaration") continue;
-    const internal = node.start > markers[0].end;
-    for (const spec of node.specifiers) exports.set(spec.exported.name, internal);
+    for (const spec of node.specifiers) exports.add(spec.exported.name);
     const declared = node.declaration;
-    if (declared?.id) exports.set(declared.id.name, internal);
-    for (const each of declared?.declarations ?? [])
-      exports.set(each.id.name, internal);
+    if (declared?.id) exports.add(declared.id.name);
+    for (const each of declared?.declarations ?? []) exports.add(each.id.name);
   }
   return exports;
 }
@@ -104,35 +85,6 @@ const documented = ({ spans, code, imported }) => {
   return names;
 };
 
-// The names modules under `dir` import from `/runtime/widget-api.js`, including the
-// module scripts of its HTML pages.
-function importsUnder(dir) {
-  const found = new Set();
-  const files = readdirSync(dir, { recursive: true }).filter(
-    (name) => !name.split("/").includes("vendor"),
-  );
-  const modules = [
-    ...files
-      .filter((name) => name.endsWith(".js"))
-      .map((name) => read(join(dir, name))),
-    ...files
-      .filter((name) => name.endsWith(".html"))
-      .flatMap((name) =>
-        [
-          ...read(join(dir, name)).matchAll(
-            /<script\b[^>]*type="module"[^>]*>(.*?)<\/script>/gs,
-          ),
-        ].map((found) => found[1]),
-      ),
-  ];
-  for (const code of modules)
-    for (const node of parseModule(code).body)
-      if (node.type === "ImportDeclaration" && node.source.value === API)
-        for (const spec of node.specifiers)
-          if (spec.type === "ImportSpecifier") found.add(spec.imported.name);
-  return found;
-}
-
 // The names runtime modules export, and every name the runtime reads or defines as a
 // member, method, object key or parameter.
 function runtimeNames() {
@@ -153,7 +105,7 @@ function runtimeNames() {
     for (const value of Object.values(node))
       for (const child of Array.isArray(value) ? value : [value]) walk(child);
   };
-  for (const path of scripts(join(SKILL, "assets/runtime"))) {
+  for (const path of scripts(join(ROOT, "browser/runtime"))) {
     if (path.endsWith("/widget-api.js")) continue;
     const program = parseModule(read(path));
     for (const node of program.body) {
@@ -168,57 +120,12 @@ function runtimeNames() {
   return { exports, members };
 }
 
-test("every authoring export is documented in the module references", () => {
+test("every public export is documented in the module references", () => {
   const names = documented(referenceCode());
-  const missing = [...surface()]
-    .filter(([name, internal]) => !internal && !names.has(name))
-    .map(([name]) => name);
   assert.deepEqual(
-    missing,
+    [...surface()].filter((name) => !names.has(name)),
     [],
-    "document these in a module-*.md reference, or move them below widget-api.js's " +
-      "`// Internal:` comment if only Leaf's bundled packages use them",
-  );
-});
-
-test("every internal export is undocumented and has a bundled importer", () => {
-  const names = documented(referenceCode());
-  const bundled = new Set([
-    ...importsUnder(join(SKILL, "packages")),
-    ...importsUnder(join(SKILL, "assets/widgets")),
-  ]);
-  const internal = [...surface()]
-    .filter(([, internal]) => internal)
-    .map(([name]) => name);
-  assert.deepEqual(
-    internal.filter((name) => names.has(name)),
-    [],
-    "a documented export is authoring API; move it above `// Internal:`",
-  );
-  assert.deepEqual(
-    internal.filter((name) => !bundled.has(name)),
-    [],
-    "no bundled package or kernel widget imports these; delete them, or move what only " +
-      "the render gate reads to check-api.js",
-  );
-});
-
-test("every name a behavior module imports is exported", () => {
-  const exported = surface();
-  const imported = new Set(
-    [
-      "skills/leaf/packages",
-      "skills/leaf/assets/widgets",
-      "examples",
-      "tests/fixtures",
-      "tests/browser",
-    ].flatMap((dir) => [...importsUnder(join(ROOT, dir))]),
-  );
-  assert.ok(imported.has("once"), "no import read");
-  assert.deepEqual(
-    [...imported].filter((name) => !exported.has(name)),
-    [],
-    "behavior modules import these, and widget-api.js does not export them",
+    "document every package capability in a module-*.md reference",
   );
 });
 

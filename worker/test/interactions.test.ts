@@ -20,10 +20,7 @@ const withoutDescriptions = (value: unknown): unknown =>
 it("admits the batches the local server admits", () => {
   const declared = JSON.parse(
     readFileSync(
-      new URL(
-        "../../skills/leaf/scripts/leaf/interaction-batch.schema.json",
-        import.meta.url,
-      ),
+      new URL("../../src/leaf/interaction-batch.schema.json", import.meta.url),
       "utf8",
     ),
   );

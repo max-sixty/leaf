@@ -1,7 +1,7 @@
 /**
  * Leaf's watcher and hook transport in Pi: the extension does for a Pi session what `hooks.json`
- * and `hooks/claude-code.ts` do for a Claude Code one (`PiHarness` in
- * `skills/leaf/scripts/leaf/harness.py`).
+ * does for a Claude Code one (`PiHarness` in
+ * `src/leaf/harness.py`).
  *
  * Highly experimental: a trial of Leaf on Pi. The site and most references
  * still name only Claude Code and Codex.
@@ -33,7 +33,7 @@
  * including a held notification Escape cleared before `turn_end`. Input the run
  * received has a completed receipt cursor, so Escape is not undone by that input.
  *
- * The session's shell-tool commands find the launcher as `$LEAF` and on PATH,
+ * The session's shell-tool commands find the launcher on PATH,
  * and Pi's process as LEAF_PI_PID, which is the session's lifetime. Hook
  * failures are silent, as `hooks.json` makes them: Leaf's state is its own to
  * report, and a Pi session is never held up by it beyond the hook's timeout.
@@ -47,9 +47,8 @@ import { WatchOwner } from "./watch.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const LEAF = path.join(ROOT, "bin", "leaf");
-// `hooks.json`'s timeouts for the prompt and Stop hooks, and for SessionEnd. The
-// prompt and Stop hooks confirm what they hand over only well inside the first
-// (`CONFIRM_WITHIN` in `hook_transport.py`).
+// The prompt and Stop hooks' timeout (`HOOK_TIMEOUT_S` in `hook_transport.py`, which
+// a test holds this to), and SessionEnd's (`hooks.json`).
 const HOOK_TIMEOUT_MS = 20_000;
 const SESSION_END_TIMEOUT_MS = 3_000;
 const CUSTOM_TYPE = "leaf";
@@ -151,16 +150,18 @@ export default function leaf(pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
     session = ctx.sessionManager.getSessionId();
     hasUI = ctx.hasUI;
-    process.env.LEAF = LEAF;
     process.env.LEAF_PI_PID = String(process.pid);
     // Whether a watch follows each run, which Leaf's Stop hook reads
     // (`PiHarness.watches_between_turns`).
     if (hasUI) process.env.LEAF_PI_WATCH = "1";
     else delete process.env.LEAF_PI_WATCH;
     const bin = path.dirname(LEAF);
-    if (!(process.env.PATH ?? "").split(path.delimiter).includes(bin)) {
-      process.env.PATH = [bin, process.env.PATH].filter(Boolean).join(path.delimiter);
-    }
+    process.env.PATH = [
+      bin,
+      ...(process.env.PATH ?? "")
+        .split(path.delimiter)
+        .filter((entry) => entry !== bin),
+    ].join(path.delimiter);
     void ensureWatch(false);
   });
 

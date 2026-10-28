@@ -324,7 +324,7 @@ variants:
           either keeping assessment on the agent or asking about that proposed
           boundary is valid. Do not require exactly seven obligations.
           This is a read-only plan: execution is not required. An agent thread or reply
-          registers a question only through an lf-ask (or other asking widget) in its
+          registers a question through `--obligation` or an asking widget in its
           markup.
           Do not require exact wording, IDs, order, or a particular choice widget.
   # From 01a12305-235c-7613-8331-c007a55786e8: the agent read empty queues,
@@ -334,6 +334,9 @@ variants:
   # Across #2506's rename, paired on Claude Code: the case and instructions at
   # 0cc6805bf passed 2/3, at 3fe3eb0af 3/3; the miss was the judge faulting an
   # unrun plan the prompt asks for. Both registered two separate asks.
+  # At 838ad41c7 on Codex, 1/2 interpreted "files unreachable" as forbidding
+  # reading Leaf references. Clarifying reference access passed 2/2 with the
+  # same shipped instructions; this was a probe ambiguity, not a guidance gain.
   prose-review-handoff:
     metadata:
       purpose: "On me: a prose review handoff reconciles an empty queue with the decisions it still needs."
@@ -360,10 +363,11 @@ variants:
         > I fixed the introduction. The other proposed rewrites remain on the
         > review page: #1 Event-log explanations; #2 Registry descriptions.
         > All checks pass. Other rewrites remain proposals.
-        You were about to run `leaf status ~/.local/state/leaf/pages/prose-audit waiting`.
+        You were about to leave the page available for comments and hand it over.
 
-        Finish this turn. Files and services are unreachable here, so write the
-        commands and any HTML edits you would use, followed by the short final reply.
+        Finish this turn. You can read the installed Leaf instructions, but the
+        review page and its services are unreachable here. Write the commands and
+        any HTML edits you would use, followed by the short final reply.
     assert:
       - type: llm-rubric
         metric: reconciled-decisions
@@ -373,7 +377,7 @@ variants:
           and one for the registry proposal, and reads the canonical queues with
           leaf page state after registration before handing over or waiting.
           Each decision may use an lf-ask with an answering widget, or an agent
-          thread or reply whose markup holds an lf-ask with the question.
+          thread or reply that asks it with `--obligation` or an answering widget.
           A user to-do whose Done merely reports completion cannot record acceptance
           or rejection of a rewrite. A status line, chat list, ordinary HTML
           comparison, or promise to add questions later fails. Home must remain
@@ -447,7 +451,7 @@ variants:
         the release assessment. I authorized finishing the CI wait; it is running
         in the background. The CI to-do is already open on you as ci-work.
         I still need to try the build on my phone; only I can do that. The page's
-        latest valid stamped version is v6 and requires my sign-off.
+        latest valid stamped version is v6 and contains an unanswered approval decision.
         You need my review and approval of that version before publishing.
         There is also an optional color explorer on the page; no work depends on
         its settings. Before the latest stamp the queue had no user items; you have
@@ -463,7 +467,7 @@ variants:
           Pass only if the agent registers the phone test as a user request in
           the user's On me list and inspects the canonical lists using page state. The
           required review/approval of v6 must appear in the user's On me list: recognize
-          its automatically derived approval obligation. A status line or bare
+          the approval decision’s ordinary obligation. A status line or bare
           prose alone fails. CI stays agent work, with no request for
           authorization to continue an authorized wait. The optional explorer
           creates no required request. The handoff does not equate an empty

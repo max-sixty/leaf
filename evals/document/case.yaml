@@ -11,6 +11,34 @@ metadata:
   executor: leaf_dev.arrangement_eval
   scenario: document
 variants:
+  page-question:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: page-question
+      purpose: Open a page thread and register its unanswered question as a user obligation.
+      conditions:
+        - leaf
+  page-update:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: page-update
+      purpose: Send a factual page-thread update without creating a user obligation.
+      conditions:
+        - leaf
+  clarification:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: clarification
+      purpose: Open a thread for missing information and settle its user obligation when answered in chat.
+      conditions:
+        - leaf
+  clarification-reply:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: clarification-reply
+      purpose: Ask back in a live thread and clear the obligation when the user replies there.
+      conditions:
+        - leaf
   resume:
     metadata:
       executor: leaf_dev.usability_eval
@@ -30,6 +58,20 @@ variants:
       executor: leaf_dev.usability_eval
       scenario: handoff
       purpose: Hand off and answer successive user rounds.
+      conditions:
+        - leaf
+  render-after-handover:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: render-after-handover
+      purpose: Act on render findings delivered after a quick handover.
+      conditions:
+        - leaf
+  render-after-handover-quick:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: render-after-handover-quick
+      purpose: Act on render findings delivered after a quick handover, unprompted to inspect.
       conditions:
         - leaf
   elided:
@@ -53,3 +95,25 @@ variants:
       purpose: Answer feedback arriving during work.
       conditions:
         - leaf
+  # Added when every harness's hook began handing an over-limit delivery over as the
+  # same `leaf-delivery` element. On Claude Code at 637d54d03, the base (a prose
+  # pointer naming `leaf delivery read`) and the candidate (the element) each passed
+  # 3/3; 2 of 3 candidate runs read event-batches.md before the delivery, so it
+  # guards rather than separates.
+  oversized:
+    metadata:
+      executor: leaf_dev.delivery_eval
+      scenario: oversized
+      purpose: Read and answer a delivery too large for the hook's context, which arrives by pointer.
+      conditions:
+        - leaf
+  # From TODO.md, "Test the Layouts on agents": after its comment and decision, the
+  # review becomes the page the team follows during the rollout. The Layouts hold
+  # if the author composes the status in (a sidebar's aside, a status block) rather
+  # than rebuilding the page, and the comment thread survives.
+  live-status:
+    metadata:
+      scenario: document-live-status
+      purpose: Turn a finished review into a review with live status, keeping its comment thread.
+      tags: [workflow, layout]
+      conditions: [leaf]

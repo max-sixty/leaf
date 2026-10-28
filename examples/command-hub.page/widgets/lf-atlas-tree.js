@@ -1,17 +1,17 @@
 /* A page-owned worktree adapter preserves the source record's stable identity
  * and provenance. Native details owns disclosure; Leaf owns datum comments. */
-import {
-  ago,
-  HeldReading,
-  html,
-  LeafElement,
-  projectData,
-} from "/runtime/widget-api.js";
+import { ago, HeldReading, html, keeps, LeafElement } from "/runtime/widget-api.js";
 customElements.define(
   "lf-atlas-tree",
   class extends LeafElement {
+    static properties = { value: { attribute: false } };
     pending = false;
+    // The worktrees value drawn, which a held reading keeps while newer ones arrive.
     #view = null;
+    constructor() {
+      super();
+      this.value = null;
+    }
     setup() {
       this.held = new HeldReading(
         this,
@@ -23,9 +23,10 @@ customElements.define(
       this.held.show();
     }
     render() {
-      const next = JSON.stringify(this.data("worktrees"));
+      const next = JSON.stringify(this.value);
       const shown = this.held.hold(next);
-      const view = (this.#view = JSON.parse(shown));
+      if (shown === next) this.#view = this.value;
+      const view = this.#view;
       if (this.pending !== (next !== shown)) {
         this.pending = next !== shown;
         this.dispatchEvent(new CustomEvent("atlas-reading", { bubbles: true }));
@@ -63,29 +64,20 @@ customElements.define(
       </details>`;
     }
     #holds(view) {
-      return Object.hasOwn(view?.value ?? {}, this.id);
+      return Object.hasOwn(view ?? {}, this.id);
     }
     #record(view) {
-      return this.#holds(view) ? view.value[this.id] : null;
+      return this.#holds(view) ? view[this.id] : null;
     }
     updated(changed) {
       super.updated(changed);
       const view = this.#view;
       const present = this.#holds(view);
-      projectData(
-        this,
-        [
-          {
-            node: this.firstElementChild,
-            key: this.id,
-            ...(present ? { identity: this.id } : {}),
-            origin: view
-              ? { ...view.origin, ...(present ? { path: [this.id] } : {}) }
-              : null,
-          },
-        ],
-        { snapshot: view },
-      );
+      const node = this.firstElementChild;
+      keeps(node, "data-lf-datum", this.id);
+      keeps(node, "data-lf-identity", present ? this.id : null);
+      keeps(node, "data-lf-origin-path", present ? JSON.stringify([this.id]) : null);
+      this.dispatchEvent(new CustomEvent("drawn", { detail: { value: view } }));
     }
   },
 );

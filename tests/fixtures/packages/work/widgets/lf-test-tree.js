@@ -1,13 +1,18 @@
 /* A page-owned worktree adapter preserves the source record's stable identity
  * and provenance. Native details owns disclosure; Leaf owns datum comments. */
-import { html, LeafElement, projectData } from "/runtime/widget-api.js";
+import { html, keeps, LeafElement } from "/runtime/widget-api.js";
 customElements.define(
   "lf-test-tree",
   class extends LeafElement {
+    static properties = { value: { attribute: false } };
+    constructor() {
+      super();
+      this.value = null;
+    }
     render() {
-      const view = (this.snapshot = this.data("worktrees"));
-      const present = Object.hasOwn(view?.value ?? {}, this.id);
-      const record = present ? view.value[this.id] : null;
+      const view = this.value;
+      const present = Object.hasOwn(view ?? {}, this.id);
+      const record = present ? view[this.id] : null;
       return html`<details class="atlas-tree">
         <summary>Worktree evidence</summary>
         ${
@@ -39,22 +44,13 @@ customElements.define(
     }
     updated(changed) {
       super.updated(changed);
-      const view = this.snapshot;
-      const present = Object.hasOwn(view?.value ?? {}, this.id);
-      projectData(
-        this,
-        [
-          {
-            node: this.firstElementChild,
-            key: this.id,
-            ...(present ? { identity: this.id } : {}),
-            origin: view
-              ? { ...view.origin, ...(present ? { path: [this.id] } : {}) }
-              : null,
-          },
-        ],
-        { snapshot: view },
-      );
+      const view = this.value;
+      const present = Object.hasOwn(view ?? {}, this.id);
+      const node = this.firstElementChild;
+      keeps(node, "data-lf-datum", this.id);
+      keeps(node, "data-lf-identity", present ? this.id : null);
+      keeps(node, "data-lf-origin-path", present ? JSON.stringify([this.id]) : null);
+      this.dispatchEvent(new CustomEvent("drawn", { detail: { value: view } }));
     }
   },
 );

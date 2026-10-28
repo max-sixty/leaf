@@ -1,0 +1,111 @@
+/* lf-gloss: the prose stays prose, and its underline is the whole visible
+ * affordance. The words keep the page's ink while the underline uses the accent —
+ * this phrase goes nowhere — and the top-layer card uses the page's ordinary paper,
+ * ink, and rule rather than inventing a tooltip palette. Paper puts the explanation
+ * after the phrase, where it can honour its words. */
+lf-gloss {
+  display: inline;
+}
+/* The no-script rendering of x-says. Once the runtime writes the selectable span, that
+ * span takes over. */
+lf-gloss[tip]::after {
+  content: " (" attr(tip) ")";
+  color: var(--muted);
+}
+/* Where the runtime runs, the module puts the words in the card, so the phrase never
+ * shows them inline, before the upgrade either. A runtime missing what it needs to start
+ * takes the mark off (runtime/prepaint.js), since no card will come. */
+@scope (html[data-lf-interactive] lf-gloss) {
+  :scope:is(lf-gloss)[tip]::after {
+    content: none;
+  }
+}
+lf-gloss:has(> [data-lf-said="tip"])::after {
+  content: none;
+}
+@media screen {
+  lf-gloss {
+    text-decoration-line: underline;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+    cursor: help;
+  }
+}
+/* The phrase takes the pointer; this one-pixel carrier supplies its keyboard route.
+   Keep its declared box independent of the floor for standalone offered controls. */
+.lf-gloss-mark {
+  min-width: 0;
+  min-height: 0;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+lf-gloss:has(> .lf-gloss-mark[data-lf-focus-visible]) {
+  outline: var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-w));
+  --lf-wears-ring: 1;
+}
+.lf-gloss-popover {
+  --lf-gloss-gap: 8px;
+  position: fixed;
+  inset: auto;
+  position-area: block-end center;
+  position-try-fallbacks: flip-block, flip-inline;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(22rem, calc(100vw - 24px));
+  margin: var(--lf-gloss-gap) 0;
+  padding: 10px 13px 11px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--raise-2);
+  font-family: var(--serif);
+  font-size: var(--t-5);
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
+}
+/* Keep the space to the phrase inside the card's hover region, above and below
+ * so CSS anchor flipping preserves the same pointer route. */
+@media screen {
+  .lf-gloss-popover::before {
+    content: "";
+    position: absolute;
+    inset: calc(-1 * var(--lf-gloss-gap)) 0;
+    z-index: -1;
+  }
+}
+.lf-gloss-popover::backdrop {
+  background: transparent;
+}
+@media print {
+  lf-gloss > .lf-gloss-popover {
+    display: inline;
+    position: static;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    box-shadow: none;
+    font: inherit;
+  }
+  lf-gloss > .lf-gloss-popover::before {
+    content: " (";
+  }
+  lf-gloss > .lf-gloss-popover::after {
+    content: ")";
+  }
+}

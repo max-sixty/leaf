@@ -1,16 +1,19 @@
-"""Where the reader's place stays as the window changes width, a script scrolls, content
-settles or grows, and the reader pages through a landed section."""
+"""Where the reader's place stays as the window changes width, a script scrolls,
+find-in-page opens a fold, content settles or grows, and the reader pages through a
+landed section."""
 
 import pytest
-from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_harness import (
     LANDING_TOP,
+    ROOT,
     leaf_page,
     open_page,
     resized,
     scroll_settled,
 )
+
+from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -28,7 +31,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls_away(
     browser, serve, unique, tall, control
 ):
-    """A pane carries visible focus across posture changes without pulling back old focus."""
+    """A pane carries visible focus across scroll behavior changes without pulling back old focus."""
 
     def context(prefix):
         return "".join(
@@ -99,7 +102,7 @@ def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls
         assert in_view(), "a repeated click lost the focused reading place"
 
     # Focus alone is not a reading place: scrolling elsewhere deliberately leaves
-    # the same element focused, and the next posture must retain that new reading.
+    # the same element focused, and the next scroll behavior must retain that new reading.
     page.mouse.wheel(0, -10000)
     page.wait_for_function("document.scrollingElement.scrollTop === 0")
     scroll_settled(page)
@@ -181,6 +184,39 @@ def test_a_page_keeps_its_place_as_the_window_changes_width(browser, serve, regi
     assert page.evaluate(reading, None)["bottom"] < 1100, (
         "the focused option left the window"
     )
+
+
+def test_a_page_read_from_its_top_stays_at_its_top_as_the_window_narrows(
+    browser, serve
+):
+    """A page the reader has not scrolled is read from its top. A wide window holds its
+    header in the column beside the first section, and a narrow one drops the header
+    into the flow above it; the page stays at its top with the title in view, rather
+    than scrolling to keep that section's first line where it stood. A page landed
+    partway down still keeps the line it was read at across the same narrowing."""
+    page = open_page(browser, serve(ROOT / "tests/fixtures/pages/root-parts.html"))
+    title = page.locator("main > header h1")
+    heading = (
+        "async () => document.querySelector('#part-plan-stages h2')"
+        f".getBoundingClientRect().top - {LANDING_TOP}"
+    )
+    resized(page, 1200, 800)
+    rendered(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    resized(page, 440, 800)
+    rendered(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    expect(title).to_be_in_viewport(ratio=1)
+
+    resized(page, 1200, 800)
+    rendered(page)
+    page.evaluate("location.hash = 'part-plan-stages'")
+    rendered(page)
+    landed = page.evaluate(heading)
+    assert page.evaluate("document.scrollingElement.scrollTop") > 0
+    resized(page, 440, 800)
+    rendered(page)
+    assert page.evaluate(heading) == pytest.approx(landed, abs=2)
 
 
 @pytest.mark.parametrize("wheel", [False, True], ids=["landed", "wheel-over-pane"])
@@ -603,6 +639,38 @@ def edge_word(blocks):
   return {below: top(blocks[block].childNodes[node], at, length).top - band};
 }"""
     ).replace("BLOCKS", repr(blocks))
+
+
+def test_words_found_in_a_closed_fold_become_the_readers_place(firefox_browser, serve):
+    """Find-in-page opens the fold holding the words it finds and scrolls to them in one
+    frame. Layout changed as the page moved, but the move is the reader's, so a width
+    change keeps the found words in view rather than returning the page to where it
+    stood before the find. Firefox's `window.find` opens folds as its find bar does."""
+    filler = "".join(
+        f"<p>Paragraph {n} has words enough to rewrap as the window changes.</p>"
+        for n in range(40)
+    )
+    page = open_page(
+        firefox_browser,
+        serve(
+            leaf_page(
+                "Found in a fold",
+                f'{filler}<div hidden="until-found"><h2 id="found">Needle words</h2>'
+                f"{filler}</div>{filler}",
+            )
+        ),
+    )
+    resized(page, 1200, 800)
+    rendered(page)
+    found = """() => document.getElementById('found').getBoundingClientRect().top"""
+    assert page.evaluate("window.find('Needle words')")
+    scroll_settled(page)
+    rendered(page)
+    read = page.evaluate(found)
+    assert 0 <= read < 800, "the find should bring the found words into view"
+    resized(page, 600, 800)
+    rendered(page)
+    assert page.evaluate(found) == pytest.approx(read, abs=40)
 
 
 def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serve):

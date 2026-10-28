@@ -5,27 +5,25 @@
  * shared chunks. Both builds keep vendor modules native, at their public URL however
  * a runtime module names them, so a page loads one Lit, and each runtime module a
  * vendor module imports stays an entry at its own URL. The kernel also leaves native
- * package widgets, whose absolute URLs resolve through the revision's import map,
- * and the generation module, so page init can stamp it without rebuilding any chunk.
- * It compiles in the framework `build/browser/build.mjs` commits as native modules,
- * since only runtime modules import it. The website captures layers a prepared
- * installation vendored, which already carry their generation, and compiles their
+ * package widgets, whose absolute URLs resolve through the revision's import map.
+ * It compiles in the framework's signals (`vendor/signals-core.js`), which only the
+ * runtime imports, with the framework. The website publishes each revision with the
+ * runtime a prepared installation serves beside its captured layer, and compiles that
  * kernel again with the widgets while preserving authored module locations. Neither
  * build runs on a user's machine.
  *
- * `build/browser/build.mjs` commits the kernel to `skills/leaf/kernel/`
+ * `build/browser/build.mjs` commits the kernel to `dist/kernel/`
  * (`kernelOutputs`) and checks it against a rebuild with every other committed
  * bundle, and an install serves it only while it matches the tree's modules
- * (`leaf.layer.current_kernel`). Its form is what keeps it committable: it is
+ * (`leaf.runtime_selection.read_runtime`). Its form is what keeps it committable: it is
  * unminified, so a runtime change moves the lines that compile from it rather than
- * the whole chunk, and its chunks keep their names across rebuilds (`kernelOutputs`).
- * Replaying the 52 runtime pull requests before 2026-10-14, each committing its own
- * kernel, 2 of them conflicted in this form, against 30 with minified chunks and 26
- * with unminified chunks named by hash, and none merged cleanly into bytes a rebuild
- * would not make. A conflict is resolved by merging `main` and rebuilding. One file per entry, without shared chunks, was rejected: it
- * duplicated 169 modules across entries, gave package widgets a second Lit, and
- * made `leaf.js` 1.9 MB. A kernel CI commits to `main` after each runtime merge was
- * rejected for the commit and push credential every merge would need.
+ * the whole chunk. Rolldown names shared chunks from their modules, without content
+ * hashes, and writes their references itself. A conflict is resolved by merging
+ * the source and rebuilding.
+ *
+ * Shared chunks preserve one module instance across entry points, including the
+ * runtime's public API and native packages. Compiling each entry independently
+ * would duplicate that state; eagerly combining all entries would lose lazy loading.
  */
 
 import { createHash } from "node:crypto";
@@ -38,27 +36,26 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { build } from "./esbuild.mjs";
+import { build } from "rolldown";
 import { parse } from "acorn";
 
-import { frameworkPaths, inFramework } from "./browser/build.mjs";
+import { signalsPath } from "./browser/build.mjs";
 
 export const runtimeEntries = [
   "leaf.js",
   "runtime/layer-client.js",
   "runtime/media.js",
   "runtime/widget-api.js",
+  "runtime/portable-api.js",
   "runtime/check-api.js",
 ];
 
 // Historical comparison arms predate optional diagnostic capabilities. Compile
 // the entries a layer supplies; the required delivery boundaries above stay strict.
 const diagnosticEntries = ["runtime/annotation-overlay/check-api.js"];
-
-const GENERATION = "runtime/layer-generation.js";
 
 function browserPath(path) {
   return path.replaceAll("\\", "/");
@@ -72,14 +69,14 @@ function layerPath(path, assetRoot) {
 
 /** Whether a layer module is served as committed rather than compiled into the kernel.
  *
- * Page modules and vendor modules always are; installations also keep package widgets
- * and the generation module native. The framework is not: the kernel absorbs it with
- * the runtime it imports.
+ * Page modules and vendor modules always are, but for the framework's signals, which
+ * the kernel absorbs with the framework; installations also keep package widgets
+ * native.
  */
 function native(local, assetRoot) {
   if (local.startsWith("page/")) return true;
-  if (local.startsWith("vendor/")) return !inFramework(local);
-  return !assetRoot && (local === GENERATION || local.startsWith("widgets/"));
+  if (local.startsWith("vendor/")) return local !== signalsPath;
+  return !assetRoot && local.startsWith("widgets/");
 }
 
 /** Where a module reads its own URL, as source ranges in order. */
@@ -122,6 +119,24 @@ async function nativeImports(layerRoot, local, assetRoot) {
     });
 }
 
+/** The modules `runtime/portable-api.js` re-exports, which the compiler captures with
+ * their dependencies into one chunk. Left to its default, it splits them along every
+ * set of entries reaching each one, so a plain page loading the portable helpers, and
+ * a Leaf page's boot beside it, would fetch a handful of small chunks rather than one.
+ */
+async function portableHomes(layerRoot) {
+  const entry = join(layerRoot, "runtime/portable-api.js");
+  const module = parse(await readFile(entry, "utf8"), {
+    ecmaVersion: "latest",
+    sourceType: "module",
+  });
+  return new Set(
+    module.body
+      .filter((node) => node.source)
+      .map((node) => resolve(dirname(entry), node.source.value)),
+  );
+}
+
 /** Retain native static edges and keep their runtime imports as kernel entries. */
 async function nativeRuntimeEntries(layerRoot, assetRoot) {
   const entries = new Set();
@@ -142,73 +157,139 @@ async function nativeRuntimeEntries(layerRoot, assetRoot) {
   return { entries: [...entries].sort(), imports };
 }
 
-/** The esbuild plugin that keeps native modules outside the graph. */
+/** Keep native modules at their public URLs and compiled modules in one graph. */
 function moduleBoundaries(layerRoot, assetRoot) {
   return {
     name: "leaf-module-boundaries",
-    setup(builder) {
-      // Authored and package modules must share the runtime's existing instance.
-      // Native modules, which every page loads at their public URL, stay outside the
-      // graph whether an import names them rooted or relative.
-      builder.onResolve({ filter: /^[./]/ }, ({ kind, importer, path }) => {
-        if (kind === "entry-point") return null;
-        const rooted = path.startsWith("/");
-        const local = rooted
-          ? layerPath(path, assetRoot)
-          : browserPath(relative(layerRoot, resolve(dirname(importer), path)));
-        if (local === null) return { external: true, path };
-        if (local.startsWith("../")) return null;
-        if (!native(local, assetRoot)) return { path: join(layerRoot, local) };
-        return { external: true, path: rooted ? path : `${assetRoot ?? ""}/${local}` };
-      });
-      if (assetRoot) {
-        builder.onLoad({ filter: /\.js$/ }, async ({ path }) => {
-          let contents = await readFile(path, "utf8");
-          const publicPath = `${assetRoot}/${browserPath(relative(layerRoot, path))}`;
-          const url = `new URL(${JSON.stringify(publicPath)}, location.origin).href`;
-          for (const [start, end] of moduleUrlReads(contents).reverse())
-            contents = contents.slice(0, start) + url + contents.slice(end);
-          return { contents, loader: "js" };
-        });
-      }
+    resolveId(path, importer) {
+      if (!importer || !/^[./]/.test(path)) return null;
+      const rooted = path.startsWith("/");
+      const local = rooted
+        ? layerPath(path, assetRoot)
+        : browserPath(relative(layerRoot, resolve(dirname(importer), path)));
+      if (local === null) return { external: true, id: path };
+      if (local.startsWith("../")) return null;
+      if (!native(local, assetRoot)) return { id: join(layerRoot, local) };
+      return { external: true, id: rooted ? path : `${assetRoot ?? ""}/${local}` };
+    },
+    async load(path) {
+      if (!assetRoot || !path.endsWith(".js")) return null;
+      let contents = await readFile(path, "utf8");
+      const publicPath = `${assetRoot}/${browserPath(relative(layerRoot, path))}`;
+      const url = `new URL(${JSON.stringify(publicPath)}, location.origin).href`;
+      for (const [start, end] of moduleUrlReads(contents).reverse())
+        contents = contents.slice(0, start) + url + contents.slice(end);
+      return contents;
     },
   };
 }
 
-// The directory, inside the layer, that output paths are relative to. Nothing is
-// written there: each caller takes the outputs in memory.
-const OUT = ".kernel";
+/** A JavaScript literal of a value `runtime/kernel-facts.js` exports. A `__proto__`
+ * key is computed, so it stays an own key rather than setting the prototype. */
+function literal(value) {
+  if (value instanceof RegExp) return String(value);
+  if (value instanceof Set) return `new Set(${literal([...value])})`;
+  if (Array.isArray(value)) return `[${value.map(literal).join(", ")}]`;
+  if (Object.is(value, -0)) return "-0";
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    Number.isFinite(value)
+  )
+    return JSON.stringify(value);
+  if (typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype)
+    return `{${Object.entries(value)
+      .map(([key, item]) => {
+        const name = JSON.stringify(key);
+        return `${key === "__proto__" ? `[${name}]` : name}: ${literal(item)}`;
+      })
+      .join(", ")}}`;
+  const kind = Object.prototype.toString.call(value).slice(8, -1);
+  const shown =
+    typeof value !== "object"
+      ? `${kind} ${String(value)}`
+      : Object.getPrototypeOf(value) === null
+        ? "an object with no prototype"
+        : kind;
+  throw new Error(
+    `runtime/kernel-facts.js exports ${shown}, which has no literal here`,
+  );
+}
+
+/**
+ * Compile `runtime/kernel-facts.js` to the values it exports, so the kernel carries
+ * the few facts the browser reads rather than the whole kernel registry. The module is
+ * evaluated from a `data:` URL with its JSON imports inlined, so the values come from
+ * the bytes on disk now, never from a module Node cached earlier in a long build.
+ * Each file it inlines joins `read`, which `kernelOutputs` records as compiled in and
+ * with its hash, so an edit to the registry serves the source modules, which read it,
+ * until the kernel is rebuilt.
+ */
+function kernelFacts(layerRoot, read) {
+  const facts = join(layerRoot, "runtime/kernel-facts.js");
+  const dataUrl = (type, text) =>
+    `data:${type};base64,${Buffer.from(text).toString("base64")}`;
+  return {
+    name: "leaf-kernel-facts",
+    async load(path) {
+      if (path !== facts) return null;
+      let source = await readFile(path, "utf8");
+      const imports = parse(source, { ecmaVersion: "latest", sourceType: "module" })
+        .body.filter((node) => node.source)
+        .reverse();
+      for (const { source: specifier } of imports) {
+        if (!specifier.value.endsWith(".json"))
+          throw new Error(`${path} may import only JSON, not ${specifier.value}`);
+        const file = resolve(dirname(path), specifier.value);
+        const json = await readFile(file, "utf8");
+        read.add(browserPath(relative(layerRoot, file)));
+        source =
+          source.slice(0, specifier.start) +
+          JSON.stringify(dataUrl("application/json", json)) +
+          source.slice(specifier.end);
+      }
+      const values = await import(dataUrl("text/javascript", source));
+      return Object.entries(values)
+        .map(([name, value]) => `export const ${name} = ${literal(value)};\n`)
+        .join("");
+    },
+  };
+}
 
 /** Compile one graph in memory; an asset root names the website's resource scope. */
 async function compile(layerRoot, entries, assetRoot, minify) {
   const native = await nativeRuntimeEntries(layerRoot, assetRoot);
   entries = [...new Set([...entries, ...native.entries])];
+  const portable = await portableHomes(layerRoot);
+  const inlined = new Set();
   const result = await build({
-    // Metafile paths and unminified module comments name layer paths, not this host's.
-    absWorkingDir: layerRoot,
-    bundle: true,
-    chunkNames: "runtime/bundle-[hash]",
-    entryNames: "[dir]/[name]",
-    entryPoints: Object.fromEntries(
+    cwd: layerRoot,
+    input: Object.fromEntries(
       entries.map((path) => [path.slice(0, -3), join(layerRoot, path)]),
     ),
-    format: "esm",
-    legalComments: "none",
-    logLevel: "silent",
-    metafile: true,
-    minify,
-    outdir: join(layerRoot, OUT),
     platform: "browser",
-    plugins: [moduleBoundaries(layerRoot, assetRoot)],
-    splitting: true,
+    makeAbsoluteExternalsRelative: false,
+    tsconfig: false,
+    preserveEntrySignatures: "strict",
+    plugins: [kernelFacts(layerRoot, inlined), moduleBoundaries(layerRoot, assetRoot)],
+    output: {
+      format: "esm",
+      entryFileNames: "[name].js",
+      chunkFileNames: minify ? "runtime/bundle-[hash].js" : "runtime/bundle-[name].js",
+      minify,
+      minifyInternalExports: minify,
+      comments: false,
+      codeSplitting: { groups: [{ name: "portable", test: (id) => portable.has(id) }] },
+    },
     write: false,
   });
-  return { ...result, nativeImports: native.imports };
+  return { ...result, nativeImports: native.imports, inlined };
 }
 
 /** The website's minified rebundle and static dependency graph, by layer path.
  *
- * esbuild owns emitted edges; the captured layer's native declarations supply
+ * The compiler owns emitted edges; the captured layer's native declarations supply
  * external edges. Dynamic imports stay outside this initial-load graph.
  */
 export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot) {
@@ -223,27 +304,20 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot) {
         .map((file) => rm(join(runtime, file))),
     );
   }
-  for (const file of result.outputFiles) {
-    const destination = join(outputRoot, relative(join(layerRoot, OUT), file.path));
+  for (const file of result.output) {
+    const destination = join(outputRoot, file.fileName);
     await mkdir(dirname(destination), { recursive: true });
     // Revisions share unchanged files as hard links; replace a file, never write
     // through it into another revision.
     await rm(destination, { force: true });
-    await writeFile(destination, file.contents);
+    await writeFile(destination, file.code);
   }
-  for (const path of frameworkPaths)
-    await rm(join(outputRoot, path), { force: true, recursive: true });
+  await rm(join(outputRoot, signalsPath), { force: true });
   const graph = result.nativeImports;
-  for (const [path, output] of Object.entries(result.metafile.outputs))
+  for (const output of result.output)
     graph.set(
-      browserPath(relative(OUT, path)),
-      output.imports
-        .filter(({ kind }) => kind === "import-statement")
-        .map(({ path, external }) =>
-          external
-            ? (layerPath(path, assetRoot) ?? path)
-            : browserPath(relative(OUT, path)),
-        ),
+      output.fileName,
+      output.imports.map((path) => layerPath(path, assetRoot) ?? path),
     );
   // Authored page files also include classic scripts. Read only modules reached
   // by static declarations, including .mjs, rather than parsing that directory.
@@ -269,22 +343,17 @@ async function layerModules(layerRoot) {
 
 /**
  * The kernel built from one layer: each file by its layer path, and `kernel.json`,
- * the record an install's guard reads (`leaf.layer.current_kernel`).
+ * the record an install's guard reads (`leaf.runtime_selection.read_runtime`).
  *
- * The record's `inputs` map every module the build reads, `leaf.js` and each `.js`
- * under `runtime/`, `vendor/` and `widgets/`, to the SHA-256 of its bytes, one line
- * each, so branches that change different modules change different lines.
- * `replaces` lists the modules compiled into the kernel, which a page vendoring it
- * no longer carries. The modules it leaves native, such as `layer-generation.js`
- * and the classic scripts nothing imports, are served from source beside it.
- *
- * esbuild names a split chunk only by its hash (`[name]` is `chunk` for every
- * chunk), and the hash moves whenever anything inside the chunk does, so every
- * runtime change would rename chunks and conflict with every other. Each chunk is
- * renamed after the first module in it, `bundle-<its path, / as ~>.js`, numbered
- * `-2`, `-3` in the order of their module lists where that name is already an
- * entry's, a layer module's or another chunk's, and every reference to it is
- * rewritten.
+ * The record's `inputs` map every file the build reads, `leaf.js`, each `.js` under
+ * `runtime/`, `vendor/` and `widgets/`, and each other file it compiles in, such as
+ * the kernel registry `kernelFacts` inlines as values, to the SHA-256 of its bytes,
+ * one line each, so branches that change different modules change different lines.
+ * The guard hashes each `.js` module and each other file the record names, so it
+ * follows what this build read.
+ * `replaces` lists the files compiled into the kernel, the kernel registry among them,
+ * which a runtime serving it no longer carries. The modules it leaves native, such as the classic scripts
+ * nothing imports, are served from source beside it.
  */
 export async function kernelOutputs(layerRoot) {
   layerRoot = await realpath(layerRoot);
@@ -297,50 +366,21 @@ export async function kernelOutputs(layerRoot) {
     }
   }
   const result = await compile(layerRoot, entries, null, false);
-  const outputs = Object.entries(result.metafile.outputs).map(([path, output]) => ({
-    name: browserPath(relative(OUT, path)),
-    output,
-  }));
-  // An entry keeps its own path. Every other output is a chunk named by hash: one a
-  // dynamic import starts takes the name of the module it starts, and a chunk of
-  // esbuild's own helpers, which holds no module, the name of its first export.
-  const chunks = outputs
-    .filter(({ name, output }) => name !== output.entryPoint)
-    .map(({ name, output }) => ({
-      name,
-      modules: Object.keys(output.inputs),
-      first: output.entryPoint ?? Object.keys(output.inputs)[0] ?? output.exports[0],
-    }))
-    .map((chunk) => ({ ...chunk, order: [...chunk.modules, chunk.first].join("\n") }))
-    .sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0));
-  // A chunk never takes the path of an entry or of any module in the layer.
-  const modules = await layerModules(layerRoot);
-  const taken = new Set([
-    ...modules,
-    ...outputs
-      .filter(({ name, output }) => name === output.entryPoint)
-      .map(({ name }) => name),
+  const files = new Map(
+    result.output.map((file) => [file.fileName, Buffer.from(file.code)]),
+  );
+  const replaces = new Set([
+    ...result.output
+      .flatMap((file) => file.moduleIds)
+      .filter((path) => path.startsWith(layerRoot + "/"))
+      .map((path) => browserPath(relative(layerRoot, path))),
+    ...result.inlined,
   ]);
-  const renames = new Map();
-  for (const { name, first } of chunks) {
-    const stem = `runtime/bundle-${first
-      .replace(/^runtime\//, "")
-      .replace(/\.js$/, "")
-      .replaceAll("/", "~")}`;
-    let stable = `${stem}.js`;
-    for (let n = 2; taken.has(stable); n++) stable = `${stem}-${n}.js`;
-    taken.add(stable);
-    renames.set(name, stable);
-  }
-  const files = new Map();
-  for (const file of result.outputFiles) {
-    const name = browserPath(relative(join(layerRoot, OUT), file.path));
-    let text = file.text;
-    for (const [hashed, stable] of renames)
-      text = text.replaceAll(basename(hashed), basename(stable));
-    files.set(renames.get(name) ?? name, Buffer.from(text));
-  }
-  const replaces = new Set(outputs.flatMap(({ output }) => Object.keys(output.inputs)));
+  // Every file the compiler read, whatever its type, so an edit to any of them makes
+  // the kernel stale.
+  const modules = [
+    ...new Set([...(await layerModules(layerRoot)), ...replaces]),
+  ].sort();
   const inputs = {};
   for (const module of modules)
     inputs[module] = createHash("sha256")

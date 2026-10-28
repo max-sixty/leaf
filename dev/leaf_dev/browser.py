@@ -8,10 +8,10 @@ from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 
-from leaf.render_checks import wait_for_probe, wait_until_ready
-from playwright.sync_api import Browser, Page, sync_playwright
+from playwright.sync_api import Browser, FrameLocator, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
+from leaf.render_checks import rendered, wait_for_probe, wait_until_ready
 from leaf_dev import ROOT
 
 DESKTOP = (1440, 900)
@@ -60,7 +60,6 @@ def headless_shell(**options):
     Not the host's browser that `launch_browser` finds for a user's `page check`:
     leaf-dev runs on a developer's machine or CI, where `leaf-dev setup` installs the
     shell, so it needs no discovery, and a run reads the same build on every host.
-    Installed Chrome also costs more per launch (`shell_executable` says how much).
     """
     with (
         sync_playwright() as playwright,
@@ -70,69 +69,37 @@ def headless_shell(**options):
 
 
 @contextmanager
-def headless_firefox():
-    """Playwright's Firefox, for a probe of a Gecko-only difference: some readers use
-    Leaf in Firefox, and the suite and `headless_shell` drive Chromium alone. A host
-    without it gets Playwright's own error, which names the install command."""
-    with sync_playwright() as playwright, playwright.firefox.launch() as browser:
+def headless_engine(name: str):
+    """Playwright's Firefox or WebKit, for a probe of an engine-specific difference:
+    readers use Leaf in both, and the suite and `headless_shell` drive Chromium. A host
+    without the engine gets Playwright's own error, which names the install command."""
+    with sync_playwright() as playwright, getattr(playwright, name).launch() as browser:
         yield browser
 
 
 @cache
 def shell_executable() -> str:
-    """The pinned headless shell's executable, which leaf-dev and the suite name as
-    the host's browser (LEAF_BROWSER_EXECUTABLE) for every `leaf` they run, so each
-    `page check` that runs a page's code or takes `--render` draws with the build
-    `headless_shell` drives. Left unnamed, each would launch installed Google Chrome
-    afresh: about three seconds apiece against the shell's 0.3 (measured over the
-    suite in #1488). On macOS each Google Chrome launch also runs a Secure Enclave
-    self-test that creates two keychain keys and deletes them when it finishes, and a
-    Chrome that ends first leaves both behind for every later launch to make `secd`
-    read back. The shell has no keychain access and creates none.
+    """Ask the installed Playwright registry for its pinned headless shell.
 
-    Playwright reports where its full Chromium build (Chrome for Testing) would be,
-    and `leaf-dev setup` installs it beside the shell for the evals that need full
-    Chrome. Both sit under one registry root at one build number, so the shell's path
-    follows from Chromium's; where a developer installed only the full build, that is
-    the browser to hand over. The `chromium-<build>` directory is found by name rather
-    than by depth, because macOS nests the executable inside an app bundle and Linux
-    does not.
+    A subprocess works even while the caller already holds sync_playwright open.
+    """
+    from playwright._impl._driver import compute_driver_executable
 
-    Asked in a subprocess because the answer is a path and the question is not free:
-    a second `sync_playwright()` raises in a process that already holds one open."""
-    read = subprocess.run(
+    node, cli = compute_driver_executable()
+    return subprocess.run(
         [
-            sys.executable,
-            "-c",
+            node,
+            "-e",
             (
-                "from playwright.sync_api import sync_playwright\n"
-                "with sync_playwright() as p: print(p.chromium.executable_path)"
+                "console.log(require(process.argv[1]).registry.registry"
+                ".findExecutable('chromium-headless-shell').executablePathOrDie('python'))"
             ),
+            str(Path(cli).parent / "lib/coreBundle.js"),
         ],
-        capture_output=True,
-        text=True,
         check=True,
-    )
-    chromium = Path(read.stdout.strip())
-    versioned = next(
-        (p for p in chromium.parents if p.name.startswith("chromium-")), None
-    )
-    if versioned is None:
-        raise RuntimeError(f"{chromium} is not under a Playwright chromium build")
-    root, build = versioned.parent, versioned.name.rsplit("-", 1)[1]
-    shell = root / f"chromium_headless_shell-{build}"
-    shell_executables = sorted(shell.glob("*/chrome-headless-shell*")) + sorted(
-        shell.glob("*/headless_shell")
-    )
-    executable = next(
-        (str(c) for c in (*shell_executables, chromium) if c.is_file()), None
-    )
-    if executable is None:
-        raise RuntimeError(
-            f"no Playwright Chromium under {root}; run `uv run playwright install "
-            "chromium --only-shell`"
-        )
-    return executable
+        stdout=subprocess.PIPE,
+        text=True,
+    ).stdout.strip()
 
 
 @contextmanager
@@ -164,6 +131,15 @@ def tab(
         yield page
     finally:
         context.close()
+
+
+def slow_cpu(page: Page, rate: float) -> None:
+    """Run Chromium's CPU for `page` `rate` times slower, through CDP, as on a slower
+    machine than this one. Set before the page navigates, the throttle holds through
+    every later navigation of the page."""
+    page.context.new_cdp_session(page).send(
+        "Emulation.setCPUThrottlingRate", {"rate": rate}
+    )
 
 
 def load(page: Page, address: str) -> None:
@@ -218,3 +194,82 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
         raise AssertionError(
             f"{where} never held one position for {frames} frames: gave up on {held}"
         ) from None
+
+
+# The floating panel's row ends in one seat: at rest the On me mark, which counts what
+# waits on the user and dots a thread with news; while a view, stance or search stands,
+# its way out (`.lf-fp-exit`, with `.lf-fp-close` for a view's Close) in the same place.
+ON_ME_MARK = ".lf-fp-on-user"
+
+
+def panel_tab(page: Page | FrameLocator, name: str):
+    """The On view's tab `name` at the foot of On and of Threads, Threads being one of
+    its tabs: `On me`, `On <agent>`, `Threads` and, while a plan exists, `Plan`. Each
+    but Plan says its count after its name, in `.lf-fp-count`."""
+    return page.locator(".lf-fp-controls .lf-fp-filters button", has_text=name)
+
+
+def threads_tab(page: Page | FrameLocator):
+    """Stand On or Threads open and return the Threads tab at its foot. From the row the
+    On me mark opens On, or Threads itself while nothing waits on the user but a reply
+    they have not read; another view, stance or search is closed first by its exit.
+    `page` may be a live sample's frame."""
+    # A stance's exit becomes the mark in the repaint frame. Read the controls only
+    # after the previous input has rendered, before choosing a pointer route.
+    rendered(
+        page.locator("html").element_handle().owner_frame(), facts=("updatesSettled",)
+    )
+    host = page.locator(".lf-floating-panel")
+    if host.get_attribute("data-open") not in ("queue", "threads"):
+        exit_control = page.locator(".lf-fp-exit")
+        if exit_control.count():
+            exit_control.click()
+        page.locator(ON_ME_MARK).click()
+    return panel_tab(page, "Threads")
+
+
+def open_threads(page: Page | FrameLocator) -> None:
+    """Open the floating panel's Threads view by pointer, as a user reaches it: from a
+    thread opened over Threads by its way back, else by the Threads tab (`threads_tab`)
+    unless the mark opened Threads itself. The view lists the open threads, then the
+    resolved ones folded under a Resolved heading (`show_resolved`)."""
+    host = page.locator(".lf-floating-panel")
+    if host.get_attribute("data-open") == "threads":
+        return
+    back = page.locator(".lf-fp-controls .lf-fp-back", has_text="Threads")
+    if back.count():
+        back.click()
+    else:
+        tab = threads_tab(page)
+        if host.get_attribute("data-open") != "threads":
+            tab.click()
+    page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])').wait_for()
+
+
+def show_resolved(page: Page | FrameLocator):
+    """Unfold the resolved threads in the open Threads, which stand folded under their
+    Resolved heading (`.lf-fp-settled`) until the user presses it, and return their
+    rows."""
+    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    heading = threads.locator(".lf-fp-settled")
+    if heading.get_attribute("aria-expanded") != "true":
+        heading.click()
+    return threads.locator(".lf-fp-thread[data-resolved]")
+
+
+def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
+    """Open the floating panel's Threads view by Go to Threads (`g` then `T`), in
+    `frame`'s page where given, a live sample's. The pointer's route to Threads has
+    changed between runtimes, so a driver one checkout runs against another's runtime,
+    as `stills`, `bench-latency`, thread snapshots and `verify-site` do, takes this
+    route, which both share."""
+    within = frame or page
+    # A press at the frame's top corner gives its document the keys; the page's own
+    # only needs focus off any control.
+    if frame:
+        frame.locator("body").click(position={"x": 2, "y": 2})
+    else:
+        page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    within.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])').wait_for()

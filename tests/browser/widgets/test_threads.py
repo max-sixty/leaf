@@ -6,8 +6,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     MESSAGE_ROOM_PAGE,
@@ -34,6 +32,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -137,7 +137,7 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
 ):
     """A selection made in the panel is not the page's words, whatever it looks like.
 
-    `leaf thread open --section` refuses to anchor on a widget an agent sent, and it is the
+    `leaf thread create --section` refuses to anchor on a widget an agent sent, and it is the
     reading that is supposed to promise less than the browser's. The browser offered
     the 💬 over a question in a reply and wrote an anchor onto that widget's own id into
     an append-only log — naming a section no version holds, so it could never paint and
@@ -314,7 +314,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     page = open_page(browser, url)
     resized(page, 1200, 900)
     inline = page.locator(f'#cd-q .lf-msg[data-event="{message["id"]}"]')
-    expect(inline.locator(".lf-msg-body")).to_have_text("The north bracket fit.")
+    expect(inline.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
     panel_thread = open_panel_thread(page, "edited-agent-message")
     panel = panel_thread.locator(f'.lf-msg[data-event="{message["id"]}"]')
     expect(panel.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
@@ -426,7 +426,7 @@ def thread_on_a_sent_widget(serve):
 def test_a_detached_thread_on_a_widget_an_agent_sent_stays_detached(browser, serve):
     """An anchor captured detached names no passage the user selected, so finding the
     widget its section names in a message identifies nothing: the thread still reads as
-    detached, with no In its message to offer."""
+    detached, with no Show in message to offer."""
     url = thread_on_a_sent_widget(serve)
     append_carried_log_record(
         serve.page_dir,
@@ -444,7 +444,7 @@ def test_a_detached_thread_on_a_widget_an_agent_sent_stays_detached(browser, ser
     thread = open_panel_thread(page, "c-lost")
     expect(thread.locator(".lf-fp-quote")).to_have_class(re.compile(r"\bdetached\b"))
     expect(
-        page.locator(".lf-fp-aux").get_by_role("button", name="In its message")
+        page.locator(".lf-fp-aux").get_by_role("button", name="Show in message")
     ).to_have_count(0)
 
 
@@ -481,7 +481,7 @@ def test_a_thread_on_a_widget_an_agent_sent_stands_in_its_message(browser, serve
     placement looked for the widget only among the nodes the page held, so whenever that
     thread was closed the thread about the widget read as detached ("can't be
     identified") and had no way to what it was about. Placement now finds the widget in
-    the message that keeps it: the head quotes it as found, and In its message opens the
+    the message that keeps it: the head quotes it as found, and Show in message opens the
     message's thread on the widget and lands there."""
     url = thread_on_a_sent_widget(serve)
     page = open_page(browser, url)
@@ -492,7 +492,7 @@ def test_a_thread_on_a_widget_an_agent_sent_stands_in_its_message(browser, serve
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
 
     page.locator(".lf-fp-aux").get_by_role(
-        "button", name="In its message", exact=True
+        "button", name="Show in message", exact=True
     ).click()
     held = page.locator(f'{PANEL_THREAD}[data-thread="c-sent"]')
     expect(held).to_be_visible()

@@ -18,6 +18,7 @@ from interact_support import (
     record_claim,
     yaml_document,
 )
+
 from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import state as cleanup_model
@@ -86,7 +87,7 @@ def test_a_user_move_no_watcher_will_pick_up_messages_its_claude_code_session(
 
         # A live watcher delivers it.
         claim = record_claim(page_dir, turn_closed=closed)
-        lease = leases_model.take_lease(
+        lease = leases_model.take_wait_lease(
             leases_model.waiter_lease_path(page_dir, claim["id"])
         )
         assert lease

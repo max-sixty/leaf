@@ -14,6 +14,7 @@ from interact_support import (
     check_findings,
     comment,
     decide,
+    declare_on_page,
     found,
     publish,
     published,
@@ -21,6 +22,7 @@ from interact_support import (
     state_json,
     suggested,
 )
+
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
@@ -28,9 +30,16 @@ from leaf import files as files_model
 from leaf import structure as structure_model
 from leaf.events import build_threads
 from leaf.registry import storage as registry_storage
-from model.test_interact_anchors import (
-    declare_part_prefixes,
-)
+
+
+def declare_part_prefixes(page_dir, *prefixes):
+    """Give the page's diagram part-id prefixes in place of its authored list."""
+    declare_on_page(
+        page_dir,
+        lambda registry: registry["lf-diagram"].update(
+            {"x-visual": {"prefixes": list(prefixes)}}
+        ),
+    )
 
 
 def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
@@ -55,7 +64,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
     refused = event_contracts_model.visual_anchor_error(
         {"anchor": {"section": "flow", "visual": "edge:B"}},
         {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
-        json.loads((page_dir / "registry.json").read_text()),
+        registry_storage.read_page_registry(page_dir).registry,
     )
     assert (refused.code, refused.values["declared"]["prefixes"]) == (
         "undeclared-visual",
@@ -65,7 +74,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
         assert event_contracts_model.visual_anchor_error(
             {"anchor": {"section": "flow", "visual": unrenderable}},
             {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
-            json.loads((page_dir / "registry.json").read_text()),
+            registry_storage.read_page_registry(page_dir).registry,
         ), unrenderable
 
     # The file lists none of these parts, so markup cannot drop one; a declaration
@@ -157,11 +166,6 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             "attention": None,
         }
     ]
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert transcript.exit_code == 0, transcript.output
-    assert "> § flow · node:A" in transcript.output
 
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
@@ -329,7 +333,9 @@ def test_a_quote_without_a_section_detaches_when_its_words_disappear(page_dir):
         ],
     )
     assert moved.exit_code == 0, moved.output
-    assert json.loads(moved.output)["anchor"]["quote"] == "Beta"
+    advice, reply = [json.loads(line) for line in moved.output.splitlines()]
+    assert advice["code"] == "unpointable"
+    assert reply["anchor"]["quote"] == "Beta"
 
 
 def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir):

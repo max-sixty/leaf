@@ -1,17 +1,18 @@
 """Shared interaction browser-integration cases and readings."""
 
-import hashlib
 import json
 from datetime import datetime, timedelta
 
 from browser_sources import browser_source
 from interact_support import add_test_widget, append_carried_log_record, append_command
-from leaf.schema import ELEMENT_ID
 from render_harness import (
+    CORPUS_SOURCES,
     EXAMPLES,
     TOKEN,
     leaf_page,
 )
+
+from leaf.schema import ELEMENT_ID
 
 # A page with an outline: three headings, and passages under each to hang threads on.
 # LONG_PAGE has one heading and sixty paragraphs, which cannot tell an order that
@@ -60,23 +61,22 @@ LIST_ORDER = """async () => {
 }"""
 
 
-def panel_comment(d, text, anchor=None, author="user", *, question=None):
+def panel_comment(d, text, anchor=None, author="user", *, obligation=False):
     """One thread's opening message, written straight to the log. An agent's that
-    waits on the user carries its `question` in an lf-ask."""
+    waits on the user for an answer in words carries `obligation`."""
     event = {"kind": "comment", "author": author, "revision": 1, "text": text}
     if author == "agent":
         event["agent"] = "Claude"
     if anchor:
         event["anchor"] = anchor
-    if question:
-        identity = "question-" + hashlib.sha256(question.encode()).hexdigest()[:6]
-        event["markup"] = f'<lf-ask id="{identity}">{question}</lf-ask>'
+    if obligation:
+        event["obligation"] = True
     return append_carried_log_record(d, event)["id"]
 
 
 def answered_comment(d, text, anchor):
     """A user's thread the agent has replied to, so an obligation it is about waits on the
-    user again rather than on that reply (`obligations.sections_with_agent`)."""
+    user again rather than on that reply (`obligations.anchors_with_agent`)."""
     root = panel_comment(d, text, anchor)
     append_carried_log_record(
         d,
@@ -317,9 +317,9 @@ EXHIBIT_EXTENT = """
 }
 """
 
-SAMPLE_EXAMPLES = [p for p in EXAMPLES if "<lf-sample" in p.read_text()]
+SAMPLE_EXAMPLES = [p for p in CORPUS_SOURCES if "<lf-sample" in p.read_text()]
 assert SAMPLE_EXAMPLES, (
-    "no shipped example holds a sample — the sweep below would drive the fixture "
+    "no authored fixture holds a sample — the sweep below would drive the fixture "
     "page alone, and the rule it holds is one the corpus is the whole test of"
 )
 TABLE_REPLY = """The ceilings, unchanged:
@@ -645,12 +645,12 @@ OBLIGATION_IN_A_CARD_PAGE = leaf_page(
 {"".join(f"<p id='ac-tail-{i}'>Later note {i}. " + "Background. " * 14 + "</p>" for i in range(6))}
 """,
 )
-# The decision the walk is standing on. One decision wears the mark, on however many boxes it
+# The decision at the current location. One decision wears the mark, on however many boxes it
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
 # main because the On panel's row mirrors the same fact in the chrome.
-STANDING_OBLIGATION = (
+CURRENT_OBLIGATION = (
     "main [data-lf-obligation]:not([data-lf-obligation] [data-lf-obligation])"
 )
 # The shipped board measures its grip from a live box. Author it into the page and
@@ -682,18 +682,20 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-# What each card of the panel's On me view says: its obligation's kind and id (queue-api.js,
-# `queueItemKey`), the list it stands in ("you", "agent" or "done"), its title, its
-# prompt and what it says of its ending (such as "Answered: …"), each null where the
-# card has none, and its box.
+# What each item of the panel's On view says, as On me's card or On <agent>'s line: its
+# obligation's kind and id (queue-api.js, `queueItemKey`), the list it stands in ("you",
+# "agent" or "done"), its title, its prompt where its card is open, and what it says of
+# its ending (such as "Answered: …"), each null where the item has none, and its box.
 ON_ITEM_SAYS = """() => [...document.querySelectorAll(
     '.lf-fp-view[data-view="queue"]:not([data-leaving]) .lf-fp-on-item')].map((c) => ({
   kind: JSON.parse(c.dataset.key)[0],
   id: JSON.parse(c.dataset.key)[1],
   list: c.dataset.list,
-  title: c.querySelector('.lf-fp-on-title')?.textContent ?? null,
+  title: c.querySelector('.lf-fp-on-title, .lf-fp-on-line .lf-fp-label')?.textContent
+    ?? null,
   prompt: c.querySelector('.lf-fp-prompt')?.textContent ?? null,
-  said: c.querySelector('.lf-fp-said')?.textContent ?? null,
+  said: (c.querySelector('.lf-fp-said')
+    ?? c.querySelector('.lf-fp-on-says > .lf-fp-value'))?.textContent ?? null,
   w: Math.round(c.getBoundingClientRect().width),
   h: Math.round(c.getBoundingClientRect().height),
 }))"""
@@ -793,9 +795,7 @@ LIVE_V2 = (
     )
     .replace(
         "</head>",
-        '<meta name="lf-review" content="sign-off">\n'
-        "<style>#live-reading { --live-cut: 2; }</style>\n"
-        "</head>",
+        "<style>#live-reading { --live-cut: 2; }</style>\n</head>",
     )
 )
 LIVE_V3 = (
@@ -811,7 +811,6 @@ LIVE_V3 = (
     .replace(
         '<h1 id="live-title">Live second</h1>', '<h1 id="live-title">Live third</h1>'
     )
-    .replace('<meta name="lf-review" content="sign-off">\n', "")
     .replace("<style>#live-reading { --live-cut: 2; }</style>\n", "")
 )
 
@@ -1119,7 +1118,7 @@ ACTIONS_IN_FORCE = [
     (
         "ab-visual",
         "review",
-        {"case": "status-column", "disposition": "looks-right"},
+        {"case": "status-column", "approved": True},
     ),
     (
         "ab-card",
@@ -1319,7 +1318,7 @@ THREAD_OBLIGATIONS = [
 # A widget the shipped packages no longer have: one the user owes an answer on that
 # also seats a thread of its own. A thread anchored on any obligation splits the user's list
 # from the unanswered decisions while the agent has the next word, taking the obligation off
-# the list without answering it (`obligations.sections_with_agent`); a seat is where a
+# the list without answering it (`obligations.anchors_with_agent`); a seat is where a
 # user most often starts one. `lf-options` supplied the pair until 292de9c made the
 # user's cell an add form and dropped `x-thread-seat`, so the pair is declared here
 # rather than borrowed from whichever shipped entry happens to carry it: the reading
@@ -1445,9 +1444,8 @@ WORKSHOP_THREAD_EVENTS = tuple(
             "parent": PHOTO_THREAD,
             "responds": PHOTO_THREAD,
             "id": PHOTO_QUESTION,
-            "text": "One question about the photo:",
-            "markup": '<lf-ask id="photo-question">Does the room photo show enough, or'
-            " should I reshoot it wider?</lf-ask>",
+            "text": "Does the room photo show enough, or should I reshoot it wider?",
+            "obligation": True,
             "ts": "2026-09-02T00:12:55-07:00",
         },
         # Newer than the question and not one: the thread stays on the user for the

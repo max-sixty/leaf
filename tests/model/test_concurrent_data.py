@@ -7,6 +7,7 @@ from pathlib import Path
 from threading import Event
 
 from interact_support import STATED_TIMEOUT
+
 from leaf import data as data_model
 
 REGISTRY = {"$data": {"contracts": {"integer": {"schema": {"type": "integer"}}}}}

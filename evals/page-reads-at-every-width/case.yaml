@@ -5,6 +5,8 @@
 # beside what `page check` reported and what the author did about it. At e1ed34cec,
 # 23 of 37 pages had a defect outside Leaf's thread chrome (Claude Code 18 of 19,
 # mostly wrong facts; Codex 5 of 18), and the final checks reported 3 of 66 defects.
+# The supplied-facts paragraph in page-authoring.md, "Reading cost", then cut Claude
+# Code pages misstating a supplied fact from 22 of 37 to 12 of 36.
 # notes/agent-usability-evals.md, "Bad pages and the checks", has the runs.
 description: page-reads-at-every-width
 metadata:
@@ -30,3 +32,35 @@ variants:
   configuration:
     vars:
       prompt: file://configuration/request.md
+  # A two-job demo followed the universal playground-width instruction and spread
+  # a small form across a mostly empty window. Exercise the authored result, not
+  # whether the author chose a particular Layout or control appearance.
+  small-configuration:
+    vars:
+      prompt: |
+        Make a page where I can choose accelerators for two eight-hour training
+        jobs, embeddings and ranking. Each currently uses CPU. Options are CPU
+        ($0.50/hour), A10 ($1.20/hour), A100 ($3/hour), and H100 ($5/hour). I also
+        need batch or urgent priority, initially batch. Show what each job and the
+        whole run will cost as I change the choices. Let me send the final
+        configuration to you to apply; do not apply anything yet. I am using a
+        1728×999 desktop window.
+  # A real comparison passed render checks with fixed drawings stranded at the
+  # left of expanding grid tracks. Readable labels did not establish a balanced pair.
+  diagram-comparison:
+    vars:
+      prompt: |
+        Write a short guide comparing two ways a release dashboard receives build
+        results. The reader wants to understand who initiates each update and which
+        views share the result.
+
+        In the push flow, a build producer writes a named page dataset, then a status
+        card and a build table read it. In the pull flow, the dashboard polls a build
+        service, stores the response in its page dataset, then the same two views read
+        it. The producer initiates push updates; the dashboard initiates pulls.
+
+        Show each flow as an inline SVG figure with its own heading and caption. Use
+        arrows to show the direction of data. Put the figures together so the reader
+        can compare the flows, with a short introduction and a paragraph explaining
+        the difference. This is an explanation, so no implementation or decision
+        controls are needed.

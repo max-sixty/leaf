@@ -14,7 +14,7 @@
 // markers while updating real content, so comment-only restoration is not judged.
 // Such a rendered write still costs a style pass and a repaint, of the whole document while
 // a CSS highlight holds a range, so code writes only what changed
-// (skills/leaf/assets/AGENTS.md).
+// (browser/AGENTS.md).
 //
 // Each finding is reported once per document: a writer that fires every frame would
 // otherwise bury the report under its own repetitions.
@@ -234,11 +234,15 @@
     // CodeMirror writes every attribute of its content element when it mounts a view,
     // the tab-size style that element already holds among them.
     (what, node) => what === "style" && is(node, "div.cm-content"),
-    // CodeMirror reapplies this line decoration when the editor view updates, even
-    // when the last line still holds the same words and the class is unchanged.
+    // CodeMirror's setAttrs assigns a line's style whenever it syncs the line's
+    // attributes, as a list item's line carries its depth and number.
+    (what, node) =>
+      what === "style" && is(node, "div.cm-line.lf-md-item") && hosts(node).length > 0,
+    // CodeMirror also restates a line's decoration class when it reconciles an
+    // editor update, even when the preview gives that line the same face.
     (what, node) =>
       what === "class" &&
-      is(node, "div.cm-line.lf-field-last") &&
+      is(node, "div.cm-line") &&
       hosts(node)[0]?.localName === "leaf-text",
     // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
     // editor updates, including equivalent line-break nodes in either editor host.
@@ -257,6 +261,12 @@
     // as they update, and restate what their own shadow trees hold.
     (what, node) => what !== "children" && node.localName?.startsWith("wa-"),
     (what, node) => hosts(node).some((host) => host.localName.startsWith("wa-")),
+    // Trees restores native row focus after closing search, restating the focus
+    // marker its row renderer already painted.
+    (what, node) =>
+      what === "data-item-focused" &&
+      is(node, 'button[role="treeitem"]') &&
+      hosts(node)[0]?.localName === "lf-file-tree",
     // Viewer.js reapplies image/canvas classes and magnifier visibility when an
     // inspected image changes. It is an upstream-owned renderer; Leaf's adapter
     // controls remain watched.
@@ -270,6 +280,9 @@
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
     (what, node) => what === "class" && is(node, ".lf-ghost"),
+    // Sortable's drop sets the pressed card's `draggable` to false on every release of
+    // its grip, whether or not the press became a drag.
+    (what, node) => what === "draggable" && is(node, "lf-card"),
     // PhotoSwipe reasserts its root's zoom and pointer classes while handling
     // gestures and viewport changes, including when those classes already stand.
     (what, node) => what === "class" && is(node, "div.pswp"),
@@ -350,7 +363,7 @@
     record.oldValue === null &&
     through.some((value) => value !== null) &&
     focusGuards.has(record.target);
-  // Residency verifies that authored CSS actually supplies a requested grid shift.
+  // Margin layout verifies that authored CSS actually supplies a requested grid shift.
   // An ignored request is withdrawn in the same reading; every other style member
   // must remain unchanged. A settled failed placement must not probe again (the
   // authored-track browser test separately asserts zero subsequent mutations).
@@ -369,6 +382,21 @@
       through.every((value) => withoutShift(value) === before)
     );
   };
+  // Reopening a menu during its closing fade retains the status nodes. holdMenu
+  // measures their fresh text without the previous opening's line limits, then
+  // restores the limits. Equal dimensions still required that layout read. Credit
+  // only removal/restoration of those limits, never a direct repeated assignment.
+  const menuMeasurement = ({ record, through }) =>
+    through.every((value) => value === null) &&
+    ((record.attributeName === "data-held" &&
+      record.oldValue === "" &&
+      is(record.target, "div.lf-fp-state")) ||
+      (record.attributeName === "style" &&
+        /^--lines: \d+$/.test(record.oldValue ?? "") &&
+        is(
+          record.target,
+          ".lf-fp-state > :is(span.lf-fp-summary, span.lf-fp-explain)",
+        )));
   const putBack = ({ record, through }) =>
     (record.attributeName === "tabindex" &&
       record.oldValue === null &&
@@ -377,7 +405,8 @@
       record.target.matches(".lf-margin-cluster") &&
       through.every((value) => sameTokens(tokens(value), tokens(record.oldValue)))) ||
     columnProbe({ record, through }) ||
-    nativeFocusGuard({ record, through });
+    nativeFocusGuard({ record, through }) ||
+    menuMeasurement({ record, through });
   // An element reference set through reflection (`ariaDetailsElements`, and the rest of
   // the aria-*Elements family) writes an empty attribute whatever the elements are, so
   // an empty value that stays empty says nothing about whether the relation changed.

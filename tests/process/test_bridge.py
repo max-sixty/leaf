@@ -7,6 +7,7 @@ import subprocess
 
 import pytest
 from interact_support import ROOT, STATED_TIMEOUT
+
 from leaf import bridge as bridge_model
 from leaf import hooks as hooks_model
 from leaf import service as service_model
@@ -54,11 +55,11 @@ def test_a_sandboxed_command_runs_outside_the_sandbox(page_dir):
 
 
 @pytest.mark.usefixtures("bridged")
-def test_a_bridged_command_keeps_its_stdin_streams_and_status(tmp_path):
+def test_a_bridged_command_keeps_its_stdin_streams_and_status(page_dir):
     """The command reads the stdin it was given, and its stdout, stderr and exit
     status come back apart."""
     refused = subprocess.run(
-        [LAUNCHER, "data", "set", str(tmp_path), "source"],
+        [LAUNCHER, "data", "set", str(page_dir), "source"],
         input="{",
         capture_output=True,
         text=True,
@@ -70,32 +71,28 @@ def test_a_bridged_command_keeps_its_stdin_streams_and_status(tmp_path):
 
 
 @pytest.mark.usefixtures("bridged")
-def test_a_bridged_command_ends_though_its_stdin_never_does():
+def test_a_bridged_command_ends_though_its_stdin_never_does(spawn):
     """A harness may hand a command a stdin that never ends, and a command that
     never reads it still finishes."""
-    held = subprocess.Popen(
+    held = spawn(
         [LAUNCHER, "--version"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
     )
-    try:
-        assert held.wait(timeout=STATED_TIMEOUT) == 0
-        assert held.stdout.read().startswith("leaf ")
-    finally:
-        held.stdin.close()
-        held.stdout.close()
+    assert held.wait(timeout=STATED_TIMEOUT) == 0
+    assert held.stdout.read().startswith("leaf ")
 
 
 @pytest.mark.usefixtures("bridged")
-def test_a_bridged_command_refuses_a_socket_stdin_at_once(tmp_path):
+def test_a_bridged_command_refuses_a_socket_stdin_at_once(page_dir):
     """Claude Code hands a command spanning lines a socket as its stdin that never
     closes. A bridged command given no JSON gets an empty pipe in its place, and
     refuses at once rather than waiting for the socket to end."""
     held, caller = socket.socketpair()
     with held, caller:
         refused = subprocess.run(
-            [LAUNCHER, "data", "set", str(tmp_path), "source"],
+            [LAUNCHER, "data", "set", str(page_dir), "source"],
             stdin=held,
             capture_output=True,
             text=True,
@@ -107,7 +104,7 @@ def test_a_bridged_command_refuses_a_socket_stdin_at_once(tmp_path):
 
 
 @pytest.mark.usefixtures("bridged")
-def test_a_bridged_command_reads_a_socket_stdin_it_names(tmp_path):
+def test_a_bridged_command_reads_a_socket_stdin_it_names(page_dir):
     """A command that names stdin itself (`--file -`) reads it through the bridge
     even from a socket, as a Node caller's piped stdin is."""
     held, caller = socket.socketpair()
@@ -115,7 +112,7 @@ def test_a_bridged_command_reads_a_socket_stdin_it_names(tmp_path):
         caller.sendall(b"{")
         caller.shutdown(socket.SHUT_WR)
         read = subprocess.run(
-            [LAUNCHER, "data", "set", str(tmp_path), "source", "--file", "-"],
+            [LAUNCHER, "data", "set", str(page_dir), "source", "--file", "-"],
             stdin=held,
             capture_output=True,
             text=True,
@@ -156,3 +153,19 @@ def test_a_session_that_runs_no_leaf_command_starts_no_bridge():
     ):
         hooks_model.cmd_hook("claude-code", {"session_id": "unbridged", **payload})
     assert not bridge_model.bridge_path("lock").exists()
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["--help"], ["--version"], ["--root", "--", "x"]],
+)
+def test_the_bridge_client_forwards_leaf_arguments_verbatim(monkeypatch, argv):
+    """`bin/leaf` hands a sandboxed command's whole argv to the bridge client,
+    which passes every argument after its mode to Leaf unparsed, `--` included."""
+    received = []
+    monkeypatch.setattr(bridge_model, "run", lambda args: received.append(args) or 7)
+    monkeypatch.setattr("sys.argv", ["bridge.py", "run", *argv])
+    with pytest.raises(SystemExit) as exited:
+        bridge_model.main()
+    assert exited.value.code == 7
+    assert received == [argv]

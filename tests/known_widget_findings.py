@@ -7,27 +7,15 @@ deletes its entry, so the list only shrinks. A widget joins only as a defect to 
 never as behavior to keep. The corpus sweep reads the same list, since a defect is the
 widget's wherever it stands (`test_render_gate.py`, `held_scroller_findings`)."""
 
-from interact_support import SKILL_ROOT
 from leaf import schema as schema_model
 
 # The base layer's two halves and every bundled package, each answering for its own
 # widgets as a package author's `package check --render` would.
 PACKAGES = [
     schema_model.ASSETS,
-    *sorted(path for path in (SKILL_ROOT / "packages").iterdir() if path.is_dir()),
+    *sorted(
+        path for path in (schema_model.BUNDLED_PACKAGES).iterdir() if path.is_dir()
+    ),
 ]
 
-KNOWN = {
-    "default": {
-        # What these draw is the page's state, which arrives with the first state
-        # answer after the first paint and which the served document does not carry:
-        # a text document's lines are its bound source's value, wrapped at the column's width.
-        ("lf-text-document", "keeps-first-box"),
-    },
-    "diff": {
-        # The worked example states its drawing's height in pixels (`data-height="151"`),
-        # measured at reading density; at working density the drawing's rows are
-        # shorter and it presents at 145px. A stated height is one density's.
-        ("lf-diff", "keeps-first-box"),
-    },
-}
+KNOWN: dict[str, set[tuple[str, str]]] = {}

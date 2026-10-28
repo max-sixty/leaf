@@ -26,8 +26,8 @@ test("summary ranges replace their contiguous originals without taking later mes
 });
 
 test("progress no fold covers is gathered per run, named for its first message", () => {
-  // a and d are the user's; b, c and e are progress no answer has folded; f is progress
-  // the server already folded behind its answer, which stays as the server named it.
+  // a and d are the user's; b, c and e are pending progress; f is covered by
+  // an explicit summary, which stays as the server named it.
   const thread = [
     { id: "a", key: "a" },
     { id: "b", key: "b", progress: true },
@@ -36,7 +36,7 @@ test("progress no fold covers is gathered per run, named for its first message",
     { id: "e", key: "e", progress: true },
     { id: "f", key: "f", progress: true },
   ];
-  const folded = { id: "ephemeral:f:g", covers: ["f"], trigger: "g" };
+  const folded = { id: "s1", covers: ["f"], text: "Checkpoint" };
   const ranges = withPendingProgress(summaryRanges(thread, [folded]));
   assert.deepEqual(
     ranges.map(({ kind, message, summary }) =>
@@ -47,7 +47,7 @@ test("progress no fold covers is gathered per run, named for its first message",
       ["progress:b", ["b", "c"], true],
       "d",
       ["progress:e", ["e"], true],
-      ["ephemeral:f:g", ["f"], undefined],
+      ["s1", ["f"], undefined],
     ],
   );
 });

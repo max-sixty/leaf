@@ -15,11 +15,11 @@ import { openLayersRule } from "../../eslint.config.mjs";
 const at = (path) => fileURLToPath(new URL(`../../${path}`, import.meta.url));
 
 // How many times the rule reports on `code` in `file`.
-function reports(code, file = "skills/leaf/assets/runtime/probe.js") {
+function reports(code, file = "browser/runtime/probe.js") {
   let count = 0;
   const visitors = openLayersRule.create({
     filename: at(file),
-    options: [["skills/leaf/assets/runtime/shadow-tree.js"]],
+    options: [["browser/runtime/shadow-tree.js"]],
     report: () => (count += 1),
   });
   const walk = (node) => {
@@ -53,8 +53,5 @@ test("other selectors, and the owner, pass", () => {
     "isNativeLayer(menu);",
   ])
     assert.equal(reports(code), 0, code);
-  assert.equal(
-    reports('node.matches(":modal");', "skills/leaf/assets/runtime/shadow-tree.js"),
-    0,
-  );
+  assert.equal(reports('node.matches(":modal");', "browser/runtime/shadow-tree.js"), 0);
 });

@@ -1,8 +1,8 @@
 # Added with where a sidebar page stacks (#1363). Base at 4d8d08eca rebuilt the
 # sidebar as its own grid to keep the track beside the body at 900px (0 of 3); the
 # change 3 of 3. Later made to fail a sticky track: base at eee4a2d6d stuck the
-# `aside` itself (0 of 3), the change 3 of 3. Since the Layout sticks and bounds the
-# one block a track holds, it fails a page that writes its own sticking instead.
+# `aside` itself (0 of 3), the change 3 of 3. Since the Layout sticks and bounds what a
+# track holds, one block or several, it fails a page that writes its own sticking instead.
 # The completed-log and live-stream contrast only guarded in the 2026-10-07
 # scrolling-policy comparison: both wordings passed those choices on both harnesses.
 description: sidebar-page-at-900px
@@ -24,8 +24,8 @@ variants:
     metadata:
       purpose:
         "A sidebar page read at 900px: the Layout already keeps its track beside the body there
-        and keeps the one block it holds in view as the body scrolls, so the page puts the checklist
-        in that block and leaves the Layout's widths and sticking alone."
+        and keeps what it holds in view as the body scrolls, so the page puts the checklist in the
+        track and leaves the Layout's widths and sticking alone."
       tags:
         - layout
       executor: null
@@ -50,10 +50,10 @@ variants:
           `layout-sidebar` and the checklist is in its track. The page's own CSS leaves the
           Layout's widths alone: fail if it sets `flex`, `flex-basis`, `grid-template-columns`
           or `display` on `main`, the body or the track, or adds a media or container query to
-          keep them side by side. The checklist is in one block, the track's only child
-          element, which the Layout keeps in view as the log scrolls, so the page's CSS leaves
-          that alone too: fail if it makes the track or a block inside it `position: sticky`, or
-          sets the `top`, `height`, `max-height` or `overflow` of the track or its block.
+          keep them side by side. The Layout keeps what the track holds in view as the log
+          scrolls, so the page's CSS leaves that alone too: fail if it makes the track or a
+          block inside it `position: sticky`, or sets the `top`, `height`, `max-height` or
+          `overflow` of the track or its blocks.
       - type: llm-rubric
         metric: completed-log-in-document-flow
         value: |

@@ -11,15 +11,20 @@ from leaf_dev.commands import eval as module
 
 
 def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):
-    # Configuration copies the external login; no native provider is invoked.
+    # Configuration shares the external login; no native provider is invoked.
     login = tmp_path / "login"
     login.mkdir()
     (login / "auth.json").write_text("{}")
     monkeypatch.setenv("CODEX_HOME", str(login))
+    skill = tmp_path / "arm" / ".claude" / "skills" / "developing-leaf" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("Maintainer instructions.")
     cases = module.catalog()
     assert cases
     config = module.prepare(
         [
+            # Its provider takes instructions; the next case's provider takes none.
+            "interaction-proof-follows-the-reader",
             "todo-outlasts-the-turn",
             "configuration",
             "dashboard/reader-clean",
@@ -35,6 +40,7 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
     assert config["providers"] and config["tests"]
     assert all(test["assert"] for test in config["tests"])
     assert {test["metadata"]["case"] for test in config["tests"]} == {
+        "interaction-proof-follows-the-reader",
         "todo-outlasts-the-turn",
         "configuration",
         "dashboard/reader-clean",

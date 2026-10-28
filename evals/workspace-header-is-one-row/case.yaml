@@ -1,12 +1,10 @@
 # Added with the one-row workspace header (#1301). Base at cd1d37b0d 0 of 3 (one run
 # put a lede in the header), the change 3 of 3.
-# The judgment's `density-working` clause was added with that class, which the workspace
-# template now writes beside the Layout class.
+# Those historical scores required particular header contents and density-working.
+# The current rubric judges usable working space and understandable context instead.
 description: workspace-header-is-one-row
 metadata:
-  purpose:
-    "Writing a workspace: its header takes the window's height before the panes do, so it holds
-    the title and the page's status and nothing a pane could hold."
+  purpose: "Writing a workspace: context leaves room to read and decide in the working regions."
   tags:
     - layout
 vars:
@@ -23,14 +21,46 @@ vars:
     `index.html`, rather than writing a file.
 assert:
   - type: llm-rubric
-    metric: judgment
+    metric: working-space-and-context
     value: |
-      Read the HTML. Pass only if `main` has classes `layout-workspace` and
-      `density-working`, and its `header`
-      holds the title and, at most, the page's status as short chips or one short line of
-      them (for example `.tag` spans saying how many are quarantined or fail often): no
-      paragraph explaining the page, no eyebrow, no lede, no legend or instructions. The
-      sentence or two the user asked for must still be on the page, inside a pane or
-      region of the body (for example at the top of the list pane or the detail pane).
-      Fail if the header holds a lede or explanatory paragraph, or if the explanation was
-      dropped from the page entirely.
+      Read the HTML and CSS as the user reviewing tests on the requested laptop.
+      Pass if the list and selected test's evidence and decision are usable together,
+      with room to read the log and reach its actions, and the page explains its purpose
+      and what follows the choices. The reported counts must also be available.
+      Fail if introductory or status material crowds the working regions so the user
+      cannot read and decide there, or if the requested explanation is omitted or hidden
+      away from the working view. Judge the space and information the design gives the
+      user, not the header's tag names, number of rows, or a particular density class.
+variants:
+  shared-instruction:
+    metadata:
+      purpose: A rule applying to every review choice remains available while the reader works across items.
+    vars:
+      prompt: |
+        Write a Leaf workspace for reviewing 14 flaky tests from last week's CI on a
+        laptop at about 1280 by 800. Put the test list beside the selected test's log
+        and its Quarantine, Fix now, or Delete decision. Three are already quarantined
+        and five fail more than half the time; make these counts available.
+
+        Explain what the workspace is for and this shared rule: "Choices save proposals
+        only. Nothing changes in CI until I submit the whole review." Keep that rule
+        available while I switch tests and read long logs, so I can tell what choosing
+        Delete will do without searching another test or opening help. Include the
+        action that submits the review. Keep enough room to read the selected test's
+        evidence and make its decision.
+
+        The page directory is not reachable from here, so reply with the complete
+        index.html rather than writing a file.
+    assert:
+      - type: llm-rubric
+        metric: shared-rule-during-review
+        value: |
+          Pass if, while switching tests and reading long logs, the user can see that
+          per-test choices only save proposals and CI changes require submitting the
+          whole review. The submit action must be available, and the explanation must leave the
+          list, evidence and decisions usable together on the requested laptop. Fail if
+          the rule disappears with one selected test or scrolls out of the working view
+          without another visible presentation of it, if it is only behind help, or if
+          an individual Delete choice is presented as immediately changing CI. The rule
+          may appear in any suitable location; do not require or forbid a header,
+          footer, pane or particular HTML element.

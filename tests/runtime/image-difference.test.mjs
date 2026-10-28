@@ -8,7 +8,7 @@ import {
   changedPixels,
   describeDifference,
   differingRegions,
-} from "/runtime/image-difference.js";
+} from "../../packages/default/widgets/image-difference.js";
 
 // A blank opaque image, and a copy with the given rectangles repainted.
 const blank = (width, height) => ({
@@ -85,85 +85,77 @@ test("a pixel moved 48 levels is outlined, and none moved less is", async () => 
   assert.deepEqual(outlines(strong, "after"), outlines(strong, "before"));
 });
 
-test("the changed-pixel masks are opaque where a pixel moved far, faint where slight, clear elsewhere", () => {
-  // The after image is two rows taller, as a page that grew is.
-  const after = painted(blank(20, 12), [2, 2, 1, 1, 0, 0], [5, 5, 1, 1, 0, 230]);
-  const masks = changedPixels(blank(20, 10), after);
-  const { width, height } = masks;
-  const alpha = (mask, x, y) => masks[mask][(y * width + x) * 4 + 3];
+test("pixel highlights retain slight edits with softer opacity than strong edits", async () => {
+  const before = blank(20, 12);
+  const after = painted(before, [2, 2, 1, 1, 0, 0], [5, 5, 1, 1, 0, 230]);
+  const { width, height, data } = await changedPixels(before, after);
+  const alpha = (x, y) => data[(y * width + x) * 4 + 3];
   assert.deepEqual([width, height], [20, 12]);
-  assert.equal(alpha("after", 2, 2), 255);
-  // A slight shift, as a redrawn shadow is, draws nothing in either image, and shows
-  // faintly: 25 levels of the 96 that make a pixel opaque.
-  assert.equal(alpha("both", 5, 5), Math.round(40 + (215 * 25) / 96));
-  assert.equal(alpha("after", 9, 9) + alpha("before", 9, 9) + alpha("both", 9, 9), 0);
-  // A row only the taller image has changed throughout, and is that image's.
-  assert.equal(alpha("after", 9, 11), 255);
-});
-
-test("a mark that moved is in the before mask where it was and the after mask where it went", () => {
-  const read = (was, went) => {
-    const masks = changedPixels(was, went);
-    return (mask, x, y) => masks[mask][(y * masks.width + x) * 4 + 3];
-  };
-  const was = painted(blank(40, 20), [4, 4, 6, 6]);
-  const went = painted(blank(40, 20), [24, 8, 6, 6]);
-  let alpha = read(was, went);
-  assert.deepEqual([alpha("before", 6, 6), alpha("after", 6, 6)], [255, 0]);
-  assert.deepEqual([alpha("before", 26, 10), alpha("after", 26, 10)], [0, 255]);
-  // On a dark ground the light mark is the one drawn.
-  const dark = (image) => ({
-    ...image,
-    data: image.data.map((v, i) => (i % 4 === 3 ? v : 255 - v)),
-  });
-  alpha = read(dark(was), dark(went));
-  assert.deepEqual([alpha("before", 6, 6), alpha("after", 26, 10)], [255, 255]);
-  // The ground is the mark's own surroundings, not the image's commonest colour: a
-  // light panel on a mostly dark page.
-  const panel = painted(blank(80, 20), [0, 0, 80, 20], [2, 2, 32, 14, undefined, 255]);
-  const onPanel = (rect) => painted(panel, rect);
-  alpha = read(onPanel([4, 4, 6, 6]), onPanel([20, 8, 6, 6]));
-  assert.deepEqual([alpha("before", 6, 6), alpha("after", 22, 10)], [255, 255]);
-  // A mark one pixel inside the panel's edge stands on the panel too.
-  alpha = read(onPanel([3, 3, 2, 2]), onPanel([20, 8, 2, 2]));
-  assert.deepEqual([alpha("before", 3, 3), alpha("after", 20, 8)], [255, 255]);
-});
-
-test("a mark recoloured in place is in the both mask", () => {
-  const red = painted(blank(20, 20), [4, 4, 6, 6, 1, 0], [4, 4, 6, 6, 2, 0]);
-  const blue = painted(blank(20, 20), [4, 4, 6, 6, 0, 0], [4, 4, 6, 6, 1, 0]);
-  const masks = changedPixels(red, blue);
-  const at = (mask) => masks[mask][(6 * masks.width + 6) * 4 + 3];
-  assert.deepEqual([at("before"), at("after"), at("both")], [0, 0, 255]);
-});
-
-test("a run with only what it encloses unchanged stands on no ground, in the both mask", () => {
-  // The whole image recoloured, and the same with one pixel inside it kept: the kept
-  // pixel is inside the run, not around it.
-  const white = blank(5, 5);
-  const black = painted(white, [0, 0, 5, 5]);
-  const kept = painted(white, [2, 2, 1, 1]);
-  for (const [was, went] of [
-    [white, black],
-    [kept, black],
-    [black, kept],
-  ]) {
-    const masks = changedPixels(was, went);
-    const at = (mask) => masks[mask][3];
-    assert.deepEqual([at("before"), at("after"), at("both")], [0, 0, 255]);
+  assert.equal(alpha(2, 2), 255);
+  assert.equal(alpha(5, 5), Math.round(40 + (215 * 25) / 96));
+  assert.equal(alpha(9, 9), 0);
+  assert.ok((await changedPixels(before, before)).data.every((value) => value === 0));
+  for (const channel of [0, 1, 2, 3]) {
+    const mask = await changedPixels(
+      before,
+      painted(before, [5, 6, 1, 1, channel, 254]),
+    );
+    const opacity = mask.data[(6 * width + 5) * 4 + 3];
+    assert.ok(opacity > 0 && opacity < alpha(5, 5));
   }
 });
 
-test("a mark spanning the frame stands on the ground left in its corners", () => {
-  // A cross from edge to edge: the corners it leaves are ground joined to the edge.
-  const white = blank(5, 5);
-  const cross = painted(white, [2, 0, 1, 5], [0, 2, 5, 1]);
-  const at = (masks, mask) => masks[mask][(0 * 5 + 2) * 4 + 3];
-  const added = changedPixels(white, cross);
-  const removed = changedPixels(cross, white);
+test("pixel highlights ignore invisible RGB but detect changes to translucent pixels", async () => {
+  const pixel = (rgba) => ({ width: 1, height: 1, data: new Uint8ClampedArray(rgba) });
+  assert.equal(
+    (await changedPixels(pixel([255, 0, 0, 0]), pixel([0, 255, 0, 0]))).data[3],
+    0,
+  );
+  for (const [before, after] of [
+    [
+      [0, 0, 0, 0],
+      [0, 0, 0, 1],
+    ],
+    [
+      [0, 0, 0, 128],
+      [1, 0, 0, 128],
+    ],
+    // Equal to BlazeDiff's synthetic background: compositing hides this alpha edit.
+    [
+      [48, 48, 48, 128],
+      [48, 48, 48, 129],
+    ],
+  ]) {
+    const { data } = await changedPixels(pixel(before), pixel(after));
+    assert.ok(data[3] > 0 && data[3] < 255);
+  }
+});
+
+test("pixel highlights preserve unequal image extents including transparent edges", async () => {
+  const transparent = (width, height) => ({
+    width,
+    height,
+    data: new Uint8ClampedArray(width * height * 4),
+  });
+  // Crossed extents leave a bottom-right corner belonging to neither image.
+  const wide = transparent(3, 1);
+  const tall = transparent(1, 3);
+  for (const [before, after] of [
+    [wide, tall],
+    [tall, wide],
+  ]) {
+    const { width, height, data } = await changedPixels(before, after);
+    assert.deepEqual([width, height], [3, 3]);
+    assert.deepEqual(
+      Array.from(data.filter((_, i) => i % 4 === 3)),
+      [0, 255, 255, 255, 0, 0, 255, 0, 0],
+    );
+  }
+  // Padding must preserve row coordinates when source widths differ.
+  const { data } = await changedPixels(blank(2, 2), painted(blank(3, 2), [1, 1, 1, 1]));
   assert.deepEqual(
-    [at(added, "after"), at(removed, "before"), at(added, "both")],
-    [255, 255, 0],
+    Array.from(data.filter((_, i) => i % 4 === 3)),
+    [0, 0, 255, 0, 255, 255],
   );
 });
 

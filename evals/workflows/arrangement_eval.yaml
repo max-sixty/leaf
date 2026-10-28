@@ -10,23 +10,13 @@ reachable:
 prompts:
   first:
     leaf: |-
-      Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code) for this page. $LEAF is its launcher, {payload}/bin/leaf. Check the page with `$LEAF page check {page} --render`, fix findings and stamp it.
-
-      Write the page at {page}/index.html and hand it over to me in my browser. Produce a finished record with readable evidence and the choices or
-      navigation the request needs. You may use the browser tooling available on this
-      machine. Installed headless Chrome executable: {browser}
-
-      The user's request follows.
+      Use Leaf for this page. Write it at {page}/index.html and send me its URL; I'll open it.
+      Use headless browser tooling for your own inspection. Installed headless Chrome executable: {browser}
 
       {request}
     html: |-
-      Build with ordinary HTML, CSS and JavaScript. No Leaf instructions, widgets or runtime are available. Check your output in the browser and fix findings.
-
-      Write the page at {page}/index.html; I'll open it in my browser. Reply with one line naming the path, and I'll answer here. Produce a finished record with readable evidence and the choices or
-      navigation the request needs. You may use the browser tooling available on this
-      machine. Installed headless Chrome executable: {browser}
-
-      The user's request follows.
+      Build this page with HTML, CSS and JavaScript at {page}/index.html. Send me the file path; I'll open it.
+      Use headless browser tooling for your own inspection. Installed headless Chrome executable: {browser}
 
       {request}
   preference: "{preference} Please revise the page to follow it."
@@ -47,6 +37,11 @@ prompts:
       Apply them: update the page so it records them as final.
   quality:
     At every declared width, substantive evidence and navigation are readable and reachable.
+    Each decision can be answered where the user lands on it, without asking what something
+    it names is or does.
+    In a workspace, read each pane's whole content through the pane's own scroll, and count
+    a pane the keyboard can't reach, or one left mostly empty while another is
+    cramped, against the page where it affects the task.
     The final page incorporates the user's comment and lasting width preference, and clearly
     preserves the final decision the user supplied. On the before_decision page, exercise the
     original browser decision task through the offered controls, including keyboard routes; judge the actual outcome, not a settings summary or a claim of success. On the final
@@ -54,9 +49,38 @@ prompts:
     quoted comment answer should accurately describe the change. A recorded plan or approval
     does not imply execution, deployment or sending a message.
 cases:
+  changing-feedback-keeps-place:
+    inputs:
+      comment: null
+      decision: null
+      reveal: ""
+    assert:
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric: |
+            At every declared viewport, operate Replay all, change speed, pause,
+            resume using the keyboard, seek, and let playback finish naturally.
+            Measure the playback buttons, speed control, timeline and comparison
+            positions and sizes before and through ready, playing, paused, resumed
+            and finished states. Changing labels, status messages or numeric values
+            must not move or resize these controls or displace the comparison.
+            Observe delayed completion rather than checking only immediately after
+            a click. A broken or disabled control that prevents a required transition
+            is a defect, not evidence of layout stability. Keep the viewport fixed
+            within each comparison and account for scrolling when measuring positions.
+            Open Show observations and verify the entire paragraph supplied in the
+            request is visible as readable, wrapping content without clipping or
+            ellipsis. This deliberate reveal may grow the page; changing feedback
+            must not silently consume or hide substantive results.
+            Judge the rendered behavior and cite measured geometry and observed
+            states. No particular CSS technique, attribute, widget or DOM structure
+            is required. Source code and a settled screenshot alone cannot establish
+            stability; unvisited required states leave insufficient evidence.
   document:
     inputs:
-      comment:
+      comment: &document-comment
         target: the recommendation's ask of the database owners
         quotes:
           - the database owners to say whether 55% peak CPU is acceptable
@@ -65,7 +89,7 @@ cases:
         text:
           The database owners are Mei Tanaka's team. Name them here and ask for their answer
           by Wednesday, the day before the decision.
-      decision:
+      decision: &document-decision
         task:
           "As the platform team, decide the review's question: choose option 1, staying
           on managed Redis and shortening the TTL to 7 days."
@@ -80,7 +104,7 @@ cases:
           rubric: ""
   dashboard:
     inputs:
-      comment:
+      comment: &dashboard-comment
         target: the follow-up to confirm the timeout change with the payments team
         quotes:
           - Confirm the timeout change with the payments team (Dana).
@@ -89,7 +113,7 @@ cases:
         text:
           Dana confirmed at 15:52 that 7.2's 3 s connect timeout is the cause. Mark this
           follow-up done and say so where the page explains the cause.
-      decision:
+      decision: &dashboard-decision
         task: "Decide eu-west: roll it back to 4.11 and ship 4.12.1 with the old timeout."
         typed: Roll eu-west back to 4.11 and ship 4.12.1 with the old timeout.
       reveal: ""
@@ -98,12 +122,13 @@ cases:
   draft-review:
     inputs:
       comment:
-        target: the working note that 43 customer workspaces had delayed CSV exports
+        target: the number of customer workspaces affected by delayed CSV exports
         quotes:
-          - 43 customer workspaces had delayed CSV exports
+          - 43 customer workspaces
+          - 43 workspaces
         text:
           "Correction: 34 customer workspaces were affected, not 43. Update the incident
-          facts, working note and proposed reply to use 34 workspaces. Keep the incident window,
+          facts and proposed reply to use 34 workspaces. Keep the incident window,
           completion and data-loss facts, retry advice, investigation status and next-update
           deadline unchanged."
       decision:
@@ -144,7 +169,7 @@ cases:
             editing and recording outcomes, not a particular widget, editor engine or layout geometry."
   queue:
     inputs:
-      comment:
+      comment: &queue-comment
         target: ESC-4110 (Brightline Dental)'s suggested action
         quotes:
           - point to the feature request board, already planned for Q4
@@ -153,7 +178,7 @@ cases:
         text:
           "Brightline is on a Team trial that converts next week, so don't just close it:
           route it to their account manager, Sam Okafor, with the Q4 plan."
-      decision:
+      decision: &queue-decision
         task:
           "Work through the queue and decide each ticket: ESC-4107: fix; ESC-4108: close;
           ESC-4109: fix; ESC-4111: escalate to engineering; ESC-4112: escalate to engineering;
@@ -253,6 +278,44 @@ cases:
             key includes tenant_id and job.id and is computed once before the retry loop. The
             cross-tenant same-job-ID check is included. Proposed tests and approval remain distinct
             from tests having run or code having deployed."
+  motion-design:
+    inputs:
+      comment: null
+      decision:
+        task: >-
+          Compare the panel recordings using their shared playback controls, including
+          quarter speed and seeking. Then choose B · Balanced where its recording is
+          shown and complete the page's offered route for recording that design choice.
+        typed: My final choice is B · Balanced, the 260 ms panel timing.
+      reveal: ""
+    assert:
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric: >-
+            Operate the before_decision page at every declared viewport. The actual supplied
+            recordings play, with Baseline visibly distinguished from the three alternatives
+            and each candidate's meaningful difference explained. The evidence must make
+            the motion being decided inspectable: the complete moving panel, its travel,
+            reversal and settling, at a scale that lets the reader compare those features.
+            All candidates can be compared together without switching a single view between
+            them. Replay, pause, quarter-speed playback and seeking operate every recording
+            at the same moment; establish this by operating them and inspecting the media,
+            not only their labels. While scrolling to a lower candidate, shared playback
+            and seeking remain available without returning to the top. A recording's own
+            displayed candidate provides its selection action, and choosing works by keyboard
+            as well as pointer or touch. Playback and seeking must not accidentally change
+            or submit the choice. On the phone, controls remain usable and the complete
+            motion stays visible during playback without panning to follow it. Judge
+            legibility by the movement this decision concerns; incidental recorded text
+            and icons need not be readable unless the choice depends on them. On the
+            final page, B · Balanced
+            at 260 ms is clearly recorded as the user's choice and its actual recording
+            remains available. The page must not claim the choice has been implemented or
+            shipped. Judge these user outcomes rather than particular widgets, CSS properties,
+            a prescribed grid or exact wording. An untested required interaction is
+            insufficient evidence, not a pass.
   notification-design:
     inputs:
       comment:
@@ -286,10 +349,10 @@ cases:
   dependency-review:
     inputs:
       comment:
-        target: the working claim that Delivery worker writes the receipt index
+        target: the Receipt index and its incoming data flow
         quotes:
-          - Delivery worker writes the receipt index
-          - writes the receipt index
+          - Receipt index
+          - receipt index
         text:
           "Correction: the Receipt index consumes a changefeed directly from the Primary
           database, independently of the Delivery worker. Update both the diagram and the nearby
@@ -320,13 +383,14 @@ cases:
   latency-review:
     inputs:
       comment:
-        target: the working note that A with 4 workers has p99 180 ms
+        target: configuration A with 4 workers and its p99 latency
         quotes:
-          - A with 4 workers has p99 180 ms
-          - p99 180 ms
+          - A with 4 workers
+          - A / 4
+          - 180 ms
         text:
           "Correction: A with 4 workers has p99 latency 1800 ms, not 180 ms. Its throughput
-          remains 1240 requests/s and its error rate remains 0.04%. Update the working note,
+          remains 1240 requests/s and its error rate remains 0.04%. Update the
           chart, exact run data and current assessment to use the corrected measurement. Keep
           the other measurements unchanged."
       decision:
@@ -346,10 +410,97 @@ cases:
           rubric:
             At every declared width, the final record identifies B with 2 workers for another
             production-like validation, with readable access to all nine measurements, chart,
-            corrected p99 of 1800 ms for A with 4 workers, and current screening assessment. The
-            working note no longer asserts 180 ms as current; any retained original value is clearly
+            corrected p99 of 1800 ms for A with 4 workers, and current screening assessment.
+            Any retained original 180 ms measurement is clearly
             superseded. B with 2 workers remains the highest-throughput feasible measured run
             under p99 at most 700 ms and errors at most 0.1%. The record distinguishes the selected
             future validation from an executed run or deployment and retains the single synthetic
             five-minute run per cell limitation, without claiming production performance, uncertainty
             estimates or SLO proof.
+  # Revisions that change what a page is for, kept when they compose by Layouts
+  # (TODO.md, "Test the Layouts on agents"). Each reuses its task's request,
+  # comment and decision, then sends one revision.
+  document-live-status:
+    inputs:
+      request: document
+      comment: *document-comment
+      decision: *document-decision
+      reveal: ""
+      revision:
+        "We've gone ahead with that, and the TTL change rolls out region by region this
+        week. Make this the page the platform team follows during the rollout: add its
+        live status, which you'll keep current as regions finish, and keep the review
+        and its comment thread as they are, since it's still the record of why. Status
+        now: us-east finished Monday, and the cluster's memory is down from 81% to 58%;
+        eu-west has been rolling out since 09:00 today; ap-southeast starts Thursday.
+        Logout-everywhere still lags up to 90 s during failover, as expected."
+    assert:
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric:
+            "The final page is the review turned into the page the platform team follows
+            during the TTL rollout. On arrival, at every declared width, the rollout's
+            current status reads at a glance: us-east finished with memory down from 81%
+            to 58%, eu-west in progress since 09:00, ap-southeast starting Thursday, and
+            logout lag unchanged. It is presented as current status the author will keep
+            up to date, distinct from the review's analysis. The review remains readable
+            in order as the record: its question, measurements, options, risks and the
+            recorded decision to stay on managed Redis with a 7-day TTL. The user's comment
+            thread about the database owners is still reachable with its answer, attached
+            to its passage where that passage still stands. The status does not crowd the
+            review out of view or overlap it."
+  dashboard-write-up:
+    inputs:
+      request: dashboard
+      comment: *dashboard-comment
+      decision: *dashboard-decision
+      reveal: ""
+      revision:
+        "16:35: eu-west is back on 4.11 and its error rate is down to 0.33%. 4.12.1, with
+        the 10 s connect timeout pinned, is building and goes to eu-west at 1% at 17:30;
+        the other regions carry on with 4.12 meanwhile. Keep this page for the rest of the
+        rollout, and add the eu-west write-up the team reads tomorrow: what happened, the
+        cause, what we decided and the follow-ups. Keep the comment thread where it is."
+    assert:
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric:
+            "The final page serves both uses. On arrival, at every declared width, the
+            rollout's live state as of 16:35 reads at a glance: eu-west back on 4.11 at
+            0.33%, 4.12.1 with the 10 s timeout going to eu-west at 1% at 17:30, the other
+            regions continuing on 4.12. Figures from 15:40 that are no longer current are
+            labelled with their time or replaced. The eu-west write-up reads in order as a
+            document: what happened, the cause (payments-sdk 7.2's 3 s connect timeout,
+            confirmed by Dana at 15:52), the decision to roll eu-west back and ship 4.12.1,
+            and the follow-ups with the confirmed one marked done. The write-up is not
+            split into equal tiles or squeezed beside the status where it is hard to read.
+            The user's comment thread on the follow-up remains reachable with its answer."
+  queue-hand-off:
+    inputs:
+      request: queue
+      comment: *queue-comment
+      decision: *queue-decision
+      reveal: ESC-4110
+      revision:
+        "Thanks. Add a hand-off for Lena Park, the support lead, who reads it tomorrow
+        morning before stand-up: for each of the eight tickets, its outcome, why, and who
+        owns it next, and what is still waiting on someone. Keep the queue as it is, threads
+        included; I'll come back to it if anything reopens."
+    assert:
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric:
+            "The hand-off reads in order for a reader who did not work the queue: all eight
+            tickets with the recorded outcome (ESC-4110 routed to Sam Okafor with the Q4
+            plan, as the user's comment asked), its reason and its next owner, and what is
+            still waiting on someone. The queue still works as before: its list beside the
+            selected ticket, each ticket's recorded decision visible with it, and the
+            earlier comment thread reachable. Neither use squeezes the other: the hand-off
+            is not confined to a narrow pane or tab strip beside the queue, and the queue
+            keeps the room to read a ticket and its decision."

@@ -1,174 +1,150 @@
-# Further Codex integration work
+# MCP and further Codex integration work
 
-Leaf's current companion workflow is documented in
-[harness-codex.md](../skills/leaf/references/harness-codex.md).
-[Session lifetime, “Watchers”](../skills/leaf/scripts/leaf/session-lifetime.md#watchers)
-owns the delivery and connection lifecycle. This note holds open design work.
+Leaf reaches a Codex task in the desktop app, an IDE or a plain terminal only through
+hooks and a message it queues between turns, which gives it no more control over a
+turn than it has over a Claude Code session. Only on leaf.page and on an experimental
+terminal route does it connect to the task's App Server. [Session lifetime,
+“Watchers”](../src/leaf/session-lifetime.md#watchers) owns that delivery and
+connection lifecycle, and
+[harness-codex.md](../skills/leaf/references/harness-codex.md) the agent's side of it.
+This note holds open design work.
+
+## MCP and the CLI
+
+Leaf can expose essentially all its agent-facing operations through MCP. The
+useful architectural boundary is shared Python domain functions, with MCP and
+the CLI as transport adapters. State computation, event admission and reply
+settlement keep their existing owners.
+
+There are four separate choices:
+
+| Change                                                         | Benefit                                                                         | Cost                                                                             |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Run CLI commands through MCP, as the Codex plugin already does | Access outside the shell sandbox                                                | Still requires command syntax; subprocess and timeout handling                   |
+| Expose typed operations                                        | Discoverable argument and result schemas; operation-specific permission choices | Schemas and adapters to maintain; host-dependent discovery and approval behavior |
+| Serve the page through MCP Apps                                | Integrated rendering and a standard UI-to-conversation message route            | Iframe restrictions, asset delivery, navigation and host compatibility           |
+| Run a remote MCP service                                       | No local Leaf installation or shared filesystem required                        | Authentication, storage, uploads, isolation and service operations               |
+
+For coding agents already editing local files, typed tools alone offer a modest,
+unmeasured improvement. The CLI already returns structured results and works
+with their file tools. MCP does not inherently improve state guarantees,
+rendering or response speed. Keep the CLI thin for local authoring, debugging
+and automation; avoid maintaining a second implementation of the operations.
+
+Agents without shell access are a larger opportunity, but exposing the current
+commands is insufficient for them. Full authoring also needs source revision,
+asset submission and package creation, preserving Leaf's open package model.
+Local MCP and remote hosting are independent choices.
+
+The recommended first experiment is the complete MCP Apps feedback loop below,
+rather than converting commands one by one. Its main potential saving is removal
+of browser handoff and harness-specific comment delivery. If only rendering
+works, the gain is convenience while most delivery machinery remains.
+
+## User-opened conversation panel
+
+Leaf already has a Codex plugin and an MCP server. The current handoff serves a
+page, then the agent calls Codex's `open_in_codex` with its URL to open a browser
+tab beside the chat. The MCP server's `run` tool executes Leaf commands; it
+registers no UI resource or panel entrypoint.
+
+An MCP App could add a Leaf entry to the conversation's panel picker. Its main
+benefit would be letting the user find and reopen this chat's pages without an
+agent turn or locating their URLs. A single panel could also let the user switch
+among those pages. These are discovery and navigation benefits; the existing tab
+already renders Leaf and carries live revisions and comments. Panel registration
+alone establishes neither faster replies nor less transcript clutter.
+
+[MCP Apps](https://apps.extensions.modelcontextprotocol.io/api/documents/Overview.html)
+can also deliver the actual interactive page as an HTML UI resource. The host
+renders it in a sandboxed iframe, and the page reads state and submits actions
+through the host's MCP bridge. With assets and requests carried through that
+bridge, this can remove the need for a localhost HTTP listener. Leaf retains
+its renderer, widgets and event log. App-only tools let widget interactions run
+without model calls or tool results in the model's context, as the existing
+browser page already does through HTTP.
+
+The cost is adapting asset loading, navigation, media and nested samples to the
+host's iframe and network policy. A local `codex-mcp-app` prototype explored
+this transport using the canonical Leaf endpoint and renderer. Its 22 October
+2026 reference-host checks reported successful interactions, but full native
+Codex rendering and idle-chat delivery remained unverified. The prototype is
+feasibility evidence, not proof of a better end-to-end experience.
+
+The extension would add a view tool, an HTML MCP resource, and a `thread`
+entrypoint. Codex invokes the entrypoint when the user selects it; the panel can
+call app-visible tools through the MCP Apps bridge. Model access is a separate
+visibility choice. The installed Inbox 0.2.10 keeps its view tool app-only and
+notes that model-called UI tools appear inline in the transcript. Its panel
+registration is a useful example, independent of its full-text queued messages.
+See OpenAI's [conversation panel registration](https://developers.openai.com/plugins/build/extensions)
+and [tool visibility reference](https://developers.openai.com/plugins/reference).
+This is source inspection as of 22 October 2026, not a tested Leaf integration.
+
+The first experiment should open an existing page, record a comment, start agent
+work through `ui/message`, and show the agent's revision in the same page. Test
+both idle and busy chats, then page switching, reopening and delivery after the
+view closes. Check that the comment is durably recorded and delivered once,
+and that the host preserves turn serialization and interruption behavior.
+Measure which existing integration this replaces before expanding the surface.
+
+## Comments from an MCP App
+
+The [MCP Apps specification](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx#requests-app--host),
+checked on 26 October 2026, distinguishes `ui/message`, which sends a message
+into the conversation and is described as triggering follow-ups, from
+`ui/update-model-context`, which supplies context for future turns. A plain MCP
+server notification does not itself instruct the host to start an agent turn.
+
+An embedded Leaf page could record the user's comment through Leaf's existing
+admission path, then send `ui/message` to have the host run the agent. This could
+replace Codex's queued-message delivery for comments made in that view. It is
+not an inherent MCP limitation; support and idle/busy behavior need testing in
+the actual host. A successful message request alone does not prove the agent
+received and handled the comment.
+
+This UI-to-host route depends on a live view. Background server delivery after
+the view closes still needs a host-supported mechanism. Nor does `ui/message`
+promise delivery without adding a conversation message. Those are separate
+requirements from rendering the page and starting work on a visible comment.
+
+Leaf's current alternatives are described by the watcher contract linked above:
+Claude Code normally uses a background Stop-hook watcher to wake its session;
+an explicit `leaf wait` returns input into an already waiting agent call;
+Codex's adapter queues input or starts a turn through an accessible App Server.
+
+## Delivery without user messages
+
+An idle desktop chat receives Leaf input through `codex queue` as a
+`<leaf-delivery>` user message. The background `threads/wake/<id>` deep link
+removes the external queue's polling delay, but checks for queued input before
+resuming and supplies no input itself.
+
+Leaf already starts message-free turns where it can reach the App Server, on the
+experimental terminal route and on leaf.page:
+`codex.start_app_server_delivery` sends `turn/start` with a `leaf_delivery` tool
+output. The desktop implements this capability internally, but the 22 October
+2026 inspection found no supported external desktop or MCP interface exposing
+it. Leaf's MCP `run` tool carries commands from the agent to Leaf; registering
+that server supplies no reverse delivery channel.
+
+The missing capability is access to the desktop-owned App Server, or an API for
+queuing non-user input. When one is available, reuse the existing delivery
+envelope and acceptance path. Prove that an action on a page starts work in its
+idle owning chat without adding a user message, while Codex retains turn
+serialization and interruption policy.
 
 ## Typed operations
 
-Provide model tools for reading page state, replying, declaring work, and
-validating authored changes. MCP tools or App Server dynamic tools could call the
-same Python functions as the CLI. Leaf's Codex plugin already declares an MCP server
-whose one generic tool, `run`, runs a `leaf` command outside the sandbox
-(`codex_tool.py`); a typed tool would stand beside it. Keep event admission and reply
-settlement in those existing owners. "Evaluate a typed reply body" below measures
-what Codex would send such a tool.
+Candidate model tools would read page state, reply, declare work and validate
+authored changes. MCP tools or App Server dynamic tools could call the same
+Python functions as the CLI, instead of constructing arguments for the existing
+generic `run` tool (`codex_tool.py`). "Evaluate a typed reply body" below records
+the streaming constraint on such a tool.
 
 First test a complete feedback turn with the smallest useful tool set. Compare
 it with the CLI path for target-selection errors and unnecessary model work.
 The model still decides whether feedback calls for a reply, a revision, or both.
-
-## Delivery-start race
-
-Measured with codex-cli 0.160.0 on 2026-10-19.
-
-`turn/start` on a task whose turn is running steers the input into that turn and
-answers with the running turn's id. Nothing in the answer says it steered. When Leaf
-started after the other client's answer, that turn's `turn/started` reached Leaf's
-socket first. With both starts sent back to back, Leaf's answer came first, the order
-Leaf's own start produces, so the order of messages cannot tell the two cases apart.
-
-The race needs no coincidence of milliseconds. A follow-up queued behind a running
-turn starts just after that turn completes, and App Server reads idle until it does.
-In all three runs, a Leaf start sent right after `turn/completed` read idle on
-`thread/resume`, and its `turn/start` joined the user's follow-up turn. The model
-received the delivery as a `leaf_delivery` tool output partway through that turn.
-The adapter holds a delivery back while a turn runs and checks again at least once a
-second (`run_adapter`), so a delivery waiting behind the turn starts inside that gap
-some of the time; how often is inferred from the timing, not measured.
-
-Who starts the follow-up depends on where it was queued (measured 2026-10-20):
-
-- **The Codex TUI** keeps a follow-up queued with Tab in its own composer state
-  (`queued_user_messages` in `codex-rs/tui/src/chatwidget/input_queue.rs`) and sends
-  it with `turn/start` once the turn ends (`maybe_send_next_queued_input`). With the
-  TUI on `codex --remote` showing the follow-up queued, `thread/queue/list` on the
-  same task returned no items, and the TUI's `turn/start` came 17.5 ms after
-  `turn/completed`. So App Server's queue can't tell Leaf that the user is waiting.
-- **App Server's queue** holds what a client adds with `thread/queue/add`, as
-  `codex queue` does. App Server starts its head about 6 ms after the turn ends (six
-  runs; about 0.4 s in the 2026-10-19 run), and removes the item only once its turn
-  has started (`QueuedItemService::dispatch_if_idle`), so a reading of the queue,
-  then the status, never showed an empty queue on an idle task in that gap.
-
-To recheck the TUI on a later Codex, start a private App Server as the script below
-does, run `codex --remote <endpoint>` in a terminal, queue a follow-up with Tab while
-a turn runs, and call `thread/queue/list` for the task from a second connection that
-initialized with the `experimentalApi` capability.
-
-`TaskConnection._start_delivery` binds whatever turn the start returns to the
-delivery. Replaying the measured order against a fake App Server like those in
-`tests/model/test_codex_app_server.py`, Leaf posted the joined turn's final answer,
-which answered the other prompt, as its reply to the user's comment, and the comment
-counted as answered. The comment reached the model, but its reply is text written for
-another prompt.
-
-App Server's only atomic start-if-idle is experimental and needs the `experimentalApi`
-capability. While a turn ran, `thread/queue/start` refused with "thread already has
-an active or pending turn", and App Server ran the queued submission as its own turn
-once the running turn ended. A queued submission's input is user input, not a tool
-output. Stable `turn/steer` checks an `expectedTurnId`, but no stable request checks
-that the task is idle.
-
-Two options were weighed:
-
-- **Queue each delivery.** Send `thread/queue/add` and `thread/queue/start`, and
-  adopt the turn that carries the delivery when it starts. App Server orders Leaf's
-  deliveries with the user's queued input and never steers one. Leaf would depend on
-  an experimental API, the delivery would enter as a user message rather than a tool
-  output, and Leaf's submissions would show in the user's queue in Codex. #3357 took
-  this option and was reverted: every delivery then became a user message in the
-  Codex transcript, the opening line and the envelope's JSON, which is noisy for the
-  user, and Max wants Leaf to add to the user's turn only when it must. Against a
-  follow-up queued in the TUI it also left a race: a delivery Leaf queued in the
-  moments before the TUI sent its follow-up would start first, and the follow-up
-  would then steer into Leaf's turn (inferred from the timings above, not run).
-- **Keep `turn/start` and define a joined delivery.** Decide which message the
-  final answer settles, where that answer appears, and what remains outstanding if
-  the turn fails. Since the start's answer cannot say it steered, Leaf would detect
-  a join from the turn's items, such as a user message ahead of the delivery. That a
-  turn Leaf starts opens with its tool output is not yet measured.
-
-To reproduce, run the script below from the repository root with `steer` for the
-queued follow-up or `queue` for the queue's refusal. Each run spends two or three
-Codex turns on a copy of the host's login.
-
-```bash
-uv run python - steer <<'EOF'
-import json, os, shutil, sys, tempfile
-from pathlib import Path
-
-from leaf.codex import app_server_connect, app_server_request, private_app_server
-from leaf.codex import app_server_turn_start_params as leaf_start
-from leaf.delivery import DELIVERY
-from leaf_dev.arms import codex_home
-
-ended = set()
-
-
-def connect(endpoint):
-    socket = app_server_connect(endpoint)
-    ask(socket, "initialize", {"clientInfo": {"name": "probe", "version": "0"},
-                               "capabilities": {"experimentalApi": True}})
-    socket.send(json.dumps({"method": "initialized", "params": {}}))
-    return socket
-
-
-def seen(message):
-    if message.get("method") == "turn/completed":
-        ended.add(message["params"]["turn"]["id"])
-
-
-def ask(socket, method, params):
-    try:
-        return app_server_request(socket, method, 1, params, seen)
-    except Exception as error:
-        return f"refused: {error}"
-
-
-def wait(socket, turn):
-    while turn not in ended:
-        seen(json.loads(socket.recv(timeout=120)))
-
-
-def text(value):
-    return [{"type": "text", "text": value}]
-
-
-home = codex_home(Path(tempfile.mkdtemp()) / "codex")
-env = os.environ | {"CODEX_HOME": str(home)}
-with private_app_server(shutil.which("codex"), env=env) as endpoint:
-    leaf, user = connect(endpoint), connect(endpoint)
-    thread = ask(leaf, "thread/start", {"cwd": tempfile.mkdtemp(),
-                                        "approvalPolicy": "never",
-                                        "sandbox": "read-only"})["thread"]["id"]
-    wait(leaf, ask(leaf, "turn/start", {"threadId": thread,
-                                        "input": text("Reply: OK")})["turn"]["id"])
-    ask(user, "thread/resume", {"threadId": thread})
-    running = ask(user, "turn/start", {"threadId": thread, "input": text(
-        "Run `sleep 20`, then reply: USER TURN")})["turn"]["id"]
-    if sys.argv[1] == "queue":
-        ask(leaf, "thread/queue/add", {"threadId": thread, "clientUserMessageId": "x",
-                                       "input": text("Reply: LEAF")})
-        print("queue/start while a turn runs:",
-              ask(leaf, "thread/queue/start", {"threadId": thread}))
-    else:
-        ask(user, "thread/queue/add", {"threadId": thread, "clientUserMessageId": "y",
-                                       "input": text("Reply: USER FOLLOW-UP")})
-        wait(leaf, running)  # Leaf's held-back delivery fires as the turn ends.
-        status = ask(leaf, "thread/resume", {"threadId": thread, "excludeTurns": True})
-        print("Leaf's idle check at turn end:", status["thread"]["status"])
-        payload = {"format": DELIVERY.format, "id": "0000beef"}
-        started = ask(leaf, "turn/start", leaf_start(thread, payload))["turn"]["id"]
-        wait(leaf, started)
-        turns = ask(leaf, "thread/read", {"threadId": thread, "includeTurns": True})
-        turn = next(t for t in turns["thread"]["turns"] if t["id"] == started)
-        print("Leaf's turn/start joined:",
-              [(i["type"], i.get("content") or i.get("text") or i.get("name"))
-               for i in turn["items"]])
-EOF
-```
 
 ## Evaluate a typed reply body
 
@@ -196,3 +172,4 @@ These alternatives need a user-facing purpose before implementation:
   coordinated workspace ownership; persistent pages are one possible use.
 - Make Leaf the Codex client. This would add transcript, approval, interruption,
   and reconnect ownership to Leaf's page and feedback responsibilities.
+  [Leaf running the agent session](leaf-run-sessions.md) weighs it across harnesses.

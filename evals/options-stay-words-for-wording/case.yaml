@@ -26,7 +26,7 @@ vars:
     You are writing a Leaf page that records the layout shifts left in Leaf's
     widgets, one section per item, each ending in a question for the user. Write
     the section for this item, after reading the `lf-ask`, `lf-options` and
-    `lf-option` entries in `packages/default/registry.json` under the skill's base
+    `lf-option` entries in `../../packages/default/registry.json` relative to the skill's base
     directory.
 
     Your notes:

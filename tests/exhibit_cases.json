@@ -1,10 +1,17 @@
 {
   "registry": {
     "lf-sample": {
-      "x-exhibit": true
+      "x-exhibit": {
+        "when": {
+          "interactive": [false]
+        }
+      }
     },
     "lf-group": {},
-    "lf-pick": {}
+    "lf-pick": {},
+    "lf-quote": {
+      "x-exhibit": true
+    }
   },
   "cases": [
     {
@@ -46,6 +53,32 @@
       "quoted": {
         "outer": false,
         "inner": true
+      }
+    },
+    {
+      "id": "interactive sample uses the parent page",
+      "markup": "<lf-sample id=\"sample\" interactive><lf-pick id=\"pick\"></lf-pick></lf-sample>",
+      "quoted": {
+        "sample": false,
+        "pick": false
+      }
+    },
+    {
+      "id": "interactive sample cannot escape an outer quotation",
+      "markup": "<lf-quote id=\"outer\"><lf-sample id=\"sample\" interactive><lf-pick id=\"pick\"></lf-pick></lf-sample></lf-quote>",
+      "quoted": {
+        "outer": false,
+        "sample": true,
+        "pick": true
+      }
+    },
+    {
+      "id": "quotation nested in interactive sample still quotes",
+      "markup": "<lf-sample id=\"sample\" interactive><lf-sample id=\"quote\"><lf-pick id=\"pick\"></lf-pick></lf-sample></lf-sample>",
+      "quoted": {
+        "sample": false,
+        "quote": false,
+        "pick": true
       }
     }
   ]

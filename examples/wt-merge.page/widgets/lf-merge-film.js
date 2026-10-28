@@ -18,6 +18,7 @@
 
 import {
   compoundReadingRegionId,
+  generatedElement,
   holdFocus,
   keeps,
   keepsHidden,
@@ -30,6 +31,7 @@ import {
   registerReadingRegion,
   registerVisualParts,
   scrollIntoReadingBand,
+  shownWindow,
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
@@ -198,6 +200,11 @@ customElements.define(
       const settingsTitle = document.createElement("summary");
       settingsTitle.textContent = "Change the run";
       this.settings.append(settingsTitle, flags);
+      // The caption and the drawing are the film's words, which a reader can point
+      // at; the settings label the run's controls.
+      generatedElement(this.caption, { says: true });
+      generatedElement(stage, { says: true });
+      generatedElement(this.settings, { says: false });
       this.append(this.caption, stage, bar, this.settings);
       this.stage = stage;
       this.scrub.max = this.#film.total;
@@ -316,7 +323,7 @@ customElements.define(
           offset(10),
           shift({
             boundary: this.stage,
-            rootBoundary: this.hasAttribute("data-phone") ? "viewport" : "document",
+            rootBoundary: this.hasAttribute("data-phone") ? shownWindow() : "document",
             padding: 10,
             crossAxis: true,
           }),
@@ -361,7 +368,7 @@ customElements.define(
       this.#pause();
       if (this.hasAttribute("data-phone")) {
         this.settings.open = false;
-        scrollIntoReadingBand(this.playBtn.parentElement, this, "start", "instant");
+        scrollIntoReadingBand(this.playBtn.parentElement, this, "nearest", "instant");
       }
       const parts = this.painter.parts();
       if (!parts.length) return;
@@ -411,7 +418,7 @@ customElements.define(
       if (painter !== this.painter)
         void preserveReadingRegions(this, () => {
           this.#draw(narrow, painter);
-          return layoutChanged(this);
+          layoutChanged(this);
         });
       else this.#draw(narrow, painter);
     }

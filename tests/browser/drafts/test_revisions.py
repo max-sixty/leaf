@@ -1,13 +1,10 @@
 """What a new version or an arriving edit leaves of each open editor: its words, caret,
 focus and session, and the revision a draft aims at."""
 
+import os
+
 import pytest
 from interact_support import append_carried_log_record, append_command
-from leaf import event_log as events_model
-from leaf import hosting as hosting_model
-from leaf import revisioning as revisioning_model
-from leaf import vendoring as vendoring_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_cases_navigation import JOURNEY_V1, NOTED_PAGE, _publish
@@ -39,6 +36,12 @@ from browser.drafts import (
     replace_editing_document,
 )
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf import hosting as hosting_model
+from leaf import revisioning as revisioning_model
+from leaf import vendoring as vendoring_model
+from leaf.registry.storage import layer_packages
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -51,7 +54,7 @@ def test_an_automatic_revision_keeps_the_empty_panel_reply_focused(
     reply box, an open thread's, focused and empty."""
     url = live_url(serve(REPLY_HOST_PAGE))
     root = panel_comment(
-        serve.page_dir, "Should reads fall back?", author="agent", question="Fall back?"
+        serve.page_dir, "Should reads fall back?", author="agent", obligation=True
     )
     page = open_page(browser, url)
     open_panel_thread(page, root)
@@ -281,7 +284,9 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     assert after == before
 
 
-def test_executable_revision_preserves_non_editor_thread_standing(browser, serve):
+def test_executable_revision_preserves_non_editor_thread_current_location(
+    browser, serve
+):
     page = editing_reply_page(browser, serve)
     page.keyboard.press("Escape")
     captured = page.evaluate(
@@ -349,35 +354,44 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
         words = "Half a thought the reload must not take"
         write(editor, words)
         birth = page.evaluate("performance.timeOrigin")
-        theme = page_dir / "theme.css"
-        theme.write_text(theme.read_text() + "\n/* a newer layer */\n")
-        vendoring_model.cmd_init(page_dir)
+        # A newer layer: the page selects one more package. Its record names each
+        # package copy relative to the page, and init resolves a path from where it
+        # runs.
+        newer = page_dir.parent / "newer-layer"
+        newer.mkdir()
+        (newer / "theme.css").write_text("/* a newer layer */\n")
+        held = tuple(
+            "./" + os.path.relpath(page_dir / value)
+            if value.startswith("./")
+            else value
+            for value in layer_packages(page_dir)
+        )
+        vendoring_model.cmd_init(page_dir, (*held, "./" + os.path.relpath(newer)))
         revised = revisioning_model.activate_source(page_dir)
         assert revised.error is None
         with restarting(page):
             before.close()
-            replaced = hosting_model.TemporaryPageServer(
-                page_dir, token=before.token, port=before.port
-            ).start()
+            # `serve` ends it with its own server, once the test body's pages
+            # have painted their last frame.
+            serve.servers.append(
+                hosting_model.TemporaryPageServer(
+                    page_dir, token=before.token, port=before.port
+                ).start()
+            )
             # The tab has read the state naming the newer revision.
             told(page)
-    try:
-        # A second of news from the replaced server, which is where a token the tab
-        # refused would have sent it to reload.
-        for _ in range(4):
-            with page.expect_response("**/api/news*"):
-                pass
-        assert page.evaluate("performance.timeOrigin") == birth
-        expect(editor).to_be_focused()
-        expect(editor).to_have_js_property("value", words)
-        page.keyboard.press("Control+Enter")
-        wait_for_revision(page, revised.revision)
-        assert page.evaluate("performance.timeOrigin") != birth
-        assert events_model.read_events(page_dir)[-1]["text"] == words
-    finally:
-        # Closed while its server is still up, so no late module load meets a reset.
-        page.close()
-        replaced.close()
+    # A second of news from the replaced server, which is where a token the tab
+    # refused would have sent it to reload.
+    for _ in range(4):
+        with page.expect_response("**/api/news*"):
+            pass
+    assert page.evaluate("performance.timeOrigin") == birth
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", words)
+    page.keyboard.press("Control+Enter")
+    wait_for_revision(page, revised.revision)
+    assert page.evaluate("performance.timeOrigin") != birth
+    assert events_model.read_events(page_dir)[-1]["text"] == words
 
 
 @pytest.mark.parametrize("kind", ["edit", "first-message", "option"])
@@ -429,8 +443,28 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
     def hold_later_readings(route):
         later_readings.append(route)
 
+    # The interface event can precede Lit's editor paint. Hold its preparation until
+    # that editor exists so the mechanical caret failure is installed before landing.
     page.evaluate(
-        "() => document.addEventListener('lf-page-interface',event=>{\n      event.detail.present(Promise.resolve().then(()=>{\n        const editor=document.querySelector('#draft-root leaf-text');\n        if(!editor)throw new Error('failure arrangement did not create its editor');\n        editor.setSelectionRange=()=>{window.__mechanicalCaretFailure=true;throw new Error('mechanical caret fixture failed')};\n      }));\n    },{once:true})"
+        """() => document.addEventListener('lf-page-interface', event => {
+          event.detail.present(new Promise(resolve => {
+            const install = () => {
+              const editor = document.querySelector('#draft-root leaf-text');
+              if (!editor) return false;
+              editor.setSelectionRange = () => {
+                window.__mechanicalCaretFailure = true;
+                throw new Error('mechanical caret fixture failed');
+              };
+              resolve();
+              return true;
+            };
+            if (install()) return;
+            const observer = new MutationObserver(() => {
+              if (install()) observer.disconnect();
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+          }));
+        }, { once: true })"""
     )
     stamp_page(
         serve.page_dir,

@@ -45,7 +45,7 @@ assert:
     metric: reply-before-stamp
     value: |
       Read the first turn's commands. Pass only if they edit the heading in
-      `index.html` and then run `leaf response reply` answering 7c41d0e2, and if the
+      `index.html` and then run `leaf thread reply` answering 7c41d0e2, and if the
       first turn runs no `leaf page check` in any form, no screenshot or browser
       review, and no `leaf page stamp` at any point, before or after that reply.
       Starting the comment with `leaf task start` or a progress line, or setting the

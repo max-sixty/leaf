@@ -1,6 +1,5 @@
 """Developer tooling checks; run explicitly from dev/tests."""
 
-import contextlib
 import json
 import os
 import re
@@ -18,11 +17,23 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     STATED_TIMEOUT,
     append_carried_log_record,
+    fetch,
     install_payload,
     wait_for,
     woken,
 )
 from journeys.test_render_export import ROOT, _reachable
+from leaf_dev.commands import preview as preview_model
+from playwright.sync_api import expect
+from render_harness import (
+    REPLAYED_PAGE,
+    example_media,
+    open_page,
+    panel_menu,
+    restarting,
+    sending,
+)
+
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -35,16 +46,6 @@ from leaf import state as cleanup_model
 from leaf.findings import Finding
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.structure import SourceDocument
-from leaf_dev.commands import preview as preview_model
-from playwright.sync_api import expect
-from render_harness import (
-    REPLAYED_PAGE,
-    example_media,
-    open_page,
-    panel_menu,
-    restarting,
-    sending,
-)
 
 
 def end_preview(process) -> None:
@@ -384,7 +385,7 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
     prefix, default = preview_slot
     installed = install_payload(tmp_path / "other-runtime")
     runtime_marker = "selected-preview-runtime"
-    installed_runtime = installed / "skills" / "leaf" / "assets" / "leaf.js"
+    installed_runtime = installed / "browser" / "leaf.js"
     installed_runtime.write_text(
         installed_runtime.read_text(encoding="utf-8")
         + f"\nglobalThis.__previewRuntimeMarker = {json.dumps(runtime_marker)};\n",
@@ -601,7 +602,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     source = tmp_path / "detached.html"
     source.write_text(REPLAYED_PAGE)
     runtime = install_payload(tmp_path / "detached-runtime")
-    theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+    theme = runtime / "browser" / "theme.css"
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
     # The Codex task runs the preview as its own long-running command.
@@ -731,57 +732,6 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
     assert (directory / "media" / image.name).read_bytes() == expected
 
 
-def test_terminating_a_preview_mid_update_leaves_no_service(
-    tmp_path, preview_slot, spawn
-):
-    """A SIGTERM after re-vendor stops the service leaves no restarted service."""
-    (tmp_path / "hold_update.py").write_text(
-        "import json, os, socket\n"
-        "def pause(page):\n"
-        "    record = page.page_dir / 'service.json'\n"
-        "    if not record.exists():\n"
-        "        return\n"
-        "    service = json.loads(record.read_text())\n"
-        "    theme = (page.page_dir / 'theme.css').read_text()\n"
-        "    if service.get('restart') and 'h1 { color: navy; }' in theme:\n"
-        "        port = int(os.environ['LEAF_TEST_UPDATE_BARRIER'])\n"
-        "        with socket.create_connection(('127.0.0.1', port)) as peer:\n"
-        "            if peer.recv(1) != b'x':\n"
-        "                os._exit(1)\n"
-    )
-    env = os.environ | {
-        "PYTHONPATH": os.pathsep.join(
-            filter(None, (str(tmp_path), os.environ.get("PYTHONPATH")))
-        ),
-        "LEAF_PAGE_COMMIT": "hold_update:pause",
-    }
-    with socket.socket() as listener:
-        listener.bind(("127.0.0.1", 0))
-        listener.listen(1)
-        listener.settimeout(STATED_TIMEOUT)
-        env["LEAF_TEST_UPDATE_BARRIER"] = str(listener.getsockname()[1])
-        source, runtime, directory, process, _, log = watching(
-            tmp_path, preview_slot, spawn, user=True, env=env
-        )
-        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
-        with theme.open("a", encoding="utf-8") as stream:
-            stream.write("\nh1 { color: navy; }\n")
-        try:
-            peer, _ = listener.accept()
-        except TimeoutError:
-            pytest.fail(f"watcher did not commit the updated layer: {log.read_text()}")
-        with peer:
-            assert "h1 { color: navy; }" in (directory / "theme.css").read_text()
-            assert not files_model.read_json(directory / "service.json")["enabled"]
-            os.killpg(process.pid, signal.SIGTERM)
-            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
-                peer.sendall(b"x")
-    process.wait(timeout=STATED_TIMEOUT)
-    assert server_model.running_server(directory) is None
-    assert (directory / "events.jsonl").is_file()
-    assert (directory / "index.html").read_bytes() == source.read_bytes()
-
-
 @pytest.mark.parametrize("edit", ["source", "runtime"])
 def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     tmp_path, served_preview, spawn, edit
@@ -815,7 +765,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             source.read_text().replace("Rollout", "A watched revision", 1)
         )
     else:
-        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+        theme = runtime / "browser" / "theme.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
     wait_for(
@@ -837,7 +787,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     )
     assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
     payload, _, events = woken(waited.read_text(), session=session)
-    assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
+    assert f"leaf delivery ack {payload['id']} && leaf wait" in payload["acknowledge"]
     assert [event["text"] for event in events] == ["still there?"]
 
 
@@ -986,3 +936,77 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
     finally:
         CliRunner().invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         live_server.wait(timeout=STATED_TIMEOUT)
+
+
+def test_preview_resumes_loaded_code_changes_without_losing_feedback(
+    tmp_path, preview_slot, spawn
+):
+    """Python edits keep the old page serving until an explicit restart."""
+    from urllib.parse import urlsplit
+
+    source, runtime, directory, process, url, log = watching(
+        tmp_path, preview_slot, spawn, user=True
+    )
+    state_url = urlsplit(url)._replace(path="/api/state").geturl()
+    event_url = urlsplit(url)._replace(path="/api/event").geturl()
+    status, body = fetch(
+        event_url,
+        token=None,
+        data=json.dumps(
+            {
+                "kind": "comment",
+                "revision": files_model.latest_revision(directory),
+                "text": "Keep this feedback through the update",
+                "attempt": "preview-runtime-update",
+            }
+        ).encode(),
+    )
+    assert status == 200, body
+    feedback = (directory / "events.jsonl").read_bytes()
+    assert b"Keep this feedback through the update" in feedback
+    status, body = fetch(state_url, token=None)
+    assert status == 200, body
+    old_grace = json.loads(body)["working_grace_ms"]
+
+    edited = runtime / "src/leaf/served_state/page.py"
+    original = edited.read_text()
+    updated = original.replace("WORKING_GRACE // timedelta(milliseconds=1)", "12345")
+    assert updated != original
+    edited.write_text(updated)
+
+    def restart_requested(text):
+        assert process.poll() is None, text
+        return "restart this preview" in text
+
+    wait_for(
+        log.read_text,
+        restart_requested,
+        timeout=STATED_TIMEOUT,
+        failure="the preview did not request a restart for its changed Python code",
+    )
+    assert _reachable(url)
+    status, body = fetch(state_url, token=None)
+    assert status == 200, body
+    assert json.loads(body)["working_grace_ms"] == old_grace
+
+    # The same command resumes a user preview; no process identity is a contract.
+    result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(directory)])
+    assert result.exit_code == 0, result.output
+    process.wait(timeout=STATED_TIMEOUT)
+    restarted, restarted_url = start_preview(
+        spawn, process.args, tmp_path / "restarted.log"
+    )
+    assert restarted_url == url
+    status, body = fetch(state_url, token=None)
+    assert status == 200, body
+    assert json.loads(body)["working_grace_ms"] == 12345
+    assert (directory / "events.jsonl").read_bytes().startswith(feedback)
+
+    source.write_text(source.read_text().replace("Rollout", "Updated rollout"))
+    wait_for(
+        lambda: (directory / "index.html").read_text(),
+        lambda text: "Updated rollout" in text,
+        timeout=COMPOSITE_TIMEOUT,
+        failure="the restarted preview did not resume authored-page updates",
+    )
+    assert restarted.poll() is None

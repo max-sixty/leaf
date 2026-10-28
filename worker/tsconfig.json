@@ -5,6 +5,7 @@
     "moduleResolution": "Bundler",
     "customConditions": ["workerd"],
     "noEmit": true,
+    "noUnusedLocals": true,
     "skipLibCheck": true,
     "strict": true,
     "types": ["@cloudflare/workers-types", "node"]

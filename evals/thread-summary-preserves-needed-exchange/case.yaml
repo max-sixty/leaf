@@ -34,7 +34,7 @@ assert:
     metric: keeps-needed-originals-and-answers
     value: |
       Pass only if no proposed command summarizes or folds the earlier messages,
-      and the commands give `leaf response reply 70c41e9a:0:ttl-seven` answering
+      and the commands give `leaf thread reply 70c41e9a:0:ttl-seven` answering
       ttl-seven in ttl-thread. Its text must examine the earlier ten-minute and five-minute claims
       against the user's counterexample and distinguish expiry from quote age;
       it may question the counterexample's assumptions. A prose explanation that

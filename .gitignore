@@ -11,3 +11,8 @@ evals/results/
 # Claude Code writes this beside the types it lays in .claude-plugin/types/ when it
 # loads hooks/claude-code.ts from a checkout.
 /tsconfig.json
+# Generated on demand by developer tools and the combined-page tests.
+/examples/corpus.html
+/examples/corpus.data.json
+/examples/corpus.jsonl
+/examples/corpus.page/

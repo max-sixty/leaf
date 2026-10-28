@@ -3,7 +3,6 @@
 import re
 
 import pytest
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_navigation import (
     UNDO_PAGE,
@@ -20,6 +19,8 @@ from render_harness import (
     write,
 )
 
+from leaf import event_log as events_model
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
@@ -35,7 +36,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     page = open_page(browser, serve(UNDO_PAGE), context=context)
     host = page.locator(PANEL)
     row = page.locator(".lf-fp-row")
-    marks = page.locator(".lf-fp-threads")
+    on_me = page.locator(".lf-fp-on-user")
 
     def leave(name):
         return row.locator(f'.lf-fp-exit[aria-label="{name}"]')
@@ -53,7 +54,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
 
     # A mode offers no step of its own: a stroke's undo is on its drawing's composer, so
-    # each mode's ✕ stands beside the marks.
+    # each mode's ✕ stands in the On me mark's seat, and the mark comes back after it.
     for entry, root, mode, exit_name in (
         ("command:draw.mode.enter", "html", "data-lf-draw-mode", "Exit Draw mode"),
         (
@@ -66,11 +67,11 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
         panel_control(page, entry, at="annotate").tap()
         expect(page.locator(root)).to_have_attribute(mode, "")
         expect(leave(exit_name)).to_be_visible()
-        expect(marks).to_be_visible()
+        expect(on_me).to_have_count(0)
         leave(exit_name).tap()
         expect(page.locator(root)).not_to_have_attribute(mode, "")
         expect(leave(exit_name)).to_have_count(0)
-        expect(marks).to_be_visible()
+        expect(on_me).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
     panel_control(page, "command:design.mode.enter", at="annotate").tap()
@@ -103,13 +104,15 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(page.locator(".lf-inspect")).to_be_hidden()
 
     # Prose still selects in Design mode. On the narrowest phone row the panel's field
-    # quotes the words in the mode's name's place, beside the mode's way out, until the
+    # names the mode before the quoted words, beside the mode's way out, until the
     # words are let go, and a tap on it comments on them.
     page.set_viewport_size({"width": 320, "height": 700})
     field = panel_field(page)
     page.locator("#h").evaluate("el => getSelection().selectAllChildren(el)")
     comment = selection_field(page)
-    expect(comment).to_have_attribute("placeholder", re.compile("^“"))
+    expect(comment).to_have_attribute(
+        "placeholder", re.compile("^In Design mode · “Undo”")
+    )
     expect(exit_design).to_be_visible()
     assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the selection's field overflows a 320px row"
@@ -138,9 +141,8 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(box).to_be_focused()
     box.fill("mounts")
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
-    search = page.locator(".lf-page-search")
-    next_match = search.get_by_role("button", name="Next match")
-    expect(search.get_by_role("button", name="Previous match")).to_be_visible()
+    next_match = row.get_by_role("button", name="Next match")
+    expect(row.get_by_role("button", name="Previous match")).to_be_visible()
     assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "search's steps overflow a 320px row"
     )
@@ -153,7 +155,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     page.touchscreen.tap(mark["x"] + mark["width"] / 2, mark["y"] + mark["height"] / 2)
     expect(box).to_be_hidden()
     expect(next_match).to_be_hidden()
-    expect(comment).to_have_attribute("placeholder", "“mounts”")
+    expect(comment).to_have_attribute("placeholder", "Match 2 of 3 · “mounts”")
     assert page.evaluate("getSelection().toString()") == "mounts"
     page.evaluate("getSelection().removeAllRanges()")
     expect(comment).to_be_hidden()
@@ -166,13 +168,13 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     panel_control(page, "command:page.search.open", at="navigate").tap()
     expect(next_match).to_be_visible()
     expect(exit_draw).to_have_count(0)
-    expect(marks).to_be_visible()
+    expect(on_me).to_have_count(0)
     leave("Close search").tap()
     exit_draw.tap()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
 
     # Picking an element has no `s` under a finger, and selecting words picks no
-    # widget, so Annotations holds Select element; its ✕ closes it, and a tap on an
+    # widget; Annotations holds Comment on an element, whose ✕ closes it, and a tap on an
     # element chooses it for a comment.
     panel_control(page, "command:target.picker.open", at="annotate").tap()
     cancel = leave("Close picker")

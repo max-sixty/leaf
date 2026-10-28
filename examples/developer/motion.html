@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Compare motion on one clock</title>
+    <meta
+      name="description"
+      content="Play, pause, slow down and scrub two illustrative motion comparisons with Leaf’s reusable motion widget."
+    />
+    <link rel="stylesheet" href="/page/motion.css" />
+    <script type="module" src="/page/motion.js"></script>
+  </head>
+  <body>
+    <main class="layout-column">
+      <header id="motion-intro">
+        <p class="eyebrow">Motion studies</p>
+        <h1>Compare motion on one clock</h1>
+        <p class="lede">
+          Play both versions together, pause a fleeting difference, or scrub to the
+          moment you want to discuss.
+        </p>
+        <p>
+          These drawings reproduce two illustrative studies from a Leaf UI review. They
+          are timing sketches, not recordings or approved interface changes. Each starts
+          with 250 ms before the gesture and holds the result for 200 ms.
+        </p>
+      </header>
+      <section id="fold-study">
+        <h2>Follow the Leaf as the panel folds</h2>
+        <p>
+          Play the fold, then scrub through its opening moments. The source study fades
+          the mark in at its destination; the alternative carries it there with the
+          panel.
+        </p>
+        <lf-motion
+          id="fold-motion"
+          duration="750"
+          aria-label="Follow the Leaf as the panel folds"
+        >
+          <div class="study-pair">
+            <figure aria-label="Source timing for fold" id="fold-source" tabindex="0">
+              <figcaption>
+                Source timing
+                <span> 140 ms wait, then 160 ms fade </span>
+              </figcaption>
+              <svg aria-label="Source timing for fold" role="img" viewbox="0 0 560 110">
+                <rect
+                  data-part="outline"
+                  fill="var(--paper)"
+                  height="44"
+                  rx="12"
+                  stroke="var(--border-2)"
+                  width="540"
+                  x="10"
+                  y="32"
+                ></rect>
+                <g data-part="leaf" transform="translate(22 43) scale(.625)">
+                  <path
+                    d="M27.4 3.4 C13.0 1.6, 3.6 11.5, 6.4 25.9 C5.6 27.0, 4.7 28.15, 4.15 28.75 A0.5 0.5 0 0 0 4.95 29.35 C5.7 28.5, 6.7 27.6, 7.7 26.8 C18.4 30.2, 30.2 15.6, 27.4 3.4 Z M7.22 26.60 C10.62 21.0, 17.62 9.0, 28.02 3.40 L26.78 3.40 C16.38 9.0, 9.38 21.0, 5.98 26.60 Z M21.56 8.58 H24.54 A1.02 1.02 0 0 1 24.54 10.62 H21.56 A1.02 1.02 0 0 1 21.56 8.58 Z M17.76 12.73 H23.55 A1.02 1.02 0 0 1 23.55 14.77 H17.76 A1.02 1.02 0 0 1 17.76 12.73 Z M14.57 16.88 H21.63 A1.02 1.02 0 0 1 21.63 18.92 H14.57 A1.02 1.02 0 0 1 14.57 16.88 Z M11.77 21.03 H15.18 A1.02 1.02 0 0 1 15.18 23.07 H11.77 A1.02 1.02 0 0 1 11.77 21.03 Z"
+                    fill="var(--accent)"
+                    fill-rule="evenodd"
+                  ></path>
+                </g>
+                <text class="quiet" data-part="words" x="56" y="59">
+                  Comment on the page
+                </text>
+                <g data-part="badge" opacity="0">
+                  <circle cx="541" cy="34" fill="var(--accent)" r="8"></circle>
+                  <text
+                    fill="var(--paper)"
+                    font-size="11"
+                    text-anchor="middle"
+                    x="541"
+                    y="38"
+                  >
+                    2
+                  </text>
+                </g>
+              </svg>
+            </figure>
+            <figure
+              aria-label="Alternative sketch for fold"
+              id="fold-alternative"
+              tabindex="0"
+            >
+              <figcaption>
+                Alternative sketch
+                <span> Leaf travels with the panel </span>
+              </figcaption>
+              <svg
+                aria-label="Alternative sketch for fold"
+                role="img"
+                viewbox="0 0 560 110"
+              >
+                <rect
+                  data-part="outline"
+                  fill="var(--paper)"
+                  height="44"
+                  rx="12"
+                  stroke="var(--border-2)"
+                  width="540"
+                  x="10"
+                  y="32"
+                ></rect>
+                <g data-part="leaf" transform="translate(22 43) scale(.625)">
+                  <path
+                    d="M27.4 3.4 C13.0 1.6, 3.6 11.5, 6.4 25.9 C5.6 27.0, 4.7 28.15, 4.15 28.75 A0.5 0.5 0 0 0 4.95 29.35 C5.7 28.5, 6.7 27.6, 7.7 26.8 C18.4 30.2, 30.2 15.6, 27.4 3.4 Z M7.22 26.60 C10.62 21.0, 17.62 9.0, 28.02 3.40 L26.78 3.40 C16.38 9.0, 9.38 21.0, 5.98 26.60 Z M21.56 8.58 H24.54 A1.02 1.02 0 0 1 24.54 10.62 H21.56 A1.02 1.02 0 0 1 21.56 8.58 Z M17.76 12.73 H23.55 A1.02 1.02 0 0 1 23.55 14.77 H17.76 A1.02 1.02 0 0 1 17.76 12.73 Z M14.57 16.88 H21.63 A1.02 1.02 0 0 1 21.63 18.92 H14.57 A1.02 1.02 0 0 1 14.57 16.88 Z M11.77 21.03 H15.18 A1.02 1.02 0 0 1 15.18 23.07 H11.77 A1.02 1.02 0 0 1 11.77 21.03 Z"
+                    fill="var(--accent)"
+                    fill-rule="evenodd"
+                  ></path>
+                </g>
+                <text class="quiet" data-part="words" x="56" y="59">
+                  Comment on the page
+                </text>
+                <g data-part="badge" opacity="0">
+                  <circle cx="541" cy="34" fill="var(--accent)" r="8"></circle>
+                  <text
+                    fill="var(--paper)"
+                    font-size="11"
+                    text-anchor="middle"
+                    x="541"
+                    y="38"
+                  >
+                    2
+                  </text>
+                </g>
+              </svg>
+            </figure>
+          </div>
+        </lf-motion>
+      </section>
+      <section id="arrival-study">
+        <h2>Compare two arrival cues at the same instant</h2>
+        <p>
+          Play the arrival, then slow it to quarter speed. The expanding ring and the
+          tint share a duration; the unread dot remains in both.
+        </p>
+        <lf-motion
+          id="arrival-motion"
+          duration="970"
+          aria-label="Compare two arrival cues at the same instant"
+        >
+          <div class="study-pair">
+            <figure
+              aria-label="Source timing for arrival"
+              id="arrival-source"
+              tabindex="0"
+            >
+              <figcaption>
+                Source timing
+                <span> Expanding ring · 520 ms </span>
+              </figcaption>
+              <svg
+                aria-label="Source timing for arrival"
+                role="img"
+                viewbox="0 0 560 110"
+              >
+                <text class="quiet" x="10" y="23">Thread in the margin</text>
+                <circle
+                  cx="40"
+                  cy="65"
+                  data-part="ring"
+                  fill="none"
+                  r="16"
+                  stroke="var(--accent)"
+                  stroke-width="0"
+                ></circle>
+                <circle
+                  cx="40"
+                  cy="65"
+                  data-part="pin"
+                  fill="var(--paper)"
+                  r="16"
+                  stroke="var(--border-2)"
+                ></circle>
+                <g
+                  fill="none"
+                  stroke="var(--accent)"
+                  stroke-width="1.5"
+                  transform="translate(32 57)"
+                >
+                  <path d="M3 3.25h10v7H7.25L4 12.75v-2H3z"></path>
+                </g>
+                <circle cx="53" cy="52" fill="var(--accent)" r="3"></circle>
+                <text x="74" y="70">New reply</text>
+                <text class="quiet" x="74" y="92">
+                  Unread dot remains after the cue.
+                </text>
+              </svg>
+            </figure>
+            <figure
+              aria-label="Alternative sketch for arrival"
+              id="arrival-alternative"
+              tabindex="0"
+            >
+              <figcaption>
+                Alternative sketch
+                <span> Tint in the existing pin · 520 ms </span>
+              </figcaption>
+              <svg
+                aria-label="Alternative sketch for arrival"
+                role="img"
+                viewbox="0 0 560 110"
+              >
+                <text class="quiet" x="10" y="23">Thread in the margin</text>
+                <circle
+                  cx="40"
+                  cy="65"
+                  data-part="ring"
+                  fill="none"
+                  r="16"
+                  stroke="var(--accent)"
+                  stroke-width="0"
+                ></circle>
+                <circle
+                  cx="40"
+                  cy="65"
+                  data-part="pin"
+                  fill="var(--paper)"
+                  r="16"
+                  stroke="var(--border-2)"
+                ></circle>
+                <g
+                  fill="none"
+                  stroke="var(--accent)"
+                  stroke-width="1.5"
+                  transform="translate(32 57)"
+                >
+                  <path d="M3 3.25h10v7H7.25L4 12.75v-2H3z"></path>
+                </g>
+                <circle cx="53" cy="52" fill="var(--accent)" r="3"></circle>
+                <text x="74" y="70">New reply</text>
+                <text class="quiet" x="74" y="92">
+                  Unread dot remains after the cue.
+                </text>
+              </svg>
+            </figure>
+          </div>
+        </lf-motion>
+      </section>
+      <details id="motion-authoring">
+        <summary>Author a motion study</summary>
+        <p>
+          The optional <code>motion</code> package supplies the clock, one play/pause
+          icon, scrubbing and playback speed. The page draws the subject from the
+          supplied time in milliseconds. Scrubbing changes only the view; it writes no
+          decision to the page’s log.
+        </p>
+        <pre
+          id="motion-markup"
+        ><code class="language-html">&lt;lf-motion id="travel" duration="600" aria-label="Travel study"&gt;
+  &lt;svg viewBox="0 0 300 60" role="img" aria-label="Dot moving right"&gt;
+    &lt;circle cx="20" cy="30" r="10" fill="currentColor" /&gt;
+  &lt;/svg&gt;
+&lt;/lf-motion&gt;</code></pre>
+        <pre
+          id="motion-script"
+        ><code class="language-javascript">import { PAGE_INTERFACE, keeps } from '/runtime/widget-api.js';
+
+const mounted = new WeakSet();
+await customElements.whenDefined('lf-motion');
+function mount() {
+  const study = document.getElementById('travel');
+  if (!study || mounted.has(study)) return;
+  mounted.add(study);
+  const dot = study.querySelector('circle');
+  study.renderFrame = (time) =&gt; {
+    keeps(dot, 'cx', 20 + 260 * time / 600);
+  };
+}
+mount();
+document.addEventListener(PAGE_INTERFACE, mount);</code></pre>
+        <p>
+          Assigning <code>renderFrame</code> draws the current instant immediately. Draw
+          every moving part from that time, so seeking backward and jumping forward
+          produce the same scene as playback. Use <code>currentTime</code> to seek from
+          your own controls.
+        </p>
+        <p>
+          The studies above preserve the source review’s timing and corrected continuous
+          Leaf travel. Their page module owns those drawings; the reusable widget knows
+          nothing about panels, unread markers or SVG.
+        </p>
+      </details>
+    </main>
+  </body>
+</html>

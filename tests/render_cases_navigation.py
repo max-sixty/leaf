@@ -4,14 +4,6 @@ import json
 from contextlib import contextmanager
 
 from click.testing import CliRunner
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf.registry.storage import read_page_registry
-from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -26,6 +18,15 @@ from render_harness import (
     told,
     write,
 )
+
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import leases as leases_model
+from leaf import service as service_model
+from leaf.registry.storage import read_page_registry
+from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 
 
 def call_node(label, file=None, line=None, *, status="same", children=(), kind="call"):
@@ -353,8 +354,8 @@ item, which the page's rule gives room below.</p></div>
 )
 
 
-def standing_mark(page):
-    """Which passage the page is painting as the comment the user is standing in, and
+def current_location_mark(page):
+    """Which passage the page is painting as the comment the user is located in, and
     which elements wear the same fact as an outline. One reading, because the two are one
     paint over two kinds of anchor and a test that asked for only the text half would go
     green on a page whose element marks had stopped answering."""
@@ -366,7 +367,7 @@ def standing_mark(page):
     }
 
 
-STANDING = """([text, ids]) => {
+CURRENT_LOCATION = """([text, ids]) => {
     const h = CSS.highlights.get('lf-mark-here');
     const said = (h ? [...h].map(r => r.toString()).join('') : '').split(/\\s+/)
         .filter(Boolean).join(' ');
@@ -375,7 +376,7 @@ STANDING = """([text, ids]) => {
 }"""
 
 
-def wait_standing(page, text, ids=()):
+def wait_current_location(page, text, ids=()):
     """Wait for the page to be marking exactly this comment's passage.
 
     The paint follows focus through the runtime's one coalesced repaint,
@@ -384,11 +385,11 @@ def wait_standing(page, text, ids=()):
     is. The failure carries what was painted instead, since a timeout on a predicate says
     only that it never came true."""
     try:
-        page.wait_for_function(STANDING, arg=[text, list(ids)])
+        page.wait_for_function(CURRENT_LOCATION, arg=[text, list(ids)])
     except PlaywrightTimeout:
         raise AssertionError(
             f"the page should be marking {text or list(ids)!r} as the comment the user"
-            f" is standing in; it is marking {standing_mark(page)}"
+            f" is located in; it is marking {current_location_mark(page)}"
         ) from None
 
 
@@ -796,7 +797,7 @@ def compose(page, passage, text=None):
     """Open the composer on a passage the way a user does, and type into it.
 
     Without text it only opens, which is how a second tab meets a draft already
-    standing on that passage: the two gestures are the same one, so the anchor the
+    attached to that passage: the two gestures are the same one, so the anchor the
     key is built from is the same in both tabs."""
     page.locator(passage).scroll_into_view_if_needed()
     page.locator(passage).click(click_count=3)
@@ -812,7 +813,7 @@ def compose(page, passage, text=None):
 # mark (a thing to do that becomes a thing the page says once it is pressed).
 # Both spellings a page has for a folded section: the platform's <details>, and a settled
 # option group, which is a span the widget wrote `aria-expanded` onto. They stand together
-# because a user standing on one cannot see which of the two it is — a fixture holding
+# because a user located on one cannot see which of the two it is — a fixture holding
 # one of them proves the scope for that spelling and says nothing about the other.
 DISCLOSED_PAGE = leaf_page(
     "disclosed",
@@ -900,7 +901,7 @@ SUGGEST_BLOCK = (
 def live_watcher(page_dir, page):
     """Hold the exact lease `leaf wait` uses for the duration of the block."""
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, session["id"] if session else None)
     )
     assert lease
@@ -960,20 +961,22 @@ DATA_PROJECTION_PAGE = leaf_page(
 )
 
 DATA_PROJECTION_MODULE = """
-import {offer, LeafElement, nothing, projectData, setChildren} from '/runtime/widget-api.js';
+import {keeps, offer, LeafElement, nothing, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends LeafElement {
   render() {
-    this.show(this.data('rows'));
+    this.show(this.value);
     return nothing;
   }
-  show(snapshot) {
-    const datums = (snapshot?.value ?? []).map(({key, value}, index) => {
+  show(value) {
+    const rows = (value ?? []).map(({key, value: words}, index) => {
       const row = document.createElement('p');
-      row.append(value, offer('button', 'inspect', 'Inspect'));
-      return {node: row, key, origin: {...snapshot.origin, path: [index, 'value']}};
+      row.append(words, offer('button', 'inspect', 'Inspect'));
+      keeps(row, 'data-lf-datum', key);
+      keeps(row, 'data-lf-origin-path', JSON.stringify([index, 'value']));
+      return row;
     });
-    setChildren(this, datums.map(({node}) => node));
-    projectData(this, datums, {snapshot});
+    setChildren(this, rows);
+    this.dispatchEvent(new CustomEvent('drawn', {detail: {value}}));
   }
 });
 """
@@ -996,7 +999,13 @@ def data_projection_page(serve):
         "required": ["id", "source"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-data": {"rows": {"contract": "deployment-rows", "source": "source"}},
+        "x-data": {
+            "rows": {
+                "contract": "deployment-rows",
+                "source": "source",
+                "property": "value",
+            }
+        },
         "x-upgrade": True,
         "x-example": ('<lf-feed id="feed-example" source="deployments"></lf-feed>'),
     }

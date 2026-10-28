@@ -6,13 +6,14 @@
 // effect before awaiting, and invokes it afterwards. Leaf draft sends put words away
 // synchronously before awaiting delivery (drafts.js). A reactive element's update is
 // the exception the watch follows itself: Lit defers it behind a native await, and the
-// request that starts it names its cause (`adoptReactive`).
+// request that starts it names its cause (`adoptReactive`). The blur and focus a
+// press or key dispatches as its native default belong to that gesture.
 // Native edit starts identify their field through DOM capture or EditContext's
 // attachment; a watch confirms the value that field's input commits.
 // Parent input bridges belong to the child document. Pagehide releases them before
 // its realm goes away; a back-forward cache return reconnects the same bridges.
 // Explicitly enrolled document ports carry the exact scheduling source between
-// instrumented browser realms, including opaque frames. Their private envelope is
+// instrumented browser realms, including opaque frames. Its private field is
 // removed before application listeners run. Unclassified ports retain native traffic.
 // The watch's own scheduling uses the saved platform methods and is never counted.
 (() => {
@@ -69,7 +70,9 @@
     return source ? localSource(source) : null;
   };
   const closed = (owner) =>
-    owner.localName === "details" ? !owner.open : !owner.matches(":popover-open");
+    owner.localName === "details"
+      ? !owner.open
+      : !owner.matches(":popover-open, dialog:modal");
   const checkpoint = (source, completedEdit = false) => {
     // The first reader after activation owns the native default, even when a
     // toggle listener runs before the dispatch-completion task.
@@ -262,22 +265,36 @@
   // A press is one gesture from pointerdown through its click; a key is its keydown.
   const PRESS = new Set(["pointerdown", "mousedown", "pointerup", "mouseup"]);
   const GESTURES = new Set(["pointerdown", "keydown"]);
+  const FOCUS_MOVES = new Set(["blur", "focusout", "focus", "focusin"]);
   const endDispatch = (source) => {
     finishing.add(source);
     // A summary's native activation runs after the click listeners and their
-    // microtasks, and so do the closes the browser makes of the popovers open when a
-    // gesture starts: a press's light dismissal, a popovertarget invoker's toggle, and
+    // microtasks, and so do the closes the browser makes of native layers open when
+    // a gesture starts: a press's light dismissal, a popovertarget invoker's toggle, and
     // Escape. Retain those browser-owned closes until the gesture's dispatch completes,
     // without assigning unrelated native-await work to the input. A press's light
     // dismissal falls between its own events, outside every dispatch, so the closes a
     // pointerdown retains stand until its click has dispatched.
-    // A press inside a popover never light-dismisses it, so only those it lands outside
-    // are retained for a press.
+    // A press inside a layer never light-dismisses it. A dialog's backdrop retargets
+    // the press to the dialog, so its box and closedBy policy decide dismissal.
     const path = source.event.composedPath();
     const closes = new Set(
       GESTURES.has(source.event.type)
-        ? [...document.querySelectorAll(":popover-open")].filter(
-            (popover) => source.event.type === "keydown" || !path.includes(popover),
+        ? [...document.querySelectorAll(":popover-open, dialog:modal")].filter(
+            (layer) => {
+              if (!layer.matches("dialog:modal"))
+                return source.event.type === "keydown" || !path.includes(layer);
+              if (source.event.type === "keydown")
+                return source.event.key === "Escape" && layer.closedBy !== "none";
+              if (layer.closedBy !== "any") return false;
+              const rect = layer.getBoundingClientRect();
+              return (
+                source.event.clientX < rect.left ||
+                source.event.clientX > rect.right ||
+                source.event.clientY < rect.top ||
+                source.event.clientY > rect.bottom
+              );
+            },
           )
         : [],
     );
@@ -353,6 +370,29 @@
         return beginSource(event, node, true);
       }
     }
+    // A close request, such as Android's back gesture, reaches the page only as a
+    // close watcher's trusted `close`, which is the user's gesture itself.
+    if (
+      event.isTrusted &&
+      event.type === "close" &&
+      window.CloseWatcher &&
+      event.target instanceof window.CloseWatcher
+    )
+      return beginSource(event, null);
+    // A press or key moves focus as its native default, after its own listeners
+    // return and before its dispatch completes, so the blur and focus that move
+    // dispatches are that gesture's work: a box that closes on blur, as a file tree's
+    // search does, closes for the press elsewhere. Script focus inside a callback
+    // keeps that callback's source; a script focus() run outside one before the
+    // gesture's task ends, as from a continuation the watch doesn't capture, is
+    // credited to the gesture too.
+    if (event.isTrusted && FOCUS_MOVES.has(event.type) && !callbackDepth) {
+      const gesture = [...finishing].findLast((s) => s.event.type !== "storage");
+      if (gesture) {
+        sources.set(event, gesture);
+        return gesture;
+      }
+    }
     const source = current();
     // A keyboard command activates a native summary with click(), whose synthetic
     // event still starts the platform's default. Its source is the calling key;
@@ -399,25 +439,31 @@
   const nativeAdd = EventTarget.prototype.addEventListener;
   const post = MessagePort.prototype.postMessage;
   const onmessage = Object.getOwnPropertyDescriptor(MessagePort.prototype, "onmessage");
+  // Leaf's ports send plain objects, and the source rides on each as one extra field,
+  // which a peer this watch is not installed in reads past: Playwright's Firefox
+  // leaves some sample frames without init scripts, and a message wrapped whole
+  // would mean nothing there.
+  const CARRIED = "lfInputWorkSource";
   const adoptedPorts = new WeakSet();
   const adoptPort = (port) => {
     if (adoptedPorts.has(port)) return;
     adoptedPorts.add(port);
     nativeAdd.call(port, "message", (event) => {
-      const envelope = event.data;
-      if (envelope?.lfInputWorkMessage !== true) return;
-      Object.defineProperty(event, "data", { value: envelope.value });
-      sources.set(event, unpackSource(envelope.source));
+      const { data } = event;
+      if (!Object.hasOwn(Object(data), CARRIED)) return;
+      const { [CARRIED]: packed, ...value } = data;
+      Object.defineProperty(event, "data", { value });
+      sources.set(event, unpackSource(packed));
     });
     Object.defineProperty(port, "postMessage", {
       configurable: true,
       writable: true,
       value(value, ...args) {
-        return post.call(
-          this,
-          { lfInputWorkMessage: true, value, source: packSource(current()) },
-          ...args,
-        );
+        const carried =
+          value?.constructor === Object
+            ? { ...value, [CARRIED]: packSource(current()) }
+            : value;
+        return post.call(this, carried, ...args);
       },
     });
     Object.defineProperty(port, "onmessage", {

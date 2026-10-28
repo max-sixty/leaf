@@ -6,7 +6,7 @@ import {
   KINDS,
   contributionEntry,
   normalizeContributionReading,
-} from "../../skills/leaf/assets/runtime/contribution-model.js";
+} from "../../browser/runtime/contribution-model.js";
 import {
   canFold,
   clusterProjection,
@@ -18,8 +18,8 @@ import {
   choosePrimary,
   entryHasMarginHost,
   awaitingUser,
-} from "../../skills/leaf/assets/runtime/margin-model.js";
-import { marginMapGroups } from "../../skills/leaf/assets/runtime/margin-map-model.js";
+} from "../../browser/runtime/margin-model.js";
+import { marginMapGroups } from "../../browser/runtime/margin-map-model.js";
 
 const control = (key, options = {}) =>
   contributionEntry({ key, glyph: "+", label: key, ...options });
@@ -111,7 +111,7 @@ test("a folded cluster stands as its toggle and opens to every control", () => {
   // Placement's fold is only a request: unfolded, the face is the pair.
   const whole = clusterProjection(entry);
   assert.equal(whole.folded, false);
-  assert.deepEqual(whole.toggle, { icon: "more", label: "More options" });
+  assert.deepEqual(whole.toggle, { action: "more", label: "More options" });
   assert.equal(whole.primary.record.key, "accept");
   assert.deepEqual(choiceNames(whole.options.visible), ["reject"]);
 });
@@ -219,19 +219,19 @@ test("an open thread stays reachable while Page Map retains every action in orde
 
 test("thread aggregation preserves canonical user attention and obligation precedence", () => {
   const recovery = marker("recovery", "comment", {
-    userAttention: { label: "Not answered", reason: "workflow" },
+    userAttention: { label: "Couldn't answer", reason: "workflow" },
   });
   const item = marker("question", "comment", {
-    userAttention: { label: "On you", reason: "widget" },
+    userAttention: { label: "On you", reason: "obligation" },
   });
   assert.equal(awaitingUser([recovery]), true);
-  assert.equal(readingContext({ items: [recovery] }), "Not answered");
+  assert.equal(readingContext({ items: [recovery] }), "Couldn't answer");
   assert.equal(readingContext({ items: [recovery, item] }), "On you");
 });
 
 test("a thread's margin entry and Page Map row say the word Threads gives it", () => {
   // The server's attention for a thread an open to-do holds once the reply it
-  // answered has settled, and for one an agent is working on. Threads says To-do open
+  // answered has settled, and for one an agent is working on. Threads says Still to do
   // and Working on their cards; the margin and Page Map say the same of them.
   const working = Object.freeze({ id: "w", stage: "working", condition: null });
   const thread = (attention, { workflows = [], unread = 0, todos = [] } = {}) => ({
@@ -250,17 +250,17 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     },
   ];
   const said = (held) => {
-    const item = marker("thread", "comment", threadMarks(held));
+    const item = marker("thread", "comment", threadMarks(held, "Claude"));
     const [row] = map([inventory({ items: [item] })])[0].actions;
     return [readingContext({ items: [item] }), row.context];
   };
   assert.deepEqual(said(thread(waitingOnTodo, { todos: todo() })), [
-    "To-do open",
-    "To-do open",
+    "Still to do",
+    "Still to do",
   ]);
   assert.deepEqual(
     said(thread(waitingOnTodo, { todos: todo("Rebuilding it"), unread: 1 })),
-    ["Working", "Working"],
+    ["On it", "On it"],
   );
   // A thread whose workflow is under way carries it as its receipt, which says it in
   // the workflow's own words; its line is what else it holds.
@@ -268,7 +268,7 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     { kind: "waiting", reason: "workflow", workflow: "w" },
     { workflows: [working], unread: 2 },
   );
-  assert.equal(threadMarks(busy).workflowReceipt, working);
+  assert.equal(threadMarks(busy, "Claude").workflowReceipt, working);
   assert.deepEqual(said(busy), ["2 unread", "2 unread"]);
   // A failed response paints no progress, so the line says Threads' word for it.
   const failed = Object.freeze({
@@ -283,17 +283,17 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
         { workflows: [failed] },
       ),
     ),
-    ["Not answered", "Not answered"],
+    ["Couldn't answer", "Couldn't answer"],
   );
   const onUser = thread(
-    { kind: "needs_user", reason: "widget", workflow: null },
+    { kind: "needs_user", reason: "obligation", workflow: null },
     { unread: 1 },
   );
-  assert.deepEqual(threadMarks(onUser).userAttention, {
-    label: "My turn to answer",
-    reason: "widget",
+  assert.deepEqual(threadMarks(onUser, "Claude").userAttention, {
+    label: "Your turn",
+    reason: "obligation",
   });
-  assert.deepEqual(said(onUser), ["My turn to answer", "My turn to answer"]);
+  assert.deepEqual(said(onUser), ["Your turn", "Your turn"]);
 });
 
 test("declared representation and a workflow carrier suppress only duplicate readings", () => {

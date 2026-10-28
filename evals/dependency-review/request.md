@@ -9,7 +9,7 @@ moves along it. Arrow direction shows the movement of data, not which component
 initiates a network request. Keep the facts and diagram available while I compare the two options.
 The diagram must remain readable and inspectable on a phone, including its edge labels.
 
-## System and working notes
+## System
 
 There are six components:
 
@@ -28,9 +28,6 @@ Show these data flows:
 - Primary database → Delivery worker: pending outbox rows returned when the worker polls.
 - Delivery worker → Partner API: send delivery request.
 - Delivery worker → Receipt index: update delivery status.
-
-The working claim is: **Delivery worker writes the receipt index.** Show this claim
-beside the diagram so the on-call team can correct it during review.
 
 ## Evidence at 14:20 UTC
 

@@ -12,6 +12,7 @@ in a `main` module runs nowhere near the change that breaks it.
 """
 
 import json
+import os
 import shlex
 import shutil
 import socket
@@ -33,14 +34,57 @@ from interact_support import (
     stamp,
     wait_for,
 )
+from leaf_dev import arms, page_fixtures
+from leaf_dev.commands import preview, record_demo, site
+from leaf_dev.page_fixtures import prepare_page, read_fixture
+
 from leaf import cli as cli_model
 from leaf import codex_adapter, leases, server, service, session
 from leaf.interaction_log import read_interactions
+from leaf.layer import stylesheet
 from leaf.media import media_name
+from leaf.registry.storage import layer_record, load_registry, selected
 from leaf.structure import SourceDocument
-from leaf_dev import arms, page_fixtures
-from leaf_dev.commands import preview
-from leaf_dev.page_fixtures import prepare_page, read_fixture
+
+
+def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_path):
+    from leaf.packages import cmd_package_install
+    from leaf.registry.storage import layer_metadata
+
+    personal = tmp_path / "personal"
+    personal.mkdir()
+    (personal / "theme.css").write_text(":root { --accent: #814b07; }")
+    cmd_package_install(personal)
+    config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
+    config.parent.mkdir(parents=True)
+    config.write_text('themes = ["personal"]\ndefault = "personal"\n')
+    ordinary = tmp_path / "ordinary"
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(ordinary)])
+    assert result.exit_code == 0, result.output
+    assert layer_metadata(ordinary)["theme"]["name"] == "personal"
+
+    runners = {
+        "arm": partial(
+            arms.run_leaf, ROOT, Path(os.environ["XDG_STATE_HOME"]), check=True
+        ),
+        "preview": partial(preview.leaf, ROOT / "bin/leaf", ROOT),
+        "site": site.checkout_leaf(),
+    }
+    for name, run in runners.items():
+        page = tmp_path / name
+        run(
+            "page",
+            "init",
+            *page_fixtures.package_selection_args(("diagram",)),
+            str(page),
+        )
+        assert layer_metadata(page)["packages"] == ["diagram"]
+        assert layer_metadata(page)["theme"] is None
+
+    page = tmp_path / "demo"
+    with record_demo.demo_session(tmp_path / "demo-run"):
+        record_demo.cmd_init(page)
+        assert layer_metadata(page)["theme"] is None
 
 
 def test_automated_page_producers_record_the_run_before_input(tmp_path, serve, request):
@@ -159,11 +203,13 @@ def test_product_previews_prepare_the_authored_layer_and_media(
         (page / reference.removeprefix("/")).is_file()
         for reference in served.authoring.media_refs
     )
-    registry = json.loads((page / "registry.json").read_text())
+    registry = load_registry(page)
     assert "nav.sitenav" in registry
-    assert (ROOT / "docs" / "package" / "theme.css").read_text().rstrip() in (
-        page / "theme.css"
-    ).read_text()
+    package = ROOT / "docs" / "package"
+    assert (
+        stylesheet(package / "theme.css", package).rstrip()
+        in selected(layer_record(page), page).top_files["theme.css"].decode()
+    )
     watched = preview.watch_paths(source, ROOT, [])
     assert str(ROOT / "docs" / "layer.json") in watched.paths
     # A composed part's owner is an input: a caption follows its example's edit.
@@ -299,7 +345,7 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     source.parent.mkdir()
     source.write_text("first", encoding="utf-8")
     runtime = tmp_path / "runtime"
-    scripts = runtime / "skills" / "leaf" / "scripts" / "nested"
+    scripts = runtime / "src" / "nested"
     scripts.mkdir(parents=True)
     existing_script = scripts / "existing.py"
     existing_script.write_text("first", encoding="utf-8")
@@ -337,6 +383,13 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     added_script.unlink()
     assert str(added_script) not in watched().paths
 
+    # Python loads schema data at import time too; changing it needs both the
+    # server's refresh and a fresh watcher, just like changing a Python module.
+    schema = scripts / "state.schema.json"
+    schema.write_text("{}")
+    assert str(schema) in watched().paths
+    assert schema in preview.worker_inputs(runtime)
+
     versions = source.parent / "versions"
     versions.mkdir()
     version = versions / "page.v1.html"
@@ -371,7 +424,7 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
     (source.parent / "media").mkdir()
     pin = tmp_path / "leaf-assets.json"
     pin.write_text("{}")
-    scripts = tmp_path / "skills/leaf/scripts"
+    scripts = tmp_path / "src"
     scripts.mkdir(parents=True)
     (tmp_path / "pyproject.toml").write_text("")
     (tmp_path / "uv.lock").write_text("")
@@ -391,6 +444,113 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
             )
     finally:
         changes.close()
+
+
+def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
+    """Native source events regenerate the corpus before its live page is refreshed."""
+    from leaf_dev.commands import corpus
+    from leaf_dev.example_data import data_file, named_source, page_files
+
+    from leaf.data import read_data
+    from leaf.registry.storage import load_registry
+
+    examples = tmp_path / "examples"
+    examples.mkdir()
+    (examples / "layer.json").write_text('["default"]')
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "examples.html").write_text("")
+    (tmp_path / "tests/fixtures/pages").mkdir(parents=True)
+    monkeypatch.setattr(corpus, "DEVELOPER_SOURCES", ())
+    source = examples / "reading.html"
+    source.write_text(
+        "<html><head><title>Reading</title></head><body><main><h1>Before</h1>"
+        '<lf-text-document id="reading" source="text"></lf-text-document>'
+        "</main></body></html>"
+    )
+    captured = tmp_path / "code.txt"
+    captured.write_text("First capture")
+    data_file(source).write_text(
+        json.dumps({"$captures": {"text": {"file": "../code.txt"}}})
+    )
+    files = page_files(source)
+    files.mkdir()
+    module = files / "reading.js"
+    module.write_text("// before")
+    output = named_source("corpus", root=tmp_path)
+    page = tmp_path / "preview"
+    native_watch = preview.watch_changes
+
+    def editing_watch(watched):
+        native = native_watch(watched)
+
+        def changed(path):
+            return wait_for(
+                lambda: next(native),
+                lambda paths: str(path) in paths,
+                failure=f"native corpus subscription missed {path}",
+            )
+
+        def edits():
+            try:
+                source.write_text(source.read_text().replace("Before", "After"))
+                module.write_text("// after")
+                yield changed(source)
+                assert "After" in (page / "index.html").read_text()
+                assert (page / "page/reading.js").read_text() == "// after"
+
+                captured.write_text("Edited capture")
+                yield changed(captured)
+                assert (
+                    read_data(page, load_registry(page))["sources"]["text"]["value"]
+                    == "Edited capture"
+                )
+
+                # A companion can change how a capture is read without new markup.
+                data_file(source).write_text(
+                    json.dumps(
+                        {"$captures": {"text": {"file": "../code.txt", "lines": "1:1"}}}
+                    )
+                )
+                yield changed(data_file(source))
+                assert (
+                    json.loads(data_file(output).read_text())["$captures"]["text"][
+                        "lines"
+                    ]
+                    == "1:1"
+                )
+
+                added = examples / "added.html"
+                added.write_text(
+                    "<html><head><title>Added</title></head><body><main><p>New example</p></main></body></html>"
+                )
+                yield changed(added)
+                assert "New example" in (page / "index.html").read_text()
+
+                added.unlink()
+                module.unlink()
+                yield changed(added)
+                assert "New example" not in (page / "index.html").read_text()
+                assert not (page / "page/reading.js").exists()
+
+                source.write_text(
+                    source.read_text().replace("<h1>", '<h1 id="reading">')
+                )
+                yield changed(source)
+                assert "Preview update refused" in capsys.readouterr().err
+                source.write_text(
+                    source.read_text().replace('<h1 id="reading">After', "<h1>Repaired")
+                )
+                yield changed(source)
+                assert "Repaired" in (page / "index.html").read_text()
+            finally:
+                native.close()
+
+        return _ScriptedChanges(edits(), watched)
+
+    monkeypatch.setattr(preview, "watch_changes", editing_watch)
+    with pytest.raises(StopIteration):
+        preview.serve_preview(output, page, ROOT / "bin/leaf", ROOT, False)
 
 
 def test_preview_rearms_a_replaced_native_input_tree(tmp_path):
@@ -541,7 +701,7 @@ def test_serving_connects_codex_feedback_before_handing_over_its_url(
     handoff,
     initially_idle,
 ):
-    """HTTP feedback reaches the current task without a second `codex start`.
+    """HTTP feedback reaches the current task without a second `page claim`.
 
     The detached adapter, claim and page server are real. Only the external Codex
     CLI is replaced: its queue boundary acknowledges and records the submitted
@@ -667,7 +827,7 @@ finally:
         assert codex_adapter.adapter_is_live("preview-thread")
         if initially_idle:
             assert declared(page_dir)["state"] == "idle"
-            session.cmd_waiting(page_dir, "Review this page")
+            session.cmd_waiting(page_dir)
         endpoint = urlsplit(url)._replace(path="/api/event").geturl()
         status, body = fetch(
             endpoint,
@@ -956,7 +1116,7 @@ def test_fixture_captures_use_the_selected_runtime_producer(
     """A producer belongs to the consuming arm, wherever the authored source lives."""
     runtime = tmp_path / "runtime"
     arms.extract_payload(runtime)
-    producer = runtime / "skills/leaf/packages/diff/scripts/patch_manifest.py"
+    producer = runtime / "packages/diff/scripts/patch_manifest.py"
     producer.write_text(
         "# /// script\n# dependencies = []\n# ///\n"
         "import json, sys\n"
@@ -965,7 +1125,7 @@ def test_fixture_captures_use_the_selected_runtime_producer(
     )
     host_state = tmp_path / "host-state"
     foreign = tmp_path / "host-diff"
-    shutil.copytree(runtime / "skills/leaf/packages/diff", foreign)
+    shutil.copytree(runtime / "packages/diff", foreign)
     (foreign / "scripts/patch_manifest.py").write_text(
         "raise RuntimeError('host producer')"
     )
@@ -1007,6 +1167,34 @@ def test_fixture_captures_use_the_selected_runtime_producer(
     )
 
 
+def test_a_fixture_acknowledges_its_seed_with_the_runtime_it_was_read_for(tmp_path):
+    """An arm at another protocol acknowledges a seeded page it vendored, so a paired
+    comparison across a protocol bump builds both arms (`leaf-dev stills`)."""
+    runtime = tmp_path / "runtime"
+    arms.extract_payload(runtime)
+    registry = runtime / "browser/runtime/kernel-registry.json"
+    layer = json.loads(registry.read_text())
+    layer["$events"]["protocol"] += 1
+    registry.write_text(json.dumps(layer, ensure_ascii=False))
+    state = tmp_path / "state"
+    page = tmp_path / "page"
+    prepare_page(
+        page,
+        read_fixture(
+            ROOT / "examples/log-retention.html",
+            runtime=runtime,
+            env=arms.environment(XDG_STATE_HOME=str(state)),
+        ),
+        partial(arms.run_leaf, runtime, state, check=True),
+        final_status=None,
+    )
+    events = [
+        json.loads(line) for line in (page / "events.jsonl").read_text().splitlines()
+    ]
+    assert events[-1]["kind"] == "receipt"
+    assert events[-1]["through"] == len(events) - 1
+
+
 def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_seeds(
     tmp_path,
 ):
@@ -1018,7 +1206,6 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
     from leaf.data import read_data
     from leaf.publishing import authored_digest
     from leaf.registry.storage import load_registry
-    from leaf_dev.commands.distribution import cached_installation
 
     source = tmp_path / "reading.html"
     source.write_text(
@@ -1035,10 +1222,9 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
             {"$captures": {"before": {"file": "code.txt"}}, "notes": "Initial seed"}
         )
     )
-    installed = cached_installation(ROOT)
-    run_leaf = partial(preview.leaf, installed / "bin/leaf", ROOT)
+    run_leaf = partial(preview.leaf, ROOT / "bin/leaf", ROOT)
     page = tmp_path / "page"
-    prepare_page(page, read_fixture(source, runtime=installed), run_leaf)
+    prepare_page(page, read_fixture(source, runtime=ROOT), run_leaf)
     state = {"authored": authored_digest(preview.incoming_files(source))}
     run_leaf("data", "set", str(page), "notes", input_text=json.dumps("Page edit"))
     retained_log = (page / "events.jsonl").read_bytes()
@@ -1054,7 +1240,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
     service = preview.PreviewService(page, False)
     try:
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         values = read_data(page, load_registry(page))["sources"]
         assert values["after"]["value"] == "First capture"
@@ -1067,7 +1253,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
 
         captured.write_text("Edited capture")
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         values = read_data(page, load_registry(page))["sources"]
         assert values["after"]["value"] == "Edited capture"
@@ -1075,7 +1261,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
         assert values["notes"]["value"] == "Page edit"
         run = values["after"]["run"]
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         assert read_data(page, load_registry(page))["sources"]["after"]["run"] == run
         assert (page / "events.jsonl").read_bytes().startswith(retained_log)
@@ -1088,7 +1274,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
             captured.write_text("42")
             companion.write_text(json.dumps({"$captures": {"invalid": spec}}))
             assert not preview.refresh_preview(
-                source, page, installed / "bin/leaf", ROOT, state, service
+                source, page, ROOT / "bin/leaf", ROOT, state, service
             )
             assert (page / "index.html").read_bytes() == published
             assert (
@@ -1099,7 +1285,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
         captured.write_text("1")
         companion.write_text(json.dumps({"$captures": {"after": {"file": "code.txt"}}}))
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         source.write_text(
             source.read_text().replace(
@@ -1108,7 +1294,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
             )
         )
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         assert (
             read_data(page, load_registry(page))["sources"]["after"]["contract"]
@@ -1118,13 +1304,13 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
             json.dumps({"$captures": {"after": {"file": "code.txt", "format": "json"}}})
         )
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         captured.write_text(
             "true"
         )  # Python compares True == 1; JSON distinguishes them.
         assert not preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         assert (
             type(read_data(page, load_registry(page))["sources"]["after"]["value"])
@@ -1134,10 +1320,8 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
         service.stop()
 
 
-def test_preview_keeps_watching_after_an_invalid_capture_companion(
-    tmp_path, monkeypatch, capsys
-):
-    """An interrupted JSON save refuses one refresh, then its repair reaches the page."""
+def test_preview_keeps_watching_after_unreadable_inputs(tmp_path, monkeypatch, capsys):
+    """Unreadable runtime inputs or incomplete captures leave the last page serving."""
     from leaf.data import read_data
     from leaf.registry.storage import load_registry
 
@@ -1155,6 +1339,17 @@ def test_preview_keeps_watching_after_an_invalid_capture_companion(
     page = tmp_path / "page"
 
     def edits():
+        output = capsys.readouterr().out
+        url = next(line for line in output.splitlines() if line.startswith("http://"))
+
+        def unavailable(_runtime):
+            raise OSError("runtime input temporarily unavailable")
+
+        with monkeypatch.context() as unreadable:
+            unreadable.setattr(preview, "worker_identity", unavailable)
+            yield {str(captured)}
+            assert "runtime input temporarily unavailable" in capsys.readouterr().err
+            assert fetch(url)[0] == 200
         companion.write_text("{")
         yield {str(companion)}
         assert (

@@ -33,9 +33,10 @@ assert:
     value: |
       Pass only if the response imports its focus helpers from /runtime/widget-api.js
       and:
-      - renders the changed list through Leaf's public render() before the remove
-        handler returns, so the caller's receipt reads the changed view; it does
-        not wait for a LitElement reactive update or force one with performUpdate();
+      - draws the changed list before the remove handler returns, so the caller's
+        receipt reads the changed view: through Leaf's render(), or performUpdate()
+        on a LeafElement, which module-authoring.md names for drawing at once; it
+        does not wait for a reactive update to land later;
       - holds focus across the list render with holdFocus(list, { key: <the row's
         key attribute> }), sets that attribute on each row, and calls the returned
         restore after rendering with the Add item button as its last stand-in;
@@ -43,7 +44,8 @@ assert:
         to the Add item button: handBack(openerOf(popup)) after openLayer(popup) as it
         opens, or handBack naming the button;
       - any focus it places itself goes through focusDestination with a cause;
-      - the popup's Escape, if shown, is a command row (commands(...)), not a listener.
+      - the popup's Escape, if shown, is a command row in an element's lfCommands,
+        not a listener.
       Fail if it calls element.focus() directly, searches for the nearest surviving
       row itself, keeps the opener in a variable of its own, or installs focus or
       keydown listeners.

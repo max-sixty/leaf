@@ -2,6 +2,7 @@
 
 import socket
 import sys
+from pathlib import Path
 from threading import Event, Thread
 
 import leaf_website
@@ -28,24 +29,32 @@ while True:
         first_process = first._ensure_server()
         second_process = second._ensure_server()
         assert first.endpoint != second.endpoint
-        assert first.log_path != second.log_path
-        assert first.socket_path.parent.stat().st_mode & 0o777 == 0o700
-        assert second.socket_path.parent.stat().st_mode & 0o777 == 0o700
+        first_socket = Path(first.endpoint.removeprefix("unix://"))
+        second_socket = Path(second.endpoint.removeprefix("unix://"))
+        assert first_socket.parent.stat().st_mode & 0o777 == 0o700
+        assert second_socket.parent.stat().st_mode & 0o777 == 0o700
         first.close()
         assert first_process.poll() is not None
         assert second_process.poll() is None
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-            client.connect(str(second.socket_path))
+            client.connect(str(second_socket))
     finally:
         first.close()
         second.close()
-    assert not first.socket_path.parent.exists()
-    assert not second.socket_path.parent.exists()
+    assert not first_socket.parent.exists()
+    assert not second_socket.parent.exists()
 
 
-def test_a_delayed_prewarm_cannot_revive_a_closed_website_harness():
+def test_a_delayed_prewarm_cannot_revive_a_closed_website_harness(monkeypatch):
     harness = leaf_website.WebsiteCodexHarness("unused")
     scheduled = Event()
+    starts = []
+
+    def unexpected_start(*args, **kwargs):
+        starts.append(args)
+        raise AssertionError("a closed harness tried to start an App Server")
+
+    monkeypatch.setattr(leaf_website, "private_app_server", unexpected_start)
 
     def delayed():
         assert scheduled.wait(STATED_TIMEOUT)
@@ -60,4 +69,5 @@ def test_a_delayed_prewarm_cannot_revive_a_closed_website_harness():
         worker.join(timeout=STATED_TIMEOUT)
     assert not worker.is_alive()
     assert harness.process is None
-    assert not harness.socket_path.parent.exists()
+    assert not starts
+    assert harness.endpoint == ""

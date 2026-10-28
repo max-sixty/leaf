@@ -6,7 +6,11 @@
       name="description"
       content="Compare scrolling and wrapping code readers in a narrow panel, adjust their spacing, and choose the treatment to keep."
     />
-    <style data-controls>
+    <style>
+      #code-comparison-workspace > header {
+        --lf-block-frame: 1;
+      }
+
       code-reader-comparison {
         display: grid;
         gap: var(--sp-3);
@@ -18,7 +22,9 @@
       code-reader-comparison :is(.code-comparison-toolbar, .code-candidate-controls) {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--sp-2);
+        /* Wrapped rows keep each button's reach, which stands past its face
+           under a finger, clear of the row above it. */
+        gap: max(var(--sp-2), 2 * var(--lf-reach-room)) var(--sp-2);
         align-items: center;
       }
 
@@ -98,15 +104,17 @@
     </style>
     <script type="module">
       import {
-        PAGE_INTERFACE,
         frameFor,
+        generatedElement,
         keeps,
         keepsText,
         layoutChanged,
         offer,
+        offerAction,
         once,
         sizeObserver,
         whileConnected,
+        whileInterfaceConnected,
       } from "/runtime/widget-api.js";
 
       const DEFAULT_COMPARISON = {
@@ -126,11 +134,15 @@
           connectedCallback() {
             if (!once(this)) return;
             this.#build();
+            whileInterfaceConnected(this, {
+              declare: () => this.#initialize(),
+              connect: () => this.#playground.subscribe(() => this.#render()),
+            });
             whileConnected(this, (signal) => this.#connect(signal));
           }
 
           #button(label, run) {
-            const button = offer("button", "lf-btn small", label);
+            const button = offerAction("word", "small", label);
             button.addEventListener("click", run);
             return button;
           }
@@ -145,28 +157,20 @@
               this.#button("Copy B to A", () => this.#copy("candidateB", "candidateA")),
             );
             this.prepend(toolbar);
+            // Each candidate's title and measurement are this module's words.
+            for (const words of this.querySelectorAll(
+              ".code-candidate-title, .code-measurement",
+            ))
+              generatedElement(words, { says: true });
           }
 
           #connect(signal) {
-            let unsubscribe;
-            const initialize = () => {
-              if (signal.aborted || unsubscribe) return;
-              if (!this.#comparison) this.#initialize();
-              unsubscribe = this.#playground.subscribe(() => this.#render());
-            };
-            document.addEventListener(
-              PAGE_INTERFACE,
-              (event) => event.detail.present(Promise.resolve().then(initialize)),
-              { signal },
-            );
-            if (this.#comparison) initialize();
             this.addEventListener("lf-layout", this.#readerLayout, { signal });
             const watching = sizeObserver(this.#scheduleMeasurement);
             signal.addEventListener("abort", () => watching.disconnect());
             for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
               watching.observe(reader);
             }
-            return () => unsubscribe?.();
           }
 
           #initialize() {
@@ -181,7 +185,7 @@
               const wrapping = chosen.wrap
                 ? "wrap long lines"
                 : "keep horizontal scrolling";
-              return `Update the built Leaf code reader in skills/leaf/packages/default/widgets/lf-code.js to use the ${chosen.density} reading density and ${wrapping} at a ${values.width}px comparison viewport. Preserve syntax and line anchors, then show the focused browser measurement test.`;
+              return `Update the built Leaf code reader in packages/default/widgets/lf-code.js to use the ${chosen.density} reading density and ${wrapping} at a ${values.width}px comparison viewport. Preserve syntax and line anchors, then show the focused browser measurement test.`;
             });
           }
 
@@ -254,6 +258,7 @@
               <h2>Which code-reader treatment should the agent keep?</h2>
               <lf-playground
                 id="code-comparison-playground"
+                contract="code-comparison-values"
                 submit-label="Apply treatment"
                 data-width="available"
               >

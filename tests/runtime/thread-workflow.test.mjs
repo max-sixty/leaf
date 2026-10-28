@@ -6,15 +6,10 @@ import {
   strongestWorkflow,
   threadAttention,
   workflowLabel,
-} from "../../skills/leaf/assets/runtime/thread/workflow.js";
-import {
-  foldThreads,
-  readThreadRecords,
-} from "../../skills/leaf/assets/runtime/thread/model.js";
-import {
-  isTurnEvent,
-  turnMessage,
-} from "../../skills/leaf/assets/runtime/pending/model.js";
+  workflowVoice,
+} from "../../browser/runtime/thread/workflow.js";
+import { foldThreads, readThreadRecords } from "../../browser/runtime/thread/model.js";
+import { isTurnEvent, turnMessage } from "../../browser/runtime/pending/model.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
 // The user's turns, which `events.exchange` and `events.turn_message` read off the log
@@ -70,24 +65,45 @@ const FROZEN_BOARD = {
 test("workflow labels retain exact input progress and positive conditions", () => {
   const older = workflow("a", "replying");
   const newer = workflow("b", "queued");
-  assert.equal(workflowLabel(older), "Replying");
-  assert.equal(workflowLabel(newer), "Queued");
+  assert.equal(workflowLabel(older, "Claude"), "Replying");
+  assert.equal(workflowLabel(newer, "Claude"), "Up next");
   assert.equal(
-    workflowLabel(workflow("ended", "picked_up", { condition: { kind: "ended" } })),
-    "Turn ended",
+    workflowLabel(
+      workflow("ended", "picked_up", { condition: { kind: "ended" } }),
+      "Claude",
+    ),
+    "Stopped",
   );
   assert.equal(
-    workflowLabel(workflow("stale", "working", { condition: { kind: "stale" } })),
-    "Update stale",
+    workflowLabel(
+      workflow("stale", "working", { condition: { kind: "stale" } }),
+      "Claude",
+    ),
+    "Gone quiet",
   );
   assert.equal(
     workflowLabel(
       workflow("failed-response", "answered", {
         condition: { kind: "failed", operation: "response" },
       }),
+      "Claude",
     ),
-    "Not answered",
+    "Couldn't answer",
   );
+});
+
+// Until the agent has an update it can say nothing of it, so Leaf says the update waits
+// for the agent, in its own voice, sent or still sending, and again once it is late.
+test("an update the agent doesn't have yet is queued for it, in Leaf's voice", () => {
+  for (const stage of ["sending", "sent"]) {
+    assert.equal(workflowLabel(workflow(stage, stage), "Claude"), "Queued for Claude");
+    assert.equal(workflowVoice(workflow(stage, stage)), "leaf");
+  }
+  const late = workflow("late", "sent", {
+    condition: { kind: "stale", operation: "delivery" },
+  });
+  assert.equal(workflowLabel(late, "Claude"), "Still queued for Claude");
+  assert.equal(workflowVoice(workflow("got", "picked_up")), "agent");
 });
 
 test("thread attention gives an open user obligation precedence over agent work", () => {
@@ -100,13 +116,14 @@ test("thread attention gives an open user obligation precedence over agent work"
     workflows: [recovery, work],
     // The record the agent's work serves, which it still owes.
     obligations: [{ id: "update:a", source: { kind: "update" }, next_actor: "agent" }],
-    attention: { kind: "needs_user", reason: "widget", workflow: "recovery" },
+    attention: { kind: "needs_user", reason: "obligation", workflow: "recovery" },
   };
-  assert.deepEqual(threadAttention(thread), {
+  assert.deepEqual(threadAttention(thread, "Claude"), {
     kind: "needs_user",
-    label: "My turn to answer",
+    label: "Your turn",
+    voice: "agent",
     workflow: recovery,
-    secondary: "Working",
+    secondary: "On it",
   });
 });
 
@@ -118,9 +135,10 @@ test("a thread an open to-do holds waits on the agent under the to-do's title", 
     attention: { kind: "waiting", reason: "todo", workflow: null },
     todos: [{ id: "t1", title: "Rebuild the banner quieter", running: null }],
   };
-  assert.deepEqual(threadAttention(thread), {
+  assert.deepEqual(threadAttention(thread, "Claude"), {
     kind: "waiting",
-    label: "To-do open",
+    label: "Still to do",
+    voice: "agent",
     workflow: null,
     secondary: "Rebuild the banner quieter",
   });
@@ -131,9 +149,10 @@ test("a frozen move that owes nothing leaves an owed thread on the user alone", 
   // card without answering. The move stands in the thread but does not hold it.
   const { threads, workflows } = servedReading("frozen move owes nothing");
   const [record] = readThreadRecords(threads, FROZEN_BOARD, new Map(), workflows);
-  assert.deepEqual(threadAttention(record), {
+  assert.deepEqual(threadAttention(record, "Claude"), {
     kind: "needs_user",
-    label: "My turn to answer",
+    label: "Your turn",
+    voice: "agent",
     workflow: null,
     secondary: "",
   });
@@ -311,7 +330,7 @@ test("pending thread gestures fold in the order the user made them, as the log w
   const undo = { id: "pending:undo", kind: "undo", author: "user", undoes: "kept" };
   const resolve = { kind: "resolve", parent: "root", author: "user" };
   const unresolve = { ...resolve, kind: "unresolve" };
-  const owed = { kind: "needs_user", reason: "widget", workflow: null };
+  const owed = { kind: "needs_user", reason: "obligation", workflow: null };
   const fold = (changes, ...gestures) =>
     foldThreads([servedThread([asked, question], changes)], gestures)[0];
 
@@ -327,7 +346,10 @@ test("pending thread gestures fold in the order the user made them, as the log w
   assert.equal(fold(resolved, resolve, reply).resolved, null);
   assert.deepEqual(fold({}, resolve, keep).resolved, closed);
   assert.equal(fold(resolved, unresolve).resolved, null);
-  assert.equal(fold(resolved, unresolve).settling, "unresolve");
+  // Taking back the resolve that closed the thread reopens it; taking back anything
+  // else leaves it closed.
+  assert.equal(fold(resolved, { ...undo, undoes: "closed" }).resolved, null);
+  assert.deepEqual(fold(resolved, undo).resolved, resolved.resolved);
 });
 
 test("a frozen message widget keeps its exact workflow in the message and thread", () => {

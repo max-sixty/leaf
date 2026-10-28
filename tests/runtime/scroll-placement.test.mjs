@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { nearestScrollBy } from "../../skills/leaf/assets/runtime/rect.js";
+import { nearestScrollBy } from "../../browser/runtime/rect.js";
 
 test("nearest alignment keeps the visible end of an oversized destination", () => {
   assert.equal(nearestScrollBy(-400, 800, 52, 844), -44);

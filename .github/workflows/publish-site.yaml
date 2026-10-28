@@ -11,9 +11,12 @@ on:
     paths:
       - "docs/**"
       - "examples/**"
-      # The whole skill payload: the site serves a vendored layer, and that is merged
-      # from the kernel and bundled package alike — a change to either
-      # is a change to what a visitor loads.
+      # Browser source, compiled kernel and packages compose what visitors load;
+      # Python and skill instructions run the hosted agent.
+      - "browser/**"
+      - "dist/kernel/**"
+      - "packages/**"
+      - "src/**"
       - "skills/leaf/**"
       # The hosted agent installs the complete prepared plugin, including its
       # harness registrations and skill discovery manifests.
@@ -127,6 +130,10 @@ jobs:
       # follows runs the deployed turn alone rather than re-sampling readings the wait
       # settled.
       - name: Verify the exact public release in a browser
+        # Capture APIRequestContext's Node sockets, including failures before a
+        # Worker invocation exists. The preload emits only allowlisted metadata.
+        env:
+          NODE_OPTIONS: --require=${{ github.workspace }}/dev/leaf_dev/http_transport.cjs
         run: |
           release=$(jq --raw-output .release .tmp/site/_leaf/site.json)
           uv run leaf-dev verify-site --release "$release" --wait 900

@@ -1,9 +1,11 @@
 """Diagnostics keep one host clock, exact retry identity and visible loss evidence."""
 
 import json
+import time
 
 import pytest
 from click.testing import CliRunner
+
 from leaf.cli import cli
 from leaf.interaction_log import (
     INTERACTIONS_FILE,
@@ -82,6 +84,10 @@ def test_reader_deduplicates_and_reports_loss_before_host_time_filtering(
 
 
 def test_cli_queries_canonical_records_without_changing_the_log(tmp_path, monkeypatch):
+    # Process inspection may be refused by the test runner's sandbox; this test
+    # exercises command recording against a known launch time.
+    started = time.time()
+    monkeypatch.setattr("leaf.interaction_log.launched", lambda: started)
     monkeypatch.setattr(
         "leaf.interaction_log.now_iso", lambda: "2026-10-09T06:08:42.551Z"
     )
@@ -120,6 +126,11 @@ def test_cli_queries_canonical_records_without_changing_the_log(tmp_path, monkey
     # The query changes no record; it appends only its own `leaf_command` record.
     assert path.read_bytes().startswith(before)
     recorded = read_interactions(tmp_path)
+    commands = [row for row in recorded if row["type"] == "leaf_command"]
+    assert len(commands) == 1
+    command = commands[0]
+    assert command["command"] == "page interactions"
+    assert command["durationMs"] >= 0
     all_rows = CliRunner().invoke(cli, ["page", "interactions", str(tmp_path)])
     assert all_rows.exit_code == 0, all_rows.output
     assert [json.loads(line) for line in all_rows.stdout.splitlines()] == recorded
@@ -128,6 +139,9 @@ def test_cli_queries_canonical_records_without_changing_the_log(tmp_path, monkey
     )
     assert invalid.exit_code == 1
     assert "require a timezone offset" in json.loads(invalid.stderr)["error"]
+    assert [
+        row["command"] for row in read_interactions(tmp_path, types=("leaf_command",))
+    ] == ["page interactions", "page interactions", "page interactions"]
 
 
 def test_required_transport_is_validated_once_and_torn_lines_are_skipped(tmp_path):
@@ -168,3 +182,22 @@ def test_required_transport_is_validated_once_and_torn_lines_are_skipped(tmp_pat
         stream.write(b'{"source": "client", "text": "\xc3\n')
     append_interactions(tmp_path, [admitted])
     assert read_interactions(tmp_path, session="good") == [admitted]
+
+
+def test_command_recording_includes_output_and_excludes_help(monkeypatch):
+    """Diagnostics end after the caller has its output, and help names no work."""
+    from leaf import cli as cli_model
+
+    sequence = []
+    monkeypatch.setattr(
+        cli_model, "_print_result", lambda result: sequence.append("output")
+    )
+    monkeypatch.setattr(
+        "leaf.interaction_log.record_command", lambda command: sequence.append(command)
+    )
+    runner = CliRunner()
+    assert runner.invoke(cli, ["hook", "--harness", "codex"], input="{}").exit_code == 0
+    assert sequence == ["output", "hook"]
+    sequence.clear()
+    assert runner.invoke(cli, ["--help"]).exit_code == 0
+    assert sequence == ["output", ""]

@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -39,12 +39,22 @@ describe("published runtime bundle", () => {
         join(layer, "runtime", "url.js"),
         'export const moduleUrl = import.meta . url; export const prose = "import.meta.url";',
       );
-      for (const entry of ["layer-client", "media", "widget-api", "check-api"]) {
+      for (const entry of [
+        "layer-client",
+        "media",
+        "widget-api",
+        "portable-api",
+        "check-api",
+      ]) {
         await writeFile(
           join(layer, "runtime", `${entry}.js`),
           `export const revision = "${revision}";`,
         );
       }
+      await writeFile(
+        join(layer, "runtime", "check-api.js"),
+        'export { moduleUrl, prose } from "./url.js"; export const ownUrl = import.meta.url;',
+      );
       await writeFile(
         join(layer, "widgets", "lf-study.js"),
         `import { state } from "${root}/page/state.js"; import { html } from "../vendor/lit.js"; console.log(state, html);`,
@@ -66,19 +76,27 @@ describe("published runtime bundle", () => {
         expect(bundled).toContain(`from"${root}/page/state.js"`);
         expect(bundled).not.toContain("revision:");
       }
-      expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
-        `new URL("${root}/leaf.js",location.origin).href`,
+      // Execute the emitted module so the check is independent of minifier syntax.
+      const entry = pathToFileURL(join(layer, "runtime", "check-api.js")).href;
+      const urls = JSON.parse(
+        execFileSync(
+          process.execPath,
+          [
+            "--input-type=module",
+            "-e",
+            `globalThis.location = {origin: "https://leaf.invalid"}; console.log(JSON.stringify(await import(${JSON.stringify(entry)})));`,
+          ],
+          { encoding: "utf8" },
+        ),
       );
+      expect(urls).toEqual({
+        ownUrl: `https://leaf.invalid${root}/runtime/check-api.js`,
+        moduleUrl: `https://leaf.invalid${root}/runtime/url.js`,
+        prose: "import.meta.url",
+      });
       // A relative import of a vendor module keeps the page's one copy.
       expect(await readFile(join(layer, "widgets", "lf-study.js"), "utf8")).toContain(
         `from"${root}/vendor/lit.js"`,
-      );
-      expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
-        `new URL("${root}/runtime/url.js",location.origin).href`,
-      );
-      // Only a read of the module's URL is rewritten, not text that spells one.
-      expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
-        '"import.meta.url"',
       );
       expect(await readFile(join(layer, "page", "state.js"), "utf8")).toBe(
         `export const state = { revision: "${revision}" };`,
@@ -92,8 +110,8 @@ describe("published runtime bundle", () => {
   it("collapses the production runtime's static modules", async () => {
     const directory = await mkdtemp(join(tmpdir(), "leaf-runtime-"));
     try {
-      // The production layer is a prepared installation's kernel composed with its
-      // bundled packages, as the site build vendors it.
+      // The production layer is the one a prepared installation composes for a page
+      // and serves beside its runtime, as the live shell publishes a revision.
       const install = join(directory, "install");
       execFileSync("uv", ["run", "leaf-dev", "distribution", "--output", install], {
         cwd: fileURLToPath(new URL("../..", import.meta.url)),
@@ -102,6 +120,36 @@ describe("published runtime bundle", () => {
       execFileSync(join(install, "bin", "leaf"), ["page", "init", runtime], {
         env: { ...process.env, XDG_STATE_HOME: join(directory, "state") },
       });
+      execFileSync(
+        "uv",
+        [
+          "run",
+          "--quiet",
+          "--no-dev",
+          "--project",
+          install,
+          "python",
+          "-c",
+          [
+            "import sys",
+            "from pathlib import Path",
+            "from leaf.registry.storage import layer_record, selected",
+            "from leaf.revision_artifact import Resource, resource_type",
+            "from leaf.runtime_selection import serving_runtime",
+            "page = Path(sys.argv[1])",
+            "layer = {",
+            "    path: Resource(data, resource_type(path))",
+            "    for path, data in selected(layer_record(page), page).files.items()",
+            "}",
+            "for path, resource in serving_runtime().resources(layer, {}).items():",
+            "    target = page / path.lstrip('/')",
+            "    target.parent.mkdir(parents=True, exist_ok=True)",
+            "    target.write_bytes(resource.data)",
+          ].join("\n"),
+          runtime,
+        ],
+        { env: { ...process.env, XDG_STATE_HOME: join(directory, "state") } },
+      );
 
       const output = join(directory, "bundled");
       await bundleLayer(runtime, "/published/layer", output);
@@ -138,14 +186,13 @@ describe("published runtime bundle", () => {
       expect(kernel).toContain('"accepted:presented"');
       expect(kernel).toContain('from"/vendor/lit.js"');
       expect(kernel).not.toContain("litHtmlVersions");
-      expect(kernel).not.toContain("browser-runtime");
-      // A vendor module's runtime import survives as its own module.
-      expect(
-        await readFile(join(output, "runtime", "shadow-stage.js"), "utf8"),
-      ).toBeTruthy();
+      expect(kernel).not.toContain("/vendor/signals-core.js");
+      // A widget's runtime imports are compiled chunks, never the public module URL.
+      // The compiled widget-api.js entry can be one of them, holding modules the
+      // compiler merged into it.
       expect(
         await readFile(join(output, "widgets", "lf-suggestion.js"), "utf8"),
-      ).not.toContain("/runtime/widget-api.js");
+      ).not.toMatch(/"(?:\/published\/layer)?\/runtime\//);
     } finally {
       // Keep the build inputs until the operation finishes, even if the test times out.
       await rm(directory, { recursive: true });

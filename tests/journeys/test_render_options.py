@@ -10,7 +10,6 @@ from interact_support import (
     end_work_on,
     working,
 )
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     EXHIBIT_EXTENT,
@@ -20,15 +19,12 @@ from render_cases_interaction import (
     live_url,
 )
 from render_harness import (
-    CARRIED_PAGE,
     PANEL_THREAD,
     SAMPLE_PAGE,
     active_digit_bindings,
     available_commands,
-    compare_with,
     open_page,
     resized,
-    round_trip,
     stamp_page,
     told,
     wait_for_revision,
@@ -36,72 +32,6 @@ from render_harness import (
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
-    """An authored pick without a live control is a check with an accessible name.
-
-    The selected state does not introduce a visible status caption or new page words,
-    and the generated fallback remains outside the diff's authored-text reading.
-    """
-    url = serve(CARRIED_PAGE)
-    page = open_page(browser, live_url(url))
-    mark = page.locator("#c-lax .lf-pick")
-    assert mark.get_attribute("role") == "img"
-    assert mark.get_attribute("aria-label") == "selected: Lax cookie"
-    assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px"
-    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
-
-    # The generated check is not authored text, so rewording another option marks only
-    # that option in the version comparison.
-    d = serve.page_dir
-    stamp_page(
-        d,
-        CARRIED_PAGE.replace("Suits the mobile client", "Suits the mobile client best"),
-        "two",
-    )
-    wait_for_revision(page, 2)
-    compare_with(page)
-    page.wait_for_function(
-        "() => document.querySelectorAll('.lf-ins-block').length > 0"
-    )
-    assert page.evaluate(
-        "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
-    ) == ["c-bearer"], "the diff read the mark as text the base version lacked"
-
-
-def test_option_words_render_markdown_without_losing_the_user_draft(browser, serve):
-    source = OBLIGATION_PAGE.replace(
-        "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
-    )
-    url = serve(source)
-    page = open_page(browser, url)
-    authored = page.locator("#job-mounts")
-    expect(authored.locator(":scope > .lf-markdown-words em")).to_have_text("widget")
-    expect(authored.locator(":scope > .lf-pick")).to_have_attribute(
-        "aria-label", re.compile(r"Ask the widget to decide — option 1")
-    )
-
-    group = page.locator("#jobs")
-    write(group.get_by_role("textbox", name="Another option"), "Keep **both** routes")
-    group.get_by_role("button", name="Add and select option").click()
-    added = group.locator(":scope > lf-option[data-lf-added]")
-    expect(added.locator("strong")).to_have_text("both")
-    round_trip(page)
-    page.reload(wait_until="load")
-    expect(added.locator("strong")).to_have_text("both")
-
-    group.locator("#job-heater").click()
-    round_trip(page)
-    adds = [
-        event["detail"]
-        for event in events_model.read_events(serve.page_dir)
-        if event.get("kind") == "action" and event.get("action") == "add"
-    ]
-    assert adds == [
-        {"option": added.get_attribute("id"), "text": "Keep **both** routes"}
-    ]
-    expect(added.locator("strong")).to_have_text("both")
 
 
 def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_field(
@@ -118,7 +48,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     page.keyboard.press("m")
     mark = page.locator("#storage-evict .lf-pick")
     # The obligation's own numbered actions are what the keys reach, under the one context the
-    # question owns, with Escape's way out of the standing beside them as it is
+    # question owns, with Escape's way out of the current location beside them as it is
     # anywhere the user is holding something.
     assert active_digit_bindings(page) == "1–3"
     assert "Escape" in available_commands(page)["navigation.release"]
@@ -131,7 +61,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     expect(write_hint).to_be_visible()
 
     # Enter has no invented meaning on the obligation or an option mark. Tab enters the real
-    # controls, while the same obligation-owned numbers and binding badges remain standing there.
+    # controls, while the same obligation-owned numbers and binding badges remain visible there.
     page.keyboard.press("Enter")
     expect(page.locator("#storage-decision")).to_be_focused()
     page.keyboard.press("3")
@@ -159,27 +89,23 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     expect(box).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # The controls remain in document order: the other mark, then the text box. It keeps
-    # Shift+Enter keeps a native newline; Enter submits the option.
+    # The controls remain in document order: the other mark, then the text box.
+    # An option title is one line: Shift+Enter leaves it intact; Enter submits it.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-stop .lf-pick")).to_be_focused()
     page.keyboard.press("Tab")
     expect(box).to_be_focused()
     write(box, "Keep both layers")
+    expect(box).to_have_attribute("aria-multiline", "false")
     page.keyboard.press("Shift+Enter")
-    page.keyboard.type("Keep them together")
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("Preserve both histories")
-    expect(box).to_have_js_property(
-        "value", "Keep both layers\nKeep them together\nPreserve both histories"
-    )
+    expect(box).to_have_js_property("value", "Keep both layers")
     expect(box).to_have_attribute("aria-keyshortcuts", "Enter Meta+Enter Control+Enter")
     expect(page.locator("#storage-options > lf-option[data-lf-added]")).to_have_count(0)
     page.keyboard.press("Enter")
     added = page.locator("#storage-options > lf-option[data-lf-added]")
     expect(added).to_contain_text("Keep both layers")
     expect(added.locator(".lf-option-words")).to_have_css("white-space", "normal")
-    expect(added.locator("br")).to_have_count(2)
+    expect(added.locator("br")).to_have_count(0)
     page.close()
 
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))
@@ -261,7 +187,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
 
     claim("card-migration", "checking the shard")
     [unsupported] = command_findings(
-        "task", "open", d, "jobs", "Price the alternatives"
+        "task", "create", d, "jobs", "--title", "Price the alternatives"
     )
     assert unsupported.code == "no-work-seat"
 

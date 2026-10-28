@@ -1,4 +1,4 @@
-"""The page's controls and chrome: command routes, status, sign-off, focus and
+"""The page's controls and chrome: command routes, status, focus and
 rings, covering surfaces, and the pages and helpers its test modules share."""
 
 from browser_sources import browser_function

@@ -22,6 +22,174 @@ cases:
       injection:
         - running
     assert: []
+  oversized:
+    inputs:
+      injection:
+        - idle
+      # Long enough that Claude Code's and Codex's hooks hand the delivery over
+      # by pointer.
+      comments:
+        - anchor:
+            section: triage-why
+          text: |-
+            Here's last night's release-candidate CI log. Which test failed, and does it change what this section says blocks the release?
+
+            02:14:06 PASS tests/test_timezone.py::test_pagination[sqlite] 0.34s
+            02:14:15 PASS tests/test_import_csv.py::test_permissions[sqlite] 3.64s
+            02:14:19 PASS tests/test_export.py::test_empty_input[postgres] 1.70s
+            02:14:23 PASS tests/test_import_csv.py::test_cancel_midway[postgres] 0.28s
+            02:14:25 PASS tests/test_auth.py::test_cache_hit[sqlite] 2.33s
+            02:14:32 PASS tests/test_export.py::test_large_batch[sqlite] 2.25s
+            02:14:35 PASS tests/test_billing.py::test_pagination[sqlite] 2.19s
+            02:14:40 PASS tests/test_audit.py::test_unicode_names[sqlite] 2.35s
+            02:14:44 PASS tests/test_search.py::test_empty_input[sqlite] 2.28s
+            02:14:48 PASS tests/test_notify.py::test_cancel_midway[postgres] 3.12s
+            02:14:56 PASS tests/test_report.py::test_dst_boundary[postgres] 1.23s
+            02:14:59 PASS tests/test_auth.py::test_empty_input[postgres] 2.12s
+            02:15:05 PASS tests/test_notify.py::test_retry_on_conflict[sqlite] 0.52s
+            02:15:12 PASS tests/test_timezone.py::test_permissions[sqlite] 3.74s
+            02:15:19 PASS tests/test_export.py::test_empty_input[postgres] 1.39s
+            02:15:25 PASS tests/test_report.py::test_dst_boundary[postgres] 0.32s
+            02:15:27 PASS tests/test_billing.py::test_dst_boundary[sqlite] 0.29s
+            02:15:32 PASS tests/test_report.py::test_dst_boundary[postgres] 2.88s
+            02:15:38 PASS tests/test_export.py::test_dst_boundary[postgres] 0.71s
+            02:15:40 PASS tests/test_notify.py::test_roundtrip[sqlite] 3.08s
+            02:15:43 PASS tests/test_auth.py::test_pagination[postgres] 3.67s
+            02:15:51 PASS tests/test_import_csv.py::test_unicode_names[postgres] 1.64s
+            02:15:56 PASS tests/test_timezone.py::test_pagination[postgres] 2.84s
+            02:16:02 PASS tests/test_upload.py::test_large_batch[sqlite] 0.38s
+            02:16:05 PASS tests/test_auth.py::test_large_batch[sqlite] 1.97s
+            02:16:08 PASS tests/test_billing.py::test_retry_on_conflict[sqlite] 0.63s
+            02:16:17 PASS tests/test_search.py::test_cache_hit[postgres] 3.81s
+            02:16:26 PASS tests/test_report.py::test_roundtrip[postgres] 3.60s
+            02:16:35 PASS tests/test_upload.py::test_pagination[postgres] 1.61s
+            02:16:43 PASS tests/test_upload.py::test_roundtrip[sqlite] 0.32s
+            02:16:47 PASS tests/test_notify.py::test_unicode_names[sqlite] 1.39s
+            02:16:48 PASS tests/test_import_csv.py::test_roundtrip[sqlite] 2.17s
+            02:16:54 PASS tests/test_report.py::test_roundtrip[sqlite] 3.50s
+            02:17:01 PASS tests/test_timezone.py::test_retry_on_conflict[postgres] 2.43s
+            02:17:09 PASS tests/test_import_csv.py::test_empty_input[postgres] 3.97s
+            02:17:17 PASS tests/test_notify.py::test_dst_boundary[postgres] 0.39s
+            02:17:19 PASS tests/test_search.py::test_retry_on_conflict[postgres] 3.32s
+            02:17:22 PASS tests/test_audit.py::test_roundtrip[sqlite] 3.81s
+            02:17:31 PASS tests/test_search.py::test_unicode_names[sqlite] 3.04s
+            02:17:36 PASS tests/test_import_csv.py::test_retry_on_conflict[postgres] 3.64s
+            02:17:42 PASS tests/test_auth.py::test_cancel_midway[postgres] 2.56s
+            02:17:46 PASS tests/test_auth.py::test_pagination[sqlite] 0.84s
+            02:17:54 PASS tests/test_search.py::test_roundtrip[sqlite] 3.17s
+            02:18:02 PASS tests/test_billing.py::test_large_batch[postgres] 1.82s
+            02:18:08 PASS tests/test_search.py::test_empty_input[sqlite] 0.45s
+            02:18:16 PASS tests/test_auth.py::test_permissions[sqlite] 1.96s
+            02:18:17 PASS tests/test_notify.py::test_permissions[sqlite] 3.35s
+            02:18:19 PASS tests/test_upload.py::test_large_batch[postgres] 3.56s
+            02:18:26 PASS tests/test_search.py::test_empty_input[postgres] 1.88s
+            02:18:28 PASS tests/test_timezone.py::test_unicode_names[sqlite] 0.16s
+            02:18:36 PASS tests/test_timezone.py::test_cache_hit[postgres] 2.65s
+            02:18:42 PASS tests/test_timezone.py::test_cancel_midway[sqlite] 0.13s
+            02:18:44 PASS tests/test_audit.py::test_unicode_names[postgres] 3.95s
+            02:18:48 PASS tests/test_auth.py::test_roundtrip[postgres] 0.89s
+            02:18:57 PASS tests/test_auth.py::test_cache_hit[postgres] 1.07s
+            02:19:04 PASS tests/test_timezone.py::test_roundtrip[postgres] 3.60s
+            02:19:13 PASS tests/test_upload.py::test_cancel_midway[sqlite] 2.15s
+            02:19:22 PASS tests/test_audit.py::test_roundtrip[postgres] 3.12s
+            02:19:23 PASS tests/test_timezone.py::test_unicode_names[sqlite] 1.92s
+            02:19:25 PASS tests/test_audit.py::test_roundtrip[postgres] 2.75s
+            02:19:34 PASS tests/test_audit.py::test_dst_boundary[sqlite] 3.54s
+            02:19:35 PASS tests/test_auth.py::test_large_batch[postgres] 0.22s
+            02:19:37 PASS tests/test_audit.py::test_dst_boundary[sqlite] 3.05s
+            02:19:39 PASS tests/test_notify.py::test_permissions[sqlite] 2.79s
+            02:19:47 PASS tests/test_audit.py::test_cancel_midway[postgres] 2.06s
+            02:19:51 PASS tests/test_audit.py::test_retry_on_conflict[sqlite] 3.37s
+            02:19:54 PASS tests/test_upload.py::test_empty_input[postgres] 1.80s
+            02:19:56 PASS tests/test_auth.py::test_pagination[sqlite] 0.89s
+            02:20:01 PASS tests/test_import_csv.py::test_unicode_names[postgres] 0.61s
+            02:20:04 PASS tests/test_notify.py::test_large_batch[sqlite] 1.62s
+            02:20:12 PASS tests/test_timezone.py::test_large_batch[sqlite] 2.84s
+            02:20:21 PASS tests/test_upload.py::test_permissions[postgres] 0.82s
+            02:20:27 PASS tests/test_import_csv.py::test_permissions[sqlite] 1.39s
+            02:20:35 PASS tests/test_notify.py::test_roundtrip[postgres] 1.36s
+            02:20:40 PASS tests/test_audit.py::test_empty_input[sqlite] 3.94s
+            02:20:44 PASS tests/test_import_csv.py::test_empty_input[postgres] 1.12s
+            02:20:47 PASS tests/test_billing.py::test_unicode_names[postgres] 3.41s
+            02:20:52 PASS tests/test_upload.py::test_unicode_names[postgres] 2.82s
+            02:20:54 PASS tests/test_billing.py::test_roundtrip[sqlite] 1.73s
+            02:20:56 PASS tests/test_billing.py::test_roundtrip[sqlite] 3.22s
+            02:20:58 PASS tests/test_report.py::test_large_batch[sqlite] 1.09s
+            02:21:00 PASS tests/test_notify.py::test_roundtrip[postgres] 3.98s
+            02:21:07 PASS tests/test_billing.py::test_cache_hit[sqlite] 0.22s
+            02:21:11 PASS tests/test_import_csv.py::test_unicode_names[postgres] 0.25s
+            02:21:15 PASS tests/test_billing.py::test_retry_on_conflict[sqlite] 1.20s
+            02:21:24 PASS tests/test_timezone.py::test_retry_on_conflict[postgres] 3.22s
+            02:21:29 PASS tests/test_export.py::test_roundtrip[sqlite] 2.95s
+            02:21:38 PASS tests/test_auth.py::test_cancel_midway[postgres] 1.02s
+            02:21:46 PASS tests/test_import_csv.py::test_pagination[postgres] 2.21s
+            02:21:53 PASS tests/test_audit.py::test_retry_on_conflict[sqlite] 3.93s
+            02:21:59 PASS tests/test_auth.py::test_unicode_names[postgres] 3.96s
+            02:22:00 PASS tests/test_timezone.py::test_roundtrip[sqlite] 2.52s
+            02:22:05 PASS tests/test_upload.py::test_unicode_names[sqlite] 0.38s
+            02:22:12 PASS tests/test_audit.py::test_retry_on_conflict[sqlite] 2.79s
+            02:22:13 PASS tests/test_notify.py::test_unicode_names[sqlite] 1.11s
+            02:22:14 PASS tests/test_billing.py::test_permissions[postgres] 3.89s
+            02:22:23 PASS tests/test_search.py::test_large_batch[sqlite] 3.86s
+            02:22:28 PASS tests/test_auth.py::test_permissions[sqlite] 0.05s
+            02:22:35 PASS tests/test_import_csv.py::test_dst_boundary[postgres] 2.04s
+            02:22:39 PASS tests/test_auth.py::test_cancel_midway[sqlite] 0.41s
+            02:22:41 PASS tests/test_timezone.py::test_pagination[sqlite] 1.61s
+            02:22:46 PASS tests/test_billing.py::test_large_batch[sqlite] 2.36s
+            02:22:55 PASS tests/test_timezone.py::test_cache_hit[postgres] 3.07s
+            02:23:03 PASS tests/test_timezone.py::test_retry_on_conflict[sqlite] 0.22s
+            02:23:12 PASS tests/test_upload.py::test_cancel_midway[sqlite] 3.64s
+            02:23:21 PASS tests/test_report.py::test_roundtrip[sqlite] 0.39s
+            02:23:22 PASS tests/test_timezone.py::test_permissions[sqlite] 1.54s
+            02:23:30 PASS tests/test_audit.py::test_roundtrip[sqlite] 2.52s
+            02:23:34 PASS tests/test_notify.py::test_retry_on_conflict[sqlite] 1.85s
+            02:23:36 PASS tests/test_audit.py::test_cancel_midway[sqlite] 2.65s
+            02:23:38 PASS tests/test_notify.py::test_retry_on_conflict[sqlite] 3.39s
+            02:23:42 PASS tests/test_auth.py::test_large_batch[postgres] 2.00s
+            02:23:49 PASS tests/test_import_csv.py::test_dst_boundary[postgres] 3.08s
+            02:23:53 PASS tests/test_import_csv.py::test_cache_hit[sqlite] 1.36s
+            02:23:58 PASS tests/test_report.py::test_cache_hit[sqlite] 0.10s
+            02:23:59 PASS tests/test_notify.py::test_retry_on_conflict[sqlite] 2.78s
+            02:24:07 PASS tests/test_billing.py::test_cancel_midway[postgres] 1.89s
+            02:24:15 PASS tests/test_import_csv.py::test_cancel_midway[sqlite] 1.28s
+            02:24:17 PASS tests/test_notify.py::test_roundtrip[postgres] 1.86s
+            02:24:26 PASS tests/test_notify.py::test_retry_on_conflict[postgres] 0.88s
+            02:24:30 PASS tests/test_import_csv.py::test_cache_hit[sqlite] 0.61s
+            02:24:39 PASS tests/test_billing.py::test_permissions[sqlite] 2.43s
+            02:24:48 PASS tests/test_billing.py::test_empty_input[postgres] 0.96s
+            02:24:56 PASS tests/test_upload.py::test_roundtrip[sqlite] 0.06s
+            02:25:04 PASS tests/test_notify.py::test_pagination[postgres] 2.92s
+            02:25:11 PASS tests/test_search.py::test_pagination[postgres] 0.53s
+            02:25:17 PASS tests/test_export.py::test_permissions[postgres] 3.36s
+            02:25:19 PASS tests/test_auth.py::test_roundtrip[postgres] 1.05s
+            02:25:21 PASS tests/test_upload.py::test_pagination[sqlite] 1.47s
+            02:25:28 PASS tests/test_billing.py::test_roundtrip[postgres] 0.45s
+            02:25:33 PASS tests/test_timezone.py::test_large_batch[postgres] 1.77s
+            02:25:39 FAIL tests/test_migrate.py::test_index_backfill_resumes TimeoutError: backfill stalled at batch 412 of 600 (600.0s)
+            02:25:43 PASS tests/test_search.py::test_pagination[sqlite] 3.26s
+            02:25:50 PASS tests/test_audit.py::test_cancel_midway[sqlite] 2.89s
+            02:25:51 PASS tests/test_upload.py::test_dst_boundary[sqlite] 2.60s
+            02:25:56 PASS tests/test_notify.py::test_roundtrip[sqlite] 0.72s
+            02:26:03 PASS tests/test_search.py::test_retry_on_conflict[postgres] 1.06s
+            02:26:08 PASS tests/test_upload.py::test_large_batch[postgres] 1.96s
+            02:26:15 PASS tests/test_import_csv.py::test_unicode_names[sqlite] 0.35s
+            02:26:24 PASS tests/test_notify.py::test_cancel_midway[sqlite] 1.84s
+            02:26:30 PASS tests/test_notify.py::test_pagination[sqlite] 2.21s
+            02:26:34 PASS tests/test_import_csv.py::test_unicode_names[postgres] 2.25s
+            02:26:40 PASS tests/test_auth.py::test_permissions[postgres] 3.25s
+            02:26:44 PASS tests/test_export.py::test_pagination[postgres] 1.68s
+            02:26:53 PASS tests/test_auth.py::test_pagination[postgres] 1.39s
+            02:26:54 PASS tests/test_notify.py::test_retry_on_conflict[postgres] 0.55s
+            02:27:03 PASS tests/test_audit.py::test_large_batch[sqlite] 1.12s
+            02:27:07 PASS tests/test_upload.py::test_pagination[postgres] 1.76s
+            02:27:12 PASS tests/test_export.py::test_unicode_names[sqlite] 1.73s
+            02:27:20 PASS tests/test_report.py::test_dst_boundary[sqlite] 0.34s
+            == 149 passed, 1 failed in 1412.6s ==
+    assert:
+      - type: llm-rubric
+        metric: read-whole-delivery
+        transform: context.metadata.texts?.["1"] || "No completed reply."
+        value: The completed Leaf reply names test_index_backfill_resumes (stalled at batch 412) as the one failing test and says whether it changes what blocks the release. Naming another test, or answering without having read the log, fails.
   during-work:
     inputs:
       workload: true
@@ -40,6 +208,8 @@ cases:
         value: The authored Leaf page reports the repaired suite-cost result, with a 37 second executed total and browser as the largest phase at 30 seconds. An unchanged unrelated page fails. Judge the result content, not styling or markup choices.
 workload:
   fixture: parent-keeps-leaf-responsive/suite_lab
+  # Long enough for the 40 s verification and the page update after it.
+  observation_seconds: 160
   prompt: >-
     Repair the suite-cost report in suite_lab. Read its README and code, inspect
     the current measurements using its inspect command, implement the report
@@ -55,3 +225,8 @@ workload:
     - name: followup
       after_seconds: 6
       text: Which phase is the largest in the supplied measurements?
+    # Posted once verification starts; the check `reached-during-verify` passes
+    # when the agent opens it before verification's 40 s wait ends.
+    - name: during-verify
+      during: [verify, waited]
+      text: While that runs, which executed test was the slowest?

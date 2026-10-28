@@ -5,10 +5,8 @@ import re
 from io import BytesIO
 
 import pytest
+from click.testing import CliRunner
 from interact_support import append_carried_log_record, wait_for
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -19,18 +17,24 @@ from render_cases_navigation import (
     TARGETS_PAGE,
 )
 from render_harness import (
+    PANEL,
     PANEL_THREAD,
-    draft_key,
     leaf_page,
     open_page,
+    open_threads,
     panel_settled,
     resized,
     sending,
+    stamp_page,
     told,
     write,
 )
 
 from browser.threads import open_panel_thread, paste_image
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -251,6 +255,9 @@ def test_a_missing_native_frame_cannot_retarget_another_svg(browser, serve, chan
     assert [after[key] for key in ("width", "height")] == pytest.approx(
         [before[key] for key in ("width", "height")], abs=0.03
     )
+    # The floating composer follows its page anchor. Return there before pressing
+    # its control after the viewport change has scrolled the anchor away.
+    page.locator("#title").scroll_into_view_if_needed()
     page.get_by_role("button", name="Remove drawing").click()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
@@ -786,7 +793,6 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     page.mouse.move(*point)
     page.keyboard.press("w")
 
-    assert page.evaluate("getComputedStyle(document.body).touchAction") == "none"
     page.mouse.click(*point)
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
@@ -803,6 +809,126 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     assert target.get_attribute("data-activated") is None
 
 
+def test_two_fingers_pan_and_zoom_in_draw_mode_while_one_draws(browser, serve):
+    """Draw mode lasts while the user moves about the page, so on a phone two fingers
+    still scroll and zoom it, and one finger draws. The mode once set `touch-action:
+    none` on the whole document, so neither scrolling nor zoom worked until the user
+    left it."""
+    filler = "".join(f"<p>Paragraph {n}. " + "Filler. " * 30 + "</p>" for n in range(8))
+    html = TARGETS_PAGE.replace("</main>", filler + "</main>")
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(html), context=context)
+    page.keyboard.press("w")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    cdp = context.new_cdp_session(page)
+
+    def fingers(*paths):
+        """Touch down at each path's first point, move along them together, lift."""
+
+        def points(step):
+            return [
+                {"x": path[step][0], "y": path[step][1], "id": n}
+                for n, path in enumerate(paths, 1)
+            ]
+
+        cdp.send(
+            "Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": points(0)}
+        )
+        for step in range(1, len(paths[0])):
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {"type": "touchMove", "touchPoints": points(step)},
+            )
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+
+    view = "() => ({scale: visualViewport.scale, top: visualViewport.pageTop})"
+    still = page.evaluate(view)
+    # One finger draws, and moves nothing.
+    box = page.locator("#prose").bounding_box()
+    x, y = box["x"] + 20, box["y"] + box["height"] / 2
+    fingers([(x + 10 * n, y + 2 * n) for n in range(12)])
+    expect(page.locator(".lf-live")).to_contain_text("Drawing captured")
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    assert page.evaluate(view) == still
+
+    # Each two-finger gesture lands on the page's text, where its first finger begins a
+    # stroke for the second to take back. The drag goes before the zoom: on a zoomed
+    # page, where a dispatched touch lands depends on where the zoom left the visual
+    # viewport, which differs between Chromium builds, and on macOS it landed on the
+    # floating panel, which begins no stroke.
+    # Two fingers drag up together: the page scrolls.
+    fingers(
+        [(150, 700 - 30 * n) for n in range(12)],
+        [(240, 700 - 30 * n) for n in range(12)],
+    )
+    page.wait_for_function(f"visualViewport.pageTop > {still['top'] + 100}")
+    # A pan the browser takes at once begins no stroke, so it may say nothing; what it
+    # leaves is no stroke under way and the drawing as it was.
+    expect(page.locator(".lf-drawing-active")).to_have_count(0)
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    # Two fingers spread apart: the page zooms.
+    page.locator(".lf-live").evaluate("live => live.replaceChildren()")
+    fingers(
+        [(180 - 12 * n, 500) for n in range(12)],
+        [(210 + 12 * n, 500) for n in range(12)],
+    )
+    page.wait_for_function("visualViewport.scale > 1.5")
+    expect(page.locator(".lf-live")).to_contain_text("Stroke canceled")
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+
+
+@pytest.mark.parametrize("spread", [True, False])
+def test_a_second_finger_takes_back_the_stroke_the_first_began(browser, serve, spread):
+    """A finger already drawing when a second lands is the start of a pan or a zoom,
+    not a stroke. The browser takes the gesture without always cancelling the first
+    finger's pointer, which then lifts as an ordinary release, and the stroke it drew,
+    the zoom's own moves included, became a drawing. Whether the fingers spread or
+    stay still, the second one takes the stroke back."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(TARGETS_PAGE), context=context)
+    page.keyboard.press("w")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, *points):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {
+                "type": kind,
+                "touchPoints": [{"x": x, "y": y, "id": n} for n, (x, y) in points],
+            },
+        )
+
+    box = page.locator("#prose").bounding_box()
+    x, y = box["x"] + 20, box["y"] + box["height"] / 2
+    touch("touchStart", (1, (x, y)))
+    for n in range(1, 8):
+        touch("touchMove", (1, (x + 10 * n, y + 2 * n)))
+    first = (x + 70, y + 14)
+    second = (first[0] + 40, first[1] + 60)
+    touch("touchStart", (1, first), (2, second))
+    for n in range(1, 10 if spread else 1):
+        touch(
+            "touchMove",
+            (1, (first[0] - 8 * n, first[1] - 8 * n)),
+            (2, (second[0] + 8 * n, second[1] + 8 * n)),
+        )
+    touch("touchEnd")
+
+    expect(page.locator(".lf-live")).to_contain_text("Stroke canceled")
+    if spread:
+        page.wait_for_function("visualViewport.scale > 1.2")
+    page.wait_for_timeout(100)
+    expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+    expect(page.locator(".lf-live")).not_to_contain_text("Drawing captured")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+
+
 def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     """The document plane is drawable, but a press on Leaf's chrome remains the
     control's gesture rather than becoming a drawing."""
@@ -817,10 +943,12 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     exit_mode.click()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, open=False)
+    open_threads(page)
 
 
 def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
@@ -914,7 +1042,7 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
         assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
         edit.click()
         expect(page.locator(".lf-fab-input")).to_be_hidden()
-        editor = draft.get_by_role("textbox", name="Edit draft", exact=True)
+        editor = draft.locator("leaf-text")
         expect(editor).to_be_focused()
         assert editor.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
         editor.click()
@@ -974,50 +1102,6 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", "")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
-
-
-def test_another_formats_anchored_drawing_draft_keeps_its_words_without_the_mark(
-    browser, serve
-):
-    """A draft a runtime at another draft format saved may hold a drawing this one
-    cannot draw, so its words come back and its mark neither shows nor sends."""
-    page = open_page(browser, serve(TARGETS_PAGE))
-    # The composer's draft is keyed on the passage it is on.
-    ctx = "composer:" + json.dumps([["section", "prose"]], separators=(",", ":"))
-    page.evaluate(
-        """([key, record]) => {
-          const anchor = {section: 'prose'};
-          localStorage.setItem(key, JSON.stringify({
-            text: JSON.stringify({
-              format: 'leaf-draft/0',
-              text: 'Keep these anchored words.',
-              anchor,
-              revision: 1,
-              suggest: false,
-              about: null,
-              drawing: {strokes: [[[0, 0], [9, 9]]]},
-              touched: Date.now(),
-            }),
-            attempt: record.attempt,
-            base: null,
-          }));
-        }""",
-        [draft_key(page, ctx), {"attempt": "b" * 32}],
-    )
-
-    page.reload(wait_until="load")
-    wait_until_ready(page)
-    field = page.locator(".lf-fab-input")
-    expect(field).to_be_visible()
-    expect(field).to_have_js_property("value", "Keep these anchored words.")
-    expect(page.locator(".lf-drawing-mark")).to_have_count(0)
-    with sending(page, "the text-only recovered anchored draft"):
-        page.keyboard.press("ControlOrMeta+Enter")
-
-    event = events_model.read_events(serve.page_dir)[-1]
-    assert event["anchor"] == {"section": "prose"}
-    assert event["text"] == "Keep these anchored words."
-    assert "drawing" not in event
 
 
 def test_a_drawing_can_be_sent_without_words(browser, serve):
@@ -1427,3 +1511,281 @@ def test_a_sent_drawing_keeps_its_pasted_photo_outside_the_text_viewport(
     box = photo.bounding_box()
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     expect(page.get_by_role("dialog", name="Image preview", exact=True)).to_be_visible()
+
+
+def test_drawing_strokes_keep_their_pixels_across_resize_addition_send_and_replay(
+    browser, serve
+):
+    """Every stroke keeps its target-local pixels even when later strokes are drawn
+    after a paragraph reflows, and sending, undoing and reloading use that same frame.
+    """
+    url = serve(TARGETS_PAGE)
+    page = open_page(browser, url)
+    prose = page.locator("#prose")
+    wide = page.viewport_size
+    draw_over(page, prose)
+    expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+    original_path = page.locator(".lf-drawing-pending path").get_attribute("d")
+    drawn_at = prose.bounding_box()
+    original_relation = mark_relation(page, ".lf-drawing-pending", "#prose")
+
+    page.set_viewport_size({"width": 420, "height": wide["height"]})
+    rendered(page)
+    narrow = prose.bounding_box()
+    assert narrow["width"] < 0.8 * drawn_at["width"]
+    assert narrow["height"] > drawn_at["height"], "the paragraph must reflow"
+    assert mark_relation(page, ".lf-drawing-pending", "#prose") == pytest.approx(
+        original_relation, abs=0.02
+    )
+    stroke_over(page, prose, points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
+    path = page.locator(".lf-drawing-pending path").get_attribute("d")
+    assert mark_relation(page, ".lf-drawing-pending", "#prose")[2] == pytest.approx(
+        max(drawn_at["width"] * 0.78, narrow["width"] * 0.7)
+        - min(drawn_at["width"] * 0.22, narrow["width"] * 0.3),
+        abs=0.02,
+    ), "a pending drawing wider than the viewport keeps its full width"
+    assert path.startswith(original_path + " M"), (
+        "adding ink cannot reframe earlier ink"
+    )
+    page.get_by_role("button", name="Undo last stroke").click()
+    expect(page.locator(".lf-drawing-pending path")).to_have_attribute(
+        "d", original_path
+    )
+    stroke_over(page, prose, points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
+    with sending(page, "the resized drawing"):
+        page.keyboard.press("ControlOrMeta+Enter")
+
+    event = events_model.read_events(serve.page_dir)[-1]
+    drawing = event["drawing"]
+    first, second = drawing["strokes"]
+    assert first[0] == pytest.approx(
+        [drawn_at["width"] * STROKE[0][0], drawn_at["height"] * STROKE[0][1]], abs=0.02
+    )
+    assert second[0] == pytest.approx(
+        [narrow["width"] * 0.3, narrow["height"] * 0.3], abs=0.02
+    )
+    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    expect(page.locator(posted)).to_have_count(1)
+    relation = mark_relation(page, posted, "#prose")
+    page.set_viewport_size(wide)
+    rendered(page)
+    assert mark_relation(page, posted, "#prose") == pytest.approx(relation, abs=0.02)
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator(posted)).to_have_count(1)
+    assert mark_relation(page, posted, "#prose") == pytest.approx(relation, abs=0.02)
+
+
+def test_a_stroke_in_empty_space_belongs_to_the_nearest_element(browser, serve):
+    """Whitespace is part of the drawable page plane. A stroke that starts over no
+    addressable element belongs to the nearest one on screen, so its comment box opens
+    beside the ink rather than in Threads, and the drawing persists, joins and undoes as
+    any other."""
+    page = open_page(browser, serve(TARGETS_PAGE))
+    fig = page.locator("#fig")
+    box = fig.bounding_box()
+    point = page.evaluate(
+        """([x, y]) => {
+          const hit = document.elementFromPoint(x, y);
+          return {
+            x, y,
+            tag: hit?.tagName ?? "",
+            item: hit?.closest("main > *")?.id ?? "",
+          };
+        }""",
+        [box["x"] + 40, box["y"] + box["height"] + 50],
+    )
+    assert point["tag"] in {"HTML", "BODY", "MAIN"}, point
+    assert not point["item"], point
+    scroll_width = page.evaluate("document.documentElement.scrollWidth")
+
+    page.mouse.move(point["x"], point["y"])
+    page.keyboard.press("w")
+    assert (
+        page.evaluate(
+            "([x, y]) => getComputedStyle(document.elementFromPoint(x, y)).cursor",
+            [point["x"], point["y"]],
+        )
+        == "crosshair"
+    )
+    page.mouse.down()
+    page.mouse.move(point["x"] + 90, point["y"] - 30, steps=8)
+    page.mouse.move(point["x"] + 150, point["y"] + 20, steps=8)
+    page.mouse.up()
+
+    pending = page.locator(".lf-drawing-pending path")
+    expect(pending).to_have_count(1)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+
+    page.reload(wait_until="load")
+    wait_until_ready(page)
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    # The reloaded page reopens the draft's box with the user in it, so `w` would be a
+    # letter there; Escape puts the box away first. The new Draw mode session's stroke
+    # then joins the kept drawing.
+    expect(field).to_be_focused()
+    page.keyboard.press("Escape")
+    page.mouse.move(point["x"], point["y"])
+    page.keyboard.press("w")
+    page.mouse.down()
+    page.mouse.move(point["x"] + 60, point["y"] + 30, steps=8)
+    page.mouse.up()
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
+    page.mouse.move(point["x"], point["y"] - 20)
+    page.mouse.down()
+    page.mouse.move(point["x"] + 40, point["y"] + 40, steps=8)
+    page.mouse.up()
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
+    page.get_by_role("button", name="Undo last stroke").click()
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
+
+    expect(field).to_have_js_property("value", "")
+    with sending(page, "the drawing beside the figure"):
+        page.locator(".lf-composer .lf-compose-field .lf-compose-submit").evaluate(
+            "button => button.click()"
+        )
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["kind"] == "comment"
+    assert event["anchor"] == {"section": "fig"}
+    assert "text" not in event and "at" not in event["drawing"]
+    assert len(event["drawing"]["strokes"]) == 2
+    expect(
+        page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"]')
+    ).to_have_count(1)
+    assert page.evaluate("document.documentElement.scrollWidth") == scroll_width
+
+
+def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
+    """`leaf page picture` lays the comment's revision out again in the window the
+    drawing was made in, whatever window or version the page is in since, and paints the
+    comment's ink, and no later comment's, over the element it was drawn on, with the
+    ink scrolled into view inside the pane holding it: the swatch, half the window wide,
+    is as wide as it was then, and the ink keeps its place on the band."""
+    page = open_page(browser, serve(SWATCH_PAGE), color_scheme="dark")
+    page.set_viewport_size({"width": 800, "height": 600})
+    page.locator("#pane").evaluate("pane => { pane.scrollTop = pane.scrollHeight; }")
+    rendered(page)
+    swatch = page.locator("#swatch")
+    draw_over(page, swatch, points=BAND_STROKE)
+    with sending(page, "the drawing on the swatch"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["anchor"] == {"section": "swatch"}
+    ink = page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"] path')
+    ink_color = ink.evaluate("path => getComputedStyle(path).stroke")
+    page.set_viewport_size({"width": 1200, "height": 900})
+    stamp_page(serve.page_dir, SWATCH_PAGE.replace("50vw", "25vw"), "Narrow the swatch")
+    # A later drawing on the same swatch, just above the band and inside the picture's
+    # crop, which the user had not drawn when they drew the first.
+    box_width, box_height = event["drawing"]["box"]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": event["revision"],
+            "anchor": event["anchor"],
+            "drawing": {
+                **event["drawing"],
+                "strokes": [
+                    [
+                        [0.3 * box_width, 0.78 * box_height],
+                        [0.7 * box_width, 0.78 * box_height],
+                    ]
+                ],
+            },
+        },
+    )
+
+    pictured = CliRunner().invoke(
+        cli_model.cli, ["page", "picture", str(serve.page_dir), event["id"]]
+    )
+    assert pictured.exit_code == 0, pictured.output
+    image = Image.open(json.loads(pictured.stdout)["file"]).convert("RGB")
+
+    def where(color):
+        """The bounding box of the picture's pixels within a few levels of `color`."""
+        red, green, blue = ImageChops.difference(
+            image, Image.new("RGB", image.size, color)
+        ).split()
+        furthest = ImageChops.lighter(ImageChops.lighter(red, green), blue)
+        return furthest.point(lambda level: 255 if level <= 8 else 0).getbbox()
+
+    green = where((0, 200, 0))
+    band = where((0, 0, 220))
+    drawn = where(tuple(int(part) for part in re.findall(r"\d+", ink_color)[:3]))
+    assert green and band and drawn, (green, band, drawn)
+    # Only this comment's ink: the later drawing above the band is not painted.
+    assert drawn[1] >= band[1], (drawn, band)
+    # 50vw of the 800px window the drawing was made in, on the revision it was made on:
+    # 576px, cut at the crop, in the page's window now, and 200px on its version now.
+    assert green[2] - green[0] == pytest.approx(400, abs=2)
+    assert image.width < 800 and image.height < 600
+    # The band is 16% of the 600px swatch, and the ink crosses it where it was drawn.
+    width, height = band[2] - band[0], band[3] - band[1]
+    assert height == pytest.approx(96, abs=2)
+    (left, low), (_, high), (right, _) = BAND_STROKE
+    band_top = 0.84
+    assert (drawn[0] - band[0]) / width == pytest.approx(left, abs=0.03)
+    assert (drawn[2] - band[0]) / width == pytest.approx(right, abs=0.03)
+    assert (drawn[1] - band[1]) / height == pytest.approx(
+        (high - band_top) / (1 - band_top), abs=0.05
+    )
+    assert (drawn[3] - band[1]) / height == pytest.approx(
+        (low - band_top) / (1 - band_top), abs=0.05
+    )
+    # Drawn in the dark scheme: the page beside the swatch is dark.
+    assert sum(image.getpixel((2, 2))) < 200
+
+    missing = CliRunner().invoke(
+        cli_model.cli, ["page", "picture", str(serve.page_dir), "nope"]
+    )
+    assert missing.exit_code != 0 and "no message nope" in missing.output
+    # An element the revision does not hold, as one a data source drew and has since
+    # dropped, leaves no ink to picture.
+    lost = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": event["revision"],
+            "anchor": {"section": "gone"},
+            "drawing": event["drawing"],
+        },
+    )
+    unresolved = CliRunner().invoke(
+        cli_model.cli, ["page", "picture", str(serve.page_dir), lost["id"]]
+    )
+    assert unresolved.exit_code != 0
+    assert "its element #gone does not resolve" in unresolved.output
+
+
+def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
+    """Joined option seams use the target under the pointer when the stroke starts."""
+    page = open_page(browser, serve(MAP_CHOICE_PAGE))
+    trail = page.locator("#map-trail")
+    trail.scroll_into_view_if_needed()
+    box = trail.bounding_box()
+    point = (box["x"] + box["width"] * 0.5, box["y"])
+    target = page.evaluate(
+        "([x, y]) => document.elementFromPoint(x, y)?.closest('lf-option')?.id",
+        point,
+    )
+    assert target in {"map-street", "map-trail"}
+    page.mouse.move(*point)
+    page.keyboard.press("w")
+    expect(page.locator(".lf-aim")).to_be_hidden()
+
+    page.mouse.down()
+    page.mouse.move(point[0] + 80, point[1], steps=8)
+    page.mouse.up()
+    write(page.locator(".lf-fab-input"), "The seam I pointed at.")
+    with sending(page, "the seam drawing"):
+        page.keyboard.press("ControlOrMeta+Enter")
+
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["anchor"] == {"section": target}
+    assert page.locator("#map-street").get_attribute("chosen") is None
+    assert page.locator("#map-trail").get_attribute("chosen") is None

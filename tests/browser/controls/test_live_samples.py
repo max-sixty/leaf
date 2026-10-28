@@ -4,14 +4,14 @@ keys passing from a sample to its page."""
 import pytest
 from click.testing import CliRunner
 from interact_support import response_reference
-from leaf import cli as cli_model
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
+from render_cases_layout import current_location_ring
 from render_harness import (
     Traffic,
     leaf_page,
     open_page,
+    rendered,
     resized,
     sending,
     take_browser_errors,
@@ -21,8 +21,58 @@ from browser.controls import (
     LIVE_SAMPLES_PAGE,
 )
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+# The focus ring's colour, as the page computes it.
+ACCENT = """() => {
+  const probe = document.body.appendChild(document.createElement("i"));
+  probe.style.color = "var(--accent)";
+  const color = getComputedStyle(probe).color;
+  probe.remove();
+  return color;
+}"""
+
+
+def test_the_gutter_shows_while_keys_go_to_the_sample(browser, serve):
+    """A press into the sample's page takes the user's keys there as a Tab does, though
+    the containing page hears no focus event, and the gutter says so until they leave.
+    Only the Tab rings the frame, as it would any control."""
+    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    sample = page.locator("#first-practice")
+    sample.evaluate("async sample => { await sample.ready; }")
+    gutter = sample.locator(".lf-sample-exhibit")
+    resting = gutter.evaluate("el => getComputedStyle(el).borderLeftColor")
+    accent = page.evaluate(ACCENT)
+    assert resting != accent
+    frame = sample.locator("iframe")
+    child = frame.element_handle().content_frame()
+
+    child.locator("#child-heading").click()
+    expect(gutter).to_have_css("border-left-color", accent)
+    rendered(page)
+    assert current_location_ring(page) is None
+    page.locator("#host-heading").click()
+    expect(gutter).to_have_css("border-left-color", resting)
+
+    sample.get_by_role("button", name="Full view", exact=True).focus()
+    page.keyboard.press("Tab")
+    expect(gutter).to_have_css("border-left-color", accent)
+    rendered(page)
+    assert current_location_ring(page)
+    child.locator("#child-heading").click()
+    rendered(page)
+    assert current_location_ring(page) is None
+    expect(gutter).to_have_css("border-left-color", accent)
+    page.keyboard.press("Tab")
+    rendered(page)
+    assert current_location_ring(page)
+    page.keyboard.press("Shift+Tab")
+    expect(sample.get_by_role("button", name="Full view", exact=True)).to_be_focused()
+    expect(gutter).to_have_css("border-left-color", resting)
 
 
 def test_tab_walks_into_and_out_of_a_full_view_sample(browser, serve):
@@ -33,6 +83,8 @@ def test_tab_walks_into_and_out_of_a_full_view_sample(browser, serve):
     sample = page.locator("#first-practice")
     frame = sample.locator("iframe")
     child = frame.element_handle().content_frame()
+    gutter = sample.locator(".lf-sample-exhibit")
+    accent = page.evaluate(ACCENT)
     sample.get_by_role("button", name="Full view", exact=True).click()
     view = sample.locator("dialog.lf-sample-view")
     expect(
@@ -41,7 +93,7 @@ def test_tab_walks_into_and_out_of_a_full_view_sample(browser, serve):
 
     # Where focus stands in the containing page: in the view, on its frame, or out at
     # the browser's own interface.
-    standing = """view => {
+    current_location = """view => {
       let at = document.activeElement;
       while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
       if (at === document.body) return "browser";
@@ -51,8 +103,12 @@ def test_tab_walks_into_and_out_of_a_full_view_sample(browser, serve):
     entered = left = False
     for _ in range(40):
         page.keyboard.press("Tab")
-        at = view.evaluate(standing)
+        at = view.evaluate(current_location)
         assert at != "page", "Tab left Full view for the page beneath"
+        if at == "frame" and child.evaluate("() => document.hasFocus()"):
+            expect(gutter).to_have_css("border-left-color", accent)
+            rendered(page)
+            assert current_location_ring(page)
         entered |= at == "frame" and child.evaluate("() => document.hasFocus()")
         if entered and at == "view":
             left = True
@@ -95,7 +151,7 @@ def test_an_agent_reply_runs_its_live_sample_in_the_thread(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(serve.page_dir, question),
@@ -171,3 +227,50 @@ def test_reading_keys_page_on_from_a_sample_to_its_page(browser, serve):
     page.keyboard.press("d")
     page.wait_for_timeout(300)
     assert page.evaluate("scrollY") == at
+
+
+def test_inline_sample_choices_use_parent_state_and_undo(browser, serve):
+    """Interactive content is the page's; a quoted sibling still takes no input."""
+    from render_harness import undo
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Inline samples",
+                """
+      <h1>Delivery</h1>
+      <lf-sample id="working" interactive label="Working choices">
+        <lf-options id="delivery" choose>
+          <lf-option id="standard">Standard</lf-option>
+          <lf-option id="express">Express</lf-option>
+        </lf-options>
+      </lf-sample>
+      <lf-sample id="quoted" label="Quoted choices">
+        <lf-options id="quoted-delivery" choose>
+          <lf-option id="quoted-standard">Standard</lf-option>
+        </lf-options>
+      </lf-sample>
+    """,
+            )
+        ),
+    )
+    sample = page.locator("#working")
+    # A working sample's note is its label alone; a quoted one opens with "quoted".
+    prefix = """sample => getComputedStyle(
+      sample.querySelector(':scope > [data-lf-said="label"]'), '::before'
+    ).content"""
+    assert sample.evaluate(prefix) == '""'
+    assert page.locator("#quoted").evaluate(prefix) == '"quoted · "'
+    expect(sample.locator("iframe")).to_have_count(0)
+    expect(page.locator("#quoted").get_by_role("checkbox")).to_have_count(0)
+    choice = sample.locator("#express").get_by_role("checkbox")
+    with sending(page, "inline choice"):
+        choice.click()
+    expect(choice).to_have_attribute("aria-checked", "true")
+    assert any(
+        event.get("kind") == "action" and event.get("widget") == "delivery"
+        for event in events_model.read_events(serve.page_dir)
+    )
+    undo(page)
+    expect(choice).to_have_attribute("aria-checked", "false")

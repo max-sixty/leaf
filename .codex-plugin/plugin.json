@@ -12,11 +12,12 @@
   "mcpServers": {
     "leaf": {
       "command": "python3",
-      "args": ["-I", "./skills/leaf/scripts/leaf/codex_tool.py"],
+      "args": ["-I", "./src/leaf/codex_tool.py"],
       "cwd": ".",
       "env_vars": [
         "XDG_STATE_HOME",
         "CODEX_HOME",
+        "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
         "LEAF_CODEX_APP_SERVER",
         "LEAF_SESSION_ID",
         "LEAF_AGENT",

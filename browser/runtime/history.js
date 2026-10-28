@@ -1,0 +1,238 @@
+/* The entries this document adds to session history, and the traversals among them.
+ *
+ * Every same-document entry is a place the user can come Back to. `pushEntry` adds one,
+ * leaving the entry the user was on with the scroll offset the browser saves on it;
+ * `replaceEntry` renames the entry the user is on and keeps its state. A new entry
+ * starts with no state of its own, since state belongs to the entry that set it.
+ * Travel prepares its outgoing checkpoint before revealing a destination and commits
+ * it only after arrival succeeds. Failed or canceled routes add no return stop.
+ *
+ * A working-place checkpoint owns the viewport offset, focus and selection together.
+ * Chrome's native restoration can lose the saved offset when Back interrupts a smooth
+ * arrival; its pending compositor update can also overwrite an immediate restoration.
+ * A traversal cancels the outgoing placement, waits for that cancellation's rendering
+ * update, then restores the checkpoint. Nested reading regions stop with that placement
+ * but keep their current offsets; these checkpoints restore the document viewport.
+ *
+ * Without a captured checkpoint, the browser restores its saved offset, except that
+ * Chrome answers a traversal to an entry whose fragment names an element by scrolling to that element
+ * instead (measured: Back to `#s2` after reading 3000px down landed on `#s2` at 666).
+ * So every same-document traversal comes through here, through the Navigation API. An
+ * owner that claims the destination (`claimTraversals`) can place the page itself, as a
+ * root tab set does for the entry of each of its views. Travel takes the traversal next
+ * (`mountHistory`'s `returnToFragment`, anchor-travel.js) where the entry's fragment
+ * names a place the page no longer shows: the offset was saved over a page that has
+ * changed, so travel reveals the place and lands on it. Any other traversal is
+ * intercepted to restore its working-place checkpoint, or the browser's saved offset
+ * for an entry without one. Back and Forward restore that working place after its
+ * owner has revealed the view, so the next command reads the returned place from the browser.
+ * These are return checkpoints, never a reading of the user's current position; a
+ * newer gesture cancels a delayed return, and a node removed since is not restored.
+ * Checkpoints hold nodes weakly: history owns the return, not the old markup.
+ *
+ * A fragment navigation, a followed `#id` link, is not a traversal: it adds its entry
+ * and is a navigation step to the element it names. Travel claims it (`followFragment`) where the
+ * fragment names an element of the page, and lands it through the browser's own
+ * fragment placement rule once travel has cleared and revealed the way; any other fragment
+ * keeps native landing. An entry this document writes through `pushEntry` or
+ * `replaceEntry`, as travel and a tab set do, is not a fragment navigation and is never
+ * claimed. A browser without the Navigation API keeps its own traversals and fragment
+ * landings. */
+
+import { deepFocus, drawn, focusDestination, readCaret } from "./focus.js";
+import { pageRange, selectEnds, selectionBackward } from "./passages.js";
+import { retainUserIntent } from "./user-intent.js";
+import { placeOf } from "./current-target.js";
+import { upFrom } from "./shadow.js";
+import { presented } from "./geometry.js";
+import { unconcealedReadingRegions } from "./reading-regions.js";
+import { pageScroller, stopScroll } from "./scrolling.js";
+
+const claims = new Set();
+const places = new Map();
+
+// The user's working place, read once before something borrows it: leaving an entry, or
+// stepping into the floating panel, whose place-keeping commands hand it back. `focus` is
+// the node they had focused, when the reading comes after focus has left it. Plain endpoints
+// keep a removed passage from being silently retargeted by a live Range. pageRange
+// shares the declared-shadow reading used for commenting; the selection's direction also
+// keeps its working end.
+export function readPlace(focus = deepFocus()) {
+  const place = placeOf(focus);
+  const selection = getSelection();
+  const range = selection.rangeCount ? pageRange(selection) : null;
+  const ends = range && [
+    [new WeakRef(range.startContainer), range.startOffset],
+    [new WeakRef(range.endContainer), range.endOffset],
+  ];
+  if (ends && selectionBackward(selection, range)) ends.reverse();
+  return {
+    focus: focus && new WeakRef(focus),
+    place: place && new WeakRef(place),
+    caret: readCaret(focus),
+    ends,
+    offset: [scrollX, scrollY],
+  };
+}
+
+// Put the user back in a place `readPlace` read. A live revision may have removed or
+// shortened what it named since, so a node no longer drawn is not returned to, and a
+// selection end past its node's current length returns to what is left of that node,
+// its end.
+export function returnPlace(checkpoint) {
+  const focus = checkpoint.focus?.deref();
+  const place = checkpoint.place?.deref();
+  const { caret } = checkpoint;
+  const ends = checkpoint.ends?.map(([ref, offset]) => {
+    const node = ref.deref();
+    const length = node?.nodeType === 3 ? node.length : node?.childNodes.length;
+    return [node, Math.min(offset, length ?? offset)];
+  });
+  if (focus !== document.body && focus?.isConnected && presented(focus)) {
+    focusDestination(focus, "return", { caret });
+    // A field's caret is its whole selection, and clearing the document's would
+    // collapse it.
+    if (caret) return;
+  }
+  // A thread card may have closed on departure, still painted but inert during
+  // its closing fade. Its page target is the same working place from the other
+  // side, and remains a browser focus destination on return.
+  else if (place?.isConnected && presented(place)) focusDestination(place, "return");
+  else /** @type {HTMLElement | null} */ (deepFocus())?.blur();
+  const selection = getSelection();
+  selection.removeAllRanges();
+  // Editing the passage can remove its saved endpoint. That checkpoint then has no
+  // selection to restore, and the returned viewport supplies the next walk's origin.
+  if (
+    ends?.every(([node]) => node && drawn(node.nodeType === 1 ? node : upFrom(node)))
+  ) {
+    selectEnds(...ends);
+  }
+}
+
+// Whether this document is writing an entry itself. The Navigation API fires `navigate`
+// synchronously inside `pushState` and `replaceState`, and those events look like a
+// press on a link to the fragment the page already shows: both are a same-document
+// `replace` or `push` with no hash change. Only the writer can tell them apart.
+let writing = false;
+function write(method, state, url) {
+  writing = true;
+  try {
+    history[method](state, "", url);
+  } finally {
+    writing = false;
+  }
+}
+
+export function pushEntry(url, state = null) {
+  write("pushState", state, url);
+}
+
+export function replaceEntry(url, state = history.state) {
+  write("replaceState", state, url);
+}
+
+// A route can reveal or hydrate before it knows whether arrival will succeed. Capture
+// its outgoing checkpoint now, but write only on success. A synchronous round trip to
+// the source offset lets native history save that offset too, without an intermediate
+// paint, including in browsers without the Navigation API. The Navigation listener's
+// live focus reading is replaced with the original working place after the write.
+export function prepareEntry() {
+  const key = window.navigation?.currentEntry?.key;
+  const place = readPlace();
+  const offset = place.offset;
+  const sourceUrl = window.location.href;
+  const sourceState = history.state;
+  return (url, state, replace) => {
+    if (replace) {
+      replaceEntry(url, state);
+      return;
+    }
+    const arrival = [scrollX, scrollY];
+    // Exposing another view renames this entry. Its original URL and state belong to
+    // the outgoing checkpoint; the exposed destination belongs to the new entry.
+    if (window.location.href !== sourceUrl || history.state !== sourceState)
+      replaceEntry(sourceUrl, sourceState);
+    window.scrollTo({ left: offset[0], top: offset[1], behavior: "instant" });
+    pushEntry(url, state);
+    window.scrollTo({ left: arrival[0], top: arrival[1], behavior: "instant" });
+    if (key) places.set(key, place);
+  };
+}
+
+// `claim(url)` returns the handler that reveals the destination of a traversal, or
+// nothing when the entry is not the claimant's. The first claim to answer takes it.
+// A handler places the viewport itself unless it resolves to false, handing placement
+// back to the entry's checkpoint (or the browser when no checkpoint was captured).
+/** @param {(url: URL) => unknown} claim @param {{signal?: AbortSignal}} [options] */
+export function claimTraversals(claim, { signal } = {}) {
+  claims.add(claim);
+  signal?.addEventListener("abort", () => claims.delete(claim), { once: true });
+}
+
+let mounted = false;
+export function mountHistory({ followFragment, returnToFragment }) {
+  if (mounted) return;
+  mounted = true;
+  window.navigation?.addEventListener("navigate", (event) => {
+    if (!event.destination.sameDocument || !event.canIntercept) return;
+    const url = new URL(event.destination.url);
+    if (event.navigationType !== "replace") {
+      const live = new Set(window.navigation.entries().map((entry) => entry.key));
+      for (const key of places.keys()) if (!live.has(key)) places.delete(key);
+      const key = window.navigation.currentEntry?.key;
+      if (key) places.set(key, readPlace());
+    }
+    if (event.navigationType === "traverse") {
+      const handler = claimed(url) ?? returnToFragment(url);
+      const place = places.get(event.destination.key);
+      const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
+      event.intercept({
+        scroll: "manual",
+        focusReset: "manual",
+        handler: async () => {
+          if (!mayReturn()) return;
+          // Cancel the outgoing placement, including its nested reading regions.
+          // Its compositor update can outlive this task, so restore only after a
+          // complete rendering update has carried the cancellation to the browser.
+          const scrollers = new Set([
+            pageScroller,
+            ...unconcealedReadingRegions().map((region) => region.body),
+          ]);
+          await stopScroll(scrollers);
+          if (!mayReturn()) return;
+          let work;
+          mayReturn.handoff(() => {
+            work = handler?.();
+          });
+          const placed = await work;
+          if (!mayReturn()) return;
+          if (!handler || placed === false) {
+            if (place)
+              window.scrollTo({
+                left: place.offset[0],
+                top: place.offset[1],
+                behavior: "instant",
+              });
+            else event.scroll();
+          }
+          if (place) returnPlace(place);
+        },
+      });
+      return;
+    }
+    // A followed link again to the fragment already shown is a `replace` with no hash
+    // change, and still a navigation step: its target may have been shut since.
+    if (writing || event.formData || !url.hash) return;
+    const handler = followFragment(url);
+    if (handler) event.intercept({ scroll: "manual", focusReset: "manual", handler });
+  });
+}
+
+function claimed(url) {
+  for (const claim of claims) {
+    const handler = claim(url);
+    if (handler) return handler;
+  }
+  return null;
+}

@@ -1,0 +1,961 @@
+/* Durable, cross-tab drafts and their accepted-log reconciliation.
+
+   Every unsent composition persists:
+
+   - the general comment box;
+   - each thread reply;
+   - the selection composer, including its anchor, mode and drawing;
+   - a thread's first message and replies;
+   - an `lf-draft` edit.
+
+   The store is `localStorage` scoped by page and draft context, because the text must
+   survive reload, version navigation, server restart, and closing the tab where it was
+   typed. `draftCache` keeps a readable local branch when storage writes fail. Storage
+   failure may reduce cross-tab durability; it never disables the live Send or Save
+   action.
+
+   One context has one shared generation. `watchDraft` mirrors storage changes into
+   every live view. Ordinary disconnected inputs retire their subscription. Retained
+   reply editors keep mirroring through candidate detachment; their presentation owner
+   disposes the subscription when removal commits.
+
+   An editor belongs to its existing draft subscription. A root editor has the context's
+   one current connected destination; reply mirrors use the current Thread route
+   instead. Revision continuity carries words, generation, caret and local scroll under
+   that identity. It restores only the same active generation and only after the
+   original input intent has landed the actual editor. A root editor the arriving
+   document holds behind a disclosure, as the page comment card holds the page's box,
+   is shown through the route its owner declares for Resume writing, since the user was
+   writing in it when the revision came; no other hidden editor is opened by this
+   mechanical handoff, and a newer edit is never overwritten by it.
+
+   A draft generation stores `{text, attempt, base, payload?, held?}` while active and
+   `{attempt, base, settled: true}` after settlement. Its attempt is minted when an edit
+   creates the generation, not on Send, and is reused by every tab that sends it.
+   A refusal does not mint a new attempt. Pressing Send again re-evaluates the same
+   attempt against current server state. A new edit, including replacing text with the
+   same characters, creates a new attempt. A successful send settles only the exact
+   active generation it sent. `sendDraft` refreshes the shared record and compares both
+   untrimmed text and attempt immediately before POST; `settleDraft` repeats the
+   generation check before writing the tombstone. Text typed while the request is in
+   flight therefore survives its response.
+
+   An active record and a settled tombstone are different records. An empty active
+   `text` means the user intentionally cleared the box. A tombstone means Send or
+   Cancel settled that generation. The implementation never depends on `removeItem` to
+   distinguish them, because deletion can fail independently and could otherwise
+   resurrect old words.
+
+   Every send draws its result in this document before the log answers. So the send
+   masks its generation here at the gesture (`standGesture`) and the box the words were
+   typed in reads empty, while the record stands unsettled until the answer accepts it
+   or a refusal gives the words back. The mask is this document's; the record is every
+   tab's. Words a refusal gives back to a box out of view become the Resume writing
+   destination, and the refusal's notice names that address, for every gesture the
+   refusal took down (`keepRefusedWords`).
+
+   `base` records the durable shared generation a local edit descends from. A chain of
+   nondurable local writes keeps that base. Storage news from the base cannot erase the
+   branch; an unrelated later shared generation owns the context and retires it. Before
+   writing a settlement, Send, Cancel, and log reconciliation refresh the shared
+   generation so a stale tab cannot tombstone a newer edit.
+
+   Settlement is generation-specific. `activeDraftRecord` filters tombstones and
+   accepted attempts (`attemptAccepted`: an attempt already in `events` is settled
+   whatever stale storage hands back). `sendDraft` snapshots the current record, checks
+   ownership immediately before POST, and settles only that attempt. `mirrorDraft`
+   updates visible text only when doing so will not erase a newer local generation.
+
+   The selection composer keys drafts by anchor, not by one global composer slot. Its
+   stored record carries the anchor, mode, and last-touch time; startup reopens the
+   most recently touched draft. Different passages may therefore hold independent
+   unfinished comments.
+
+   An `lf-draft` editor is a live gesture. It defers the widget's drawing while the
+   editor is open, so remote edits and refusal correction wait rather than overwriting
+   the textarea. Closing the editor lets the authoritative projection apply in order.
+
+   The comment over the store below says where it came from and why one record carries
+   an edit's provenance. */
+
+import { runtime } from "./context.js";
+import { PENDING } from "./thread/identity.js";
+import { draftStore } from "./storage.js";
+import { randomId } from "./ids.js";
+import { focusDestination, readCaret, focused } from "./focus.js";
+import { retainUserIntent } from "./user-intent.js";
+import { CARET_KEYS, selectsAll } from "./control-selectors.js";
+import { passErrorsAt, raiseError } from "./errors.js";
+import { notice } from "./notifications.js";
+
+// ---------- draft persistence ----------
+// Text the user typed but hasn't sent must survive navigation, reload, version switches,
+// server death — and the tab itself. That last one is where this store came from: each
+// round's reply hands the URL over again and the user opens the page from the turn in
+// front of them, so a page's tabs accumulate and the one holding a half-written sentence
+// is as likely to be closed as any other. Tab-local storage carried a draft through
+// everything but the one gesture nobody thinks of as destructive.
+//
+// So the store is the user's, and one draft has one copy: every box showing it, in
+// every tab, is a view of the store, and the store's own `storage` event carries a
+// keystroke from the tab that made it to the rest (watchDraft). A copy per tab was the
+// alternative and it fails in the direction that loses words — two tabs each holding a
+// different half of one thought, and whichever is closed takes its half.
+//
+// The stored value is one record, not raw words plus lock markers:
+// {text, attempt, base, payload?} while active and {attempt, base, settled:true}
+// afterward. `payload` lets a draft whose submission depends on more than its visible
+// words bind that exact submission state to the attempt; two tabs must not derive two
+// action bodies from one shared generation. `base` is the shared attempt this edit
+// descended from, or null when the store was absent. A new edit always mints a new
+// attempt but a chain of failed local writes keeps the same base. That provenance is
+// what lets the branch survive news settling its predecessor without letting it overwrite
+// an unrelated generation another tab durably wrote later.
+//
+// A new attempt is minted even when its words equal an earlier message. The tombstone
+// rather than key removal is
+// what makes asymmetric removeItem behavior irrelevant, and the attempt is what lets the
+// log recognize the same gesture after the tab holding the browser lock has died.
+//
+// Storage failures never break typing (`stored`). Every local save updates the document
+// cache first and then tries the one record write, so a successful set followed by a
+// failed get remains sendable, and a failed newer set cannot be erased by news settling
+// the older shared attempt. The log still outranks both: an attempt already present in
+// `events` is settled whatever stale active record storage hands back on reload.
+const DRAFT = "lf-draft:";
+// The page's own draft: the floating panel's field, the one place a page thread
+// starts.
+export const PAGE_DRAFT = "general";
+// Where the draft at `ctx` is kept, as the store says (`where`): the page scope is in
+// the key. The storage listener below reads other tabs' writes by it, and a test that
+// seeds or reads a stored draft asks it rather than spelling the key.
+export const whereDraft = (ctx) => draftStore.where(DRAFT + ctx);
+const DRAFT_NEWS = "lf-drafts";
+const draftCache = new Map(); // context -> {record, durable}
+export const tellDraft = (ctx, value, payload = undefined) =>
+  document.dispatchEvent(
+    new CustomEvent(DRAFT_NEWS, { detail: { ctx, value, payload } }),
+  );
+const parseDraftRecord = (value) => {
+  if (typeof value !== "string") return null;
+  try {
+    const record = JSON.parse(value);
+    if (
+      !record ||
+      typeof record !== "object" ||
+      typeof record.attempt !== "string" ||
+      !(record.base === null || typeof record.base === "string") ||
+      (record.settled === true
+        ? Object.keys(record).some(
+            (key) => !["attempt", "base", "settled"].includes(key),
+          )
+        : typeof record.text !== "string" ||
+          (record.payload !== undefined &&
+            (!record.payload ||
+              typeof record.payload !== "object" ||
+              Array.isArray(record.payload))) ||
+          (record.held !== undefined && typeof record.held !== "string") ||
+          Object.keys(record).some(
+            (key) => !["attempt", "text", "base", "payload", "held"].includes(key),
+          ))
+    )
+      return null;
+    return record;
+  } catch {
+    return null;
+  }
+};
+// What storage holds for the draft at `ctx`, parsed as this store parses it, whatever
+// this tab has cached: the record another tab or a reload would find. A test reading
+// the stored draft asks it rather than parsing the record itself.
+export const storedDraft = (ctx) => {
+  const read = draftStore.read(DRAFT + ctx);
+  return read.available ? parseDraftRecord(read.value) : null;
+};
+const attemptAccepted = (attempt) =>
+  runtime.receipts.some((event) => event.attempt === attempt);
+const writeDraftRecord = (ctx, record) =>
+  draftStore.set(DRAFT + ctx, JSON.stringify(record));
+const rawDraftRecord = (ctx) => {
+  if (draftCache.has(ctx)) return draftCache.get(ctx).record;
+  const read = draftStore.read(DRAFT + ctx);
+  const record = read.available ? parseDraftRecord(read.value) : null;
+  if (record) draftCache.set(ctx, { record, durable: true });
+  return record;
+};
+const sameDraftRecord = (left, right) =>
+  (left === null && right === null) ||
+  (left !== null && right !== null && JSON.stringify(left) === JSON.stringify(right));
+// Refresh is a reconciliation as real as a storage event. Publish an adopted shared
+// generation after the current call returns, so every mounted view follows the cache
+// without making a composer's synchronous close clear itself recursively.
+const projectDraftRecord = (ctx, record) =>
+  queueMicrotask(() => {
+    const current = draftCache.get(ctx)?.record ?? null;
+    if (!sameDraftRecord(current, record)) return;
+    const active = current && !current.settled && !attemptAccepted(current.attempt);
+    tellDraft(ctx, active ? current.text : null, active ? current.payload : undefined);
+  });
+// A nondurable branch may replace exactly the shared generation it was editing, not
+// merely whatever record happens to be there when a failed writer becomes writable
+// again. A tombstone for that base is the older branch settling; it still cannot erase
+// the newer local words. An unrelated attempt is later shared ownership and wins.
+const sharedIsBaseOf = (branch, shared) =>
+  branch.base === null ? shared === null : shared?.attempt === branch.base;
+// The drafts a thread holds, named only here: its reply box, under the thread's key
+// (`threadKey`, a first message's attempt until the log names the thread), and a
+// rewrite of one of its messages, under that message's id (thread/message-edit.js).
+export const replyContext = (key) => `reply:${key}`;
+export const rewriteContext = (id) => `rewrite:${id}`;
+const THREAD_DRAFT = /^(reply|rewrite):(.*)$/s;
+// Which of them `ctx` is, with the key or id it is under; null for any other draft.
+export function threadDraft(ctx) {
+  const match = THREAD_DRAFT.exec(ctx);
+  return match ? { part: match[1], name: match[2] } : null;
+}
+const isReply = (ctx) => threadDraft(ctx)?.part === "reply";
+
+// A durable cache is a rendering convenience, never a claim that storage still holds
+// that generation. Refresh it immediately before sending or settling. If the
+// read itself is refused, the cache is the only copy available. A nondurable branch wins
+// only over its own base; unrelated shared news wins even when its storage event was
+// delayed or suppressed.
+const refreshDraftRecord = (ctx) => {
+  const cached = draftCache.get(ctx);
+  const read = draftStore.read(DRAFT + ctx);
+  if (!read.available) return cached?.record ?? null;
+  const shared = parseDraftRecord(read.value);
+  if (cached && !cached.durable) {
+    if (sameDraftRecord(cached.record, shared)) {
+      cached.durable = true;
+      return cached.record;
+    }
+    if (sharedIsBaseOf(cached.record, shared)) {
+      if (cached.record.settled) cached.durable = writeDraftRecord(ctx, cached.record);
+      return cached.record;
+    }
+  }
+  const changed = Boolean(cached && !sameDraftRecord(cached.record, shared));
+  if (shared) draftCache.set(ctx, { record: shared, durable: true });
+  else draftCache.delete(ctx);
+  if (changed) projectDraftRecord(ctx, shared);
+  return shared;
+};
+// A generation this document has sent and not heard back on. Its words are shown
+// wherever the gesture drew them, so the box they were written in reads empty, while
+// the record itself stands, unsettled, until the log accepts it. The two are different
+// facts: what a box shows is about this document, and settlement is a claim over every
+// tab. That is what lets a second tab still show and send the same generation, and what
+// brings the words back here on a refusal with nothing to restore them from.
+const sentAttempts = new Map(); // ctx -> attempt
+
+const unsettledDraftRecord = (ctx) => {
+  const record = rawDraftRecord(ctx);
+  return record && !record.settled && !attemptAccepted(record.attempt) ? record : null;
+};
+const activeDraftRecord = (ctx) => {
+  const record = unsettledDraftRecord(ctx);
+  return sentAttempts.get(ctx) === record?.attempt ? null : record;
+};
+// Sending hides a generation's words while its result stands on screen, but does
+// not end its editor's lifetime: refusal still owes those words that same editor.
+export const draftHasContent = (ctx) => Boolean(unsettledDraftRecord(ctx)?.text);
+// Every tombstone is an ownership claim, whether it follows Send, Cancel, a widget
+// action, or a poll that observed the attempt in the log. Re-read shared storage before
+// making that claim so a stale view cannot settle a newer durable generation. A refused
+// read and a nondurable local edit still use the document cache, their only copy.
+const settleDraft = (ctx, attempt) => {
+  const current = refreshDraftRecord(ctx);
+  if (!current || current.settled || current.attempt !== attempt) return false;
+  const currentDurable = draftCache.get(ctx)?.durable;
+  // If this write fails, the cache tombstone still descends from whatever the active
+  // branch could replace. If it succeeds, the tombstone itself is the new shared
+  // generation and later edits descend from its attempt.
+  const storedRecord = { attempt, base: attempt, settled: true };
+  const durable = writeDraftRecord(ctx, storedRecord);
+  const record = durable
+    ? storedRecord
+    : {
+        attempt,
+        base: currentDurable ? current.attempt : current.base,
+        settled: true,
+      };
+  draftCache.set(ctx, { record, durable });
+  return true;
+};
+export const saveDraft = (ctx, text, payload, held = carriedHeld(ctx)) => {
+  const cached = draftCache.get(ctx);
+  const previous = rawDraftRecord(ctx);
+  // A series of local edits whose writes all fail is one branch from the last shared
+  // generation, not a chain that progressively forgets what it may replace.
+  const base =
+    cached && !cached.durable && previous ? previous.base : (previous?.attempt ?? null);
+  const record = {
+    text,
+    attempt: randomId(),
+    base,
+    ...(payload === undefined ? {} : { payload }),
+    ...(held ? { held } : {}),
+  };
+  const durable = writeDraftRecord(ctx, record);
+  draftCache.set(ctx, { record, durable });
+  return durable;
+};
+// A reply a refusal handed back to the draft whose message opened its thread
+// (`keepRefusedWords`) is part of that draft: every edit of it keeps the reply, and
+// whatever moves the draft moves the reply with it (`transferDraft`). A generation in
+// flight has already put its reply in the thread its send opened (`sendMessage`), so an
+// edit made meanwhile starts without it.
+const carriedHeld = (ctx) => {
+  const previous = rawDraftRecord(ctx);
+  return previous && !previous.settled && sentAttempts.get(ctx) !== previous.attempt
+    ? previous.held
+    : undefined;
+};
+// Set the held reply on the draft's current generation without minting another: the
+// refused attempt stays the one a resend re-evaluates.
+const holdReply = (ctx, held) => {
+  const current = activeDraftRecord(ctx);
+  if (!current) return false;
+  const { held: _, ...rest } = current;
+  const record = held ? { ...rest, held } : rest;
+  draftCache.set(ctx, { record, durable: writeDraftRecord(ctx, record) });
+  return true;
+};
+export const clearDraft = (ctx) => {
+  const current = rawDraftRecord(ctx);
+  if (!current || current.settled) {
+    draftCache.delete(ctx);
+    return false;
+  }
+  return settleDraft(ctx, current.attempt);
+};
+// The destination owner has chosen its words and payload and found room for them. Store
+// that value durably before settling the exact source generation, so a later source
+// edit is never discarded. A failed destination write keeps its local branch and the
+// persisted source. Every live destination view reads the same transferred draft.
+// This explicit content move also moves Resume writing, with the source's caret, and the
+// reply the source holds (`held`): a reply box opens no thread, so there the reply's
+// words join the moved words.
+export function transferDraft(from, to, text, payload) {
+  const source = activeDraftRecord(from);
+  if (!source || from === to) return false;
+  const editor =
+    [...draftEditors].find((view) => view.ctx === from) ??
+    [...draftEditors].find((view) => view.ctx === to);
+  const selection =
+    writingPlace?.context === from
+      ? writingPlace.selection
+      : readCaret(editor && editorInput(editor));
+  // A destination already holding a reply keeps it, with the source's after it.
+  const held =
+    [carriedHeld(to), carriedHeld(from)].filter(Boolean).join("\n\n") || null;
+  const durable = isReply(to)
+    ? saveDraft(to, held ? `${text}\n\n${held}` : text, payload, null)
+    : saveDraft(to, text, payload, held);
+  keepWritingPlace({
+    context: to,
+    selection: selection ?? [0, 0],
+    generation: randomId(),
+  });
+  if (durable && settleDraft(from, source.attempt))
+    projectDraftRecord(from, draftCache.get(from).record);
+  tellDraft(to, activeDraftRecord(to)?.text ?? text, payload);
+  return true;
+}
+// Put words the user put away back into `ctx`, as a new generation every view shows,
+// unless it holds words of its own: those are newer than the words coming back. Shared
+// storage is re-read first, since another tab's storage event may not have arrived.
+export function restoreDraft(ctx, text, payload) {
+  refreshDraftRecord(ctx);
+  if (draftHasContent(ctx)) return false;
+  saveDraft(ctx, text, payload);
+  tellDraft(ctx, text, payload);
+  return true;
+}
+export const loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
+export const loadDraftPayload = (ctx) => activeDraftRecord(ctx)?.payload;
+export const draftContexts = () =>
+  new Set([
+    ...draftCache.keys(),
+    ...draftStore
+      .keys()
+      .filter((key) => key.startsWith(DRAFT))
+      .map((key) => key.slice(DRAFT.length)),
+  ]);
+
+// The log is authoritative over a stale active storage record. Run after each poll so a
+// remove-resistant record from an accepted send becomes a tombstone in every live tab;
+// activeDraftRecord already masks it during the write attempt itself.
+export function settleAcceptedDrafts() {
+  for (const ctx of draftContexts()) {
+    const record = refreshDraftRecord(ctx);
+    if (
+      record &&
+      !record.settled &&
+      attemptAccepted(record.attempt) &&
+      settleDraft(ctx, record.attempt)
+    )
+      tellDraft(ctx, null);
+  }
+}
+
+// One draft generation has one attempt across every tab showing this page. Two tabs may
+// POST it together; the append-locked log returns the same event to both. The attempt is
+// also what lets a replacement tab recover after the first sender dies.
+//
+// Attempt and exact untrimmed text are rechecked immediately before POST. A successful
+// older send settles only that generation; any later edit has a fresh attempt and remains
+// open. This is the claim both senders below make, and the only thing they share: a
+// send that no longer owns its generation appends nothing, whichever lifecycle it is in.
+function claimDraft(ctx, owns) {
+  const before = activeDraftRecord(ctx);
+  const refreshed = refreshDraftRecord(ctx);
+  const current =
+    refreshed && !refreshed.settled && !attemptAccepted(refreshed.attempt)
+      ? refreshed
+      : null;
+  if (
+    !before ||
+    !current ||
+    current.attempt !== before.attempt ||
+    current.text !== before.text ||
+    !owns()
+  )
+    return null;
+  return current;
+}
+
+// Both senders below stage the same way, because both draw their result in the document
+// before the log has answered: `post` paints the message in its thread, and a dispatched
+// action paints its projected outcome. So the box stops showing words the user can now
+// see painted, while the record keeps them — one copy of the words on screen, and a
+// generation still owed an answer. Acceptance settles exactly that generation. A refusal
+// withdraws the result and lifts the mask, so the box the user typed in has the words
+// again; the record stood in the store throughout, which is what a tab that went down
+// with the send recovers from.
+const standGesture = (ctx, current) => {
+  sentAttempts.set(ctx, current.attempt);
+  tellDraft(ctx, null);
+  return (sent) => {
+    // Lift this generation's mask, not whatever is current for the context: a second
+    // send into the box this one emptied has masked its own words by the time this
+    // answer arrives, and they are on screen as a gesture of their own.
+    if (sentAttempts.get(ctx) === current.attempt) sentAttempts.delete(ctx);
+    if (sent) {
+      if (settleDraft(ctx, current.attempt)) tellDraft(ctx, null);
+      return;
+    }
+    // A later edit of their own has a fresh attempt and is not this generation, and
+    // keeps the box.
+    if (activeDraftRecord(ctx)?.attempt !== current.attempt) return;
+    tellDraft(ctx, current.text);
+  };
+};
+
+// An action the sender waits on: a widget edit, an added option. Its dispatch paints the
+// projected outcome before the delivery it returns resolves, so the words are already
+// shown in the document by the time this awaits them. The caller's own control shows
+// the wait.
+export async function sendDraft(ctx, owns, send) {
+  const current = claimDraft(ctx, owns);
+  if (!current) return null;
+  const flight = send(current.attempt, current.payload);
+  const answer = standGesture(ctx, current);
+  const sent = await flight;
+  answer(sent);
+  return sent;
+}
+
+// A message, whose result is the words themselves. `post` stages and paints it before it
+// returns, so the caller continues against a thread the user can already see and the
+// round trip happens behind them.
+//
+// The returned handle names the message the send drew. It is what a caller opens or
+// focuses, and the log's answer renames that same node rather than replacing it. A send
+// the page refuses before posting, such as a reply to a thread being settled, drew
+// nothing: the words stay in the box and the caller hears null, as for a draft it could
+// not claim.
+export function sendMessage(ctx, owns, send) {
+  const current = claimDraft(ctx, owns);
+  if (!current) return null;
+  const flight = send(current.attempt, current.payload);
+  const answer = standGesture(ctx, current);
+  if (!flight) {
+    answer(null);
+    return null;
+  }
+  // A first message opens a thread keyed by its attempt. Until the log takes it, the
+  // draft it was sent from owns what is written under it, and a reply a refusal handed
+  // back to that draft (`held`) stands in the box of the thread this send opens.
+  if (!isReply(ctx)) {
+    openedFrom.set(current.attempt, ctx);
+    const under = replyContext(current.attempt);
+    if (current.held && !activeDraftRecord(under)) {
+      saveDraft(under, current.held);
+      tellDraft(under, current.held);
+    }
+  }
+  // A sent first message now has a durable conversation identity: its attempt is
+  // the thread key before and after admission. Continue there, with an empty reply.
+  // Refusal returns to the same original editor unless a later edit chose another.
+  const previousPlace = writingPlace;
+  const sentPlace =
+    previousPlace?.context === ctx
+      ? {
+          context: isReply(ctx) ? ctx : replyContext(current.attempt),
+          selection: [0, 0],
+          generation: previousPlace.generation,
+        }
+      : null;
+  if (sentPlace) keepWritingPlace(sentPlace);
+  void Promise.resolve(flight).then((sent) => {
+    answer(sent);
+    if (sent) openedFrom.delete(current.attempt);
+    if (
+      !sent &&
+      sentPlace &&
+      writingPlace?.generation === sentPlace.generation &&
+      writingPlace.context === sentPlace.context
+    )
+      keepWritingPlace(previousPlace);
+  });
+  return { attempt: current.attempt, id: `${PENDING}${current.attempt}` };
+}
+
+// The draft each first message still in flight was sent from, by its attempt. The
+// draft, not the attempt, is what lasts: a refusal keeps the attempt only until the
+// user edits the words, and the thread comes back under whichever one is sent.
+const openedFrom = new Map();
+
+// Existing draft subscriptions own current editor identity and lifetime. The store
+// supplies active words and an optional submission payload, or null and no payload
+// for settlement. Editor membership is mechanical: connected root editors recover
+// by context, and retained reply mirrors land through their current thread owner.
+// Unsubscribing retires that membership alongside the listener.
+//
+// It does not run on subscribe, which is where this parts company with controller state. The
+// draft a box opens with and the news that another tab changed one are different facts,
+// and the boxes answer them differently: a draft editor opens on recovery at load and
+// stays shut for a keystroke made elsewhere, because news arriving has no gesture behind
+// it and so may move nothing.
+const draftEditors = new Set();
+
+// Resume writing is mechanical page state, owned alongside editor identity. Only a
+// content edit changes its destination; focus, draft mirroring and automatic recovery do
+// not. The one context and caret survive reload with the words. Reveal capabilities
+// belong to the editor's existing owner, and reply mirrors use the canonical thread
+// destination supplied by the composition root. No editor node is stored as identity.
+// The places written in before the current one stand behind it, newest last, one for
+// each context, so a place whose words are put away hands Resume writing back to the
+// latest earlier one still holding words; they survive reload with it.
+const WRITING_PLACE = "lf-writing-place";
+const isPlace = (place) =>
+  typeof place?.context === "string" &&
+  typeof place.generation === "string" &&
+  Array.isArray(place.selection) &&
+  place.selection.slice(0, 2).every(Number.isInteger);
+let [writingPlace, earlierPlaces] = (() => {
+  try {
+    const stored = JSON.parse(draftStore.get(WRITING_PLACE));
+    if (!isPlace(stored)) return [null, []];
+    const { earlier = [], ...place } = stored;
+    return [place, Array.isArray(earlier) ? earlier.filter(isPlace) : []];
+  } catch {
+    return [null, []];
+  }
+})();
+const writingRoutes = new Map();
+const writingRoute = (ctx) =>
+  [...writingRoutes].find(([prefix]) => ctx.startsWith(prefix))?.[1];
+const editorInput = (editor) =>
+  typeof editor.input === "function" ? editor.input() : editor.input;
+const storeWritingPlace = () =>
+  draftStore.set(
+    WRITING_PLACE,
+    writingPlace && JSON.stringify({ ...writingPlace, earlier: earlierPlaces }),
+  );
+const keepWritingPlace = (place) => {
+  if (writingPlace && writingPlace.context !== place.context)
+    earlierPlaces = [
+      ...earlierPlaces.filter(
+        ({ context }) => context !== writingPlace.context && context !== place.context,
+      ),
+      writingPlace,
+    ].slice(-8);
+  writingPlace = place;
+  storeWritingPlace();
+};
+// Words put away, discarded or sent, leave nowhere to resume there: Resume writing goes
+// back to the latest place still holding words, or a destination its owner can resume
+// without words, as a drawing's composer.
+export function forgetWritingPlace(ctx) {
+  earlierPlaces = earlierPlaces.filter(({ context }) => context !== ctx);
+  if (writingPlace?.context !== ctx) return storeWritingPlace();
+  writingPlace = null;
+  while (earlierPlaces.length && !writingPlace) {
+    const place = earlierPlaces.pop();
+    if (
+      draftHasContent(place.context) ||
+      writingRoute(place.context)?.(place.context)?.hasContent
+    )
+      writingPlace = place;
+  }
+  storeWritingPlace();
+}
+// What a refusal left the user, given every attempt it refused, read once each sender's
+// own answer has returned its words (`standGesture`) and any owner has reopened its box
+// for them.
+//
+// A thread this tab opened goes with its first message, and with it the box under it,
+// whose draft keys by that message's attempt (`reply:<attempt>`), whether its words were
+// sent behind the message or still unsent. That box began with any reply the draft held,
+// so its words now are the draft's held reply (`held`), part of the draft the message
+// was sent from (`openedFrom`), which brings them to the thread its next send opens,
+// edited, carried elsewhere or not (`sendMessage`). Resume writing, shown in the
+// withdrawn box, moves to that draft, the one place the user acts to get them back.
+//
+// Words back in a box on screen need no sentence. Words back only in a box out of view
+// are the ones a refusal otherwise appears to lose, so they become the Resume writing
+// destination, a content change to that draft like any other, and the refusal's error
+// carries the sentence naming that address (delivery.js). The error is about the box on
+// screen the sending gesture's words came back to, where there is one (`field`).
+//
+// Resume writing comes back to words a refusal handed back at their end (`atEnd`), as a
+// press on the error over them does (composing/input.js), so Enter sends them.
+export function keepRefusedWords(attempts) {
+  // The draft's length, which the editor clamps to the end of its words, since any
+  // attached images follow them.
+  const atEnd = (ctx) => {
+    const end = (activeDraftRecord(ctx)?.text ?? "").length;
+    return [end, end];
+  };
+  let held = 0;
+  for (const attempt of attempts) {
+    const from = openedFrom.get(attempt);
+    openedFrom.delete(attempt);
+    const under = replyContext(attempt);
+    const box = activeDraftRecord(under);
+    if (from === undefined || !box || !holdReply(from, box.text)) continue;
+    const resumed = writingPlace?.context === under;
+    clearDraft(under);
+    if (resumed)
+      keepWritingPlace({
+        context: from,
+        selection: atEnd(from),
+        generation: randomId(),
+      });
+    if (box.text) held += 1;
+  }
+  const returned = attempts.flatMap((attempt) => {
+    const ctx = [...draftContexts()].find(
+      (context) => activeDraftRecord(context)?.attempt === attempt,
+    );
+    return ctx === undefined ? [] : [ctx];
+  });
+  const shownIn = (ctx) =>
+    [...draftEditors]
+      .filter((view) => view.ctx === ctx)
+      .map((view) => editorInput(view))
+      .find((input) => input?.isConnected && input.checkVisibility()) ?? null;
+  const hidden = returned.filter((ctx) => !shownIn(ctx));
+  // Words back where Resume writing already goes are resumed at their end too, not at
+  // the caret the send left.
+  const resumes = returned.find((ctx) => ctx === writingPlace?.context);
+  if (resumes !== undefined)
+    keepWritingPlace({ ...writingPlace, selection: atEnd(resumes) });
+  // The gesture delivery was sending comes first, so it is the place Resume writing
+  // reaches first, and the others stand behind it.
+  for (const ctx of hidden.toReversed())
+    if (writingPlace?.context !== ctx)
+      keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
+  const sentences = [
+    hidden.length && "Draft kept — g i resumes writing",
+    held && "Reply kept — it comes back once its comment is saved",
+  ].filter(Boolean);
+  return {
+    said: sentences.length ? sentences.join(". ") : null,
+    field: returned.map(shownIn).find(Boolean) ?? null,
+  };
+}
+const writingEditor = () =>
+  [...draftEditors].find((editor) => editorInput(editor) === focused());
+const keepWritingCaret = () => {
+  const editor = writingEditor();
+  if (editor && editor.ctx === writingPlace?.context)
+    keepWritingPlace({ ...writingPlace, selection: readCaret(editorInput(editor)) });
+};
+export function rememberWriting(input) {
+  const editor = [...draftEditors].find((view) => editorInput(view) === input);
+  if (editor)
+    keepWritingPlace({
+      context: editor.ctx,
+      selection: readCaret(input),
+      generation: randomId(),
+    });
+}
+document.addEventListener("input", (event) => {
+  const editor = [...draftEditors].find((view) =>
+    event.composedPath().includes(editorInput(view)),
+  );
+  if (editor) rememberWriting(editorInput(editor));
+});
+document.addEventListener("keyup", (event) => {
+  // The gesture's end, not `selectionchange`, which fires on every typed character and
+  // every step of a drag: the place is stored once per gesture.
+  if (CARET_KEYS.includes(event.key) || selectsAll(event)) keepWritingCaret();
+});
+document.addEventListener("pointerup", keepWritingCaret);
+
+export function registerWritingDestination(prefix, reveal) {
+  // Availability can include an empty current editor. hasContent tells fallback
+  // selection whether its owner holds work beyond the shared draft's words.
+  writingRoutes.set(prefix, reveal);
+  return () => writingRoutes.delete(prefix);
+}
+
+// Words nothing on the active document holds a box for, as when a version removes the
+// content an edit was for, join the page's own draft after the words it already holds,
+// and Resume writing moves with them (`transferDraft`): one copy, sent or put away like
+// any page comment. Whatever took the box away, the words now stand where a comment
+// about no particular place is written.
+function moveToPage(ctx) {
+  const words = loadDraft(ctx) ?? "";
+  const text = [loadDraft(PAGE_DRAFT), words].filter(Boolean).join("\n\n");
+  if (!transferDraft(ctx, PAGE_DRAFT, text)) return false;
+  const shift = text.length - words.length;
+  const [start, end, ...direction] = writingPlace.selection;
+  keepWritingPlace({
+    ...writingPlace,
+    selection: [start + shift, end + shift, ...direction],
+  });
+  return true;
+}
+
+// `holdsThreadDraft` answers whether the thread or message a thread-held draft is
+// written under still stands; any other draft is held by a route declared for its kind
+// or an editor registered for it, each for its owner's lifetime.
+export function createWritingResume({
+  revealInThread,
+  arriveEditor,
+  holdsThreadDraft,
+}) {
+  const holdsBox = (ctx) =>
+    threadDraft(ctx)
+      ? holdsThreadDraft(ctx)
+      : Boolean(writingRoute(ctx)) ||
+        [...draftEditors].some((view) => view.ctx === ctx);
+  const resume = async () => {
+    const place = writingPlace;
+    if (!place) return;
+    const intent = retainUserIntent();
+    let input;
+    // A thread view holds its own drafts, which the thread's destination reveals.
+    if (threadDraft(place.context)) input = await revealInThread(place.context, intent);
+    else {
+      const resolve = () => {
+        const route = writingRoute(place.context);
+        const editor = [...draftEditors].find(
+          (view) => view.ctx === place.context && view.resume,
+        );
+        return route ? route(place.context) : editor?.resume();
+      };
+      input = await arriveEditor(resolve, { intent, caret: place.selection });
+    }
+    if (input === undefined || !intent()) return;
+    const matchesEditor = [...draftEditors].some(
+      (view) => view.ctx === place.context && editorInput(view) === input,
+    );
+    if (
+      matchesEditor &&
+      input?.isConnected &&
+      input.checkVisibility() &&
+      !input.readOnly &&
+      !input.disabled
+    ) {
+      // Coming back to the words is the user dealing with any error over them, as a
+      // press on it is (errors.js, `passErrorsAt`).
+      intent.handoff(() => {
+        passErrorsAt(input);
+        focusDestination(input, "move", { caret: place.selection });
+      });
+      return;
+    }
+    // A document behind the active one may lack a box the active one holds, so only
+    // the active document moves the words to the page.
+    if (runtime.showsActive && !holdsBox(place.context) && moveToPage(place.context)) {
+      notice("Its box is gone, so its words moved to a comment on the page");
+      return resume();
+    }
+    // A box that stands but takes no words now, as a resolved thread's in the floating
+    // panel, is no fault of the version shown.
+    raiseError(
+      `That writing place is unavailable${runtime.showsActive ? "" : " on this version"}`,
+    );
+  };
+  return {
+    id: "writing.resume",
+    keys: ["i"],
+    title: "Resume writing",
+    touch: "Resume writing",
+    menu: "keys",
+    travels: true,
+    when: () => writingPlace !== null,
+    run: resume,
+  };
+}
+
+// A subscription owns its editor's context and lifetime. A context's root editor is
+// the box it is written in directly, which takes the caret back after a revision.
+// Replies explicitly declare mirrors and land through their thread owner.
+// A revision carries mechanical editing, never another copy of the draft's words.
+export function captureDraftEditing(input = focused()) {
+  const editor = [...draftEditors].find((view) => editorInput(view) === input);
+  if (!editor) return null;
+  return {
+    context: editor.ctx,
+    mirrored: editor.mirrored,
+    attempt: activeDraftRecord(editor.ctx)?.attempt,
+    words: input.value,
+    selection: readCaret(input),
+    scroll: [input.scrollLeft, input.scrollTop],
+  };
+}
+
+export const draftEditingStands = (editing) =>
+  Boolean(editing) && activeDraftRecord(editing.context)?.attempt === editing.attempt;
+
+// The root editor a revision hands the caret back to, shown first through its owner's
+// Resume writing route when a disclosure holds it shut; `handoff` gates that showing on
+// the user's intent. A root off the page counts when its owner's route places it there,
+// as the page comment card places its box at its first open, and so does one whose
+// owner has no box until that route builds it, as a closed document edit has none.
+export function draftEditingDestination(editing, handoff) {
+  const shown = (view) =>
+    Boolean(editorInput(view)?.checkVisibility({ visibilityProperty: true }));
+  const placed = (view) => editorInput(view)?.isConnected;
+  const roots = [...draftEditors].filter(
+    (view) =>
+      view.ctx === editing.context && !view.mirrored && (placed(view) || view.resume),
+  );
+  const editor = roots.find(shown) ?? roots.find(placed) ?? roots[0];
+  if (!editor) return null;
+  // A route may have no place to offer now, or no disclosure of its own to open.
+  const open = shown(editor) ? null : editor.resume?.()?.open;
+  if (open) handoff(open);
+  return shown(editor) ? editorInput(editor) : null;
+}
+
+export function restoreDraftEditing(editing, input) {
+  if (!draftEditingStands(editing)) return false;
+  const editor = [...draftEditors].find((view) => editorInput(view) === input);
+  if (
+    !editor ||
+    editor.ctx !== editing.context ||
+    !input.isConnected ||
+    !input.checkVisibility() ||
+    input.value !== editing.words ||
+    focused() !== input
+  )
+    return false;
+  focusDestination(input, "return", { caret: editing.selection });
+  [input.scrollLeft, input.scrollTop] = editing.scroll;
+  return true;
+}
+
+export function watchDraft(
+  ctx,
+  callback,
+  { input = null, mirrored = false, resume = null } = {},
+) {
+  const editor = input && { ctx, input, mirrored, resume };
+  if (editor) draftEditors.add(editor);
+  const update = (ev) =>
+    ev.detail.ctx === ctx && callback(ev.detail.value, ev.detail.payload);
+  document.addEventListener(DRAFT_NEWS, update);
+  return () => {
+    document.removeEventListener(DRAFT_NEWS, update);
+    if (editor) draftEditors.delete(editor);
+  };
+}
+// News of every draft whose context starts with `prefix`, for a reader of a whole kind
+// of draft rather than one box's.
+export function watchDrafts(prefix, callback) {
+  const update = (ev) => ev.detail.ctx.startsWith(prefix) && callback(ev.detail.ctx);
+  document.addEventListener(DRAFT_NEWS, update);
+  return () => document.removeEventListener(DRAFT_NEWS, update);
+}
+addEventListener("storage", (ev) => {
+  const prefix = whereDraft("").key;
+  // Null where the whole store was cleared, and every key of another page on this origin
+  // besides — a published site serves each example from one root.
+  if (!ev.key?.startsWith(prefix)) return;
+  const ctx = ev.key.slice(prefix.length);
+  const incoming = parseDraftRecord(ev.newValue);
+  const cached = draftCache.get(ctx);
+  const current = cached?.record;
+  // Reconcile the same way the lock callback does. A nondurable branch can reassert
+  // itself over its base (including that base's tombstone), but unrelated active news
+  // is a later shared generation and retires the local branch.
+  if (current && !cached.durable) {
+    if (sameDraftRecord(current, incoming)) cached.durable = true;
+    else if (sharedIsBaseOf(current, incoming)) {
+      cached.durable = writeDraftRecord(ctx, current);
+      return;
+    }
+  }
+  if (incoming) draftCache.set(ctx, { record: incoming, durable: true });
+  else draftCache.delete(ctx);
+  const active = incoming && !incoming.settled && !attemptAccepted(incoming.attempt);
+  tellDraft(ctx, active ? incoming.text : null, active ? incoming.payload : undefined);
+});
+
+// One box's view of one draft: sync.load() takes the complete durable value, splits the
+// attached-media projection that is not exposed in the field back out of it, and makes
+// the visible words, the media shelf, and the Send button agree. It leaves a value the
+// box already holds alone, because writing .value on a focused box moves the caret to
+// the end. The box grows to fit either way, sizing being the stylesheet's (wireInput).
+//
+// A retained editor remains a draft view during candidate detachment and receives
+// concurrent draft changes before rollback reconnects it. Its owner explicitly disposes
+// that lifetime on committed removal. Ordinary inputs retire on disconnection. The
+// owner receives the original notification after hydration: null can mask a provisional
+// send or report settlement, so its lifecycle reads canonical draft availability.
+// `blank` answers what the box holds with no draft: nothing for a new message, and the
+// message's own words for a rewrite of it.
+/** @param {any} ta @param {any} sync @param {any} ctx
+ * @param {{
+ *   retained?: boolean,
+ *   mirrored?: boolean,
+ *   resume?: any,
+ *   onChange?: (value: string | null) => void,
+ *   blank?: () => string,
+ * }} [options] */
+export function mirrorDraft(
+  ta,
+  sync,
+  ctx,
+  {
+    retained = false,
+    mirrored = false,
+    resume = null,
+    onChange = () => {},
+    blank = () => "",
+  } = {},
+) {
+  const off = watchDraft(
+    ctx,
+    (value) => {
+      if (!retained && !ta.isConnected) return off();
+      sync.load(value ?? blank());
+      onChange(value);
+    },
+    { input: ta, mirrored, resume },
+  );
+  return off;
+}
+// Reply drafts are never pruned. A thread resolving is not a discard: another
+// tab's Resolve, or this tab accepting a suggestion whose action `resolves`,
+// used to sweep an unsent reply out of storage — words going missing, where the
+// norm is that Cancel is the only discard. A thread a retraction reopens finds
+// the draft where it was left.

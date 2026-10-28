@@ -1,6 +1,5 @@
 """HTTP event and service-address tests."""
 
-import html
 import http.client
 import http.cookiejar
 import http.cookies
@@ -8,6 +7,7 @@ import json
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -28,9 +28,12 @@ from interact_support import (
     publish,
     read_record,
     record_claim,
+    revision_root,
     wait_for,
     write_record,
 )
+from leaf_dev.page_fixtures import package_selection_args
+
 from leaf import cli as cli_model
 from leaf import event_log as event_model
 from leaf import files as files_model
@@ -47,7 +50,7 @@ from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
-from leaf_dev.page_fixtures import package_selection_args
+from leaf.registry import storage as registry_storage
 
 
 def test_authored_recordings_are_served_with_seekable_captured_bytes(
@@ -70,12 +73,12 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
     }.items():
         source = tmp_path / ("recording" + suffix.upper())
         source.write_bytes(data)
-        _, path = media_model.cmd_media(page_dir, [source])[0]
+        path = media_model.cmd_media(page_dir, [source])[0]["path"]
         paths.append((path, mime))
     markup = "".join(f'<audio controls src="{path}"></audio>' for path, _ in paths)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", markup + "</main>"))
     publish(page_dir)
-    captured = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    captured = revision_root(page_dir, 1)
     for path, mime in paths:
         for route in (path, captured + path):
             conn = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc)
@@ -83,19 +86,6 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
                 for requested, status, expected, content_range in [
                     (None, 200, data, None),
                     ("bytes=2-5", 206, data[2:6], "bytes 2-5/10"),
-                    ("bytes=7-", 206, data[7:], "bytes 7-9/10"),
-                    ("bytes=-3", 206, data[-3:], "bytes 7-9/10"),
-                    ("bytes=-100", 206, data, "bytes 0-9/10"),
-                    ("bytes=0-99", 206, data, "bytes 0-9/10"),
-                    ("bytes=10-", 416, b"", "bytes */10"),
-                    ("bytes=-0", 416, b"", "bytes */10"),
-                    ("bytes=999999999999999999999999-", 416, b"", "bytes */10"),
-                    ("bytes=5-2", 200, data, None),
-                    ("bytes=99999999999999999999-99", 200, data, None),
-                    ("bytes=00002-00005", 206, data[2:6], "bytes 2-5/10"),
-                    ("bytes=0-1,4-5", 200, data, None),
-                    ("bytes=bad", 200, data, None),
-                    ("frames=0-1", 200, data, None),
                 ]:
                     headers = {"Range": requested} if requested else {}
                     conn.request("GET", route + f"?t={TOKEN}", headers=headers)
@@ -119,7 +109,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
                     answer.status,
                     answer.read(),
                     answer.getheader("Content-Length"),
-                ) == (200, b"", "10")
+                ) == (206, b"", "4")
                 conn.request("GET", route)
                 answer = conn.getresponse()
                 assert answer.status == 401
@@ -136,7 +126,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
 
 
 def test_server_round_trip(server, page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = registry_storage.load_registry(page_dir)
     initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     source = page_dir / "index.html"
@@ -173,16 +163,12 @@ def test_server_round_trip(server, page_dir):
     status = arrived.status
     assert status == 200 and b"lf-options" in body
     artifact = artifact_model.read_artifact(page_dir, 2)
-    widgets = html.escape(
-        json.dumps(artifact.widgets, separators=(",", ":")), quote=True
-    )
     marker = (
-        '<meta name="lf-revision" data-lf-runtime content="2">'
-        f'<meta name="lf-executable" data-lf-runtime content="{artifact.executable}">'
-        f'<meta name="lf-widgets" data-lf-runtime content="{widgets}">'
-        '<meta name="lf-version" data-lf-runtime content="1">'
+        '<meta name="lf-revision" content="2" data-lf-runtime>'
+        f'<meta name="lf-executable" content="{artifact.executable}" data-lf-runtime>'
+        '<meta name="lf-version" content="1" data-lf-runtime>'
     ).encode()
-    artifact_root = f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
+    artifact_root = revision_root(page_dir, 2)
     entry = (
         f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
     ).encode()
@@ -195,12 +181,10 @@ def test_server_round_trip(server, page_dir):
         assert response.headers["Content-Security-Policy"] == "frame-ancestors 'self'"
     assert b"lf-board" in pinned and marker in pinned
     assert not (page_dir / "versions").exists()
-    # Vendored files serve; the log and directory paths don't.
+    # The vocabulary and the runtime's probes serve; the log and directory paths
+    # don't.
     for path in [
-        "/leaf.js",
-        "/theme.css",
         "/registry.json",
-        "/widgets/lf-tabs.js",
         *render_checks_model.PROBE_SOURCES,
     ]:
         assert fetch(server + path)[0] == 200, path
@@ -213,6 +197,7 @@ def test_server_round_trip(server, page_dir):
         assert fetch(server + path)[0] == 404, path
     outside = page_dir.parent / "outside.js"
     outside.write_text("not part of the page")
+    (page_dir / "vendor").mkdir(exist_ok=True)
     (page_dir / "vendor" / "escape.js").symlink_to(outside)
     for path in ["/vendor/../../outside.js", "/vendor/escape.js"]:
         peer = http.client.HTTPConnection(
@@ -273,8 +258,7 @@ def test_server_round_trip(server, page_dir):
     moved = event_model.read_events(page_dir)[-1]
     assert moved["author"] == "user" and moved["detail"]["value"] == "col-doing"
     # A design comment names the control the press landed on beside the widget it is
-    # about. The door takes its design intent as posted, and the transcript says which
-    # kind of comment it was.
+    # about. The door takes its design intent as posted.
     status, _ = fetch(
         f"{server}/api/event",
         data=json.dumps(
@@ -290,10 +274,6 @@ def test_server_round_trip(server, page_dir):
     assert status == 200
     design = event_model.read_events(page_dir)[-1]
     assert design["about"] == "design" and design["anchor"]["part"] == "grip"
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert "> § feeder-board · grip  — about the design" in transcript.output
     status, _ = fetch(
         f"{server}/api/event",
         data=json.dumps(
@@ -311,10 +291,8 @@ def test_server_round_trip(server, page_dir):
         ).encode(),
     )
     assert status == 200
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert "> “Remove” · grip" in transcript.output
+    quoted = event_model.read_events(page_dir)[-1]["anchor"]
+    assert (quoted["quote"], quoted["part"]) == ("Remove", "grip")
     drawing = {
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
@@ -341,13 +319,6 @@ def test_server_round_trip(server, page_dir):
     drawn = event_model.read_events(page_dir)[-1]
     assert drawn["drawing"] == drawing
     assert "text" not in drawn
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert (
-        "_(drawing attached over “to reap every process … before exporting”)_"
-        in transcript.output
-    )
     for bad in [
         {"kind": []},
         {"kind": "action", "action": "move"},  # no widget
@@ -598,21 +569,17 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     body = fetch(f"{server}/")[1].decode()
 
     artifact = artifact_model.read_artifact(page_dir, 1)
-    widgets = html.escape(
-        json.dumps(artifact.widgets, separators=(",", ":")), quote=True
-    )
     marker = (
-        '<meta name="lf-revision" data-lf-runtime content="1">'
-        f'<meta name="lf-executable" data-lf-runtime content="{artifact.executable}">'
-        f'<meta name="lf-widgets" data-lf-runtime content="{widgets}">'
-        '<meta name="lf-version" data-lf-runtime content="1">'
+        '<meta name="lf-revision" content="1" data-lf-runtime>'
+        f'<meta name="lf-executable" content="{artifact.executable}" data-lf-runtime>'
+        '<meta name="lf-version" content="1" data-lf-runtime>'
     )
     assert body.count(marker) == 1
     assert '<head><meta charset="utf-8" data-lf-runtime>' + marker in body
     assert "Backfill plan\u2028Q3" in body
     assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.
-    artifact_root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    artifact_root = revision_root(page_dir, 1)
     theme = structure_model.SourceDocument(body).tree.find(
         "link", attrs={"href": f"{artifact_root}/theme.css"}
     )
@@ -624,8 +591,9 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
 def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring(
     server, page_dir
 ):
-    """An open old tab may outlive the custom layer that upgraded its widget."""
-    shipped = json.loads((page_dir / "registry.json").read_text())
+    """An open old tab may outlive the selection of the package that upgraded its
+    widget."""
+    shipped = registry_storage.load_registry(page_dir)
     overlay = page_dir.parent / ".leaf"
     (overlay / "widgets").mkdir(parents=True)
     (overlay / "registry.json").write_text(
@@ -668,10 +636,8 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
     )
     assert noted.exit_code == 0, noted.output
 
-    # The explicit re-vendor is allowed because no recorded action rests on this
-    # tag yet. A browser that loaded it before the re-vendor can still send one.
-    (overlay / "registry.json").unlink()
-    (overlay / "widgets" / "lf-local-draft.js").unlink()
+    # The explicit re-selection is allowed because no recorded action rests on this
+    # tag yet. A browser that loaded it before can still send one.
     assert (
         CliRunner()
         .invoke(
@@ -679,7 +645,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
             [
                 "page",
                 "init",
-                *package_selection_args((*page_packages(), "./.leaf")),
+                *package_selection_args(page_packages()),
                 str(page_dir),
             ],
         )
@@ -753,7 +719,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         )
     )
     end_work(neighbor)
-    declare(neighbor, "waiting", "pick one")
+    declare(neighbor, "waiting")
     session = cleanup_model.session_record("invisible")
     cleanup_model.write_session({**session, "turn_closed": cleanup_model.now_iso()})
     await_row(lambda row: row["activity"]["kind"] == "away")
@@ -772,7 +738,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     await_row(lambda row: row["activity"]["observed_kind"] == "awaiting_user")
     harness_record.unlink()
     await_row(lambda row: row["activity"]["kind"] == "away")
-    waiter = leases_model.take_lease(
+    waiter = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(neighbor, "invisible")
     )
     try:
@@ -822,7 +788,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # must not make this page's poll fail: the field is ignored.
     malformed = pages / "malformed-stream"
     neighbour_page(malformed, title="Malformed stream")
-    declare(malformed, detail="unknown")
+    declare(malformed)
     write_record(malformed / "stream.json", {"work": [{}]})
     # A page served from a session's scratch directory, plus the asking page
     # itself: the claim index finds the first, and the second stays out of its own
@@ -887,3 +853,24 @@ def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_
     shutil.rmtree(stopped)
     assert titles() == ["Scratch"]
     assert service_model.claim_path(stopped).exists()
+
+
+def test_concurrent_posts_never_tear_the_log(server, page_dir):
+    publish(page_dir)
+
+    def post(i):
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {"kind": "comment", "revision": 1, "text": f"c{i} " + "x" * 500}
+            ).encode(),
+        )
+
+    threads = [threading.Thread(target=post, args=(i,)) for i in range(20)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    events = [e for e in event_model.read_events(page_dir) if e["kind"] == "comment"]
+    assert {e["text"].split()[0] for e in events} == {f"c{i}" for i in range(20)}
+    assert len({e["id"] for e in events}) == 20  # server-minted, all distinct

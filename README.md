@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/c68879580a891f99ada806e89ec8aec1cdc41e78/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/c68879580a891f99ada806e89ec8aec1cdc41e78/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/6ad7cc888bbd294fc9e165a9e614b5a9754b2ff8/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/6ad7cc888bbd294fc9e165a9e614b5a9754b2ff8/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/c68879580a891f99ada806e89ec8aec1cdc41e78/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/6ad7cc888bbd294fc9e165a9e614b5a9754b2ff8/demo/demo.gif)
 
 </details>
 
@@ -31,6 +31,10 @@ browser that can reach the machine the agent runs on. No Leaf account or
 configuration is required.
 Users and package authors never need to build Leaf or run a package manager;
 custom widgets are ordinary browser JavaScript.
+
+Install the Leaf plugin, which includes the application, harness integration and
+the Leaf skill. The skill supplies the agent's instructions; copying its directory
+alone does not install the application.
 
 Claude Code:
 
@@ -70,15 +74,22 @@ index. Render checks use the executable named by
 Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 `chromium`, or `chromium-browser` on `PATH`.
 
-In Claude Code, Leaf's hooks module watches the session's pages between turns,
-including after a turn you interrupt, and shows a line above the prompt for each
-page the session holds: a link to the page, what is On you, and its open threads with
-how many have replies you haven't read. Hooks modules are an early-access Claude Code
-feature. Where the module can't wake the session, as in a Claude Code that loads no
-hooks module or after you press Escape, a page messages its session when input
-arrives. A session
-that bypasses permissions holds that message for your approval unless Claude Code's
-`crossSessionInbound` setting is `"accept"`.
+Leaf needs Claude Code 2.1.196 or later, the first release whose hooks name the
+turn they run in. On an earlier one, an update handed into a prompt you interrupt
+waits until that turn ends before it is offered again.
+
+In Claude Code, a background Stop hook watches the session's pages between turns.
+Leaf's hooks module shows a line above the prompt for each page the session owns,
+with a link, items waiting on you, the number of open threads and how many contain
+unread replies, and the agent's activity or waiting status. Ctrl+X Tab
+then Enter opens the first page in your browser, or, in a session you reached over
+SSH, copies its link to your clipboard. Hooks modules are an early-access Claude
+Code feature.
+
+A page messages its session when input arrives while nothing watches it, as can
+happen after you interrupt a turn. A session that bypasses permissions holds that
+message for your approval unless Claude Code's `crossSessionInbound` setting is
+`"accept"`.
 
 </details>
 
@@ -86,8 +97,8 @@ that bypasses permissions holds that message for your approval unless Claude Cod
 <summary>Agent sandboxes</summary>
 
 Leaf's hooks run outside an agent's sandbox, but `leaf` commands run wherever the
-agent's shell commands do, and a sandbox refuses them what they need: writes to
-Leaf's state in `~/.local/state/leaf`, a port on localhost for the page server, and
+agent's shell commands do. The sandbox can block access to resources Leaf needs:
+writes to its state in `~/.local/state/leaf`, a port on localhost for the page server, and
 a browser for render checks.
 
 In Claude Code, Leaf's hook starts a bridge outside the sandbox before the first
@@ -115,6 +126,23 @@ chooses. To allow it without being asked, add this to `~/.codex/config.toml`:
 [plugins."leaf@leaf".mcp_servers.leaf]
 default_tools_approval_mode = "approve"
 ```
+
+The agent's own edits to a page's files still run in Codex's sandbox, which lets
+them write only the task's directory and the temporary directories. So Codex
+refuses each edit to a page in Leaf's state home, or asks you to approve it. To let
+the agent edit pages there, add the state home's `pages` directory to the sandbox's
+writable roots in `~/.codex/config.toml`, inside the `[sandbox_workspace_write]`
+table if you already have one:
+
+```toml
+[sandbox_workspace_write]
+writable_roots = ["~/.local/state/leaf/pages"]
+```
+
+If you set `XDG_STATE_HOME`, the directory is `$XDG_STATE_HOME/leaf/pages`. Every
+command the sandbox runs can then write every page's files, as it can the task's
+directory. Where a task's sandbox lacks the line, the MCP server's first answer in
+that task gives it to the agent to pass on.
 
 </details>
 

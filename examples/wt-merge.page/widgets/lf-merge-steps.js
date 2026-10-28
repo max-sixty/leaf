@@ -3,7 +3,7 @@
 // and how this run treats each one, and adds a line saying why where a step was skipped
 // or stopped the merge. A click on a step holds its result for reading.
 
-import { keeps, keepsText, once } from "/runtime/widget-api.js";
+import { generatedElement, keeps, keepsText, once } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-merge-steps",
@@ -14,6 +14,9 @@ customElements.define(
       if (!once(this)) return;
       const film = document.getElementById(this.getAttribute("for"));
       this.items = [...this.querySelectorAll("li[data-chapter]")];
+      // Each step's run line is this module's, beside the authored sentence.
+      for (const li of this.items)
+        generatedElement(li.querySelector(".this-run"), { says: true });
       for (const li of this.items)
         li.addEventListener("click", () => {
           film.seekChapter(li.dataset.chapter);

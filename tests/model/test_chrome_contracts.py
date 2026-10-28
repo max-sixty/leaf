@@ -5,8 +5,6 @@ import time
 
 import pytest
 from browser.test_chrome_contracts import _ProblemPage
-from leaf.findings import Finding
-from leaf.render_checks import SERVED_TIMEOUT_MS
 from render_harness import (
     Traffic,
     _until,
@@ -14,6 +12,9 @@ from render_harness import (
     consume_browser_errors,
     watched,
 )
+
+from leaf.findings import Finding
+from leaf.render_checks import SERVED_TIMEOUT_MS
 
 
 def said(text):

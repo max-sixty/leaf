@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { JSDOM } from "jsdom";
 
 import { bundleRuntime, runtimeEntries } from "../build/runtime-bundle.mjs";
-import { widgetImports } from "../skills/leaf/assets/runtime/widget-imports.js";
+import { widgetImports } from "../browser/runtime/widget-imports.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 

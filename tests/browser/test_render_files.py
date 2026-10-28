@@ -2,15 +2,21 @@
 
 import io
 
-from leaf.file_bindings import bind_file
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    consume_browser_errors,
     leaf_page,
+    one_frame,
     open_page,
+    primed,
     rendered,
+    scroll_settled,
 )
+
+from browser.test_render_gate import AIM_BOXES, aim_selectors
+from leaf.file_bindings import bind_file
 
 
 def test_file_editor_page_navigation_preserves_the_caret_position(
@@ -99,7 +105,7 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     """Provider defaults yield to package CSS and root inputs in a real bound editor,
     which reads a `.markdown` file as Markdown, as `$languages.paths` says."""
     file = tmp_path / "style.markdown"
-    file.write_text("# A real file\n\nEditable words.\n")
+    file.write_text("# A real file\n\nEditable words and `literal` evidence.\n")
     url = serve(
         leaf_page(
             "Editor theme",
@@ -122,10 +128,13 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
 
     page.evaluate("""() => document.querySelector('#change-theme').addEventListener('click', () => {
       const style = document.createElement('style');
-      style.textContent = ':root { --focus-ring: 7px dashed magenta; --focus-ring-w: 7px; } lf-file-editor { --lf-file-editor-size: 30px; }';
+      style.textContent = ':root { --focus-ring: 7px dashed magenta; --focus-ring-w: 7px; --syn-string: rgb(0, 85, 102); } lf-file-editor { --lf-file-editor-size: 30px; }';
       document.head.append(style);
     })""")
     page.get_by_role("button", name="Change theme", exact=True).click()
+    expect(editor.get_by_text("literal", exact=True)).to_have_css(
+        "color", "rgb(0, 85, 102)"
+    )
     page.keyboard.press("Tab")
     editor.focus()
     assert editor.evaluate("node => node.matches(':focus-visible')")
@@ -216,3 +225,256 @@ def test_file_editor_keeps_the_user_typing_through_a_move(browser, serve, tmp_pa
     expect(editor).to_be_focused()
     page.keyboard.type("X")
     expect(editor).to_have_text("Original.HaXlf")
+
+
+def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
+    browser, serve, tmp_path
+):
+    """Undo belongs to the adopted version; the save shortcut retries failed writes."""
+    file = tmp_path / "notes.md"
+    file.write_text("Baseline notes.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(primed(browser, lambda page: page.clock.install()), live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+
+    def receipt(text):
+        return page.expect_response(
+            lambda response: (
+                response.request.method == "POST"
+                and response.url.endswith("/api/files/notes")
+                and response.status == 200
+                and response.request.post_data_json["text"] == text
+            )
+        )
+
+    def fail_write(route):
+        route.abort() if route.request.method == "POST" else route.continue_()
+
+    page.route("**/api/files/notes", fail_write)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Draft.")
+    page.clock.run_for(600)
+    retry = widget.get_by_role("button", name="Retry", exact=True)
+    expect(retry).to_be_visible()
+    page.unroute("**/api/files/notes", fail_write)
+    with receipt("Baseline notes.\nDraft."):
+        page.keyboard.press("ControlOrMeta+s")
+    expect(retry).to_be_hidden()
+
+    # A clean refresh replaces earlier acknowledged editing history too.
+    file.write_text("Latest file version.\n")
+    page.clock.resume()
+    expect(editor).to_contain_text("Latest file version.")
+    page.keyboard.press("ControlOrMeta+z")
+    rendered(page)
+    expect(editor).to_have_text("Latest file version.")
+    assert file.read_text() == "Latest file version.\n"
+
+    # Editing after adoption still has its ordinary undo and redo.
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("New draft.")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(editor).to_have_text("Latest file version.")
+    with receipt("Latest file version.\nNew draft."):
+        page.keyboard.press("ControlOrMeta+Shift+z")
+        page.keyboard.press("ControlOrMeta+s")
+    page.evaluate("lfWordsJudged()")
+    consume_browser_errors(
+        page,
+        "Failed to load resource: net::ERR_FAILED",
+        {"code": "words-left-screen", "words": "Baseline notes.Draft."},
+    )
+
+
+def test_file_editor_long_filename_keeps_the_phone_editable(browser, serve, tmp_path):
+    """The full filename scrolls within its line, leaving the editor its room."""
+    file = tmp_path / ("research-notes-" * 16 + ".md")
+    file.write_text("Editable on a phone.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(
+        primed(
+            browser, lambda page: page.set_viewport_size({"width": 320, "height": 740})
+        ),
+        live_url(url),
+    )
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    name = widget.locator(".lf-file-editor-name")
+    expect(name).to_have_text(file.name)
+    expect(name).to_have_attribute("tabindex", "0")
+    assert widget.locator(".lf-file-editor-edit").bounding_box()["height"] > 300
+    assert widget.locator(".lf-file-editor-head").bounding_box()["width"] < 320
+    editor.click()
+    expect(editor).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(name).to_be_focused()
+
+
+def test_file_editor_status_controls_take_a_finger_on_a_phone(browser, serve, tmp_path):
+    """Retry and the conflict menu are words in a one-line header, so their press is the
+    header's whole height, and the header has to be tall enough for a finger: at 390px
+    under touch both stood 32px tall. Each is pressed in its own state."""
+    file = tmp_path / "notes.md"
+    file.write_text("Original.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+
+    # A finger from the start: the floor changes the header's height, and a page that
+    # met the finger only when it was measured would shift as the finger arrived.
+    def phone(page):
+        page.clock.install()
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.context.new_cdp_session(page).send(
+            "Emulation.setTouchEmulationEnabled", {"enabled": True}
+        )
+
+    page = open_page(primed(browser, phone), live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+
+    def short_aims(control):
+        expect(widget.locator(control)).to_be_visible()
+        return widget.evaluate_all(AIM_BOXES, aim_selectors())["short"]
+
+    def fail_write(route):
+        route.abort() if route.request.method == "POST" else route.continue_()
+
+    page.route("**/api/files/notes", fail_write)
+    editor.click()
+    page.keyboard.insert_text("Draft.\n")
+    page.clock.run_for(600)
+    assert short_aims(".lf-file-editor-retry") == []
+    page.unroute("**/api/files/notes", fail_write)
+    file.write_text("Changed on disk.\n")
+    widget.get_by_role("button", name="Retry", exact=True).click()
+    page.clock.run_for(100)
+    assert short_aims(".lf-file-editor-conflict") == []
+    consume_browser_errors(
+        page,
+        "Failed to load resource: net::ERR_FAILED",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)",
+    )
+
+
+def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
+    scrollbar_browser, serve
+):
+    """A desktop horizontal scrollbar must not invoke a cross-frame mobile reveal."""
+    page = open_page(
+        scrollbar_browser,
+        serve(
+            leaf_page(
+                "File editor containment",
+                """
+<h1>Containing page</h1><button id="owner">Containing owner</button>
+<div style="height:1400px"></div>
+<lf-sample id="practice" label="File practice" window>
+  <template id="practice-source" data-sample>
+    <style>
+      html { overflow-x:scroll !important; }
+      ::-webkit-scrollbar { width:16px; height:16px; background:#ddd; }
+      ::-webkit-scrollbar-thumb { background:#888; }
+    </style>
+    <script type="module">
+      let height = 220;
+      document.addEventListener('keydown', event => {
+        if (event.key !== 'F2') return;
+        event.preventDefault();
+        document.querySelector('#file').style.setProperty(
+          '--lf-file-editor-height', `${height}px`);
+        height -= 40;
+      });
+    </script>
+    <h1>File practice</h1><div style="width:3000px;height:4px"></div>
+    <lf-file-editor id="file" binding="notes"></lf-file-editor>
+    <div style="height:3000px"></div>
+  </template>
+</lf-sample>
+<div style="height:1400px"></div>
+""",
+            ),
+            packages=["file-editor"],
+        ),
+    )
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    frame = sample.locator("iframe")
+    child = frame.element_handle().content_frame()
+    editor = child.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "true")
+    expect(child.locator(".lf-file-editor-status")).to_have_attribute(
+        "title", "No file is bound as 'notes'."
+    )
+    expect(child.locator(".cm-placeholder")).to_have_text(
+        "No file is bound as 'notes'."
+    )
+    editor.click()
+    expect(editor).to_be_focused()
+    assert child.evaluate("innerHeight - visualViewport.height") > 1
+
+    # Scroll the active editor away, then resize it while its child document is
+    # outside the parent's viewport. CodeMirror defers this layout until visible.
+    child.evaluate("scrollTo(0, 2000)")
+    page.evaluate("scrollTo(0, 0)")
+    scroll_settled(page)
+    page.keyboard.press("F2")
+    top = frame.evaluate("frame => frame.getBoundingClientRect().top + scrollY")
+    before = round(top - page.viewport_size["height"] + 100)
+    page.evaluate("y => scrollTo(0, y)", before)
+    scroll_settled(page)
+    rendered(child)
+    # Visibility delivers the deferred observer and its editor measurement.
+    one_frame(child)
+    rendered(child)
+    assert page.evaluate("scrollY") == before
+
+    page.keyboard.press("F2")
+    rendered(child)
+    one_frame(child)
+    rendered(child)
+    assert page.evaluate("scrollY") == before
+    expect(editor).to_be_focused()
+
+
+def test_an_exported_file_editor_stays_unavailable_without_starting_a_read(
+    browser, serve
+):
+    """A captured page cannot read files; its editor shows that refusal without a busy transition."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Captured file",
+                '<h1>File</h1><lf-file-editor id="file" binding="notes"></lf-file-editor>',
+            ),
+            packages=["file-editor"],
+        ),
+    )
+    editor = page.locator("lf-file-editor")
+    expect(editor.locator(".lf-file-editor-status")).to_contain_text("Unavailable")
+    expect(
+        editor.get_by_role("textbox", name="File contents", exact=True)
+    ).to_have_attribute("aria-readonly", "true")
+    expect(editor.get_by_role("button", name="Retry")).to_be_hidden()

@@ -353,7 +353,7 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
         # Playwright's Chrome for Testing, the browser `provider.mjs` gives the model's
         # live tool: the Python and Node Playwright pins match, so the screenshots, the
         # tool and the recorded version are one build. A Google-signed Chrome would
-        # leave keychain keys behind on macOS (`leaf_dev.browser.shell_executable`).
+        # leave keychain keys behind on macOS.
         with (
             sync_playwright() as playwright,
             playwright.chromium.launch(channel="chromium") as browser,

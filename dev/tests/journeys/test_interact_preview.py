@@ -13,6 +13,7 @@ in a `main` module runs nowhere near the change that breaks it.
 
 import json
 import os
+import re
 import shlex
 import shutil
 import socket
@@ -37,12 +38,14 @@ from interact_support import (
     stamp,
     wait_for,
 )
+from leaf_dev.commands import preview
+from leaf_dev.page_fixtures import read_fixture, record_run_context
+
 from leaf import cli as cli_model
 from leaf import codex_adapter, hosting, leases, server, service, state
 from leaf.harness import claim_harness
 from leaf.interaction_log import read_interactions
-from leaf_dev.commands import preview
-from leaf_dev.page_fixtures import read_fixture, record_run_context
+from leaf.registry.storage import layer_record
 
 from ..model.test_interact_preview import _ScriptedChanges
 
@@ -112,9 +115,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         record_run_context(page, purpose="test", run=tmp_path, test=request.node.nodeid)
         acquired = service.page_claim(page)["acquisition"]
         before = state.session_record(sid)
-        delivery_runtime = Path(before["launcher"]).parent.parent
-        assert delivery_runtime.is_relative_to(ROOT / ".tmp/compiled-runtime")
-        assert (delivery_runtime / "leaf-distribution.json").is_file()
+        assert Path(before["launcher"]) == ROOT / "bin/leaf"
         old = time.time() - timedelta(hours=12).total_seconds()
         claim_path = service.claim_path(page)
         claim = json.loads(claim_path.read_text())
@@ -144,7 +145,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         )
         assert ended.returncode == 0, ended.stderr
         assert state.session_record(sid)["generation"] == before["generation"]
-        assert state.holds_claims(sid)
+        assert state.held_claims(sid)
         assert leases.lock_is_held(preview.preview_lease(page))
         assert server.running_server(page)["url"] == url
 
@@ -373,10 +374,12 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
             return fetch(urlsplit(url)._replace(path=path).geturl(), token=None)
 
         def resource(revision):
+            # Beneath the runtime the preview's server runs, which its document names.
+            document = at("/")[1].decode()
+            runtime = re.search(r'data-lf-runtime-identity="([0-9a-f]+)"', document)[1]
             return (
-                "/revisions/"
-                + revision_path(page, revision).stem
-                + "/page/widgets/lf-reading.js"
+                f"/revisions/{revision_path(page, revision).stem}/{runtime}"
+                "/page/widgets/lf-reading.js"
             )
 
         first = latest_revision(page)
@@ -555,7 +558,7 @@ def test_preview_tracks_committed_layer_across_refused_source_edits(
 
     def changes(_watched):
         def layer():
-            return json.loads((page / "registry.json").read_text())["$layer"]
+            return layer_record(page)
 
         before = layer()
         theme.write_bytes(theme.read_bytes())
@@ -634,8 +637,8 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
             yield {str(manifest), str(source)}
             pytest.fail("Committed package did not rebuild the watch subscription")
         else:
-            installed = json.loads((page / "registry.json").read_text())["$layer"]
-            assert installed["packages"] == [selection]
+            installed = layer_record(page)
+            assert installed["packages"] == ["./packages/package"]
             assert (page / "index.html").read_text() == original
             assert str(theme) in watched.paths
             assert any(
@@ -643,9 +646,11 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
             )
             theme.write_text(":root { --package-proof: 2; }")
             yield {str(theme)}
-            after = json.loads((page / "registry.json").read_text())["$layer"]
-            assert after["generation"] != installed["generation"]
-            assert "--package-proof: 2" in (page / "theme.css").read_text()
+            # The page's copy of the package takes the edit.
+            assert (
+                "--package-proof: 2"
+                in (page / "packages" / "package" / "theme.css").read_text()
+            )
 
     monkeypatch.setattr(
         preview,
@@ -675,7 +680,7 @@ from leaf.service import PageTransaction, claim_page
 from leaf.session import cmd_waiting
 page = Path(sys.argv[1])
 claim_page(page)
-cmd_waiting(page, "Review this page")
+cmd_waiting(page)
 watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 try:
@@ -699,7 +704,7 @@ try:
     assert "leaf wait" in reason and "no delivery adapter" not in reason
 finally:
     with PageTransaction(page) as held:
-        held.set_status("idle", "")
+        held.set_status("idle")
     output, errors = watch.communicate(timeout=30)
     assert watch.returncode == 2, (output, errors)
 """
@@ -830,7 +835,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             comment["answer"]["ref"],

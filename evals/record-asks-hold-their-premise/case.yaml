@@ -1,6 +1,9 @@
 # From a findings page that put each section's claim, figure and demo above a bare
 # question (#1322). Base at 64186bcb9 put them all above the Ask (0 of 3); the change
 # put the figure inside it and the demo after it (3 of 3).
+# Its prompts no longer tell the agent to read the registry entries: without them,
+# base ee04a60be opened the Ask with a paragraph rather than a heading (0 of 3), and
+# stating the heading in authoring-decisions.md fixed it (3 of 3).
 description: record-asks-hold-their-premise
 metadata:
   purpose:
@@ -70,7 +73,6 @@ variants:
           headed "Ship the reconnect fix, step 3 of 5" and "step 4 of 5".
 
         The page directory is not reachable here, so reply with the section's HTML.
-        Read the lf-ask, lf-options and lf-option registry entries before writing it.
     assert:
       - type: llm-rubric
         metric: captures-in-options
@@ -98,7 +100,6 @@ variants:
         Every capture contains the same fields and has the same access controls;
         only the automatic deletion time differs. The choice is still open. The
         page directory is not reachable here, so reply with the section's HTML.
-        Read the lf-options and lf-option registry entries before writing it.
     assert:
       - type: llm-rubric
         metric: compact-values
@@ -162,7 +163,6 @@ variants:
 
         Write the page from this material. No code has changed. The page directory
         is not reachable here, so reply with the complete main element's HTML.
-        Read the lf-ask, lf-options and lf-option registry entries before writing it.
     assert:
       - type: llm-rubric
         metric: arrival-context
@@ -189,3 +189,185 @@ variants:
           decision must offer explicit acceptance and rejection, initially
           undecided. Independent proposals can be grouped only when the group
           explains why each is clear-cut.
+  # From session 2dbc39a0, which wrote 24 decisions from a TODO survey's report and
+  # the TODO lines it cites, without opening the notes behind them. One recommended a
+  # playground's "Show, then take" plus "Say what z takes"; the user asked "how am I
+  # supposed to know what [that] means??", and of another "what was the policy
+  # change??". Since 2026-10-01 about 30 of ~610 decisions on the user's pages drew
+  # such a question. The case gives the agent only what that session had read. Given
+  # the notes' contents as well, base explained both names. At be8d0f9f0 base failed
+  # 3 of 3 in two runs, each time on the calibration decision's unexplained policy
+  # change and in 2 of the last 3 on an unexplained "Show, then take". A rewording of
+  # page-authoring.md's rule on unread sources also failed 3 of 3.
+  unseen-names:
+    metadata:
+      purpose: "Asks: a decision relies on no name the user would have to look up in sources they haven't read."
+    vars:
+      prompt: |
+        The user asked: "Make a Leaf showing decisions we can make to a) make
+        progress with some of our todos / notes or b) remove them"
+
+        A subagent surveyed TODO.md and returned this report:
+
+        > **A7. How far back `z` reaches (L160)**
+        > - Where it stands: the playground in `notes/undo-reach/` already recommends
+        >   "Show, then take" plus "Say what z takes".
+        > - Recommend: accept it, building "Say what z takes" first. It is small,
+        >   Show-then-take needs it anyway, and it alone tells the user what `z` is
+        >   about to undo.
+        >
+        > **L699 "Calibrate agent-driven UI diagnosis" (removable, medium)**
+        > - `notes/agent-driven-ui-quality.md` is untouched since 2026-10-06 (`5ee3fee86`).
+        > - The Tend policy change it proposes was never adopted in `running-tend`.
+        > - `/ui-sweep` and the 2026-10-20 bad-pages eval now measure what it proposed.
+
+        You read the two TODO.md items it cites:
+
+        > - **Decide how far back `z` reaches.** `z` takes back the user's newest gesture
+        >   however old, so on a page left for weeks it can reopen a thread resolved then,
+        >   below the fold, and nothing puts back what an undo took. The
+        >   [undo-reach playground](notes/undo-reach/README.md) compares limits on that reach
+        >   with additions such as redo and a panel of the user's changes, and waits on the
+        >   user's pick.
+        >
+        > - **Calibrate agent-driven UI diagnosis.** Try one known miss and one intentional or
+        >   invalid control with a bounded explorer and cold user. The
+        >   [quality brief](notes/agent-driven-ui-quality.md) also proposes a Tend acceptance-policy
+        >   change; review that proposal with its owner before changing the policy.
+
+        The page will hold about twenty decisions; write these two now. The
+        repository isn't reachable from here, so reply with the two sections' HTML.
+    assert:
+      - type: llm-rubric
+        metric: names-the-user-knows
+        value: |
+          Grade the HTML. The user is the project's maintainer. They know its
+          commands, skills and widgets, but they have read neither the subagent's
+          report nor the notes, the playground or these TODO lines, and don't
+          remember what the notes propose. Read each lf-ask as that user, arriving at
+          it with the rest of the page out of view. Pass only if each decision can be
+          answered from its own lf-ask: every name it takes from those sources is
+          described where the decision uses it, or the decision doesn't rely on it.
+          1. Undo: an option or recommendation naming "Show, then take", "Say what
+             z takes" or another playground design says what that design does.
+          2. UI calibration: an option or reason that rests on "the policy change"
+             or the pilot says what it would change or do.
+          Fail if a decision leans on a name the user would have to look up to
+          choose, such as recommending "Show, then take" without saying what it
+          does, or offering to keep "the Tend policy change" without saying what it
+          is.
+  # From session 6f5623e3, which had just diagnosed why agents built a second drawing
+  # path for lf-diff (#3174) and drafted wording to stop it. Asked to "shade things
+  # like 'never'", it put a keep-or-soften decision on each of three absolutes, with
+  # one-line options such as "Closes the exception the triage agent used, at the
+  # sentence it read". The user wrote "there's not nearly enough context here, this
+  # is a bad question!" on two of them. The prompt carries the reply the session had
+  # just sent, whose shorthand the decisions reused. Stated this plainly, base writes
+  # richer decisions than the session did, but at 41754cb35 still left out what
+  # keeping each absolute costs (tradeoff-stated 1/3 on Claude Code, 1/2 on Codex);
+  # asking for each option's cost, the recommended one's included, made it 3/3 and
+  # 2/2. Both arms still lean on "the triage agent" and "the evals" undescribed
+  # (names-described 0/3 and 0/3), as unseen-names also fails on both.
+  absolutes-in-a-draft:
+    metadata:
+      purpose: "Asks: a decision on a wording says what each choice would change in a case the user can picture, what the recommended one costs, and who any agent or run it cites was."
+    vars:
+      prompt: |
+        You have been diagnosing, for the user, why agents nearly landed a Leaf
+        prototype for issue #3174. The prototype made `lf-diff` draw a patch's rows
+        (file headers, hunk separators, line rows, unhighlighted) itself before first
+        paint, at the metrics Pierre (the diff library the widget delegates to) uses,
+        so nothing moves when Pierre's highlighted drawing replaces it: +850 / −445
+        lines, a second drawing path beside Pierre's. A later measurement found that
+        main already first-paints the raw patch in a plain `<pre>` at about the right
+        height and shifts only 10 px when Pierre's drawing arrives.
+
+        Your notes from the diagnosis:
+        - The triage agent read Leaf's AGENTS.md "Use dependencies" ("writes a
+          mechanism itself only when existing ones can't meet a concrete
+          requirement") and treated "Pierre draws after first paint" as such a
+          requirement.
+        - You drafted wording for CLAUDE.md and Leaf's AGENTS.md (diffs below) and
+          scored it with evals that replay the triage decision. Until the wording
+          said "even in a plain or partial form", Codex kept proposing to draw the
+          rows unhighlighted in an `x-initial` script that reuses Pierre's own
+          structural code, and argued that wasn't a copy.
+
+        Your last reply to the user, sent a few minutes ago:
+
+        > I've added the protection in three places: your global development
+        > principles, Leaf's own principles (which Tend's Codex reviewer applies), and
+        > the Leaf render check that misled every agent about how big the problem was.
+        > Evals show it fixes the recommendation to land the prototype. It only partly
+        > fixes the earlier triage decision.
+        >
+        > **Speed slipped through the dependency exception.** CLAUDE.md lets you build
+        > your own for "a requirement its model lacks", and Leaf's "Use dependencies"
+        > says the same for "a concrete requirement". Agents read "Pierre loads after
+        > first paint" as such a requirement.
+        >
+        > - Codex keeps proposing an unhighlighted first-paint layout of the rows, on
+        >   the condition that it reuses Pierre's own structural code.
+
+        The drafted diffs:
+
+        ```diff
+        --- a/.claude/CLAUDE.md
+        +++ b/.claude/CLAUDE.md
+        @@ #### Canonical Homes
+           dependency's own output, such as a results table of mostly empty cells; fix the setup
+        -  rather than hiding that output behind your own.
+        +  rather than hiding that output behind your own. Speed never justifies a second
+        +  implementation. Where a dependency or module delivers too late or too slowly, make
+        +  that path earlier or faster, or size what shows while it runs; don't reproduce its
+        +  output ahead of it, even in a plain or partial form.
+        --- a/AGENTS.md
+        +++ b/AGENTS.md
+        @@ ## Fix the underlying issue
+        -suggests the shared boundary is still unsettled.
+        +suggests the shared boundary is still unsettled. Reproducing a dependency's or
+        +module's output ahead of it so a result shows sooner, even in a plain or partial
+        +form, leaves the delay in place and adds a second implementation that must keep
+        +agreeing with the first. Make that path earlier or faster, or reserve the room
+        +it will need, as "Responsiveness" does for the server's reading.
+        @@ ### Use dependencies
+         behavior and integration, and writes a mechanism itself only when existing ones
+        -can't meet a concrete requirement. In the browser, use the platform's layout,
+        +can't meet a concrete requirement; arriving too late isn't one ("Fix the
+        +underlying issue"). In the browser, use the platform's layout,
+        ```
+
+        The user then wrote: "make a leaf that has the diffs on
+
+        shade things like "never""
+
+        You are writing that page. The diff sections are done. The page shades
+        three absolutes, "never", "even in a plain or partial form" and "arriving
+        too late isn't one", and puts a decision to the user on each. You'd keep
+        all three. Write the section holding the three decisions. The
+        page directory is not reachable here, so reply with the section's HTML.
+    assert:
+      - type: llm-rubric
+        metric: tradeoff-stated
+        value: |
+          Grade the HTML. The user is the project's maintainer and knows Leaf and its
+          agents. They answer each of the three decisions later from their On me list,
+          with only that decision in view. Pass only if each decision lets them weigh
+          the choice for reasons it states:
+          1. It says what the shaded words change, through a case they can picture:
+             an agent action the words would rule out or allow, such as drawing a
+             diff's rows unhighlighted before Pierre loads. Quoting the sentence
+             alone fails.
+          2. It says what keeping the absolute costs: what it would also forbid or
+             make harder that could be wanted, or the risk it carries. A decision
+             whose options state only what the recommended choice gains fails.
+      - type: llm-rubric
+        metric: names-described
+        value: |
+          Grade the HTML. The user is the project's maintainer and knows Leaf and its
+          agents. They skimmed the reply quoted in the prompt a few minutes earlier,
+          but answer each decision later from their On me list, with only that
+          decision in view, and don't recall the evals or the triage. Pass only if
+          every agent, run or earlier argument a decision leans on is described where
+          it is used. "The exception the triage agent used", "the skeleton Codex
+          proposed" or "the evals" without saying what they were fails.

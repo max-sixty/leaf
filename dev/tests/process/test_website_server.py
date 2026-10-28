@@ -3,6 +3,7 @@
 import itertools
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -23,9 +24,6 @@ from interact_support import (
 from interact_support import (
     append_carried_log_record as append_event,
 )
-from leaf.event_log import read_events
-from leaf.files import revision_path
-from leaf.state import session_record
 from leaf_dev import ROOT, startup
 from leaf_dev.commands import journey, journey_chart, refresh_previews, verify_site
 from leaf_dev.reply_phases import turn_phases
@@ -35,6 +33,10 @@ from process.website_server import (  # noqa: F401
     get,
     write_manifest,
 )
+
+from leaf.event_log import read_events
+from leaf.files import revision_path
+from leaf.state import session_record
 
 
 class _Read:
@@ -84,12 +86,11 @@ class _StateReads:
         return _Read(state)
 
 
-class _FailedFirstTurn:
-    """A deployed page whose first startup fails and whose second ask succeeds."""
+class _FailedTurn:
+    """A deployed page whose turn ends with a failure receipt."""
 
-    def __init__(self, recorded: str, failure: str = "startup_failed"):
+    def __init__(self, failure: str = "startup_failed"):
         self.failure = failure
-        self.recorded = recorded
         self.request = self
         self.keyboard = self
         self.comments: list[dict] = []
@@ -170,7 +171,7 @@ class _FailedFirstTurn:
     def get(self, url: str, **kwargs) -> _Read:
         if url.endswith("/api/state"):
             return _Read(self.state())
-        return _Read({}, f"<main><h1>{self.recorded}</h1></main>")
+        raise AssertionError(f"unexpected document request: {url}")
 
     def state(self) -> dict:
         events = [
@@ -184,23 +185,8 @@ class _FailedFirstTurn:
                 "failure": self.failure,
             },
         ]
-        if len(self.comments) < 2:
-            return {
-                "active": {"revision": 1, "url": "revisions/1.html"},
-                "activity": {"kind": "away", "obligations": []},
-                "events": events,
-            }
-        events.append(
-            {
-                "kind": "reply",
-                "author": "agent",
-                "parent": "comment-2",
-                "responds": "comment-2",
-                "text": "deployment verified",
-            }
-        )
         return {
-            "active": {"revision": 2, "url": "revisions/2.html"},
+            "active": {"revision": 1, "url": "revisions/1.html"},
             "activity": {"kind": "away", "obligations": []},
             "events": events,
         }
@@ -512,7 +498,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     monkeypatch.setattr(
         journey,
         "run_journey",
-        lambda end, version, records=None: {
+        lambda end, version: {
             "version": version,
             "comment": {"eventIds": ["comment"]},
         },
@@ -527,6 +513,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         "harness": "website",
         "origin": "http://127.0.0.1:8080",
         "userEnd": "browser",
+        "case": "waiting",
         "version": "a" * 40,
         "comment": {"eventIds": ["comment"]},
     }
@@ -777,6 +764,34 @@ def test_local_verification_settles_host_network(monkeypatch):
     assert attempts == [verify_site.wait_for_host_network]
 
 
+def test_local_worker_name_is_valid_when_run_suffix_starts_with_underscore(
+    monkeypatch, tmp_path
+):
+    run = tmp_path / "run-_up9yvbg"
+    monkeypatch.setattr(verify_site, "run_directory", lambda parent: run)
+
+    def stop_before_build(*args, **kwargs):
+        raise RuntimeError("stop before building")
+
+    calls = []
+
+    def docker(*args, **kwargs):
+        calls.append(args[0])
+        return subprocess.CompletedProcess(args[0], 0, stdout="")
+
+    monkeypatch.setattr(verify_site, "copy_working", stop_before_build)
+    monkeypatch.setattr(verify_site.subprocess, "run", docker)
+
+    with (
+        pytest.raises(RuntimeError, match="stop before building"),
+        verify_site.local_worker(),
+    ):
+        pass
+
+    name = calls[0][-1].removeprefix("name=^workerd-").removesuffix("-")
+    assert re.fullmatch(r"[a-z0-9]+(?:[._]|__|[-]+[a-z0-9]+)*", name)
+
+
 def test_host_network_waits_for_addresses_to_stop_changing(monkeypatch):
     now = [0.0]
     readings = itertools.chain(["before", "before"], itertools.repeat("after"))
@@ -877,16 +892,15 @@ def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
     contract = load_registry(page_dir)["$events"]["kinds"]["reply"]
     assert event_record_error(contract, replies[0]) is None
     assert journey.turn_failed(replies)
-    assert journey.startup_failed(replies) == (failure == "startup_failed")
     assert journey.deployment_answer(replies, comment["id"]) is None
     assert not owed_answers(page_dir)
     assert harness.attach(page_dir, comment["id"]) is None
 
 
 @pytest.mark.parametrize("failure", ["startup_failed", "rate_limited"])
-def test_the_deploy_gate_retries_only_startup_failures(failure):
-    """A startup retry gets a fresh attempt; a rate limit ends the pass immediately."""
-    context = _FailedFirstTurn("Deployment abcd1234 verified", failure)
+def test_the_deploy_gate_stops_on_the_first_failure(failure):
+    """Failure receipts are evidence; the verifier sends no second model task."""
+    context = _FailedTurn(failure)
     session = journey.Session(
         context,
         context,
@@ -898,18 +912,10 @@ def test_the_deploy_gate_retries_only_startup_failures(failure):
         None,
     )
     asked = journey.ask_until_answered(journey.BrowserEnd(session), "abcd1234")
-    if failure == "rate_limited":
-        assert asked.asks == 1
-        assert asked.turn.answer is None
-        assert len(context.comments) == 1
-        return
-    assert asked.asks == 2
-    assert asked.turn.answer["text"] == "deployment verified"
-    assert asked.turn.published["revision"] == 2
-    first, second = context.comments
-    assert first["attempt"] != second["attempt"]
-    # The second ask continues the page the first turn left rather than an older one.
-    assert second["revision"] == 1
+    assert asked.asks == 1
+    assert asked.turn.answer is None
+    assert asked.turn.replies[0]["failure"] == failure
+    assert len(context.comments) == 1
 
 
 def test_the_deploy_gate_reads_outcomes_independently_of_reply_wording():
@@ -997,13 +1003,7 @@ def test_startup_line_distinguishes_an_unobserved_first_paint():
 def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
     failure,
 ):
-    """A harness failure receipt is terminal, so the wait ends where it lands.
-
-    Every other reading the wait takes is one a live turn can still be passing
-    through, which is why they run to `TURN_PATIENCE`. This one is posted from where
-    the container closes the turn, and waiting the budget out on it would spend five
-    minutes before the second ask that follows it could even start.
-    """
+    """A failure receipt ends the wait without spending a live turn's patience."""
     comment = {"id": "comment-id"}
     working = {
         "active": {"revision": 1, "url": "revisions/1.html"},
@@ -1055,10 +1055,11 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
     after the reply that ended the turn's wait; the journey reads on for it rather
     than reporting the title as never written. The state it reads is the one a page
     server serves, since the journey reads titles from it."""
-    from leaf.event_log import append_event
-    from leaf.thread import title_event
     from leaf_dev.arms import PageClient, serving
     from leaf_dev.review_scenario import prepare
+
+    from leaf.event_log import append_event
+    from leaf.thread import title_event
 
     state, page_dir = tmp_path / "state", tmp_path / "page"
     prepare(ROOT, state, page_dir)
@@ -1222,12 +1223,14 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "message": {"content": [{"type": "thinking", "thinking": ""}]},
             "received_at": at(2.0),
         },
-        call(4.0, ("start", "leaf task start . c1 x"), ("read", "cat threads.md")),
+        call(
+            4.0, ("start", "leaf task start . c1 --text x"), ("read", "cat threads.md")
+        ),
         result(4.1, "read"),
         result(5.0, "start"),
         call(7.0, ("edit", "leaf page check .")),
         result(8.0, "edit"),
-        call(12.0, ("reply", "leaf response reply 62af9e31:0:test-comment")),
+        call(12.0, ("reply", "leaf thread reply 62af9e31:0:test-comment")),
     ]
     # Delivery ends at the opened pickup, not at the first record the harness sends
     # after admission: a tool result of a turn already running is no delivery.
@@ -1238,7 +1241,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "phase": "tool",
             "startMs": 4000,
             "ms": 1000,
-            "calls": ["leaf task start . c1 x", "cat threads.md"],
+            "calls": ["leaf task start . c1 --text x", "cat threads.md"],
         },
         {"phase": "model", "startMs": 5000, "ms": 2000},
         {"phase": "tool", "startMs": 7000, "ms": 1000, "calls": ["leaf page check ."]},
@@ -1247,7 +1250,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "phase": "tool",
             "startMs": 12000,
             "ms": 500,
-            "calls": ["leaf response reply 62af9e31:0:test-comment"],
+            "calls": ["leaf thread reply 62af9e31:0:test-comment"],
         },
     ]
     assert turn_phases(stream, comment["ts"], None, reply["ts"]) == []
@@ -1761,6 +1764,7 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
     host_home = tmp_path / "host-codex"
     host_home.mkdir()
     (host_home / "auth.json").write_text('{"test": "login"}')
+    (host_home / "auth.json").chmod(0o600)
     (root / "worker" / "codex-config.toml").write_text('model = "test"')
     # Each invocation builds directly into its private site destination.
     build_site = tmp_path / "build_site.py"
@@ -1799,6 +1803,10 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         "    assert args == ['plugin', 'add', 'leaf@leaf', '--json']\n"
         "    assert len(record.read_text().splitlines()) == 1\n"
         "    response = {'installedPath': str(home / 'plugins/cache/leaf/leaf/local')}\n"
+        "    launcher = Path(response['installedPath']) / 'bin/leaf'\n"
+        "    launcher.parent.mkdir(parents=True)\n"
+        "    launcher.write_text('#!/bin/sh\\nexit 0\\n')\n"
+        "    launcher.chmod(0o755)\n"
         "with record.open('a') as output:\n"
         "    output.write(json.dumps(args) + '\\n')\n"
         "print(json.dumps(response, indent=2))\n"
@@ -1851,6 +1859,12 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
             host_home / "auth.json"
         ).read_bytes()
         assert (private_home / "auth.json").stat().st_mode & 0o777 == 0o600
+        # A refresh in one isolated child must reach the host and other children.
+        (private_home / "auth.json").write_text('{"test": "refreshed"}')
+        assert (host_home / "auth.json").read_text() == '{"test": "refreshed"}'
+        assert (Path(other["home"]) / "auth.json").read_text() == (
+            '{"test": "refreshed"}'
+        )
         assert (private_home / "config.toml").read_text() == 'model = "test"'
         installed = [
             json.loads(line)
@@ -1877,7 +1891,7 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         len(list((root / ".tmp" / "verify-site").glob("run-*/website-adapter.log")))
         == 2
     )
-    assert (host_home / "auth.json").read_text() == '{"test": "login"}'
+    assert (host_home / "auth.json").read_text() == '{"test": "refreshed"}'
     with pytest.raises(ProcessLookupError):
         os.kill(running["pid"], 0)
 

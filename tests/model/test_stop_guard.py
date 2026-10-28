@@ -1,5 +1,5 @@
 """The guard on a turn's end: the Stop hook holding a turn over a page nothing
-watches or a move the agent still owes, `leaf status idle` refusing over input
+watches or a move the agent still owes, `leaf page close` refusing over input
 nobody answered, and the reminders both write."""
 
 import fcntl
@@ -21,12 +21,14 @@ from interact_support import (
     _start,
     _watched,
     acknowledged_through,
+    adapter_lease,
     append_carried_log_record,
     append_command,
     codex_records,
     consume_pending_input,
     continued,
     declare_idle,
+    declare_on_page,
     declared,
     delivered_ref,
     delivery_through,
@@ -51,11 +53,11 @@ from interact_support import (
     write_record,
     yaml_document,
 )
+
 from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
@@ -109,27 +111,27 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     codex_claimed_page, capsys
 ):
     page = codex_claimed_page
-    session_model.cmd_waiting(page, "")
+    session_model.cmd_waiting(page)
     session = service_model.page_claim(page)
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
+    lease = leases_model.take_wait_lease(
+        leases_model.waiter_lease_path(page, session["id"])
+    )
     assert lease
 
     # A live watcher lets Claude end its turn, but Codex must keep this one active
     # and poll the unified-exec session whose output can enter this context. The
-    # lease cannot say whether that process is the initial wait or a rearmed ack,
-    # so the remedy has to preserve both coordinates.
+    # lease cannot say whether that session's command is the initial wait or the
+    # one that acknowledged a delivery before waiting, so the remedy names both.
     hooks_model.cmd_hook(
         "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
     )
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "poll the existing" in reason and "write_stdin" in reason
-    assert "`leaf wait` before the first batch" in reason
-    assert "rearmed `leaf wait --ack` afterward" in reason
+    assert "running `leaf wait`, alone or after `leaf delivery ack`" in reason
 
     # The adapter's second lease proves that the watcher can deliver into a
     # later turn. With that adapter alive, this turn may end normally.
-    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert adapter
+    adapter = adapter_lease("codex-thread", None)
     hooks_model.cmd_hook(
         "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
     )
@@ -153,7 +155,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
         "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
     )
     reason = json.loads(capsys.readouterr().out)["reason"]
-    assert "leaf codex start" in reason and str(page) in reason
+    assert "leaf page claim" in reason and str(page) in reason
 
     # Pending output still has to cross context: the remedy is to poll the wait
     # already running, and nothing tells this task to start one in the background.
@@ -161,19 +163,22 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     comment = append_carried_log_record(
         page, {"kind": "comment", "author": "user", "text": "hi"}
     )
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
+    lease = leases_model.take_wait_lease(
+        leases_model.waiter_lease_path(page, session["id"])
+    )
     assert lease
     hooks_model.cmd_hook(
         "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
     )
     reason = json.loads(capsys.readouterr().out)["reason"]
-    assert "`leaf wait` before the first batch" in reason
-    assert "rearmed `leaf wait --ack` afterward" in reason
+    assert "running `leaf wait`, alone or after `leaf delivery ack`" in reason
     assert "background" not in reason
     acknowledge = session_model.wait_acknowledgement(
-        harness_model.CodexHarness("codex-thread", "Codex")
+        harness_model.CodexHarness("codex-thread", "Codex"), page
     )("0a1b2c3d")
-    assert "run `leaf wait --ack 0a1b2c3d` in unified exec" in acknowledge
+    assert (
+        "run `leaf delivery ack 0a1b2c3d && leaf wait` in unified exec" in acknowledge
+    )
     assert "background" not in acknowledge
     leases_model.release_lease(lease)
 
@@ -195,8 +200,8 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
 
 def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeypatch):
     """A page-local lease proves only an unclaimed bare-shell watch."""
-    session_model.cmd_waiting(page_dir, "")
-    bare = leases_model.take_lease(page_dir / "waiter.lock")
+    session_model.cmd_waiting(page_dir)
+    bare = leases_model.take_wait_lease(page_dir / "waiter.lock")
     assert bare
     try:
         assert page_state(page_dir)["listening"]
@@ -218,11 +223,11 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeyp
 
 def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, capsys):
     """Between turns a page is either watched or idle. Under Claude Code the
-    watch is the one Leaf's hooks module starts as the turn ends, so a
+    watch is the one Leaf's background Stop hook starts as the turn ends, so a
     turn ends over a page nothing watches yet. A watcher that is a process of its
     own, as a Codex task's adapter is, has to be running before the turn may end:
     without it the page keeps saying "Codex is working" over nobody."""
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
@@ -249,14 +254,14 @@ def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, 
 
     # A page a second session has since picked up is that session's to watch, so
     # s1 is no longer held to it.
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     record_claim(claimed, harness="codex", id="s2")
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
 
 def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
-    claimed, tmp_path, capsys, snapshot
+    claimed, printing, tmp_path, capsys, snapshot
 ):
     """Each page states its own debt; the protocol they share is stated once.
 
@@ -281,7 +286,7 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
         deliveries[delivered_ref(page, comment).partition(":")[0]] = (
             f"<{label}-delivery>"
         )
-        session_model.cmd_waiting(page, "")
+        session_model.cmd_waiting(page)
 
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
@@ -313,7 +318,9 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     )
 
 
-def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
+def test_a_preview_owes_no_watcher_but_still_carries_its_user(
+    claimed, printing, capsys
+):
     """A developer preview is a page put up to be looked at, not handed over.
 
     A session inspecting a dozen slots was carrying a dozen copies of the same
@@ -324,7 +331,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
     """
     # A Codex task owes its pages an adapter; a Claude Code session's watch is
     # its own Stop hook, and owes nothing here.
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     record_claim(claimed, harness="codex")
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert "no delivery adapter" in json.loads(capsys.readouterr().out)["reason"]
@@ -374,7 +381,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
 
 @pytest.mark.parametrize("rewritten", [True, False])
 def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
-    claimed, capsys, rewritten
+    claimed, printing, capsys, rewritten
 ):
     """A pick answers the question it was asked in, and a version that rewrites
     the option picked takes that answer back — so the question is open again and
@@ -393,10 +400,10 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     every acknowledged comment would pass the other arm."""
     (claimed / "index.html").write_text(PICKS_PAGE)
     let_a_pick_settle_a_thread(claimed, "which")
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     # Watched, so the guard's other clause is clear and what fires below can only
     # be this one.
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, service_model.page_claim(claimed)["id"])
     )
     assert lease
@@ -445,18 +452,20 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
         assert printed == ""
 
 
-def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys):
+def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
+    claimed, printing, capsys
+):
     """Acknowledging is what takes a comment off the batch, so after it no
     watcher will raise that comment again and every other gate reads the page as
     clean. The failure, from a live channel session: a comment arrived while the
     agent was mid-turn on something else, the agent acknowledged it, answered
     the person in the terminal instead of on the page, and the user was left
     with a question that nothing would ever deliver again."""
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     # Watched, which is the whole of what clears the guard's other case and
     # clears nothing here.
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -477,7 +486,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     assert schema_model.ANSWER_INSTRUCTION in continued(answer)
     # The receipt recorded the delivery's reference, so the reminder names the
     # complete command rather than a placeholder nothing on hand fills.
-    assert f"`leaf response reply {delivered_ref(claimed, asked['id'])}`" in continued(
+    assert f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`" in continued(
         answer
     )
 
@@ -489,14 +498,14 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     reason = continued(capsys.readouterr().out)
     assert (
         "your turn's final message or "
-        f"`leaf response reply {delivered_ref(claimed, asked['id'])}`"
+        f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`"
     ) in reason
     assert "leaf thread reply <page>" not in reason
     # A failure receipt waits for the turn, and its refusal names the same command.
     ref = delivered_ref(claimed, asked["id"])
     with pytest.raises(delivery_model.Refused) as refused:
         thread_model.post_response(ref, "gave up", failure="turn_failed")
-    assert f"use `leaf response reply {ref}` without `--failure`" in str(refused.value)
+    assert f"with `leaf thread reply {ref}`" in str(refused.value)
     with service_model.PageTransaction(claimed) as page:
         page.clear_delivery_reply_reservation(session["id"], asked["id"], "a1")
 
@@ -587,18 +596,19 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     leases_model.release_lease(lease)
 
 
-def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, capsys):
-    """A page directory holds the copy of the layer it was created with, and the
-    stamp refuses a copy it cannot read — by design, since that refusal is what
-    sends an agent to re-vendor. The Stop hook is the one user
-    that must never put the question: hook registrations fail open, so a raise
-    here stands the *whole* guard down, watch clause included, on any page a
-    little older than the checkout, and says nothing about it. Found by running
-    the guard against a real page from an earlier vendoring, where reading the
-    published version to settle threads loaded that page's registry."""
-    session_model.cmd_waiting(claimed, "")
+def test_the_guard_survives_a_page_whose_layer_cannot_be_composed(
+    claimed, printing, capsys
+):
+    """Every Leaf composes a page's layer from the packages it selects, and refuses
+    a selection it cannot compose — by design, since that refusal is what sends an
+    agent to repair the page. The Stop hook is the one user that must never put the
+    question: hook registrations fail open, so a raise here stands the *whole*
+    guard down, watch clause included, on a page whose project package moved, and
+    says nothing about it. Found by running the guard against a real page, where
+    reading the published version to settle threads loaded that page's registry."""
+    session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -606,11 +616,14 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
     receive_through(claimed, last_deliverable_seq(claimed))
-    registry = files_model.read_json(claimed / "registry.json")
-    del registry["$languages"]
-    cleanup_model.write_json(claimed / "registry.json", registry)
+    record = registry_storage.layer_record(claimed)
+    layer = claimed / schema_model.LAYER_FILE
+    layer.unlink()
+    registry_storage.LAYER.write(
+        layer, {**record, "packages": [*record["packages"], "./moved-package"]}
+    )
     # Without this the test passes for the wrong reason: it has to be a page
-    # whose registry the current layer really does refuse.
+    # whose layer the current Leaf really does refuse.
     with pytest.raises(registry_contract.RegistryError):
         registry_storage.load_registry(claimed)
 
@@ -622,14 +635,14 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
 
 
 def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
-    """`leaf status PAGE idle` is the way out of the guard's other case, so it
+    """`leaf page close PAGE` is the way out of the guard's other case, so it
     reads as the way out of this one too. The events are the user's: a page
     idled over them ends the leaf on someone still waiting for an answer, and
     from the browser that looks exactly like one that ran its course."""
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
     )
-    refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
+    refused = CliRunner().invoke(cli_model.cli, ["page", "close", str(claimed)])
     assert refused.exit_code == 1
     assert "1 event nobody has picked up" in refused.output
     # The claimant's harness names the remedy: Claude Code's hook carries them.
@@ -641,7 +654,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(claimed)])
     assert waited.exit_code == 0, waited.output
     woken(waited.output, "s1")
-    refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
+    refused = CliRunner().invoke(cli_model.cli, ["page", "close", str(claimed)])
     assert refused.exit_code == 1
     assert "1 acknowledged user update with no answer" in refused.output
     assert declared(claimed)["state"] != "idle"
@@ -652,7 +665,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
         .invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(claimed, comment),
@@ -664,7 +677,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
         == 0
     )
     assert (
-        CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"]).exit_code
+        CliRunner().invoke(cli_model.cli, ["page", "close", str(claimed)]).exit_code
         == 0
     )
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
@@ -688,7 +701,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
             "revision": 1,
         },
     )
-    refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
+    refused = CliRunner().invoke(cli_model.cli, ["page", "close", str(claimed)])
     assert refused.exit_code == 1
     assert "1 event nobody has picked up" in refused.output
     cleanup_model.prompt_turn("s1")
@@ -696,23 +709,26 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert (
         CliRunner()
         .invoke(
-            cli_model.cli, ["wait", "--ack", delivery_through(claimed, int(report))]
+            cli_model.cli,
+            ["delivery", "ack", delivery_through(claimed, int(report))],
         )
         .exit_code
-        == 2
+        == 0
     )
     # A report is the agent's own news, so acknowledging it is the whole of what
     # it asks for; only a user's comment owes an answer as well.
     assert (
-        CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"]).exit_code
+        CliRunner().invoke(cli_model.cli, ["page", "close", str(claimed)]).exit_code
         == 0
     )
 
 
-def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(claimed, capsys):
+def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(
+    claimed, printing, capsys
+):
     """A move the adapter queued for a later turn is that turn's debt: the turn that
     queued it may end over it, and may idle the page over it. Once the later turn
-    opens it, both the Stop hook and `leaf status idle` hold the agent to it."""
+    opens it, both the Stop hook and `leaf page close` hold the agent to it."""
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "one more thing"}
     )
@@ -733,7 +749,7 @@ def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(claimed, capsys
             )
 
     def idle() -> str | None:
-        result = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
+        result = CliRunner().invoke(cli_model.cli, ["page", "close", str(claimed)])
         return None if result.exit_code == 0 else result.output
 
     pickup("queued")
@@ -756,7 +772,7 @@ def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
     keep the page open. Otherwise Stop sees an idle page, permits the turn to
     end, and leaves the newly appended event with no watcher to deliver it.
     """
-    session_model.cmd_waiting(page_dir, "comment on the prototype")
+    session_model.cmd_waiting(page_dir)
     marker = page_dir / "status-lock-requested"
     events = open(  # noqa: SIM115 - held across the child transition
         page_dir / "events.jsonl", "a+b"
@@ -777,7 +793,7 @@ def observed_flocked(path, **kwargs):
         yield stream
 
 service_model.flocked = observed_flocked
-sys.argv = ["leaf", "status", os.environ["PAGE"], "idle"]
+sys.argv = ["leaf", "page", "close", os.environ["PAGE"]]
 cli_model.cli()
 """
     process = spawn_probe(
@@ -825,14 +841,16 @@ cli_model.cli()
     assert declared(page_dir)["state"] == "waiting"
 
 
-def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(claimed, capsys):
+def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(
+    claimed, printing, capsys
+):
     """A reaction is a mark, not a question: the agent answers it by acting, so an
     acknowledged one nobody replied to does not hold the turn the way a comment
     does. Nor does an `ok` the user put on the agent's answer hand the thread back
     to the agent — a reaction is not the user speaking. The user's words are."""
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -868,7 +886,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(claimed, capsys):
 
 def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot):
     page = codex_claimed_page
-    session_model.cmd_waiting(page, "")
+    session_model.cmd_waiting(page)
     observations = {}
 
     def hook():
@@ -879,7 +897,7 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
         return json.loads(output) if output else None
 
     observations["no adapter"] = hook()
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page, "codex-thread")
     )
     assert lease
@@ -889,10 +907,7 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
             page, {"kind": "comment", "author": "user", "text": "Check this."}
         )
         observations["direct wait has input"] = hook()
-        adapter = leases_model.take_lease(
-            leases_model.adapter_lease_path("codex-thread")
-        )
-        assert adapter
+        adapter = adapter_lease("codex-thread", None)
         try:
             observations["adapter carries input"] = hook()
         finally:
@@ -914,10 +929,10 @@ def _stop(capsys):
 
 
 def _idle(page_dir):
-    return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), "idle"])
+    return CliRunner().invoke(cli_model.cli, ["page", "close", str(page_dir)])
 
 
-def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
+def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     """A start on a delivered move is the agent's answer for now: the move reads
     Working, with the start's line beside it. Work longer than a few minutes goes to
     background workers whose results wake a later turn, so the turn that started the
@@ -947,12 +962,11 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     )
     prompt = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert (
-        f"your start on {asked['id']} came before this turn"
-        in prompt["additionalContext"]
+        f"your start on {asked['id']} predates this turn" in prompt["additionalContext"]
     )
     reason = _stop(capsys)
-    assert f"your start on {asked['id']} came before this turn" in reason
-    assert f"`leaf response reply {delivered_ref(claimed, asked['id'])}`" in reason
+    assert f"your start on {asked['id']} predates this turn" in reason
+    assert f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`" in reason
 
     assert _start(claimed, asked["id"], "the second sketch").exit_code == 0
     # A task notification reaching the turn mid-way says nothing about it either.
@@ -976,8 +990,8 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     capsys.readouterr()
     consume_pending_input("s1")
     reason = _stop(capsys)
-    assert f"`leaf response reply {delivered_ref(claimed, follow['id'])}`" in reason
-    assert f"your start on {asked['id']} came before this turn" in reason
+    assert f"`leaf thread reply {delivered_ref(claimed, follow['id'])}`" in reason
+    assert f"your start on {asked['id']} predates this turn" in reason
     assert _start(claimed, follow["id"], "adding C").exit_code == 0
     assert _stop(capsys) is None
 
@@ -989,7 +1003,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     leases_model.release_lease(lease)
 
 
-def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, capsys):
+def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, capsys):
     """A thread's messages share one reply, but a move on an obligation frozen in one of its
     messages owes an answer of its own, so each is started on its own id. Once their
     replies settle them, a later move in the thread is offered no start in place of
@@ -1092,12 +1106,13 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
 ):
     """The reminder recovers captured input and a usable response address, including
     after ownership changes. Consecutive user messages owe the newest one answer.
+    An update the previous owner received is offered to the new one as new input,
+    which, with a queue adapter running, Stop hands into the ending turn.
     """
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "active")
     waiter = _watched(page_dir)
-    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert adapter
+    adapter = adapter_lease("codex-thread", None)
     try:
         latest = append_carried_log_record(
             page_dir, {"kind": "comment", "author": "user", "text": "why here?"}
@@ -1149,13 +1164,6 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             )
             assert read.exit_code == 0, read.output
             envelope = json.loads(read.output)
-        else:
-            envelope = json.loads(reason)
-            assert envelope == delivery_model.cmd_delivery_read(envelope["id"])
-            assert envelope["acknowledge"] == delivery_model.pointer_acknowledgement(
-                envelope["id"]
-            )
-        if history == "lost-pointer":
             assert (
                 set(delivery_model.delivery_path(envelope["id"]).parent.glob("*.json"))
                 == deliveries
@@ -1163,6 +1171,8 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             assert not codex_records("codex-thread")
         else:
             # The new owner is offered the update as Codex offers new input.
+            envelope = json.loads(reason)
+            assert envelope == delivery_model.cmd_delivery_read(envelope["id"])
             assert envelope["id"] != original["id"]
             [(offered, _)] = codex_records("codex-thread")
             assert offered.stem == envelope["id"]
@@ -1174,7 +1184,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
         reply = CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 event["answer"]["ref"],
@@ -1199,7 +1209,9 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
         leases_model.release_lease(waiter)
 
 
-def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys):
+def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
+    claimed, printing, capsys
+):
     """A pick on a page obligation is owed a version that writes it in. The delivery says
     so, the Stop hook and `idle` hold the agent to it, and the stamped version whose
     markup records the pick settles it — one rule, read by every consumer. An edit
@@ -1256,7 +1268,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
         "answer"
     ]
     told = [batch["handling"][ref] for ref in event["handling"]]
-    assert any("write the answer in, and stamp a version" in text for text in told)
+    assert any("such as a choice group marked `settled`" in text for text in told)
     receive_through(claimed, last_deliverable_seq(claimed))
 
     assert f"records action {picked['id']}" in _stop(capsys)
@@ -1375,9 +1387,12 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
     because `choose` happens to answer some other group: a layer answering the
     group only by its Done holds the tick the same way."""
     if declared == "done-only":
-        registry = files_model.read_json(claimed / "registry.json")
-        registry["lf-options"]["x-awaits"]["answered"] = {"answer": {}}
-        cleanup_model.write_json(claimed / "registry.json", registry)
+        declare_on_page(
+            claimed,
+            lambda registry: registry["lf-options"]["x-awaits"].update(
+                answered={"answer": {}}
+            ),
+        )
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)
@@ -1441,10 +1456,8 @@ QUEUE_PAGE = PAGE.replace(
 
 def test_a_finished_queue_owes_every_card_the_user_moved(page_dir):
     """Completing a queue owes every moved card, not just the final one."""
-    (page_dir / "registry.json").write_text(
-        json.dumps(
-            queue_board_registry(json.loads((page_dir / "registry.json").read_text()))
-        )
+    declare_on_page(
+        page_dir, lambda registry: registry.update(queue_board_registry(registry))
     )
     (page_dir / "index.html").write_text(QUEUE_PAGE)
     publish(page_dir)
@@ -1473,10 +1486,8 @@ def test_a_finished_queue_owes_every_card_the_user_moved(page_dir):
 
 def test_a_queue_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
     """A move leaving cards queued keeps the thread's obligation on the user."""
-    (page_dir / "registry.json").write_text(
-        json.dumps(
-            queue_board_registry(json.loads((page_dir / "registry.json").read_text()))
-        )
+    declare_on_page(
+        page_dir, lambda registry: registry.update(queue_board_registry(registry))
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1

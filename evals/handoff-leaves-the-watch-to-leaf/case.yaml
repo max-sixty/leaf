@@ -19,7 +19,8 @@ vars:
     cache as a Leaf page they can comment on. You have written the page at
     ~/.local/state/leaf/pages/cache-plan and `leaf server start` printed its URL,
     http://127.0.0.1:8123/?t=abc. Now hand it off, following the leaf skill for this
-    harness; the user expects to comment a few hours from now.
+    harness; the user expects to comment a few hours from now. The plan is complete,
+    no answer or approval is required, and any later comments are optional.
 
     Read whatever instructions you need. Only Skill and Read run here, so write out, in
     order, each command you would run before your closing message, then give the
@@ -30,5 +31,58 @@ assert:
     value: |
       Pass only if the reply hands the page over without starting any `leaf wait`
       (foreground or background, named or not) and its closing message gives the URL
-      http://127.0.0.1:8123/?t=abc. Writing a `leaf status` is fine. Fail if any
+      http://127.0.0.1:8123/?t=abc. Leaving the page available for comments is fine. Fail if any
       written-out command runs `leaf wait`.
+  - type: llm-rubric
+    metric: optional-feedback
+    value: |
+      The page remains available for optional comments, with no obligation demanding
+      an answer or approval. Fail if the agent closes the page's conversation or
+      invents a required user decision. Availability is not a request for input.
+variants:
+  missing-input:
+    metadata:
+      purpose: "A required answer goes into an On me thread obligation, not a page availability declaration."
+    vars:
+      prompt: |
+        You are a Claude Code session driving the Leaf report at
+        ~/.local/state/leaf/pages/cache-plan, already checked and served at
+        http://127.0.0.1:8123/?t=abc. It records yesterday's cache benchmark results.
+        The user now says: "Compare this against the latency budget in my private
+        notes. I haven't shared that budget yet. Ask me in a new page thread and
+        keep the report unchanged until I answer."
+
+        Read whatever instructions you need. The page and services are unreachable
+        here, so write the commands you would run and your short closing reply.
+    assert:
+      - type: llm-rubric
+        metric: required-answer
+        value: |
+          The agent opens a new thread asking for the missing latency budget and
+          registers the plain message as a user obligation with --obligation.
+          The question remains owed until answered. A status detail, question only
+          in chat, an lf-ask widget, or a claim to have registered it without a
+          command is insufficient. The report is unchanged, no budget is invented,
+          and the page remains available for the answer rather than being closed.
+  finished:
+    metadata:
+      purpose: "Close a completed page conversation explicitly, without stopping its HTTP server."
+    vars:
+      prompt: |
+        You drive the checked Leaf report at ~/.local/state/leaf/pages/cache-plan,
+        served at http://127.0.0.1:8123/?t=abc. Its canonical state has no unread
+        updates, owed replies, open to-dos or user obligations. The user says:
+        "We're finished with this report. End the conversation and stop watching
+        for comments, but keep the report available at its URL."
+
+        Read whatever instructions you need. The page and services are unreachable
+        here, so write the commands you would run and your short closing reply.
+    assert:
+      - type: llm-rubric
+        metric: close-conversation
+        value: |
+          The agent explicitly ends the page's conversation and watching using its
+          installed lifecycle command (page close or the baseline status idle).
+          It keeps the HTTP server running and the report readable, creates no
+          obligation or task, and does not confuse ending conversation with stopping
+          service, resolving one thread, or declaring availability for feedback.

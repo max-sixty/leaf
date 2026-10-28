@@ -1,14 +1,9 @@
 """The real-browser gate the broad selection keeps."""
 
 import re
-import subprocess
 from pathlib import Path
 
 import pytest
-from conftest import LEAF_COMMAND
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
-from leaf.render_gate import version as render_gate_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
@@ -21,6 +16,10 @@ from render_harness import (
     undo,
 )
 
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
+from leaf.render_gate import version as render_gate_model
+
 ROOT = Path(__file__).parents[2]
 
 
@@ -29,21 +28,18 @@ def test_a_shipped_page_passes_the_real_browser_gate(browser, serve):
     assert render_gate_model.render_version(browser, serve(example)).failures == []
 
 
-def test_ship_review_obligations_are_directly_answerable(browser, serve, tmp_path):
+def test_ship_review_obligations_are_directly_answerable(browser, serve):
     example = ROOT / "examples" / "ship-review.html"
     page = open_page(browser, serve(example))
 
-    # Both page producers use the prepared kernel. A host-launcher override alone
-    # would leave a direct child `page init` serving a second source graph.
-    child = tmp_path / "child-page"
-    subprocess.run(
-        [*LEAF_COMMAND, "page", "init", "--no-packages", str(child)], check=True
+    # The page runs the prepared kernel its server supplies (`runtime_selection`).
+    loaded = page.evaluate(
+        "performance.getEntriesByType('resource').map((entry) => entry.name)"
     )
-    for directory in (serve.page_dir, child):
-        assert not (directory / "runtime/semantic-state.js").exists()
-        assert list((directory / "runtime").glob("bundle-*.js"))
+    assert any("/runtime/bundle-" in url for url in loaded), loaded
+    assert not any(url.endswith("/runtime/semantic-state.js") for url in loaded)
 
-    expect_obligations_answered(page, "1/2")
+    expect_obligations_answered(page, "1/3")
     expect(page.locator("#off-workaround-review .lf-pick")).to_have_count(2)
     expect(page.locator("#off-workaround-review .lf-pick").first).to_be_visible()
     expect(page.locator("#off-workaround-approve .lf-pick")).to_have_attribute(
@@ -51,9 +47,9 @@ def test_ship_review_obligations_are_directly_answerable(browser, serve, tmp_pat
     )
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
     page.locator("#off-workaround-review .lf-pick").first.click()
-    expect_obligations_answered(page, "0/2")
+    expect_obligations_answered(page, "0/3")
     undo(page)
-    expect_obligations_answered(page, "1/2")
+    expect_obligations_answered(page, "1/3")
 
 
 @pytest.mark.parametrize("size", [(1200, 520), (509, 429)])
@@ -91,8 +87,8 @@ def test_a_sent_margin_reply_shows_its_words_while_delivery_is_pending(
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
     rendered(page)
-    # The card opens on its latest message.
-    expect(card.locator(".lf-msg").last).to_be_in_viewport()
+    # The card opens on its first unread message, the first of the agent's turns.
+    expect(card.locator(".lf-msg", has_text="Turn 0.")).to_be_in_viewport()
     page.keyboard.press("c")
     reply = card.locator("leaf-text")
     expect(reply).to_be_focused()
@@ -100,15 +96,21 @@ def test_a_sent_margin_reply_shows_its_words_while_delivery_is_pending(
     page.keyboard.type(words)
     pending = []
     page.route("**/api/event", lambda route: pending.append(route))
-    page.keyboard.press("ControlOrMeta+Enter")
-    holding(page, pending, 1, "the margin reply")
-    latest = card.locator(".lf-msg.user").last
-    expect(latest.locator(".lf-msg-sending")).to_have_text("Sending")
-    body = latest.locator(".lf-msg-body")
-    expect(body).to_have_text(words)
-    # Allow subpixel rounding at the transcript's scroll edge.
-    expect(body).to_be_in_viewport(ratio=0.99)
-    assert pending, "The reply POST must still be pending when its body is checked"
+    try:
+        page.keyboard.press("ControlOrMeta+Enter")
+        holding(page, pending, 1, "the margin reply")
+        latest = card.locator(".lf-msg.user").last
+        expect(latest.locator(".lf-msg-sending")).to_have_text(
+            re.compile(r"^Queued for ")
+        )
+        body = latest.locator(".lf-msg-body")
+        expect(body).to_have_text(words)
+        # Allow subpixel rounding at the transcript's scroll edge.
+        expect(body).to_be_in_viewport(ratio=0.99)
+        assert pending, "The reply POST must still be pending when its body is checked"
+    finally:
+        # Cancel the held request before the page server waits for in-flight work.
+        page.context.close()
 
 
 @pytest.mark.parametrize("how", ["key", "pointer"])
@@ -168,18 +170,23 @@ def test_a_pending_reply_keeps_the_transcript_end_when_card_fitting_reduces_room
             route.continue_()
 
     page.route("**/api/event", hold_reply)
-    if how == "key":
-        page.keyboard.press("ControlOrMeta+Enter")
-    else:
-        card.locator(".lf-thread-send").click()
-    holding(page, pending, 1, "the pending reply")
-    latest = card.locator(".lf-msg.user").last
-    expect(latest.locator(".lf-msg-sending")).to_have_text("Sending")
-    rendered(page)
-    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
-    expect(latest.locator(".lf-msg-body")).to_have_text(words)
-    expect(latest.locator(".lf-msg-body")).to_be_in_viewport(ratio=0.99)
-    assert pending, "The reply POST must still be pending after fitting"
+    try:
+        if how == "key":
+            page.keyboard.press("ControlOrMeta+Enter")
+        else:
+            card.locator(".lf-thread-send").click()
+        holding(page, pending, 1, "the pending reply")
+        latest = card.locator(".lf-msg.user").last
+        expect(latest.locator(".lf-msg-sending")).to_have_text(
+            re.compile(r"^Queued for ")
+        )
+        rendered(page)
+        scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+        expect(latest.locator(".lf-msg-body")).to_have_text(words)
+        expect(latest.locator(".lf-msg-body")).to_be_in_viewport(ratio=0.99)
+        assert pending, "The reply POST must still be pending after fitting"
+    finally:
+        page.context.close()
 
 
 def test_reading_keys_follow_a_submitted_comment_s_viewport(browser, serve):

@@ -1,0 +1,168 @@
+{
+  "$data": {
+    "description": "Public projects, releases and changes with personal editorial context.",
+    "contracts": {
+      "repo-feed": {
+        "description": "A sampled stream of public GitHub discoveries, with transparent retrieval signals and editorial relevance.",
+        "records": {
+          "items": "items",
+          "key": "id"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "fetched_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "method": {
+              "type": "string"
+            },
+            "coverage": {
+              "type": "string"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "repo": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "pattern": "^https://github.com/"
+                  },
+                  "at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "author": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": ["pull_request", "release", "project"]
+                  },
+                  "additions": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "deletions": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "files": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "distance": {
+                    "enum": ["home", "nearby", "discovery"]
+                  },
+                  "topic": {
+                    "enum": ["agents", "tools", "data"]
+                  },
+                  "commentary": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "headline": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "angle": {
+                    "enum": ["unlock", "fix", "idea", "release"]
+                  },
+                  "retrieval_score": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "score_components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "source_url": {
+                    "type": "string",
+                    "pattern": "^https://github.com/"
+                  }
+                },
+                "required": [
+                  "id",
+                  "repo",
+                  "title",
+                  "body",
+                  "url",
+                  "at",
+                  "author",
+                  "kind",
+                  "additions",
+                  "deletions",
+                  "files",
+                  "distance",
+                  "topic",
+                  "commentary",
+                  "reason",
+                  "headline",
+                  "angle",
+                  "retrieval_score",
+                  "score_components",
+                  "source_url"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["fetched_at", "method", "coverage", "items"],
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "lf-repo-feed": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      }
+    },
+    "required": ["id", "source"],
+    "additionalProperties": false,
+    "description": "An obligation-free stream of repository changes with distance, topic and contextual discussion.",
+    "x-content": "empty",
+    "x-upgrade": true,
+    "x-data": {
+      "changes": {
+        "contract": "repo-feed",
+        "source": "source",
+        "property": "value"
+      }
+    },
+    "x-example": "<lf-repo-feed id=\"repo-feed\" source=\"repo-changes\"></lf-repo-feed>",
+    "x-output": {
+      "stories": {
+        "contract": "repo-feed"
+      }
+    }
+  }
+}

@@ -1,5 +1,5 @@
 """The guard on a turn's end: the Stop hook holding a turn over a page nothing
-watches or a move the agent still owes, `leaf status idle` refusing over input
+watches or a move the agent still owes, `leaf page close` refusing over input
 nobody answered, and the reminders both write."""
 
 import json
@@ -7,6 +7,7 @@ import os
 
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, check
+
 from leaf import cli as cli_model
 from leaf import hooks as hooks_model
 from leaf import service as service_model

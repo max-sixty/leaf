@@ -1,0 +1,166 @@
+# From TODO.md, "Decide what plain `page check` runs in a browser from the mistakes
+# agents make". Plain `page check` runs a page in a browser only where `needs_browser`
+# (render_gate/page_code.py) says so, which leaves out widgets that fail on their
+# authored values, such as a playground control whose value is off its step or names
+# no choice, and every widget in a thread's markup, such as a chart whose Plot
+# expression throws. Those report only through `leaf wait` once a browser draws them.
+# Each context has an agent author one of those kinds in a single turn, and
+# `draw_failures.py` reads the executor's final `page check --render`, which opens
+# every thread holding markup, and the author's own checks for a widget that failed
+# to draw. The visual review's context is `visual-change-uses-captures/review`, which
+# has the captures. notes/agent-usability-evals.md, "Widgets plain page check doesn't
+# run", has the runs.
+description: widgets-draw-as-written
+metadata:
+  purpose: "A widget plain page check doesn't run, in a page or a thread's markup,
+    draws as the agent wrote it."
+  authoring: true
+  tags:
+    - checks
+    - widgets
+vars:
+  prompt: |
+    Make me a page where I can tune the retry policy for our merchant-webhook delivery
+    client and see the retry schedule each setting produces, then send you the
+    settings to apply.
+
+    Today's policy: the first retry waits 0.5 s, each later wait is multiplied by 2.0,
+    at most 8 attempts in all, no single wait longer than 60 s, and ±20% jitter on
+    every wait. A 429 response is retried after its Retry-After header instead.
+
+    Sensible ranges: first wait 0.1–5 s, multiplier 1.2–3.0, attempts 1–12, longest
+    wait 10–300 s, jitter 0–50%.
+
+    What constrains it: merchants' endpoints time out after 30 s, and our SLA says a
+    webhook is delivered or dead-lettered within 15 minutes of the event. Last month
+    2.1% of first attempts failed, 0.3% of webhooks needed more than 4 attempts, and
+    the longest merchant outage was 11 minutes.
+assert:
+  - type: python
+    metric: widgets-draw
+    value: file://../dev/leaf_dev/draw_failures.py
+variants:
+  # Today's values fall between the steps a range would naturally take, so a range
+  # whose value is off its step fails to draw.
+  playground-fine-steps:
+    vars:
+      prompt: |
+        Make me a page where I can tune our thumbnail pipeline's image settings and
+        see what each does to a sample product photo, then send you the settings to
+        ship.
+
+        Today: JPEG quality 0.82, sharpening radius 0.7 px, saturation 1.15×, and
+        thumbnails 1,250 px wide. Sensible ranges: quality 0.40–0.95, sharpening
+        0–2 px, saturation 0.8–1.5×, width 320–2,560 px.
+
+        Product photos are mostly white-background shots of shoes and bags. Last
+        quarter, merchants complained about soft edges at widths under 600 px, and
+        our CDN bill grew 18% after we raised quality from 0.75.
+  # Candidates the user switches between: a choice control's value must name one of
+  # its choices, and a preset's settings must fit their controls.
+  playground-candidates:
+    vars:
+      prompt: |
+        We're redesigning the empty state for search in the merchant dashboard, shown
+        when a search for orders returns nothing. Let me compare these candidates in
+        place and pick one to build:
+
+        - Plain: a one-line "No orders match" message under the search box.
+        - Guided: the message plus three suggested searches ("last 7 days", "refunded",
+          "over $500") as links.
+        - Illustrated: a small empty-box illustration above the message and a "Clear
+          filters" button.
+
+        I also want to try, on whichever candidate I'm looking at, whether to show the
+        active filters as removable chips above the message, and the message's tone:
+        neutral ("No orders match these filters") or friendly ("Nothing here yet —
+        try widening your search"). Today the dashboard shows Plain, neutral, no chips.
+  # A file the user reads as text and as rendered Markdown.
+  text-document:
+    vars:
+      prompt: |
+        Put the canary rollout runbook and its nginx config on a page so I can read
+        both and comment on lines before we run it tomorrow. I'd like to read the
+        runbook rendered as well as its source.
+
+        runbook.md:
+
+        ```markdown
+        # Canary rollout: checkout-api 7.3
+
+        1. Confirm the 7.2 baseline: p95 under 220 ms, 5xx under 0.2% for 30 minutes.
+        2. Deploy 7.3 to the `canary` upstream (2 of 40 pods).
+        3. Shift 5% of traffic with `weight=5` in `upstream checkout`.
+        4. Watch for 20 minutes. Roll back if p95 exceeds 260 ms or 5xx exceeds 0.4%.
+        5. Shift to 25%, then 50%, then 100%, watching 20 minutes at each step.
+
+        | Step | Weight | Watch  |
+        | ---- | ------ | ------ |
+        | 1    | 5      | 20 min |
+        | 2    | 25     | 20 min |
+        | 3    | 50     | 20 min |
+        | 4    | 100    | —      |
+
+        Rollback: set `weight=0` on `canary` and reload nginx (`nginx -s reload`).
+        ```
+
+        checkout.conf:
+
+        ```nginx
+        upstream checkout {
+            server checkout-stable.internal:8080 weight=95;
+            server checkout-canary.internal:8080 weight=5;
+            keepalive 64;
+        }
+
+        server {
+            listen 443 ssl;
+            server_name checkout.example.com;
+
+            location /api/ {
+                proxy_pass http://checkout;
+                proxy_read_timeout 30s;
+                proxy_next_upstream error timeout http_502;
+            }
+        }
+        ```
+  # The control: charts in the page, which plain page check already runs, so the
+  # author's own plain checks say how often a chart it wrote failed to draw.
+  dashboard:
+    vars:
+      prompt: file://dashboard/request.md
+  # A chart in a thread's message: the page check never draws it before it posts.
+  thread-chart:
+    vars:
+      prompt: |
+        Write a short page about the checkout latency alert, then ask me in a thread
+        on the page which threshold to adopt. Put a chart of the daily p95 below with
+        both candidate thresholds in that message, so I can see the trade-off where I
+        answer.
+
+        The alert fires when checkout's p95 latency stays over its threshold for 10
+        minutes. Today it's 800 ms and fired 19 times in the last 14 days, 2 of them
+        real. The candidates are 1,000 ms (would have fired 6 times, both real ones
+        included) and 1,200 ms (2 times, both real).
+
+        Daily p95, ms, 11–24 October: 612, 640, 655, 1,310, 702, 690, 668, 845, 910,
+        720, 698, 1,240, 735, 760. The 14 and 22 October spikes were the two real
+        incidents.
+  # A diagram in a thread's message.
+  thread-diagram:
+    vars:
+      prompt: |
+        Write a short page explaining last night's retry storm, then ask me in a
+        thread on the page whether the proposed order of fixes is right. Put a
+        sequence diagram of the request flow after the fixes in that message, so I can
+        check it where I answer.
+
+        What happened: at 02:10 UTC the ledger service slowed to 4 s responses. The
+        payments API retried every ledger call 5 times with no backoff, the checkout
+        service retried each payments call 3 times, so one checkout produced up to 15
+        ledger calls. Ledger fell over at 02:14 and stayed down until 02:41.
+
+        Proposed fixes, in order: (1) checkout stops retrying payments calls and shows
+        "try again" instead; (2) payments retries ledger at most twice with exponential
+        backoff and jitter; (3) ledger sheds load with 503 and Retry-After above 200
+        in-flight requests, which payments honours.

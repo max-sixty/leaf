@@ -10,12 +10,13 @@ import json
 from datetime import UTC, datetime
 
 import pytest
-from leaf import event_log
-from leaf.served_state import context as served_context
 from leaf_dev import ROOT
 from leaf_dev.commands.thread_snapshots import CASES, COMPARED, SnapshotRun
 from leaf_dev.thread_journey import NEXT_WORDS, WORDS, delivery_journey
 from render_harness import consume_browser_errors, http_error_console, open_page
+
+from leaf import event_log
+from leaf.served_state import context as served_context
 
 
 # A colour scheme changes only pixels, so where no image is compared its cases would
@@ -23,7 +24,7 @@ from render_harness import consume_browser_errors, http_error_console, open_page
 # Paused except for `leaf-dev thread-snapshots capture`, which runs it with updating on.
 @pytest.mark.skipif(
     "not config.getoption('image_snapshot_update')",
-    reason="paused: TODO.md, Resume the thread appearance gate",
+    reason="paused: issue #4046, Resume the thread appearance gate",
 )
 @pytest.mark.parametrize(
     "case",

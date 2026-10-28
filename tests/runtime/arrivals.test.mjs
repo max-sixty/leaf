@@ -13,7 +13,7 @@ globalThis.requestAnimationFrame = (callback) => {
 globalThis.cancelAnimationFrame = (id) => frames.delete(id);
 
 const { whileConnected, frameFor } = await import("/runtime/arrivals.js");
-const { clockValue, readingPaint, tickClock } = await import("/runtime/presence.js");
+const { clockValue, tickClock } = await import("/runtime/presence.js");
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
 
 // A second observer acknowledges delivery of the same mutation batch as arrivals.
@@ -251,103 +251,46 @@ test("a frame refuses to paint after removal even before departure delivery", as
   stop();
 });
 
-test("a returning owner draws a reading again only where its paint did not finish while it stood", async () => {
-  const owner = document.createElement("section");
-  await mutate(() => document.body.append(owner));
-  // A refused draw is reported, here, and never thrown at its caller.
-  const reports = [];
-  const consoleError = console.error;
-  console.error = (line) => reports.push(line.split("\n")[0]);
-  const drawn = [];
-  let finish;
-  let abandon;
-  const paint = readingPaint(owner, (reading) => {
-    drawn.push(reading);
-    if (reading === "refused") throw new Error("refused");
-    if (reading.startsWith("slow")) return new Promise((resolve) => (finish = resolve));
-    if (reading.startsWith("abandoned"))
-      return new Promise((resolve, reject) => (abandon = reject));
-  });
-  const leaveAndReturn = async () => {
-    await mutate(() => owner.remove());
-    await mutate(() => document.body.append(owner));
-  };
-  try {
-    await assert.rejects(paint("refused", "refused"), /refused/);
-    await leaveAndReturn();
-    paint("refused", "refused");
-    // Left while the paint was running.
-    paint("slow", "slow");
-    await leaveAndReturn();
-    paint("slow", "slow again");
-    // Settled after the owner was removed, before its departure was delivered.
-    finish();
-    await mutate(() => owner.remove());
-    await mutate(() => document.body.append(owner));
-    paint("slow", "slow once more");
-    finish();
-    await Promise.resolve();
-    await leaveAndReturn();
-    paint("slow", "slow, finished");
-    // A refresh asked for while away is owed to the return.
-    await mutate(() => owner.remove());
-    paint.refresh();
-    await mutate(() => document.body.append(owner));
-    paint("slow", "refreshed on return");
-    finish();
-    // Work abandoned on departure is drawn again on the return, not reported.
-    paint("abandoned", "abandoned");
-    await mutate(() => owner.remove());
-    abandon(new Error("abandoned on departure"));
-    await mutate(() => document.body.append(owner));
-    paint("abandoned", "abandoned again");
-    // So is one a later draw overtook before the departure.
-    paint("slow", "overtaking");
-    await leaveAndReturn();
-    abandon(new Error("overtaken, then abandoned on departure"));
-    await Promise.resolve();
-    assert.deepEqual(drawn, [
-      "refused",
-      "slow",
-      "slow again",
-      "slow once more",
-      "refreshed on return",
-      "abandoned",
-      "abandoned again",
-      "overtaking",
-    ]);
-    assert.deepEqual(reports, ["leaf: paint failed for section: refused"]);
-  } finally {
-    console.error = consoleError;
-    paint.stop();
-    owner.remove();
-  }
-});
-
-test("a watcher's clock repaint fails by the reading paint's rule, reported once", async () => {
+test("a clock render reports its failure once and recovers on the next reading", async () => {
   const { reportCarried } = await import("/runtime/layer-client.js");
-  const { watchProjection } = await import("/runtime/projection-watch.js");
-  const owner = document.createElement("section");
-  owner.id = "clocked";
-  await mutate(() => document.body.append(owner));
+  const { LeafElement, html } = await import("/runtime/widget-api.js");
+  const { setPresentationFailureReporter } = await import("/runtime/semantic-state.js");
+  setPresentationFailureReporter(reportCarried);
   let clock = 0;
-  const stop = watchProjection(owner, () => {
-    if (clockValue(() => clock)) throw new Error("clock refused");
-  });
+  customElements.define(
+    "leaf-clocked",
+    class extends LeafElement {
+      render() {
+        if (clockValue(() => clock) === 1) throw new Error("clock refused");
+        return html`Ready`;
+      }
+    },
+  );
+  const owner = document.createElement("leaf-clocked");
+  owner.id = "clocked";
+  const settle = async () => {
+    await new Promise((resolve) => setTimeout(resolve));
+    await owner.updateComplete;
+  };
+  document.body.append(owner);
   const reports = [];
   const consoleError = console.error;
   console.error = (line) => reports.push(line.split("\n")[0]);
   try {
-    await Promise.resolve();
+    await settle();
     clock = 1;
     await tickClock(reportCarried);
-    await Promise.resolve();
-    assert.deepEqual(reports, [
-      "leaf: paint failed for section#clocked: clock refused",
-    ]);
+    await settle();
+    assert.equal(reports.length, 1, JSON.stringify(reports));
+    assert.match(reports[0], /clock refused/);
+    assert.match(owner.textContent, /failed: clock refused/);
+    clock = 2;
+    await tickClock(reportCarried);
+    await settle();
+    assert.equal(owner.textContent, "Ready");
+    assert.equal(reports.length, 1);
   } finally {
     console.error = consoleError;
-    stop();
     owner.remove();
   }
 });

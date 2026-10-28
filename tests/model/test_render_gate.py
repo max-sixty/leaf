@@ -1,12 +1,16 @@
 """Browser-gate, arrival, layout, and layer integration tests."""
 
 import json
+from datetime import UTC, datetime, timedelta
 
 import pytest
+
+from leaf import user_views
 from leaf.findings import Finding
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.command import BrowserCheck
+from leaf.render_gate.command import PIN_VARIABLE, BrowserCheck, desktop_viewport
+from model.test_user_views import report
 
 
 def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
@@ -23,22 +27,37 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
     def at(width, short=False):
         spill = 1560 <= width <= 1600 or width <= 600
         drawings = [
-            {"at": "<svg> in <figure id=f>", "place": place, "labels": n, "drawn": d}
+            {
+                "at": "<svg> in <figure id=f>",
+                "place": {"id": "f", "steps": [{"child": place}]},
+                "labels": n,
+                "drawn": d,
+            }
             | {"set": 11, "words": words}
-            for place, n, d, words in ((">0", 1, 8.8, "mild"), (">1", 3, 5, "worst"))
+            for place, n, d, words in ((0, 1, 8.8, "mild"), (1, 3, 5, "worst"))
             if width <= 800
         ]
         return {
             "overflow": 0,
             "misplaced": [
-                {"code": "past-column", "at": "<pre>", "place": "#x>0", "past": width}
+                {
+                    "code": "past-column",
+                    "at": "<pre>",
+                    "place": {"id": "x", "steps": [{"child": 0}]},
+                    "past": width,
+                }
             ]
             if spill
             else [],
             "scrollbars": [],
             "clipped": [
                 {"code": "clipped-control", "at": f"<button id={place[1:]}>"}
-                | {"place": place, "control": "pick", "id": place[1:], "lost": width}
+                | {
+                    "place": {"id": place[1:], "steps": []},
+                    "control": "pick",
+                    "id": place[1:],
+                    "lost": width,
+                }
                 | {"by": "<div id=row>"}
                 for place, clipped in (
                     ("#narrow", width <= 440),
@@ -53,7 +72,7 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
                 {
                     "code": "squeezed-table",
                     "at": f"<table id={place[1:]}>",
-                    "place": place,
+                    "place": {"id": place[1:], "steps": []},
                     "scrolls": width,
                     "columns": [{"heading": None, "width": 80, "wraps": True}],
                 }
@@ -81,6 +100,7 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
     assert spill.values["past"] == 1560
     assert str(spill) == (
         "at 1560–1600px wide, <pre> is set 1560px past the column, out in the margin"
+        '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column'
     )
     squeezed = render_gate_readings.squeezed_table_advice(readings)
     assert [(f.at, f.widths, f.values["scrolls"], f.severity) for f in squeezed] == [
@@ -110,7 +130,7 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     )
     assert str(finding) == (
         "[dark] <div id=wide> is set 74px past the column, out in the margin"
-        " (at 540x720)"
+        '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column (at 540x720)'
     )
     assert json.loads(json.dumps(finding.json())) == {
         "code": "past-column",
@@ -159,6 +179,46 @@ def test_page_check_json_names_only_the_gates_that_read_the_page():
     )
 
 
+def test_the_render_check_reads_the_desktop_in_the_last_reported_window(
+    tmp_path, monkeypatch
+):
+    """`page check --render` reads its desktop at the window of the browser that
+    reported last, while the page keeps that report, and at the fixed laptop window
+    before any report or when the caller pins it."""
+    monkeypatch.delenv(PIN_VARIABLE)
+    now = datetime(2026, 10, 22, tzinfo=UTC)
+    monkeypatch.setattr(user_views, "_now", lambda: now)
+
+    def read():
+        return desktop_viewport(tmp_path).json()
+
+    unviewed = read()
+    assert (unviewed["width"], unviewed["height"]) == (1280, 720)
+    assert unviewed["from"].startswith("fixed, since no browser")
+
+    laptop, wide = report(session="a" * 32), report(session="b" * 32)
+    wide["viewport"] = {"width": 1728, "height": 999}
+    user_views.observe_user_view(tmp_path, laptop)
+    now += timedelta(minutes=5)
+    user_views.observe_user_view(tmp_path, wide)
+    assert read() == {"width": 1728, "height": 999, "from": "the user's window"}
+
+    # A day on, the page no longer keeps either report.
+    now += timedelta(days=1, seconds=1)
+    assert read()["from"].startswith("fixed, since no browser")
+    now -= timedelta(days=1, seconds=1)
+
+    monkeypatch.setenv(PIN_VARIABLE, "fixed")
+    assert read() == {
+        "width": 1280,
+        "height": 720,
+        "from": f"fixed, pinned by {PIN_VARIABLE}",
+    }
+    monkeypatch.setenv(PIN_VARIABLE, "1728x999")
+    with pytest.raises(ValueError, match="takes only 'fixed'"):
+        read()
+
+
 def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monkeypatch):
     """The retry policy over whole attempts (`render_version`): a notice is ignored
     only when a later complete attempt is clean, ordinary failures from both attempts
@@ -174,7 +234,7 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
     first = Finding(
         "unreserved-height",
         "<lf-x id=a>",
-        {"drawn": 20, "reserved": None},
+        {"first": 0, "drawn": 20, "reserved": None},
         severity="advice",
     )
 
@@ -187,7 +247,9 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
         monkeypatch.setattr(
             render_gate_model,
             "_render_version_attempt",
-            lambda browser, url, served_timeout_ms=None: left.pop(0),
+            lambda browser, url, desktop, served_timeout_ms=None, implementations=None, declaration_sources=None: (
+                left.pop(0)
+            ),
         )
         reading = render_gate_model.render_version(None, "http://page")
         assert not left, f"{len(left)} attempts were never made"
@@ -220,3 +282,49 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
         error,
         notice,
     ]
+
+
+def test_output_contract_failures_refuse_page_and_package_checks():
+    from leaf.data_contracts import output_findings
+    from leaf.render_gate.command import WidgetQuality
+    from leaf.render_gate.version import RenderReading
+
+    registry = {
+        "$data": {
+            "contracts": {
+                "counts": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {"count": {"type": "integer"}},
+                        "required": ["count"],
+                    }
+                }
+            }
+        }
+    }
+    readings = [
+        {
+            "tag": "lf-counter",
+            "id": "count",
+            "output": "total",
+            "contract": "counts",
+            "value": value,
+        }
+        for value in ({"count": 2}, {"count": "wrong"})
+    ]
+    found = output_findings(
+        readings,
+        registry,
+        {
+            "lf-counter": {"owner": "layer", "path": "/widgets/lf-counter.js"},
+        },
+    )
+    assert len(found) == 1
+    assert str(found[0]) == (
+        "<lf-counter id=count> (package producer): output 'total' value is invalid "
+        "for contract 'counts' at $.count: 'wrong' is not of type 'integer'"
+    )
+    assert (
+        BrowserCheck(["render check"], render=RenderReading(found, [], [])).status == 1
+    )
+    assert WidgetQuality(1, findings=tuple(found)).status == 1

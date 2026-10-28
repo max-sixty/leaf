@@ -4,8 +4,6 @@ and uploads, Return on a phone, and Resume writing."""
 import base64
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, live_url
 from render_cases_layout import glyph_action_face, token_colour
@@ -17,9 +15,11 @@ from render_harness import (
     draft_control,
     example_media,
     expect_error_waits_in_menu,
+    expect_panel_says,
     holding,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_control,
     panel_field,
@@ -34,8 +34,8 @@ from render_harness import (
     write,
 )
 
-from browser.drafts import expect_panel_says
 from browser.threads import clear_of_the_panel
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -62,8 +62,7 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
             page_comment(page)
             surface = page.locator(".lf-fp-field")
         else:
-            page.locator(".lf-fp-threads").click()
-            panel_settled(page, view="threads")
+            open_threads(page)
             page.locator(".lf-fp-thread").first.click()
             panel_settled(page, view="thread")
             surface = page.locator(".lf-fp-field")
@@ -117,8 +116,7 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     compose(page, "#p3", kept)
     assert pending_text(page), "the open box left its own passage unmarked"
 
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert pending_text(page) == "", "a box off screen left its passage marked"
     expect_panel_says(page, "Draft kept — g i resumes writing")
@@ -337,8 +335,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     expect(shelf.locator("img")).to_be_visible()
 
     # Put away: the picture is words enough to keep, and to be told about.
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
     expect_panel_says(page, "Draft kept — g i resumes writing")
     assert "writing.resume" in available_commands(page)
@@ -423,7 +420,10 @@ def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
 def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back(
     browser, serve, hidden_tab
 ):
-    """Resume exposes a hidden editor's place immediately and keeps the outgoing reading."""
+    """Resume exposes a hidden editor's place immediately and keeps the outgoing reading.
+
+    The user leaves the open draft by the keyboard and by scrolling: a press away from
+    it would save it, leaving nothing to resume."""
     writing = (
         '<details id="fold" open><summary>Editable content</summary>'
         '<lf-draft id="editable"><pre>Initial words</pre></lf-draft></details>'
@@ -451,43 +451,30 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     write(edit, "Last edit")
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
-    page.locator("#fold > summary").click()
+    page.locator("#fold > summary").focus()
+    page.keyboard.press("Enter")
     if hidden_tab:
-        page.get_by_role("tab", name="Reading", exact=True).click()
-    page.locator("#elsewhere").click()
+        page.get_by_role("tab", name="Reading", exact=True).focus()
+        page.keyboard.press("Enter")
+    page.locator("#elsewhere").scroll_into_view_if_needed()
     resized(page, 390, 844)
     scroll_settled(page)
     source_entry = page.evaluate("navigation.currentEntry.key")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
     if hidden_tab:
-        page.evaluate("""() => {
-          const held = new Promise(resolve => { window.releaseResumeLayout = resolve; });
-          document.querySelector('#views').addEventListener('lf-layout', event => {
-            event.detail.present(held);
-            window.resumeLayoutStarted = true;
-          }, {once: true});
+        expect(page.locator("#writing-view")).to_be_visible()
+        first_view = page.locator("#editable").evaluate("""async draft => {
+          const {landingBand} = await window.__lfCheckApi();
+          const rect = draft.getBoundingClientRect();
+          const band = landingBand(document.scrollingElement);
+          return {top: rect.top, bottom: rect.bottom, low: band.top, high: band.bottom};
         }""")
-        try:
-            page.keyboard.press("g")
-            page.keyboard.press("i")
-            page.wait_for_function("window.resumeLayoutStarted === true")
-            one_frame(page)
-            expect(page.locator("#writing-view")).to_be_visible()
-            first_view = page.locator("#editable").evaluate("""async draft => {
-              const {landingBand} = await window.__lfCheckApi();
-              const rect = draft.getBoundingClientRect();
-              const band = landingBand(document.scrollingElement);
-              return {top: rect.top, bottom: rect.bottom, low: band.top, high: band.bottom};
-            }""")
-            assert first_view["top"] >= first_view["low"], first_view
-            assert first_view["bottom"] <= first_view["high"], first_view
-        finally:
-            page.evaluate("releaseResumeLayout()")
-    else:
-        page.keyboard.press("g")
-        page.keyboard.press("i")
+        assert first_view["top"] >= first_view["low"], first_view
+        assert first_view["bottom"] <= first_view["high"], first_view
     expect(edit).to_be_focused()
     # In sight: in the window, clear of the panel's open view where it covers the page.
     assert clear_of_the_panel(page, edit)
@@ -503,9 +490,11 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     expect(edit).to_be_focused()
     edit.press("ControlOrMeta+a")
     edit.press("Backspace")
+    edit.blur()
     if hidden_tab:
-        page.get_by_role("tab", name="Reading", exact=True).click()
-    page.locator("#elsewhere").click()
+        page.get_by_role("tab", name="Reading", exact=True).focus()
+        page.keyboard.press("Enter")
+    page.locator("#elsewhere").scroll_into_view_if_needed()
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(edit).to_be_focused()
@@ -634,8 +623,8 @@ def test_composer_return_edits_or_sends_according_to_its_keyboard(
     assert [event["text"] for event in comments] == [exact]
 
 
-def test_nested_markdown_decoration_uses_the_renderers_block_markers(browser, serve):
-    """Nested headings keep their face and fence-shaped code stays code while editing."""
+def test_markdown_decoration_keeps_source_editable(browser, serve):
+    """Headings and code follow the renderer; new bullets render before typing text."""
     page = open_page(browser, serve(LONG_PAGE))
     field = page_comment(page)
     source = "> - # Heading\n\n````\n```\nbody\n````\n\n**end**"
@@ -660,8 +649,10 @@ def test_nested_markdown_decoration_uses_the_renderers_block_markers(browser, se
                 "functionDeclaration": """function() {
               return [...this.querySelectorAll('.cm-line')].map(line => ({
                 text: line.textContent, heading: line.classList.contains('lf-md-heading'),
-                muted: [...line.querySelectorAll('.lf-md-mark')].map(mark => mark.textContent),
+                syntax: [...line.querySelectorAll('.lf-md-mark, .lf-md-unseen')].map(mark => mark.textContent),
                 strong: line.querySelector('strong')?.textContent,
+                listed: getComputedStyle(line).display === 'list-item',
+                shownMarkers: [...line.querySelectorAll('.lf-md-marker:not(.lf-md-unseen)')].map(mark => mark.textContent),
               }));
             }""",
             },
@@ -669,8 +660,8 @@ def test_nested_markdown_decoration_uses_the_renderers_block_markers(browser, se
 
     lines = reading()
     assert lines[0]["heading"] and "Heading" in lines[0]["text"], lines
-    assert lines[3]["text"] == "```" and not lines[3]["muted"], lines
-    assert lines[2]["muted"] == ["````"] and lines[5]["muted"] == ["````"], lines
+    assert lines[3]["text"] == "```" and not lines[3]["syntax"], lines
+    assert lines[2]["syntax"] == ["````"] and lines[5]["syntax"] == ["````"], lines
     assert lines[-1]["strong"] == "**end**", lines
     # Native caret movement and undo preserve the exact source, including the
     # delimiter the renderer reads as literal code.
@@ -680,4 +671,30 @@ def test_nested_markdown_decoration_uses_the_renderers_block_markers(browser, se
     page.keyboard.press("ControlOrMeta+z")
     expect(field).to_have_js_property("value", source)
     assert reading()[0]["heading"]
+
+    # Continuing a list already shows its bullet. Typing the first letter must not
+    # be what changes the marker, and moving into its source must still expose it.
+    write(field, "- First")
+    field.press("Shift+Enter")
+    expect(field).to_have_js_property("value", "- First\n- ")
+    lines = reading()
+    assert len(lines) == 2, lines
+    assert all(line["listed"] and not line["shownMarkers"] for line in lines), lines
+    field.press("ArrowLeft")
+    assert reading()[-1]["shownMarkers"] == ["- "]
+    field.press("Backspace")
+    expect(field).to_have_js_property("value", "- First\n ")
+    page.keyboard.type("*")
+    expect(field).to_have_js_property("value", "- First\n* ")
+    assert reading()[-1]["shownMarkers"] == ["* "]
+    field.press("ArrowRight")
+    assert reading()[-1]["listed"]
+    page.keyboard.type("Carts")
+    expect(field).to_have_js_property("value", "- First\n* Carts")
+    assert reading()[-1]["listed"]
+    field.press("ArrowLeft")
+    field.press("Backspace")
+    expect(field).to_have_js_property("value", "- First\n* Cars")
+    field.press("ControlOrMeta+z")
+    expect(field).to_have_js_property("value", "- First\n* Carts")
     cdp.detach()

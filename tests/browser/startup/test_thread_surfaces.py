@@ -1,14 +1,8 @@
 """Threads a page or package places itself: page annotation views, thread surfaces and
 their required readers, and the fallback when a surface fails."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.findings import Finding
-from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -28,6 +22,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.findings import Finding
+from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -56,6 +54,13 @@ def test_a_failed_thread_surface_continues_the_keyboard_opened_reply(browser, se
     _exercise_failed_thread_surface(browser, serve, "hidden", activation="keyboard")
 
 
+def test_a_moved_thread_outlet_continues_the_pointer_opened_reply(browser, serve):
+    """A failed outlet must keep the active reply visible after a sibling press."""
+    _exercise_failed_thread_surface(
+        browser, serve, "moved", activation="pointer-continuation"
+    )
+
+
 def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     """An adapter failure cannot keep stale local views or stop the next widget.
 
@@ -70,18 +75,28 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     entry = {
         "description": "A project-supplied thread surface.",
         "type": "object",
-        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "properties": {
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        },
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
+        "x-data": {
+            "rows": {
+                "contract": "text-document",
+                "source": "source",
+                "property": "value",
+            }
+        },
         "x-upgrade": True,
         "x-thread-surface": True,
         "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
-import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
-customElements.define('lf-test-surface', class extends HTMLElement {
-  connectedCallback() {
+import {LeafElement, setChildren, threadSurface} from '/runtime/widget-api.js';
+customElements.define('lf-test-surface', class extends LeafElement {
+  setup() {
     const datums = ['first', 'second'].map(key => {
       const row = document.createElement('section');
       const words = document.createElement('p');
@@ -90,10 +105,11 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       outlet.className = 'test-outlet';
       row.outlet = outlet;
       row.append(words, outlet);
-      return {node: row, key};
+      row.dataset.lfDatum = key;
+      return row;
     });
-    setChildren(this, datums.map(({node}) => node));
-    projectData(this, datums);
+    setChildren(this, datums);
+    this.dispatchEvent(new CustomEvent('drawn', {detail: {value: null}}));
   }
   async threadOutlets(targets) {
     const outlets = targets.map((target) => {
@@ -197,19 +213,23 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     strip = broken.locator(".lf-react-strip")
     trigger = strip.locator(".lf-react-trigger")
     if activation == "pointer":
+        # Exercise retirement of a saved draft separately from active continuations.
+        input.press("Escape")
+        assert not page.evaluate(editing, roots[0])
+    if activation.startswith("pointer"):
         trigger.click()
     else:
         trigger.focus()
         page.keyboard.press("Enter")
-    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
-    assert page.evaluate(editing, roots[0]) == (activation == "keyboard")
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
+    assert page.evaluate(editing, roots[0]) == (activation != "pointer")
     assert stored_draft_text(page, f"reply:{roots[0]}") == "Keep this unsent reply."
 
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
     rendered(page)
     page.evaluate("lfWordsJudged()")
     if activation == "pointer":
-        # The reaction press already ended this composition, before the passive
+        # Escape already ended this composition, before the passive
         # adapter fault. Retiring its unfocused view withdraws saved work, not a
         # typing continuation. Calibrate only this exact report at that handoff;
         # adapter faults and every other loss remain with the strict collector.
@@ -483,25 +503,36 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
     entry = {
         "description": "An exact source seat.",
         "type": "object",
-        "properties": {"id": {"type": "string"}, "style": {"type": "string"}},
+        "properties": {
+            "id": {"type": "string"},
+            "style": {"type": "string"},
+            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        },
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
+        "x-data": {
+            "rows": {
+                "contract": "text-document",
+                "source": "source",
+                "property": "value",
+            }
+        },
         "x-upgrade": True,
         "x-thread-surface": True,
         "x-example": '<lf-test-seat id="sample"></lf-test-seat>',
     }
     module = """
-import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
-customElements.define('lf-test-seat', class extends HTMLElement {
-  connectedCallback() {
-    const datums = ['row'].map(key => {
-      const row = document.createElement('section');
-      row.textContent = 'Source row';
-      row.outlet = document.createElement('div'); row.append(row.outlet); return {node: row, key};
-    });
-    setChildren(this, datums.map(({node}) => node));
-    projectData(this, datums);
+import {LeafElement, setChildren, threadSurface} from '/runtime/widget-api.js';
+customElements.define('lf-test-seat', class extends LeafElement {
+  setup() {
+    const row = document.createElement('section');
+    row.textContent = 'Source row';
+    row.outlet = document.createElement('div');
+    row.append(row.outlet);
+    row.dataset.lfDatum = 'row';
+    setChildren(this, [row]);
+    this.dispatchEvent(new CustomEvent('drawn', {detail: {value: null}}));
   }
   // Until `start`, the seat offers none, so the page presents every thread first.
   threadOutlets(targets) {
@@ -630,26 +661,37 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
     entry = {
         "description": "An exact datum seat.",
         "type": "object",
-        "properties": {"id": {"type": "string"}},
+        "properties": {
+            "id": {"type": "string"},
+            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        },
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
+        "x-data": {
+            "rows": {
+                "contract": "text-document",
+                "source": "source",
+                "property": "value",
+            }
+        },
         "x-upgrade": True,
         "x-thread-surface": True,
         "x-example": '<lf-test-seat id="seat"></lf-test-seat>',
     }
     module = """
-import {projectData,setChildren} from '/runtime/widget-api.js';
-customElements.define('lf-test-seat',class extends HTMLElement{
-  connectedCallback(){
+import {LeafElement,setChildren} from '/runtime/widget-api.js';
+customElements.define('lf-test-seat',class extends LeafElement{
+  setup(){
     this.style.cssText='display:block;height:360px;overflow:auto';
     const datums=['row'].map(key=>{
       const row=document.createElement('section');row.textContent='Source row';
       for(const name of ['a','b']){row[name]=document.createElement('div');row[name].dataset.seat=name;row.append(row[name]);}
-      return {node:row,key};
+      row.dataset.lfDatum=key;
+      return row;
     });
-    setChildren(this,datums.map(({node})=>node));
-    projectData(this,datums);
+    setChildren(this,datums);
+    this.dispatchEvent(new CustomEvent('drawn',{detail:{value:null}}));
     this.side='a';
   }
   threadOutlets(targets){

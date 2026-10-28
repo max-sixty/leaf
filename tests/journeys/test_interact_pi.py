@@ -12,14 +12,15 @@ from interact_support import (
     page_state,
     wait_for,
 )
-from leaf import event_log as events_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
 from process.test_interact_pi import (  # noqa: F401 (fixtures)
     pi_fixture,
     start_pi_fixture,
 )
+
+from leaf import event_log as events_model
+from leaf import leases as leases_model
+from leaf import service as service_model
+from leaf import state as cleanup_model
 
 
 @pytest.mark.parametrize("cancelled", [False, True])

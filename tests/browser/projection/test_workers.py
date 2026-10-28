@@ -13,9 +13,6 @@ from interact_support import (
     append_carried_log_record,
     append_command,
 )
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     COMMAND_HUB_EXAMPLE,
@@ -43,6 +40,10 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -342,7 +343,14 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     assert report.exit_code == 0, report.output
     started = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(d), thread["id"], "checking the user's question"],
+        [
+            "task",
+            "start",
+            str(d),
+            thread["id"],
+            "--text",
+            "checking the user's question",
+        ],
     )
     assert started.exit_code == 0, started.output
     told(page)
@@ -444,10 +452,17 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
-          window.__proofWatching = api.watchProjection(owner, () => {
-            clockValue(() => window.__proofClock);
-            window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
-          }, () => api.reportsPresented(owner));
+          customElements.define('lf-report-proof', class extends api.LeafElement {
+            render() {
+              if (!this.whenReady(() => api.reportsPresented(owner))) return api.noChange;
+              clockValue(() => window.__proofClock);
+              window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
+              return api.noChange;
+            }
+          });
+          window.__proofWatching = document.createElement('lf-report-proof');
+          document.body.append(window.__proofWatching);
+          await window.__proofWatching.updateComplete;
           window.__proofTick = () => { window.__proofClock += 1; };
           window.__proofPending = () => {
             const proof = readApplicationPresentation();
@@ -476,7 +491,9 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
         # A same-epoch reopen has no semantic notification. The next clock paint
         # must still check proof rather than bypassing its readiness guard.
         reads = page.evaluate("window.__proofReads.length")
-        page.evaluate("window.__proofWatching.refresh()")
+        page.evaluate(
+            "window.__proofWatching.requestUpdate(); window.__proofWatching.performUpdate()"
+        )
         assert page.evaluate("window.__proofReads.length") == reads
         page.evaluate("window.__proofTick()")
         ticked(page)
@@ -863,7 +880,7 @@ def test_atlas_input_is_trimmed_before_it_enters_the_record(browser, serve):
     page = open_page(browser, url)
     draft = page.locator("#ledger-cargo")
     draft_control(page, "edit", "ledger-cargo").click()
-    editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
+    editor = draft.locator("leaf-text")
     write(
         editor,
         "ledger_id,customer_name,billing_email,amount\n7,Alice,a@example.test,42",

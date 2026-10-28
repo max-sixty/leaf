@@ -12,9 +12,9 @@ import { existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const at = (path) => fileURLToPath(new URL(path, import.meta.url));
-const PACKAGES = at("../skills/leaf/packages");
+const PACKAGES = at("../packages");
 const ROOTS = [
-  at("../skills/leaf/assets"),
+  at("../browser"),
   ...readdirSync(PACKAGES, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => `${PACKAGES}/${entry.name}`)

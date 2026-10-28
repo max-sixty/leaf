@@ -48,13 +48,13 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import click
+
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
 from leaf.state import session_record
-
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, environment, now, pi_home
 from leaf_dev.commands.journey import (
@@ -110,6 +110,8 @@ class Pi(Terminal):
         self.running = False
         self.settled = 0
         self.closed_watches = 0
+        # The output of the response the next `turn_end` closes.
+        self.output_tokens: int | None = None
         self.session = self.request("get_state")["sessionId"]
 
     def _read(self) -> None:
@@ -143,9 +145,21 @@ class Pi(Terminal):
                     "received_at": now(),
                 }
             )
+        elif kind == "message_start" and record["message"]["role"] == "assistant":
+            # Pi starts an assistant message on the stream's first event.
+            self.trace.append({"type": "first_output", "received_at": now()})
+        elif kind == "message_end" and record["message"]["role"] == "assistant":
+            self.output_tokens = record["message"]["usage"]["output"]
         elif kind == "turn_end":
             # One assistant response and the tool calls it started have finished.
-            self.trace.append({"type": "model_response", "received_at": now()})
+            self.trace.append(
+                {
+                    "type": "model_response",
+                    "outputTokens": self.output_tokens,
+                    "received_at": now(),
+                }
+            )
+            self.output_tokens = None
         elif kind == "tool_execution_end":
             if command := self.running_commands.pop(record["toolCallId"], None):
                 self.commands.append(command)

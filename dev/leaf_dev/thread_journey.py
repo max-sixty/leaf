@@ -14,11 +14,11 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from leaf.registry.kernel import kinds_declaring
-from leaf.render_checks import rendered, wait_for_probe
 from playwright.sync_api import Locator, Page, expect
 
-from leaf_dev.browser import scroll_settled
+from leaf.registry.kernel import kinds_declaring
+from leaf.render_checks import rendered, wait_for_probe
+from leaf_dev.browser import go_to_threads, scroll_settled
 
 WORDS = "Keep the reader's words in the thread while this reply is being sent."
 NEXT_WORDS = "Keep the next draft separate from the reply still being sent."
@@ -120,9 +120,8 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
                 page.locator(".lf-floating-panel"),
                 "comment",
             )
-        page.locator(".lf-fp-threads").click()
-        page.locator(".lf-fp-filters button", has_text="Open").click()
-        page.locator(".lf-fp-thread").last.click()
+        go_to_threads(page)
+        page.locator(".lf-fp-thread:not([data-resolved])").last.click()
         expect(view).to_be_visible()
         wait_for_probe(page, "pageSettled")
         return ThreadSurface(

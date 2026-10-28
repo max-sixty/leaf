@@ -5,10 +5,10 @@ Stop:
     hookEventName: Stop
     additionalContext: |-
       Leaf needs attention:
-      - <first-page>: 1 acknowledged user update with no answer (`leaf response reply <first-delivery>:0:c1`).
-      - <second-page>: 1 acknowledged user update with no answer (`leaf response reply <second-delivery>:0:c2`).
+      - <first-page>: 1 acknowledged user update with no answer (`leaf thread reply <first-delivery>:0:c1`).
+      - <second-page>: 1 acknowledged user update with no answer (`leaf thread reply <second-delivery>:0:c2`).
 
-      Each update takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
+      `leaf page state <page>` lists what is owed, and `leaf page state <page> <message>` reads a thread's history.
       Read these unanswered updates and their exact answer references:
       ```xml
       <leaf-delivery id="<first-delivery>" operation="delivery read" />

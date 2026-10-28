@@ -28,40 +28,30 @@ from urllib.parse import urljoin, urlsplit
 import leaf_website as website_server
 import pytest
 from conftest import LENT_LINKED_DIRS
-from interact_support import declared, running_http_server
-from leaf import data as data_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import layer as layer_model
-from leaf import schema as schema_model
-from leaf.event_log import _parse_events, read_events
-from leaf.events import bare_reaction, build_threads
-from leaf.passages import enclosing_ids
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.revision_artifact import read_artifact
-from leaf.service import acknowledged
-from leaf.structure import SourceDocument
+from interact_support import declared, running_http_server, wait_for
+from leaf_dev.browser import panel_tab, show_resolved
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets
-from leaf_dev.page_fixtures import authored_markup, source_packages
+from leaf_dev.page_fixtures import authored_markup, read_event_lines, source_packages
 from PIL import Image
 from playwright.sync_api import expect
 from render_harness import (
+    OPEN_THREAD_COUNT,
     PANEL_THREAD,
     compare_with,
     consume_browser_errors,
     displayed,
     expect_obligations_answered,
+    expect_open_threads,
     holding,
     http_error_console,
     is_problem,
     navigate,
     open_page,
+    open_threads,
     page_comment,
     panel_menu,
-    panel_settled,
     root_overflow,
     select,
     sending,
@@ -72,6 +62,20 @@ from render_harness import (
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "Waits".
 from journeys import expect_showing
+from leaf import data as data_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import layer as layer_model
+from leaf import schema as schema_model
+from leaf.event_log import read_events
+from leaf.events import bare_reaction, build_threads
+from leaf.passages import enclosing_ids
+from leaf.registry.storage import layer_packages, layer_record, selected
+from leaf.render_checks import wait_until_ready
+from leaf.render_gate import version as render_gate_model
+from leaf.revision_artifact import read_artifact
+from leaf.service import acknowledged
+from leaf.structure import SourceDocument
 
 ROOT = Path(__file__).parents[2]
 DOCS = ROOT / "docs"
@@ -81,9 +85,13 @@ DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
 
 def open_count(page):
-    """How many open threads the panel's Threads mark counts."""
-    label = page.locator(".lf-fp-threads").get_attribute("aria-label")
-    return int(re.match(r"Threads, (\d+) open", label).group(1))
+    """How many open threads the page's reading holds (`OPEN_THREAD_COUNT`), once its
+    saved inventory has arrived."""
+    return wait_for(
+        lambda: page.evaluate(OPEN_THREAD_COUNT),
+        lambda held: held is not None,
+        failure="the page's saved threads never arrived",
+    )
 
 
 # The theme's paper, light and dark, as the browser reports a background.
@@ -143,12 +151,10 @@ def example_title(stem: str) -> str:
 
 
 def authored_examples():
-    """The public examples, with the one generated browser-stress fixture removed."""
+    """The public examples, excluding any generated browser-stress snapshot."""
     pages = pages_under(EXAMPLES)
-    corpus = [page for page in pages if page.stem == "corpus"]
     authored = [page for page in pages if page.stem != "corpus"]
-    assert len(corpus) == 1, f"expected one internal corpus, found {corpus}"
-    assert authored, "excluding the corpus left no examples to publish"
+    assert authored, "no authored examples to publish"
     return authored
 
 
@@ -299,16 +305,19 @@ def opened(page, url):
     navigate(page, url, wait_until="load")
 
 
-def test_product_pages_vendor_the_composed_theme(site, monkeypatch):
+def test_product_pages_select_the_sources_packages(site):
     """Publication and local previews compose the product source's same layer."""
-    monkeypatch.chdir(ROOT)
     for page in pages_under(DOCS):
-        inputs = layer_model.layer_inputs(tuple(source_packages(page)))
-        expected_theme = layer_model.composed_sheets(inputs)["theme.css"]
         target = site_build.product_page(site, page.name)
         source_markup = page.read_text()
         assert 'href="/theme.css"' not in source_markup, page.name
-        assert (target / "theme.css").read_bytes() == expected_theme, page.name
+        # The page records its own copy of each package the source selects by path.
+        assert layer_packages(target) == [
+            value
+            if re.fullmatch(schema_model.HTML_NAME, value)
+            else f"./{schema_model.PACKAGES_DIR}/{Path(value).name}"
+            for value in source_packages(page)
+        ], page.name
 
 
 @pytest.mark.parametrize("name", ["index", "event-log", "how-it-works"])
@@ -324,12 +333,19 @@ def test_published_product_page_renders(site, browser, name):
     assert failures == [], "\n".join(map(str, failures))
 
 
-def test_published_examples_keep_the_site_theme_out_of_their_layer(site):
+def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeypatch):
     """A website example uses the authored example's layout layer."""
-    context_theme = (DOCS / "package" / "theme.css").read_text().rstrip()
+    monkeypatch.chdir(ROOT)  # resolve project-relative package selections
+    package = DOCS / "package"
+    context_theme = layer_model.stylesheet(package / "theme.css", package).rstrip()
     for source in site_build.published_page_sources():
-        theme = site / "examples" / source.stem / "theme.css"
-        assert context_theme not in theme.read_text(), source
+        record = layer_record(site / "examples" / source.stem)
+        theme = (
+            selected(record, site / "examples" / source.stem)
+            .top_files["theme.css"]
+            .decode()
+        )
+        assert context_theme not in theme, source
 
 
 def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
@@ -356,25 +372,19 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
 
 
 def test_product_pages_are_published_as_complete_page_records(site):
-    """Each page retains its layer, history, and every captured media input."""
+    """Each page retains its layer selection, history, and every captured media
+    input."""
     sources = pages_under(DOCS)
     for source in sources:
         page = site_build.product_page(site, source.name)
         expected = authored_markup(source)
         assert (page / "index.html").read_text() == expected, source.name
-        for name in (
-            *schema_model.VENDORED_FILES,
-            "events.jsonl",
-        ):
+        for name in (schema_model.LAYER_FILE, "events.jsonl"):
             assert (page / name).is_file(), f"{source.name}: no {name}"
-        for name in (
-            "instructions",
-            "revisions",
-            "runtime",
-            "vendor",
-            "widgets",
-        ):
-            assert list((page / name).iterdir()), f"{source.name}: {name}/ is empty"
+        # The layer and runtime are the serving Leaf's, which the release publishes
+        # beside each revision rather than the page holding them
+        # (`runtime_selection`).
+        assert list((page / "revisions").iterdir()), f"{source.name}: no revisions"
         artifact = read_artifact(page, files_model.latest_revision(page))
         for path, resource in artifact.resources.items():
             if path.startswith("/media/"):
@@ -385,7 +395,7 @@ def test_product_pages_are_published_as_complete_page_records(site):
 def test_page_layers_stay_inside_their_page_directories(site):
     """The container image keeps complete pages rather than a public layer beside them."""
     for name in (
-        *schema_model.VENDORED_FILES,
+        *schema_model.LAYER_TOP_FILES,
         "session.js",
         "runtime.js",
         "events.jsonl",
@@ -541,6 +551,7 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
     """
     assets = site_build.asset_site(site)
     manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
+    asset_root = manifest["pages"]["/examples/triage-board"]["assets"]
     board = assets / "examples" / "triage-board"
     historical = [
         document.relative_to(assets).as_posix()
@@ -553,20 +564,17 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
         ("/", "index.html"),
         ("/examples/triage-board/", "examples/triage-board/index.html"),
         (
-            f"/examples/triage-board/{revision}/runtime/check-api.js",
+            f"{asset_root}/{revision}/runtime/check-api.js",
             f"examples/triage-board/{revision}/runtime/check-api.js",
         ),
         *((f"/{relative}", relative) for relative in historical),
     ):
-        with urllib.request.urlopen(f"{hosted}{route}") as response:
-            served = response.read()
+        try:
+            with urllib.request.urlopen(f"{hosted}{route}") as response:
+                served = response.read()
+        except urllib.error.HTTPError as error:
+            pytest.fail(f"{route}: {error}")
         materialized = (assets / relative).read_bytes()
-        page_root = "/examples/triage-board" if route.startswith("/examples/") else ""
-        public_root = page_root or "/"
-        materialized = materialized.replace(
-            manifest["pages"][public_root]["assets"].encode(),
-            page_root.encode(),
-        )
         if relative.endswith(".html"):
             served = re.sub(
                 rb'data-lf-server="[^"]+"', b'data-lf-server="published"', served
@@ -596,7 +604,14 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
 
         seed = source.with_suffix(".jsonl")
         if seed.exists():
-            assert seed.read_text() in (page_dir / "events.jsonl").read_text()
+            # Each seeded event is in the log in order, as admission wrote it: the
+            # fields the seed states beside those admission derives, after the
+            # stamp of the revision it names.
+            remaining = iter(events)
+            assert all(
+                any(event.items() >= seeded.items() for event in remaining)
+                for seeded in read_event_lines(seed)
+            ), f"{seed.name} is not in the published log"
             # The seed is history, so the page acknowledges all of it.
             receipt = next(event for event in events if event["kind"] == "receipt")
             assert acknowledged(events) == receipt["seq"] - 1
@@ -607,22 +622,12 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
             stored = data_model.source_file(page_dir, operation["source"])
             assert json.loads(stored.read_text())["value"] == operation["value"]
 
-        for name in (
-            "events.jsonl",
-            "icon.svg",
-            "leaf.js",
-            "registry.json",
-            "theme.css",
-        ):
+        for name in ("events.jsonl", schema_model.LAYER_FILE):
             assert (page_dir / name).is_file(), f"{source.name}: no {name}"
-        for sub in (
-            "instructions",
-            "media",
-            "revisions",
-            "runtime",
-            "vendor",
-            "widgets",
-        ):
+        # The layer and runtime are the serving Leaf's, which the release publishes
+        # beside each revision rather than the page holding them
+        # (`runtime_selection`).
+        for sub in ("media", "revisions"):
             assert list((page_dir / sub).iterdir()), f"{source.name}: {sub}/ is empty"
         assert declared(page_dir)["state"] == "idle"
         assert not (page_dir / "service.json").exists()
@@ -674,9 +679,9 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     markup = page.evaluate(
         "() => fetch('../versions/v1.html').then(response => response.text())"
     )
-    assert '<meta name="lf-version" data-lf-runtime content="1">' in markup
+    assert '<meta name="lf-version" content="1" data-lf-runtime>' in markup
     assert (
-        f'<meta name="lf-revision" data-lf-runtime content="{mappings[1]}">' in markup
+        f'<meta name="lf-revision" content="{mappings[1]}" data-lf-runtime>' in markup
     )
     pinned = page.evaluate("() => fetch('../api/state').then(r => r.json())")
     assert pinned["versions"] == versions
@@ -717,16 +722,11 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
     _, url = served_example("visual-review-gallery")
     page = open_page(browser, url)
     review = page.locator("#visual-review-run")
-    case_select = review.locator(".lf-vr-case-select")
     for case_id in ("open-mobile-package-catalog", "keep-mobile-destinations"):
-        option = review.locator(f'wa-option[value="{case_id}"]')
-        case_select.click()
-        expect(option).to_be_visible()
-        option.click()
-        # Web Awesome finishes hiding the listbox after it records the selection.
-        expect(case_select.locator('[part~="listbox"]')).to_have_attribute("hidden", "")
-        expect(case_select).to_have_js_property("value", case_id)
-        comparison = review.locator(".lf-vr-case[data-selected] lf-shot")
+        review.locator(
+            f'.lf-vr-case-button[aria-controls="visual-review-run-{case_id}"]'
+        ).click()
+        comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
         expect(comparison).to_be_visible()
         images = comparison.locator("img")
         expect(images).to_have_count(2)
@@ -809,7 +809,7 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     page.route(url, answer)
     page.route(url + "?*", answer)
     page.goto(url, wait_until="load")
-    banner = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    banner = page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     expect(banner).to_be_visible()
     holding(page, rounds, 3, "three probe rounds from the replacement document")
     assert len(documents) == 2, documents
@@ -850,10 +850,10 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     page.on("request", lambda request: probes.append(request.url))
 
     page.goto(url, wait_until="load")
-    notice = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    notice = page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(notice).to_have_count(0)
-    expect(page.locator(".lf-fp-threads")).to_be_visible()
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
     # The probe stops with it: a page that started has nothing left to ask the source.
     before = sum("registry.json" in probe for probe in probes)
@@ -916,7 +916,7 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
 
     assert len(documents) == 1, documents
     expect(
-        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+        page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_have_count(0)
     take_browser_errors(page)
 
@@ -1120,7 +1120,9 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
             "install_url": "/#install",
         }
         if name == "how-it-works.html":
-            diagram = page.locator("#arch")
+            # The package can use the page margins beyond its prose-width figure.
+            # Its own scrollport, rather than that wrapper, bounds the drawing.
+            diagram = page.locator("#agent-browser-architecture")
             expect(diagram).to_be_visible()
             width = diagram.evaluate(
                 "element => ({client: element.clientWidth, scroll: element.scrollWidth})"
@@ -1348,7 +1350,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         newest = len(example_versions(source))
         expect_showing(page, newest)
         expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-            "aria-label", "Page menu · Agent awaits — comment to revise this copy"
+            "aria-label", "Page menu · Ready — comment to revise this copy"
         )
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
@@ -1514,10 +1516,10 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     The anchor is the half that rots quietly: the quote is captured against the file, and
     a rewritten sentence leaves it resolving to nothing and the thread left detached,
     with no error anywhere."""
-    _, url = served_example("ship-review")
+    page_dir, url = served_example("ship-review")
     page = open_page(browser, url)
     source = EXAMPLES / "ship-review.html"
-    events = _parse_events(source.with_suffix(".jsonl").read_bytes())
+    events = read_events(page_dir)
     threads = [
         thread
         for thread in build_threads(
@@ -1529,14 +1531,9 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     opened = sum(not thread["resolved"] for thread in threads)
     resolved = len(threads) - opened
     assert opened and resolved, "the shipped seed must cover both thread states"
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile(rf"^Threads, {opened} open")
-    )
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button", has_text="Resolved").click()
-    expect(page.locator(".lf-fp-thread")).to_have_count(resolved)
-    page.locator(".lf-fp-filters button", has_text="Open").click()
+    open_threads(page)
+    expect(panel_tab(page, "Threads").locator(".lf-fp-count")).to_have_text(str(opened))
+    expect(show_resolved(page)).to_have_count(resolved)
     # Named rather than taken first: the assertion follows the shipped objection,
     # independent of where a later seed might place another thread.
     row = page.locator(".lf-fp-thread").filter(
@@ -1552,7 +1549,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     # Painted, not merely resolved: the mark is what puts the user at the passage.
     assert "lf-mark" in page.evaluate("() => [...CSS.highlights.keys()]")
     # The question Claude asks in that thread is a widget, upgraded from the
-    # same canonical state a user can answer where they are standing.
+    # same canonical state a user can answer where they are located.
     item = page.locator("#off-slip")
     expect(item).to_be_visible()
     assert item.locator("[data-lf-offer]").count() > 0, (
@@ -1615,17 +1612,13 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     # theirs would be first. triage-board ships none today, so `.first` was
     # right by accident and would stop being on the day it does.
     def written():
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
-        page.locator(".lf-fp-filters button", has_text="Open").click()
+        open_threads(page)
         page.locator(".lf-fp-thread").filter(
             has_text="Can the migration fix ship first?"
         ).click()
         return page.locator(PANEL_THREAD)
 
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile(rf"^Threads, {opened_with + 1} open")
-    )
+    expect_open_threads(page, opened_with + 1)
     thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
     expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
@@ -1665,9 +1658,7 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     page.locator(".lf-fp-field .lf-compose-submit").click()
     # One, and typed: this example ships no log, so the count is the comment
     # just written and nothing else.
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile("^Threads, 1 open")
-    )
+    expect_open_threads(page, 1)
     # The page's own scroller (the runtime's `pageScroller`), moved the way a
     # user moves it far enough down that the landmark is worth restoring.
     page.evaluate(
@@ -1687,9 +1678,101 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     )
     _, plain_url = served_example(plain)
     opened(page, plain_url)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile("^Threads, 0 open")
-    )
+    expect_open_threads(page, 0)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
         "the second example opened at the offset left on the first"
     )
+
+
+def test_a_sample_waits_for_slow_contained_page_state(serve, browser):
+    """A healthy contained page may present after an arbitrarily slow state read."""
+    url = serve("""<!doctype html><html><head><title>Slow sample</title></head><body><main>
+      <lf-sample id="practice" label="practice page">
+        <template id="practice-page" data-sample><p id="copy">Practice here.</p></template>
+      </lf-sample>
+    </main></body></html>""")
+    context = browser.new_context(reduced_motion="reduce")
+    page = context.new_page()
+    held = []
+    held_once = False
+    allocation = sample_allocation(page, url, "practice-page")
+
+    def hold_first_contained_state(route):
+        nonlocal held_once
+        if (
+            allocation["url"] is not None
+            and route.request.url.startswith(allocation["url"])
+            and not held_once
+        ):
+            held_once = True
+            held.append(route)
+            return
+        route.continue_()
+
+    page.route("**/api/state*", hold_first_contained_state)
+    try:
+        with page.expect_request(
+            lambda request: (
+                allocation["url"] is not None
+                and request.url.startswith(allocation["url"])
+                and "/api/state" in request.url
+            )
+        ):
+            page.goto(url, wait_until="domcontentloaded")
+        sample = page.locator("#practice")
+        holding(page, held, 1, "the contained page's first state read")
+        held.pop().continue_()
+        page.wait_for_load_state("load")
+        wait_until_ready(page)
+        sample.evaluate("async sample => { await sample.ready; }")
+        frame = sample.locator("iframe")
+        assert not frame.get_attribute("srcdoc")
+        contained_document = frame.content_frame.locator("html")
+        assert contained_document.evaluate(
+            "() => document.doctype?.name === 'html' && Boolean(document.scrollingElement)"
+        )
+        page.evaluate("sessionStorage.setItem('lf-view', 'outer reading')")
+        storage = contained_document.evaluate(
+            """async () => {
+                const {readApplication} = await window.__lfCheckApi();
+                const {PAGE_SCOPE, tabStore, draftStore, userStore} =
+                    await window.__lfCheckApi();
+                for (const [name, store] of Object.entries({tabStore, draftStore, userStore})) {
+                    if (!store.set('isolation-test', name) || store.get('isolation-test') !== name)
+                        throw new Error(`${name} did not retain sample working state`);
+                    if (!store.keys().includes('isolation-test'))
+                        throw new Error(`${name} did not enumerate its retained state`);
+                    store.set('isolation-test', null);
+                    if (store.get('isolation-test') !== null)
+                        throw new Error(`${name} did not clear its retained state`);
+                }
+                return {liveRoot: readApplication().document.live, pageScope: PAGE_SCOPE};
+            }"""
+        )
+        assert storage["liveRoot"] is True
+        assert "/api/samples/" in storage["pageScope"]
+        interaction_url = f"{sample_address(frame)}api/interaction"
+        with page.expect_response(
+            lambda response: (
+                response.url == interaction_url
+                and any(
+                    entry["type"] == "pagehide"
+                    for entry in response.request.post_data_json["entries"]
+                )
+            )
+        ) as departure:
+            contained_document.evaluate(
+                "dispatchEvent(new PageTransitionEvent('pagehide'))"
+            )
+        assert departure.value.ok
+        assert page.evaluate("sessionStorage.getItem('lf-view')") == "outer reading"
+        assert (
+            page.evaluate(
+                "scope => sessionStorage.getItem(scope + 'lf-view')",
+                storage["pageScope"],
+            )
+            is None
+        )
+    finally:
+        for route in held:
+            route.abort()

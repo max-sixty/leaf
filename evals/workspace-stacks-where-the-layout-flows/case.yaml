@@ -1,10 +1,10 @@
 # Added with the stacked-panes rule. Base at 01665ed97, whose workspace snippet stacked
 # its panes below 900px, 1 of 3; the change 3 of 3.
+# Those scores enforced a width threshold. The current rubric judges usable regions
+# and their actual height constraints, including flowing and short-window layouts.
 description: workspace-stacks-where-the-layout-flows
 metadata:
-  purpose:
-    "Writing a workspace of panes: the page's own grid stacks them where the Layout stops holding
-    the window, never in a wider window where stacked panes share its height."
+  purpose: "Writing a workspace of panes: the questions, checks and diff remain usable beside the reader's editor."
   tags:
     - layout
 vars:
@@ -22,8 +22,14 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Read the HTML. Pass only if `main` has class `layout-workspace` and the page's own
-      stylesheet never puts all of its panes into one column at a window width of 720px
-      or more: any media or container query that stacks the panes applies only below
-      720px (for example `@media (width < 720px)` or `max-width: 719px`). Fail if a query
-      stacks the panes at a wider threshold such as 900px, 960px or 1024px.
+      Inspect the HTML and CSS at the requested editor-adjacent width of about 800px,
+      with ordinary laptop heights. The user must be able to read the two questions,
+      inspect the CI results and a useful portion of the diff, and reach the decisions.
+      Trace the panes' ancestors and their height and overflow constraints: fail if
+      fixed chrome or stacked regions consume the available height so evidence is
+      clipped, reduced to a cramped scrolling slot or unreachable.
+      Side-by-side regions, a usable bounded stack and a flowing page can all pass.
+      Stacking above a particular breakpoint is not itself a failure, and height:auto
+      on one element is not proof that constrained ancestors or children can grow.
+      Judge the resulting space and reachability, not a required Layout class or
+      media-query value.

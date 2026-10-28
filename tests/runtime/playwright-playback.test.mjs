@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   advancePlayback,
   mergeIntervals,
-} from "../../skills/leaf/packages/playwright/widgets/playback.js";
+} from "../../packages/playwright/widgets/playback.js";
 
 test("recorded pace keeps the native clock", () => {
   assert.equal(advancePlayback(1000, 250), 1250);

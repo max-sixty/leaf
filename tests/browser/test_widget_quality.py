@@ -8,19 +8,20 @@ import re
 
 import pytest
 from click.testing import CliRunner
-from interact_support import SKILL_ROOT
-from leaf import cli as cli_model
-from leaf import exporting as exporting_model
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
-from leaf.revision_delivery import json_script
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import ROOT, consume_browser_errors, displayed
 
+from leaf import cli as cli_model
+from leaf import exporting as exporting_model
+from leaf import schema as schema_model
+from leaf.render_checks import wait_until_ready
+from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
+from leaf.revision_delivery import json_script
+
 
 def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
-    """A settled example whose public reading paint rejected was not drawn."""
+    """A settled example whose asynchronous drawing rejected was not drawn."""
     package = tmp_path / "package"
     made = CliRunner().invoke(
         cli_model.cli,
@@ -28,20 +29,69 @@ def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
     )
     assert made.exit_code == 0, made.output
     (package / "widgets/lf-async-panel.js").write_text("""\
-import { once, readingPaint, whileConnected } from "/runtime/widget-api.js";
-customElements.define("lf-async-panel", class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    const paint = readingPaint(this, async () => {
-      await Promise.resolve();
-      throw new Error("The instrument paint failed");
-    });
-    whileConnected(this, () => { paint("instrument"); });
+import { LeafElement, html } from "/runtime/widget-api.js";
+customElements.define("lf-async-panel", class extends LeafElement {
+  render() { return html`Instrument`; }
+  async getUpdateComplete() {
+    await super.getUpdateComplete();
+    throw new Error("The instrument paint failed");
   }
 });
 """)
     with pytest.raises(UnreadablePage, match="The instrument paint failed"):
         widget_findings(browser.unwatched, package)
+
+
+def test_package_render_check_draws_example_source_values(tmp_path, browser):
+    """The quality checks see the populated drawing through ordinary bound data."""
+    package = tmp_path / "package"
+    made = CliRunner().invoke(
+        cli_model.cli,
+        ["package", "init", str(package), "--widget", "lf-feed"],
+    )
+    assert made.exit_code == 0, made.output
+    path = package / "registry.json"
+    registry = json.loads(path.read_text())
+    registry["$data"] = {
+        "description": "Sample feed.",
+        "contracts": {
+            "feed": {
+                "description": "Rows.",
+                "schema": {"type": "array", "items": {"type": "string"}},
+            }
+        },
+    }
+    entry = registry["lf-feed"]
+    entry["properties"]["source"] = {
+        "type": "string",
+        "pattern": f"^{schema_model.DATA_SOURCE_NAME}$",
+    }
+    entry["x-data"] = {
+        "feed": {"contract": "feed", "source": "source", "property": "value"}
+    }
+    entry["x-example"] = '<lf-feed id="feed" source="rows"></lf-feed>'
+    entry["x-example-data"] = {"rows": ["First", "Second"]}
+    path.write_text(json.dumps(registry))
+    (package / "widgets/lf-feed.js").write_text("""\
+import { LeafElement, html } from "/runtime/widget-api.js";
+customElements.define("lf-feed", class extends LeafElement {
+  static properties = { value: { attribute: false } };
+  render() {
+    return this.value ? html`<div style="height:200px">${this.value.join(", ")}</div>` : html`Waiting`;
+  }
+});
+""")
+    findings = widget_findings(browser, package)
+    assert {
+        finding.values["layout"]
+        for finding in findings
+        if finding.code == "keeps-first-box"
+    } == {"column", "workspace"}
+    assert all(
+        finding.values["now"]["height"] >= 200
+        for finding in findings
+        if finding.code == "keeps-first-box"
+    )
 
 
 def grows_at_upgrade(tag: str, style: str) -> str:
@@ -64,17 +114,18 @@ def keyed(tag: str, badge: str) -> str:
     """A widget module that declares a command with a context key on its element, and
     `badge` as the command's `bindingBadge` field, verbatim."""
     return f"""\
-import {{ commands, once }} from "/runtime/widget-api.js";
+import {{ once, commandsChanged }} from "/runtime/widget-api.js";
 
 customElements.define(
   "{tag}",
   class extends HTMLElement {{
     connectedCallback() {{
       if (!once(this)) return;
-      commands(this, "Keyed", [
+      this.lfCommands = {{ title: "Keyed", rows: [
         {{ id: "{tag[3:]}.go", keys: [], contextKeys: ["1"], control: this,
           title: "Go", run: () => {{}}{badge} }},
-      ]);
+      ] }};
+      commandsChanged(this);
     }}
   }},
 );
@@ -166,7 +217,7 @@ def test_a_tab_set_first_paints_the_panel_it_opens_on(browser, serve):
 
 
 DIFF_EXAMPLE = json.loads(
-    (SKILL_ROOT / "packages" / "diff" / "registry.json").read_text()
+    (schema_model.BUNDLED_PACKAGES / "diff" / "registry.json").read_text()
 )["lf-diff"]["x-example"]
 
 # Each case's markup and the window width it is read at. A draft indented as the HTML
@@ -373,7 +424,7 @@ INITIAL_DRAWING_PAGE = """
 # independent galleries. Measuring just the outer widget can miss movement inside it.
 INITIAL_DRAWING_NODES = """lf-playground, lf-playground-control,
   lf-playground-preview, lf-playground-output, lf-playground-value,
-  .lf-playground-input, .lf-playground-control-label, .lf-playground-choice-face,
-  .lf-playground-reading, .lf-playground-copy-trigger,
+  .lf-playground-input, .lf-playground-control-label, lf-playground label,
+  .lf-playground-reading, .lf-playground-submit,
   lf-margin-entry-gallery, .margin-entry-gallery-name, .margin-entry-gallery-detail, .margin-entry-gallery-heading, .margin-entry-gallery-summary, .margin-entry-gallery-face,
   #after"""

@@ -8,7 +8,12 @@
 # reproducing the failure. Replaying the session from just before it wrote the page
 # reproduced it: base showed the tiers in 4 of 15 pages; SKILL.md's picture default and
 # code-as-effect rule, over four wordings, in 12 of 17, the committed wording 4 of 4.
-description: findings-page-shows-its-subject
+# On 2026-10-24, rendered review exposed a format false-negative: ranked tier lists
+# conveyed precedence, and inset specimens showed the proposal's consequences.
+# The relationship/consequence rubrics below passed saved HEAD 0/1 and the revised
+# authoring workflow 2/2 on saved output; these are content regrades, not an
+# estimate of reliability. Earlier rubric scores remain in scratch.
+description: CSS cascade survey
 metadata:
   purpose: "Show the subject: a findings page whose request names no form shows what its
     findings are about in a picture on the page, not only in prose, tables and code."
@@ -69,17 +74,44 @@ assert:
     metric: shows-the-subject
     value: |
       The survey's findings are about where each kind of CSS sits in Leaf's cascade and
-      which tiers it can or cannot beat. Pass only if the page itself holds at least one
-      picture of that: an inline `<svg>`, an `<img>`, an `lf-diagram`, an `lf-chart`, an
-      `lf-shot`, or an HTML figure laid out as the tiers, showing the tiers in order and
-      where a page's, a theme package's or a widget package's rules land or what they
-      reach. Fail if the cascade and who reaches what are given only in prose, lists,
-      tables or code, or only by linking to the How it Works diagram.
+      which tiers it can or cannot beat. Pass only if the page itself gives the reader
+      an inspectable ordering or arrangement that communicates precedence and places
+      page, theme-package and widget-package rules within it. A clearly ranked list,
+      table, spatial sketch or diagram can do this when direction, membership and
+      placement communicate the relationships. A mere inventory of tier names or
+      disconnected descriptions of individual rules does not. The reader should be
+      able to locate the reported override gaps in that representation without
+      reconstructing the cascade from surrounding prose or following an external link.
   - type: llm-rubric
     metric: options-show-the-change
     value: |
-      Find the obligation deciding whether theme packages get their own tier. Pass only if
-      each of its options shows, in a picture inside that option or in a figure inside
-      the obligation setting today beside the change, where a theme package's rules would sit
-      among the tiers and what they would then beat. Fail if either option gives its
-      effect only in prose, CSS, or a table.
+      Find the obligation deciding whether theme packages get their own tier. Pass only
+      if the comparison makes the alternatives' consequences inspectable: where theme
+      rules would gain authority and what changes or stays the same for the page's
+      appearance. A representation of tier placement and reach can do this, as can
+      concrete current/proposed visual results with nearby text locating the authority
+      change and its limits. The comparison may be shared or sit inside the options;
+      it need not repeat a tier stack in each. Descriptions of benefits or CSS syntax
+      alone do not show the result. Preserve the distinction between observed current
+      behavior and an illustrative, unimplemented proposal.
+variants:
+  next-opportunities:
+    # From session 01a166a1-4914-7ee0-8926-080b8cf24446. The source agent appended
+    # prose-only proposals to an existing diagnostics report after reading guidance.
+    # This seeded continuation preserves that report and synthesizes its research
+    # notes; it is not a full trace replay of the source's code investigation.
+    # On 2026-10-24, the same fixture/request/rubrics passed HEAD Sol 0/1 and the
+    # revised content model Sol 0/1, Opus 1/1. Preserved standalone experiments
+    # established the context contrast; they are not additional recurring cases.
+    # A later fresh-context workflow produced an adequate Sol continuation, but
+    # an early read of an older scratch artifact limits that causal comparison.
+    # Subsequent structural cuts again produced prose-only continuations. Rendered
+    # review matters: scores can miss useful specimens or accept misleading ones.
+    metadata:
+      authoring: false
+      executor: leaf_dev.usability_eval
+      scenario: next-opportunities-existing-report
+      conditions: [leaf]
+      purpose:
+        "A continuation of a prose research report makes proposed visible behavior
+        inspectable while preserving what is measured, proposed and still untested."

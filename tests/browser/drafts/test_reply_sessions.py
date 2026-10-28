@@ -3,16 +3,12 @@ replaced outlet leave of its caret, focus, reading position and Send."""
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
     LONG_PAGE,
     PANEL_THREAD,
-    consume_browser_errors,
     holding,
     leaf_page,
     open_page,
@@ -26,6 +22,9 @@ from render_harness import (
 )
 
 from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -141,6 +140,12 @@ diff --git a/reading.py b/reading.py
  def reading():
 -    return "before"
 +    return "after"
+diff --git a/notes.md b/notes.md
+--- a/notes.md
++++ b/notes.md
+@@ -1 +1 @@
+-before
++after
 </pre></lf-diff>""",
         },
     )
@@ -215,8 +220,8 @@ def expect_resolved(page, surface, thread, resolved):
     """The thread reads resolved, or not: the panel's by its head's Resolve or Reopen,
     a margin card by its own state."""
     if surface == "panel":
-        expect(page.locator(".lf-fp-settle")).to_have_text(
-            "Reopen" if resolved else "Resolve", use_inner_text=True
+        expect(page.locator(".lf-fp-settle")).to_have_accessible_name(
+            "Reopen" if resolved else "Resolve thread"
         )
     else:
         expect(thread).to_have_attribute("data-resolved", str(resolved).lower())
@@ -314,8 +319,9 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
 ):
     """Only an external settlement interrupting active editing retains the editor.
 
-    Deliberate Resolve and reload close it. Every path preserves the words for an
-    explicit Reopen, while an interrupted writer retains the native caret.
+    Deliberate Resolve and reload close it. Every path preserves the words, which the
+    panel's reply box shows in the resolved thread and keeps through Reopen, while an
+    interrupted writer retains the native caret.
     """
     url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3.")])
     root = thread_root(serve.page_dir, surface)
@@ -351,25 +357,17 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
         # Resolving from the panel moves the user on, so the field is the next
         # thread's.
         expect(page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')).to_have_count(0)
+    elif surface == "panel":
+        # The panel's reply box stands in a resolved thread, its words with it.
+        expect(field).to_have_js_property("value", words)
     else:
         expect(field).not_to_be_visible()
     assert stored_draft_text(page, f"reply:{root}") == words
-    if resolution == "inactive-agent":
-        # The thread drew its inactive reply box after Escape, and agent settlement
-        # then closes it, as this lifecycle deliberately requires. The generic words
-        # sensor cannot infer that ending the editing session made this later passive
-        # close legitimate. Calibrate only this exact loss here; Escape itself, active
-        # settlement, and every other field remain strict.
-        errors = consume_browser_errors(
-            page,
-            {"code": "words-left-screen", "words": words, "place": ["leaf-text.lf-ui"]},
-        )
-        assert len(errors) == 1
 
     page.reload()
     wait_until_ready(page)
     recovered = open_panel_thread(page, root)
-    expect(page.locator(PANEL_REPLY)).not_to_be_visible()
+    expect(page.locator(PANEL_REPLY)).to_have_js_property("value", words)
     with sending(page, "reopen with the saved reply"):
         page.locator(".lf-fp-settle").click()
     expect(recovered).to_be_visible()
@@ -404,7 +402,11 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         expect(field).to_be_focused()
         expect(field).to_have_js_property("value", "")
         field.press("Escape")
-        expect(field).not_to_be_visible()
+        # The panel's field stands in a resolved thread, where a reply reopens it.
+        if surface == "panel":
+            expect(field).not_to_be_focused()
+        else:
+            expect(field).not_to_be_visible()
         assert stored_draft_text(page, f"reply:{root}") == ""
         return
     page.keyboard.press("Tab")
@@ -613,7 +615,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
         serve.page_dir, "review-patch", patch + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)
-    # Tab is a newer standing intent while the same native editing generation remains
+    # Tab is a newer location intent while the same native editing generation remains
     # alive: the reply's continuation does not take it back.
     expect(after).to_be_focused()
     page.keyboard.press("Tab")

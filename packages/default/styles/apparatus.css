@@ -1,0 +1,20 @@
+/* The apparatus voice, for this package's words: the kernel theme states the same
+ * rule for the page's idioms, and every package restates it for the labels its own
+ * widgets wear. One rule per package, because what counts as apparatus is a judgement,
+ * and a judgement made per
+ * widget is a dozen chances to answer it differently.
+ *
+ * Figures come with the face, and this package is where that earns its keep: the
+ * numbers a report moves between versions are all here — a board's column label or
+ * a screenshot's source label — and in the sans's own figures each rewrite resizes
+ * the chip the number is set in, and moves whatever stands after it. The integrated
+ * theme's copy of this rule carries the measurement and the norm it answers. */
+.lf-shotcap,
+lf-sample::before,
+lf-sample > [data-lf-said="label"],
+lf-column::before,
+lf-column > [data-lf-said="label"],
+lf-tab::before {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}

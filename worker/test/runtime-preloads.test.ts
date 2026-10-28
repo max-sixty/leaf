@@ -6,10 +6,7 @@ import { expect, it } from "vitest";
 import { Window } from "happy-dom";
 
 import { bundleSite } from "../bundle-runtime.mjs";
-import {
-  registeredTags,
-  widgetImports,
-} from "../../skills/leaf/assets/runtime/widget-imports.js";
+import { registeredTags, widgetImports } from "../../browser/runtime/widget-imports.js";
 
 it("an arriving widget scope requires its own initializer and upgrade while template contents stay inert", async () => {
   const window = new Window();
@@ -78,6 +75,7 @@ it("bundles each document's static graph without fetching optional modules or ch
         "runtime/media.js": "export const media = 1;",
         "runtime/layer-client.js": "export const client = 1;",
         "runtime/widget-api.js": "export const api = 1;",
+        "runtime/portable-api.js": "export const portable = 1;",
         "runtime/check-api.js": "export const checks = 1;",
         "widgets/lf-used.js":
           'import "../runtime/bundle-common.js"; import "/vendor/widget.js"; export const optional = () => import("../runtime/optional.js");',

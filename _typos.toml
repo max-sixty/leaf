@@ -2,9 +2,9 @@
 # Generated output and captured evidence retain their original text. Explicit
 # filenames need --force-exclude, which the pre-commit hook already supplies.
 extend-exclude = [
-  "skills/leaf/assets/vendor/**",
-  "skills/leaf/kernel/**",
-  "skills/leaf/packages/**/vendor/**",
+  "browser/vendor/**",
+  "dist/kernel/**",
+  "packages/**/vendor/**",
   "examples/corpus.html",
   "evals/ui-review-detection/fixtures/**",
 ]
@@ -25,6 +25,8 @@ recor = "recor"
 backfil = "backfil"
 # The media element's `seeked` event, named by the platform.
 seeked = "seeked"
+# A simulator's device id, as `simctl` and safaridriver name it (leaf_dev/ios_safari.py).
+udid = "udid"
 
 [default.extend-identifiers]
 # typos splits the plural of PNG into `PN` + `Gs` and "corrects" it to ONGs.

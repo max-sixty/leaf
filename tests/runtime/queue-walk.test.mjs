@@ -39,6 +39,17 @@ const reading = (onUser) => ({
     views: {
       1: {
         basis: { revision: 1, through_seq: 0 },
+        obligations: onUser.map((item) => ({
+          id: item.id,
+          source: { kind: "todo", id: item.id, subject: item.subject },
+          thread: item.thread,
+          message: null,
+          prompt: { text: item.title, target: null },
+          status: "open",
+          next_actor: "user",
+          answer: null,
+          end: null,
+        })),
         thread: {
           threads: [],
           projection: { entries: [], actions: [], reports: [], desired: [] },
@@ -48,7 +59,6 @@ const reading = (onUser) => ({
         undo: [],
         reports: [],
         queues: { on_user: onUser, on_agent: [], done: [] },
-        approval_blocking: [],
         document: {
           obligations: noObligations(),
           projection: { entries: [], actions: [], reports: [], desired: [] },

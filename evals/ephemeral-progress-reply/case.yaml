@@ -25,7 +25,7 @@ assert:
   - type: llm-rubric
     metric: declares-progress-without-answering
     value: |
-      Pass only if the command is one `leaf response reply` naming the reference
+      Pass only if the command is one `leaf thread reply` naming the reference
       `7f20c3d9:0:user-request`, marked `--ephemeral`, with `--text` carrying the
       line "Checking the keyboard route." (or close wording), so the message posts as
       progress and the user's answer stays due. Any spelling of the launcher passes.

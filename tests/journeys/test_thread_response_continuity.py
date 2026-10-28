@@ -1,12 +1,19 @@
 """Thread response geometry through delivery refusal and retry."""
 
 import pytest
+from playwright.sync_api import expect
+from render_cases_navigation import source_revision
+from render_harness import (
+    consume_browser_errors,
+    leaf_page,
+    open_page,
+    round_trip,
+    write,
+)
+
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
-from playwright.sync_api import expect
-from render_cases_navigation import source_revision
-from render_harness import leaf_page, open_page, round_trip, write
 
 EDITOR_INSPECTION = """(() => {
   const attach = Element.prototype.attachShadow;
@@ -17,6 +24,27 @@ EDITOR_INSPECTION = """(() => {
     return root;
   };
 })()"""
+
+
+def shows_whole(editor):
+    """Whether the field is at least as tall as its words."""
+    return editor.evaluate(
+        "box => box.getBoundingClientRect().height + 0.5 >= box.naturalBlockSize"
+    )
+
+
+def consume_moves_below_the_reply(page):
+    """Consume the moves of the seat's comment box under a reply field that mirrored
+    words resized, once the shift watch has judged every frame they painted."""
+
+    def below_the_reply(problem):
+        return problem.code == "moved-without-input" and any(
+            path and path[-1].startswith("div.lf-say.")
+            for path in [problem.values["node"], *problem.values["beside"]]
+        )
+
+    page.evaluate("() => window.lfShiftsJudged()")
+    consume_browser_errors(page, below_the_reply)
 
 
 def reply_editing_pose(editor):
@@ -245,14 +273,21 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
         editor.focus()
         rendered(page)
         assert page.evaluate("window.mirroredReplyEdits") == []
+        # Mirrored words size the field from its top as typing would, and the seat's
+        # comment box below it moves with its foot, in whichever tab the words arrive
+        # (browser/AGENTS.md, "Stability is owed to the common path").
         mirrored = reply_editing_pose(editor)
-        for coordinate in resting:
+        for coordinate in ("top", "firstLine"):
             assert mirrored[coordinate] == pytest.approx(
                 resting[coordinate], abs=0.5
             ), (
                 resting,
                 mirrored,
             )
+        assert shows_whole(editor), mirrored
+        if edit == "mirrored":
+            assert mirrored["height"] < resting["height"] - 50, (resting, mirrored)
+        consume_moves_below_the_reply(other if edit == "mirrored-composing" else page)
         before = editor.bounding_box()
         if platform == "android":
             page.keyboard.insert_text("!")
@@ -267,6 +302,9 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
         expect(editor).to_have_js_property("value", "First line")
         page.keyboard.press("ControlOrMeta+z")
         expect(editor).to_have_js_property("value", "First line")
+        if edit == "mirrored":
+            # The other tab, still holding the tall draft, mirrors these words in turn.
+            consume_moves_below_the_reply(other)
         return
     before = editor.bounding_box()
     for _ in range(4):
@@ -279,8 +317,9 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
     expect(editor).to_be_focused()
 
 
-def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, serve):
-    """Mirrors retain the writing room; canceled input retains it and edits resize it."""
+def test_a_draft_typed_in_another_tab_shows_whole(browser, serve):
+    """Words typed in another tab grow this tab's reply field as typing here would,
+    from its top, rather than standing clipped in the box of the last edit here."""
     from render_cases_interaction import SEATED_OBLIGATION_PAGE
     from render_harness import stored_draft_text, told
 
@@ -336,70 +375,15 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
     expect(editor).to_have_js_property("value", replacement)
     rendered(page)
     mirrored = reply_editing_pose(editor)
-    for coordinate in resting:
+    for coordinate in ("top", "firstLine"):
         assert mirrored[coordinate] == pytest.approx(resting[coordinate], abs=0.5), (
             resting,
             mirrored,
         )
+    assert mirrored["height"] > resting["height"] + 50, (resting, mirrored)
+    assert shows_whole(editor), mirrored
     assert stored_draft_text(page, "reply:" + parent) == replacement
-    other.close()
-    page.bring_to_front()
-    editor.focus()
-    editor.evaluate("""box => {
-      const content = replyEditorRoots.get(box).querySelector('.cm-content');
-      content.addEventListener('beforeinput', event => {
-        window.canceledReplyAttempt = {trusted: event.isTrusted,
-          cancelable: event.cancelable};
-        event.preventDefault();
-      }, {once: true});
-    }""")
-    page.keyboard.insert_text("Canceled")
-    assert page.evaluate("window.canceledReplyAttempt") == {
-        "trusted": True,
-        "cancelable": True,
-    }
-    expect(editor).to_have_js_property("value", replacement)
-    rendered(page)
-    canceled = reply_editing_pose(editor)
-    for coordinate in resting:
-        assert canceled[coordinate] == pytest.approx(resting[coordinate], abs=0.5), (
-            resting,
-            canceled,
-        )
-    page.keyboard.insert_text("!")
-    expect(editor).to_have_js_property("value", replacement + "!")
-    rendered(page)
-    edited = reply_editing_pose(editor)
-    assert edited["height"] > resting["height"] + 50, (resting, edited)
-    for coordinate in ("top", "firstLine"):
-        assert edited[coordinate] == pytest.approx(resting[coordinate], abs=0.5), (
-            resting,
-            edited,
-        )
-    editor.evaluate("""input => {
-      const width = input.getBoundingClientRect().width;
-      window.firstReplyResize = null;
-      const observer = new ResizeObserver(() => {
-        if (input.getBoundingClientRect().width === width) return;
-        firstReplyResize = {
-          room: parseFloat(input.style.getPropertyValue('--lf-reply-writing-room')),
-          natural: input.naturalBlockSize,
-        };
-        observer.disconnect();
-      });
-      observer.observe(input);
-    }""")
-    page.set_viewport_size({"width": 1600, "height": 1100})
-    rendered(page)
-    first_resize = page.evaluate("firstReplyResize")
-    assert first_resize["room"] == pytest.approx(first_resize["natural"], abs=0.5)
-    widened = reply_editing_pose(editor)
-    assert widened["height"] < edited["height"] - 20, (edited, widened)
-    page.keyboard.insert_text("?")
-    expect(editor).to_have_js_property("value", replacement + "!?")
-    rendered(page)
-    after = reply_editing_pose(editor)
-    assert after["top"] == pytest.approx(widened["top"], abs=0.5), (widened, after)
+    consume_moves_below_the_reply(page)
 
 
 # A native thread body, a scroll boundary inside the page, the floating card and the
@@ -414,7 +398,6 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     """
     from browser.threads import open_panel_thread
     from render_harness import (
-        consume_browser_errors,
         holding,
         http_error_console,
         panel_field,
@@ -545,14 +528,42 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     )
     round_trip(page)
     rendered(page)
-    consume_browser_errors(page, http_error_console(400))
-    restored = pose()
-    for node in pending:
-        for edge in pending[node]:
-            assert abs(restored[node][edge] - pending[node][edge]) < 0.5, (
-                pending,
-                restored,
+    if place == "panel":
+        # The panel's view gives the refused turn's room back, and its field grows to
+        # show the words handed back whole, as typing grows it: the view's head and the
+        # row over the field move, and nothing outside the panel does (browser/AGENTS.md,
+        # "Stability is owed to the common path").
+        def carried_in_panel(problem):
+            return problem.code == "moved-without-input" and any(
+                path and "lf-fp-" in path[-1] for path in problem.values["beside"]
             )
+
+        consume_browser_errors(page, http_error_console(400), carried_in_panel)
+        assert draft.evaluate("node => node.scrollHeight <= node.clientHeight + 0.5")
+        restored = pose()
+        for node in pending:
+            for edge in pending[node]:
+                assert abs(restored[node][edge] - pending[node][edge]) < 0.5, (
+                    pending,
+                    restored,
+                )
+    else:
+        # A card gives the refused turn's room back too, and its field grows to show
+        # the words whole: the card's own controls, and the page after it, move.
+        def carried_by_card(problem):
+            return problem.code == "moved-without-input" and any(
+                path
+                and path[-1].startswith(
+                    ("aside#lf-margin-preview", "lf-diff#patch", "p#continuity-tail")
+                )
+                for path in [problem.values["node"], *problem.values["beside"]]
+            )
+
+        consume_browser_errors(page, http_error_console(400), carried_by_card)
+        space = owner.locator(":scope > .lf-reply-space")
+        assert space.evaluate("node => node.getBoundingClientRect().height") == 0
+        assert shows_whole(draft)
+        pose()
     assert draft.evaluate("node => node.value") == words
     assert stored_draft_text(page, f"reply:{parent}") == words
     assert not [

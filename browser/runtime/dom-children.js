@@ -1,0 +1,480 @@
+/* Retained DOM child reconciliation. */
+import { diffArrays } from "/vendor/jsdiff.esm.js";
+import { move } from "./dom-move.js";
+
+// Make `parent`'s children `nodes`, in order, without moving a node already in place.
+export function setChildren(parent, nodes) {
+  setChildLists([[parent, nodes]]);
+}
+
+// `setChildren` for several `[parent, nodes]` lists at once, where a node can change
+// lists: it moves straight from the parent it leaves to the one it joins, keeping the
+// user in it, where one list at a time would remove it before the next placed
+// it. Ordering walks past a stale node, so no survivor moves for it; once every list is
+// placed, what still stands in a list's parent is a node no list holds, and is removed.
+// Lists are placed in the order given, so name a parent before any list inside it: a
+// node then moves into a parent that is already connected.
+export function setChildLists(lists) {
+  for (const [parent, nodes] of lists) orderChildren(parent, nodes);
+  for (const [parent, nodes] of lists) {
+    const keep = new Set(nodes);
+    for (const child of [...parent.childNodes]) if (!keep.has(child)) child.remove();
+  }
+}
+
+// Order this renderer's children without taking ownership of their siblings.
+export function orderChildren(parent, nodes) {
+  const owned = new Set(nodes);
+  order(parent, nodes, (node) => !owned.has(node));
+}
+
+// Replace a renderer-owned subtree using the same matching and text edits as an
+// authored revision. The caller owns every descendant's attributes and contents;
+// controls with independent state belong outside it. Current nodes pair to themselves,
+// so unchanged text and native Ranges stay in place without a source mirror.
+export function setRenderedChildren(parent, nodes) {
+  const after = document.createDocumentFragment();
+  after.append(...nodes);
+  patchChildren(parent, parent, after, {
+    pairs: new Map([...sourceNodes(parent)].map((node) => [node, node])),
+    arrive: (node) => node,
+    sameValue: (held, wanted) => held === wanted,
+    touched: () => {},
+    declared: () => false,
+    body: () => null,
+    same: (held, wanted) => held.isEqualNode(wanted),
+    generated: () => false,
+  });
+}
+
+// Put `nodes` in order under `parent`, walking past the children `passed` names, and
+// moving only a node that is not already where it belongs. A retained move within one
+// shadow-including tree preserves native state where the browser supports it (`move`),
+// but the browser still lays the node out afresh, and Firefox then anchors scrolling on
+// whatever ends the viewport. So the nodes that stay are the most that can, elements
+// before text (`staying`): a revision that drops a section moves the whitespace that
+// stood after it, not each section below.
+/** @param {(node: Node) => boolean} [passed] */
+function order(parent, nodes, passed = () => false) {
+  const list = [...nodes];
+  const stay = staying(parent, list);
+  let cursor = parent.firstChild;
+  for (const node of list) {
+    while (cursor && passed(cursor)) cursor = cursor.nextSibling;
+    if (node === cursor) cursor = cursor.nextSibling;
+    // Whatever stands between is moved after it, where it belongs.
+    else if (stay.has(node)) cursor = node.nextSibling;
+    else move(parent, node, cursor);
+  }
+}
+
+// The heaviest run of `nodes` already in order under `parent`: an increasing subsequence
+// of their places, where an element outweighs every text node together. Of runs that
+// weigh the same it keeps the later nodes, so a swap moves the earlier of the two, as a
+// cursor walk does. A Fenwick tree holds the heaviest run ending at or before each place,
+// so a long list costs n log n.
+function staying(parent, nodes) {
+  const places = new Map([...parent.childNodes].map((node, at) => [node, at + 1]));
+  const size = places.size;
+  const best = new Array(size + 1).fill(-1);
+  const weightAt = new Array(size + 1).fill(0);
+  const weights = [];
+  const previous = [];
+  let last = -1;
+  nodes.forEach((node, at) => {
+    const place = places.get(node);
+    if (!place) return;
+    let before = -1;
+    for (let i = place - 1; i > 0; i -= i & -i)
+      if (best[i] >= 0 && (before < 0 || weightAt[i] >= weights[before]))
+        before = best[i];
+    const weight =
+      (node.nodeType === Node.ELEMENT_NODE ? nodes.length + 1 : 1) +
+      (before < 0 ? 0 : weights[before]);
+    weights[at] = weight;
+    previous[at] = before;
+    for (let i = place; i <= size; i += i & -i)
+      if (best[i] < 0 || weight >= weightAt[i]) {
+        best[i] = at;
+        weightAt[i] = weight;
+      }
+    if (last < 0 || weight >= weights[last]) last = at;
+  });
+  const stay = new Set();
+  for (let at = last; at >= 0; at = previous[at]) stay.add(nodes[at]);
+  return stay;
+}
+
+/* Apply the difference between two authored revisions to the live page between them.
+
+   `setChildren` answers for a list its caller already holds. This answers a question the
+   live tree cannot be asked at all: what did the author change. Diffing the page against
+   the arriving source would answer a different one — what is different about the page —
+   and everything the browser, the runtime, a user, or a page module has done to that
+   page since it loaded is different about it. A user's open `<details>` closes, a
+   tokenizer's spans are torn out of a code block nobody edited, a tab stop the runtime
+   lent to put focus somewhere is taken back, and what a page module built inside an
+   authored container is swept out as markup the source does not have.
+
+   So both sides of the diff are source. `before` and `after` are the two revisions'
+   authored `main`, inert and untouched by anything: whatever they agree on, this does not
+   touch. `pairs` carries the correspondence, from a source node to the live node standing
+   for it — built by a lockstep walk at boot, when the page is still exactly its own
+   source, and kept up by every patch since.
+
+   The live tree is therefore written only where the author wrote: a text node's differing
+   run, an attribute whose value the two sources disagree on, an element one of them has
+   and the other has not. A user keeps everything else, including the things this had no
+   way to recognize as theirs.
+
+   What the caller answers, since this module knows no registry, namespace or document:
+
+   - `pairs`: the source-to-live map, read and written here as the patch proceeds.
+   - `arrive(node, parent)`: bring this source node into the document — import it, pair
+     the whole subtree, and read whatever has to be read off a widget's markup before a
+     controller owns its children, with `parent` as the live element it will stand under,
+     since a reading about its place in the document is made before it has one. Returns
+     the live node to place.
+   - `sameValue(before, after)`: two revisions spell this attribute the same way.
+     A resource address is written per revision, so it is read past that root.
+   - `touched(element)`: this live element's attributes changed, and whatever a dressing
+     pass reads off its attributes is owed again.
+   - `declared(element)`: an upgraded widget, whose children are its controller's. Asked
+     of the held element; a match names the same element on both sides.
+   - `body(element)`: the box a widget's module built to hold every authored child of
+     this live element, or null. The source's children are that box's, so the patch
+     writes, places and orders them there.
+   - `reaches(before, after)`: this widget's controller leaves its members where the
+     author wrote them, and the two revisions differ only inside those members. What
+     changed is then authored markup the patch can write, and nothing the controller
+     built from the widget is stale.
+   - `same(before, after)`: two source elements are spelled the same way, read past the
+     address each revision was delivered at. Asked of an element whose interior a pass
+     other than a controller has taken, or a widget owns.
+   - `generated(node)`: the live node is the runtime's own. Only placement asks, because
+     only placement walks live children; nothing here matches or removes on it.
+
+   Matching runs in three passes, narrowest first, and each pass only sees what the one
+   before it left. An id is a name the author gave, so it wins outright. Then the siblings
+   that did not change at all are pinned by an exact signature — node type, tag, and the
+   words under it — through `diffArrays`, so a list of paragraphs stays still when one is
+   inserted among them. Only the gaps between those pins are diffed again, by kind alone,
+   which is what pairs a paragraph with its own rewrite. */
+export function patchTree(before, after, rules) {
+  const live = rules.pairs.get(before);
+  patchAttributes(live, before, after, rules);
+  patchChildren(holder(live, rules), tree(before), tree(after), rules);
+}
+
+// Whether the authored patch preserves this native node. An owned target needs its
+// complete authored subtree and every containing owner kept; runtime chrome remains
+// with its own renderer. Use the patch's matching and ownership rules for both readings.
+// `contains(node, owner)` reads containment in the caller’s rendered tree. This is a
+// reading only; the commit rechecks it against the current source/live pairs.
+export function patchRetains(before, after, target, rules) {
+  if (!target?.isConnected) return false;
+  // Runtime chrome is outside the authored patch. Ask source pairs, not DOM place:
+  // eviction also removes authored nodes a page module moved outside main.
+  if (!sourceOwns(before, target, rules)) return true;
+  return retainedWithin(before, after, target, rules);
+}
+
+function sourceOwns(source, target, rules) {
+  const owns = (node) => rules.contains(target, rules.pairs.get(node));
+  if (owns(source)) return true;
+  for (const node of sourceNodes(source)) if (owns(node)) return true;
+  return false;
+}
+
+function retainedWithin(before, after, target, rules) {
+  const live = rules.pairs.get(before);
+  if (!live || !sourceOwns(before, target, rules)) return false;
+  // An unchanged source also preserves editors its renderer added underneath it.
+  if (rules.same(before, after)) return true;
+  if (live === target) return false;
+  // A containing identity is part of the durable anchor even when the rendered
+  // subject is an anonymous paragraph. Keep its attributes as well as its node.
+  if (
+    before.attributes.length !== after.attributes.length ||
+    [...before.attributes].some(
+      ({ name, value }) =>
+        !after.hasAttribute(name) || !rules.sameValue(value, after.getAttribute(name)),
+    )
+  )
+    return false;
+  const children = [...tree(before).childNodes];
+  const matches = new Map(
+    [...matchNodes(children, [...tree(after).childNodes])].map(([wanted, held]) => [
+      held,
+      wanted,
+    ]),
+  );
+  for (const held of children) {
+    const node = rules.pairs.get(held);
+    if (node?.nodeType !== Node.ELEMENT_NODE || !sourceOwns(held, target, rules))
+      continue;
+    const wanted = matches.get(held);
+    if (!wanted) return false;
+    // Like patchTree, the root is traversed; atomic ownership is decided for each
+    // child by patchChildren, which either keeps that complete subtree or rebuilds it.
+    const retains = atomic(held, wanted, node, rules)
+      ? rules.same(held, wanted)
+      : retainedWithin(held, wanted, target, rules);
+    if (!retains) return false;
+  }
+  // A moved editor can have a logical source owner and a different physical one.
+  // Every such path must survive, including an owned child absent from the new source.
+  // With no authored child owning it, the target is generated content the patch keeps.
+  return true;
+}
+
+// A template's tree is its content fragment, not its children; `childNodes` is empty
+// however much markup it holds.
+const tree = (node) => (node.localName === "template" ? node.content : node);
+// Where a live element's authored children stand: its tree, or the authored body its
+// widget's module moved them into.
+const holder = (live, rules) => rules.body(live) ?? tree(live);
+
+// Only where the two revisions disagree. An attribute they both carry is left exactly as
+// the page has it, which is the whole of how a user's `<details open>`, a tab stop
+// `focus.js` lent to land them somewhere, and anything a page module wrote survive a
+// revision that never mentioned them.
+function patchAttributes(live, before, after, rules) {
+  let changed = false;
+  for (const { name, value } of [...before.attributes]) {
+    if (after.hasAttribute(name)) continue;
+    if (name === "class") live.classList.remove(...tokens(value));
+    else live.removeAttribute(name);
+    changed = true;
+  }
+  for (const { name, value } of after.attributes) {
+    const held = before.getAttribute(name);
+    if (held !== null && rules.sameValue(held, value)) continue;
+    // Classes are a set the page shares with the runtime, so only the author's own
+    // members move; every mark and state class beside them stays.
+    if (name === "class") {
+      live.classList.remove(...tokens(held ?? ""));
+      live.classList.add(...tokens(value));
+    } else live.setAttribute(name, value);
+    changed = true;
+  }
+  if (changed) rules.touched(live);
+}
+
+// Source text, so any run of whitespace separates two classes.
+const tokens = (value) => value.split(/\s+/).filter(Boolean);
+
+// Only the run of words that actually changed. Assigning `data` replaces the node's
+// whole content, and the platform's replace-data step collapses every Range endpoint
+// inside what it replaced — which is the user's own selection, in exactly the
+// paragraph a revision rewrote while they were reading it. Trimming to the differing
+// middle leaves every offset on either side of it where it was, so a selection over
+// words the revision kept survives the words beside it changing.
+function writeText(node, next) {
+  const held = node.data;
+  if (held === next) return;
+  let prefix = 0;
+  while (prefix < held.length && prefix < next.length && held[prefix] === next[prefix])
+    prefix += 1;
+  let suffix = 0;
+  while (
+    suffix < held.length - prefix &&
+    suffix < next.length - prefix &&
+    held[held.length - suffix - 1] === next[next.length - suffix - 1]
+  )
+    suffix += 1;
+  node.replaceData(
+    prefix,
+    held.length - prefix - suffix,
+    next.slice(prefix, next.length - suffix),
+  );
+}
+
+// Everything one source element stood for leaves with it: the live element, and any
+// node paired under it that a page module had since moved elsewhere in the document.
+// Removing the element alone would leave that node standing for a source that is gone,
+// and its rebuilt replacement would then stand beside it under the same name.
+function evict(before, live, rules) {
+  live.remove();
+  for (const inner of sourceNodes(before)) {
+    const stray = rules.pairs.get(inner);
+    // Still in some tree, and not the one that just left with the element. Asked of
+    // the parent rather than the document, because a template's content is a fragment
+    // nothing is ever connected to.
+    if (!stray?.parentNode || live.contains(stray)) continue;
+    stray.remove();
+  }
+}
+
+function* sourceNodes(node) {
+  for (const child of tree(node).childNodes) {
+    yield child;
+    yield* sourceNodes(child);
+  }
+}
+
+function patchChildren(liveParent, beforeParent, afterParent, rules) {
+  const held = [...beforeParent.childNodes];
+  const wanted = [...afterParent.childNodes];
+  const matches = matchNodes(held, wanted);
+  const matched = new Set(matches.values());
+  for (const node of held) {
+    if (matched.has(node)) continue;
+    evict(node, rules.pairs.get(node), rules);
+  }
+  const placed = [];
+  for (const node of wanted) {
+    const before = matches.get(node);
+    const held = before && rules.pairs.get(before);
+    // An unmatched source node is new, and so is one whose live counterpart has left
+    // every tree. One a page module moved elsewhere is still that element: the author's
+    // change reaches it where it stands, and placement leaves it there. Being there is having
+    // a parent rather than a connection, since a template's content is never connected.
+    const live = held?.parentNode ? held : null;
+    if (!live) {
+      placed.push(rules.arrive(node, liveParent));
+      continue;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) writeText(live, node.data);
+    else if (!atomic(before, node, live, rules)) patchTree(before, node, rules);
+    else if (!rules.same(before, node)) {
+      // Its interior is not this patch's to reach into, so a changed one cannot be
+      // corrected from outside. It leaves, and its replacement arrives as a new element.
+      evict(before, live, rules);
+      placed.push(rules.arrive(node, liveParent));
+      continue;
+    } else pairInterior(before, node, rules);
+    rules.pairs.set(node, live);
+    if (live.parentNode === liveParent) placed.push(live);
+  }
+  // `orderChildren`'s ordering pass, walking past what the runtime put here. A node
+  // already in its place is left alone, which is the whole point: the common
+  // revision moves nothing at all. A kept node the revision moves keeps the user
+  // standing in it, as nothing else would: the carry restores only replaced nodes.
+  order(liveParent, placed, rules.generated);
+}
+
+// A kept element's interior is the same markup in both revisions, so each of its source
+// nodes stands for whatever live node the one it replaces stood for, wherever the
+// controller holds it now. A digest that matched over markup of another shape pairs
+// nothing rather than pair the wrong nodes.
+function pairInterior(before, after, rules) {
+  const held = [...sourceNodes(before)];
+  const wanted = [...sourceNodes(after)];
+  if (held.length !== wanted.length) return;
+  wanted.forEach((node, at) => {
+    const live = rules.pairs.get(held[at]);
+    if (live) rules.pairs.set(node, live);
+  });
+}
+
+// Whether this element's interior is beyond the patch. A widget's is its controller's
+// from the moment it upgrades, and the caller names those. Any element's can also be
+// taken by a pass with a reason to own it: the tokenizer's spans stand where a code
+// block's one authored text node stood, and the nodes this patch paired are then not
+// there to write through — putting one back would stand the source's own text beside
+// the colouring of it. Both are read the same way afterwards: whole, or not at all.
+// A widget whose controller only builds beside its members, or around the authored
+// body holding them, is neither, for a revision that leaves everything but their
+// interiors alone: a page written as tabs keeps every tab the author did not touch,
+// rather than rebuilding the page for one sentence.
+// A stylesheet's parsed rules belong to CSSOM. Replacing a changed source owner
+// reparses its original text, including when only its access declaration changed.
+const atomic = (before, after, live, rules) =>
+  before.matches('style, link[rel~="stylesheet" i]') ||
+  (rules.declared(before) && !rules.reaches(before, after)) ||
+  [...tree(before).childNodes].some(
+    (node) => rules.pairs.get(node)?.parentNode !== holder(live, rules),
+  );
+
+function matchNodes(held, wanted) {
+  const matches = new Map();
+  const matched = new Set();
+  const byId = new Map();
+  for (const node of held)
+    if (node.nodeType === Node.ELEMENT_NODE && node.id && !byId.has(node.id))
+      byId.set(node.id, node);
+  for (const node of wanted) {
+    if (node.nodeType !== Node.ELEMENT_NODE || !node.id) continue;
+    const match = byId.get(node.id);
+    if (!match || match.localName !== node.localName || matched.has(match)) continue;
+    matches.set(node, match);
+    matched.add(match);
+  }
+  alignRest(
+    held.filter((node) => !matched.has(node)),
+    wanted.filter((node) => !matches.has(node)),
+    matches,
+  );
+  return matches;
+}
+
+const COLLAPSE = /\s+/g;
+
+// Exact enough that two of them being equal means the revision left this sibling alone,
+// and loose enough that reindenting the source does not unpin the whole list. Both sides
+// are authored markup, so every word under the node is the author's to compare.
+const signature = (node) => {
+  if (node.nodeType !== Node.ELEMENT_NODE) return `${node.nodeType}:${node.data}`;
+  const words = (node.localName === "template" ? node.content : node).textContent;
+  return `1:${node.localName}#${node.id}:${words.replace(COLLAPSE, " ").trim()}`;
+};
+
+function alignRest(held, wanted, matches) {
+  let heldAt = 0;
+  let wantedAt = 0;
+  let gapHeld = [];
+  let gapWanted = [];
+  const closeGap = () => {
+    pairInGap(gapHeld, gapWanted, matches);
+    gapHeld = [];
+    gapWanted = [];
+  };
+  for (const run of diffArrays(held.map(signature), wanted.map(signature))) {
+    const count = run.value.length;
+    if (run.added) gapWanted.push(...wanted.slice(wantedAt, (wantedAt += count)));
+    else if (run.removed) gapHeld.push(...held.slice(heldAt, (heldAt += count)));
+    else {
+      closeGap();
+      for (let at = 0; at < count; at++)
+        matches.set(wanted[wantedAt + at], held[heldAt + at]);
+      heldAt += count;
+      wantedAt += count;
+    }
+  }
+  closeGap();
+}
+
+// Inside one edited stretch: these are the siblings the revision rewrote, and a rewrite
+// is still the element it rewrote. Diffed rather than walked in step, because a stretch
+// holds insertions too and a cursor meets them in the two ways that cost a user their
+// node. A sibling of another kind above the one they are reading — a heading, a list, an
+// unnamed widget — is nothing the cursor can pair, so it spends the cursor and the
+// user's own paragraph is left with no partner and removed. A sibling of the same kind
+// above it takes the pairing that belonged to the paragraph below.
+//
+// Compared rather than keyed, because what may pair here is not an equality. Two elements
+// the source names differently are never each other; an element named on one side only is
+// that name being given or taken away, which is a thing to do to an element. A key can
+// state the first or the second and not both — `p#a` would have to equal `p` while `p#a`
+// differs from `p#b` — so the rule travels as the comparator it is.
+function pairInGap(held, wanted, matches) {
+  let heldAt = 0;
+  let wantedAt = 0;
+  for (const run of diffArrays(held, wanted, { comparator: interchangeable })) {
+    const count = run.value.length;
+    if (run.added) wantedAt += count;
+    else if (run.removed) heldAt += count;
+    else {
+      for (let at = 0; at < count; at++)
+        matches.set(wanted[wantedAt + at], held[heldAt + at]);
+      heldAt += count;
+      wantedAt += count;
+    }
+  }
+}
+
+const interchangeable = (held, wanted) =>
+  held.nodeType === wanted.nodeType &&
+  (held.nodeType !== Node.ELEMENT_NODE ||
+    (held.localName === wanted.localName && !(held.id && wanted.id)));

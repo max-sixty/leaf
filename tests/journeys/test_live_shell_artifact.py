@@ -7,13 +7,14 @@ from urllib.parse import urlsplit
 
 import pytest
 from interact_support import append_carried_log_record as append_event
+from playwright.sync_api import expect
+from render_harness import leaf_page, open_page
+
 from leaf.files import revision_path
 from leaf.hosting import TemporaryPageServer
 from leaf.live_shell import write_live_shell
-from leaf.revision_artifact import RESOURCE_TYPES
+from leaf.revision_artifact import resource_type
 from leaf.revisioning import activate_source
-from playwright.sync_api import expect
-from render_harness import leaf_page, open_page
 
 
 @pytest.mark.parametrize("bundled", [False, True])
@@ -101,9 +102,7 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             loaded.append(path)
             file = destination / path.lstrip("/")
             assert file.is_file(), f"missing published resource: {path}"
-            route.fulfill(
-                body=file.read_bytes(), content_type=RESOURCE_TYPES[Path(path).suffix]
-            )
+            route.fulfill(body=file.read_bytes(), content_type=resource_type(path))
 
         context.route(server.origin + "/**", public_files)
         page = open_page(

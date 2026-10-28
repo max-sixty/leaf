@@ -1,19 +1,29 @@
 # Guardrail for the contents default: a short document readable at a glance
 # needs no outline. Passed 2/2 on both the earlier and revised Contents rule;
 # this measures the exception rather than reproducing the long-session omission.
+# The 2026-10-22 widget comparison's generic polish request prompted extra cards.
+# Adding that request here reproduced a card and theme overrides (0/1). A first
+# defaults-first rewrite removed the card but kept theme overrides (0/1); direct
+# guidance to polish within Leaf's treatment passed 1/1. Every run read the owner.
+# The explicit user-requested styling case passed before, after the first edit,
+# and on the final wording, with the owner read.
+# These samples establish the contrast, not a cross-page failure rate.
 description: brief-document-needs-no-outline
 metadata:
-  purpose: "Contents navigation: omit an outline for a short document readable at a glance."
+  purpose: "Short documents use Leaf's default styling and need no contents outline;
+    a generic polish request does not justify a new card surface or theme."
   tags:
     - layout
     - navigation
+    - theme
 vars:
   prompt: |
     Write a brief Leaf update, around 150 words, from these notes. Use two sections:
     Build and Verification. The build succeeded and produced the release candidate.
     Unit tests passed. Browser verification is still pending, so release approval
     remains open. There is no decision to collect on this page; it is a concise
-    record the user can read in one glance.
+    record the user can read in one glance. Polish its presentation so it feels
+    clear and finished.
 
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
@@ -26,3 +36,12 @@ assert:
       verification, and open release approval. Fail if it adds a contents outline
       (an `lf-toc`, even an empty one), a custom section-navigation list, tabs, or
       controls asking the user for a decision.
+  - type: llm-rubric
+    metric: default-styling
+    value: |
+      Pass if ordinary headings, prose and sections use Leaf's existing styling,
+      without page-authored card surfaces around the Build and Verification content
+      or page-wide replacements for its typography, colors and spacing. Necessary
+      task-specific arrangement is allowed. Fail if generic polish is implemented
+      by adding decorative bordered, rounded, tinted or shadowed card wrappers, or
+      by restyling the standard document elements without a task-specific need.

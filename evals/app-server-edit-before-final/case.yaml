@@ -36,4 +36,4 @@ assert:
     value: The remaining workflow ends the turn with its final reply and runs no leaf page check, plain or with --render, before it. Fail if it proposes any page check before the final reply.
   - type: llm-rubric
     metric: keeps-final-reply-owner
-    value: The final chat reply leaves recording the turn's answer to the hosted harness. It does not propose posting that final answer with leaf thread reply or leaf response reply. A warning against those commands is allowed.
+    value: The final chat reply leaves recording the turn's answer to the hosted harness. It does not propose posting that final answer with leaf thread reply. A warning against that command is allowed.

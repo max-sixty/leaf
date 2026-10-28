@@ -5,8 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record, append_command
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame
 from playwright.sync_api import expect
 from render_cases_interaction import MARKDOWN_REPLY, THREAD_OBLIGATIONS, live_url
 from render_cases_navigation import actions
@@ -19,6 +17,7 @@ from render_harness import (
     consume_browser_errors,
     draft_control,
     expect_obligations_answered,
+    expect_on_me,
     holding,
     http_error_console,
     open_page,
@@ -33,6 +32,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import one_frame
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -259,7 +260,10 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
                 "author": "agent",
                 "revision": 1,
                 "text": "Edit this draft.",
-                "markup": '<lf-draft id="crossed-draft"><pre>\n    First line.\n    Second line.\n</pre></lf-draft>',
+                "markup": '<div id="crossed-region">'
+                '<lf-tally id="crossed-tally" for="crossed-region" next></lf-tally>'
+                '<lf-draft id="crossed-draft"><pre>\n    First line.\n    Second line.\n'
+                "</pre></lf-draft></div>",
             },
         )
     holding(page, held, 1, "the frozen draft module")
@@ -299,6 +303,8 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     }
     open_panel_thread(page, "draft-question")
     expect(page.locator("#crossed-draft")).to_have_count(1)
+    expect(page.locator("#crossed-tally .lf-tally-face")).to_have_count(1)
+    expect(page.locator("#crossed-tally .lf-tally-next")).to_be_disabled()
     widget = page.locator("#crossed-draft")
     original = widget.element_handle()
     body = widget.locator(".lf-draft-body")
@@ -566,9 +572,12 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     consume_browser_errors(page, http_error_console(400))
 
 
-def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
-    """Done paints its semantic result while delivery is held, and repeated presses
-    still produce one action."""
+def test_a_done_press_answers_optimistically_and_the_next_press_follows_its_face(
+    browser, serve
+):
+    """Done paints its semantic result while delivery is held, without a busy or
+    disabled face, so a press in flight does what Done then says: take the answer back,
+    then give it again."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_OBLIGATIONS:
         append_carried_log_record(serve.page_dir, event)
@@ -583,21 +592,23 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     done.click()
     holding(page, held, 1, "the answer")
 
-    expect(done).to_have_attribute("aria-busy", "true")
-    expect(done).to_have_attribute("aria-pressed", "true")
-    done.click()
-    done.click()
-
-    held[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
     expect(done).to_have_attribute("aria-pressed", "true")
     expect(done).not_to_have_attribute("aria-busy", "true")
-    assert [
-        (e["widget"], e["action"])
-        for e in events_model.read_events(serve.page_dir)
-        if e["kind"] == "action"
-    ] == [("tq-set", "answer")]
+    expect(done).to_be_enabled()
+    done.click()
+    expect(done).to_have_attribute("aria-pressed", "false")
+    done.click()
+    expect(done).to_have_attribute("aria-pressed", "true")
+
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "true")
+    events = events_model.read_events(serve.page_dir)
+    answers = [e for e in events if e["kind"] == "action" and e["widget"] == "tq-set"]
+    withdrawn = {e["undoes"] for e in events if e["kind"] == "undo"}
+    assert [e["action"] for e in answers if e["id"] not in withdrawn] == ["answer"]
 
 
 def test_closing_a_thread_withdraws_the_obligation_in_it(browser, serve):
@@ -615,7 +626,7 @@ def test_closing_a_thread_withdraws_the_obligation_in_it(browser, serve):
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": "c-which"}
     )
     told(page)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
+    expect_on_me(page, 0)
     view = open_panel_thread(page, "c-which")
     expect(view.locator("#tq-one")).to_have_count(1)
     expect(page.locator("#tq-redis")).not_to_have_attribute("chosen", "")

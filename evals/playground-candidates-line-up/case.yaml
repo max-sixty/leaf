@@ -50,7 +50,7 @@ vars:
     "Passage unchanged".
 
     Write the playground using the installed leaf:leaf skill; read the playground
-    package's instructions at packages/playground/instructions/author.md inside the
+    package's instructions at ../../packages/playground/instructions/author.md relative to the
     leaf skill's base directory. The page directory is not reachable here, so reply
     with the page's HTML, including its <style>. Show one case's cards; the other
     cases can be placeholders.

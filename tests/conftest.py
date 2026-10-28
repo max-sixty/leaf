@@ -3,6 +3,7 @@
 import ast
 import contextlib
 import inspect
+import itertools
 import json
 import os
 import re
@@ -18,6 +19,11 @@ from typing import NamedTuple
 import psutil
 import pytest
 from click.testing import CliRunner
+from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
+from leaf_dev.browser import shell_executable, use_linux_fonts
+from leaf_dev.page_fixtures import package_selection_args
+from playwright.sync_api import Frame, Page, sync_playwright
+
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
@@ -28,21 +34,15 @@ from leaf import machine as machine_model
 from leaf import state as cleanup_model
 from leaf.registry.schema import schema_error, with_leaf_resources
 from leaf.render_gate import browser as browser_model
-from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
-from leaf_dev.browser import shell_executable, use_linux_fonts
-from leaf_dev.page_fixtures import package_selection_args
-from playwright.sync_api import Frame, Page, sync_playwright
+from leaf.render_gate import command as render_command_model
 
 __all__ = ["LEAF_COMMAND"]
 
-# Test modules retain this shared sequence when importing it. The active fixture
-# selects its launcher in place, so subprocess page producers follow the same kernel
-# as in-process commands without depending on the order modules were collected.
+# The canonical subprocess command: this checkout, on this environment's
+# interpreter. Tests of a particular installed harness invoke that payload's own
+# `bin/leaf`.
 LEAF_COMMAND = list(SOURCE_LEAF_COMMAND)
 
-# The canonical subprocess command. Browser tiers select the prepared payload;
-# source-installation model/process tests run the checkout directly. Tests of a
-# particular installed harness invoke that payload's own `bin/leaf`.
 # Start every child the way a terminal starts one. A run launched as a shell's
 # background job is handed SIGINT set to SIG_IGN, and an inherited SIG_IGN
 # survives both Python startup and `exec`, so everything the run spawns ignores
@@ -58,6 +58,7 @@ signal.signal(signal.SIGINT, signal.default_int_handler)
 # (render_harness.wait_for_check_api).
 def _refusing_async_predicates(wait_for_function):
     def wait(self, expression, *args, **kwargs):
+        __tracebackhide__ = True  # also files the wait under its caller (suite_profile)
         if re.match(r"\s*async\b", expression):
             raise ValueError(
                 "wait_for_function returns at once on an async predicate; "
@@ -152,6 +153,9 @@ class PagePool:
                 kept[relative] = identity
             else:
                 path.unlink()
+        # A test may remove the page itself, and an initialized page may hold no
+        # directory that would make it again.
+        page.mkdir(exist_ok=True)
         for relative in shape.directories:
             (page / relative).mkdir(parents=True, exist_ok=True)
         for relative in stamp:
@@ -231,40 +235,28 @@ def _page_pool(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def compiled_installation():
-    """The existing prepared kernel, shared by workers and developer previews.
+def compiled_checkout():
+    """This checkout, with its kernel compiled in place where it is stale.
 
-    Preparation is serialized by content identity, so xdist workers reuse one build.
+    A lock serializes the compile, so xdist workers wait for one build.
     Source-only model tests need no compiler; the browser tiers request it lazily.
     """
-    from leaf_dev.commands.distribution import cached_installation
+    from leaf_dev.commands.distribution import current_kernel
 
-    return cached_installation()
+    return current_kernel()
 
 
 @pytest.fixture(autouse=True)
 def compiled_pages(request, monkeypatch, isolated_session):
-    """Browser-tier page producers vendor the same kernel the website ships.
-
-    In-process commands retain their normal Python contracts and package resolution.
-    Only their kernel input comes from the prepared installation, whose kernel is
-    current for its modules. In-process model and process tests vendor the source
-    modules whether or not this checkout's committed kernel is current, so their
-    readings of a page's runtime do not depend on when it was last rebuilt.
+    """Browser-tier page producers vendor the same kernel the website ships: this
+    checkout's, compiled where stale (`compiled_checkout`). In-process model and
+    process tests vendor the source modules whether or not that kernel is current,
+    so their readings of a page's runtime do not depend on when it was last rebuilt.
     """
     if request.path.parent.name not in {"smoke", "browser", "journeys"}:
         monkeypatch.setattr(layer_model, "KERNEL", request.path.parent / "no-kernel")
         return
-    installation = request.getfixturevalue("compiled_installation")
-    monkeypatch.setattr(layer_model, "ASSETS", installation / "skills/leaf/assets")
-    monkeypatch.setattr(layer_model, "KERNEL", installation / "skills/leaf/kernel")
-    monkeypatch.setattr(layer_model, "PLUGIN_ROOT", installation)
-    monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(installation / "bin/leaf"))
-    original_command = LEAF_COMMAND[:]
-    LEAF_COMMAND[:] = [str(installation / "bin/leaf")]
-    request.addfinalizer(
-        lambda: LEAF_COMMAND.__setitem__(slice(None), original_command)
-    )
+    request.getfixturevalue("compiled_checkout")
 
 
 @pytest.fixture
@@ -307,7 +299,8 @@ def initialized_page(_page_pool, tmp_path):
                 step(target)
 
         resolved = tuple(
-            root.resolve() for root in layer_model.resolve_packages(packages)
+            root.resolve()
+            for root in layer_model.resolve_packages(packages, Path.cwd())
         )
         if any(root.is_relative_to(own) for root in resolved):
             initialize(destination)
@@ -345,11 +338,16 @@ def pytest_addoption(parser):
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_call(item):
     """A test body that returns has its last shifts and lost words judged before its
-    fixtures end (`render_harness.judge_watches`)."""
+    fixtures end (`render_harness.judge_watches`). One that fails is marked so its
+    browser fixture keeps a picture of each page (`render_harness.clean_browser`)."""
     from render_harness import judge_watches
 
-    result = yield
-    judge_watches()
+    try:
+        result = yield
+        judge_watches()
+    except (Exception, pytest.fail.Exception):
+        item.lf_failed = True
+        raise
     return result
 
 
@@ -404,7 +402,7 @@ def pytest_collection_modifyitems(config, items):
       `render_cases_*.py`, `interact_support.py` or its own module;
     - a module-level constant or `pytestmark` it reads, or a list its `parametrize`
       decorator names from elsewhere;
-    - a page under `fixtures/pages/`, a regtest recording, or a pinned image in
+    - a page under `fixtures/`, a regtest recording, or a pinned image in
       `leaf-assets.json`.
     Accounting for these precisely would need dependency tracking (fixture graphs, call
     graphs, data references). A coarser rule, such as running every test in a changed
@@ -499,6 +497,8 @@ CLAUDE_IDENTITY = harness_model.ClaudeCodeHarness.identity_variables
 # The Claude Code sessions `isolated_session` marks as hooked: the worker's own
 # and the id lifecycle fixtures claim under (`record_claim`).
 HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
+# The tests this worker has isolated so far (`isolated_session`).
+_SESSIONS = itertools.count()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -524,8 +524,9 @@ def isolated_session(tmp_path_factory, monkeypatch):
     by the loop guard. Isolate XDG_STATE_HOME, where Leaf stores claims and installed
     packages, and CODEX_HOME, where Codex reads its configuration and sessions,
     while retaining HOME so subprocesses share the host's uv cache. Clear the
-    developer's App Server endpoint and host launcher override so a fake task
-    cannot use them.
+    developer's App Server endpoint, host launcher override and page commit
+    provider so a fake task cannot use them and a website restore cannot leave
+    its provider in later tests.
 
     The session the tests run as is this worker: a synthetic id, so nothing of
     the developer's answers for it, and the worker's own pid. Every page a test
@@ -541,19 +542,33 @@ def isolated_session(tmp_path_factory, monkeypatch):
     The state home is the fixture's value, for `_no_page_outlives_its_test`:
     the sweep takes its root from here rather than from the environment, which
     it would read before this fixture sets it and after `monkeypatch` unsets it
-    (tests/AGENTS.md, "Processes and servers")."""
-    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
-    monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
+    (tests/AGENTS.md, "Processes and servers").
+
+    The directories are named by a count rather than by `mktemp`'s numbering, which
+    finds the next number by reading every entry in the worker's base directory: a
+    run's tests fill it, so each test's three lookups grew with the tests before it,
+    1.3 worker-minutes of a push run in October 2026."""
+    home = tmp_path_factory.mktemp(f"session{next(_SESSIONS)}", numbered=False)
+    for name in ("state", "config", "codex", "claude"):
+        (home / name).mkdir()
+    monkeypatch.setenv("XDG_STATE_HOME", str(home / "state"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(home / "config"))
+    monkeypatch.setenv("CODEX_HOME", str(home / "codex"))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
+    monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
+    monkeypatch.delenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", raising=False)
     for name in (*harness_model.IDENTITY_VARIABLES, *machine_model.SANDBOX_REMEDIES):
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read
     # (`harness.claude_code_session_records`): empty, so no session of the developer's
     # answers for a test's.
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("claude")))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(home / "claude"))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    # A test's own browser reports its window to the pages it opens, so `page check
+    # --render` reads the fixed window unless a test unsets this.
+    monkeypatch.setenv(render_command_model.PIN_VARIABLE, "fixed")
     # A Claude Code session whose harness runs Leaf's hooks, as the plugin installs
     # them, supplying capability evidence to hook transport and turn activity.
     for session in HOOKED_SESSIONS:

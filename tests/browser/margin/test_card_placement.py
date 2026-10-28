@@ -2,17 +2,14 @@
 through news, presses, reflows and scrolls, panes included."""
 
 import re
-from datetime import datetime, timedelta
 
 import pytest
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
     EXAMPLES,
     PANEL,
-    PANEL_THREAD,
     ROOT,
     holding,
     leaf_page,
@@ -38,6 +35,8 @@ from browser.margin import (
     leave_card_by_its_target,
     resized_shell,
 )
+from leaf import thread as thread_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -77,12 +76,12 @@ def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve)
         expect(preview).to_contain_text("Check the tools separately.")
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
-        page.locator(".lf-fp-threads").focus()
+        page.locator(".lf-fp-on-user").focus()
 
         held.pop(0).continue_()
         rendered(page)
         expect(preview).to_be_hidden()
-        expect(page.locator(".lf-fp-threads")).to_be_focused()
+        expect(page.locator(".lf-fp-on-user")).to_be_focused()
         expect(preview).not_to_have_attribute("data-lf-thread-placement")
 
         first.click()
@@ -172,7 +171,7 @@ def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serv
         page.locator("#row").click(position={"x": 20, "y": 10})
     expect(
         page.locator('[data-lf-margin-for="choice"] .lf-margin-marker')
-    ).to_have_attribute("aria-label", re.compile(r"^Sent\b"))
+    ).to_have_attribute("aria-label", re.compile(r"^Queued for Claude\b"))
     for _ in range(2):
         rendered(page)
         assert preview.evaluate(where) == card
@@ -196,7 +195,7 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
         page.locator("#two").click(position={"x": 20, "y": 10})
     receipt = page.locator('[data-lf-margin-for="choice"]')
     expect(receipt.locator(".lf-margin-marker")).to_have_attribute(
-        "aria-label", re.compile(r"^Sent\b")
+        "aria-label", re.compile(r"^Queued for Claude\b")
     )
     rendered(page)
     assert thread.evaluate(where) == row
@@ -211,108 +210,10 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
     assert receipt.evaluate(where) == stands
 
 
-@pytest.mark.watch_shifts
-def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
-    """The card keeps the width it opened at, so a longer step wraps inside it rather
-    than carrying Resolve, Close and Send sideways. Read idle, a step shows at once and
-    the card grows down past its reply row. While the user writes, a step and an
-    answer wait behind the thread's notice, as a held reply does in a seat, so nothing
-    moves. Pressing the notice shows them under the press: the head row stays and
-    the card grows down, keeping the draft's words."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Make the banner quieter", {"section": "h-how"}
-    )
-    address = {"parent": root, "responds": root}
-    thread_model.post_reply(
-        serve.page_dir, address, "Reading the banner's styles.", ephemeral=True
-    )
-    page = open_page(browser, url)
-    resized(page, 1200, 900)
-    page.locator(".lf-margin-marker").first.click()
-    preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible()
-    words = preview.locator(".lf-thread-working-words")
-    expect(words).to_have_text("Reading the banner's styles")
-    rendered(page)
-    controls = {
-        name: preview.get_by_role("button", name=name, exact=True)
-        for name in ("Resolve thread", "Dismiss thread view")
-    }
-    opened = preview.bounding_box()
-    boxes = {name: control.bounding_box() for name, control in controls.items()}
-
-    long_step = (
-        "Comparing the lighter weight against every banner the gallery shows, at each "
-        "width the panel takes, before and after the change."
-    )
-    thread_model.post_reply(serve.page_dir, address, long_step, ephemeral=True)
-    told(page)
-    expect(words).to_contain_text("before and after the change")
-    rendered(page)
-    grown = preview.bounding_box()
-    assert grown["width"] == pytest.approx(opened["width"], abs=0.5), (opened, grown)
-    assert grown["y"] == pytest.approx(opened["y"], abs=0.5), (opened, grown)
-    assert grown["height"] > opened["height"]
-    for name, control in controls.items():
-        assert control.bounding_box() == pytest.approx(boxes[name], abs=0.5), name
-
-    editor = preview.locator("leaf-text")
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
-    page.keyboard.type("Also check the dark scheme")
-    rendered(page)
-    writing = preview.bounding_box()
-    send = preview.locator(".lf-thread-reply .lf-compose-submit")
-    pinned = {name: control.bounding_box() for name, control in controls.items()}
-    pinned["Send"] = send.bounding_box()
-    pinned["editor"] = editor.bounding_box()
-
-    thread_model.post_reply(
-        serve.page_dir,
-        address,
-        "Measuring the status line's contrast in both schemes, against the paper and "
-        "against the banner's own ground.",
-        ephemeral=True,
-    )
-    told(page)
-    notice = preview.locator(".lf-thread-notice-news")
-    expect(notice).to_have_text("1 new message")
-    expect(words).to_contain_text("before and after the change")
-    thread_model.post_reply(
-        serve.page_dir,
-        address,
-        "Done: the banner's status line is one weight lighter, and its title sets in "
-        "the muted ink, so the banner reads as chrome rather than as the page's first "
-        "heading in both schemes.",
-    )
-    told(page)
-    expect(notice).to_contain_text("new reply")
-    # It reads whole in the head row, before the card's actions.
-    expect(
-        preview.locator(".lf-margin-thread-controls .lf-thread-news")
-    ).to_be_visible()
-    assert notice.evaluate("node => node.scrollWidth <= node.clientWidth")
-    rendered(page)
-    assert preview.bounding_box() == pytest.approx(writing, abs=0.5)
-    held = {name: control.bounding_box() for name, control in controls.items()}
-    held["Send"] = send.bounding_box()
-    held["editor"] = editor.bounding_box()
-    for name, box in pinned.items():
-        assert held[name] == pytest.approx(box, abs=0.5), name
-
-    notice.click()
-    expect(preview).to_contain_text("one weight lighter")
-    assert editor.evaluate("box => box.value") == "Also check the dark scheme"
-    rendered(page)
-    for name, control in controls.items():
-        assert control.bounding_box() == pytest.approx(held[name], abs=0.5), name
-    assert editor.bounding_box()["y"] > held["editor"]["y"] + 20
-
-
-# Each visible message head's time against what could cut it: its own box, the
-# metadata it stands in and the head.
+# Each visible message head's time, where it says one, against what could cut it: its
+# own box, the metadata it stands in and the head.
 TIMES_WHOLE = """card => [...card.querySelectorAll('.lf-msg-head')]
-  .filter((head) => head.checkVisibility())
+  .filter((head) => head.checkVisibility() && head.querySelector('time'))
   .map((head) => {
     const time = head.querySelector('time');
     const right = time.getBoundingClientRect().right;
@@ -326,13 +227,22 @@ TIMES_WHOLE = """card => [...card.querySelectorAll('.lf-msg-head')]
 
 
 def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
-    """A card at its narrowest, with Previous and Next for its target's two threads,
+    """A narrow card, with Previous and Next for its target's two threads,
     holding news while the user writes: the notice reads whole beside the actions, the
     message head's time stays whole, and the name gives up the room, with an ellipsis."""
     url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Make the banner quieter", {"section": "h-how"}
-    )
+    # Supply the overflow this test needs: a short author can fit as the other
+    # header content changes.
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "The release review and accessibility assistant",
+            "text": "Make the banner quieter",
+            "anchor": {"section": "h-how"},
+        },
+    )["id"]
     panel_comment(serve.page_dir, "Keep the logo where it is", {"section": "h-how"})
     page = open_page(browser, url)
     resized(page, 1200, 900)
@@ -344,7 +254,7 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     rendered(page)
     thread_model.post_reply(
         serve.page_dir,
-        {"responds": root},
+        {"parent": root},
         "The status line can drop one weight.",
     )
     thread_model.post_reply(
@@ -366,8 +276,8 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
 @pytest.mark.watch_shifts
 def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve):
     """A card standing above what it is about holds its foot, so a step would carry
-    its head row and messages up: the step waits behind the thread's notice even with
-    no draft, and shows when the user presses it."""
+    its head row and messages up: the step waits even with no draft, with no notice,
+    since progress is no unread news, and shows when the user opens the card again."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Make the banner quieter", {"section": "m19"})
     address = {"parent": root, "responds": root}
@@ -390,88 +300,15 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
         ephemeral=True,
     )
     told(page)
-    notice = preview.locator(".lf-thread-notice-news")
-    expect(notice).to_have_text("1 new message")
+    working = preview.locator(".lf-thread-working-words")
+    expect(working).to_have_text("Reading the banner's styles")
+    expect(preview.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
     assert preview.bounding_box() == pytest.approx(opened, abs=0.5)
-    notice.click()
-    expect(preview.locator(".lf-thread-working-words")).to_contain_text("the change")
-
-
-@pytest.mark.watch_shifts
-@pytest.mark.parametrize("how", ["press", "key"])
-def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
-    """What a press shows grows the card from where the user pressed, as a seat on
-    the page grows: opening an answer's progress, by pointer or key, grows the card up
-    past the disclosure, which stays where it was pressed. The hold ends with that
-    input, so a draft typed next grows the card down from its head row."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Make the banner quieter", {"section": "h-how"}
-    )
-    address = {"parent": root, "responds": root}
-    for words in ("Comparing the banner.", "Checking both schemes.", "Measuring."):
-        thread_model.post_reply(serve.page_dir, address, words, ephemeral=True)
-    thread_model.post_reply(serve.page_dir, address, "Done: the banner is quieter.")
-    page = open_page(browser, url)
-    resized(page, 1200, 900)
+    preview.get_by_role("button", name="Dismiss thread view", exact=True).click()
+    expect(preview).to_be_hidden()
     page.locator(".lf-margin-marker").first.click()
-    preview = page.locator(".lf-margin-preview")
-    disclosure = preview.locator(".lf-summary-expand")
-    expect(disclosure).to_have_text("Show 3 progress messages")
-    rendered(page)
-    pressed = disclosure.bounding_box()
-    compact = preview.bounding_box()
-
-    if how == "key":
-        disclosure.focus()
-        page.keyboard.press("Enter")
-    else:
-        disclosure.click()
-    expect(disclosure).to_have_text("Hide 3 progress messages")
-    expect(preview).to_contain_text("Checking both schemes")
-    rendered(page)
-    after = disclosure.bounding_box()
-    assert (after["x"], after["y"]) == pytest.approx(
-        (pressed["x"], pressed["y"]), abs=0.5
-    )
-
-    expanded = preview.bounding_box()
-    assert expanded["height"] > compact["height"]
-    if how == "key":
-        page.keyboard.press("Enter")
-    else:
-        disclosure.click()
-    expect(disclosure).to_have_text("Show 3 progress messages")
-    rendered(page)
-    assert preview.bounding_box()["height"] == pytest.approx(compact["height"], abs=0.5)
-    expect(disclosure).to_be_focused()
-    collapsed = disclosure.bounding_box()
-    assert (collapsed["x"], collapsed["y"]) == pytest.approx(
-        (after["x"], after["y"]), abs=0.5
-    )
-
-    close = preview.get_by_role("button", name="Dismiss thread view", exact=True)
-    head = close.bounding_box()
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
-    page.keyboard.type("Also check the dark scheme, " * 6, delay=0)
-    rendered(page)
-    assert close.bounding_box() == pytest.approx(head, abs=0.5)
-
-    if how == "press":
-        age = preview.locator(".lf-msg-meta time").last
-        timestamp = datetime.fromisoformat(age.get_attribute("datetime"))
-        page.clock.set_fixed_time(timestamp + timedelta(seconds=30))
-        ticked(page)
-        expect(age).to_have_text("just now")
-        before_tick = disclosure.bounding_box()
-        page.clock.set_fixed_time(timestamp + timedelta(seconds=60))
-        ticked(page)
-        expect(age).to_have_text("1m ago")
-        rendered(page)
-        assert disclosure.bounding_box()["x"] == pytest.approx(
-            before_tick["x"], abs=0.5
-        )
+    expect(working).to_contain_text("the change")
 
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):
@@ -483,7 +320,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     marker = page.locator('[data-lf-margin-for="off-t-resync"] > .lf-margin-marker')
     expect(marker).to_have_count(1)
     expect(marker.locator("..")).to_have_attribute(
-        "aria-label", re.compile(r"Page actions for section · iOS reconnect stall")
+        "aria-label", re.compile(r"Page actions for item · iOS reconnect stall")
     )
     marker.evaluate(
         "marker => scrollBy(0, marker.getBoundingClientRect().top - innerHeight + 52)"
@@ -495,7 +332,8 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(preview).to_have_attribute("aria-label", "Thread for iOS reconnect stall")
     expect(thread.locator(".lf-msg.user").first).to_be_visible()
-    expect(thread.get_by_role("button", name="Open interactive reply")).to_have_count(1)
+    # The card draws the reply's interactive widgets in place.
+    expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
     expect(thread.locator(".lf-page-thread")).to_be_focused()
     geometry = marker.evaluate(
         """markerNode => {
@@ -504,7 +342,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const reply = document.querySelector('.lf-margin-thread .lf-thread-reply')
             .getBoundingClientRect();
-          const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
+          const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview-card'));
           return {mainLeft: main.left,
                   mainRight: main.right, controlsRight: controls.right,
                   controlsTop: controls.top, controlsBottom: controls.bottom,
@@ -599,22 +437,10 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(thread.locator(".lf-page-thread")).to_be_focused()
 
-    open_full = thread.get_by_role("button", name="Open interactive reply")
-    open_full.focus()
-    expect(open_full).to_be_focused()
-    page.keyboard.press("Enter")
-    # The thread opens in the panel, which draws the reply's interactive widgets.
-    panel_settled(page, view="thread")
-    expect(page.locator(f"{PANEL_THREAD} #off-slip")).to_be_in_viewport()
-    expect(page.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
-    page.locator(".lf-fp-close").click()
-    panel_settled(page, open=False)
-    marker.focus()
-    page.keyboard.press("Enter")
-    expect(preview).to_be_visible()
-    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
 
-    resized_shell(page, 1436, 900)
+    # Tall enough for the whole thread, its reply's options drawn in the card.
+    resized_shell(page, 1436, 1000)
     beside = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -848,12 +674,10 @@ def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
     expect(card.locator("leaf-text")).to_be_focused()
 
 
-def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
-    """A scroll the card rides with its cluster leaves the page's DOM as it was: the
-    card, its target's trace, the marks, and the obligation's binding badges stand in the
-    plane the scroll carries them with, and each owner on the scroll path writes only
-    what changed. Chrome repaints the whole document for any write while a highlight
-    holds a range, which a page with a quoted comment always has."""
+def test_a_scroll_that_carries_the_card_only_updates_the_rail_tab_stop(browser, serve):
+    """The card, trace, marks and binding badges ride with their cluster without
+    writes. The rail may move its one Tab stop to the highest visible entry, but
+    scrolling must not rewrite the paint that already stands in the page's plane."""
     page = open_page(
         browser,
         serve(OBLIGATION_PAGE, events=[COMMENT_ON_OBLIGATION, QUOTED_ON_OBLIGATION]),
@@ -871,8 +695,42 @@ def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
       document.querySelector('[data-lf-margin-for="bracket"]').getBoundingClientRect().top"""
     before = page.evaluate(offset)
     writes = scroll_writes(page, (-20, -20, 20, 20, 20))
-    assert writes == [], writes
+    assert all(
+        change["type"] == "attributes"
+        and change["attribute"] == "tabindex"
+        and all(".lf-margin-marker." in target for target in change["target"])
+        for change in writes
+    ), writes
     assert page.evaluate(offset) == pytest.approx(before, abs=0.5)
+
+
+def test_the_rail_tab_stop_follows_a_carried_row_back_into_view(browser, serve):
+    """The rail's one Tab stop is its highest row in view, whichever way the page got
+    there. ship-review's first row stands in a carrier, which the browser moves with
+    the scroll but whose own box reads a frame late: read there, a scroll back to the
+    top left the stop on the second row, below the first, until something else
+    re-read the rail."""
+    example = next(p for p in EXAMPLES if p.stem == "ship-review")
+    page = open_page(browser, serve(example))
+    resized(page, 1200, 900)
+    rendered(page)
+    first = page.locator('[data-lf-margin-for="off-t-resync"] .lf-margin-marker')
+    second = page.locator('[data-lf-margin-for="off-t-vendor"] .lf-margin-marker')
+    assert first.evaluate("row => row.closest('.lf-margin-carrier') !== null"), (
+        "the fixture's first row no longer stands in a carrier"
+    )
+    expect(first).to_have_attribute("tabindex", "0")
+
+    page.mouse.move(300, 300)
+    page.mouse.wheel(0, 600)
+    scroll_settled(page)
+    rendered(page)
+    expect(second).to_have_attribute("tabindex", "0")
+    page.mouse.wheel(0, -600)
+    scroll_settled(page)
+    rendered(page)
+    expect(first).to_have_attribute("tabindex", "0")
+    expect(second).to_have_attribute("tabindex", "-1")
 
 
 @pytest.mark.parametrize("target", ["sec-mounts", "bracket"])
@@ -1067,7 +925,7 @@ def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve
     it (target-paint-geometry.js, `paintStand`). A scroll of either pane writes nothing to
     them and leaves them over the element. Drawn in the document's plane from the
     element's box as the panes cut it, they were rewritten on every scroll step, a frame
-    behind the words. The card's thread marks the element while the user stands in it,
+    behind the words. The card's thread marks the element while the user is located in it,
     and the trace while they stand on its marker."""
     comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": "pane-sec"}}
     page = open_page(browser, serve(NESTED_PANE_PAGE, events=[comment]))

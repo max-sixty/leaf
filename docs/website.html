@@ -35,13 +35,13 @@
         <h2>Published pages at the edge</h2>
         <p id="edge-build">
           The site build publishes every page under <code>docs/</code> and every worked
-          example as a complete Leaf page directory, with its vendored runtime, event
-          log, and revisions. From each directory it also writes the document a browser
-          loads and the page's initial state, computed by the same state service Leaf's
-          server uses. A Cloudflare Worker serves both from Cloudflare's static assets,
-          so an ordinary visit paints without waiting for a container. Until a visitor
-          changes a page, that page's <code>api/state</code> requests also return the
-          published state.
+          example as a complete Leaf page directory, with its layer record, event log,
+          and revisions. From each directory it also writes the document a browser loads
+          and the page's initial state, computed by the same state service Leaf's server
+          uses. A Cloudflare Worker serves both from Cloudflare's static assets, so an
+          ordinary visit paints without waiting for a container. Until a visitor changes
+          a page, that page's <code>api/state</code> requests also return the published
+          state.
         </p>
         <p id="edge-identity">
           The first HTML response sets an identity cookie holding a random 128-bit id.
@@ -50,7 +50,7 @@
           derived from that id. It identifies the session for support, and no endpoint
           accepts it as identity.
         </p>
-        <lf-diagram id="request-path" data-height="674" parts="all">
+        <lf-diagram id="request-path" data-height="690" parts="all">
           <pre>
 sequenceDiagram
   participant Browser as browser

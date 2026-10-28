@@ -1,11 +1,10 @@
 """Which passage an unsent comment belongs to as the user selects, retargets, revisits
-or moves to another standing, and whose words a transfer carries."""
+or moves to another location, and whose words a transfer carries."""
 
 import re
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_cases_navigation import compose, go_to_address, pending_text
 from render_harness import (
@@ -25,6 +24,8 @@ from render_harness import (
 from browser.drafts import (
     choose_comment_target,
 )
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -40,7 +41,7 @@ def test_completed_page_selection_opens_its_own_comment(browser, serve):
                 "Selection gestures",
                 '<p id="earlier">Earlier subject.</p>'
                 '<p id="later">A later passage keeps native selection.</p>'
-                '<p id="later-box" style="height:72px;overflow:auto">'
+                '<p id="later-box" class="scroll" style="height:72px;overflow:auto">'
                 "A later boxed passage keeps native selection.<br>"
                 + "Another line of evidence.<br>" * 40
                 + "</p>",
@@ -245,7 +246,9 @@ def _draft_attachment_boxes(field, passage):
     )
 
 
-def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, serve):
+def test_comment_follows_a_new_current_location_instead_of_an_earlier_draft(
+    browser, serve
+):
     """The earlier draft keeps its subject while a later keyboard landing names
     the next comment. Resume recovers the editor that followed its earlier passage."""
     source = LONG_PAGE.replace(
@@ -317,19 +320,17 @@ def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, ser
     ("existing_reply", "resume_before_scroll"),
     [("", True), ("", False), ("This thread already holds a reply.", False)],
 )
-def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
+def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
     browser, serve, existing_reply, resume_before_scroll
 ):
     """A chrome thread is a destination; an earlier draft follows its own passage.
 
-    Resume returns its words and caret before Comment answers the standing thread.
+    Resume returns its words and caret before Comment answers the current thread.
     """
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
     if not resume_before_scroll:
         # Slow the browser to expose Resume interrupting native smooth travel.
-        page.context.new_cdp_session(page).send(
-            "Emulation.setCPUThrottlingRate", {"rate": 6}
-        )
+        slow_cpu(page, 6)
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     if existing_reply:
         page.keyboard.press("t")
@@ -613,27 +614,51 @@ def test_commenting_on_the_same_selection_preserves_the_existing_suggestion(
 def datum_draft_url(serve, *, identified=False):
     """Serve a projected subject whose rendering can change independently of its identity."""
     module = """
-import {projectData, html, render} from '/runtime/widget-api.js';
-customElements.define('lf-draft-subject', class extends HTMLElement {
-  connectedCallback() { this.show('Original datum words.'); }
-  show(words, key='datum') {
-    render(html`<p>${words}</p><p>Other words in the same widget.</p>`, this);
-    projectData(this, [{key, IDENTITY node: this.querySelector('p'), label: 'Datum',
-      origin: {derived: [{widget: 'subject'}]}}]);
+import {LeafElement, html} from '/runtime/widget-api.js';
+customElements.define('lf-draft-subject', class extends LeafElement {
+  static properties = {words: {attribute: false}, key: {attribute: false}};
+  constructor() {
+    super();
+    this.words = 'Original datum words.';
+    this.key = 'datum';
+  }
+  show(words, key = 'datum') {
+    this.words = words;
+    this.key = key;
+  }
+  render() {
+    return html`<p data-lf-datum=${this.key} IDENTITY data-lf-datum-label="Datum"
+      >${this.words}</p><p>Other words in the same widget.</p>`;
+  }
+  updated(changed) {
+    super.updated(changed);
+    this.dispatchEvent(new CustomEvent('drawn', {detail: {value: this.words}}));
   }
 });
 """
-    module = module.replace("IDENTITY", "identity: 'subject'," if identified else "")
+    module = module.replace(
+        "IDENTITY", 'data-lf-identity="subject"' if identified else ""
+    )
     return serve(
         leaf_page("Datum draft", '<lf-draft-subject id="subject"></lf-draft-subject>'),
         layer_registry={
             "lf-draft-subject": {
                 "description": "A datum whose words can change.",
                 "type": "object",
-                "properties": {"id": {"type": "string"}},
+                "properties": {
+                    "id": {"type": "string"},
+                    "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+                },
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "empty",
+                "x-data": {
+                    "words": {
+                        "contract": "text-document",
+                        "source": "source",
+                        "property": "value",
+                    }
+                },
                 "x-upgrade": True,
                 "x-example": '<lf-draft-subject id="example"></lf-draft-subject>',
             }

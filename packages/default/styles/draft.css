@@ -1,0 +1,124 @@
+/* Drafts read as Markdown, their controls marks on a small toolbar that hovers over
+   the box's edge at its right, so the box is its prose at rest and its editor while
+   editing, and neither grows nor narrows for its controls. The frame holds focus, and
+   print retains saved prose. On screen it keeps the reading measure as its prose does
+   (theme.css), its outer width the measure. */
+lf-draft {
+  display: block;
+  --lf-draft-inset: 14px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  padding: 10px var(--lf-draft-inset);
+  margin: 12px 0;
+  background: var(--card);
+  font-size: max(var(--entry-floor), 1em);
+}
+@media screen {
+  lf-draft {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
+}
+.lf-draft-body,
+lf-draft > .lf-markdown-body {
+  white-space: normal;
+}
+:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :first-child {
+  margin-top: 0;
+}
+:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :last-child {
+  margin-bottom: 0;
+}
+/* The shared source primitive owns fallback presentation, which a draft's source
+ * does not wear: it reads as prose lines. */
+lf-draft > pre {
+  white-space: pre-line;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  overflow: visible;
+}
+.lf-draft-edit.lf-ui {
+  display: block;
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+}
+.lf-draft-edit.lf-ui[data-lf-focus-visible] {
+  outline: none;
+  box-shadow: none;
+}
+@media not screen {
+  .lf-draft-tools {
+    display: none;
+  }
+}
+@media screen {
+  lf-draft:not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
+    position: relative;
+  }
+  lf-draft:has(.lf-draft-edit) {
+    border-color: var(--muted);
+  }
+  lf-draft:has(.lf-draft-edit[data-lf-focus-visible]) {
+    outline: var(--focus-ring);
+    outline-offset: calc(-1 * var(--focus-ring-room));
+    --lf-wears-ring: 1;
+  }
+  lf-draft:has(.lf-draft-edit:state(ready)) > .lf-draft-body {
+    display: none;
+  }
+  /* The toolbar is Leaf's mark toolbar (integration.css, `.lf-mark-bar`), whose face
+     and seat a code block's lone Copy shares: Edit and Copy at rest, Save, Discard and
+     Copy while editing, Copy keeping the last seat, and a refused save's status before
+     them. A pointer sees it on the top border while over the box or a key is in it,
+     and the open editor and a draft that asks for an edit (`needed`) always, since
+     there Edit is the way to answer. A finger sees it always, on the bottom border, since
+     on a phone the margin's entries hang past the end of the line they mark, into the
+     room over the next block, which is where a top toolbar would stand. */
+  .lf-draft-tools {
+    position: absolute;
+    z-index: 1;
+    inset-block-start: 0;
+    /* The seat is measured from the box's outer edge, as a code block's is. */
+    inset-inline-end: calc(var(--lf-mark-bar-end) - 1px);
+    translate: 0 calc(-50% - 0.5px);
+    opacity: 0;
+    transition: opacity 120ms;
+  }
+  .lf-draft-status {
+    align-self: center;
+    padding-inline: 6px 2px;
+    color: var(--danger-ink);
+    font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+    white-space: nowrap;
+  }
+  .lf-draft-status:empty {
+    display: none;
+  }
+  lf-draft:is(:hover, [data-lf-focus-within], [needed], :has(> .lf-draft-edit))
+    .lf-draft-tools {
+    opacity: 1;
+  }
+  /* A mark's reach stands half a finger's floor above the border it is centred on,
+     which the box's padding keeps clear of words, so a press on the last line puts
+     the caret there rather than pressing Discard. */
+  @media (hover: none) {
+    lf-draft {
+      padding-block-end: max(10px, var(--aim-floor) / 2);
+    }
+    .lf-draft-tools {
+      inset-block: auto 0;
+      translate: 0 calc(50% + 0.5px);
+      opacity: 1;
+    }
+  }
+}

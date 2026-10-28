@@ -5,8 +5,6 @@ import re
 
 import pytest
 from interact_support import append_command
-from leaf.render_checks import wait_until_ready
-from leaf_dev.commands.stills import visual_review_menu
 from playwright.sync_api import expect
 from render_cases_interaction import CHIP_PAGE
 from render_cases_layout import rings_drawn
@@ -15,6 +13,7 @@ from render_harness import ROOT, displayed, leaf_page, open_page, told
 from browser.widgets import (
     _bound_diff,
 )
+from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -85,10 +84,16 @@ customElements.define('lf-source-stage', class extends HTMLElement {
             page.goto(url, wait_until="commit")
         displayed(page)
         fallback = page.locator("#document").evaluate(face)
+        typography = ("font", "size", "line", "color")
         for widget_id in ("code", "diagram", "diff"):
             widget = page.locator(f"#{widget_id}")
             expect(widget).not_to_have_class(re.compile("lf-rendered"))
-            assert widget.evaluate(face) == fallback
+            actual = widget.evaluate(face)
+            # Packages own layout: an inline diff clips its reserved first-paint
+            # box. The shared source primitive supplies the readable type.
+            assert {key: actual[key] for key in typography} == {
+                key: fallback[key] for key in typography
+            }, widget_id
         assert len(boot) == 1, "the preview runtime was not held before widget upgrade"
     finally:
         for route in boot:
@@ -115,7 +120,7 @@ customElements.define('lf-source-stage', class extends HTMLElement {
         assert fallback["color"] != reference["color"], fallback
         assert fallback["overflow"] == "auto", fallback
         widget.get_by_role("button", name="Draw source").click()
-        expect(widget).to_have_class("lf-rendered")
+        expect(widget).to_have_class(re.compile(r"\blf-rendered\b"))
         drawings[widget_id] = widget.evaluate(face)
         references[widget_id] = reference
     assert drawings == references
@@ -166,16 +171,42 @@ def test_live_widget_subscription_releases_and_reconnects(browser, serve):
     )
 
 
-WEB_AWESOME_SHEET = """sheets => sheets.some(
-  sheet => [...sheet.cssRules].some(rule => rule.cssText.includes('wa-select'))
-)"""
+def library_select(browser, serve):
+    """Exercise the optional library's select without depending on a consumer's UI."""
+    page = _bound_diff(browser, serve)
+    page.evaluate("""async () => {
+      const {offer} = await window.__lfWidgetApi();
+      const select = offer('wa-select', 'library-select');
+      select.label = 'Choose file';
+      for (const value of ['first', 'second', 'third']) {
+        const option = offer('wa-option', '', value);
+        option.value = value; select.append(option);
+      }
+      select.value = 'first';
+      document.querySelector('main').prepend(select);
+      await select.updateComplete;
+    }""")
+    return page
+
+
+def open_library_select(page):
+    control = page.locator(".library-select")
+    control.evaluate("""node => {
+      node.menuShown = new Promise(resolve => node.addEventListener(
+        'wa-after-show', resolve, {once: true}));
+    }""")
+    control.get_by_role("combobox").click()
+    control.evaluate("node => node.menuShown")
+    page.mouse.move(0, 0)
 
 
 def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     plain = open_page(browser, serve(leaf_page("Plain", "<h1>Plain page</h1>")))
     assert (
-        plain.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
-        is True
+        plain.evaluate(
+            "getComputedStyle(document.documentElement).getPropertyValue('--wa-space-scale').trim()"
+        )
+        == "1"
     )
     assert not any(
         entry.endswith("/vendor/webawesome.esm.js")
@@ -187,19 +218,13 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     assert plain.evaluate("() => customElements.get('wa-input') !== undefined")
     assert plain.evaluate("() => customElements.get('wa-slider') === undefined")
 
-    source = ROOT / "examples" / "developer" / "visual-review-gallery.html"
-    page = open_page(browser, serve(source))
-    assert (
-        page.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
-        is True
-    )
-    control = page.locator(".lf-vr-case-select")
-    # A page rule granted control access and with no specificity at all can outrank
-    # the generated sheet's `:is(wa-select, …)` mapping in @layer lf-vendor.
+    page = library_select(browser, serve)
+    control = page.locator(".library-select")
+    # A page rule with no specificity at all can outrank
+    # the shared theme's `:is(wa-select, …)` mapping.
     page.evaluate(
         """() => {
           const style = document.createElement('style');
-          style.setAttribute('data-controls', '');
           style.textContent = ':where(wa-select){--wa-color-text-quiet: rgb(1, 2, 3);}';
           document.head.append(style);
         }"""
@@ -209,7 +234,7 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
             "el => getComputedStyle(el).getPropertyValue('--wa-color-text-quiet')"
         ).strip()
         == "rgb(1, 2, 3)"
-    ), "a page rule granted control access must outrank the lazy vendor defaults"
+    ), "a page rule must outrank the lazy vendor defaults"
 
 
 def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
@@ -218,13 +243,11 @@ def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
     """Component-owned menu states remain readable through the shared theme, in both
     schemes, read in turn on one open menu.
 
-    The visual-review picker is a consumer of the same theme as the trace
-    prototype that exposed dark text on a solid blue active row.
+    The shared menu theme must keep contrasting text on a solid active row.
     """
-    source = ROOT / "examples" / "developer" / "visual-review-gallery.html"
-    page = open_page(browser, serve(source))
-    visual_review_menu(page)
-    control = page.locator(".lf-vr-case-select")
+    page = library_select(browser, serve)
+    open_library_select(page)
+    control = page.locator(".library-select")
     options = control.locator("wa-option")
 
     def contrast(option):
@@ -335,18 +358,15 @@ def test_webawesome_typography_is_independent_of_surrounding_prose(browser, serv
 
 
 @pytest.mark.parametrize("motion", ["no-preference", "reduce"])
-def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, motion):
-    """A superseded close cannot hide a reopened popover or strand its API promise.
+def test_reopening_a_library_select_keeps_its_options_visible(browser, serve, motion):
+    """Enter then Space reopens the menu while its close animation is running.
 
-    Select and tooltip share the library's animation continuation.
-    The real Enter/Space route exposed it; direct public requests exercise the
-    same owner in the other consumers and both interruption directions.
+    Upstream 3.14.0 otherwise lets that close hide the already reopened menu.
     """
-    source = ROOT / "examples" / "developer" / "visual-review-gallery.html"
-    page = open_page(browser, serve(source))
+    page = library_select(browser, serve)
     page.emulate_media(reduced_motion=motion)
-    visual_review_menu(page)
-    select = page.locator(".lf-vr-case-select")
+    open_library_select(page)
+    select = page.locator(".library-select")
     select.evaluate(
         "n => { n.reopened = new Promise(r => n.addEventListener('wa-after-show', r, {once:true})); }"
     )
@@ -357,70 +377,13 @@ def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, 
     assert select.evaluate("n => n.open && n.popup.active && !n.listbox.hidden")
     page.keyboard.press("Escape")
 
-    for tag in ("wa-select", "wa-tooltip"):
-        page.evaluate(
-            """async tag => {
-          const {offer} = await window.__lfWidgetApi();
-          const holder = offer('div', 'transition-test');
-          const control = offer(tag, 'transition-control');
-          control.id = 'transition-control';
-          if (tag === 'wa-select') {
-            const option = offer('wa-option', '', 'First');
-            option.value = 'first'; control.append(option);
-          } else if (tag === 'wa-tooltip') {
-            control.trigger = 'manual'; control.content = 'Help';
-            control.append(offer('button', '', 'Help'));
-          }
-          holder.append(control); document.body.append(holder);
-          await control.updateComplete;
-          await control.show();
-        }""",
-            tag,
-        )
-        control = page.locator("#transition-control")
-        for final_open in (True, False):
-            control.evaluate(
-                """async (n, finalOpen) => {
-              if (n.open !== finalOpen) await (finalOpen ? n.show() : n.hide());
-              const interrupted = finalOpen ? n.hide() : n.show();
-              await n.updateComplete;
-              const latest = finalOpen ? n.show() : n.hide();
-              n.results = null;
-              Promise.all([interrupted, latest]).then(results => n.results = results);
-            }""",
-                final_open,
-            )
-            page.wait_for_function(
-                "document.querySelector('#transition-control').results !== null"
-            )
-            assert control.evaluate("n => n.results") == [False, True]
-            assert control.evaluate("n => n.open === n.popup.active")
-            assert control.evaluate("n => n.open") is final_open
-        for requests in ((True, False), (True, False, True)):
-            control.evaluate("n => n.hide()")
-            results = control.evaluate(
-                """async (n, requests) => {
-              return Promise.all(requests.map(open => open ? n.show() : n.hide()));
-            }""",
-                requests,
-            )
-            assert results == [False] * (len(requests) - 1) + [True]
-            assert control.evaluate("n => n.open === n.popup.active")
-            assert control.evaluate("n => n.open") is requests[-1]
-        control.evaluate("n => n.hide()")
-        assert (
-            control.evaluate("""async n => {
-          const pending = n.show(); n.open = false;
-          return pending;
-        }""")
-            is False
-        )
-        assert control.evaluate("n => !n.open && !n.popup.active")
-        control.evaluate("n => n.parentElement.remove()")
 
+def test_library_copy_feedback_finishes_after_its_tooltip_reopens(browser, serve):
+    """The copy button consumes the tooltip's completion to release its copy lock."""
+    source = ROOT / "examples" / "developer" / "visual-review-gallery.html"
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion="no-preference")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
-    # Copy feedback consumes tooltip completion. Reopening its timed hide must
-    # release the copy lock even though the obsolete after-hide never fires.
     page.evaluate("""async () => {
       const {offer} = await window.__lfWidgetApi();
       const copy = offer('wa-copy-button', 'copy-feedback');
@@ -432,18 +395,14 @@ def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, 
       copy.addEventListener('wa-copy', () => copy.copied++);
     }""")
     copy = page.locator("#copy-feedback")
-    copy.get_by_role("button").click()
-    page.wait_for_function("document.querySelector('#copy-feedback').copied === 1")
-    page.wait_for_function("!document.querySelector('#copy-feedback').isCopying")
-    assert copy.evaluate(
-        "n => n.status === 'rest' && n.activeTooltip.open && !n.copyIcon.hidden"
-    )
-    copy.get_by_role("button").click()
-    page.wait_for_function("document.querySelector('#copy-feedback').copied === 2")
-    page.wait_for_function("!document.querySelector('#copy-feedback').isCopying")
-    assert copy.evaluate(
-        "n => n.status === 'rest' && !n.activeTooltip.open && !n.copyIcon.hidden"
-    )
+    for copies in (1, 2):
+        copy.get_by_role("button").click()
+        page.wait_for_function(
+            "count => document.querySelector('#copy-feedback').copied === count",
+            arg=copies,
+        )
+        page.wait_for_function("!document.querySelector('#copy-feedback').isCopying")
+        assert copy.evaluate("n => n.status === 'rest' && !n.copyIcon.hidden")
 
 
 def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
@@ -487,7 +446,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     draws it on the row its picks give up, and getComputedStyle(activeElement) reports
     'no ring' for a control whose ring is perfectly fine. Where nothing else claims one,
     the shared rule is what draws it, and that case is asserted on a request press in
-    projection/test_standing.py, which is where the layer has a control no widget rings."""
+    projection/test_current_location.py, which is where the layer has a control no widget rings."""
     page = open_page(browser, serve(CHIP_PAGE))
     state = """() => lfUnwatched(() => {
       // Whatever a control spends on saying it is live: the layer's wash, its own ink
@@ -569,5 +528,5 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     page.keyboard.press("Tab")
     drawn = rings_drawn(page)
     assert any(ring["here"] and ring["sample"] and ring["rule"] for ring in drawn), (
-        f"no ring rule draws a focus ring where the keyboard is standing: {drawn}"
+        f"no ring rule draws a focus ring at the current keyboard location: {drawn}"
     )

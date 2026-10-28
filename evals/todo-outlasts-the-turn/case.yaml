@@ -28,7 +28,7 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Pass only if, in this turn, the commands answer 7c41d0e2 with `leaf response
+      Pass only if, in this turn, the commands answer 7c41d0e2 with `leaf thread
       reply` carrying `--todo "<title>"` for the rebuild; and if, in the later turn,
       they include `leaf task end` naming that to-do (the reply's id) with outcome
       `done` and a detail pointing at version 4. Starting the comment or the to-do alongside is fine. Fail if no to-do is

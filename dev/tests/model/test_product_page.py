@@ -3,11 +3,12 @@
 import html
 
 import pytest
-from leaf.structure import SourceDocument
 from leaf_dev import declared_records, docs
 from leaf_dev.commands import record_demo
 from leaf_dev.example_data import document_metadata
 from model.test_product_page import DOCS, EXAMPLES
+
+from leaf.structure import SourceDocument
 
 
 def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
@@ -74,7 +75,7 @@ def test_data_structures_page_lists_every_declared_schema():
     source = DOCS / "data-structures.html"
     tree = SourceDocument(docs.compose(source, source.read_text())).tree
     entries = {entry.attrs["id"] for entry in tree.select("section.schema-entry")}
-    registry = docs.read_json(docs.ASSETS / "registry.json")["$events"]
+    registry = docs.read_json(docs.KERNEL_REGISTRY)["$events"]
     expected = {
         "served-state",
         "event-envelope",

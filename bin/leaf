@@ -5,16 +5,28 @@
 # A host selects its executable with an absolute LEAF_HOST_LAUNCHER path for
 # commands and native hooks, while SessionEnd keeps standalone cleanup below.
 # A redirected call consumes the selection so a host wrapper can invoke Leaf.
-# Selecting this launcher itself leaves the default dispatch. LEAF remains the
-# agent's locator and does not override an explicitly invoked launcher.
+# Selecting this launcher itself leaves the default dispatch.
 #
 # By default the directory above it is a uv project — the repository and the
 # installed plugin are the same tree — and this runs that project: uv keeps one
-# environment per installed version and syncs it in place on first use.
+# environment per installed version, and `uv run` syncs it from the lock before
+# each run where the lock or project has changed, so an update needs no step here.
+# A harness session's copy hands its hooks and commands on to the session's
+# delivering Leaf (`src/leaf/session_runtime.py`).
 # `--no-dev` because the project's dev group is the test suite and the
 # `leaf-dev` tooling, recorded in the shipped lock but never a harness's to
 # install. `-q` because an agent reads stderr back and an ordinary sync has
 # nothing to say; a failed resolve is reported either way.
+#
+# uv opens its cache even with nothing to sync, and Codex's workspace-write sandbox
+# writes only to the workspace and the temporary directories, so inside that
+# sandbox uv keeps its cache under $TMPDIR, letting a direct call such as
+# `leaf --root` work and a refusal name the way out. CODEX_SANDBOX and
+# CODEX_SANDBOX_NETWORK_DISABLED are Codex's markers for that sandbox, the ones
+# `machine.SANDBOX_REMEDIES` reads; Codex's hooks and Leaf's MCP server run outside
+# it and see neither. A cache it may write beats `--no-cache`, with which uv
+# re-queries the interpreter on every call, tens of ms more (24 ms at load 33,
+# 40 ms at load 60).
 #
 # The module rather than the `leaf` console script: where this path is long
 # enough to pass the ~127-byte shebang limit — a harness cache path reaches it —
@@ -23,6 +35,7 @@
 # still read `leaf`. Which harness session is running, and under what id, is the
 # hook registration's and payload's to say, or a shell command's environment's
 # (`harness.py`), never this launcher's.
+#
 # SessionEnd must release claims within the harness's shutdown deadline even before
 # this install has an environment. Its canonical cleanup is a standalone stdlib
 # Python 3.9 program; it never imports the managed Leaf package.
@@ -32,44 +45,34 @@
 # do in a session that holds no claim. Each such registration says so
 # (`hook --harness NAME --if-claimed`), so where the environment exists the hook
 # first asks the same standalone program, on that environment's interpreter,
-# whether the session holds one (`state.holds_claims`). That spares uv and the
+# whether the session holds one (`state.py hook-gate`). That spares uv and the
 # package's imports wherever no page was claimed. Without the environment, or with
 # any answer but "nothing", the hook runs whole.
 #
 # Claude Code's sandbox refuses what a command needs, so where it confines this
 # one (SANDBOX_RUNTIME), the bridge Leaf's hooks keep outside it runs the command
 # (`bridge.py`). `-I` keeps the agent's directory off the module path.
-#
-# uv's cache serves only to fill the environment, yet `uv run` opens it even
-# with nothing to fetch, and Codex's sandbox refuses writes to ~/.cache/uv. So
-# once the environment exists, which the first hook ensures outside any sandbox,
-# uv runs without the cache; a sync a changed lock needs then downloads afresh.
-# The flag is not inherited, so `package run`'s own uv keeps the cache.
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-state="$root/skills/leaf/scripts/leaf/state.py"
+state="$root/src/leaf/state.py"
+python="$root/.venv/bin/python"
 if [ "$#" -eq 1 ] && [ "$1" = session-end ]; then
     exec python3 -S "$state"
 fi
-cache=
-[ -d "$root/.venv" ] && cache=--no-cache
-case "${LEAF_HOST_LAUNCHER:-}" in
-    ''|/*) ;;
-    *) printf '%s\n' 'LEAF_HOST_LAUNCHER must name an absolute launcher path' >&2; exit 2 ;;
-esac
+[ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}" ] && export UV_CACHE_DIR="${TMPDIR:-/tmp}/leaf-uv-cache"
 if [ -n "${LEAF_HOST_LAUNCHER:-}" ] && [ ! "$LEAF_HOST_LAUNCHER" -ef "$0" ]; then
     leaf_host_launcher=$LEAF_HOST_LAUNCHER
     unset LEAF_HOST_LAUNCHER
     exec "$leaf_host_launcher" "$@"
 fi
-if [ -n "${SANDBOX_RUNTIME:-}" ] && [ -x "$root/.venv/bin/python" ]; then
-    exec "$root/.venv/bin/python" -I -m leaf.bridge run "$@"
+if [ -n "${SANDBOX_RUNTIME:-}" ] && [ -x "$python" ]; then
+    exec "$python" -I -m leaf.bridge run "$@"
 fi
-if [ "${1:-}" = hook ] && [ "${4:-}" = --if-claimed ] && [ -x "$root/.venv/bin/python" ]; then
+if [ "${1:-}" = hook ] && [ "${4:-}" = --if-claimed ] && [ -x "$python" ]; then
     payload=$(cat)
-    printf '%s' "$payload" | "$root/.venv/bin/python" -S "$state" hook-gate
+    printf '%s' "$payload" | "$python" -S "$state" hook-gate
     [ "$?" -eq 3 ] && exit 0
-    exec uv run -q $cache --no-dev --project "$root" python -m leaf "$@" <<EOF
+    exec uv run -q --no-dev --project "$root" python -m leaf "$@" <<EOF
 $payload
 EOF
 fi
-exec uv run -q $cache --no-dev --project "$root" python -m leaf "$@"
+exec uv run -q --no-dev --project "$root" python -m leaf "$@"

@@ -1,9 +1,9 @@
-/* Authored residency is inert until boot opens it and owns no annotation geometry. */
+/* Authored margin content layout is inert until boot opens it and owns no annotation geometry. */
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import { test } from "node:test";
 
-test("import and a closed residency schedule start no document layout owner", async () => {
+test("import and a closed marginContentLayout schedule start no document layout owner", async () => {
   const loaded = [];
   const modules = registerHooks({
     load(url, context, next) {
@@ -20,7 +20,7 @@ test("import and a closed residency schedule start no document layout owner", as
   try {
     const owner = await import("/runtime/content-layout.js");
     const before = frames;
-    owner.scheduleResidency();
+    owner.scheduleMarginContentLayout();
     assert.equal(frames, before);
     assert.deepEqual(
       loaded.filter(
@@ -35,12 +35,12 @@ test("import and a closed residency schedule start no document layout owner", as
   }
 });
 
-test("an opened residency completes unchanged readings with no main", async () => {
+test("an opened marginContentLayout completes unchanged readings with no main", async () => {
   const owner = await import("/runtime/content-layout.js");
   assert.equal(document.querySelector("main"), null);
   const completed = [];
-  owner.openResidency({ onRead: (changed) => completed.push(changed) });
+  owner.openMarginContentLayout({ onRead: (changed) => completed.push(changed) });
   assert.deepEqual(completed, [false]);
-  owner.settleResidency();
+  owner.settleMarginContentLayout();
   assert.deepEqual(completed, [false, false]);
 });

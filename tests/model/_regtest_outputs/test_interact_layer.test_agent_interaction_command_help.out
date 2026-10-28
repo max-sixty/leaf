@@ -11,8 +11,7 @@ Usage: leaf wait [OPTIONS] PAGE
   page with new input instead, and end.
 
 Options:
-  --ack DELIVERY_ID  Confirm receipt of this complete delivery before waiting.
-  --help             Show this message and exit.
+  --help  Show this message and exit.
 
 ## leaf delivery read --help
 Usage: leaf delivery read [OPTIONS] DELIVERY_ID
@@ -23,31 +22,31 @@ Usage: leaf delivery read [OPTIONS] DELIVERY_ID
   last gives in `acknowledge` how to confirm the delivery.
 
 Options:
-  --part INTEGER RANGE  Read this numbered part of a large delivery.  [x>=1]
+  --part INTEGER RANGE  this numbered part of a large delivery  [x>=1]
   --help                Show this message and exit.
 
 ## leaf delivery ack --help
 Usage: leaf delivery ack [OPTIONS] DELIVERY_ID
 
   Confirm that every part of DELIVERY_ID is in your context, so its updates read
-  Picked up. Reread any part whose output is missing first.
+  Delivered.
 
 Options:
   --help  Show this message and exit.
 
 ## leaf page state --help
-Usage: leaf page state [OPTIONS] PAGE [ID]
+Usage: leaf page state [OPTIONS] PAGE [MESSAGE_OR_WIDGET]
 
   Print the page as it is now, as one JSON object: the active revision's file,
   the current widget actions and workers' reports, the user's On me list and
   yours, thread summaries, versions, presence, and bound data. Read the active
   revision's HTML beside it for the document.
 
-  ID narrows the output to what it names. A message, or a widget frozen into
-  one, names its thread: the output is that thread with a page of its messages,
-  their frozen markup, and the state of its widgets, paged by --after and
-  --limit. A widget on the page names itself: its element, its current actions
-  and reports, its obligations and to-dos, and its workflows.
+  MESSAGE_OR_WIDGET narrows the output to what it names. A message, or a widget
+  frozen into one, names its thread: the output is that thread with a page of
+  its messages, their frozen markup, and the state of its widgets, paged by
+  --after and --limit. A widget on the page names itself: its element, its
+  current actions and reports, its obligations and to-dos, and its workflows.
 
 Options:
   --after SEQ            a thread's history after this sequence (default: from
@@ -55,6 +54,20 @@ Options:
   --limit INTEGER RANGE  how many of a thread's messages to print (default: 50)
                          [1<=x<=100]
   --help                 Show this message and exit.
+
+## leaf page claim --help
+Usage: leaf page claim [OPTIONS] PAGE
+
+  Connect PAGE's updates to this session without changing its server.
+
+  Delivery is ready before ownership moves. A watch another session runs on PAGE
+  stops watching it. --manual-delivery leaves delivery to your explicit leaf
+  wait.
+
+Options:
+  --manual-delivery  claim for an explicit leaf wait watcher instead of
+                     preparing harness delivery
+  --help             Show this message and exit.
 
 ## leaf thread summarize --help
 Usage: leaf thread summarize [OPTIONS] PAGE
@@ -67,39 +80,47 @@ Usage: leaf thread summarize [OPTIONS] PAGE
   overlapping summary replaces this one.
 
 Options:
-  --from MESSAGE     [required]
-  --through MESSAGE  [required]
+  --from MESSAGE     the first message folded  [required]
+  --through MESSAGE  the last message folded  [required]
   --text TEXT        the summary's Markdown
   --file PATH        read the summary's Markdown from PATH, - for stdin; with
                      neither option, from piped stdin
   --label TEXT       disclosure label (default: Earlier discussion)
   --help             Show this message and exit.
 
-## leaf status --help
-Usage: leaf status [OPTIONS] PAGE {waiting|idle} [DETAIL]
+## leaf page open --help
+Usage: leaf page open [OPTIONS] PAGE
 
-  Say the page waits on its user, or that you are done with it.
+  Keep PAGE available for feedback and put down current work.
 
-  Use waiting with DETAIL naming the answer you want from the user; waiting
-  without DETAIL invites text comments. Use idle when you are finished; it is
-  refused while the page has updates, workers' reports or page errors nobody has
-  picked up, updates you owe an answer, or to-dos of yours still open. Either
-  one clears every `leaf task start` you made, so no update or to-do reads
-  Working; your to-dos stay open. Status has no working state: to show what you
-  are working on, run `leaf task start`.
+  This clears every task start; to-dos and unanswered updates stay owed. To
+  request an answer, send a thread message with --obligation so the question
+  appears in On me. Opening a page creates no obligation.
 
 Options:
   --help  Show this message and exit.
 
-## leaf thread open --help
-Usage: leaf thread open [OPTIONS] PAGE
+## leaf page close --help
+Usage: leaf page close [OPTIONS] PAGE
 
-  Open a thread as the agent: anchored where --quote or --section points at a
+  Finish PAGE and stop watching for feedback.
+
+  Refuses while updates, workers' reports or page errors remain unread, updates
+  need an answer, or agent to-dos remain open. Closing puts down every task
+  start and settles no obligation.
+
+Options:
+  --help  Show this message and exit.
+
+## leaf thread create --help
+Usage: leaf thread create [OPTIONS] PAGE
+
+  Create a thread as the agent: anchored where --quote or --section points at a
   passage, general where neither does \u2014 a question about the work as a whole.
 
-  The user answers it in the browser; a question in an `<lf-ask>` in --markup
-  waits on them until they do. Refuses a quote the active revision does not
-  hold, or holds more than once. The comment's id is the thread's.
+  Use --obligation when the next move is the user's: the message waits on On me
+  until their reply or settling reaction. Refuses a quote the active revision
+  does not hold, or holds more than once. The comment's id is the thread's.
 
 Options:
   --quote TEXT   passage text from the active revision
@@ -111,74 +132,38 @@ Options:
   --markup TEXT  HTML fragment after the text, validated here
   --title TEXT   name the thread for the panel unless it has a name: a few
                  words, at most 80 characters
+  --obligation   put this message on On me until the user replies or settles it
   --help         Show this message and exit.
 
 ## leaf thread reply --help
-Usage: leaf thread reply [OPTIONS] PAGE THREAD
+Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]
 
-  Post a new agent message to THREAD.
+  Answer a delivered update by its `answer.ref` alone, or post into the thread
+  PAGE MESSAGE names, which is refused while that thread owes an answer.
 
-  A message is refused while the thread owes a response; answer it with `leaf
-  response reply <answer.ref>`. --ephemeral posts progress. Saved page edits are
-  checked and published as `leaf response reply` says.
+  An answer declares what it leaves with --done, --todo or --obligation, or
+  carries a widget in --markup that asks; --ephemeral progress declares nothing,
+  and --done needs a reference. The reply publishes your saved page edits,
+  checked as `page check` checks them without a browser. The Leaf skill's
+  references/threads.md says which to use and what each leaves.
 
 Options:
-  --title TEXT   name the thread for the panel unless it has a name: a few
-                 words, at most 80 characters
-  --ephemeral    one-line progress, without answering
-  --todo TITLE   the reply promises work it doesn't deliver; opens that to-do on
-                 the thread, ended by `leaf task end` with the reply's id
-  --markup TEXT  frozen HTML fragment after the text
+  --done         the reply delivers what the message asked for
   --text TEXT    the reply's text
   --file PATH    read the reply's text from PATH, - for stdin; with neither
                  option, from piped stdin
-  --detach       remove the thread's page target
-  --part ID      new declared visual part within --section
-  --section ID   new element ID, or scope for --quote
+  --markup TEXT  frozen HTML fragment after the text
+  --todo TITLE   the reply promises work it doesn't deliver; opens that to-do on
+                 the thread, ended by `leaf task end` with the reply's id
+  --ephemeral    one-line progress, without answering
+  --title TEXT   name the thread for the panel unless it has a name: a few
+                 words, at most 80 characters
+  --obligation   put this message on On me until the user replies or settles it
   --quote TEXT   new passage text to move this thread onto
+  --section ID   new element ID, or scope for --quote
+  --part ID      new declared visual part within --section
+  --detach       remove the thread's page target
   --help         Show this message and exit.
-
-## leaf response reply --help
-Usage: leaf response reply [OPTIONS] REFERENCE
-
-  Reply to the update REFERENCE names: the `answer.ref` its delivery printed.
-
-  Mark every answer with --done (it delivers what the message asked for) or
-  --todo TITLE (it promises work it doesn't deliver, which stays on you as a to-
-  do), or ask the user something back with an `<lf-ask>` in its --markup, which
-  waits on them until their next message in the thread. A progress line
-  (--ephemeral) or a failure (--failure) takes none of them.
-
-  The reply can also set frozen HTML, the thread's title and a new anchor. It
-  publishes your saved page edits with it, checking them as `page check` does
-  without a browser: an error refuses the reply, and the first reply on a
-  revision notes the advice `page check` gives on its source. Nothing runs in a
-  browser, where `page check` runs a page's scripts and data widgets; one that
-  fails for the user arrives as an `error` event. After an answer posts, your
-  turn's final message is not posted as a second reply; an --ephemeral line does
-  not change that. Rerunning a reply that already posted prints the earlier one;
-  give a retried --ephemeral line an --attempt so it posts once.
-
-Options:
-  --attempt TEXT  retry key: a rerun with the same key posts nothing new
-                  (default: the reference, except with --ephemeral)
-  --failure TEXT  failure code when no answer is coming; refused while your
-                  turn's final message is to be the reply
-  --done          the reply delivers what the message asked for
-  --title TEXT    name the thread for the panel unless it has a name: a few
-                  words, at most 80 characters
-  --ephemeral     one-line progress, without answering
-  --todo TITLE    the reply promises work it doesn't deliver; opens that to-do
-                  on the thread, ended by `leaf task end` with the reply's id
-  --markup TEXT   frozen HTML fragment after the text
-  --text TEXT     the reply's text
-  --file PATH     read the reply's text from PATH, - for stdin; with neither
-                  option, from piped stdin
-  --detach        remove the thread's page target
-  --part ID       new declared visual part within --section
-  --section ID    new element ID, or scope for --quote
-  --quote TEXT    new passage text to move this thread onto
-  --help          Show this message and exit.
 
 ## leaf thread edit --help
 Usage: leaf thread edit [OPTIONS] PAGE MESSAGE
@@ -187,8 +172,7 @@ Usage: leaf thread edit [OPTIONS] PAGE MESSAGE
   with --title rename the thread MESSAGE is in, whoever opened it. --title alone
   leaves the text as it is.
 
-  The original and every revision remain in the append-only event log. Frozen
-  markup is not editable. Keep a title stable unless the thread's subject
+  Frozen markup is not editable. Keep a title stable unless the thread's subject
   changes.
 
 Options:
@@ -200,16 +184,33 @@ Options:
   --help        Show this message and exit.
 
 ## leaf thread resolve --help
-Usage: leaf thread resolve [OPTIONS] PAGE THREAD
+Usage: leaf thread resolve [OPTIONS] PAGE MESSAGE
 
-  Close THREAD, by any message in it, as the agent.
+  Close the thread MESSAGE is in, as the agent.
 
   The user ordinarily closes a thread; the Leaf skill's references/threads.md
-  says when the agent does. Refuses a thread that asked for a version until a
-  stamped version answers it. The panel names who resolved it.
+  says when the agent does.
 
 Options:
   --help  Show this message and exit.
+
+## leaf task end --help
+Usage: leaf task end [OPTIONS] PAGE ID {done|failed|dropped}
+
+  End the to-do or conversational obligation named by ID in `page state`.
+
+  A to-do, yours or the user's, ends done, failed or dropped. --text says where
+  the result is, such as the version or reply holding it, or why there is none.
+
+  For a message obligation (`message:<id>`) or a question widget answered in
+  words (`widget:<id>`), done records that the user answered elsewhere, --text
+  saying where; dropped withdraws the question. These outcomes record no answer
+  from the user. A widget answered through its controls ends through its state
+  or an authored withdrawal.
+
+Options:
+  --text TEXT  where the result is, or why there is none
+  --help       Show this message and exit.
 
 ## leaf page report --help
 Usage: leaf page report [OPTIONS] PAGE WIDGET VERB [NAME=VALUE]...
@@ -220,7 +221,7 @@ Usage: leaf page report [OPTIONS] PAGE WIDGET VERB [NAME=VALUE]...
   one of its fields: `leaf page report <page> t-parser status value=review
   text="Ready for review"` moves a task. The page shows the report at once,
   marked provisional, until a stamped version writes it into the markup or
-  overrules it. The page's watcher wakes so the agent can do that.
+  overrules it.
 
 Options:
   --help  Show this message and exit.
@@ -230,12 +231,11 @@ Usage: leaf page check [OPTIONS] PAGE
 
   Check PAGE/index.html.
 
-  Runs deterministic markup checks. --render also checks the drawn page in the
-  host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
-  CHROME_BIN names, else the installed Chrome, else the first browser on PATH. A
-  host with no browser is told why in place of each browser check. Prints one
-  object: the exit status, every finding with its code, element, measured
-  values, severity and words, and what each browser check ran in.
+  Runs the markup checks and, where the page has scripts or widgets only a
+  browser can judge, runs them in the host's browser. --render also checks the
+  drawn page. The browser is the executable LEAF_BROWSER_EXECUTABLE or
+  CHROME_PATH or CHROME_BIN names, else the installed Chrome, else the first
+  browser on PATH; a host with none is told why in place of each browser check.
 
 Options:
   --render  also check the rendered page in the host's browser
@@ -251,20 +251,18 @@ Usage: leaf page stamp [OPTIONS] PAGE
   them done, citing the version. Other to-dos stay open, even when the version
   removes their widget.
 
-  --from-directory replaces index.html and the whole page/ tree and stamps them
-  in one step. Pass --if-source with the digest of the files you started from;
-  if they have changed since, the stamp is refused and the page is left as it
-  was.
+  --replace DIR DIGEST replaces index.html and the whole page/ tree from DIR and
+  stamps them in one step. DIGEST is source.digest from page state before
+  editing; if the source has changed since, the stamp is refused and the page is
+  left as it was.
 
 Options:
-  --text TEXT                 the changelog
-  --file PATH                 read the changelog from PATH, - for stdin; with
-                              neither option, from piped stdin
-  --from-directory DIRECTORY  replace index.html and page/ together from this
-                              candidate directory
-  --if-source TEXT            the page's current index.html and page/ digest
-                              (leaf.publishing.authored_digest), required with
-                              --from-directory
-  --completes WIDGET          a widget whose open to-dos this version completes
-                              (repeatable)
-  --help                      Show this message and exit.
+  --text TEXT           the changelog
+  --file PATH           read the changelog from PATH, - for stdin; with neither
+                        option, from piped stdin
+  --replace DIR DIGEST  replace index.html and page/ together from candidate
+                        DIR, if the source still has DIGEST, the source.digest
+                        page state printed
+  --completes WIDGET    a widget whose open to-dos this version completes
+                        (repeatable)
+  --help                Show this message and exit.

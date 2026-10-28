@@ -38,12 +38,12 @@ test.beforeEach((t) => t.mock.timers.enable({ apis: ["Date"], now: NOW }));
 test("working says the agent's own sentence, dated on the row once it is old", () => {
   const work = { kind: "working", detail: "revising the plan", ts: minutesAgo(0) };
   assert.deepEqual(said({ ...work, counts: { pending: 1 } }), [
-    "Claude working — revising the plan",
-    "Claude is working — revising the plan (just now). 1 response owed on updates awaiting delivery.",
+    "revising the plan",
+    "revising the plan (just now). 1 response owed on updates awaiting delivery.",
   ]);
   assert.deepEqual(said({ ...work, ts: minutesAgo(5) }), [
-    "Claude working · 5m ago — revising the plan",
-    "Claude is working — revising the plan (5m ago)",
+    "5m ago · revising the plan",
+    "revising the plan (5m ago)",
   ]);
 });
 
@@ -56,7 +56,7 @@ test("authored activity detail retains its exact source only in the words that s
   };
   const reading = pageStatus(state(activity));
   const model = statusModel(reading, NO_QUEUES, "Claude");
-  assert.equal(model.summary, "Claude working — checking the roof");
+  assert.equal(model.summary, "checking the roof");
   assert.deepEqual(
     model.summaryParts.filter((part) => part.source),
     [{ text: "checking the roof", source }],
@@ -97,14 +97,11 @@ test("working with no sentence of the agent's names what its turn picked up", ()
       ts: minutesAgo(0),
       counts: { handling, handling_comments },
     });
-  assert.deepEqual(picked(1, 1), [
-    "Claude working — picked up the comment",
-    "Claude picked up the comment and hasn't said what it's doing yet (just now)",
-  ]);
-  assert.equal(picked(1, 0)[0], "Claude working — picked up the answer");
-  assert.equal(picked(3, 2)[0], "Claude working — picked up 2 comments and 1 answer");
+  assert.deepEqual(picked(1, 1), ["Got your comment", "Got your comment (just now)"]);
+  assert.equal(picked(1, 0)[0], "Got your answer");
+  assert.equal(picked(3, 2)[0], "Got 2 comments and 1 answer");
   // Nothing picked up and nothing said is plain work.
-  assert.deepEqual(picked(0, 0), ["Claude working", "Claude is working (just now)"]);
+  assert.deepEqual(picked(0, 0), ["Working on it", "Working on it (just now)"]);
 });
 
 test("a step the transport watched names the work and stands beside the agent's sentence", () => {
@@ -117,8 +114,8 @@ test("a step the transport watched names the work and stands beside the agent's 
       counts: { pending: 1 },
     }),
     [
-      "Claude using a tool — revising the plan",
-      "Claude is using a tool — revising the plan (just now) · Running the tests. 1 response owed on updates awaiting delivery.",
+      "revising the plan",
+      "revising the plan (just now) · Running the tests. 1 response owed on updates awaiting delivery.",
     ],
   );
 });
@@ -133,34 +130,32 @@ test("work waiting in the agent's own session says where it is answered, and is 
       awaiting: true,
     }),
   );
-  assert.equal(
-    status.explanation,
-    "Claude is waiting for approval (just now). It waits in its own session, not on this page.",
-  );
+  assert.equal(status.explanation, "Need your approval in the terminal (just now)");
   assert.equal(status.actionableWork, "awaiting_approval");
+  // The wait leads the sentence it interrupts.
+  assert.equal(
+    pageStatus(
+      state({
+        kind: "working",
+        detail: "Writing the page",
+        observed_kind: "awaiting_input",
+        awaiting: true,
+      }),
+    ).summary,
+    "Need your input in the terminal — Writing the page",
+  );
   assert.equal(pageStatus(state({ kind: "working" })).actionableWork, null);
 });
 
-test("listening keeps the agent's request on the row until input supersedes it", () => {
-  assert.deepEqual(said({ kind: "listening", detail: "pick a storage engine" }), [
-    "Claude awaits — pick a storage engine",
-    "Claude awaits — pick a storage engine",
-  ]);
+test("listening says where a comment starts, with input on its way counted after", () => {
   assert.equal(
     said({ kind: "listening", detail: "" })[0],
-    "Claude awaits — select text to comment",
+    "Ready — select text to comment",
   );
-  assert.deepEqual(
-    said({
-      kind: "listening",
-      detail: "pick a storage engine",
-      counts: { pending: 1 },
-    }),
-    [
-      "Claude listening",
-      "Claude is listening — pick a storage engine. 1 response owed on updates awaiting delivery.",
-    ],
-  );
+  assert.deepEqual(said({ kind: "listening", detail: "", counts: { pending: 1 } }), [
+    "Ready — select text to comment",
+    "Ready — select text to comment. 1 response owed on updates awaiting delivery.",
+  ]);
 });
 
 test("a quiet claim is dated by its last word, and a dropped one by the turn's ending", () => {
@@ -170,71 +165,88 @@ test("a quiet claim is dated by its last word, and a dropped one by the turn's e
     counts: { pending: 1 },
   };
   assert.deepEqual(said({ ...quiet, ts: minutesAgo(20) }), [
-    "Claude last checked in 20m ago",
-    "Claude last checked in 20m ago: revising the plan. Updates are saved.",
+    "Last checked in 20m ago",
+    "Last checked in 20m ago: revising the plan. Updates are saved.",
   ]);
   assert.deepEqual(said({ ...quiet, ts: minutesAgo(5), dropped: true }), [
-    "Claude’s turn ended 5m ago",
-    "Claude’s turn ended 5m ago: revising the plan. Updates are saved.",
+    "Stopped 5m ago",
+    "Stopped 5m ago: revising the plan. Updates are saved.",
   ]);
   assert.deepEqual(said({ kind: "stalled", detail: "", ts: null }), [
-    "No check-in from Claude is recorded",
-    "No check-in from Claude is recorded. Updates are saved.",
+    "Haven't checked in yet",
+    "Haven't checked in yet. Updates are saved.",
   ]);
 });
 
 test("away asks for a nudge only once input is overdue", () => {
   assert.deepEqual(said({ kind: "away", detail: "" }), [
-    "Claude away",
-    "Claude isn't watching right now. Updates are saved. It picks them up next turn.",
+    "Away",
+    "Away right now. Updates are saved. They're picked up next turn.",
   ]);
   assert.deepEqual(
     said({ kind: "away", dropped: true, ts: minutesAgo(5), counts: { overdue: 1 } }),
     [
-      "Nudge Claude in terminal",
-      "Claude’s turn ended 5m ago. Updates are saved. Nothing is answering them, so nudge it in the terminal.",
+      "Not answering — nudge the terminal",
+      "Stopped 5m ago. Updates are saved. Nothing is answering them, so nudge the terminal.",
     ],
   );
 });
 
 test("a page nobody holds, and a closed one, say so without the agent", () => {
   assert.deepEqual(said({ kind: "unheld", detail: "running the migration" }), [
-    "No session",
-    "No session holds this page. Updates are saved. It picks up again when a session does.",
+    "Not on this page right now",
+    "Not on this page right now. Updates are saved. They're picked up next time.",
   ]);
-  assert.deepEqual(said({ kind: "closed" }), ["Page closed", "Page closed"]);
+  assert.deepEqual(said({ kind: "closed" }), [
+    "Done with this page",
+    "Done with this page.",
+  ]);
+});
+
+test("only words the agent can't be saying are Leaf's", () => {
+  // Nudging the terminal is said about the agent, which isn't answering; the rest of
+  // the status is the agent's own voice, Leaf's guesses at its words included.
+  const voice = (activity) => pageStatus(state(activity)).voice;
+  assert.equal(voice({ kind: "away", counts: { overdue: 1 } }), "leaf");
+  for (const kind of ["working", "listening", "stalled", "away", "unheld", "closed"])
+    assert.equal(voice({ kind, detail: "" }), "agent", kind);
+  assert.equal(pageStatus(null, { reach: "unreachable" }).voice, "leaf");
 });
 
 test("an unreachable server reports itself in the blocked tone; a refused key and an unappliable state ask", () => {
   assert.deepEqual(pageStatus(null, { reach: "unreachable" }), {
     kind: "unreachable",
     tone: "blocked",
-    summary: "Server offline — reconnecting",
+    summary: "Lost the connection — reconnecting",
+    voice: "leaf",
     explanation:
-      "Server offline — reconnecting. Keep this page open so pending changes can send.",
+      "Lost the connection — reconnecting. Keep this page open so changes made here go through.",
     adds: "",
   });
   assert.deepEqual(pageStatus(null, { reach: "refused" }), {
     kind: "refused",
     tone: "blocked",
-    summary: "Key refused — open Leaf's link in a new tab",
+    summary: "This tab lost access — open the link again",
+    voice: "leaf",
     explanation:
-      "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.",
-    adds: "Keep this tab open so pending changes can send.",
+      "This tab lost access. Open the page's link again in a new tab, and keep this one open so changes made here go through.",
+    adds: "Keep this tab open so changes made here go through.",
     asks: true,
   });
   assert.deepEqual(pageStatus(null, { reach: "faulted", fault: "KeyError: 'x'." }), {
     kind: "faulted",
     tone: "blocked",
-    summary: "Server error — retrying",
-    explanation: "The server answered with an error: KeyError: 'x'. Retrying.",
-    adds: "It answered: KeyError: 'x'. Retrying.",
+    summary: "Hit a problem — trying again",
+    voice: "leaf",
+    explanation: "Hit a problem: KeyError: 'x'. Trying again.",
+    adds: "KeyError: 'x'. Trying again.",
   });
   assert.deepEqual(pageStatus(null, { reach: "broken" }), {
     kind: "broken",
     tone: "blocked",
-    summary: "Page couldn't apply current state — reload",
-    explanation: "Page couldn't apply current state — reload",
+    summary: "Couldn't show the latest — reload",
+    voice: "leaf",
+    explanation: "Couldn't show the latest — reload",
     adds: "",
     asks: true,
   });
@@ -243,26 +255,18 @@ test("an unreachable server reports itself in the blocked tone; a refused key an
 test("a status asks the user to act only where its words do", () => {
   const asks = (activity) =>
     statusModel(pageStatus(state(activity)), NO_QUEUES, "Claude").asks;
-  // A nudge, the agent's declared request, and work waiting in its own session ask.
+  // A nudge and work waiting in its own session ask.
   assert.equal(asks({ kind: "away", dropped: true, counts: { overdue: 1 } }), true);
-  assert.equal(asks({ kind: "listening", detail: "pick a storage engine" }), true);
   assert.equal(
     asks({ kind: "working", observed_kind: "awaiting_approval", awaiting: true }),
     true,
   );
-  // Work, waiting the agent's turn, the stock words that say where a comment starts,
-  // and a request the user's input already answers only report.
+  // Work, waiting the agent's turn, and the stock words that say where a comment
+  // starts only report.
   assert.equal(asks({ kind: "working", detail: "revising the plan" }), false);
   assert.equal(asks({ kind: "away", detail: "" }), false);
   assert.equal(asks({ kind: "listening", detail: "" }), false);
-  assert.equal(
-    asks({
-      kind: "listening",
-      detail: "pick a storage engine",
-      counts: { pending: 1 },
-    }),
-    false,
-  );
+  assert.equal(asks({ kind: "listening", detail: "", counts: { pending: 1 } }), false);
   assert.equal(asks({ kind: "stalled", ts: minutesAgo(20) }), false);
   assert.equal(asks({ kind: "unheld" }), false);
   // A server that went away reconnects by itself; a refused key waits on the user.
@@ -295,7 +299,7 @@ test("the explanation names what waits on each side", () => {
   assert.match(long.explanation, /Waiting on Codex Research Agent: 1 reply/);
   assert.equal(
     model.explanation,
-    "Agent awaits — select text to comment. Waiting on me: 2 to answer, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",
+    "Ready — select text to comment. Waiting on me: 2 to answer, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",
   );
   // A page with nothing waiting adds nothing, and an offline page counts nothing.
   assert.equal(statusModel(status, NO_QUEUES, "Agent").explanation, status.explanation);
@@ -306,7 +310,7 @@ test("the explanation names what waits on each side", () => {
   );
   assert.equal(
     offline.explanation,
-    "Server offline — reconnecting. Keep this page open so pending changes can send.",
+    "Lost the connection — reconnecting. Keep this page open so changes made here go through.",
   );
 });
 
@@ -322,7 +326,7 @@ test("what the disclosure adds to the row says only what the row does not", () =
     adds({ ...work, observed_kind: "tool", observed: "Running the tests" }, queues),
     "Running the tests. Waiting on me: 2 to answer, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Claude: 1 reply, 1 to-do (Rebuild the chart).",
   );
-  assert.equal(adds({ kind: "listening", detail: "pick a storage engine" }), "");
+  assert.equal(adds({ kind: "listening", detail: "" }), "");
   // What the sentence says past the row, without the state the row already says.
   assert.equal(
     adds({
@@ -331,19 +335,15 @@ test("what the disclosure adds to the row says only what the row does not", () =
       ts: minutesAgo(0),
       counts: { handling: 1, handling_comments: 1 },
     }),
-    "It hasn't said what it's doing yet.",
+    "",
   );
   assert.equal(
-    adds({
-      kind: "listening",
-      detail: "pick a storage engine",
-      counts: { pending: 1 },
-    }),
-    "It asked: pick a storage engine. 1 response owed on updates awaiting delivery.",
+    adds({ kind: "listening", detail: "", counts: { pending: 1 } }),
+    "1 response owed on updates awaiting delivery.",
   );
   assert.equal(
     adds({ kind: "away", detail: "" }),
-    "Updates are saved. It picks them up next turn.",
+    "Updates are saved. They're picked up next turn.",
   );
   assert.equal(pageStatus(null, { reach: "unreachable" }).adds, "");
 });
@@ -365,22 +365,17 @@ test("a published page's agent is on call, and its explanation introduces the pa
     const status = published({ kind, detail });
     assert.equal(status.kind, "listening");
     assert.equal(status.tone, "listening");
-    assert.equal(status.summary, "Agent awaits — comment to revise this copy");
+    assert.equal(status.summary, "Ready — comment to revise this copy");
     assert.equal(status.asks, false);
   }
-  // A request it declared still stands.
-  assert.equal(
-    published({ kind: "listening", detail: "pick a plan" }).summary,
-    "Agent awaits — pick a plan",
-  );
   // Its work reads as on any page.
   const working = published({ kind: "working", detail: "revising the plan" });
   assert.equal(working.tone, "working");
-  assert.equal(working.summary, "Agent working — revising the plan");
+  assert.equal(working.summary, "revising the plan");
   const model = statusModel(published({ kind: "closed" }), NO_QUEUES, "Agent");
   assert.equal(
     model.explanation,
-    "Agent awaits — comment to revise this copy. This website is a Leaf page, and this copy is private to this browser. Install Leaf",
+    "Ready — comment to revise this copy. This website is a Leaf page, and this copy is private to this browser. Install Leaf",
   );
   assert.equal(model.adds, "");
   assert.deepEqual(model.publication, {
@@ -397,7 +392,7 @@ test("a published page's agent is on call, and its explanation introduces the pa
   );
   assert.equal(
     example.explanation,
-    "Agent awaits — comment to revise this copy. This is an example on the Leaf website, and this copy is private to this browser. Other examples Install Leaf",
+    "Ready — comment to revise this copy. This is an example on the Leaf website, and this copy is private to this browser. Other examples Install Leaf",
   );
   assert.equal(example.publication.examplesUrl, "/examples/");
 });
@@ -406,7 +401,7 @@ test("a leaves row says each kind in a row's words, with the updates still waiti
   const row = (activity) => leafRow(state(activity)).line;
   assert.equal(
     row({ kind: "working", detail: "recording the demo" }),
-    "Working — recording the demo",
+    "recording the demo",
   );
   assert.equal(
     row({
@@ -418,28 +413,34 @@ test("a leaves row says each kind in a row's words, with the updates still waiti
     "Using a tool · 2 responses owed on queued updates · 1 response owed on updates awaiting delivery",
   );
   assert.equal(
-    row({ kind: "listening", detail: "pick a storage engine" }),
-    "Awaits — pick a storage engine",
+    row({
+      kind: "working",
+      detail: "Writing the page",
+      observed_kind: "awaiting_approval",
+      awaiting: true,
+    }),
+    "Need your approval in the terminal — Writing the page",
   );
+  assert.equal(row({ kind: "listening", detail: "" }), "Ready");
   assert.equal(
     row({ kind: "listening", detail: "", counts: { pending: 1 } }),
-    "Listening · 1 response owed on updates awaiting delivery",
+    "Ready · 1 response owed on updates awaiting delivery",
   );
   assert.equal(
     row({ kind: "stalled", detail: "revising", ts: minutesAgo(20) }),
-    "Quiet (20m ago) — revising",
+    "Last checked in 20m ago — revising",
   );
   assert.equal(
     row({ kind: "stalled", detail: "", ts: minutesAgo(5), dropped: true }),
-    "Left (5m ago)",
+    "Stopped 5m ago",
   );
   assert.equal(row({ kind: "away" }), "Away");
   assert.equal(
     row({ kind: "away", dropped: true, ts: minutesAgo(5), counts: { overdue: 1 } }),
-    "Left (5m ago)",
+    "Stopped 5m ago",
   );
-  assert.equal(row({ kind: "unheld" }), "No session");
-  assert.equal(row({ kind: "closed" }), "Closed");
+  assert.equal(row({ kind: "unheld" }), "Not on this page right now");
+  assert.equal(row({ kind: "closed" }), "Done with this page");
   assert.equal(leafRow(state({ kind: "stalled" })).tone, "away");
 });
 
@@ -453,9 +454,7 @@ test("the facts both seats share count what the agent owes apart from what waits
   ]);
   assert.deepEqual(facts.owed, [
     "1 response being worked on",
-    "2 responses owed on picked-up updates",
-    "1 response owed on picked-up updates; no current turn observed",
+    "2 responses owed on delivered updates",
+    "1 response owed on delivered updates; no current turn observed",
   ]);
-  assert.equal(facts.listening, true);
-  assert.equal(activityFacts(state({})).listening, false);
 });

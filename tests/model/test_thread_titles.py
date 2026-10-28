@@ -6,12 +6,10 @@ import contextlib
 import json
 import os
 import shutil
-import subprocess
 import sys
 import threading
 from pathlib import Path
 
-import psutil
 from interact_support import (
     STATED_TIMEOUT,
     Prose,
@@ -20,17 +18,16 @@ from interact_support import (
     record_claim,
     stamp,
     wait_for,
-    write_record,
     yaml_document,
 )
+
 from leaf import codex as codex_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import harness as harness_model
-from leaf import hooks as hooks_model
+from leaf import inference, thread_titles
 from leaf import interaction_log as interaction_model
-from leaf import state as state_model
-from leaf import thread_titles
+from leaf import state as cleanup_model
 
 # What Codex's turn reports when the account cannot use the model it asks for.
 UNAVAILABLE_MODEL = {
@@ -39,6 +36,12 @@ UNAVAILABLE_MODEL = {
         "account."
     ),
     "codexErrorInfo": "other",
+}
+# What it reports when the model refuses the turn for rate limits (codex-cli 0.160).
+RATE_LIMITED = {
+    "message": "exceeded retry limit, last status: 429 Too Many Requests",
+    "codexErrorInfo": {"responseTooManyFailedAttempts": {"httpStatusCode": 429}},
+    "additionalDetails": None,
 }
 
 
@@ -52,10 +55,14 @@ def title_records(page_dir: Path) -> list[dict]:
     ]
 
 
-def titling_app_server(app_server, answer: str | None) -> tuple[str, list[dict]]:
+def titling_app_server(
+    app_server, answer: str | None, refusals: int = 0
+) -> tuple[str, list[dict]]:
     """An App Server that answers each titling thread with `answer`, or fails its
-    turn as an account without the title model does where `answer` is None."""
+    turn as an account without the title model does where `answer` is None. Its
+    first `refusals` turns are refused for rate limits instead."""
     received = []
+    refused = []
 
     def handle(socket):
         for raw in socket:
@@ -76,12 +83,16 @@ def titling_app_server(app_server, answer: str | None) -> tuple[str, list[dict]]
                     json.dumps({"id": message["id"], "result": {"turn": {"id": "t"}}})
                 )
                 completed = {"id": "t", "items": [], "status": "completed"}
-                if answer is None:
+                if len(refused) < refusals or answer is None:
+                    error = UNAVAILABLE_MODEL
+                    if len(refused) < refusals:
+                        refused.append(message)
+                        error = RATE_LIMITED
                     completed = {
                         "id": "t",
                         "items": [],
                         "status": "failed",
-                        "error": UNAVAILABLE_MODEL,
+                        "error": error,
                     }
                 else:
                     item = {"id": "title", "type": "agentMessage", "text": answer}
@@ -151,7 +162,7 @@ def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_s
     [start] = [m for m in received if m.get("method") == "thread/start"]
     assert start["params"]["ephemeral"] is True
     # The website's tasks run on a model of their own; its titles do not.
-    assert start["params"]["model"] == thread_titles.CODEX_TITLE_MODEL
+    assert start["params"]["model"] == inference.CODEX_MODEL
     # The user's MCP servers would start with the thread and list their tools to it.
     assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
     # Both read the page's directory, so a project's own servers are among them.
@@ -228,6 +239,63 @@ def test_a_title_the_model_refuses_leaves_the_thread_to_the_agent(page_dir, app_
     assert UNAVAILABLE_MODEL["message"] in fields["detail"]
     kinds = [e["kind"] for e in events_model.read_events(page_dir)]
     assert "thread_title" not in kinds
+
+
+def test_a_title_refused_for_rate_limits_is_asked_again_until_its_cap(
+    page_dir, app_server, monkeypatch
+):
+    """A burst of comments meets the title model's rate limit, and an App Server
+    turn's final message can't name the thread, so a refused title is asked again
+    until it is answered. One refused past the cap fails, so a title never retries
+    forever."""
+    monkeypatch.setattr(thread_titles, "RETRY_INTERVAL", 0.01)
+
+    def name(comment, endpoint):
+        records = []
+        thread_titles.name_thread(
+            thread_titles.app_server_title(endpoint),
+            page_dir,
+            comment["id"],
+            "hosted-thread",
+            lambda event, **fields: records.append((event, fields)),
+        )
+        [(event, fields)] = wait_for(
+            lambda: records, bool, failure="the title request never reported"
+        )
+        return event, fields
+
+    answered = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Why is it slow?"}
+    )
+    codex_model.prepare_codex_delivery(
+        page_dir,
+        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+    )
+    endpoint, received = titling_app_server(
+        app_server, '{"title": "Export speed"}', refusals=2
+    )
+    event, fields = name(answered, endpoint)
+    assert (event, fields["written"], fields["refusals"]) == (
+        "thread_title_generated",
+        True,
+        2,
+    )
+    # Each ask is a thread of its own, holding only the request.
+    assert len([m for m in received if m.get("method") == "thread/start"]) == 3
+
+    monkeypatch.setattr(thread_titles, "RETRY_FOR", 0.05)
+    capped = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "And the import?"}
+    )
+    endpoint, _ = titling_app_server(app_server, '{"title": "Import"}', refusals=1000)
+    event, fields = name(capped, endpoint)
+    assert (event, fields["error"]) == ("thread_title_failed", "RateLimited")
+    titled = {
+        e["thread"]
+        for e in events_model.read_events(page_dir)
+        if e["kind"] == "thread_title"
+    }
+    assert titled == {answered["id"]}
 
 
 def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir):
@@ -353,29 +421,24 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     through an App Server that starts the next turn only once the running one ends;
     either way its page server names the thread as the comment arrives, through an
     App Server of its own that runs none of the user's hooks or MCP servers and
-    carries none of the session's identity. That server and its thread start before
-    the comment arrives, while the Codex session holds the page and again once each
-    title is answered, since starting them is most of a title's time."""
+    carries none of the session's identity. Each request starts and closes its own
+    server, leaving none idle between comments."""
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     assert stamp(page_dir, "first").exit_code == 0
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     servers = []
+    stopped = []
 
     @contextlib.contextmanager
     def title_server(executable, *, env, arguments):
         servers.append((executable, env, arguments))
-        yield endpoint
+        try:
+            yield endpoint, None
+        finally:
+            stopped.append(executable)
 
-    monkeypatch.setattr(thread_titles, "private_app_server", title_server)
-    monkeypatch.setattr(thread_titles, "_next_codex_titles", {})
+    monkeypatch.setattr(inference, "private_app_server", title_server)
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
-    thread_titles.prepare_for_claimant(page_dir)
-    wait_for(
-        lambda: [m for m in received if m.get("method") == "thread/start"],
-        bool,
-        failure="the title thread was never started",
-    )
-
     status, body = endpoint_model.accept_event(
         page_dir,
         {
@@ -406,7 +469,7 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     start, *_ = [m for m in received if m.get("method") == "thread/start"]
     assert start["params"]["config"]["features"]["hooks"] is False
     assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
-    assert start["params"]["model"] == thread_titles.CODEX_TITLE_MODEL
+    assert start["params"]["model"] == inference.CODEX_MODEL
 
     # A reaction opens a thread with no words; the reply that gives it some names it.
     reaction = append_carried_log_record(
@@ -434,190 +497,12 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     )
     turns = [m for m in received if m.get("method") == "turn/start"]
     assert "Can the import run in parallel?" in turns[-1]["params"]["input"][0]["text"]
-    records = wait_for(
+    wait_for(
         lambda: title_records(page_dir),
         lambda records: len(records) == 2,
         failure="the second title was never logged",
     )
-    assert [record["prepared"] for record in records] == [True, True]
-    wait_for(
-        lambda: len(servers),
-        lambda count: count == 3,
-        failure="the next title's server was never started",
-    )
-
-
-def test_a_codex_title_server_that_fails_to_start_leaves_the_title_to_a_new_one(
-    page_dir, app_server, monkeypatch
-):
-    """A title server started ahead of the comment that then fails to start,
-    whether before the comment or while the comment waits on it, asked nothing, so
-    the title is asked on a server started then."""
-    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    assert stamp(page_dir, "first").exit_code == 0
-    endpoint, _ = titling_app_server(app_server, '{"title": "Export speed"}')
-    starts = []
-    released = threading.Event()
-
-    @contextlib.contextmanager
-    def title_server(executable, *, env, arguments):
-        starts.append(executable)
-        if len(starts) == 1:
-            released.wait()
-            raise codex_model.Refused("Codex App Server exited before it was ready")
-        yield endpoint
-
-    monkeypatch.setattr(thread_titles, "private_app_server", title_server)
-    monkeypatch.setattr(thread_titles, "_next_codex_titles", {})
-    thread_titles.prepare_for_claimant(page_dir)
-
-    status, body = endpoint_model.accept_event(
-        page_dir,
-        {
-            "kind": "comment",
-            "revision": 1,
-            "text": "Why does the export take a minute?",
-        },
-        dict,
-    )
-    assert status == 200, body
-    # The comment's request has taken the server still starting.
-    wait_for(
-        lambda: thread_titles._next_codex_titles,
-        lambda prepared: not prepared,
-        failure="the comment never took the prepared server",
-    )
-    # The comment's write wakes the page server's lifetime check, which starts the
-    # next title's server only once this title is answered.
-    thread_titles.prepare_for_claimant(page_dir)
-    assert not thread_titles._next_codex_titles
-    released.set()
-    wait_for(
-        lambda: [
-            e for e in events_model.read_events(page_dir) if e["kind"] == "thread_title"
-        ],
-        bool,
-        failure="the thread was never named",
-    )
-    [record] = wait_for(
-        lambda: title_records(page_dir),
-        bool,
-        failure="the title was never logged",
-    )
-    assert record["prepared"] is False
-
-
-# An App Server that opens a title thread and records its pid, so a test can see
-# whether it runs.
-OPENING_CODEX = """\
-#!{python}
-import json, os, sys
-from websockets.sync.server import unix_serve
-
-RESULTS = {{
-    "initialize": {{}},
-    "config/read": {{"config": {{}}}},
-    "thread/start": {{"thread": {{"id": "title-thread"}}}},
-}}
-
-def handle(connection):
-    for raw in connection:
-        message = json.loads(raw)
-        if (result := RESULTS.get(message.get("method"))) is not None:
-            connection.send(json.dumps({{"id": message["id"], "result": result}}))
-
-with open(os.environ["TITLE_SERVERS"], "a") as record:
-    record.write(f"{{os.getpid()}}\\n")
-with unix_serve(handle, sys.argv[3].removeprefix("unix://")) as server:
-    server.serve_forever()
-"""
-
-
-def test_a_codex_title_server_runs_while_a_codex_session_holds_the_page(
-    page_dir, tmp_path, monkeypatch, spawn, session_process
-):
-    """A page server holds the next title's App Server only for a Codex claimant:
-    it starts one when a Codex session claims a page it already serves, and stops
-    it when a Claude Code session takes the page, which titles with Haiku, the
-    Codex session ends, or its process dies without ending it, which writes
-    nothing to the page, rather than leave an idle server of some 100 MB behind. A
-    persistent server outlives every claim, so only the title server stops."""
-    programs = tmp_path / "programs"
-    programs.mkdir()
-    codex = programs / "codex"
-    codex.write_text(OPENING_CODEX.format(python=sys.executable))
-    codex.chmod(0o755)
-    started = tmp_path / "title-servers"
-    monkeypatch.setenv("TITLE_SERVERS", str(started))
-    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
-
-    def servers() -> list[int]:
-        return (
-            [int(pid) for pid in started.read_text().split()]
-            if started.exists()
-            else []
-        )
-
-    record_claim(page_dir, id="s1", harness="claude-code", agent="Claude")
-    write_record(
-        page_dir / "service.json",
-        {
-            "host": "127.0.0.1",
-            "bind": "127.0.0.1",
-            "port": 1,
-            "enabled": True,
-            "lifetime": "persistent",
-        },
-    )
-    claimant = session_process()
-    # The page server's lifetime check, run in a process of its own as it is
-    # there, until its stdin closes. It then ends as a page server ends itself,
-    # stopping the title server it holds.
-    serve = """
-import sys, threading
-from pathlib import Path
-from leaf.server import exit_serving, stop_when_service_ends
-page = Path(sys.argv[1])
-threading.Thread(target=stop_when_service_ends, args=(page,), daemon=True).start()
-sys.stdin.read()
-exit_serving(0)
-"""
-    server = spawn([sys.executable, "-c", serve, str(page_dir)], stdin=subprocess.PIPE)
-    try:
-        endings = {
-            "Claude Code took the page": lambda: record_claim(
-                page_dir, id="s1", harness="claude-code", agent="Claude"
-            ),
-            "the Codex session ended": lambda: state_model.end_session("codex-2"),
-            "the Codex process was killed": lambda: (
-                claimant.kill(),
-                claimant.wait(timeout=STATED_TIMEOUT),
-            ),
-        }
-        for claims, (ending, end) in enumerate(endings.items(), start=1):
-            record_claim(
-                page_dir,
-                id=f"codex-{claims}",
-                harness="codex",
-                agent="Codex",
-                pid=claimant.pid,
-            )
-            *_, pid = wait_for(
-                servers,
-                lambda pids, claims=claims: len(pids) == claims,
-                failure="no title server started for the Codex claim",
-            )
-            assert psutil.pid_exists(pid)
-            end()
-            wait_for(
-                lambda pid=pid: psutil.pid_exists(pid),
-                lambda running: not running,
-                failure=f"the title server ran on after {ending}",
-            )
-        assert server.poll() is None
-    finally:
-        server.stdin.close()
-        server.wait(timeout=STATED_TIMEOUT)
+    assert len(servers) == len(stopped) == 2, "Each title owns its server lifetime"
 
 
 # Pi's records in `--mode json`: a run that failed and that Pi retries, then the
@@ -625,9 +510,13 @@ exit_serving(0)
 TITLING_PI = """\
 #!{python}
 import json, os, sys, time
+argv = sys.argv[1:]
+with open(argv[argv.index("--system-prompt") + 1]) as prompt:
+    system_prompt = prompt.read()
 with open(os.environ["TITLING_RECORD"], "a") as record:
     call = {{
-        "argv": sys.argv[1:],
+        "argv": argv,
+        "system_prompt": system_prompt,
         "stdin": sys.stdin.read(),
         "env": dict(os.environ),
         "cwd": os.getcwd(),
@@ -641,10 +530,16 @@ failed = {{
 }}
 answer = {{
     "role": "assistant",
-    "content": [{{"type": "text", "text": " Export speed "}}],
+    "content": [{{"type": "text", "text": '{{"title": " Export speed "}}'}}],
     "provider": "openai-codex",
     "model": "gpt-6.1-sol",
-    "usage": {{"input": 200, "output": 7, "cost": {{"total": 0.00048}}}},
+    "usage": {{
+        "input": 200,
+        "output": 7,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "cost": {{"total": 0.00048}},
+    }},
     "stopReason": "stop",
 }}
 for record in (
@@ -677,7 +572,7 @@ def test_a_comment_on_a_pi_page_is_named_as_it_arrives(page_dir, tmp_path, monke
     monkeypatch.setenv("PI_SESSION_ID", "pi-session")
     monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
     # Only the answer, never Pi's exit, can end the request within the wait below.
-    monkeypatch.setattr(thread_titles, "TIMEOUT", 3600)
+    monkeypatch.setattr(inference, "TIMEOUT", 3600)
 
     status, body = endpoint_model.accept_event(
         page_dir,
@@ -708,7 +603,9 @@ def test_a_comment_on_a_pi_page_is_named_as_it_arrives(page_dir, tmp_path, monke
     assert "LEAF_PI_PID" not in call["env"]
     assert Path(call["cwd"]).resolve() == page_dir.resolve()
     argv = call["argv"]
-    assert argv[argv.index("--system-prompt") + 1] == thread_titles.INSTRUCTIONS
+    # Pi has no answer schema, so the system prompt carries it.
+    assert call["system_prompt"].startswith(thread_titles.INSTRUCTIONS + "\n\n")
+    assert json.dumps(thread_titles.OUTPUT_SCHEMA) in call["system_prompt"]
     # Pi's hooks are extensions, Leaf's own among them.
     for switch in ("--print", "--no-session", "--no-tools", "--no-extensions"):
         assert switch in argv
@@ -736,9 +633,7 @@ def test_a_title_request_that_outlives_its_session_writes_no_title(claimed):
         return {"title": "Intro"}
 
     thread_titles.name_admitted_thread(generate, claimed, comment["id"], "s1")
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
-    )
+    cleanup_model.end_harness_instance("s1")
     answered.set()
     for worker in threading.enumerate():
         if worker.name == "leaf-thread-title":
@@ -774,7 +669,7 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
     record = tmp_path / "claude-calls.jsonl"
     monkeypatch.setenv("TITLING_RECORD", str(record))
     monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
-    thread_titles.claude_code_title(request, page_dir)
+    thread_titles.title_generator(inference.claude_code_generate)(request, page_dir)
     [call] = [json.loads(line) for line in record.read_text().splitlines()]
     argv = call["argv"]
     system_prompt = argv[argv.index("--system-prompt") + 1]
@@ -813,3 +708,61 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
             },
         )
     )
+
+
+def test_shared_inference_checks_structured_results(
+    page_dir, app_server, tmp_path, monkeypatch
+):
+    """Widgets and titles use the same tool-free transports, with the host's model
+    and caller's schema; an answer outside that schema must not reach the caller."""
+    import pytest
+    from jsonschema import ValidationError
+
+    schema = {
+        "type": "object",
+        "properties": {"choice": {"type": "integer"}},
+        "required": ["choice"],
+        "additionalProperties": False,
+    }
+    programs = tmp_path / "programs"
+    programs.mkdir()
+    claude = programs / "claude"
+    claude.write_text(
+        TITLING_CLAUDE.replace('"title": " Export speed "', '"choice": 7').format(
+            python=sys.executable
+        )
+    )
+    claude.chmod(0o755)
+    record = tmp_path / "calls.jsonl"
+    monkeypatch.setenv("TITLING_RECORD", str(record))
+    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
+    endpoint, received = titling_app_server(app_server, '{"choice": 7}')
+    for generate in (
+        inference.claude_code_generate,
+        inference.app_server_generate(endpoint),
+    ):
+        result = generate(
+            "Pick an item",
+            page_dir,
+            schema=schema,
+            instructions="Choose one item",
+        )
+        assert result["value"] == {"choice": 7}
+        assert result["model"] in {"haiku", inference.CODEX_MODEL}
+        assert set(result["usage"]) == {"inputTokens", "outputTokens"}
+        with pytest.raises(ValidationError):
+            generate(
+                "Pick an item",
+                page_dir,
+                schema=thread_titles.OUTPUT_SCHEMA,
+                instructions="Choose one item",
+            )
+    call = json.loads(record.read_text().splitlines()[0])
+    assert "--model=haiku" in call["argv"]
+    assert "--tools=" in call["argv"]
+    assert "--safe-mode" in call["argv"]
+    start = next(m for m in received if m.get("method") == "thread/start")
+    assert start["params"]["model"] == inference.CODEX_MODEL
+    assert start["params"]["baseInstructions"] == "Choose one item"
+    assert start["params"]["config"]["features"]["shell_tool"] is False
+    assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}

@@ -1,7 +1,7 @@
 # Feedback responsiveness evaluation
 
 The delivery and activity lifecycle is implemented. Its owners are
-[session lifetime](../skills/leaf/scripts/leaf/session-lifetime.md),
+[session lifetime](../src/leaf/session-lifetime.md),
 [conversation loop](../skills/leaf/references/conversation-loop.md), and the
 application publication described in [AGENTS.md](../AGENTS.md). This note holds
 remaining evaluation work and proposed improvements; it does not define a second
@@ -21,10 +21,11 @@ None of these is a gate. Read the outputs as well as the pass counts.
 # --case working sends the release ask while the user's own turn runs.
 uv run leaf-dev journey claude-code [--case working]
 uv run leaf-dev journey codex-app-server [--case working]
+uv run leaf-dev journey codex-queue [--case working]
 uv run leaf-dev journey pi [--case working]
 uv run leaf-dev journey website-adapter
 uv run leaf-dev journey-chart
-# Each reply's whole time and Leaf's share, waiting and working, by harness.
+# Where each reply's time went, waiting and working, by harness.
 uv run leaf-dev journey-chart --replies [--since ISO]
 # In-tab feedback.
 uv run leaf-dev bench-latency --tree --runs 3
@@ -55,8 +56,8 @@ Read deterministic sequence and state at their owners: projection tests for
 sent/queued/opened/active/stale/settled evidence; real gestures for local results;
 agent traces for claim ordering. `leaf-dev journey` is the vertical test: it times a
 real request on any harness from the page's own log, and on each harness target also
-times the comments of its later steps and splits each reply into Leaf's share, the
-harness's other work and the model calls (`dev/leaf_dev/reply_phases.py`). Each run
+times the comments of its later steps and attributes each reply's time to Leaf, the
+harness and the model (`dev/leaf_dev/reply_phases.py`). Each run
 keeps its sample in `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on its machine.
 
 ## Latency targets and readings
@@ -90,20 +91,7 @@ names each command as it runs.
 
 Two paint readings miss: the corpus's comment paints in a median 105 ms, and a
 revision of the corpus, a page far larger than a user's, paints within 1 s only
-when the tab finds the save before a stamp locks the page (below).
-
-Every harness titles near the 2 s target, and the model's own answer is most of it:
-1.3–2.2 s of a Codex title. Codex App Server titled in 3.0–8.5 s until its page
-server started each title's App Server and thread before the comment arrived
-(`thread_titles`), and in 1.7–2.6 s since, over two journeys at a load average of 8
-to 10.
-
-The hooks-module samples at 00:05 and 00:26 PT on 2026-10-20 show the `ending` step
-answered after 140–168 s. In both, the agent wrote a reply whose `--markup` spanned
-lines and gave no `--text`; Claude Code hands such a command a socket as its stdin
-that never closes, and the reply waited on it until the tool's 120 s timeout. A
-command given no text now reads stdin only from a pipe or a file, directly or
-through the sandbox's bridge, so that reply is refused at once (`piped_input.py`).
+on the save route (below).
 
 The hosted agent shows two kinds of status. The panel's line read Working 0.3 s
 after the website adapter's journey sent its release ask, in a run in Chrome that
@@ -126,12 +114,14 @@ reaches the tab by one of two routes, depending on which comes first:
   checks it and writes the revision. The tab then fetches the revision's document
   and patches it in. An agent's ordinary save takes this route, since `SKILL.md`
   tells it each valid save is live.
-- **The stamp route.** The stamp takes the page lock first, about 150 ms after
-  the save, once its process has started. The tab's read waits for the stamp's
-  whole check under the lock. The state read that follows checks the same source
-  again, since the server's record that a source passed its check lives in that
-  process only. A stamp right after a save, or one `--from-directory`, can take
-  this route.
+- **The stamp route.** The stamp publishes the revision first. The state read
+  that follows checks the same source again, since the server's record that a
+  source passed its check lives in that process only. A stamp in place checks
+  before taking the page lock and holds it only to confirm and publish
+  (`publishing.py`, its header), so a tab read during that check takes the save
+  route instead; the stamp then checks again outside the lock and names the
+  revision the read activated. A stamp with `--replace` writes and checks the
+  source under the lock, so the tab's read waits for its whole check.
 
 `uv run leaf-dev bench-latency --page corpus --transition revision` reads both;
 `results.json` gives each request's start and end beside the transition's, which
@@ -156,17 +146,32 @@ layout of every hidden tab, about 280 ms 300 ms after each presentation, which
 delayed the tab's next read and sent more runs down the stamp route
 (`render-checks/layout.js`, `render-checks/words.js`).
 
-The stamp route stays over 1 s. Two changes would bring it under:
+The table's stamp route is a stamp that checked under the lock, which a stamp in
+place no longer does. A script standing in for the tab measured it on each
+arm's served corpus: save, start `leaf page stamp`, poll `/api/state` every
+250 ms until it names the new revision, then fetch that revision's document.
+With the first poll fixed 500 ms after the save, when the merge base's stamp
+held the lock, the state answer came a median 2.25 s after the save and the
+document's last byte 2.98 s on the merge base `f00911ed1`, and 1.19 s and 1.93 s
+once the stamp checked outside the lock: eight alternating runs at load 17–33.
+With the first poll at a random phase both arms took the save route, at a median
+0.75 s and 0.77 s to the state answer. At load 20–46 the browser benchmark could
+not tell the arms apart (2.7–3.1 s medians, spreads over 2 s), and neither route
+has been read again at load 4–7.
+
+One change would bring the rest of the stamp route under 1 s and drop the work a
+stamp repeats after the page's own activation:
 
 - **Record that a source passed its check.** A revision could carry the identity
   of the Leaf that checked it, so any process can treat an unchanged source as
   checked, as the server's own memory does (`revisioning.py`, its header). The
   digest of the revision's inputs alone isn't enough: it covers neither the Leaf
   that checked it nor the data contracts its samples read, so it would pass a
-  source a newer Leaf refuses. The same record would let a stamp that follows the
-  server's activation skip its own check, about 450 ms under the lock.
-- **Check outside the lock.** A stamp could check before taking the lock and hold
-  it only to confirm nothing moved and to publish.
+  source a newer Leaf refuses. Leaf has no identity for its Python checker yet;
+  `runtime_selection.ServingRuntime.identity` covers the browser runtime alone.
+  The same record would let a stamp with `--replace` spare the state read after
+  it a second check, and a stamp that follows the server's activation skip its
+  second check, about 450 ms of work beside the tab's document fetch and patch.
 
 ### A small page change's reply
 
@@ -176,108 +181,102 @@ in one of two cases (`--case`), each journey running one in a session of its own
 both start from the same page and context: **waiting**, idle until Leaf's watch or
 hook wakes it, or **working** on the user's own turn, during a 25 s shell command,
 where the harness takes it at that command's tool boundary. Each reply is timed on
-the page server's clock from the comment's admission to the reply's, and the
-harness's record of the session splits it (`dev/leaf_dev/reply_phases.py`):
+the page server's clock from the comment's admission to the reply's. That time is
+the benchmark, and the harness's record of the session attributes it to where it
+went, each moment once (`dev/leaf_dev/reply_phases.py`):
 
 - **Leaf's share**: delivery, until the harness puts the comment in the agent's
-  context, and the time each `leaf` command records in the page it acts on
-  (`leaf_command`, from its launcher's start to its exit).
+  context; the time each `leaf` command records in the page it acts on
+  (`leaf_command`, from its launcher's start to its exit); and Leaf's hooks, where
+  the harness times them.
 - **Harness busy first**: in the working case, the user's command running until the
   boundary. That wait belongs to the work the user started, so the working budget
   counts the reply after the boundary.
-- **Model calls**: each response the harness asked of the model, with the tool calls
-  it issued. The agent's other tools, its own reads and edits, took under 0.7 s in
-  every reply.
+- **Harness**: the harness's own work between a tool's result and its next request.
+- **Model**: for each request, the **wait** for the stream's first output, then its
+  **generation**, reasoning included, until the response's last tool call.
+- **Other tools**: the agent's own reads and edits.
 
-`uv run leaf-dev journey-chart --replies --since 2026-10-20T18:10-07:00` tabulates
-the batch: two journeys per harness and case on this Mac between 18:10 and 18:42 PT
-on 2026-10-20, with the comments posted over HTTP and the load average between 5 and
-19 on 18 cores. They ran this change on main `a69bf53c8` with #3403's command
-records, at two commits whose plugin is the same. Codex App Server ran main's
-delivery since #3362 and #3368: an idle task gets each delivery as a turn Leaf
-starts, and a working one gets it inline from the tool hook, which the agent
-acknowledges with `leaf delivery ack`. Seconds:
+Each harness's record gives a different part of that exactly:
 
-| Harness          | Case    | Whole reply | Leaf's share | Harness busy first | After the boundary | Model calls | Model time |
-| ---------------- | ------- | ----------: | -----------: | -----------------: | -----------------: | ----------: | ---------: |
-| Claude Code      | waiting |   12.4–13.3 |          0.7 |                  0 |          12.4–13.3 |           3 |  11.3–12.3 |
-| Claude Code      | working |   42.8–60.7 |      0.6–0.8 |               24.7 |          18.1–36.0 |         3–8 |  17.2–34.6 |
-| Codex App Server | waiting |   18.4–33.0 |      0.4–0.5 |                  0 |          18.4–33.0 |         4–5 |  18.0–32.3 |
-| Codex App Server | working |   51.1–56.3 |          0.8 |          24.5–24.9 |          26.3–31.8 |         4–5 |  25.3–30.9 |
-| Pi               | waiting |   34.1–40.0 |      1.2–1.3 |                  0 |          34.1–40.0 |         8–9 |  32.8–38.6 |
-| Pi               | working |   51.3–56.0 |      0.9–1.0 |          24.7–24.8 |          26.5–31.3 |         7–9 |  25.6–30.2 |
+| Harness          | Exact                                                                                                                                                               | Inferred or missing                                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Claude Code      | Its debug log times each request, its first byte, and each of Leaf's hooks; the transcript times each tool call and result and gives each response's output tokens. | Thinking is redacted, so generation is not split into thinking and the visible output; the tokens give its rate.                           |
+| Pi               | The first stream event of each response and its output tokens, heard on Pi's stdout.                                                                                | No request time: Pi's dispatch, and the prompt hook Leaf's extension runs at each turn boundary, fall in the wait. Reasoning is hidden.    |
+| Codex App Server | Each tool item, each response's token usage, and each of Leaf's hooks with its duration.                                                                            | No request or stream start, and reasoning is hidden, so the model's time is unsplit; it includes the wait, the reasoning and the dispatch. |
 
-Leaf's share was 0.4–1.3 s in all twelve replies. Delivery took 0.13–0.39 s waiting
-and 0.14–0.21 s working; on Codex App Server it reads 0 working, since the comment
-arrives with the tool result and its acknowledgement counts as a command. The `leaf`
-commands took 0.3–0.9 s. In an earlier batch, Claude Code once ran
-`leaf page check --render` before a waiting reply, which no instruction asks for,
-and its commands took 8.3 s.
+`uv run leaf-dev journey-chart --replies --since 2026-10-22T13:43-07:00` tabulates
+the batch: three journeys per harness and case on this Mac between 13:43 and 14:12 PT
+on 2026-10-22, at `cef6a5bc2` with this note's change, the comments posted over HTTP
+and the load average between 21 and 29 on 18 cores. Each column's parts add up to its
+whole reply: seconds, mean over the runs, with each part's share of the whole.
+The batch has no `codex-queue` runs, so its Codex columns time only the experimental
+App Server route, not the queue route the desktop app and IDE use.
 
-Once the harness had the comment, neither case was consistently quicker: a working
-reply took 18–36 s against a waiting one's 12–13 s on Claude Code, 26–32 s against
-18–33 s on Codex, and 27–31 s against 34–40 s on Pi. The wait for the boundary, the
-user's own command, made the difference in the whole reply. In the working case, Pi
-and Codex also ran the user's `printf` in a call of its own, which belongs to the
-user's task though it falls inside the reply's time.
+| Seconds, mean (share)      | Claude Code, waiting | Claude Code, working | Codex App Server, waiting | Codex App Server, working |          Pi, waiting |          Pi, working |
+| -------------------------- | -------------------: | -------------------: | ------------------------: | ------------------------: | -------------------: | -------------------: |
+| Whole reply (range)        | **29.5** (16.3–36.2) | **45.7** (41.7–50.2) |      **19.4** (14.5–22.1) |      **44.3** (39.2–48.7) | **26.8** (24.9–28.9) | **54.4** (49.7–59.3) |
+| After the boundary (range) | **29.5** (16.3–36.2) | **20.9** (17.0–25.4) |      **19.4** (14.5–22.1) |      **19.5** (14.6–23.8) | **26.8** (24.9–28.9) | **29.4** (24.6–34.2) |
+| Harness busy first         |               0 (0%) |           24.8 (54%) |                    0 (0%) |                24.8 (56%) |               0 (0%) |           25.0 (46%) |
+| Delivery                   |             0.4 (1%) |             0.3 (1%) |                  0.1 (1%) |                    0 (0%) |             0.5 (2%) |             0.2 (0%) |
+| Leaf's commands            |            3.0 (10%) |             0.5 (1%) |                  0.4 (2%) |                  0.7 (2%) |             0.9 (3%) |             1.0 (2%) |
+| Leaf's hooks               |             1.6 (5%) |             1.2 (3%) |                  1.0 (5%) |                  1.3 (3%) |            not timed |            not timed |
+| Harness                    |             0.1 (0%) |             0.1 (0%) |                         — |                         — |                    — |                    — |
+| Model: wait                |            3.5 (12%) |             2.9 (6%) |                         — |                         — |             2.2 (8%) |             2.3 (4%) |
+| Model: generation          |           20.8 (70%) |           15.1 (33%) |                         — |                         — |           23.1 (86%) |           25.7 (47%) |
+| Model, unsplit             |                    — |                    — |                17.8 (92%) |                17.4 (39%) |                    — |                    — |
+| Other tools                |             0.3 (1%) |             0.8 (2%) |                    0 (0%) |                  0.1 (0%) |             0.1 (0%) |             0.1 (0%) |
+| Leaf's share               |            4.9 (17%) |             2.0 (4%) |                  1.6 (8%) |                  2.0 (4%) |             1.4 (5%) |             1.2 (2%) |
+| Model calls                |                  3–7 |                  3–5 |                         4 |                       3–4 |                  7–8 |                  7–9 |
+| Output tokens              |            1224–2996 |            1338–1980 |                  588–1071 |                   591–902 |              823–941 |              743–962 |
 
-The model took the rest, at 2–8 s a call on Pi and Claude Code and 2–10 s on Codex.
-The quickest replies, Claude Code's waiting ones, took three calls: a progress reply
-that claimed the comment, the edit, and the reply. The other calls went to:
+The model took 82–92% of every waiting reply, and most of that is generation. On
+Claude Code each request waited 0.5–1.3 s for its first byte, and then generated at
+80–170 tokens a second, so a call's time follows its output: 130–925 tokens a call,
+nearly all of it thinking, since the visible output is a short command or edit.
+Forty-seven earlier Claude Code waiting replies, kept as evidence from 2026-10-21 and
+22 and timed from the same debug log, split the same way: of 28.4 s on average,
+generation took 67%, the wait 19%, Leaf's hooks and the harness 6%, and Leaf's
+commands and the agent's tools 7%, over 4.6 calls.
 
-- **Looking up the widgets.** One Claude Code working reply read `registry.json` in
-  four calls of `jq`, `grep` and `python3`. Codex took one or two calls for
-  `leaf page state`, `leaf page instructions` or the revision, and Pi one for
-  `leaf page state` and `leaf page instructions`.
-- **Reading Leaf's references.** Codex read `event-batches.md`, `threads.md` and
-  `page-authoring.md` in one call of every reply, and Pi read four references in
-  one call after a call that located them; Claude Code read none.
-- **A second reply.** In three of Pi's four replies the agent edited the page again
-  after a `--done` reply and replied a second time.
+Leaf's own share was 1.2–4.9 s on average:
 
-Proposed budgets for a small page change:
+- **Leaf's hooks**, 1.0–1.6 s a reply on Claude Code and Codex, 3–5% of it. Claude
+  Code runs Leaf's PostToolBatch hook after every batch of tool calls and its
+  PreToolUse hook before every `leaf` command; Codex runs its PostToolUse hook after
+  every tool call. Each took 120–620 ms at this load, and a claimed session's
+  PostToolBatch hook runs Leaf whole, past the launcher's gate. A `leaf` command
+  that matches more than one of the PreToolUse registrations' `if` patterns, as
+  `L=…/bin/leaf; $L thread reply` does, runs the hook once per match, in parallel.
+- **Leaf's commands**, 0.3–1.2 s, except where Claude Code ran
+  `leaf page check --render` before replying, which took 8.1 s in one of three
+  waiting replies here and 7.5–12.8 s in 6 of the 47 earlier. A call that reads
+  the saved screen follows it.
+- **Delivery**, 0.1–0.5 s.
 
-| Number       | Waiting                                  | Working                             |
-| ------------ | ---------------------------------------- | ----------------------------------- |
-| Leaf's share | under 2 s                                | under 2 s                           |
-| Whole reply  | Leaf's share and two model calls (below) | the same, counted from the boundary |
+Codex's other cost Leaf decides is a refused reply. In one of its three waiting
+replies here, and at some step of 16 of 58 Codex journeys kept on this Mac since
+2026-10-20, the agent wrote `tone="success"` on a board column. It had read
+`page instructions` and the registry entry for the column, and neither then listed
+the layer's tones. The reply was refused, and the agent edited and replied again, one
+more call. Since #3690 and #3718, `page instructions` names the words each declared
+attribute takes ("`tone` takes one of: `ok`, `warn`, `danger`"), and the vendored
+schema gives them as its `enum`.
 
-The two calls: the first claims the comment with a progress reply and reads what
-the edit needs; the second edits the page and replies in the same response, the
-reply reporting what the check found, as `leaf response reply` now does. At the
-call times measured here that is about 6–10 s on Pi and Claude Code and 8–14 s on
-Codex. A budget in seconds alone would measure the model's speed, which Leaf doesn't
-set; the count of calls is what Leaf's instructions and commands decide. Leaf's
-share rises with the host's load, as each `leaf` command starts a fresh process:
-an earlier batch at a load average near 27 read 1.0–3.7 s.
+Proposed budgets for a small page change, in seconds:
 
-## Status evaluations
+| Number       | Waiting    | Working                       |
+| ------------ | ---------- | ----------------------------- |
+| Leaf's share | under 2 s  | under 2 s                     |
+| Whole reply  | under 15 s | under 15 s after the boundary |
 
-On 2026-10-20, at `e5113c687` with this note's change, every status evaluation
-passed:
-
-| Case                                        | Claude Code | Codex |
-| ------------------------------------------- | ----------- | ----- |
-| `plan-shows-multi-step-work`                | 3/3         | 2/2   |
-| `plan-skips-quick-work`                     | 3/3         |       |
-| `parent-keeps-leaf-responsive`              | 3/3         | 2/2   |
-| `parent-keeps-leaf-responsive/known-answer` | 3/3         |       |
-| `parent-keeps-leaf-responsive/no-subagents` | 3/3         |       |
-| `parent-keeps-leaf-responsive/during-work`  | 1/1         |       |
-| `document/idle`                             | 2/2         |       |
-| `document/mid-turn`                         | 2/2         |       |
-| `website-replies`                           |             | 2/2   |
-| `website-replies/follow-up`                 |             | 2/2   |
-
-`parent-keeps-leaf-responsive` grades whether the page shows the delegated work
-while the workers run (`delegated-work-visible`). Every run took the update in hand
-with a progress reply, then left the workers' work on the page before ending its
-turn, as working steps in the plan, a `--todo` reply, or both. In `during-work`,
-the parent answered all three comments while it repaired the suite, its first
-reply 4.5–13.7 s after each comment.
-In `document/idle` the first reply came 3.9–5.6 s after each comment; in
-`document/mid-turn`, where the comment waits for the turn's next tool boundary,
-9.4–14.9 s.
+The quickest replies show 15 s is reachable on today's models: Claude Code's
+quickest waiting reply took 16.3 s and Codex's 14.5 s, and Claude Code's quickest
+working reply 17.0 s after the boundary. Each mean misses it, by 4–15 s. The model's time
+varies widely from run to run, so a change is read from the part it moves, measured
+directly, and from the whole reply over enough runs to see past that spread. Leaf's
+share rises with the host's load, as each `leaf` command and hook starts a fresh
+process: an earlier batch at a load average near 27 read 1.0–3.7 s.
 
 ## Proposed improvements
 
@@ -288,12 +287,18 @@ In `document/idle` the first reply came 3.9–5.6 s after each comment; in
   workers still run. The
   [Thread plan](threads.md#independent-jobs-delegation-and-continuation) owns the
   broader model of delegated jobs.
-- **Two model calls for a small change:** the calls "A small page change's reply"
-  lists are what a reply would cut. Have serving a page read what replying to its
-  comments needs, or give the first delivery the page's widget vocabulary, so the
-  first reply reads no reference and looks up no widget. That changes shipped
-  instructions or the delivery contract, so score it with `evals/` and read the
-  journey's model calls before and after.
+  Declined for Codex: reading Codex's state database (`$CODEX_HOME/state_5.sqlite`)
+  for the threads a task spawned, so the status read "in the background" until they
+  ended. [#3854](https://github.com/max-sixty/leaf/pull/3854), unmerged, holds the
+  code. The case was rare: 7 of 3,035 turn endings on one Mac had a spawned turn
+  still running a minute later. The database is not a published interface, and a
+  Codex migration (one looks under way) would switch the feature off silently while
+  its test, which builds the schema by hand, kept passing. Codex's public transcript
+  names spawned threads but missed 6 of 259.
+- **A shorter reply:** the parts of "A small page change's reply" Leaf decides are
+  its hooks, about 0.2 s at each tool boundary on Claude Code and Codex; and the 8 s of
+  `page check --render` where an agent runs it before replying. Measure each change
+  by the part it moves and by the whole reply over enough journeys.
 - **The hosted opening's cost:** whether the hosted agent's opening line delays its
   answer needs runs without one, such as an arm whose `CODEX_INSTRUCTIONS` drop the
   acknowledgement.

@@ -261,7 +261,8 @@
     "x-data": {
       "worktrees": {
         "contract": "lf-test-tree",
-        "source": "source"
+        "source": "source",
+        "property": "value"
       }
     },
     "x-upgrade": true,

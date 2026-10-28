@@ -41,20 +41,19 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from collections.abc import Mapping
 from contextlib import ExitStack
 from dataclasses import replace
 from functools import partial
-from html import escape
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
+from starlette.responses import Response
+
 from leaf.codex import (
-    APP_SERVER_ENV,
     CarriedTurn,
     abandon_codex_delivery,
     app_server_connect,
@@ -63,8 +62,8 @@ from leaf.codex import (
     delivery_owed_updates,
     open_app_server_delivery,
     prepare_codex_delivery,
+    private_app_server,
     start_app_server_delivery,
-    stop_app_server,
 )
 from leaf.delivery import read_delivery, stream_reply_target
 from leaf.event_contracts import write_refusal
@@ -73,15 +72,15 @@ from leaf.harness import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, PostRoute, scope_page_urls
 from leaf.interaction_log import append_interactions
-from leaf.leases import release_lease, take_lease, waiter_lease_path
+from leaf.leases import release_lease, take_wait_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
 from leaf.registry.storage import layer_metadata
 from leaf.revision_artifact import read_revision
-from leaf.revision_delivery import Delivery
+from leaf.revision_delivery import Delivery, runtime_element
 from leaf.revisioning import activate_source
-from leaf.schema import PAGE_ROUTE_DIRS, VENDORED_FILES
+from leaf.schema import LAYER_TOP_FILES, PAGE_ROUTE_DIRS, REVISION_NAME
 from leaf.served_state.context import read_page
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
@@ -102,7 +101,6 @@ from leaf.thread import (
     release_delivery_reply,
 )
 from leaf.thread_titles import app_server_title, name_thread
-from starlette.responses import Response
 
 if TYPE_CHECKING:
     from websockets.sync.client import ClientConnection
@@ -138,7 +136,7 @@ SITE_ORIGIN = "https://leaf.page"
 SITE_NAME = "leaf"
 PAGE_RESOURCE = re.compile(
     rf"^/(?:{'|'.join(PAGE_ROUTE_DIRS)})(?:/|$)"
-    rf"|^/(?:{'|'.join(map(re.escape, VENDORED_FILES))})$"
+    rf"|^/(?:{'|'.join(map(re.escape, LAYER_TOP_FILES))})$"
 )
 # A healthy App Server stream is quiet between items, so a running turn says nothing
 # for stretches — through a model request, or a `leaf` command that renders a page.
@@ -284,7 +282,7 @@ class _Binding(Slot):
 
 def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
     """Read immutable delivery metadata once while this process keeps the page
-    (`leaf.page_memory`), refusing a page vendored at another protocol."""
+    (`leaf.page_memory`), refusing a page at another protocol."""
 
     def bind() -> tuple[dict, dict | None]:
         # The protocol before the identity, whose reader checks a shape that is this
@@ -307,20 +305,21 @@ def site_metadata(page_root: str, page: dict) -> str:
     Each declaration is marked as delivery's own, so a revision arriving at a page
     someone is reading brings the author's head across without this one riding in.
     """
-    url = f"{SITE_ORIGIN}{page_root}/"
     title = page["title"]
-    mark = " data-lf-runtime"
+    properties = {
+        "og:type": "website",
+        "og:site_name": SITE_NAME,
+        "og:title": title,
+        "og:description": page["description"],
+        "og:url": f"{SITE_ORIGIN}{page_root}/",
+        "og:image": SITE_ORIGIN + page["image"],
+        "og:image:alt": title,
+    }
     return "".join(
-        (
-            f'<meta property="og:type" content="website"{mark}>',
-            f'<meta property="og:site_name" content="{escape(SITE_NAME)}"{mark}>',
-            f'<meta property="og:title" content="{escape(title)}"{mark}>',
-            f'<meta property="og:description" content="{escape(page["description"])}"{mark}>',
-            f'<meta property="og:url" content="{escape(url)}"{mark}>',
-            f'<meta property="og:image" content="{escape(SITE_ORIGIN + page["image"])}"{mark}>',
-            f'<meta property="og:image:alt" content="{escape(title)}"{mark}>',
-            f'<meta name="twitter:card" content="summary_large_image"{mark}>',
-        )
+        runtime_element("meta", {"property": name, "content": content})
+        for name, content in properties.items()
+    ) + runtime_element(
+        "meta", {"name": "twitter:card", "content": "summary_large_image"}
     )
 
 
@@ -692,17 +691,12 @@ class WebsiteCodexHarness:
     def __init__(
         self,
         codex_path: str | None = None,
-        socket_path: Path | None = None,
         log_path: Path | None = None,
     ):
         self.codex_path = codex_path or shutil.which("codex")
-        # App Server's Unix socket is short and private to this harness, even when
-        # multiple website versions run in the same machine's temporary directory.
-        self.runtime = tempfile.TemporaryDirectory(prefix="lwh.", dir="/tmp")
-        runtime = Path(self.runtime.name)
-        self.socket_path = socket_path or runtime / "codex.sock"
-        self.log_path = log_path or runtime / "codex.log"
-        self.endpoint = f"unix://{self.socket_path}"
+        self.log_path = log_path
+        self.server_resources = ExitStack()
+        self.endpoint = ""
         self.process: subprocess.Popen | None = None
         self.lock = threading.Lock()
         self.next_request_id = 0
@@ -732,7 +726,7 @@ class WebsiteCodexHarness:
         try:
             with self.lock:
                 self._ensure_server()
-        except (OSError, RuntimeError) as error:
+        except (OSError, RuntimeError, Refused) as error:
             log_agent(
                 "app_server_prewarm_failed",
                 durationMs=elapsed_ms(started),
@@ -773,7 +767,7 @@ class WebsiteCodexHarness:
         if thread_id in self.waiter_leases:
             return
         path = waiter_lease_path(page_dir, thread_id)
-        lease = take_lease(path)
+        lease = take_wait_lease(path)
         if lease is None:
             raise RuntimeError("another Leaf waiter already owns this Codex task")
         self.waiter_leases[thread_id] = lease
@@ -785,71 +779,35 @@ class WebsiteCodexHarness:
             for lease in self.waiter_leases.values():
                 release_lease(lease)
             self.waiter_leases.clear()
-            process = self.process
             self.process = None
-        if process is not None:
-            self._stop_server(process)
-        self.runtime.cleanup()
-
-    def _stop_server(self, process: subprocess.Popen) -> None:
-        stop_app_server(process)
-        self.socket_path.unlink(missing_ok=True)
+        self.server_resources.close()
 
     def _ensure_server(self) -> subprocess.Popen:
         if self.stop_event.is_set():
             raise RuntimeError("the website harness is closed")
         if self.codex_path is None:
             raise RuntimeError("cannot find the `codex` executable on PATH")
-        if self.process is not None:
-            if self.process.poll() is None and self.socket_path.exists():
-                return self.process
-            stale = self.process
+        if self.process is None or self.process.poll() is not None:
+            self.server_resources.close()
             self.process = None
-            self._stop_server(stale)
-        started = time.monotonic()
-        log_agent("app_server_spawn_started")
-        self.socket_path.unlink(missing_ok=True)
-        self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.log_path, "ab", buffering=0) as log:
-            self.process = subprocess.Popen(
-                [self.codex_path, "app-server", "--listen", self.endpoint],
-                env={
-                    **os.environ,
-                    APP_SERVER_ENV: self.endpoint,
-                    "LEAF": LEAF_COMMAND,
-                    "LEAF_HOST_LAUNCHER": LEAF_COMMAND,
-                    # The contract says `leaf`, so that name has to be this
-                    # install's launcher ahead of any other on the PATH. A login
-                    # shell rebuilds PATH from the system's profile, which is why
-                    # the website image also links it into /usr/local/bin.
-                    "PATH": os.pathsep.join(
-                        (str(Path(LEAF_COMMAND).parent), os.environ.get("PATH", ""))
-                    ),
-                },
-                cwd=os.environ.get("LEAF_SITE_ROOT", "/app/site"),
-                stdin=subprocess.DEVNULL,
-                stdout=log,
-                stderr=log,
-                start_new_session=True,
-            )
-        deadline = time.monotonic() + 20
-        while time.monotonic() < deadline:
-            if self.socket_path.exists():
-                log_agent(
-                    "app_server_spawn_completed",
-                    durationMs=elapsed_ms(started),
+            started = time.monotonic()
+            log_agent("app_server_spawn_started")
+            self.endpoint, self.process = self.server_resources.enter_context(
+                private_app_server(
+                    self.codex_path,
+                    env=os.environ
+                    | {
+                        "LEAF_HOST_LAUNCHER": LEAF_COMMAND,
+                        "PATH": os.pathsep.join(
+                            (str(Path(LEAF_COMMAND).parent), os.environ.get("PATH", ""))
+                        ),
+                    },
+                    cwd=os.environ.get("LEAF_SITE_ROOT", "/app/site"),
+                    log_path=self.log_path,
                 )
-                return self.process
-            if self.process.poll() is not None:
-                detail = self.log_path.read_text(encoding="utf-8", errors="replace")
-                self.process = None
-                self.socket_path.unlink(missing_ok=True)
-                raise RuntimeError(detail.strip() or "Codex App Server exited")
-            time.sleep(0.05)
-        process = self.process
-        self.process = None
-        self._stop_server(process)
-        raise RuntimeError("Codex App Server did not become ready")
+            )
+            log_agent("app_server_spawn_completed", durationMs=elapsed_ms(started))
+        return self.process
 
     def _request(
         self, resources: ExitStack, method: str, params: dict
@@ -1002,7 +960,7 @@ class WebsiteCodexHarness:
                     and claim["id"] == thread_id
                     and claim["turn"] == turn["id"]
                 ):
-                    page.set_status("waiting", "")
+                    page.set_status("waiting")
                     advance_turn(thread_id, turn["id"], running=False)
         if activation.error:
             raise ValueError(activation.error)
@@ -1081,7 +1039,7 @@ class WebsiteCodexHarness:
         started = time.monotonic()
         with PageTransaction(page_dir) as page:
             if page.status["state"] == "idle":
-                page.set_status("waiting", "")
+                page.set_status("waiting")
         self._hold_waiter(page_dir, thread_id)
         prepared = prepare_codex_delivery(
             page_dir, website_harness(thread_id, process.pid)
@@ -1407,8 +1365,23 @@ def published_page(
     return None
 
 
+def released_path(pages: dict, path: str) -> str | None:
+    """The public path whose static file the Worker serves at a release-addressed
+    one, `<assets>/<inside>` (`worker/src/routing.ts`, `releaseAssetRoute`), or None
+    for a path no page's release names."""
+    for root, page in pages.items():
+        if path.startswith(page["assets"] + "/"):
+            return ("" if root == "/" else root) + path[len(page["assets"]) :]
+    return None
+
+
 class WebsitePageEndpoint(PageEndpoint):
     """Bind every clean website route to one initialized page directory."""
+
+    # A visitor's private comments and replies would otherwise stay in the browser's
+    # disk cache after their session ends, for anyone who later uses that browser
+    # profile to read. The price is the back/forward cache, which keeps no such page.
+    cache_control = "no-store"
 
     def __init__(
         self,
@@ -1462,14 +1435,23 @@ class WebsitePageEndpoint(PageEndpoint):
             head=site_metadata(self.page_root, self.pages[self.page_root or "/"]),
         )
 
-    def _sample_asset_root(self, revision: int) -> str:
+    def _published_root(self, revision: int) -> str | None:
+        """Where the release publishes a revision's resources beside the runtime it
+        runs (`live_shell`), for a revision the release published; None for one a
+        user's session created in this container, which serves its own."""
         page = self.pages[self.page_root or "/"]
-        # Published revisions share the public shell's release-captured graph.
-        # User-created revisions belong to this container, not that release.
-        if str(revision) in page["states"]:
-            name = self._revision_name(revision).removesuffix(".html")
-            return f"{page['assets']}/revisions/{name}"
-        return super()._sample_asset_root(revision)
+        if str(revision) not in page["states"]:
+            return None
+        name = self._revision_name(revision).removesuffix(".html")
+        return f"{page['assets']}/revisions/{name}"
+
+    # A published revision's documents and samples load its graph from the release, so
+    # a page the container saved while asleep needs no container to load it.
+    def _document_asset_root(self, revision: int) -> str:
+        return self._published_root(revision) or super()._document_asset_root(revision)
+
+    def _sample_asset_root(self, revision: int) -> str | None:
+        return self._published_root(revision) or super()._sample_asset_root(revision)
 
     def _acknowledge_startup_report(self) -> Response:
         # Every document the runtime delivers with a release carries the public
@@ -1477,7 +1459,7 @@ class WebsitePageEndpoint(PageEndpoint):
         # observability record belongs. This adapter has no Worker in front of it,
         # so it owes the browser the same "recorded, nothing to read back" answer
         # the edge gives — otherwise every page served here loads with a 404 in its
-        # console (`skills/leaf/assets/runtime/bootstrap.js`, `observePublicStartup`).
+        # console (`browser/runtime/bootstrap.js`, `observePublicStartup`).
         return self._content(204, "application/json", b"")
 
     # The two routes below are for the Worker, which refuses every `/_leaf/` path from
@@ -1508,10 +1490,41 @@ class WebsitePageEndpoint(PageEndpoint):
         AGENT_FAIL_PATH: PostRoute(_fail_agent, (PageEndpoint._body_gate,)),
     }
 
+    def _released_resource(self) -> Response | None:
+        """A published revision's resource at its release address, as the Worker
+        serves the static tree the build wrote there (`live_shell`): the same bytes,
+        delivered by the same code at the same address, so a published page starts
+        here as at the edge. None for any other path, which the release names nothing
+        at."""
+        match = re.fullmatch(
+            rf"/revisions/(?P<name>{REVISION_NAME})/(?P<resource>.+)", self.path
+        )
+        if match is None or self.method not in {"GET", "HEAD"}:
+            return None
+        revision = int(match["revision"])
+        if (
+            self.source.revision_names.get(revision) != match["name"] + ".html"
+            or (root := self._published_root(revision)) is None
+        ):
+            return None
+        response = self._revision_resource(revision, "/" + match["resource"], root)
+        if response is not None:
+            response.headers.update(
+                {
+                    "Cache-Control": "public, max-age=31536000, immutable",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Expose-Headers": "*",
+                }
+            )
+        return response
+
     def _select_page(self) -> Response | None:
         if self.method == "GET" and self.path == "/health":
             return self._content(200, "text/plain; charset=utf-8", b"ok\n")
-        selected = published_page(self.routes, self.path)
+        # A release address names a published revision's resource and nothing else,
+        # so it is answered here, whole, and never reaches the page's own routes.
+        released = released_path(self.pages, self.path)
+        selected = published_page(self.routes, released or self.path)
         if selected is None:
             return self._not_found()
         page_dir, page_root, inside, kind = selected
@@ -1522,6 +1535,8 @@ class WebsitePageEndpoint(PageEndpoint):
         self.publication = {**PUBLICATION, "kind": kind}
         self.page_root = page_root
         self.path = inside
+        if released is not None:
+            return self._released_resource() or self._not_found()
         return None
 
 

@@ -16,9 +16,6 @@ with usable keyboard and phone routes.
 - The next customer update is due by 11:00 UTC, even if the review is still underway.
 - Morgan is the fictional customer contact. No reply has been sent.
 
-Keep this working note as ordinary, commentable prose near the incident facts:
-**43 customer workspaces had delayed CSV exports.**
-
 ## Initial proposed reply
 
 Start the editable reply with these two paragraphs:

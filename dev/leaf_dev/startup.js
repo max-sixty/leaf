@@ -1,5 +1,7 @@
-/* Development-only startup evidence, installed before navigation by probe and
- * verify-site. Native shifts are observations, never pass/fail budgets. Their
+/* Development-only startup and layout evidence, installed before navigation by
+ * probe and verify-site. The startup reading ends at presentation; the same shift
+ * recorder continues through a probe's journey. Native shifts are observations,
+ * never pass/fail budgets. Their
  * sources are affected nodes (at most five), not proof of the initiating code.
  * Attribution is serialized when observed; a removed native source is null.
  */
@@ -37,7 +39,6 @@
   const rect = ({ x, y, width, height }) => ({ x, y, width, height });
   function recordShifts(entries) {
     for (const entry of entries) {
-      if (entry.startTime > completedAt) continue;
       shifts.push({
         startTime: entry.startTime,
         value: entry.value,
@@ -54,8 +55,9 @@
     recordShifts(list.getEntries()),
   );
   // Firefox and WebKit have no layout-shift entries, and warn on asking for them.
-  if (PerformanceObserver.supportedEntryTypes.includes("layout-shift"))
-    shiftObserver.observe({ type: "layout-shift", buffered: true });
+  const shiftsSupported =
+    PerformanceObserver.supportedEntryTypes.includes("layout-shift");
+  if (shiftsSupported) shiftObserver.observe({ type: "layout-shift", buffered: true });
   // Resource Timing's document buffer is bounded. Observe every completed response
   // instead, and drain records already queued when a startup milestone is captured.
   const resourceEntries = [];
@@ -76,7 +78,7 @@
         url.origin === location.origin &&
         (url.pathname.endsWith(".js") ||
           url.pathname.endsWith(".css") ||
-          url.pathname.endsWith("/registry.json"))
+          url.pathname.endsWith("registry.json"))
       );
     });
     const javascript = code.filter((entry) =>
@@ -117,7 +119,6 @@
               requestAnimationFrame((at) => {
                 completedAt = at;
                 recordShifts(shiftObserver.takeRecords());
-                shiftObserver.disconnect();
                 resolve();
               }),
             );
@@ -130,6 +131,10 @@
     value: Object.freeze({
       milestones: () => Object.keys(startup),
       resourceNames: () => observedResources().map((entry) => entry.name),
+      layoutShifts() {
+        recordShifts(shiftObserver.takeRecords());
+        return { supported: shiftsSupported, entries: shifts };
+      },
       async reading() {
         await presentationPaint;
         recordShifts(shiftObserver.takeRecords());
@@ -143,15 +148,17 @@
               .map((entry) => [entry.name, entry.startTime]),
           ),
           ...startup,
-          shifts: shifts.map((entry) => ({
-            ...entry,
-            phase:
-              !startup.upgraded || entry.startTime < startup.upgraded.at
-                ? "before-upgrade"
-                : !startup.presented || entry.startTime < startup.presented.at
-                  ? "before-presentation"
-                  : "presentation",
-          })),
+          shifts: shifts
+            .filter((entry) => entry.startTime <= completedAt)
+            .map((entry) => ({
+              ...entry,
+              phase:
+                !startup.upgraded || entry.startTime < startup.upgraded.at
+                  ? "before-upgrade"
+                  : !startup.presented || entry.startTime < startup.presented.at
+                    ? "before-presentation"
+                    : "presentation",
+            })),
         };
       },
     }),

@@ -7,6 +7,9 @@
 # reason-beside-options: while the registry's examples wrote the reason into the
 # recommended card (`<em>My take: …</em>`), base 2c52f93ec kept it out of the cards
 # in 0 of 5 Claude Code runs; with the reason in the lf-ask's prose, 5 of 5.
+# On 2026-10-24 a candidate drew spatial before/after text wireframes in both
+# options. Removing the tag whitelist and regrading saved output passed that
+# specimen 1/1 while the saved prose-only HEAD output passed 0/1.
 description: options-draw-their-arrangement
 metadata:
   purpose:
@@ -20,7 +23,7 @@ vars:
     You are writing a Leaf page that records the layout shifts left in Leaf's thread
     panel, one section per item, each ending in a question for the user. Write the
     section for this item, after reading the `lf-ask`, `lf-options` and `lf-option`
-    entries in `packages/default/registry.json` under the skill's base directory.
+    entries in `../../packages/default/registry.json` relative to the skill's base directory.
 
     Your notes:
     - Item #10: in the thread panel, an open card's reply box is the last thing in
@@ -42,10 +45,12 @@ assert:
     metric: judgment
     value: |
       Find the `lf-options` group that asks where the reply box sits. Pass only if
-      every `lf-option` in it contains its own drawing (an inline `<svg>`, an `<img>`,
-      or an `lf-diagram`) that shows where the reply box sits under that option.
-      Fail if any option in the group is only words and chips, even when a figure
-      showing both arrangements stands elsewhere in the section.
+      every `lf-option` in it contains its own concrete spatial sketch showing
+      where the reply box sits under that option. An image, SVG, diagram, HTML
+      arrangement or textual wireframe can qualify when its spatial arrangement
+      communicates the result. Fail if any option only describes its arrangement
+      in prose, lists or chips, even when a figure showing both arrangements
+      stands elsewhere in the section.
   - type: llm-rubric
     metric: reason-beside-options
     value: |

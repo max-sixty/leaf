@@ -72,9 +72,10 @@
           appear.
         </p>
         <p id="panel-route">
-          The <strong>Threads</strong> mark in Leaf's panel opens the list of threads
-          above the panel's row. Select a thread to read its messages and reply in the
-          panel's comment field. Its passage link returns to the anchor on the page.
+          The <strong>Threads</strong> tab of Leaf's On view, which the panel's On me
+          mark opens, lists the threads above the panel's row. Select a thread to read
+          its messages and reply in the panel's comment field. Its passage link returns
+          to the anchor on the page.
         </p>
       </section>
 
@@ -188,7 +189,7 @@
         </table>
         <p id="anchors-agent">
           An agent opens threads with the same anchors, using
-          <code>leaf thread open</code> with <code>--quote</code>,
+          <code>leaf thread create</code> with <code>--quote</code>,
           <code>--section</code>, <code>--part</code>, or none of them.
         </p>
       </section>
@@ -219,7 +220,7 @@
           words a widget draws do not appear as edits.
         </p>
         <p id="passage-sides">
-          The browser makes an anchor from a selection. <code>leaf thread open</code>
+          The browser makes an anchor from a selection. <code>leaf thread create</code>
           makes one in Python, from the HTML file. Both apply the same rules: the same
           whitespace characters collapse to one space, the same elements count as
           separate blocks, the context is the same 24 characters, and the search is the
@@ -229,7 +230,7 @@
           The file holds the author's HTML, not the words a widget's script draws
           between its parts, such as a board column's heading or a diagram drawn from
           its source. A quote may not cross such words on either side.
-          <code>leaf thread open</code> refuses a quote that crosses them, that occurs
+          <code>leaf thread create</code> refuses a quote that crosses them, that occurs
           more than once in the section, or that sits in content the user's decision
           removed, and says what to quote instead. An agent's anchor is therefore one
           the user's page can find.
@@ -239,8 +240,8 @@
       <section id="revisions">
         <h2>Anchors across revisions</h2>
         <p id="revisions-lede">
-          Before a new revision goes live, Leaf checks every open thread anchored on a
-          quote against it. Each thread ends up in one of three places.
+          Before publishing a new revision, Leaf checks each open thread's quoted
+          passage against the revised content. The results are shown below.
         </p>
         <div class="panels" id="revision-outcomes">
           <figure id="anchor-kept">
@@ -403,8 +404,8 @@
         <h2>Widgets in messages</h2>
         <p id="message-widgets-markup">
           An agent's reply can carry a small widget, typically a question with options
-          (<code>--markup</code> on <code>leaf response reply</code>). Leaf validates
-          the markup when it is posted and stores it in the log with the reply, so the
+          (<code>--markup</code> on <code>leaf thread reply</code>). Leaf validates the
+          markup when it is posted and stores it in the log with the reply, so the
           thread shows the same widget in every version of the page. A later
           <code>leaf page init</code> refuses a vocabulary that could no longer render
           it.
@@ -432,9 +433,9 @@
           a <code>claude -p</code> request to Haiku in Claude Code, and an App Server
           request in Codex; in Pi, the agent names the thread. The request holds only
           the thread's passage and first message, nothing from the agent's session, and
-          runs beside the agent's work. Whichever title arrives first stands. While the
-          agent is working on an untitled thread, the panel shows animated dots in place
-          of the title; a thread nobody named shows its opening words.
+          runs in parallel with the agent's work. Leaf uses the first title it receives.
+          While the agent is working on an untitled thread, the panel shows animated
+          dots in place of the title; a thread nobody named shows its opening words.
         </p>
       </section>
 
@@ -462,8 +463,8 @@
             </tr>
             <tr id="reading-word">
               <td>
-                Its status: My turn to answer, Working, To-do open, Waiting, or how far
-                the agent has got with the latest update
+                Its status: Your turn, On it, Still to do, Waiting, or how far the agent
+                has got with the latest update
               </td>
               <td>
                 Threads and the floating panel, as the card's status; the margin and the
@@ -472,8 +473,8 @@
             </tr>
             <tr id="reading-workflow">
               <td>
-                How far the agent has got with an update: Sent, Queued, Replying, Not
-                answered
+                How far the agent has got with an update: Queued for Claude, Up next,
+                Replying, Couldn't answer
               </td>
               <td>the message itself; the margin and Page Map entries</td>
             </tr>
@@ -524,7 +525,7 @@
           progress message or a failure notice does not.
         </p>
         <p id="withdrawing">
-          A reaction is the only message the user can take back. Its mark's remove
+          A reaction is the only message the user can take back. Its mark's undo
           control, or <kbd>z</kbd> while it is the user's latest action, withdraws it:
           the log gains an <code>undo</code> naming it, and the mark and any thread it
           started leave the page. This works only while the thread is open and nothing,
@@ -541,7 +542,7 @@
 
       <footer class="site-footer" id="colophon">
         <p id="links">
-          <a href="/how-it-works/#loop">How it works: the communication loop</a> ·
+          <a href="/how-it-works/#workflow">How it works: the workflow</a> ·
           <a href="/event-log/">The event log</a> ·
           <a href="/examples/">Examples</a>
         </p>

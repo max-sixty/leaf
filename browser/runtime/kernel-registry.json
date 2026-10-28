@@ -1,0 +1,1632 @@
+{
+  "$authored": {
+    "description": "The page-wide declarations an author writes for the runtime to read. `allocations` lists the attributes of `body` and their permitted values; a sample template carries them onto its child's body. `data-rail` says whether the page cedes its right margin to the overlay rail or keeps it for its own margin content, `data-annotations` whether Leaf's overlay or the page presents annotations. `page check` holds a page to this table (`structure.AUTHORED_ALLOCATIONS`), build/browser/contract-types.mjs types the runtime's readers by it, and `build/registry.test.mjs` holds every stylesheet selector that spells an allocation to it.",
+    "allocations": {
+      "data-rail": ["right", "none"],
+      "data-annotations": ["overlay", "page"]
+    }
+  },
+  "$names": {
+    "description": "The name grammars a layer is held to, as ECMAScript patterns without anchors. `widget` is a widget's tag, `lf-` followed by hyphen-separated words of lowercase letters and digits: a vocabulary key of exactly that shape declares a widget, and any other key is an idiom selector. `html` is an attribute, verb, package or data source name. Python's layer schemas (`schema.py`) and the browser (`runtime/kernel-facts.js`) both read the serving Leaf's copy. It sorts the keys of a page's vendored registry into widgets and idioms, so a change here bumps `$events.protocol`.",
+    "html": "[a-z][a-z0-9-]*",
+    "widget": "lf-[a-z0-9]+(?:-[a-z0-9]+)*"
+  },
+  "$marks": {
+    "description": "The declarations a stylesheet reads, each painted on the element as `paint`, because neither a stylesheet nor the prepaint, which runs before the registry has loaded (`runtime/prepaint.js`), can read the registry: the room it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds (x-exhibit), holds its own height (x-bound), draws into a box of a stated height (x-height), the reading structure it supplies (x-reading-role), the margin placement it takes where it stands in a column's sidebar (x-margin-content), whether it shows one member at a time (x-views), and whether it draws a picture (x-visual). The room is only ever past the measure: a widget read as lines of text keeps to the measure in its own stylesheet (`max-inline-size: var(--lf-measure)`), so `x-space` names a breakout and nothing else. `authored` is the attribute an occurrence writes to override its tag's declaration, and `authored_on` where that override means something, so elsewhere it is inert: `content`, a block inside `main`, since the room and the bound size a block in the page's flow and on `main` or `body` would size the page itself; `declared`, an element whose tag declares the mark, since a stated height reserves room for a module's drawing and a block no module draws into would be clipped to it for good. `message` says whether the mark holds in a thread's message too: each is the element's own fact wherever it renders, except the room and the margin placement, which are the document's to hand out; a message renders in the panel, whose width bounds it and which has no margin. `presence` paints only whether a declaration exists, without serializing its rules. Delivery paints a page's document from this table (`revision_delivery.mark_declared`), and a layer that declares a different table is refused (`registry.layer.merge_layer_declarations`), so every composed vocabulary carries the kernel's table, from which the runtime paints a message it renders and tells the paint from the author's attributes (`isPagePaint`). The paint names are also the theme's contract: runtime modules import them from `runtime/kernel-facts.js`, which reads this table, and `build/registry.test.mjs` holds every stylesheet, the prepaint and every package module that spells one out to this table.",
+    "x-content": { "paint": "data-lf-content", "message": true },
+    "x-verbatim": { "paint": "data-lf-verbatim", "message": true },
+    "x-space": {
+      "paint": "data-lf-space",
+      "authored": "data-width",
+      "authored_on": "content",
+      "message": false
+    },
+    "x-inline": { "paint": "data-lf-inline", "message": true },
+    "x-exhibit": { "paint": "data-lf-exhibit", "message": true },
+    "x-bound": {
+      "paint": "data-lf-bound",
+      "authored": "data-bound",
+      "authored_on": "content",
+      "message": true
+    },
+    "x-height": {
+      "paint": "data-lf-height",
+      "authored": "data-height",
+      "authored_on": "declared",
+      "message": true
+    },
+    "x-reading-role": { "paint": "data-lf-reading-role", "message": true },
+    "x-margin-content": { "paint": "data-lf-margin-content", "message": false },
+    "x-views": { "paint": "data-lf-views", "message": true },
+    "x-visual": { "paint": "data-lf-visual", "presence": true, "message": true },
+    "x-awaits": { "paint": "data-lf-awaits", "presence": true, "message": true }
+  },
+  "$passages": {
+    "description": "How Python (`leaf/passages.py`, `leaf/anchor_capture.py`) and the browser (`runtime/kernel-facts.js`) turn a page into text, so `leaf thread create` can confirm any quote the browser captures. Both read the serving Leaf's copy. Every anchor and passage the log keeps was read by `collapse` and `blocks`, so a change to either bumps `$events.protocol`; `context` sets only how much a new anchor captures.",
+    "collapse": "\t\n\u000b\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff",
+    "why-collapse-is-spelled-out": "`collapse` lists the characters both readings fold to one space. JavaScript's \\s and Python's str.isspace() disagree on a few: U+FEFF is whitespace only to JavaScript, U+0085 only to Python. The browser captures every quote, so the list is JavaScript's set.",
+    "blocks": [
+      "p",
+      "li",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "td",
+      "th",
+      "pre",
+      "blockquote",
+      "dd",
+      "dt",
+      "figcaption",
+      "summary"
+    ],
+    "why-blocks": "A text node's block decides spacing: runs of text in different blocks are joined with one space and runs in one block with none, so `<p>a</p><p>b</p>` reads \"a b\" and `set<em>up</em>` reads \"setup\". The browser also treats a block as the unit of prose a reader is in, and a version diff compares blocks.",
+    "context": 24,
+    "why-context": "How many characters of context a captured anchor keeps on each side of its quote. A quote read from the file must be unique. The browser knows which occurrence the user selected, and widens the context until the shared resolver finds that one."
+  },
+  "$events": {
+    "protocol": 36,
+    "draft": {
+      "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
+      "since": 17,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "format": { "type": "string" },
+          "anchor": {
+            "anyOf": [
+              { "$ref": "leaf:event/comment#/properties/anchor" },
+              { "type": "null" }
+            ]
+          },
+          "revision": { "type": "integer" },
+          "suggest": { "type": "boolean" },
+          "about": {
+            "anyOf": [
+              { "$ref": "leaf:event/comment#/properties/about" },
+              { "type": "null" }
+            ]
+          },
+          "drawing": {
+            "anyOf": [
+              {
+                "$ref": "leaf:event/comment#/properties/drawing",
+                "properties": {
+                  "at": {
+                    "type": "array",
+                    "minItems": 6,
+                    "maxItems": 6,
+                    "items": { "type": "number" }
+                  }
+                }
+              },
+              { "type": "null" }
+            ]
+          },
+          "touched": { "type": "number" }
+        },
+        "required": [
+          "format",
+          "anchor",
+          "revision",
+          "suggest",
+          "about",
+          "drawing",
+          "touched"
+        ]
+      }
+    },
+    "ownership": {
+      "derived": ["meaning", "attention"],
+      "browser_discard": ["id", "author", "agent", "session", "ts", "seq", "attention"]
+    },
+    "description": "The kernel's event kinds. Each kind's `record` is the closed schema of the event as the log stores it, and a kind with a `browser` schema can also be posted to POST /api/event. Admission fills in the fields `ownership.derived` names; browser ingress drops those `ownership.browser_discard` names before validating. A layer extends widget behavior through x-state, but cannot add kinds or change who owns a field. Admission sets the boolean `attention`. Every report and error has it, and the agent's other events and the user's bookkeeping never do. The user's other input has it when it changes what is owed: an answer, an obligation or to-do on the user, work the agent has started and its inputs, or widget input whose active verb declares `$state.attention`. Code that asks whether an event needs attention reads this field instead of switching on the kind. `protocol` is Leaf's only version number. It covers these kinds and the state the server sends a page's runtime, and every record Leaf keeps outside a page's log and document, such as a delivery or a browser draft, carries in its `format` the protocol at which its own shape last changed: a `state.Record` its `since`, and the composer's draft `draft.since`. A Leaf serves and writes only pages at its own `protocol`, so a change that would break such a page, such as dropping a field or requiring a new one, bumps it. A `bookkeeping` kind (`read`, `reanchor`) records a fact about the user's view, never asks the agent for anything, and travels outside the queue of the user's updates. A `message` kind (`comment`, `reply`) is said in a thread. An `undoable` kind is a gesture of the user's own that an `undo` may withdraw; a message is withdrawn only as a reaction (`events.md`, \"Undo\"). A kind with a `verb_writer` carries a widget's x-state verb, which only that side writes: an `action` the user's, a `report` the agent's. Python and the browser both read these classifications from here (`registry.kernel` and `runtime/kernel-facts.js`). A `pickup` records that inputs reached their reader, or, with phase `failed`, that the harness gave up on them; it never means work has begun. A `receipt` confirms that the complete delivery of the log through `through` reached its durable consumer; the acknowledgement cursor is the greatest `through` the log holds. A `comment` or `reply` with `token` instead of `text` is a reaction ($reactions). `handling` and `answering` hold the instructions delivered with each event, and a later layer may restate them one kind at a time. Each maps a kind (of event, or of the answer it owes: `reply` or `markup`) to an ordered list of clauses: a `text`, and an optional `when` JSON Schema matched against the event's record, the `answer` it owes and its thread's entry in the batch's `threads`. A delivered event carries its kind's matching clauses, then its answer's, so it is told only its own case. Instructions that differ by route are not clauses: the delivery says once who confirms receipt, and sets the answer's `writer` to `turn` where the turn carrying it writes the reply.",
+    "handling": {
+      "comment": [
+        {
+          "when": {
+            "required": ["drawing"]
+          },
+          "text": "The user drew on the page. `drawing.says`, when present, is the page's text inside the ink's bounding box, from its first word to its last; it is absent where the box covers no words, as over a picture. `drawing.strokes` are coordinates in one frame: the comment's target, or the visual inside it that the optional `drawing.frame` names (CSS pixels for HTML, user units for SVG, intrinsic pixels for an image, canvas or video), and `drawing.box` is that frame's size. To see what the mark covers, run `leaf page picture <page> <message>` with the comment's `id`; it prints the path of a PNG of the revision as the user saw it, with the ink drawn over it. Answer it like any comment; its `text`, if any, explains the mark."
+        },
+        {
+          "when": {
+            "required": ["text"],
+            "properties": {
+              "text": {
+                "pattern": "\\]\\(/media/"
+              }
+            }
+          },
+          "text": "The message links an image in Markdown, as `/media/<digest>.<ext>` under the page directory the batch names. Open the image before answering; its alt text is only a label."
+        },
+        {
+          "when": {
+            "required": ["suggestion"],
+            "properties": {
+              "suggestion": {
+                "const": true
+              }
+            }
+          },
+          "text": "A suggestion proposes exact replacement text. Apply it verbatim, or reply with your reason for declining."
+        },
+        {
+          "when": {
+            "required": ["about"],
+            "properties": {
+              "about": {
+                "const": "design"
+              }
+            }
+          },
+          "text": "A design comment is about how the page looks or behaves. Its anchor's `section` is an authored element's id or, if it starts `lf-`, a part of Leaf's chrome, such as `lf-composer`. `part`, when present, describes the control, region or picture the user clicked. Fix it in this page's source. If the behavior belongs to a package's widget, or the user asks for a wider fix, change the package and take the change into the page as the Leaf skill's `references/packages.md` says, and note the package change on the stamp. A fix to Leaf itself is the user's to raise; offer to file it (SKILL.md, \"Improve Leaf through use\"). Your reply names the stamped version that carries the fix."
+        },
+        {
+          "when": {
+            "required": ["thread", "answer"],
+            "properties": {
+              "thread": {
+                "required": ["title"],
+                "properties": {
+                  "title": {
+                    "type": "null"
+                  }
+                }
+              },
+              "answer": {
+                "properties": {
+                  "kind": {
+                    "const": "reply"
+                  },
+                  "writer": {
+                    "const": "agent"
+                  }
+                }
+              }
+            }
+          },
+          "text": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply."
+        },
+        {
+          "when": {
+            "required": ["token"]
+          },
+          "text": "A reaction owes no answer. Act on the token if it calls for a change, and reply only if its meaning is unclear. Once the page reflects it, close it with `leaf thread resolve <page> <message>`."
+        }
+      ],
+      "reply": [
+        {
+          "when": {
+            "not": {
+              "required": ["token"]
+            }
+          },
+          "text": "The batch's `threads` holds the thread's context; `leaf page state <page> <message>` reads its full history."
+        },
+        {
+          "when": {
+            "required": ["text"],
+            "properties": {
+              "text": {
+                "pattern": "\\]\\(/media/"
+              }
+            }
+          },
+          "text": "The message links an image in Markdown, as `/media/<digest>.<ext>` under the page directory the batch names. Open the image before answering; its alt text is only a label."
+        },
+        {
+          "when": {
+            "required": ["thread", "answer"],
+            "properties": {
+              "thread": {
+                "required": ["title"],
+                "properties": {
+                  "title": {
+                    "type": "null"
+                  }
+                }
+              },
+              "answer": {
+                "properties": {
+                  "kind": {
+                    "const": "reply"
+                  },
+                  "writer": {
+                    "const": "agent"
+                  }
+                }
+              }
+            }
+          },
+          "text": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply."
+        },
+        {
+          "when": {
+            "required": ["thread"],
+            "properties": {
+              "thread": {
+                "required": ["summary_hint"]
+              }
+            },
+            "not": {
+              "required": ["token"]
+            }
+          },
+          "text": "This thread's entry in the batch's `threads` has a `summary_hint`: an earlier range of messages worth summarizing. As you answer, follow the Leaf skill's `references/threads.md`, \"Summarize a long discussion\". The hint needs no separate answer."
+        },
+        {
+          "when": {
+            "required": ["token"]
+          },
+          "text": "A reaction to your message. It needs no reply; Leaf already records whether it answers your question."
+        }
+      ],
+      "edit": [
+        {
+          "text": "The user rewrote their message `message`: `text` is the new wording and `was` the old, and the thread shows only the new. Answer it as it now reads. If your earlier answer or work depended on what changed, say what that changes and redo the work; if it didn't, say so. If `message` opens the thread and the title no longer fits, retitle it with `leaf thread edit <page> <message> --title \"<a few words>\"`."
+        },
+        {
+          "when": {
+            "required": ["suggestion"],
+            "properties": { "suggestion": { "const": true } }
+          },
+          "text": "The message is a suggestion, so `text` is now its exact replacement text. Apply it verbatim, or reply with your reason for declining."
+        }
+      ],
+      "resolve": [
+        {
+          "text": "The user closed the thread. You owe no reply there; a to-do you opened on it stays open until you end it."
+        }
+      ],
+      "unresolve": [
+        {
+          "text": "The user reopened a closed thread. Reopening needs no separate answer; if the thread's latest user message was never answered, `leaf page state <page> <message>` shows the `answer` still owed."
+        }
+      ],
+      "todo_end": [
+        {
+          "text": "The user pressed Done on the to-do `todo`, which ends it and owes no reply. Continue the work it was waiting for; if you still need something from them, ask again."
+        }
+      ],
+      "action": [
+        {
+          "text": "The user already sees the action applied."
+        },
+        {
+          "when": {
+            "allOf": [
+              {
+                "not": {
+                  "required": ["answer"]
+                }
+              },
+              {
+                "not": {
+                  "required": ["meaning"],
+                  "properties": {
+                    "meaning": {
+                      "required": ["scope"],
+                      "properties": {
+                        "scope": {
+                          "const": "thread"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "text": "Every later version keeps the action without an edit."
+        },
+        {
+          "when": {
+            "allOf": [
+              {
+                "required": ["action"],
+                "properties": {
+                  "action": {
+                    "const": "add"
+                  }
+                }
+              },
+              {
+                "not": {
+                  "required": ["meaning"],
+                  "properties": {
+                    "meaning": {
+                      "required": ["scope"],
+                      "properties": {
+                        "scope": {
+                          "const": "thread"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "text": "Every later version keeps the added option where the user put it, so leave it out of the markup."
+        },
+        {
+          "when": {
+            "required": ["action"],
+            "properties": {
+              "action": {
+                "const": "decide"
+              }
+            }
+          },
+          "text": "The user decided a suggestion; `detail.outcome` says which way: `accept` keeps the lf-new branch and `reject` the lf-old one. In the next version, write the kept branch in as plain prose with its ids and remove the suggestion."
+        },
+        {
+          "when": {
+            "not": {
+              "required": ["meaning"],
+              "properties": {
+                "meaning": {
+                  "required": ["scope"],
+                  "properties": {
+                    "scope": {
+                      "const": "thread"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "text": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note."
+        },
+        {
+          "when": {
+            "not": {
+              "required": ["answer"]
+            }
+          },
+          "text": "This action owes no answer of its own."
+        },
+        {
+          "when": {
+            "required": ["waiting"]
+          },
+          "text": "Your questions in `waiting`, asked in a thread about this widget, still wait on the user. Judge from each one's `text` whether this action answers it: end one it settles with `leaf task end <page> <id> done --text \"<what answered it>\"`, and leave one that still needs the user."
+        }
+      ],
+      "undo": [
+        {
+          "text": "The user took back the gesture `undoes` names. Treat the two as cancelled: don't answer or record the withdrawn gesture. Undoing an action that answered or closed a thread reopens that thread."
+        }
+      ],
+      "report": [
+        {
+          "text": "A worker reported provisional state for a page widget, which the page shows until a stamped version answers it. Before the page ends, answer it in a stamped version: write the reported state into the markup, or mark the element `overruled` and say why in the version note."
+        }
+      ],
+      "error": [
+        {
+          "text": "The page's runtime reported a failure the user saw. Fix the page or widget and save the fix. Reply only if the user asked about it."
+        }
+      ]
+    },
+    "answering": {
+      "reply": [
+        {
+          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On me list until they reply or resolve the thread, even where the decision itself is already there. `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move. A widget in `--markup` can register the answer it captures instead of `--obligation` (`references/threads.md`).",
+          "when": {
+            "properties": {
+              "answer": {
+                "properties": {
+                  "writer": {
+                    "const": "agent"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "text": "Leaf posts your opening message in the thread as your progress line and your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. A final message leaves the user no move, so where your answer leaves them one, such as a decision or something to try or review before making one, answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their On me list even where the decision itself is already there. Reply explicitly too for widgets, work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`); an explicit reply posts at once, and your final message is then not posted.",
+          "when": {
+            "properties": {
+              "answer": {
+                "properties": {
+                  "writer": {
+                    "const": "turn"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "text": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
+        },
+        {
+          "when": {
+            "required": ["meaning"],
+            "properties": {
+              "meaning": {
+                "required": ["scope"],
+                "properties": {
+                  "scope": {
+                    "const": "thread"
+                  }
+                }
+              }
+            }
+          },
+          "text": "The widget is in a thread message: continue the work the user's answer selects or unblocks, and answer in that thread."
+        }
+      ],
+      "markup": [
+        {
+          "text": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
+        }
+      ]
+    },
+    "kinds": {
+      "comment": {
+        "message": true,
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "comment" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "text": { "type": "string", "minLength": 1 },
+            "token": { "type": "string", "minLength": 1 },
+            "anchor": {
+              "type": "object",
+              "properties": {
+                "section": { "type": ["string", "null"] },
+                "quote": { "type": "string" },
+                "datum": { "type": "string", "minLength": 1 },
+                "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+                "source_revision": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+                "identity": { "type": "string", "minLength": 1 },
+                "visual": { "type": "string", "minLength": 1 },
+                "prefix": { "type": "string" },
+                "suffix": { "type": "string" },
+                "detached": { "const": true },
+                "part": { "type": "string" }
+              },
+              "anyOf": [
+                {
+                  "required": ["section"],
+                  "properties": { "section": { "type": "string", "minLength": 1 } }
+                },
+                {
+                  "required": ["quote"],
+                  "properties": { "quote": { "type": "string", "minLength": 1 } }
+                },
+                {
+                  "required": ["datum"],
+                  "properties": { "datum": { "type": "string", "minLength": 1 } }
+                }
+              ],
+              "dependentRequired": {
+                "datum": ["section"],
+                "source": ["datum", "source_revision"],
+                "source_revision": ["datum", "source"],
+                "identity": ["datum"],
+                "part": ["section"],
+                "detached": ["quote"],
+                "visual": ["section"]
+              },
+              "additionalProperties": false
+            },
+            "drawing": {
+              "type": "object",
+              "properties": {
+                "strokes": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 32,
+                  "items": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 256,
+                    "items": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "prefixItems": [
+                        { "type": "number", "minimum": -33554432, "maximum": 33554432 },
+                        { "type": "number", "minimum": -33554432, "maximum": 33554432 }
+                      ],
+                      "items": false
+                    }
+                  }
+                },
+                "box": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    { "type": "number", "exclusiveMinimum": 0, "maximum": 33554432 },
+                    { "type": "number", "exclusiveMinimum": 0, "maximum": 33554432 }
+                  ],
+                  "items": false
+                },
+                "frame": {
+                  "type": "object",
+                  "properties": {
+                    "root": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+                    },
+                    "path": {
+                      "type": "array",
+                      "maxItems": 32,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tag": {
+                            "type": "string",
+                            "maxLength": 128,
+                            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+                          },
+                          "index": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 65535
+                          },
+                          "siblings": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 65536
+                          },
+                          "shadow": { "type": "boolean" }
+                        },
+                        "required": ["tag", "index", "siblings"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["root", "path"],
+                  "additionalProperties": false
+                },
+                "says": { "type": "string", "minLength": 1, "maxLength": 500 },
+                "viewport": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    { "type": "number", "exclusiveMinimum": 0, "maximum": 33554432 },
+                    { "type": "number", "exclusiveMinimum": 0, "maximum": 33554432 }
+                  ],
+                  "items": false
+                },
+                "scheme": { "enum": ["light", "dark"] }
+              },
+              "required": ["strokes", "box", "viewport", "scheme"],
+              "additionalProperties": false
+            },
+            "suggestion": { "type": "boolean" },
+            "about": { "const": "design" },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 },
+            "markup": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
+            "holds": { "type": "string", "minLength": 1 },
+            "obligation": { "const": true }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "revision"],
+          "additionalProperties": false,
+          "oneOf": [
+            { "required": ["text"] },
+            { "required": ["token"] },
+            { "required": ["drawing"], "not": { "required": ["text"] } }
+          ],
+          "dependentSchemas": {
+            "title": { "properties": { "author": { "const": "agent" } } },
+            "token": {
+              "not": {
+                "anyOf": [
+                  { "required": ["suggestion"] },
+                  { "required": ["holds"] },
+                  { "required": ["markup"] }
+                ]
+              }
+            },
+            "drawing": {
+              "required": ["anchor"],
+              "properties": {
+                "anchor": {
+                  "not": {
+                    "anyOf": [{ "required": ["quote"] }, { "required": ["part"] }]
+                  }
+                }
+              },
+              "not": {
+                "anyOf": [
+                  { "required": ["suggestion"] },
+                  { "required": ["about"] },
+                  { "required": ["holds"] },
+                  { "required": ["markup"] }
+                ]
+              }
+            },
+            "obligation": {
+              "required": ["text"],
+              "properties": { "author": { "const": "agent" } },
+              "not": {
+                "anyOf": [
+                  { "required": ["ephemeral"] },
+                  { "required": ["failure"] },
+                  { "required": ["todo"] }
+                ]
+              }
+            }
+          }
+        },
+        "browser": {
+          "required": ["kind", "revision"],
+          "not": {
+            "anyOf": [{ "required": ["markup"] }, { "required": ["obligation"] }]
+          }
+        }
+      },
+      "reply": {
+        "message": true,
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "reply" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "parent": { "type": "string", "minLength": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "publication": {
+              "type": "string",
+              "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"
+            },
+            "text": { "type": "string", "minLength": 1 },
+            "token": { "type": "string", "minLength": 1 },
+            "anchor": {
+              "type": ["object", "null"],
+              "properties": {
+                "section": { "type": ["string", "null"] },
+                "quote": { "type": "string" },
+                "datum": { "type": "string", "minLength": 1 },
+                "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+                "source_revision": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+                "identity": { "type": "string", "minLength": 1 },
+                "visual": { "type": "string", "minLength": 1 },
+                "prefix": { "type": "string" },
+                "suffix": { "type": "string" },
+                "detached": { "const": true },
+                "part": { "type": "string" }
+              },
+              "anyOf": [
+                {
+                  "required": ["section"],
+                  "properties": { "section": { "type": "string", "minLength": 1 } }
+                },
+                {
+                  "required": ["quote"],
+                  "properties": { "quote": { "type": "string", "minLength": 1 } }
+                },
+                {
+                  "required": ["datum"],
+                  "properties": { "datum": { "type": "string", "minLength": 1 } }
+                }
+              ],
+              "dependentRequired": {
+                "datum": ["section"],
+                "source": ["datum", "source_revision"],
+                "source_revision": ["datum", "source"],
+                "identity": ["datum"],
+                "part": ["section"],
+                "detached": ["quote"],
+                "visual": ["section"]
+              },
+              "additionalProperties": false
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 },
+            "markup": { "type": "string", "minLength": 1 },
+            "todo": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "ephemeral": { "const": true },
+            "start": {
+              "type": "object",
+              "properties": {
+                "item": { "type": "string", "minLength": 1 },
+                "turn": { "type": "string", "minLength": 1 }
+              },
+              "required": ["item"],
+              "additionalProperties": false
+            },
+            "failure": { "type": "string", "minLength": 1 },
+            "responds": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
+            "obligation": { "const": true }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "parent"],
+          "additionalProperties": false,
+          "oneOf": [{ "required": ["text"] }, { "required": ["token"] }],
+          "dependentSchemas": {
+            "start": {
+              "required": ["ephemeral", "text"],
+              "properties": {
+                "author": { "const": "agent" },
+                "text": {
+                  "pattern": "\\S",
+                  "not": { "pattern": "\\S\\s*[\\r\\n]\\s*\\S" }
+                }
+              }
+            },
+            "title": { "properties": { "author": { "const": "agent" } } },
+            "publication": {
+              "required": ["revision"],
+              "properties": { "author": { "const": "agent" } }
+            },
+            "ephemeral": {
+              "required": ["text"],
+              "properties": { "author": { "const": "agent" } },
+              "not": {
+                "anyOf": [
+                  { "required": ["responds"] },
+                  { "required": ["todo"] },
+                  { "required": ["markup"] },
+                  { "required": ["failure"] },
+                  { "required": ["anchor"] }
+                ]
+              }
+            },
+            "token": { "not": { "required": ["markup"] } },
+            "todo": {
+              "required": ["text"],
+              "properties": { "author": { "const": "agent" } },
+              "not": { "required": ["failure"] }
+            },
+            "failure": {
+              "required": ["text", "responds"],
+              "properties": { "author": { "const": "agent" } }
+            },
+            "anchor": {
+              "required": ["revision", "text"],
+              "properties": { "author": { "const": "agent" } }
+            },
+            "obligation": {
+              "required": ["text"],
+              "properties": { "author": { "const": "agent" } },
+              "not": {
+                "anyOf": [
+                  { "required": ["ephemeral"] },
+                  { "required": ["failure"] },
+                  { "required": ["todo"] }
+                ]
+              }
+            }
+          }
+        },
+        "browser": {
+          "required": ["kind", "parent", "revision"],
+          "not": {
+            "anyOf": [
+              {
+                "required": ["markup"]
+              },
+              {
+                "required": ["todo"]
+              },
+              {
+                "required": ["anchor"]
+              },
+              {
+                "required": ["responds"]
+              },
+              {
+                "required": ["failure"]
+              },
+              {
+                "required": ["ephemeral"]
+              },
+              {
+                "required": ["start"]
+              },
+              {
+                "required": ["title"]
+              },
+              {
+                "required": ["obligation"]
+              }
+            ]
+          }
+        }
+      },
+      "edit": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "enum": ["agent", "user"] },
+            "kind": { "const": "edit" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
+            "message": { "type": "string", "minLength": 1 },
+            "text": { "type": "string", "minLength": 1 },
+            "base": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "message",
+            "text"
+          ],
+          "additionalProperties": false,
+          "oneOf": [
+            {
+              "properties": { "author": { "const": "agent" } },
+              "required": ["agent", "session"]
+            },
+            {
+              "properties": { "author": { "const": "user" } },
+              "not": {
+                "anyOf": [{ "required": ["agent"] }, { "required": ["session"] }]
+              }
+            }
+          ]
+        },
+        "browser": { "required": ["kind", "message", "text", "base"] }
+      },
+      "summary": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "summary" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "thread": { "type": "string", "minLength": 1 },
+            "from": { "type": "string", "minLength": 1 },
+            "through": { "type": "string", "minLength": 1 },
+            "text": { "type": "string" },
+            "label": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "thread",
+            "from",
+            "through",
+            "text",
+            "agent",
+            "session"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "read": {
+        "bookkeeping": true,
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "user" },
+            "kind": { "const": "read" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "messages": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "message": { "type": "string", "minLength": 1 },
+                  "version": { "type": "string", "minLength": 1 }
+                },
+                "required": ["message", "version"],
+                "additionalProperties": false
+              }
+            },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "messages"],
+          "additionalProperties": false
+        },
+        "browser": { "required": ["kind", "messages"] }
+      },
+      "thread_title": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "thread_title" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "thread": { "type": "string", "minLength": 1 },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "thread",
+            "title",
+            "agent",
+            "session"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "todo": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "todo" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "owner": { "enum": ["agent", "user"] },
+            "subject": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": { "enum": ["widget", "element", "thread"] },
+                    "id": { "type": "string", "minLength": 1 }
+                  },
+                  "required": ["kind", "id"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": { "kind": { "const": "page" } },
+                  "required": ["kind"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "revision": { "type": "integer", "minimum": 1 },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "owner",
+            "subject",
+            "title"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "start": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "start" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "item": { "type": "string", "minLength": 1 },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "turn": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "item",
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "status": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "status" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "state": { "enum": ["waiting", "idle"] },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "state"],
+          "additionalProperties": false
+        }
+      },
+      "plan": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "plan" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "steps": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "depth": { "type": "integer", "minimum": 0, "maximum": 8 },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80,
+                        "pattern": "\\S",
+                        "not": { "pattern": "[\\r\\n]" }
+                      },
+                      "state": { "enum": ["open", "working", "done", "dropped"] }
+                    },
+                    "required": ["depth", "title", "state"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "depth": { "type": "integer", "minimum": 0, "maximum": 8 },
+                      "item": { "type": "string", "minLength": 1 }
+                    },
+                    "required": ["depth", "item"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "steps"],
+          "additionalProperties": false
+        }
+      },
+      "todo_end": {
+        "undoable": true,
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "enum": ["agent", "user"] },
+            "kind": { "const": "todo_end" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "todo": { "type": "string", "minLength": 1 },
+            "outcome": { "enum": ["done", "failed", "dropped"] },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
+            "detail": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "pattern": "\\S"
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "todo",
+            "outcome"
+          ],
+          "additionalProperties": false
+        },
+        "browser": {
+          "required": ["kind", "todo", "outcome"],
+          "properties": { "outcome": { "const": "done" } },
+          "not": { "required": ["detail"] }
+        }
+      },
+      "reanchor": {
+        "bookkeeping": true,
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ts": {
+              "type": "string",
+              "minLength": 1
+            },
+            "author": {
+              "const": "page"
+            },
+            "publication": {
+              "type": "string",
+              "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"
+            },
+            "kind": {
+              "const": "reanchor"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "thread": {
+              "type": "string",
+              "minLength": 1
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "anchor": {
+              "type": ["object", "null"],
+              "properties": {
+                "section": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": ["section"],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "thread",
+            "revision",
+            "anchor"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "resolve": {
+        "undoable": true,
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "resolve" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "parent": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "parent"],
+          "additionalProperties": false
+        },
+        "browser": { "required": ["kind", "parent"] }
+      },
+      "unresolve": {
+        "undoable": true,
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "unresolve" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "parent": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "parent"],
+          "additionalProperties": false
+        },
+        "browser": { "required": ["kind", "parent"] }
+      },
+      "action": {
+        "undoable": true,
+        "verb_writer": "user",
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "action" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "widget": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "minLength": 1 },
+            "detail": { "type": "object" },
+            "meaning": {
+              "type": "object",
+              "properties": {
+                "scope": { "enum": ["page", "thread"] },
+                "unit": { "type": "string", "minLength": 1 },
+                "depends": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 },
+                  "uniqueItems": true
+                },
+                "answer": { "type": ["string", "null"], "minLength": 1 },
+                "creates": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "among": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 }
+                },
+                "state": {
+                  "type": "object",
+                  "properties": {
+                    "origin": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "unit": { "type": "string", "minLength": 1 },
+                    "record": { "type": ["object", "null"] },
+                    "creates": { "type": ["object", "null"] },
+                    "decides": { "type": "boolean" },
+                    "detail": { "type": ["object", "boolean"] }
+                  },
+                  "required": [
+                    "origin",
+                    "unit",
+                    "record",
+                    "creates",
+                    "decides",
+                    "detail"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["scope", "unit", "depends"],
+              "additionalProperties": false
+            },
+            "revision": { "type": "integer", "minimum": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "widget",
+            "action",
+            "detail",
+            "revision",
+            "meaning"
+          ],
+          "additionalProperties": false
+        },
+        "browser": { "required": ["kind", "widget", "action", "detail", "revision"] }
+      },
+      "pickup": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "page" },
+            "kind": { "const": "pickup" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "events": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "phase": { "enum": ["queued", "opened", "failed"] },
+            "session": { "type": ["string", "null"], "minLength": 1 },
+            "turn": { "type": ["string", "null"], "minLength": 1 },
+            "failure": { "type": "string", "minLength": 1 },
+            "refs": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "ref": { "type": "string", "minLength": 1 },
+                  "claim": { "type": ["string", "null"], "minLength": 1 }
+                },
+                "required": ["ref", "claim"],
+                "additionalProperties": false
+              },
+              "minProperties": 1
+            }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "events",
+            "phase",
+            "session",
+            "turn"
+          ],
+          "if": { "properties": { "phase": { "const": "failed" } } },
+          "then": { "required": ["failure"] },
+          "else": { "not": { "required": ["failure"] } },
+          "additionalProperties": false
+        }
+      },
+      "receipt": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "page" },
+            "kind": { "const": "receipt" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "through": { "type": "integer", "minimum": 1 }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "through"],
+          "additionalProperties": false
+        }
+      },
+      "undo": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "undo" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "undoes": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "undoes"],
+          "additionalProperties": false
+        },
+        "browser": { "required": ["kind", "undoes"] }
+      },
+      "report": {
+        "verb_writer": "agent",
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "report" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "widget": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "minLength": 1 },
+            "detail": { "type": "object" },
+            "meaning": {
+              "type": "object",
+              "properties": {
+                "scope": { "enum": ["page", "thread"] },
+                "unit": { "type": "string", "minLength": 1 },
+                "depends": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 },
+                  "uniqueItems": true
+                },
+                "state": {
+                  "type": "object",
+                  "properties": {
+                    "origin": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "unit": { "type": "string", "minLength": 1 },
+                    "record": { "type": ["object", "null"] },
+                    "creates": { "type": ["object", "null"] },
+                    "decides": { "type": "boolean" },
+                    "detail": { "type": ["object", "boolean"] }
+                  },
+                  "required": [
+                    "origin",
+                    "unit",
+                    "record",
+                    "creates",
+                    "decides",
+                    "detail"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["scope", "unit", "depends"],
+              "additionalProperties": false
+            },
+            "revision": { "type": "integer", "minimum": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "widget",
+            "action",
+            "detail",
+            "revision",
+            "meaning"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "note": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "note" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "version": { "type": "integer", "minimum": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "publication": {
+              "type": "string",
+              "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"
+            },
+            "text": { "type": "string", "minLength": 1 },
+            "restated": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "settles": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": { "enum": ["report", "todo"] },
+                  "id": { "type": "string", "minLength": 1 }
+                },
+                "required": ["kind", "id"],
+                "additionalProperties": false
+              },
+              "uniqueItems": true
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "version",
+            "revision",
+            "text"
+          ],
+          "dependentSchemas": {
+            "publication": { "properties": { "author": { "const": "agent" } } }
+          },
+          "additionalProperties": false
+        }
+      },
+      "error": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "error" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "text": { "type": "string", "minLength": 1 }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "text"],
+          "additionalProperties": false
+        },
+        "browser": { "required": ["kind", "text"] }
+      }
+    }
+  }
+}

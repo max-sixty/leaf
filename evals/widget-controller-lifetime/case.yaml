@@ -3,7 +3,8 @@
 # One run per arm retained the three lifecycle passes; only the candidate passed
 # renderer-owned placement with shared datum provenance (20261006-135659-8dka43l3).
 # The first two rubrics moved from controller.subscribe and watchData to LeafElement's
-# render reads when those routes were deleted.
+# render reads when those routes were deleted, and from this.data and projectData to
+# the bound property and drawn marks when those were.
 description: widget-controller-lifetime
 metadata:
   purpose: A widget keeps its semantic and data readings across removal and reinsertion.
@@ -42,19 +43,18 @@ assert:
   - type: llm-rubric
     metric: reading-subscription-lifetime
     value: |
-      Pass only if render(), or a method it calls synchronously, reads this.data("builds")
-      and readHistory(), so LeafElement follows both and draws them again on return with
-      whatever changed while the widget was away. Fail if the widget watches either
-      through a separate subscription, such as watchProjection or a data watcher, or stops
+      Pass only if render(), or a method it calls synchronously, reads the property the
+      "builds" input names, such as this.value, and readHistory(), so LeafElement follows
+      both and draws them again on return with whatever changed while the widget was away. Fail if the widget watches either
+      through a separate subscription, such as a data watcher, or stops
       and recreates anything for them in the native connection callbacks. Rendering
       methods may be assumed to exist as the prompt allows.
   - type: llm-rubric
     metric: renderer-owned-projection
     value: |
-      Pass only if the data-rendering method places retained nodes itself and then calls
-      projectData(root, datums, {snapshot}) with node/key descriptors, not a key function
-      and render callback. Each build datum supplies identity: its id, and carries the
-      delivered snapshot so comments follow that build with the correct source revision.
-      Either setChildren or Leaf's public render with keyed repeat can own placement.
-      Fail if projectData is asked to create or reconcile the paragraphs, or if the
-      method replaces every paragraph on every update rather than retaining their nodes.
+      Pass only if the data-rendering method places retained nodes itself, marks each
+      build paragraph with data-lf-datum and a data-lf-identity of its id, and then
+      dispatches a drawn event whose detail names the value it drew, so comments follow
+      that build with the correct source revision. Either setChildren or Leaf's public
+      render with keyed repeat can own placement. Fail if the method replaces every
+      paragraph on every update rather than retaining their nodes.

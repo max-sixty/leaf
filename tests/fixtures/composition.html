@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Shared refresh review</title>
+    <meta
+      name="description"
+      content="Review a shared refresh policy with a recorded result, a nested rollout choice and navigable source changes."
+    />
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1 id="composition-title">Review the shared refresh policy</h1>
+      <p id="composition-intro">
+        Concurrent requests share one refresh and each retries once. Review both changed
+        files, choose the rollout audience, then record the review result.
+      </p>
+
+      <lf-review-summary id="composition-review">
+        <h2>Review checklist</h2>
+        <p id="composition-owned-note">
+          A failed refresh must fail every waiting request without retrying with an
+          expired token.
+        </p>
+        <details id="composition-details">
+          <summary>Five concurrent requests</summary>
+          <p>
+            One refresh completes before all five requests retry. A second failure
+            returns to the caller.
+          </p>
+        </details>
+        <lf-options id="composition-rollout" choose>
+          <lf-option id="composition-canary">
+            <strong>Canary clients</strong>
+            <p id="composition-nested-note">
+              Enable shared refresh for the canary group before the wider rollout.
+            </p>
+          </lf-option>
+          <lf-option id="composition-everyone">
+            <strong>All clients</strong>
+            <p>Enable shared refresh for every web client in this release.</p>
+          </lf-option>
+        </lf-options>
+      </lf-review-summary>
+
+      <section id="composition-evidence">
+        <h2>Changed files</h2>
+        <lf-file-tree
+          id="composition-files"
+          for="composition-patch"
+          aria-label="Changed files"
+          data-height="176"
+        ></lf-file-tree>
+        <lf-diff id="composition-patch" view="file" data-height="152">
+          <pre>
+diff --git a/client/session.py b/client/session.py
+--- a/client/session.py
++++ b/client/session.py
+@@ -1,4 +1,5 @@
+ async def recover(request):
+-    token = await refresh()
++    token = await shared_refresh()
+     response = await request.retry(token)
++    response.raise_for_status()
+     return response
+diff --git a/tests/test_session.py b/tests/test_session.py
+--- a/tests/test_session.py
++++ b/tests/test_session.py
+@@ -1,3 +1,4 @@
+ async def test_concurrent_recovery(client):
+     await client.send_concurrently(5)
+-    assert client.refresh_count == 5
++    assert client.refresh_count == 1
++    assert client.retry_count == 5
+</pre>
+        </lf-diff>
+      </section>
+    </main>
+  </body>
+</html>

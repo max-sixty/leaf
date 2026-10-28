@@ -16,7 +16,10 @@
  * Accepted browser events start their agent task in the already-selected user
  * container without holding the browser acknowledgement open. A page fault reported
  * from a passive session is the published page failing, so the edge logs it for the
- * site's maintainers instead of activating a container to hold it. Analytics Engine
+ * site's maintainers instead of activating a container to hold it. The runtime's other
+ * reports from a passive session, its viewport geometry and the messages it has shown
+ * whole, are answered there unrecorded, since neither is a gesture that opens private
+ * state. Analytics Engine
  * records accepted product events; Workers Observability records the execution path,
  * whose only page words are a bounded startup or fault `reason`. Native invocation
  * logs hold request headers; browser diagnostics read that evidence by trace ID.
@@ -35,7 +38,7 @@ import type {
   ServedEventAnswer,
   ServedSampleAnswer,
   ServedState,
-} from "../../build/browser/contract.js";
+} from "../../browser/types/contract.js";
 import {
   CHUNK_BYTES,
   PageStore,
@@ -75,9 +78,9 @@ export interface Env {
 }
 
 const siteRelease = z.string().check(z.regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/));
-const startupTime = z.nullable(
-  z.number().check(z.int(), z.nonnegative(), z.maximum(300_000)),
-);
+// A slow state response is still startup evidence. Bound the request body below,
+// not the duration the browser can observe while its upgraded page waits.
+const startupTime = z.nullable(z.number().check(z.int(), z.nonnegative()));
 const startupReportSchema = z.strictObject({
   loadId: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
   release: siteRelease,
@@ -114,7 +117,13 @@ const pageFaultSchema = z.object({
   text: z.string(),
   revision: z.optional(z.number()),
 });
-const MAX_PAGE_FAULT_BYTES = 64 * 1024;
+// The fields of the runtime's `read` event the edge reads, to answer it unrecorded.
+const pageReadSchema = z.object({
+  kind: z.literal("read"),
+  attempt: z.optional(z.string()),
+});
+const passiveEventSchema = z.union([pageFaultSchema, pageReadSchema]);
+const MAX_PASSIVE_EVENT_BYTES = 64 * 1024;
 // The startup report's `reason` bound, for the same kind of words.
 const PAGE_FAULT_REASON_CHARS = 300;
 // Workers Logs captures at most 256 KiB across the whole invocation. Leave room for
@@ -321,16 +330,20 @@ async function recordStartup(
   });
 }
 
+// The events a passive session's runtime sends on its own, which the edge answers
+// rather than activating a private container to hold them. Null for any other event,
+// which goes to the container as before.
+//
 // A passive session reads the published page, whose author is the site. A fault it
 // reports owes no reply, so it would start no agent work; in a container it would only
 // wait for the visitor's first agent turn, whose agent did not write the page either. So
-// it belongs beside the startup beacon, where the site's maintainers read, rather than in
-// a private container activated to hold it. Null for any other event, which goes to the
-// container as before.
-async function pageFault(
+// it belongs beside the startup beacon, where the site's maintainers read
+// (`recordPageFault`). A read is the runtime's report that an agent message was on
+// screen, not a gesture, so like geometry it opens no private state (`unrecordedRead`).
+async function passiveEvent(
   request: Request,
-): Promise<z.infer<typeof pageFaultSchema> | null> {
-  const raw = await readBoundedText(request.clone(), MAX_PAGE_FAULT_BYTES);
+): Promise<z.infer<typeof passiveEventSchema> | null> {
+  const raw = await readBoundedText(request.clone(), MAX_PASSIVE_EVENT_BYTES);
   if (raw === null) return null;
   let value: unknown;
   try {
@@ -338,8 +351,32 @@ async function pageFault(
   } catch {
     return null;
   }
-  const parsed = pageFaultSchema.safeParse(value);
+  const parsed = passiveEventSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
+}
+
+// The runtime sends no read until its session is active (`thread/read.js`), so this
+// answers one that arrives anyway, as from a tab whose runtime predates that rule. It
+// is refused as final, which the runtime takes as "don't send it again this visit", and
+// under a 200, since a browser logs a failed fetch as a console error.
+function unrecordedRead(
+  read: z.infer<typeof pageReadSchema>,
+  manifest: SiteManifest,
+  route: PageRoute,
+  reference: string,
+): Response {
+  const refusal: ServedEventAnswer = {
+    ok: false,
+    final: true,
+    error: "A published page records no reads until you act on it",
+    findings: [],
+    ...(read.attempt !== undefined && { attempt: read.attempt }),
+  };
+  const answer = Response.json(refusal, {
+    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
+  });
+  stampDelivery(answer.headers, route, manifest, reference);
+  return answer;
 }
 
 function recordPageFault(
@@ -506,7 +543,9 @@ async function staticState(
   route: PageRoute,
   reference: string,
 ): Promise<Response> {
-  const viewRevision = request.headers.get("Leaf-View-Revision");
+  const viewRevision =
+    new URL(request.url).searchParams.get("revision") ||
+    request.headers.get("Leaf-View-Revision");
   const statePath = viewRevision === null ? route.state : route.states[viewRevision];
   if (statePath === undefined) {
     return new Response("unknown page revision", { status: 400 });
@@ -657,12 +696,15 @@ export default {
       return new Response(null, { status: 204 });
     }
     if (!active && request.method === "POST" && route.inside === "api/event") {
-      const fault = await pageFault(request);
-      if (fault !== null) {
+      const event = await passiveEvent(request);
+      if (event?.kind === "read") {
+        return unrecordedRead(event, manifest, route, reference);
+      }
+      if (event?.kind === "error") {
         if (existing === null) {
           return new Response("page error has no page session", { status: 400 });
         }
-        return recordPageFault(request, fault, manifest, route, reference);
+        return recordPageFault(request, event, manifest, route, reference);
       }
     }
     if (!active && request.method === "GET" && route.inside === "api/state") {
@@ -731,8 +773,8 @@ export default {
         });
         // Accepted page events are already durable; active Codex turn identity
         // belongs to the running process.
-        // TODO: a dispatch does not yet survive its container (TODO.md, "Make a
-        // leaf.page dispatch survive its container").
+        // TODO: a dispatch does not yet survive its container (issue #4080,
+        // "Make a leaf.page dispatch survive its container").
         ctx.waitUntil(dispatchAgentTask(env, params));
       }
     }

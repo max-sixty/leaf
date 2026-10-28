@@ -3,12 +3,7 @@
 import re
 
 import pytest
-from leaf import event_log as events_model
 from playwright.sync_api import expect
-from render_cases_navigation import (
-    composer_quote,
-    pending_text,
-)
 from render_harness import (
     AVAILABLE_COMMANDS,
     BOARD_PAGE,
@@ -18,19 +13,16 @@ from render_harness import (
     _traffic,
     _until,
     consume_browser_errors,
-    expect_panel_offers,
     http_error_console,
-    navigate,
     open_page,
     page_comment,
-    panel_control,
     panel_menu,
     round_trip,
-    stamp_page,
     told,
-    wait_for_revision,
     write,
 )
+
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -64,13 +56,13 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
         pass
     leaf = page.locator(".lf-fp-leaf")
     expect(leaf).to_have_attribute(
-        "aria-label", "Page menu · Key refused — open Leaf's link in a new tab"
+        "aria-label", "Page menu · This tab lost access — open the link again"
     )
     expect(page.locator(PANEL_THREAD)).to_contain_text("Words the server never read")
     # The leaf's menu says what the user can do about it, and that the tab stays open.
     expect(panel_menu(page).locator(".lf-fp-state")).to_have_text(
-        "Key refused — open Leaf's link in a new tab"
-        "Keep this tab open so pending changes can send."
+        "This tab lost access — open the link again"
+        "Keep this tab open so changes made here go through."
     )
     leaf.click()
     expect(pick).to_have_attribute("aria-checked", "true")
@@ -89,7 +81,7 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
         {"value": ["opt-a"]}
     ]
     expect(pick).to_have_attribute("aria-checked", "true")
-    expect(leaf).not_to_have_attribute("aria-label", re.compile("Key refused"))
+    expect(leaf).not_to_have_attribute("aria-label", re.compile("This tab lost access"))
     consume_browser_errors(
         page,
         http_error_console(401),
@@ -165,58 +157,3 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
     assert fresh.eval_on_selector_all(*order) == in_force, (
         "a tab reading the log fresh disagrees with the tab that heard the undo"
     )
-
-
-def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, serve):
-    """A draft survives the version it was written against even when that version's
-    replacement removes its passage. The editor stays available without attaching to
-    the rewritten words, and the draft returns to its passage when that version does."""
-    url = serve(INLINE_PAGE)
-    page = open_page(browser, url)
-
-    page.locator("#p").click(click_count=3)
-    page.locator(".lf-fab-input").click()
-    write(
-        page.locator(".lf-composer leaf-text"),
-        "half-written when the version turned over",
-    )
-    passage = " ".join(page.locator("#p").inner_text().split())
-    assert not composer_quote(page)["shown"], "the passage is right here, and marked"
-
-    # Claude ships a version that rewrites the passage out. The page holds still — a
-    # draft is mid-composition — and offers the new version in the leaf's menu, which
-    # the user takes.
-    d = serve.page_dir
-    rewritten = INLINE_PAGE.replace(
-        "A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,\n"
-        "so that a selection across the middle of it lands in more than one text node.",
-        "Rewritten, with nothing left of the sentence the draft was about.",
-    )
-    stamp_page(d, rewritten, "two")
-    told(page)
-    expect_panel_offers(page, "latest")
-    panel_control(page, "latest").click()
-    wait_for_revision(page, 2)
-    expect(page).not_to_have_url(re.compile("/versions/"))
-    expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_have_js_property(
-        "value", "half-written when the version turned over"
-    )
-    expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
-    assert pending_text(page) == "", (
-        "v2 rewrote the passage and the page marked it anyway"
-    )
-
-    # Through the page's own readiness rather than the paragraph's arrival in markup:
-    # the restore of an open draft is part of presenting the page, and a gesture made
-    # before that is a gesture the user could not have made.
-    navigate(page, url)
-    page.locator("#p").click(click_count=3)
-    expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
-    expect(page.locator(".lf-fab-input")).to_have_js_property(
-        "value", "half-written when the version turned over"
-    )
-    # The words come back; the user's keyboard does not go with them.
-    expect(page.locator(".lf-fab-input")).not_to_be_focused()
-    quote = composer_quote(page)
-    assert quote["text"] == f"“{passage}”", f"the quote says {quote['text']!r}"

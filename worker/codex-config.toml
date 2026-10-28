@@ -1,3 +1,11 @@
+model_provider = "leaf-http"
+
+[model_providers.leaf-http]
+name = "OpenAI"
+requires_openai_auth = true
+supports_websockets = false
+env_http_headers = { "OpenAI-Organization" = "OPENAI_ORGANIZATION", "OpenAI-Project" = "OPENAI_PROJECT" }
+
 [shell_environment_policy]
 inherit = "all"
 exclude = ["OPENAI_API_KEY"]

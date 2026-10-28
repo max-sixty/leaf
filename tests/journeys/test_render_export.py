@@ -12,6 +12,13 @@ from interact_support import (
     STATED_TIMEOUT,
     neighbour_page,
 )
+from playwright.sync_api import expect
+from render_harness import (
+    leaf_page,
+    open_page,
+    sending,
+)
+
 from leaf import cli as cli_model
 from leaf import exporting as exporting_model
 from leaf import server as server_model
@@ -19,12 +26,6 @@ from leaf import state as cleanup_model
 from leaf.render_checks import wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf.served_state.service import PageStateService
-from playwright.sync_api import expect
-from render_harness import (
-    leaf_page,
-    open_page,
-    sending,
-)
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -311,7 +312,8 @@ def test_playground_examples_keep_their_offline_interaction_mode(
         "request",
         lambda request: (
             external.append(request.url)
-            if request.url != document_url and not request.url.startswith("data:")
+            if request.url != document_url
+            and not request.url.startswith(("data:", "blob:"))
             else None
         ),
     )

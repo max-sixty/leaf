@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>GitHub discoveries</title>
+    <meta
+      name="description"
+      content="Projects and capabilities to explore across your contributions, follows and stars."
+    />
+    <style>
+      :root {
+        --col: 1040px;
+        --wide: 1040px;
+        --accent: #5852b5;
+        --feed-color: #5852b5;
+        --feed-wash: #efedf9;
+        --feed-line: #e5e2db;
+        --feed-header: 68px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --accent: #bbb4ff;
+          --feed-color: #bbb4ff;
+          --feed-wash: #302c44;
+          --feed-line: #39362f;
+        }
+      }
+      main.layout-column {
+        padding-block-start: 0;
+        padding-block-end: 100px;
+      }
+      .masthead {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        min-block-size: var(--feed-header);
+        box-sizing: border-box;
+        background: var(--paper);
+        border-block-end: 1px solid var(--feed-line);
+      }
+      .masthead h1 {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+        font: 720 1.35rem/1 var(--sans);
+        letter-spacing: -0.035em;
+      }
+      .masthead p {
+        margin: 0;
+        font: 0.82rem/1.4 var(--sans);
+        color: var(--muted);
+      }
+      lf-repo-feed {
+        display: block;
+        min-block-size: 800px;
+        font-family: var(--sans);
+      }
+      .feed-layout {
+        display: grid;
+        grid-template-columns: 168px minmax(0, 1fr);
+        gap: 32px;
+        align-items: start;
+      }
+      .feed-sidebar {
+        position: sticky;
+        top: calc(var(--feed-header) + 24px);
+        padding-block-start: 24px;
+        min-inline-size: 0;
+      }
+      .feed-distance {
+        display: grid;
+        gap: 5px;
+      }
+      .feed-distance button {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        inline-size: 100%;
+        min-block-size: 46px;
+        text-align: start;
+        padding: 10px 14px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        font: 550 0.9rem/1.4 var(--sans);
+        color: var(--muted);
+      }
+      .feed-distance button:hover {
+        background: color-mix(in srgb, var(--ink) 4%, transparent);
+        color: var(--ink);
+      }
+      .feed-distance button[aria-pressed="true"] {
+        background: var(--feed-wash);
+        color: var(--feed-color);
+        font-weight: 650;
+      }
+      .feed-nav-dot {
+        inline-size: 5px;
+        block-size: 5px;
+        border-radius: 50%;
+        background: currentColor;
+        visibility: hidden;
+      }
+      [aria-pressed="true"] .feed-nav-dot {
+        visibility: visible;
+      }
+      .feed-aside-note {
+        margin: 24px 14px 16px;
+        font: 0.78rem/1.7 var(--sans);
+        color: var(--muted);
+      }
+      .feed-about {
+        margin-inline: 14px;
+        font: 0.76rem/1.6 var(--sans);
+        color: var(--muted);
+      }
+      .feed-about summary {
+        display: flex;
+        align-items: center;
+        min-block-size: 44px;
+        cursor: pointer;
+        color: var(--muted);
+        text-decoration: underline;
+        text-underline-offset: 4px;
+      }
+      .feed-about p {
+        margin-block: 12px;
+        font: inherit;
+      }
+      .feed-about > p:last-child {
+        margin-block-end: 0;
+      }
+      .feed-main {
+        min-inline-size: 0;
+        border-inline: 1px solid var(--feed-line);
+      }
+      .feed-topbar {
+        position: sticky;
+        top: var(--feed-header);
+        z-index: 3;
+        background: var(--paper);
+        border-block-end: 1px solid var(--feed-line);
+        padding: 10px 24px 0;
+      }
+      .feed-status {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        min-block-size: 44px;
+      }
+      .feed-status h2 {
+        margin: 0;
+        font: 700 1.1rem/1.4 var(--sans);
+        letter-spacing: -0.02em;
+      }
+      .feed-news,
+      .feed-refresh {
+        min-block-size: max(40px, var(--aim-floor));
+        background: transparent;
+        border: 0;
+        padding: 6px 0 6px 10px;
+        margin: 0;
+        font: 550 0.76rem/1.4 var(--sans);
+        color: var(--feed-color);
+      }
+      .feed-refresh {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+      }
+      .feed-refresh svg {
+        inline-size: 15px;
+        block-size: 15px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .feed-refresh:hover,
+      .feed-news:hover {
+        color: var(--ink);
+      }
+      .feed-refresh:disabled {
+        opacity: 0.5;
+        cursor: progress;
+      }
+      .feed-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+      .feed-topics {
+        display: flex;
+        gap: 20px;
+      }
+      .feed-topics button {
+        min-block-size: 44px;
+        padding: 8px 0 10px;
+        background: transparent;
+        border: 0;
+        border-block-end: 2px solid transparent;
+        border-radius: 0;
+        font: 550 0.75rem/1.4 var(--sans);
+        color: var(--muted);
+      }
+      .feed-topics button[aria-pressed="true"] {
+        color: var(--ink);
+        border-block-end-color: var(--feed-color);
+      }
+      .feed-topics button:hover {
+        color: var(--ink);
+      }
+      .feed-live {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font: 0.75rem/1.3 var(--sans);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .feed-live > span {
+        inline-size: 5px;
+        block-size: 5px;
+        background: var(--feed-color);
+        border-radius: 50%;
+      }
+      .feed-card {
+        --story-color: var(--feed-color);
+        --story-wash: var(--feed-wash);
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        gap: 12px;
+        padding: 24px;
+        border-block-end: 1px solid var(--feed-line);
+        scroll-margin-block-start: calc(var(--feed-header) + 120px);
+      }
+      .feed-card[data-topic="tools"] {
+        --story-color: light-dark(#32716a, #8ecdc2);
+        --story-wash: light-dark(#e6f0ed, #243a34);
+      }
+      .feed-card[data-topic="data"] {
+        --story-color: light-dark(#8a5d27, #dfbb84);
+        --story-wash: light-dark(#f5ecdc, #3a3122);
+      }
+      .feed-avatar {
+        display: grid;
+        place-items: center;
+        inline-size: 34px;
+        block-size: 34px;
+        background: var(--story-wash);
+        color: var(--story-color);
+        border-radius: 9px;
+        font: 680 0.68rem/1 var(--sans);
+        text-decoration: none;
+        letter-spacing: -0.025em;
+      }
+      .feed-avatar:hover {
+        outline: 1px solid var(--story-color);
+        outline-offset: 2px;
+      }
+      .feed-story {
+        min-inline-size: 0;
+      }
+      .feed-meta {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 4px 9px;
+        font: 0.75rem/1.5 var(--sans);
+        color: var(--muted);
+      }
+      .feed-repo {
+        font-weight: 650;
+        color: var(--ink);
+        text-decoration: none;
+        overflow-wrap: anywhere;
+      }
+      .feed-repo:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .feed-angle {
+        margin-inline-start: auto;
+        color: var(--story-color);
+        font-weight: 550;
+      }
+      .feed-card h3 {
+        margin: 8px 0 9px;
+        font: 680 1.2rem/1.3 var(--sans);
+        letter-spacing: -0.025em;
+        text-wrap: pretty;
+        overflow-wrap: anywhere;
+      }
+      .feed-card h3 a {
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .feed-card h3 a:hover {
+        color: var(--story-color);
+      }
+      .feed-commentary p,
+      .feed-context p {
+        margin: 0;
+        font: inherit;
+      }
+      .feed-commentary {
+        margin: 0;
+        max-inline-size: 65ch;
+        font: 0.89rem/1.65 var(--sans);
+        color: var(--ink);
+        text-wrap: pretty;
+      }
+      .feed-context {
+        display: flex;
+        align-items: start;
+        gap: 7px;
+        margin: 12px 0 0;
+        font: 0.78rem/1.55 var(--sans);
+        color: var(--muted);
+      }
+      .feed-context svg {
+        flex: 0 0 14px;
+        inline-size: 14px;
+        block-size: 14px;
+        margin-block-start: 2px;
+        fill: none;
+        stroke: var(--story-color);
+        stroke-width: 1.3;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .feed-actions {
+        position: relative;
+        margin-block-start: 7px;
+      }
+      .feed-ask {
+        position: absolute;
+        inset-inline-end: 0;
+        inset-block-start: 0;
+        padding: 8px 0 8px 10px;
+        min-block-size: 44px;
+        background: transparent;
+        border: 0;
+        color: var(--muted);
+        font: 550 0.75rem/1.4 var(--sans);
+      }
+      .feed-ask:hover {
+        color: var(--story-color);
+      }
+      .feed-source {
+        margin: 0;
+        padding: 0;
+        font: 0.75rem/1.5 var(--sans);
+      }
+      .feed-source summary {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        min-block-size: 44px;
+        inline-size: fit-content;
+        max-inline-size: calc(100% - 112px);
+        cursor: pointer;
+        font: 550 0.75rem/1.4 var(--sans);
+        color: var(--muted);
+      }
+      .feed-source summary:hover {
+        color: var(--story-color);
+      }
+      .feed-source summary svg {
+        inline-size: 13px;
+        block-size: 13px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.3;
+        transition: transform 0.16s ease-out;
+      }
+      .feed-source[open] summary svg {
+        transform: rotate(180deg);
+      }
+      .feed-evidence {
+        background: color-mix(in srgb, var(--ink) 3%, var(--paper));
+        border: 1px solid var(--feed-line);
+        border-radius: 8px;
+        padding: 18px;
+        margin-block: 3px 10px;
+        min-inline-size: 0;
+      }
+      .feed-source-title {
+        margin: 0 0 7px;
+        font: 650 0.84rem/1.45 var(--sans);
+      }
+      .feed-source-title a {
+        color: var(--ink);
+      }
+      .feed-source-meta {
+        margin-block-end: 16px;
+        font: 0.75rem/1.5 var(--sans);
+        color: var(--muted);
+      }
+      .feed-markdown {
+        font: 0.875rem/1.65 var(--sans);
+        overflow-wrap: anywhere;
+      }
+      .feed-markdown p,
+      .feed-markdown ul,
+      .feed-markdown ol {
+        font: inherit;
+        margin-block: 10px;
+      }
+      .feed-markdown :is(h1, h2, h3, h4, h5, h6) {
+        font: 650 0.9rem/1.4 var(--sans);
+        margin-block: 20px 7px;
+        letter-spacing: -0.01em;
+      }
+      .feed-markdown :first-child {
+        margin-block-start: 0;
+      }
+      .feed-markdown pre {
+        max-inline-size: 100%;
+        padding: 12px;
+        font-size: 0.71rem;
+        border-radius: 4px;
+        overflow-x: auto;
+      }
+      .feed-markdown code {
+        font-size: 0.9em;
+      }
+      .feed-markdown table {
+        display: block;
+        max-inline-size: 100%;
+        overflow-x: auto;
+        font-size: 0.75rem;
+      }
+      .feed-markdown img {
+        max-inline-size: 100%;
+        max-block-size: 380px;
+        object-fit: contain;
+      }
+      .feed-markdown blockquote {
+        margin-inline: 0;
+        padding-inline-start: 12px;
+        border-inline-start: 1px solid var(--feed-line);
+        color: var(--muted);
+      }
+      .feed-source-link {
+        display: inline-block;
+        min-block-size: 30px;
+        margin-block-start: 14px;
+        font: 550 0.75rem/1.5 var(--sans);
+        color: var(--story-color);
+      }
+      .feed-end {
+        padding: 28px 24px 90px;
+        text-align: center;
+        font: 0.78rem/1.6 var(--sans);
+        color: var(--muted);
+      }
+      .feed-end p {
+        font: inherit;
+        margin-block: 8px;
+      }
+      .feed-end > p:last-child {
+        margin-block-end: 0;
+      }
+      .feed-end button {
+        min-block-size: 44px;
+      }
+      .feed-more {
+        padding: 10px 20px;
+        border: 1px solid var(--feed-line);
+        border-radius: 20px;
+        background: transparent;
+        font: 550 0.8rem/1.5 var(--sans);
+        color: var(--feed-color);
+      }
+      .feed-more:hover {
+        background: var(--feed-wash);
+      }
+      .feed-loading-dots {
+        display: inline-flex;
+        gap: 5px;
+        padding-block: 12px;
+      }
+      .feed-loading-dots i {
+        inline-size: 5px;
+        block-size: 5px;
+        border-radius: 50%;
+        background: var(--feed-color);
+        opacity: 0.35;
+      }
+      .feed-loading-dots i:nth-child(2) {
+        opacity: 0.65;
+      }
+      .feed-loading-dots i:nth-child(3) {
+        opacity: 1;
+      }
+      .feed-empty {
+        padding: 28px 24px;
+        font: 0.9rem/1.7 var(--sans);
+        color: var(--muted);
+      }
+      .feed-layout :is(button, a, summary, select):focus-visible {
+        outline: var(--focus-ring);
+        outline-offset: 3px;
+      }
+      ::selection {
+        background: var(--feed-wash);
+        color: var(--ink);
+      }
+      @media (max-width: 900px) {
+        .feed-live {
+          display: none;
+        }
+        .feed-layout {
+          grid-template-columns: 145px minmax(0, 1fr);
+          gap: 20px;
+        }
+      }
+      @media (max-width: 680px) {
+        :root {
+          --feed-header: 56px;
+        }
+        .masthead p {
+          font-size: 0.75rem;
+          max-inline-size: 170px;
+          text-align: end;
+        }
+        .masthead h1 {
+          font-size: 1.2rem;
+        }
+        .feed-layout {
+          display: block;
+        }
+        .feed-sidebar {
+          position: static;
+          padding-block: 8px 0;
+        }
+        .feed-distance {
+          display: flex;
+          gap: 2px;
+          justify-content: space-between;
+        }
+        .feed-distance button {
+          inline-size: auto;
+          padding: 8px 10px;
+          font-size: 0.77rem;
+          min-block-size: max(42px, var(--aim-floor));
+          border-radius: 7px;
+        }
+        .feed-nav-dot,
+        .feed-aside-note {
+          display: none;
+        }
+        .feed-about {
+          margin-inline: 10px;
+        }
+        .feed-main {
+          border-inline: 0;
+        }
+        .feed-topbar {
+          padding: 6px 0 0;
+        }
+        .feed-status h2 {
+          font-size: 1rem;
+        }
+        .feed-status {
+          min-block-size: 38px;
+        }
+        .feed-topics {
+          gap: 18px;
+        }
+        .feed-topics button {
+          font-size: 0.71rem;
+          min-block-size: max(42px, var(--aim-floor));
+        }
+        .feed-card {
+          padding: 20px 0;
+          grid-template-columns: 28px minmax(0, 1fr);
+          gap: 10px;
+        }
+        .feed-avatar {
+          inline-size: 28px;
+          block-size: 28px;
+          font-size: 0.6rem;
+          border-radius: 7px;
+        }
+        .feed-card h3 {
+          font-size: 1.08rem;
+        }
+        .feed-commentary p,
+        .feed-context p {
+          margin: 0;
+          font: inherit;
+        }
+        .feed-commentary {
+          font-size: 0.88rem;
+          line-height: 1.6;
+        }
+        .feed-meta {
+          font-size: 0.75rem;
+          gap: 4px 7px;
+        }
+        .feed-angle {
+          margin-inline-start: 0;
+        }
+        .feed-context {
+          font-size: 0.76rem;
+        }
+        .feed-evidence {
+          padding: 12px;
+        }
+        .feed-end {
+          padding-inline: 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .feed-source summary svg {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="layout-column">
+      <header class="masthead" id="masthead">
+        <h1>GitHub discoveries</h1>
+      </header>
+      <lf-repo-feed id="repo-feed" source="repo-changes"></lf-repo-feed>
+    </main>
+  </body>
+</html>

@@ -14,23 +14,25 @@ from interact_support import (
     model_layer,
     refused_on,
 )
+
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import validation as registry_validation
-
 from model.interact_contract import (
     _stateful_page_declaration,
     _value_verb,
+    declare_vocabulary,
+    vocabulary,
 )
 
 
 def test_unrecorded_fold_units_are_required_strings(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     add = registry["lf-options"]["x-state"]["add"]
     add.pop("creates")
     add["detail"]["properties"]["option"] = {"type": "integer"}
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 
@@ -48,11 +50,11 @@ def test_unrecorded_fold_units_are_required_strings(page_dir):
     ],
 )
 def test_recorded_effects_fix_their_fold_unit(page_dir, tag, verb, unit):
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     spec = registry[tag]["x-state"][verb]
     spec["unit"] = unit
     registry[tag]["properties"]["restated"] = {"type": "boolean"}
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 
@@ -70,7 +72,7 @@ def test_recorded_effects_fix_their_fold_unit(page_dir, tag, verb, unit):
 
 def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
     """Each effect admits its fixed fields and refuses aliases, extras and wrong types."""
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     source = (
         '<lf-options id="picks" choose><lf-option id="first">First</lf-option></lf-options>'
         '<lf-draft id="draft"><pre>Initial words</pre></lf-draft>'
@@ -150,7 +152,7 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
 @pytest.mark.parametrize("writer", ["user", "agent"])
 def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
     """Both writers may clear or select authored/generated members, once each."""
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     options = registry["lf-options"]
     if writer == "agent":
         options.pop("x-awaits")
@@ -200,7 +202,7 @@ def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
 
 def test_scalar_record_admission_inherits_the_destination_schema(page_dir):
     """A destination constraint is also the event constraint, without a second declaration."""
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     declaration = _stateful_page_declaration(page_dir)
     declaration["properties"]["value"] = {
         "type": "string",
@@ -234,7 +236,7 @@ def test_scalar_record_admission_inherits_the_destination_schema(page_dir):
     "mutation", ["detail", "record-value", "record-rank", "text-field"]
 )
 def test_recorded_declarations_cannot_override_the_fixed_payload(page_dir, mutation):
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     spec = registry["lf-board"]["x-state"]["move"]
     if mutation == "detail":
         spec["detail"] = {"type": "object", "additionalProperties": False}
@@ -242,7 +244,7 @@ def test_recorded_declarations_cannot_override_the_fixed_payload(page_dir, mutat
         registry["lf-test-worker"]["x-state"]["state"]["text"] = "doing"
     else:
         spec["record"][mutation.removeprefix("record-")] = "custom"
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 
@@ -251,12 +253,12 @@ def test_recorded_declarations_cannot_override_the_fixed_payload(page_dir, mutat
 
 
 def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     registry["lf-test-worker"]["properties"]["state"] = {
         "type": "integer",
         "minimum": 0,
     }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 
@@ -266,7 +268,7 @@ def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
 
 def test_report_text_is_required_only_when_declared(page_dir):
     """`text: true` requires non-empty text; reports without it carry just their value."""
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     page = ModelPage(
         '<lf-test-worker id="agent" state="working">Agent</lf-test-worker>',
         registry=registry,
@@ -318,9 +320,9 @@ def test_report_text_is_required_only_when_declared(page_dir):
     ],
 )
 def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     del registry[tag]["x-state"][verb][field]
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 
@@ -341,11 +343,11 @@ def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
 def test_distinct_verbs_cannot_claim_one_physical_record_slot(
     page_dir, tag, verb, kind, attr
 ):
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     declared = registry[tag]["x-state"][verb]
     parallel = json.loads(json.dumps(declared))
     registry[tag]["x-state"]["parallel"] = parallel
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 
@@ -364,12 +366,12 @@ def test_distinct_verbs_cannot_claim_one_physical_record_slot(
 def test_a_position_record_places_a_part_and_never_the_widget(page_dir):
     """A rank lies between the unit's neighbours, which only the widget holding the
     container can read, so a widget cannot record its own position."""
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     registry["lf-options"]["x-state"]["move"] = {
         "unit": "widget",
         "record": {"kind": "position", "within": "lf-column"},
     }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 

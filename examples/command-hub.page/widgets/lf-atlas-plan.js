@@ -2,43 +2,50 @@
  * stopped tasks and assignments consistent with the recorded decisions. */
 import {
   authoredScope,
+  generatedElement,
   keeps,
   HeldReading,
   html,
   keepsText,
-  once,
+  LeafElement,
+  noChange,
   readWork,
   render,
   repeat,
-  watchProjection,
 } from "/runtime/widget-api.js";
 customElements.define(
   "lf-atlas-plan",
-  class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
+  class extends LeafElement {
+    setup() {
       keeps(this, "role", "group");
       keeps(this, "aria-label", this.getAttribute("label") ?? "Plan");
       this.overview = authoredScope(this).querySelector(
         `#${CSS.escape(this.getAttribute("overview"))}`,
       );
       if (!this.overview) return;
+      // The counts are this plan's words; the stopped list repeats task titles the
+      // page says in the tree.
+      for (const count of this.overview.querySelectorAll("[data-atlas-count]"))
+        generatedElement(count, { says: true });
+      generatedElement(this.overview.querySelector(".atlas-stopped > ul"), {
+        says: "echo",
+      });
       this.hold = new HeldReading(
         this,
         () => [this.overview.querySelector(".atlas-stopped")],
-        () => this.watching.refresh(),
+        () => this.requestUpdate(),
       );
       this.button = this.overview.querySelector(".atlas-refresh");
       this.button.addEventListener("click", () => {
         this.hold.release();
         for (const child of this.querySelectorAll("lf-atlas-worker, lf-atlas-tree"))
           child.showLatest();
-        this.watching.refresh();
+        this.requestUpdate();
       });
-      this.addEventListener("atlas-reading", () => this.watching.refresh());
-      this.watching = watchProjection(this, () => this.paint());
+      this.addEventListener("atlas-reading", () => this.requestUpdate());
     }
-    paint() {
+    render() {
+      if (!this.overview) return noChange;
       const reading = readWork(this);
       const counts = {
         progress: `${reading.done} / ${reading.leaves.length} complete`,
@@ -70,6 +77,7 @@ customElements.define(
         ),
         this.overview.querySelector(".atlas-stopped > ul"),
       );
+      return noChange;
     }
   },
 );

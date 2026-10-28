@@ -1,14 +1,9 @@
 // <lf-sort-film>: the player around sort.js. It owns playback, the input choice and the
-// narration, and paints in the page's own palette: every colour is a theme token resolved
-// through a probe element, re-read when the page switches between light and dark.
-//
-// Each time the step changes it indicates the Rust source line that step executes, by
-// its source line numbers, in the excerpts its three code attributes name, and dispatches `sort-step` (bubbling)
-// so the page can keep that line in view.
+// narration, and paints with CSS theme tokens that the SVG resolves as the theme changes.
 
 import {
   frameFor,
-  indicate,
+  generatedElement,
   inlineMarkdownFragment,
   keeps,
   keepsText,
@@ -23,7 +18,6 @@ import {
 } from "/runtime/widget-api.js";
 import {
   INPUTS,
-  LINES,
   N,
   Painter,
   PHASE,
@@ -36,7 +30,7 @@ import {
 
 const SVGNS = "http://www.w3.org/2000/svg";
 
-const TOKENS = {
+const C = {
   card: "var(--card)",
   field: "var(--field)",
   ink: "var(--ink)",
@@ -51,6 +45,8 @@ const TOKENS = {
   warn: "var(--warn)",
   warnTint: "var(--warn-tint)",
   danger: "var(--danger)",
+  sans: "var(--sans)",
+  mono: "var(--mono)",
 };
 
 const PHASE_NAME = {
@@ -93,7 +89,6 @@ customElements.define(
     #last = 0;
     #raf = 0;
     #step = -1;
-    #C = null;
     #autoPlayTimer = 0;
     #laidOut = 0;
     // The drawing is laid out at the stage's width (sort.js, `geometry`), so a pane
@@ -108,7 +103,6 @@ customElements.define(
 
     connectedCallback() {
       if (!once(this)) return;
-      this.#resolvePalette();
       this.#build();
       if (!reducedMotion())
         this.#autoPlayTimer = setTimeout(() => {
@@ -126,59 +120,19 @@ customElements.define(
         loadMarkdown().then((ready) => {
           if (ready && !signal.aborted && this.#step >= 0) this.#renderNote();
         });
-        const repaint = () => {
-          this.#resolvePalette();
-          this.#paintTimeline();
-          this.#paint();
-        };
-        matchMedia("(prefers-color-scheme: dark)").addEventListener("change", repaint, {
-          signal,
-        });
         const stopMotionWatch = onMotionPreferenceChange((reduce) => {
           if (reduce) this.#pause();
-        });
-        const observer = new MutationObserver(repaint);
-        observer.observe(document.documentElement, {
-          attributes: true,
-          attributeFilter: ["data-theme", "class", "style"],
         });
         const sized = sizeObserver(() => {
           if (this.#svgWidth() !== this.#laidOut) this.#relayout();
         });
         sized.observe(this.stage);
-        // The theme may have changed while the film was away.
-        repaint();
         return () => {
-          this.#indicate(null);
           stopMotionWatch();
-          observer.disconnect();
           sized.disconnect();
           this.#pause();
         };
       });
-    }
-
-    // One key to every excerpt: each quotes its own stretch of slice.rs, so a line
-    // number lights in the one block that shows it and addresses nothing in the rest.
-    #indicate(key) {
-      for (const attr of ["sort-code", "head-code", "merge-code"])
-        if (this.hasAttribute(attr)) indicate(this, attr, key);
-    }
-
-    #resolvePalette() {
-      const probe = document.createElement("span");
-      probe.style.display = "none";
-      this.append(probe);
-      const C = {};
-      for (const [k, expr] of Object.entries(TOKENS)) {
-        probe.style.color = expr;
-        C[k] = getComputedStyle(probe).color;
-      }
-      probe.remove();
-      const root = getComputedStyle(document.documentElement);
-      C.sans = root.getPropertyValue("--sans").trim() || "system-ui, sans-serif";
-      C.mono = root.getPropertyValue("--mono").trim() || "ui-monospace, monospace";
-      this.#C = C;
     }
 
     // The SVG's own width, which the drawing's units are pixels of.
@@ -309,6 +263,11 @@ customElements.define(
       this.stats.className = "sort-stats";
 
       this.addEventListener("keydown", (e) => this.#key(e));
+      // The drawing, the narration and the count are the film's words, which a reader
+      // can point at; the timeline is a press with none.
+      for (const words of [stage, this.narration, this.stats])
+        generatedElement(words, { says: true });
+      generatedElement(this.timeline, { says: false });
       this.append(stage, this.narration, this.timeline, bar, inputs, this.stats);
       this.#layout();
       this.#load();
@@ -344,7 +303,6 @@ customElements.define(
     // The timeline strip: each step's span coloured by phase, so where the time goes
     // (scanning, insertion, merging) is visible before playing.
     #paintTimeline() {
-      const C = this.#C ?? {};
       const tl = this.timeline;
       tl.replaceChildren();
       const color = {
@@ -372,9 +330,9 @@ customElements.define(
     }
 
     #paint() {
-      if (!this.#film || !this.#C) return;
+      if (!this.#film) return;
       const fr = frame(this.#film, this.#t);
-      this.painter.paint(this.#film, fr, this.#C);
+      this.painter.paint(this.#film, fr, C);
       this.scrub.value = this.#t;
       keeps(this.playhead, "x", (1000 * this.#t) / this.#film.total - 1.5);
       if (fr.i !== this.#step) {
@@ -392,13 +350,6 @@ customElements.define(
             (final
               ? `. A plain top-down merge sort needs ${this.#plain} comparisons on this input.`
               : `, of ${this.#film.comparisons} in all.`),
-        );
-        this.#indicate(s.line ? LINES[s.line] : null);
-        this.dispatchEvent(
-          new CustomEvent("sort-step", {
-            bubbles: true,
-            detail: { line: s.line, kind: s.kind, phase: s.phase },
-          }),
         );
         // The stack and the clauses move as runs push and merge; re-read their geometry.
         this.parts?.update();

@@ -7,9 +7,6 @@ import re
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, newest_move
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -43,6 +40,9 @@ from browser.margin import (
     _unfold,
     _unfold_suggestion_undo,
 )
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -110,8 +110,8 @@ def test_obligation_binding_badges_follow_the_visible_margin_entries(
         }"""
     )
     assert len(geometry["controls"]) == 2, geometry
-    # Inside the window across too: where the pin stands folded, obligation travel standing at
-    # it opens it leftward from its toggle.
+    # Inside the window across too: where the pin stands folded, navigating to that obligation
+    # opens it leftward from its toggle.
     for control in geometry["controls"]:
         assert 0 <= control["x"] < control["right"] <= width, geometry
     # Above the window's foot, and clear of the floating panel standing over it.
@@ -147,7 +147,7 @@ def test_obligation_binding_badges_follow_the_visible_margin_entries(
 # Where the margin's rows stand: in the rail (1440), as pins over the page (700), and as
 # pins one of which folds its actions behind `…` (390). At 1200 every row stands in the
 # rail, as at 1440.
-MARGIN_POSTURE_WIDTHS = [1440, 700, 390]
+MARGIN_PLACEMENT_WIDTHS = [1440, 700, 390]
 
 
 def test_suggestion_actions_stay_reachable_through_a_decision_and_its_undo(
@@ -157,7 +157,7 @@ def test_suggestion_actions_stay_reachable_through_a_decision_and_its_undo(
     undone, in every posture its row takes. Each undo returns the page to where it
     started, so one page walks every posture."""
     page = open_page(browser, serve(MARGIN_ACTIONS_PAGE))
-    for width in MARGIN_POSTURE_WIDTHS:
+    for width in MARGIN_PLACEMENT_WIDTHS:
         # Let go of the pin the last width left unfolded, so it folds back.
         page.mouse.move(0, 0)
         page.evaluate(RELEASE_FOCUS)
@@ -277,9 +277,9 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
 ):
     """A suggestion's margin entry goes through each transition to a settled decision.
 
-    A pending user action and an external work claim are different facts, so the
-    journey holds each one long enough to prove that the former only dims until
-    confirmation while the latter keeps its workflow treatment.
+    A pending user action and an external work claim are different facts. The pending
+    action is drawn as its result, with a live Undo in the pressed entry's seat, while
+    the work claim keeps its workflow treatment.
     """
     page = open_page(browser, live_url(serve(MARGIN_ACTIONS_PAGE)))
     resized(page, 1440, 900)
@@ -298,16 +298,10 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
 
     page.route("**/api/event", reject)
     accept.click()
-    retry = workflow.get_by_role("button", name="Retry", exact=True)
-    cancel_failure = workflow.get_by_role("button", name="Cancel", exact=True)
-    expect(retry).to_have_attribute("data-lf-state", "failed")
-    expect(cancel_failure).to_have_attribute("data-lf-state", "failed")
-    expect(retry).to_have_attribute("data-lf-rank", "complete")
-    expect(cancel_failure).to_have_attribute("data-lf-rank", "escape")
-    expect(workflow).to_contain_text("Failed")
-    cancel_failure.click()
-    page.unroute("**/api/event")
+    expect(page.locator("#s-replace lf-old")).to_be_visible()
+    consume_browser_errors(page, http_error_console(400))
     expect(accept).to_have_attribute("data-lf-state", "idle")
+    page.unroute("**/api/event")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -316,16 +310,12 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     _until(page, lambda traffic: traffic.sends > sends, "held the acceptance")
     expect(accept).to_have_count(0)
     pending_undo = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(pending_undo).to_have_attribute("data-lf-state", "busy")
-    expect(pending_undo).to_have_attribute("aria-busy", "true")
+    expect(pending_undo).to_have_attribute("data-lf-state", "idle")
+    expect(pending_undo).not_to_have_attribute("aria-busy", "true")
+    expect(pending_undo).to_be_enabled()
     expect(page.locator("#s-replace lf-old")).to_be_hidden()
     expect(page.locator("#s-replace lf-new")).to_be_visible()
-    expect(pending_undo).to_have_css("opacity", "0.5")
-    expect(pending_undo).to_have_css("border-style", "solid")
-    expect(pending_undo).to_have_css("animation-name", "lf-runtime-4f3c2a8d-working")
-    assert pending_undo.evaluate(
-        "button => getComputedStyle(button, '::after').content === 'none'"
-    ), "sending must dim the control without adding a second status badge"
+    expect(pending_undo).to_have_css("opacity", "1")
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -333,7 +323,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     expect(page.locator("#s-replace")).to_have_attribute("data-lf-state", "accept")
     # No passing notice repeats the receipt the margin shows.
     expect(panel_field(page)).not_to_have_attribute(
-        "placeholder", re.compile(r"^(Accepted|Rejected) .+ — sent")
+        "placeholder", re.compile(r"^(Accepted|Rejected) .+")
     )
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     undo_button = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
@@ -341,7 +331,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     expect(undo_button).to_have_css("opacity", "1")
     action_shadow = undo_button.evaluate("node => getComputedStyle(node).boxShadow")
     assert action_shadow != "none"
-    sent = workflow.get_by_role("status", name=re.compile(r"^Sent for "))
+    sent = workflow.get_by_role("status", name=re.compile(r"^Queued for Claude for "))
     expect(sent).to_be_visible()
     expect(sent).to_have_attribute("data-lf-state", "idle")
     expect(sent).to_have_css("opacity", "1")
@@ -353,6 +343,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
             "start",
             str(serve.page_dir),
             newest_move(serve.page_dir, "s-replace"),
+            "--text",
             "applying the selected route",
         ],
     )
@@ -383,8 +374,6 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     expect(
         workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
     ).to_have_count(1)
-
-    consume_browser_errors(page, http_error_console(400))
 
 
 def test_keyboard_arrival_at_a_margin_entry_cluster_replaces_ellipsis_with_all_entries(
@@ -481,7 +470,7 @@ def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serv
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
     expect(options).to_be_visible()
     expect(
-        options.get_by_role("status", name=re.compile(r"^Sent for "))
+        options.get_by_role("status", name=re.compile(r"^Queued for Claude for "))
     ).to_be_visible()
     expect(item.locator(".lf-margin-entry:visible")).to_have_count(2)
     expect(
@@ -501,7 +490,7 @@ def test_a_print_preview_leaves_the_clusters_as_it_found_them(browser, serve):
     """Paper takes every injected control out of the page, so the one
     contributor-visibility reading a margin render is built on comes back empty there
     and folds every cluster to nothing. That is a reading of the medium rather than of
-    the page: news arriving while the user stands in the print preview leaves the
+    the page: news arriving while the user is located in the print preview leaves the
     margin entries where they were, and reaches them when the screen comes back.
 
     The shape is read as markup rather than as visibility, because on paper nothing in
@@ -573,9 +562,6 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
         '.lf-command-reference-command[data-lf-command="navigation.back"]'
     )
     expect(back).to_have_text("Close options")
-    expect(
-        back.locator("xpath=ancestor::tr").locator(".lf-command-reference-description")
-    ).to_have_text("Fold the secondary page actions")
     back.click()
     expect(reference).to_be_hidden()
     expect(options).to_be_hidden()
@@ -967,6 +953,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
           }
         }"""
     )
+    margins_laid_out(page)
     for target in ("first", "second"):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         action_order = [
@@ -985,6 +972,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
         expect(item.locator(".lf-margin-more")).to_be_hidden()
         primary = item.locator('[data-lf-margin-entry-key="save"]')
         primary.focus()
+        expect(primary).to_be_focused()
         expect(page.locator(f'.lf-target-trace[data-for="{target}"]')).to_be_visible()
         primary.hover()
         label = item.locator('[data-lf-margin-entry-key="save"] .lf-margin-entry-label')

@@ -12,9 +12,6 @@ from interact_support import (
     trial_family,
     wait_for,
 )
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     RELATIVE_WIDGET_PAGE,
@@ -34,6 +31,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    panel_view,
     post_event,
     resized,
     round_trip,
@@ -46,6 +44,9 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -117,7 +118,7 @@ customElements.define("lf-conditional", class extends LeafElement {
         ),
     )
     expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
-    view = page.locator('.lf-fp-view[data-view="queue"]:not([data-leaving])')
+    view = page.locator(panel_view("queue"))
     items = ".lf-fp-on-item[data-key^='[\"widget\"']"
 
     for phase, count in (("open", 1), ("closed", 0)):
@@ -844,7 +845,7 @@ def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
     registry_path.write_text(json.dumps(declarations))
     stage = "shadowStage(this, [...this.children]);" if shadow else ""
     if shadow:
-        (tmp_path / ".leaf" / "shadow.css").write_text(
+        (tmp_path / ".leaf" / "widget-shadow.css").write_text(
             "lf-current, lf-proposed { display: block; }"
         )
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(

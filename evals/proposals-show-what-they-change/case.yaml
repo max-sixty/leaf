@@ -12,6 +12,9 @@
 # At 35c660aee base passed 0/6 (draws-the-change 1/6, shows-today 0/3); the
 # shape-shown-inside-the-ask rule in authoring-asks.md passed 3/3, drawing the
 # change 6/6. The wording guardrail held 12/12.
+# On 2026-10-24 a populated spatial text wireframe showed the queue proposal but
+# failed the tag-based drawing criterion. Accepting concrete sketches in any form
+# passed that saved output 1/1 on regrade, without regenerating its author.
 description: proposals-show-what-they-change
 metadata:
   purpose:
@@ -36,7 +39,7 @@ vars:
     change you propose waits on the user's accept or reject. Your notes:
 
     CLI. When a comment is owed and the agent has no delivery, `leaf thread reply`
-    refuses with "`leaf response reply <answer.ref>` answers it", and nothing it names
+    refuses with "`leaf thread reply <answer.ref>` answers it", and nothing it names
     supplies the reference. Five of nine Leaf agents hit it and searched help and
     references before finding `leaf page claim` plus `leaf wait`. Proposal: the refusal
     adds "`leaf wait <page>` delivers it with its reference", with `leaf page claim`
@@ -114,11 +117,13 @@ assert:
     value: |
       Find the `lf-ask` elements deciding the configuration controls (defect 1) and the queue's
       progress (defect 2). Pass only if each shows what accepting the proposal would look
-      like in a drawing (an inline `<svg>`, an `lf-diagram`, an `lf-sample`, or an HTML
-      mockup laid out like the interface) inside
-      that `lf-ask`: in the accepting `lf-option`, or in a figure that shows today beside
-      the change. Fail if either proposal's change is described only in words, or drawn
-      only outside the `lf-ask`.
+      like in a concrete interface sketch inside that `lf-ask`: in the accepting
+      `lf-option`, or in a composition showing today beside the change. Judge what the
+      sketch shows, not its HTML tag: a drawing, sample, HTML mockup, or textual
+      wireframe can communicate the arrangement and resulting experience. A textual
+      wireframe qualifies when its spatial arrangement shows the proposed interface;
+      a list of controls or prose describing their placement does not. Fail if either
+      proposal's change is only described, or shown only outside the `lf-ask`.
   - type: llm-rubric
     metric: wording-stays-text
     value: |

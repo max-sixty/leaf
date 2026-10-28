@@ -2,7 +2,6 @@
 widgets and editors it keeps, and the markup it releases."""
 
 import pytest
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, LIVE_V3, live_url
 from render_harness import (
@@ -12,6 +11,7 @@ from render_harness import (
     open_page,
     panel_menu,
     panel_settled,
+    panel_view,
     round_trip,
     scroll_settled,
     stamp_page,
@@ -19,6 +19,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -444,9 +446,8 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
       pair of lines and around both ends. Those nodes all read alike and outnumber the
       lines; one of them taking a line's pairing would put the rewrite in the wrong line
       or rebuild the fragment whole.
-    - An unnamed widget is as much the user's as a named one. The digests each capture
-      records key it by its tag and place among the others of that tag; without that
-      key every revision would rebuild it, taking whatever the user had open in it.
+    - An unnamed widget is as much the user's as a named one. Unchanged authored
+      markup keeps its node and whatever the user had open in it.
     - A widget that arrives alone inside an exhibit is told the parent it will stand
       under, so it arrives quoted, its actions closed, rather than open to a decision
       against material the page declares as evidence.
@@ -733,13 +734,22 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     """A widget renders from its authored markup, so a rewritten one cannot be put right
     from outside it: it leaves, and its replacement arrives through capture and upgrade
     like any new element. The question beside it that the revision did not touch is the
-    same element it always was, still holding the user's focus."""
+    same element it always was, still holding the user's focus. Its image, SVG link,
+    custom media attribute, inline CSS and scripts carry different delivery roots in
+    each revision. The deferred classic script's line padding changes too. None changes
+    authored identity, and parser-time initial-render marks must not make it look rewritten."""
     first = leaf_page(
         "Widgets first",
         """
 <lf-ask id="wd-store-ask"><h2>Which store?</h2>
 <lf-options id="wd-store" choose>
-  <lf-option id="wd-keep">Keep the store</lf-option>
+  <lf-option id="wd-keep">Keep the store
+  <img src="/page/held.svg" alt="Leaf" data-evidence="/media/051bee487bfb5d13.png">
+  <svg width="16" height="16"><image width="16" height="16" xlink:href="/page/held.svg"></image></svg>
+  <style>#wd-keep { --held-image: url("/page/held.svg"); }</style>
+  <script type="module">if (false) import("/runtime/widget-api.js");</script>
+  <script>if (false) import("/runtime/widget-api.js");</script>
+</lf-option>
   <lf-option id="wd-drop">Drop the store</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="wd-when-ask"><h2>Which schedule?</h2>
@@ -749,12 +759,31 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
 </lf-options></lf-ask>
 """,
     )
-    second = first.replace("Widgets first", "Widgets second").replace(
-        '<lf-option id="wd-later">Start later</lf-option>',
-        '<lf-option id="wd-later">Start later</lf-option>\n'
-        '  <lf-option id="wd-never">Do not start at all</lf-option>',
+    second = (
+        first.replace("Widgets first", "Widgets second")
+        .replace('<lf-ask id="wd-store-ask">', '\n<lf-ask id="wd-store-ask">')
+        .replace(
+            '<lf-option id="wd-later">Start later</lf-option>',
+            '<lf-option id="wd-later">Start later</lf-option>\n'
+            '  <lf-option id="wd-never">Do not start at all</lf-option>',
+        )
+        .replace(
+            '<lf-ask id="wd-when-ask">',
+            '<p><lf-tally id="arriving-tally" for="wd-when-ask" next></lf-tally></p>'
+            '<lf-ask id="wd-when-ask">',
+        )
     )
-    page = open_page(browser, live_url(serve(first)))
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                first,
+                page_files={
+                    "held.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"></svg>'
+                },
+            )
+        ),
+    )
     mark = page.locator("#wd-keep .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
@@ -768,6 +797,9 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     expect(page).to_have_title("Widgets second")
     expect(page.locator("#wd-never")).to_contain_text("Do not start at all")
     expect(page.locator("#wd-never .lf-pick")).to_have_count(1)
+    expect(page.locator("#arriving-tally .lf-tally-words")).to_have_text(
+        "1 left to answer"
+    )
     assert page.evaluate("window.__wdWhen !== document.getElementById('wd-when')"), (
         "the rewritten question kept an element rendering the markup it replaced"
     )
@@ -844,7 +876,7 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve, depart
     from, so holding that copy past the revision that replaced it kept every served
     node alive for the rest of the session. A host painted before modules run is
     included, since the first-paint coordinator copies it separately. Neither the
-    dropped focus, before another input, nor a fragment trip's history checkpoint
+    dropped focus, before another input, nor a fragment navigation step's history checkpoint
     may keep removed markup alive."""
     first = leaf_page(
         "Served",
@@ -1056,7 +1088,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     expect_obligations_answered(page, "0/3")
     page.locator(".lf-fp-on-user").click()
     panel_settled(page, view="queue")
-    cards = '.lf-fp-view[data-view="queue"]:not([data-leaving]) .lf-fp-on-item'
+    cards = f"{panel_view('queue')} .lf-fp-on-item"
     expect(page.locator(cards)).to_have_count(3)
 
     def identities(selector, attribute):

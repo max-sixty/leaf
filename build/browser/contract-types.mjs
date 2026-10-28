@@ -1,7 +1,7 @@
-/** Derive structural TypeScript records from the two schemas a page's protocol holds:
- * the kernel's admission schema for each event record (`$events.kinds` in
- * skills/leaf/assets/registry.json), and the state the server serves the page's
- * runtime (skills/leaf/scripts/leaf/served_state/state.schema.json); and the values of
+/** Derive structural TypeScript records from the kernel's admission schema for each
+ * event record (`$events.kinds` in browser/runtime/kernel-registry.json), which the page
+ * protocol holds, and the state the server serves the runtime
+ * (src/leaf/served_state/state.schema.json), which it doesn't; and the values of
  * each page-wide declaration an author writes (`$authored`). Value constraints
  * (patterns, ranges, and conditional clauses) stay with the schemas' readers. Widget
  * detail stays open: the page's registry, rather than the kernel, owns it.
@@ -17,7 +17,8 @@
  * does.
  *
  * `protocolSchemas` reads those schemas, with each `state.Record`'s, as one value: the
- * types are generated from it, and `protocol.mjs` compares it with the baseline.
+ * types are generated from it, and `protocol.mjs` compares all but the served state
+ * with the baseline.
  */
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -148,7 +149,7 @@ function eventTypes(registry) {
       ].filter((key) => !owned.has(key));
       return `${JSON.stringify(kind)}: ${typeOf({ ...record, properties, required })};`;
     });
-  // The kinds each `$events.kinds` classification names (`runtime/event-kinds.js`
+  // The kinds each `$events.kinds` classification names (`runtime/kernel-facts.js`
   // carries the same classifications as values).
   const classified = Object.entries({
     MessageKind: "message",
@@ -167,7 +168,7 @@ function eventTypes(registry) {
 // Each page-wide declaration an author writes (`$authored`), with the values the
 // runtime may read from it, so a reader comparing against another value fails to
 // type-check.
-function authoredTypes({ $authored: { allocations, meta } }) {
+function authoredTypes({ $authored: { allocations } }) {
   const table = (declared) =>
     `{ ${Object.entries(declared)
       .map(
@@ -175,7 +176,7 @@ function authoredTypes({ $authored: { allocations, meta } }) {
           `${JSON.stringify(name)}: ${values.map((value) => JSON.stringify(value)).join(" | ")};`,
       )
       .join(" ")} }`;
-  return `export type AuthoredAllocations = ${table(allocations)};\nexport type AuthoredMeta = ${table(meta)};\n`;
+  return `export type AuthoredAllocations = ${table(allocations)};\n`;
 }
 
 function servedTypes(schema, verb) {
@@ -208,17 +209,17 @@ print(json.dumps({"references": leaf_resources(), "records": records}))
   );
 }
 
-/** Every schema the page protocol holds and every record's (`protocol.mjs`): the kernel
- * event records and browser commands (`$events`), the served state and the x-state
- * verb it carries, and each `state.Record` with the protocol its shape was set at. */
+/** Every schema the generated types and the page protocol read (`protocol.mjs`): the
+ * kernel event records and browser commands (`$events`), the served state, the x-state
+ * verb, and each `state.Record` with the protocol its shape was set at. */
 export async function protocolSchemas(root) {
   const read = async (file) => JSON.parse(await readFile(new URL(file, root)));
-  const { $events } = await read("skills/leaf/assets/registry.json");
+  const { $events } = await read("browser/runtime/kernel-registry.json");
   const { references, records } = pythonSchemas(root);
   return {
     protocol: $events.protocol,
     events: { ownership: $events.ownership, kinds: $events.kinds },
-    served: await read("skills/leaf/scripts/leaf/served_state/state.schema.json"),
+    served: await read("src/leaf/served_state/state.schema.json"),
     verb: references["leaf:verb"],
     // The composer's draft (`$events.draft`) beside the `state.Record`s.
     records: {
@@ -255,7 +256,7 @@ function written(schema, references) {
 
 export async function contractTypes(root, { events, served, verb }) {
   const registry = JSON.parse(
-    await readFile(new URL("skills/leaf/assets/registry.json", root)),
+    await readFile(new URL("browser/runtime/kernel-registry.json", root)),
   );
-  return `/* @noformat Generated from registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes({ $events: events })}${authoredTypes(registry)}${servedTypes(served, verb)}`;
+  return `/* @noformat Generated from kernel-registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes({ $events: events })}${authoredTypes(registry)}${servedTypes(served, verb)}`;
 }

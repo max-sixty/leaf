@@ -1,12 +1,10 @@
 """Reading keys and the reader's place in workspace panes and bounded blocks, across
-postures, drags and revisions."""
+scroll behaviors, drags and revisions."""
 
 import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import NESTED_PROPOSAL_PAGE, executable_revision, live_url
 from render_cases_layout import page_at_rest, ring_faults, rings_drawn
@@ -14,15 +12,16 @@ from render_cases_navigation import pending_text, wait_for_pending_mark
 from render_harness import (
     CORPUS_SOURCES,
     EXAMPLES,
-    PANEL,
     RELEASE_FOCUS,
     comment_note,
     holding,
     leaf_page,
     margins_laid_out,
     open_page,
-    pane_posture,
+    open_threads,
+    pane_scroll_behavior,
     panel_settled,
+    panel_view,
     resized,
     round_trip,
     scroll_settled,
@@ -36,6 +35,8 @@ from browser.navigation import (
     READING_REGIONS_PAGE,
 )
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -248,7 +249,7 @@ def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
     page.locator("#p8").evaluate("p => p.scrollIntoView({block: 'start'})")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
+    expect(page.locator(panel_view("threads"))).to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("p")
     page.keyboard.press("Tab")
@@ -260,9 +261,7 @@ def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
         }"""
     )
 
-    if page.locator(PANEL).get_attribute("data-open") != "threads":
-        page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     top = page.evaluate("document.scrollingElement.scrollTop")
@@ -301,7 +300,7 @@ def test_a_let_go_never_lands_in_a_closed_fold(browser, serve):
     scroll_settled(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
+    expect(page.locator(panel_view("threads"))).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
@@ -314,7 +313,7 @@ def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, s
     to the scrollport's edge and ran over the pane's header rule at the top."""
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     resized(page, 1440, 900)
-    pane_posture(page, page.locator("#left-reading"), "bounded")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
     page.locator("#left-head").focus()
     page.keyboard.press("Tab")
     body = page.locator("#left-reading > :not(header, footer)")
@@ -324,20 +323,20 @@ def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, s
     assert not ring_faults(drawn, "the focused pane body")
 
 
-def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
+def test_workspace_scroll_behavior_changes_keep_each_panes_reading(browser, serve):
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     left = page.locator("#left-reading > :not(header, footer)")
     right = page.locator("#right-reading > :not(header, footer)")
-    pane_posture(page, page.locator("#left-reading"), "bounded")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
     left.evaluate("el => el.scrollTop = 180")
     right.evaluate("el => el.scrollTop = 380")
     page.locator("#right-subject").focus()
 
     resized(page, 520, 900)
-    pane_posture(page, page.locator("#left-reading"), "flow")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "flow")
     expect(page.locator("#right-subject")).to_be_focused()
     resized(page, 1200, 900)
-    pane_posture(page, page.locator("#left-reading"), "bounded")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
     readings = [
         left.evaluate("el => el.scrollTop"),
         right.evaluate("el => el.scrollTop"),
@@ -368,7 +367,7 @@ def cut_short(page):
     the band the reader had the line."""
     left = page.locator("#left-reading")
     resized(page, 520, 900)
-    pane_posture(page, left, "flow")
+    pane_scroll_behavior(page, left, "flow")
     rendered(page)
     page.evaluate("document.scrollingElement.scrollTo(0, 0)")
     rendered(page)
@@ -381,7 +380,7 @@ def cut_short(page):
     rendered(page)
     read = page.evaluate(LEFT_START_BELOW)
     resized(page, 1200, 900)
-    pane_posture(page, left, "bounded")
+    pane_scroll_behavior(page, left, "bounded")
     rendered(page)
     assert page.evaluate(LEFT_START_BELOW) < read - 40, "the pane should be cut short"
     return read
@@ -396,7 +395,7 @@ def test_a_restore_cut_short_by_a_pane_keeps_the_readers_place_for_the_return(
     page = open_page(browser, serve(CUT_SHORT_PAGE))
     read = cut_short(page)
     resized(page, 520, 900)
-    pane_posture(page, page.locator("#left-reading"), "flow")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "flow")
     rendered(page)
     assert page.evaluate(LEFT_START_BELOW) == pytest.approx(read, abs=2)
 
@@ -432,7 +431,7 @@ def test_a_box_holding_a_restored_place_still_follows_the_reader(browser, serve,
             page.go_back()
             rendered(page)
     resized(page, 520, 900)
-    pane_posture(page, page.locator("#left-reading"), "flow")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "flow")
     rendered(page)
     assert page.evaluate(LEFT_START_BELOW) < read - 100, "the held place came back"
 
@@ -457,7 +456,7 @@ def test_a_split_drag_keeps_a_panes_reading(engine, request, serve):
     ).replace("</style>", "#left-reading > div { overflow-anchor: none; }</style>", 1)
     page = open_page(browser, serve(source))
     left = page.locator("#left-reading > :not(header, footer)")
-    pane_posture(page, page.locator("#left-reading"), "bounded")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
     landmark = (
         "() => document.querySelector('#left-landmark').getBoundingClientRect().top"
         " - document.querySelector('#left-reading > div').getBoundingClientRect().top"
@@ -501,10 +500,15 @@ def test_a_passage_read_in_a_flowing_pane_returns_after_the_panes_scroll_alone(
     page = open_page(browser, serve(next(p for p in EXAMPLES if p.stem == "wt-merge")))
     resized(page, 390, 800)
     rendered(page)
+    # Reach the Steps pane before reading it; the preceding film grows on a phone.
+    page.locator("#merge-steps-pane p").first.scroll_into_view_if_needed()
+    scroll_settled(page)
+    rendered(page)
     box = page.locator("#merge-steps-pane").bounding_box()
     page.mouse.move(box["x"] + 40, min(box["y"] + 120, 700))
+    before = page.evaluate("document.scrollingElement.scrollTop")
     page.mouse.wheel(0, 300)
-    page.wait_for_function("document.scrollingElement.scrollTop > 0")
+    page.wait_for_function(f"document.scrollingElement.scrollTop > {before}")
     scroll_settled(page)
     rendered(page)
     below = page.evaluate(
@@ -513,13 +517,14 @@ def test_a_passage_read_in_a_flowing_pane_returns_after_the_panes_scroll_alone(
             .scrollPaddingTop) || 0;
           const block = [...document.querySelectorAll('#merge-steps-pane p')]
             .find(p => p.getBoundingClientRect().top >= band);
-          block.id ||= 'read-step';
+          block.id = 'read-step';
           window.__read = block;
           return block.getBoundingClientRect().top - band;
         }"""
     )
     measure = """() => window.__read.getBoundingClientRect().top
       - (parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0)"""
+    expect(page.locator("#read-step")).to_be_in_viewport()
     for width in (1200, 390):
         resized(page, width, 800)
         rendered(page)
@@ -596,7 +601,9 @@ def test_a_wheel_in_a_box_is_no_choice_of_the_page_around_it(
     expect(page.locator(f"#{read}")).to_be_in_viewport()
 
 
-def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, serve):
+def test_a_tall_local_comment_survives_its_panes_scroll_behavior_and_return(
+    browser, serve
+):
     source = READING_REGIONS_PAGE.replace(
         '<footer><button id="left-foot">',
         '<footer style="min-height: 220px"><button id="left-foot">',
@@ -605,7 +612,7 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
     left = page.locator("#left-reading > :not(header, footer)")
     right = page.locator("#right-reading > :not(header, footer)")
     target = page.locator("#left-end")
-    pane_posture(page, page.locator("#left-reading"), "bounded")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
 
     left.evaluate("body => body.scrollTop = body.scrollHeight")
     right.evaluate("body => body.scrollTop = 320")
@@ -641,13 +648,13 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
     ), "the complete multiline draft was not reachable in its field"
 
     resized(page, 520, 900)
-    pane_posture(page, page.locator("#left-reading"), "flow")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "flow")
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", draft)
     expect(page.get_by_role("button", name="Comment", exact=True)).to_be_visible()
 
     resized(page, 1200, 900)
-    pane_posture(page, page.locator("#left-reading"), "bounded")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", draft)
     assert right.evaluate("body => body.scrollTop") == pytest.approx(
@@ -673,7 +680,7 @@ def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser,
     )
     page = open_page(browser, serve(source))
     resized(page, 520, 900)
-    pane_posture(page, page.locator("#left-reading"), "flow")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "flow")
     right_landmark = page.locator("#right-landmark")
     right_landmark.scroll_into_view_if_needed()
     page.evaluate("() => document.activeElement?.blur()")
@@ -710,7 +717,7 @@ def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser,
     )
 
     resized(page, 1200, 900)
-    pane_posture(page, page.locator("#left-reading"), "bounded")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
     right = page.locator("#right-reading > :not(header, footer)")
     assert right.evaluate("el => el.scrollTop") > 0
     after = page.evaluate(
@@ -966,7 +973,7 @@ def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve, na
         assert source.count('-body">') == 2
     url = serve(source)
     page = open_page(browser, live_url(url))
-    pane_posture(page, page.locator("#left-reading"), "bounded")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
     left = page.locator("#left-reading > :not(header, footer)")
     right = page.locator("#right-reading > :not(header, footer)")
     left.evaluate("el => el.scrollTop = 300")
@@ -1015,7 +1022,7 @@ def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
     page = open_page(browser, serve(example))
     # Short, but tall enough to hold the workspace, so each pane scrolls on its own.
     resized(page, 1100, 640)
-    pane_posture(page, page.locator("#review-detail"), "bounded")
+    pane_scroll_behavior(page, page.locator("#review-detail"), "bounded")
     queue = page.locator("#review-queue > :not(header, footer)")
     detail = page.locator("#review-detail > :not(header, footer)")
     links = queue.locator('nav[aria-label="Review items"] a')
@@ -1056,7 +1063,7 @@ def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
         ),
     )
     resized(page, 1400, 900)
-    pane_posture(page, page.locator("#review-detail"), "bounded")
+    pane_scroll_behavior(page, page.locator("#review-detail"), "bounded")
     queue = page.locator("#review-queue > :not(header, footer)")
     detail = page.locator("#review-detail > :not(header, footer)")
     queue.evaluate(
@@ -1087,7 +1094,7 @@ def only_thread(page_dir):
 def travel_to_passage(page, thread_id):
     """Open the thread in the panel and take its way to the passage it is about."""
     open_panel_thread(page, thread_id)
-    page.locator(".lf-fp-quiet").filter(has_text="On the page").click()
+    page.locator(".lf-fp-controls").get_by_role("button", name="Show on page").click()
 
 
 BOUNDED_LOG_FILLER = "".join(
@@ -1275,7 +1282,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
     proposed = page.locator("#comparison-proposed")
 
     resized(page, 1200, 900)
-    pane_posture(page, current, "bounded")
+    pane_scroll_behavior(page, current, "bounded")
     expect(current).to_be_visible()
     expect(proposed).to_be_visible()
     boxes = [
@@ -1287,7 +1294,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
     assert page.locator("lf-options[choose]").count() == 1
 
     resized(page, 420, 900)
-    pane_posture(page, current, "flow")
+    pane_scroll_behavior(page, current, "flow")
     boxes = [
         current.evaluate("el => el.getBoundingClientRect().toJSON()"),
         proposed.evaluate("el => el.getBoundingClientRect().toJSON()"),
@@ -1319,7 +1326,7 @@ def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
     outer = page.locator("#left-reading > :not(header, footer)")
     inner = page.locator("#nested-pane > :not(header, footer)")
     sibling = page.locator("#right-reading > :not(header, footer)")
-    pane_posture(page, page.locator("#nested-pane"), "flow")
+    pane_scroll_behavior(page, page.locator("#nested-pane"), "flow")
     assert outer.evaluate("el => el.scrollHeight - el.clientHeight") > 300
     assert inner.evaluate("el => el.scrollTop") == 0
 

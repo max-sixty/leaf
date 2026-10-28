@@ -1,7 +1,6 @@
 """Unsent words on a rendered page, in drafts, comments and replies, from editing
 through sending, sharing and revisions, with the helpers their modules share."""
 
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -14,33 +13,6 @@ from render_harness import (
     wait_for_revision,
     write,
 )
-
-# The words in the panel's one seat for what passes, such as a notice (floating-panel.js,
-# `passing`): the leaf's peek while it shows one over an open view, else the line over
-# the field while it stands, else an error standing over the field's words
-# (composing/input.js), else the empty field's placeholder.
-PANEL_SAYS = """() => {
-  const peek = document.querySelector('.lf-fp-peek');
-  if (peek?.hasAttribute('data-shown')) return peek.textContent.trim();
-  const line = document.querySelector('.lf-fp-context');
-  if (line && !line.hidden && line.textContent.trim()) return line.textContent.trim();
-  const cover = document.querySelector('.lf-fp-field .lf-compose-error:not([hidden])');
-  if (cover) return cover.textContent.trim();
-  return document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder')
-    ?? '';
-}"""
-
-
-def expect_panel_says(page, words):
-    """Wait until the panel's seat for passing words says `words`, among others."""
-    try:
-        page.wait_for_function(f"w => ({PANEL_SAYS})().includes(w)", arg=words)
-    except PlaywrightTimeout:
-        said = page.locator(".lf-live").text_content()
-        raise AssertionError(
-            f"the panel says {page.evaluate(PANEL_SAYS)!r}, not {words!r} "
-            f"(the live region last said {said!r})"
-        ) from None
 
 
 def choose_comment_target(page, selector):
@@ -63,7 +35,7 @@ def choose_comment_target(page, selector):
 
 
 def cancel_draft(page, draft_id="draft-ops"):
-    """Cancel stands beside Save throughout an engaged draft edit."""
+    """Discard stands beside Save throughout an engaged draft edit."""
     draft_control(page, "cancel", draft_id).click()
 
 

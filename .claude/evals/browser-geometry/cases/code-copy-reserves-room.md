@@ -1,8 +1,8 @@
 ---
 origin: Codex 01a0f8ce-7246-7912-9922-e0bd42ae3097, PR 1516
 validation: Original 0/3 and revised 3/3 on the full browser contract, with identical case text
-drop: ^SHIP\b
-keep: ^REVISE\b
+drop: ^\W*SHIP\b
+keep: ^\W*REVISE\b
 keep: (padding|geometry|position|size)
 ---
 

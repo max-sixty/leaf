@@ -172,12 +172,12 @@
     </style>
     <script type="module">
       import {
-        PAGE_INTERFACE,
+        generatedElement,
         keeps,
         keepsText,
         layoutChanged,
         once,
-        whileConnected,
+        whileInterfaceConnected,
       } from "/runtime/widget-api.js";
 
       const EVENTS = [
@@ -288,13 +288,17 @@
         class extends HTMLElement {
           #banner = null;
           #strip = null;
-          #initialized = false;
           #cards = "";
 
           connectedCallback() {
             if (!once(this)) return;
             this.#build();
-            whileConnected(this, (signal) => this.#connect(signal));
+            whileInterfaceConnected(this, {
+              connect: () =>
+                this.closest("lf-playground").subscribe((values) =>
+                  this.#render(values),
+                ),
+            });
           }
 
           #build() {
@@ -302,24 +306,9 @@
             this.#strip = candidate("B · Status stream", "status strip");
             const candidates = element("div", "notification-demo-candidates");
             candidates.append(this.#banner.figure, this.#strip.figure);
+            // The simulated notifications are this module's words, not the page's source.
+            generatedElement(candidates, { says: true });
             this.append(candidates);
-          }
-
-          #connect(signal) {
-            const playground = this.closest("lf-playground");
-            let unsubscribe;
-            const initialize = () => {
-              if (signal.aborted || unsubscribe) return;
-              unsubscribe = playground.subscribe((values) => this.#render(values));
-              this.#initialized = true;
-            };
-            document.addEventListener(
-              PAGE_INTERFACE,
-              (event) => event.detail.present(Promise.resolve().then(initialize)),
-              { signal },
-            );
-            if (this.#initialized) initialize();
-            return () => unsubscribe?.();
           }
 
           #render(values) {
@@ -370,6 +359,7 @@
         <h1>Stress-test the deployment notification</h1>
         <lf-playground
           id="notification-playground"
+          contract="notification-playground-values"
           submit-label="Create notification"
           data-width="available"
         >
@@ -434,7 +424,7 @@
             placeholder="Notification heading"
           ></lf-playground-control>
 
-          <lf-playground-preset label="Routine release">
+          <lf-playground-preset id="preset-routine-release" label="Routine release">
             <lf-playground-setting for="events" value="2"></lf-playground-setting>
             <lf-playground-setting for="tone" value="calm"></lf-playground-setting>
             <lf-playground-setting for="compact" value="false"></lf-playground-setting>

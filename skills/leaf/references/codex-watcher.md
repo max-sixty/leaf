@@ -11,7 +11,7 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
 
 1. Check that `send_message_to_thread` is available. If it isn't, finish with that
    reason and don't run `leaf wait`.
-2. Run `leaf page claim <page>`, then `leaf wait <page>` in unified exec. Keep the
+2. Run `leaf page claim <page> --manual-delivery`, then `leaf wait <page>` in unified exec. Keep the
    command's session id and poll it with empty `write_stdin` calls and long yields,
    keeping the watcher's turn running while the page is live.
 3. When the complete output arrives, send one background follow-up to the page task,
@@ -28,15 +28,15 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
    uncertain, acknowledge nothing and send the same follow-up again. If the output was
    lost or cut off, read the delivery again before forwarding it.
 
-4. Once the harness accepts the follow-up, run `leaf wait --ack <delivery-id>` in
-   unified exec and poll it the same way. A batch on stdout is the next delivery; go
+4. Once the harness accepts the follow-up, run
+   `leaf delivery ack <delivery-id> && leaf wait` in unified exec and poll it the
+   same way. A batch on stdout is the next delivery; go
    back to step 3. Follow any message that ends the wait. The watcher never replies,
    stamps, changes status or handles an event itself.
 
 Before ending the page task's turn, wait until the watcher has claimed the page, title
 the watcher task `Leaf watcher — <page name>`, and check that `leaf page state <page>`
-reports `listening: true`. The claim moves the page to the watcher, so the page task's Stop hook
-no longer keeps its turn open. The page task's status declarations, replies and new
+reports `listening: true`. The page task's status declarations, replies and new
 versions don't take the page back; its own `leaf server start` or `leaf page claim`
 does.
 Setting the page idle ends the watcher's next wait.

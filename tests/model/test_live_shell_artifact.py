@@ -1,15 +1,19 @@
 """Published documents and modules retain their complete captured revision."""
 
+import copy
 import json
 
 import pytest
 from interact_support import PAGE
 from interact_support import append_carried_log_record as append_event
-from leaf.files import replace_files, revision_path
+
+from leaf.files import revision_path
 from leaf.live_shell import write_live_shell
+from leaf.registry.storage import load_registry
 from leaf.revision_artifact import read_artifact
 from leaf.revision_delivery import json_script, layer_import_map
 from leaf.revisioning import activate_source
+from leaf.runtime_selection import executing
 
 
 @pytest.mark.parametrize(
@@ -35,7 +39,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         'main { background-image: url("../image.svg#paint"); }'
     )
     (authored / "image.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
-    entry = json.loads((page_dir / "registry.json").read_text())["lf-options"]
+    entry = copy.deepcopy(load_registry(page_dir)["lf-options"])
     entry["description"] = "First page declaration"
     (authored / "registry.json").write_text(json.dumps({"lf-options": entry}))
     source = PAGE.replace(
@@ -72,23 +76,11 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
     second = publish(2)
     second_artifact = read_artifact(page_dir, second)
 
-    # Publishing must not validate or read an unactivated candidate, even after a
-    # layer replacement. Runtime fixture inputs are hardlinks, so replace atomically.
+    # Publishing must not validate or read an unactivated candidate.
     (page_dir / "index.html").write_text("invalid candidate")
     (authored / "nested" / "value.js").write_text("invalid candidate")
     (authored / "widgets" / "lf-options.js").write_text("invalid candidate")
     (authored / "registry.json").write_text("invalid candidate")
-    replace_files(
-        [
-            (page_dir / relative, b"invalid candidate", False)
-            for relative in (
-                "leaf.js",
-                "registry.json",
-                "runtime/bootstrap.js",
-                "widgets/lf-options.js",
-            )
-        ]
-    )
     destination = tmp_path / "published"
     additions = '<meta name="site-owned" content="delivery">'
     write_live_shell(
@@ -110,8 +102,8 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         resources = destination / relative
         document = (destination / "versions" / f"v{version}.html").read_text()
         assert (destination / "revisions" / marker).read_text() == document
-        assert f'name="lf-revision" data-lf-runtime content="{revision}"' in document
-        assert f'name="lf-version" data-lf-runtime content="{version}"' in document
+        assert f'name="lf-revision" content="{revision}" data-lf-runtime' in document
+        assert f'name="lf-version" content="{version}" data-lf-runtime' in document
         assert f'src="{root}/leaf.js"' in document
         assert f'src="{root}/page/app.js"' in document
         assert f'href="{root}/page/style.css"' in document
@@ -133,17 +125,18 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         assert (resources / "page" / "nested" / "theme.css").read_text() == (
             f'main {{ background-image: url("{root}/page/image.svg#paint"); }}'
         )
-        # The layer is published as captured; the document's import map sends its
+        # The publishing Leaf's runtime and layer, which the revision never
+        # captured, are published beside it; the document's import map sends its
         # rooted imports to this revision.
-        assert (resources / "leaf.js").read_bytes() == artifact.resources[
-            "/leaf.js"
-        ].data
-        assert artifact.resources["/runtime/bootstrap.js"].data.decode() in document
+        runtime = executing(artifact).resources
+        assert "/leaf.js" not in artifact.resources
+        assert (resources / "leaf.js").read_bytes() == runtime["/leaf.js"].data
+        assert runtime["/runtime/bootstrap.js"].data.decode() in document
         assert json_script(layer_import_map(root)) in document
         expected_widget = (
             f'export * from "{root}/page/widgets/lf-options.js";\n'.encode()
             if version == 2
-            else artifact.resources["/widgets/lf-options.js"].data
+            else runtime["/widgets/lf-options.js"].data
         )
         assert (resources / "widgets" / "lf-options.js").read_bytes() == expected_widget
         if version == 2:

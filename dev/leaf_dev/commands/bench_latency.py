@@ -60,7 +60,11 @@ from leaf_dev.arms import (
     run_leaf,
     serving,
 )
-from leaf_dev.browser import DESKTOP, headless_shell
+from leaf_dev.browser import DESKTOP, go_to_threads, headless_shell
+from leaf_dev.commands.distribution import current_kernel
+from leaf_dev.example_data import named_source
+from leaf_dev.main_thread import SCRIPT as MAIN_THREAD_SCRIPT
+from leaf_dev.main_thread import main_thread
 
 OUT = ROOT / ".tmp" / "bench-latency"
 RUNS = 5
@@ -132,30 +136,6 @@ def first_write(path: Path, command: list[str], env: dict) -> float:
     return written / 1e6
 
 
-def main_thread(frames: list[dict], start: float, end: float) -> dict:
-    """What the long animation frames spent between `start` and `end`: each owner's
-    script time and the style and layout it forced, and the frames' own rendering,
-    each counted for the part of it inside the window. A script's forced work has no
-    place of its own, so it is counted in the same share as the script. Frames under
-    50 ms are not reported, so this is a floor on the main thread's work, not its
-    total."""
-
-    def inside(begin: float, ms: float) -> float:
-        return max(0.0, min(end, begin + ms) - max(start, begin))
-
-    owners: dict[str, list[float]] = {}
-    render = 0.0
-    for frame in frames:
-        render += inside(frame["end"] - frame["render"], frame["render"])
-        for script in frame["scripts"]:
-            if not (ms := inside(script["start"], script["ms"])):
-                continue
-            spent = owners.setdefault(script["owner"], [0.0, 0.0])
-            spent[0] += ms
-            spent[1] += script["forced"] * ms / script["ms"]
-    return {"owners": owners, "render": render}
-
-
 @dataclass
 class Session:
     """One arm's page, its server, and the tab open on it."""
@@ -200,15 +180,8 @@ class Session:
         self.settle()
 
     def threads(self) -> None:
-        """Open the floating panel's Threads view, listing every open thread."""
-        view = (
-            "() => Boolean(document.querySelector("
-            "'.lf-fp-view[data-view=threads]:not([data-leaving])')?.checkVisibility())"
-        )
-        if not self.page.evaluate(view):
-            self.page.locator(".lf-fp-threads").click()
-            until(self.page, view, "the Threads view never opened")
-        self.page.locator(".lf-fp-filters button", has_text="Open").click()
+        """Open the floating panel's Threads view, listing every thread."""
+        go_to_threads(self.page)
 
     def settle(self) -> None:
         """Wait until the page is quiet and has stayed quiet for SETTLE_MS."""
@@ -361,14 +334,20 @@ class Session:
         )
         self.settle()
         act = self.written(
-            "events.jsonl", "response", "reply", ref, "--done", "--text", words
+            "events.jsonl", "thread", "reply", ref, "--done", "--text", words
         )
         return self.measure("reply", {"painted": ("message", words)}, act)
 
     def status(self, run: int) -> dict:
         detail = f"Bench status {run + 1}"
         act = self.written(
-            "events.jsonl", "task", "start", str(self.page_dir), self.task, detail
+            "events.jsonl",
+            "task",
+            "start",
+            str(self.page_dir),
+            self.task,
+            "--text",
+            detail,
         )
         return self.measure("status", {"painted": ("status", detail)}, act)
 
@@ -394,25 +373,27 @@ class Session:
 @contextmanager
 def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path):
     """Build `source` into a page with `arm_dir`'s launcher, serve it, and open a tab."""
+    arm_dir = current_kernel(arm_dir)
     state = scratch / f"{arm}-{source}-state"
     page_dir = scratch / f"{arm}-{source}" / "page"
-    build_source(arm_dir, state, ROOT / "examples" / f"{source}.html", page_dir)
+    build_source(arm_dir, state, named_source(source), page_dir)
     leaf = partial(run_leaf, arm_dir, state, check=True)
     thread = json.loads(
         leaf(
-            "thread", "open", str(page_dir), "--section", PASSAGE, "--quote", QUOTE,
+            "thread", "create", str(page_dir), "--section", PASSAGE, "--quote", QUOTE,
             "--text", THREAD_TEXT,
         ).stdout
     )["id"]  # fmt: skip
     # The status transition starts this task, the page's own item, with a new line.
-    task = json.loads(leaf("task", "open", str(page_dir), "page", "Bench task").stdout)[
-        "id"
-    ]
+    task = json.loads(
+        leaf("task", "create", str(page_dir), "page", "--title", "Bench task").stdout
+    )["id"]
     with serving(arm_dir, state, page_dir) as address:
         context = browser.new_context(
             viewport={"width": DESKTOP[0], "height": DESKTOP[1]}
         )
         try:
+            context.add_init_script(path=MAIN_THREAD_SCRIPT)
             context.add_init_script(path=PROBE)
             page = context.new_page()
             page.goto(address)  # The token sets the page cookie; later loads drop it.

@@ -1,0 +1,283 @@
+{
+  "lf-suggestion": {
+    "description": "One proposed change to content the user has already seen, with accept and reject controls.",
+    "x-instructions": "Copy the current markup verbatim into lf-old and put the proposed markup in lf-new. Both slots replace, lf-new alone inserts, and lf-old alone deletes; a change to a widget also uses its complete old and new markup. Suggestions cannot nest, contain a draft, or appear in a reply. Set `resolves` to the comment whose thread should close when the user accepts. To withdraw an undecided suggestion, replace the whole `lf-suggestion` with `lf-old`'s contents. Keeping `lf-new`'s contents instead would accept it without the user's decision.",
+    "type": "object",
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "resolves": { "type": "string", "pattern": "^[a-z0-9]+$" },
+      "restated": { "type": "boolean" }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-inline": true,
+    "x-upgrade": true,
+    "x-awaits": { "value": "decide", "answered": { "decide": {} }, "all": "accept" },
+    "x-withdrawn-as": "reject",
+    "x-word": "module",
+    "x-state": {
+      "decide": {
+        "decides": true,
+        "detail": {
+          "type": "object",
+          "properties": { "outcome": { "enum": ["accept", "reject"] } },
+          "required": ["outcome"],
+          "additionalProperties": false
+        },
+        "unit": "widget"
+      }
+    },
+    "x-example": "<p>Refill rules for the season:</p>\n<lf-suggestion id=\"sug-refill\">\n  <lf-old><p id=\"refill-rule\">Refill every feeder each morning.</p></lf-old>\n  <lf-new><p>Refill a feeder when its camera shows it half-empty.</p></lf-new>\n</lf-suggestion>"
+  },
+  "lf-old": {
+    "description": "The current markup a suggestion proposes to replace or delete.",
+    "x-instructions": "Copy the current markup verbatim, including its ids. Omit this slot for an insertion.",
+    "type": "object",
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
+    },
+    "additionalProperties": false,
+    "x-owners": ["lf-suggestion"],
+    "x-content": "markup",
+    "x-inline": true,
+    "x-upgrade": false,
+    "x-retired-when": "accept"
+  },
+  "lf-new": {
+    "description": "The proposed markup in a suggestion.",
+    "x-instructions": "Omit this slot for a deletion.",
+    "type": "object",
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
+    },
+    "additionalProperties": false,
+    "x-owners": ["lf-suggestion"],
+    "x-content": "markup",
+    "x-inline": true,
+    "x-upgrade": false,
+    "x-retired-when": "reject"
+  },
+  "$languages": {
+    "description": "The code languages this layer can color, and how a filename maps to one. `names` is the full list: an author may declare only these, validation refuses any other, and build/vendor.mjs builds a grammar for each. A widget marks an attribute as naming a language with x-language, and composing the vocabulary writes this list into that attribute's `enum`, so a new tag that takes a language needs only that declaration. `paths` maps a file extension to a language, for widgets with no attribute to name one: a diff spans several files, and a file editor shows one. A file whose extension is not listed shows uncolored.",
+    "why-diff-is-not-a-path": "`diff` is in `names` but not in `paths`. Coloring a .patch file inside a diff with the diff grammar would mark additions and deletions a second time, on top of the widget's own tints.",
+    "names": [
+      "bash",
+      "css",
+      "diff",
+      "go",
+      "html",
+      "java",
+      "javascript",
+      "json",
+      "markdown",
+      "python",
+      "rust",
+      "sql",
+      "toml",
+      "typescript",
+      "yaml"
+    ],
+    "paths": {
+      "bash": "bash",
+      "cjs": "javascript",
+      "css": "css",
+      "go": "go",
+      "htm": "html",
+      "html": "html",
+      "java": "java",
+      "js": "javascript",
+      "json": "json",
+      "jsx": "javascript",
+      "markdown": "markdown",
+      "md": "markdown",
+      "mjs": "javascript",
+      "py": "python",
+      "rs": "rust",
+      "sh": "bash",
+      "sql": "sql",
+      "toml": "toml",
+      "ts": "typescript",
+      "tsx": "typescript",
+      "yaml": "yaml",
+      "yml": "yaml"
+    }
+  },
+  "$data": {
+    "description": "Values from outside the markup that widgets display, replaced with `leaf data set`, which validates the whole value first. A named contract declares a value's meaning and JSON Schema; a widget declares its inputs with x-data, and markup binds each to a source id. Values stay out of versions and the event log. A widget reads each through the property its x-data input names, and marks the records it draws with data attributes.",
+    "contracts": {}
+  },
+  "$keys": {
+    "description": "The meaning of each x- key an element declaration may carry, one member per key. The registry lint admits exactly these keys: it refuses a member for a key it does not admit, and a missing member for one it does. A layer may override a member to describe its own reading of a key, but cannot add a key. The site's registry reference is generated from this entry, so authors, the lint and the site read the same text.",
+    "x-awaits": "The widget asks the user for input while its authored attributes match `when`, which puts an obligation on their list, On me. The obligation's id is `widget:<source-id>` and never changes. `value` names the x-state verb whose state is the typed answer, and `answered` says when the obligation is complete ($awaits); they are separate because a partial value can exist while the obligation is open, and an empty value can be a complete answer. `all` names the outcome one control can give every obligation of this kind at once. Once created, an obligation stays answered or withdrawn after `when` stops matching; an element that never matched creates none, and neither does a quoted widget (x-exhibit). A `restated` event asks again. While the agent owes a reply in a thread about the obligation, anchored inside the widget, or inside the widget enclosing it but no other obligation, the agent is its next actor and the obligation stays unanswered. A widget in a thread message keeps its obligation after the thread closes. A question the user answers in words is an agent message's obligation, not a widget's (`--obligation`). The user's On me list reads the canonical obligation inventory, including user-owned to-dos.",
+    "x-thread-seat": "The module puts a thread box (`threadBox`) in each element that matches `when` on authored attributes, not on attributes an x-state record writes. The box shows, as text, the threads anchored exactly to that element; Threads keeps the full view. An element inside thread markup or quoted content gets no box. On a widget that also asks (x-awaits), the box is where the user answers in words: while a thread there waits on the agent, the obligation leaves the user's On me list, but it is still unanswered and the widget's controls still work. `hold` labels a second send button whose comment carries `holds`, naming the widget. The widget is held while that thread is open; resolving the thread releases it. Removing the widget removes only the box, not its threads.",
+    "x-content": "The required content: `markup` (the author's markup), `members` (only this element's declared member elements), `data` (one <pre> holding text in the notation the description names, with & < > escaped as &amp; &lt; &gt;), or `empty`.",
+    "x-output": "The widget's named typed derived outputs. Each output names one $data.contracts contract. publishOutput publishes its complete value, or null while unavailable, for other widgets' x-data inputs. Outputs follow the publishing element's lifetime and remain browser-derived values without a server source revision or run receipt.",
+    "x-data": "The widget's named typed data inputs. Each names a $data.contracts contract and an optional source attribute for a page source id. Optional reference and output name an x-refers attribute and the producer's declared output. Markup binds the source or the relation, never both; an unbound input reads null. A document binds each source to one contract; later documents may rebind it and read the value against their own contract. Optional property names the element property Leaf sets to the delivered value, or null while there is none; a module reads the input only there, never through a package-owned source name, and dispatches drawn naming that property and the value it drew once its marked records stand. Widget outputs are ephemeral browser derivations, without source revisions or run receipts.",
+    "x-example-data": "Sample JSON values keyed by source id bound in x-example, validated against those sources’ contracts and supplied to package check --render.",
+    "x-example": "Authored markup exhibiting the widget, valid against the merged registry: an agent reads it with the element declaration, writes from it, and the lint refuses one that does not validate.",
+    "x-encloses": "`true`: the widget frames the obligations of the widgets inside it and asks nothing itself. Its leading heading gives their prompt, and going to one of them lands on it. Each obligation it frames keeps its own id, answer and completion, and where frames nest, an obligation uses the nearest. It requires an `id` and markup content. `lf-ask` declares it; a widget that asks on its own needs no frame.",
+    "x-exhibit": "The element shows quoted content: widgets inside it take no input, and their obligations stay off the user's On me list. A boolean applies unconditionally; {when: {attribute: [values]}} applies only while those authored attributes match, using the same presence and value rules as x-awaits.when. Modules check `quoted(el)` before enabling input.",
+    "x-instructions": "Instructions for an author using this widget, read after choosing it and before writing markup. One non-empty string, separate from the short `description` and the schema.",
+    "x-inline": "The element sits inline among the surrounding words. The render check therefore requires neither a width of its own nor a place where a block may stand.",
+    "x-language": "The attribute that names a code language. Composing the vocabulary gives it `$languages.names` as its `enum`, so a new tag that takes a language needs only this declaration.",
+    "x-reading-role": "The structural role the element plays. The only role is `pane`: a reading region, named by its required `label`, whose body scrolls on its own while the workspace is full-height. A pane holds exactly one body element, optionally between a direct `header` and `footer`; a visible heading goes in the header. Validation reads this declaration, not tag names, so a package can contribute panes under its own tags.",
+    "x-measured": "A value in authored content tied to the data run that produced it. `input` names the widget's x-data input, and `run` its required receipt attribute. When the source holds a different run, `page check` warns that the measurement is stale, and `page state` reports it. Rewriting the source counts as a new run even with the same value; age alone never makes a measurement stale.",
+    "x-patch": "How a revision reaches an upgraded widget the user has open. By default any change to the widget's markup replaces the whole widget, rebuilding whatever the user had open in it. `members` says the module builds beside its direct authored children, leaves them where the author wrote them or moves them all into the authored body its initial drawing builds, and reads only their attributes; those children may be native markup or declared member widgets. While a revision keeps the element's attributes and each child's tag and attributes in order, Leaf edits inside those children in place. A module that moved them into an authored body reads none of them, so there only the element's own attributes need to stay the same. Requires `x-content: members` or `markup`, and x-upgrade.",
+    "x-owners": "The element declarations that may directly own this element. An owner's direct children of these kinds are its members, and a gesture on the owner's whole box stops at them.",
+    "x-refers": "A map from each attribute whose value names another element to the contract its target must meet. An empty contract accepts any element id, as an option's `for` does. A typed contract names a shared registry map with `via` and an equality test with `where`, and `page check` requires a target whose tag's entry in that map passes the test, so a package can tell a goal reference from a worker reference without Leaf knowing either. With `owns: true` the referrer fills its target: `page check` requires the target in the referrer's own document, and requires each element there that the test selects to be named by exactly one referrer. A keyed contract `{tag, key}` names a member by an attribute instead of an id: the `tag` element whose `key` holds the value, inside the referrer's nearest owner in which `key` is unique (x-unique), as a playground preset's setting names a control by `name`. In the browser a module passes the attribute to `navigateToDatum` to reach the named widget; it looks in the referrer's own document (its message, for a widget in a reply) before the page.",
+    "x-margin-content": "How the element sits in a column page's first `aside.sidebar`. The only value is `map`, a contents map: where the margin has room and the pointer is precise, it shows as a spine in the left margin whose labels appear over the page. Delivery writes `data-lf-margin-content` into the served document, except in a thread message, which has no margin.",
+    "x-retired-when": "On a member: the outcome of its owner's decision that removes it from the page, as `accept` removes a suggestion's `lf-old`. Requires x-owners. The outcome is a value of the `outcome` field on the owner's one deciding verb. Leaf renders the decision itself, including its undo: it writes `data-lf-state=\"<outcome>\"` on the owner and `data-lf-retired` on the removed members, which one theme rule hides. A widget reads the decision from its state, not these attributes. Once the log decides, `page check` lets a revision drop the member's ids, and `page check --render` reports a removed member that still shows words.",
+    "x-says": "Attributes whose values show as selectable text: `after` inside the element after its content, `before` at its start, in declaration order. The runtime writes real text nodes, unlike CSS `content: attr()`, so the user can select, quote and comment on the words.",
+    "x-shadow": "The module renders the page's words into an open shadow root, and Leaf's passage reading, selection capture and id lookups reach into it. A shadow root attached without this key, as a page script's own custom element attaches one, is opaque: its own words can't be quoted, and the passage reading reads its host by its light children.",
+    "x-shows": "The element is a view of another widget's answer, which stays that widget's: `attr` names the widget, in the element's own page or message (x-refers), and `value` the attribute of the element's compound owner that names the answer the owner holds. The element stands in the owner whose `value` its widget's answer names, or in one without `value` while the answer names none, or one no owner beside it holds: none is an empty pick, a member without the widget's x-awaits `key` (one the user added), or members naming different values. The answer names a value when the widget's x-awaits `value` verb records one string, or picks members whose `key` all name the same one. Moving the element sends that widget's own command through `shownAnswer` (module-reading.md), so the view keeps no fact of its own: the append door refuses a position move of the element, and `page check` refuses markup that places it apart from its widget's authored answer, owners without one that holds an answer naming no value, and an owner value the widget cannot answer. It keeps its authored order among its owner's members.",
+    "x-state": "Declares each verb of a widget that has state: the unit of state it changes, who writes it, and either its record (how the state reads in markup, $state.record) or the schema of its detail. A verb is the user's, sent from the page as `action` events, unless it declares `writer: \"agent\"`; the agent writes it with `leaf page report`, as `report` events. A user verb may create a child element (`creates`). An agent verb with `text: true` requires each report to carry a non-empty `detail.text`, a short note the report feed shows as written. The page marks a reported widget `data-lf-reported` until a version answers the report ($report). For each [widget, unit, verb] key, the latest action not taken back wins, and different verbs on one unit coexist. Leaf combines those actions with the authored values and hands the widget its complete state, keyed by verb, as `this.state`, which its `render()` reads. A past action keeps its key after the widget leaves the page. When an action makes the widget's x-awaits `answered` condition hold, Leaf records `meaning.answer` on it: the thread named by the widget's `resolves` attribute in the document the action came from, which the answer closes, or null. A decision whose outcome is the widget's x-withdrawn-as value also records null, and the page reads as if nothing had been proposed. A verb with `decides: true` selects which members leave the page (x-retired-when); its required `outcome` field names the choice. An `outcome` field on any other verb is ordinary domain data.",
+    "x-thread-surface": "The upgraded widget can show Leaf's comment box and threads inside itself, beside the data items they are about. On each pass, Leaf calls the element's `threadOutlets(targets, {signal, collection, onCommit})` with the targets anchored exactly to its items, in order, and the method returns for each an element to place it in (an outlet), or null. The widget reads its registration with `threadSurface(element)`: `update()` says its outlets changed, and `open(datum)` opens Comment on one item. Leaf still owns anchors, drafts, sending, thread rendering, replies, reactions and focus, and decides placement inside each outlet. An item that isn't shown (not loaded, filtered out, collapsed or outdated) gets no outlet, and its threads stay in Threads and the margin.",
+    "x-text-format": "How the element's text is formatted. `inline-markdown` formats its direct text nodes; `markdown` renders its data body as safe block Markdown. A body record keeps the Markdown source, while passages read the visible words. Child elements stay HTML. In a generated child, the user's line breaks are hard breaks.",
+    "x-tone": "The attribute that names one of the layer's semantic tints. Composing the vocabulary gives it `$tones.names`, which the theme has a rule for, as its `enum`.",
+    "x-unique": "A map from each attribute whose value must differ between members of one owner to that owner's tag. `page check` and message markup refuse a repeat inside the same nearest owner, such as two controls of one playground sharing a `name`. A keyed x-refers contract names members by such an attribute.",
+    "x-upgrade": "A module at `widgets/<tag>.js` enhances the element in the browser, loaded only where a page's markup uses the tag. `page init` refuses a layer that declares it without the module, and the render check refuses a module that defines no element for a widget on the page. Required.",
+    "x-verbatim": "The upgraded element keeps its authored words, and its nested upgraded widgets in authored order, so the passage reader can quote those words; each nested widget's own declarations cover the words it generates. Without this key the passage reader treats the widget as opaque, since its module may insert or replace words. The render check refuses a page where the wrapper's own words changed or a nested widget was removed or reordered.",
+    "x-initial": "The rooted path of a classic JavaScript bundle that registers the widget's synchronous first drawing. The producer API and delivery lifecycle are defined in module-authoring.md, First paint. Requires `x-upgrade: true`.",
+    "x-views": "`true`: the element shows one member at a time, as a tab set shows one panel. Its module opens the member the runtime names (`openingView`) and records each member it shows (`keepView`). The runtime opens the member holding the element the URL fragment names, else the member this tab last showed, else the first, or the holder's own choice where it passes `openingView` a null fallback; a reload prefers the member last shown. Before first paint Leaf marks the member it will open `data-lf-opening`, so the package theme can show that member alone until the module upgrades. `parts`: as `true`, and the members are the parts of the page: written directly in a `main` that carries no Layout, each member holds one child carrying that part's Layout, and the page lists the members in a column down its left under its title (layouts.css, \"A page of parts\").",
+    "x-visual": "How a rendered picture offers Comment targets. Declaring it also tells the theme the widget is a picture (painted `data-lf-visual`), so an `lf-ask` lays out options that hold one as it does options holding images. `whole` makes the picture one target. With `{parts: ATTR}` or `{prefixes: [PREFIX, …]}`, the module calls `registerVisualParts(source, read)` once, and `read` returns the current list of `{id, element, label, surface?}`; a comment on a part stores its id as `anchor.visual`. Under `parts`, ATTR names an attribute of the widget, as in `<lf-diagram parts=\"all\">`: the registered parts become targets where the widget carries it, and without it the picture stays one target. Under `prefixes`, Leaf accepts any longer id starting with one of them, such as `commit:3f2a` under `commit:`. `surface` may name a descendant whose own paint, without decoration, gives the outline Leaf marks; `element` stays the target for hits and travel. A comment whose part is gone detaches on replay instead of widening to the whole picture. A visual that draws its parts over time also passes `{reveal}`: `reveal(id)` must synchronously show a state that holds that part, cancelling any pending change that would remove it, and Leaf calls it before going to the part from a thread or `navigateToDatum`. While a declared part is missing from the current state, its threads sit on the whole picture. Call the registration's `update()` after any change to rendering or geometry, including an attribute or style change in place. The render check validates each registered record.",
+    "x-space": "The width past the reading measure the element takes in a column or sidebar Layout: `wide` takes the shared, capped width for a block slightly wider than the column, from the prose's start edge; `available` takes all the width the page shell can give, into both margins. Without it the element fills its container, as every element does in other Layouts; an element read as lines of text keeps to the measure in its own stylesheet (`max-inline-size: var(--lf-measure)`). An authored element may override it with `data-width=wide|available`, which the theme applies without moving the prose.",
+    "x-bound": "The element has its own height and scrolls inside it, so a long log or feed never grows the page. `start` opens at the first line; `end` follows the newest entry while the user is at the end, and stays where the user scrolled back to otherwise. An authored element may set or override it with `data-bound=start|end`; delivery writes it as `data-lf-bound`.",
+    "x-height": "The height in CSS pixels the page reserves for the element before its module draws: the declared number, or an authored `data-height`, which overrides it; `true` reserves only where `data-height` is given. The theme holds the box to it from first paint until the module marks the element drawn (`lf-rendered`). Declare it on a widget whose drawing can't be sized from its markup. A module that can draw at any height, such as a chart's, draws at this one, so nothing moves; for content with its own height, the reserved height is the author's estimate of it.",
+    "x-history": "`true`: the module renders the page's history, so a page that contains one is served the `history` reading with its state. The reading is the newest 50 logged events, newest first, each with who acted, what they did, the id of the thread it was in, whether a later undo took it back, and, for a widget gesture, the words its ids had when it was made. The module reads it with `readHistory`.",
+    "x-withdrawn-as": "The deciding outcome that declines the proposal. It answers the obligation without closing the widget's `resolves` thread. A revision may also remove an unanswered proposal outright, whether or not it has retirable members; ids from earlier versions don't prevent it.",
+    "x-within": "The regions (element declarations) inside which a member may sit at any depth instead of as its owner's direct child. It belongs to the nearest owner x-owners names around that region, and `page check` refuses it anywhere else. A playground control written inside `lf-playground-preview` stays where it is written, beside the item it changes, instead of in the rail.",
+    "x-name": "The attribute that holds the element's title, which the page uses to name the element elsewhere, as the activity feed does. Declare it only where an attribute is the title, as a column's or a tab's `label` is; a section is already titled by its heading, a disclosure by its summary, and a titled member by its leading <strong>. An attribute the element merely shows first, such as a metric's value, is not its title.",
+    "x-word": "The widget's word for its kind, which Leaf uses when naming the widget in a panel row, a walk or a comment anchor: a fixed word, as `lf-ask` says \"question\", or `module`, where the module gives one through `lfWord()`, as `lf-suggestion` returns \"insertion\", \"deletion\" or \"rewrite\" depending on its children. Without one, Leaf calls the widget by its tag name without the prefix. With `module`, the module may also describe the widget through `lfSays()`, where its text alone doesn't convey its structure, such as a rewrite's old and new text; otherwise Leaf reads the element's text.",
+    "x-work": "`true`: the agent may open its own to-do on this widget with `leaf task create` even when no update on it is open, and the to-do shows beside the widget. Only a block widget whose x-content is markup may declare it, and markup content does not imply it: markup can itself be a control, or sit in a hidden panel."
+  },
+  "$state": {
+    "description": "The meaning of each field an x-state verb may declare, one member per field. The registry lint holds these members to the fields it admits, as it holds `$keys` to the x- keys.",
+    "attention": "`true`, on a user verb: changing this verb's state, including repeating an action or undoing it, asks for the agent's attention even when no obligation changes. Use it for optional commands the agent should act on, such as Archive; it creates no obligation on the user's On me list and no required reply. Without it, an action asks for attention only when it changes obligations or work the agent has in hand. Admission reads the active page's declaration and records the decision on the event, so later versions cannot remove an admitted request from delivery. A version's note settles a recordless action's receipt; a later change to its state still asks for attention.",
+    "unit": "`\"widget\"` when one state value covers the whole widget, as `choose` on an option group does; otherwise a required string detail field that identifies the unit by element id or data key, as `add`'s `option` does. A position record always uses `unit`; a verb with no record names its own field.",
+    "detail": "The JSON Schema of the action's `detail`, for a verb with no `record`, whose state is then the detail of its action in force, shaped as the widget defines it. A verb declares a record or a detail schema, never both, and one that `creates` a child declares a detail schema.",
+    "writer": "`\"agent\"`: the agent writes the verb with `leaf page report`, as `report` events ($report). Without it the user writes it from the page, as `action` events. An agent verb declares an `attribute` or `value` record, so a version's markup can be compared with the report, and creates no child.",
+    "text": "`true`, on an agent verb only: each report carries a non-empty `detail.text`, a short note the report feed shows as written.",
+    "decides": "`true` declares the widget’s one deciding user verb: it folds by widget and requires a string-enum `outcome` in its detail. That outcome selects which members retire (x-retired-when) or withdraws the proposal (x-withdrawn-as). Other verbs may use an `outcome` field without deciding semantics. Obligation answers remain the conditions in x-awaits.",
+    "contract": "An optional instance binding `{field, attribute}` on a custom-detail verb. The widget declares `attribute` as a string matching the data contract name pattern. Its authored value names one $data.contracts entry whose schema also validates the entire detail `field`; the package’s base detail schema still applies. An absent attribute keeps the base schema. Page checks refuse unknown contracts, and admission reads the binding from the immutable document that sent the action. This selects an instance’s payload contract without replacing the widget declaration.",
+    "creates": "An x-state verb that adds a child element declares `{child, words}`: `child` is the tag it creates, and `words` names the detail field holding the child's text; the verb's `unit` field holds the child's id. While the action is in force, the widget has that child; undoing or retracting the action removes it. Admission records the child's tag in `meaning.creates`, so a reader without the registry still knows what the action made, and refuses an id the sending document already uses. It also stores the verb's state definition in `meaning.state`, so a later incompatible definition doesn't change how the action reads.",
+    "record": "How the state reads in markup. `{kind: \"attribute\", attr}`: the elements inside the unit that carry `attr`, as the list of ids in `detail.value`, an array even where the widget allows one. `{kind: \"value\", attr}`: one scalar in the unit's own `attr`; `detail.value` takes that attribute's schema, so the log and the markup can't disagree. `{kind: \"body\"}`: the unit's own words. `{kind: \"position\", within}`: where the unit sits in a `within` container. `detail.unit` names the moved member (never the widget), `detail.value` the container, and `detail.rank` its sort key there: a base-36 fraction, digits 0-9a-z not ending in 0, compared as a string, ties broken by id. Authored members rank by authored order, and a widget computes a dropped member's rank between its new neighbours with `rankAt` from `runtime/widget-api.js`. The rank places the member in the same gap while later revisions author the container the same way. A revision that authors it differently absorbs the move: the member is written where the move left it, and the move can no longer be undone. Admission refuses a move made on an older revision whose container the newest one authors differently. Two tabs dropping into one gap get equal ranks, and the id order can put the later drop outside that gap. Leaf starts from the authored value (null for an absent value attribute or a verb with no record, the authored ids for an attribute set), applies the actions in force and the user's unsent updates, and renders the complete state without resetting or rebuilding the DOM on undo or refusal."
+  },
+  "$report": {
+    "answering": "By explicit id. `page stamp` adds a report to the version note's `settles` list when the stamped revision writes in its reported state or marks its element `overruled`, and from that revision on the report no longer applies. A revision that changes nothing answers nothing, so the report stays shown.",
+    "overruled": "A boolean attribute on the reported element, declared by every widget with an agent-written x-state verb: this revision keeps its own state over the report in force. It belongs only to the revision whose stamp overrules; the stamp records the answer on the version note, so later revisions leave it off.",
+    "feed": "All reports form one feed, in log order. Each entry carries its target, action, detail, optional text, speaker, time and version, and one disposition: `effective` (part of current state), `outranked` (a newer report on the same key takes precedence), or `settled` (named in a version note). Work the agent has in hand is not a report: it is an update's Working stage or a started to-do.",
+    "wakes": "A report joins the watcher's batch: `leaf wait` prints it with the user's updates, the same `ack` confirms it, and `leaf page close` is refused while one is unread. The user's On me doesn't count reports, which are news the agent owes the page."
+  },
+  "$settlement": {
+    "description": "The `settles` list on a version note ends provisional facts the agent supplied. Each entry is `{kind, id}`, so ids of different kinds can't collide and a new kind needs no new note field. The list is explicit and permanent: time alone ends nothing, and a later note need not repeat an entry.",
+    "report": "The id is a report event. Stamping adds one for each report whose state the source writes in or explicitly overrules.",
+    "todo": "The id is an open to-do on a page widget. `page stamp --completes <widget>` adds one for each to-do on that widget opened before the stamped revision, ending it as `done`, and lets the revision remove the widget.",
+    "why-restated-is-separate": "`restated` is not a settlement. It retracts a user decision because the authored words or state it rested on changed, while `settles` completes provisional information the agent supplied. Merging the two would make finishing work look like taking back the user's action."
+  },
+  "$awaits": {
+    "description": "The meaning of each field x-awaits may declare, one member per field. The registry lint holds these members to the fields it admits, as it holds `$keys` to the x- keys.",
+    "value": "The user-written x-state verb whose state is the obligation's typed answer: a recorded verb's value, or a custom verb's full current detail, as a map by member id for a verb that keeps state per member.",
+    "records": "One obligation per record of a bound input: {input, label} names an x-data input and the record field supplying its prompt. The input contract's records.items and records.key supply the list and stable keys; the answering verb uses each key as its state unit. The widget marks the same keys as its drawn records for navigation. Without records, the obligation belongs to the whole widget.",
+    "when": "The authored attributes that make an element ask: a map from each attribute to the values that make it one, `true` for its presence and `false` for its absence, regardless of its value type. Every attribute named must match. `lf-options` declares `{\"choose\": [true], \"settled\": [false]}`, so a group asks only while it takes picks and stops once it is `settled`. Without `when`, every element of the tag asks, as every `lf-suggestion` does.",
+    "answered": "When the obligation is answered: a map from each answering x-state verb to a condition on its state, and the obligation is answered while any one holds. Naming the answering verbs keeps other actions, such as adding an option, from answering. `{}` holds while the verb's state is set: a non-empty attribute or value record, read from the authored markup as well as the log, so a version that writes the answer in keeps it answered; for any other verb, an action of it in force. `when` limits a verb to instances whose attributes match, which is how a `multiple` group is answered by its Done (`answer`) and a single-choice group by its pick (`choose`). `empty: {within, when}` holds while the matching member container inside the widget has no members, which is how a queue is answered once its designated column is empty; it needs a position verb, and a member-unit verb needs either this condition or a records declaration. `detail: {field: value}` holds while every named field equals its declared value in the latest action detail for that unit; for example, `detail: {approved: true}` completes an approval and clearing it reopens the obligation. Admission marks the action that makes a condition hold in `meaning.answer` (x-state). A thread in the widget's thread box (x-thread-seat) is not an answer.",
+    "all": "The outcome a blanket yes gives, where one control answers every obligation of this kind at once (`Accept all (3)`). It must be an `outcome` of the widget's deciding verb, which must be an answering verb, and the module must expose a method named for that verb taking the outcome, so each obligation records its own decision. Without it, the user answers each obligation where it is.",
+    "key": "On a widget whose answer picks members (an `attribute` record), the member attribute naming what each member answers wherever a view shows the answer (x-shows), as an `lf-option`'s `value` names the board column its pick stands in. The members declare it unique within the widget (x-unique), so a value names one member, and one without it, such as an option the user added, answers no value.",
+    "retired": "The `when` attribute an author sets to end an obligation already asked, as `settled` ends an `lf-options` group's obligation while the group stays on the page with its context. `when` must ask only while the flag is false. `page check` counts an element that fails `when` on this flag alone as asked, not as one that never asks."
+  },
+  "$restated": {
+    "description": "A boolean attribute saying this revision rewrote words the user already decided on, so the decision no longer applies and the user is asked again. Put it on the element the decision rests on: an `lf-draft` or `lf-suggestion`, the `lf-card` or `lf-option` inside a board or group, or an `lf-ask` whose question you rewrote, which then waits on an answer given after the stamp. It retracts every action that named that element: a rewritten card drops only that card's moves, while a rewritten option takes back the whole pick it was part of.",
+    "why": "Decisions are recorded against the revision the user saw and survive ordinary edits, so change presentation and wording directly. Use this attribute only when the decision itself should no longer apply; the log records the retraction and keeps the original answer.",
+    "when": "When a revision makes a decision no longer apply and needs a fresh answer, write the new content, mark the element the decision names, and say why in the stamp note. Changing decided wording or presentation alone needs no marker. An unused or repeated marker does no harm.",
+    "once": "Put the marker only on the revision that retracts the decision; stamping records the retraction. Leave it off later revisions unless they withdraw another decision.",
+    "example": "<lf-draft id=\"note-cli\" restated><pre>\nAdds --dry-run to every mutating command. It defaults on for `purge`.</pre></lf-draft>"
+  },
+  "$series": {
+    "description": "The categorical colours this layer paints a chart's series in. The theme defines them as `--series-1` through `--series-N`, and `steps` is N: how many series a chart can tell apart, and the count the palette check holds the tokens to. A project that adds a step raises `steps` here and adds the token in its theme. A chart with more series than steps merges the small ones or splits into several charts, since two series in one colour mislead. The list stops at five because further steps can't stay distinct for users with colour-vision deficiency.",
+    "steps": 5
+  },
+  "$reactions": {
+    "description": "The reaction words: one-press marks a user can put on a passage, an element, a thread message or the whole page, each recorded as a `comment` or `reply` carrying `token` instead of `text`. The kernel declares none. The default package ships the working set, and each selected package edits it merge-patch style: a name replaces or adds a token, `null` removes one. A reaction opens no thread until someone replies to it, and while nothing answers it the user can withdraw it with an `undo`. `glyph` is the mark the page paints, at most four Unicode code points, such as one emoji. `settles: true` means a reaction of this kind on an agent message answers that message's question, so the thread stops waiting on the user. POST /api/event refuses a token outside the merged set. Reaction lists and their digit shortcuts follow this order.",
+    "tokens": {}
+  },
+  "$tones": {
+    "description": "The semantic tints this layer paints, and the full list an author may use: validation refuses any other word, and the theme has a rule for each. A widget marks an attribute as naming a tone with x-tone, and composing the vocabulary writes this list into that attribute's `enum`, so a new tag taking a tone needs only that declaration. The list is short on purpose: a page that can tint anything conveys nothing, and the palette supports three. The author decides which facts get a tint, since only the author knows whether a value is good news; `ok` on one page and `danger` on another may mark the same word.",
+    "names": ["ok", "warn", "danger"]
+  },
+  "button.button": {
+    "description": "A button styled like Leaf's controls, for an action your page module handles along with any state. For a toggle, set `aria-pressed`, and `true` draws it selected.",
+    "x-example": "<button type=\"button\" class=\"button\" aria-pressed=\"true\">Anchored threads</button>"
+  },
+  "[data-room]": {
+    "description": "Space for changing one-line text, sized from newline-separated representative widest strings. Its only child holds the visible text. See page-layout.md, Space for changing text, for use and clipping limits.",
+    "x-example": "<button class=\"button\" data-room=\"Save&#10;Saving…&#10;Saved\"><span>Save</span></button>"
+  },
+  "select.field, input.field": {
+    "description": "A labeled select or single-line text field for the page's own script, matching Leaf's buttons. Use the class rather than restyling the field in page CSS; page CSS only arranges the row.",
+    "x-example": "<label for=\"preview-case\">Conversation</label>\n<select id=\"preview-case\" class=\"field\"><option>Short exchange</option><option>Long exchange</option></select>"
+  },
+  "label.choice": {
+    "description": "A compact native radio or checkbox with a clickable label. The label supplies the hit area and focus ring; the native mark shows selection without a surrounding box. Group radios by name. The page or widget owns changes to its value.",
+    "x-example": "<label class=\"choice\"><input type=\"radio\" name=\"detail\" value=\"summary\" checked>Summary</label>\n<label class=\"choice\"><input type=\"radio\" name=\"detail\" value=\"full\">Full detail</label>"
+  },
+  ".eyebrow": {
+    "description": "A small-caps label above a heading.",
+    "x-example": "<p class=\"eyebrow\">design proposal</p>\n<h1>Widgets</h1>"
+  },
+  ".lede": {
+    "description": "The opening paragraph, set slightly larger.",
+    "x-example": "<p class=\"lede\">One paragraph saying what this page decides.</p>"
+  },
+  ".tag": {
+    "description": "An inline chip label. Add `ok`, `warn` or `danger` to draw it in that status tone.",
+    "x-example": "<span class=\"tag\">experimental</span>"
+  },
+  ".callout": {
+    "description": "An aside set off from the prose by a tint, for something the user must not miss; a note they can skip goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when it reports a status, as `class=\"callout warn\"` for a paused release; the tint and the title take the tone, and the prose keeps the body's ink. The title is a `<strong>` written as the callout's first child; one opening a paragraph stays in the body's ink. In a flow wider than the column, such as a sidebar page's body, it keeps the prose width; one holding a wide chart or table takes `data-width`.",
+    "x-example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
+  },
+  "section.panel": {
+    "description": "A titled region on a sidebar page (`<main class=\"layout-sidebar\">`) holding one thing, such as a table, a log or a list of steps, under a short heading that names it. The heading and spacing group the region without an enclosing card; its contents keep their own visual structure.",
+    "x-example": "<section class=\"panel\" id=\"checks\">\n  <h2>Checks</h2>\n  <table>…</table>\n</section>"
+  },
+  "aside.sidebar": {
+    "description": "Page-level supporting material in the left margin, such as local navigation, a compact legend, or reference facts the user needs throughout a long page. Write one, as a direct child of `main` near the start of the page; a note on one paragraph is an `aside.sidenote` instead. On a wide screen, the first sidebar of a column page sits left of the prose and stays in view, and with a mouse or trackpad an `lf-toc` there shows as a thin spine in the margin whose labels open over the page. Where the window has no room beside the column, in print, and for any second sidebar, it stays in the flow where it was written. Keep its content readable at about 240px wide.",
+    "x-example": "<aside class=\"sidebar\" id=\"page-route\">\n  <nav aria-label=\"On this page\"><strong>On this page</strong><ol><li><a href=\"#prepare\">Prepare</a></li><li><a href=\"#move\">Move</a></li></ol></nav>\n</aside>"
+  },
+  "aside.sidenote": {
+    "description": "A note in the page's right margin, such as a caveat or a source, that the reader can skip without leaving the column. Write it just before the paragraph, list or block it annotates; it then sits level with that block's first line, or above a heading it precedes. A note inside a section, tab panel or disclosure still reaches the margin. Inside a box that clips, such as an `lf-options` group, a board or a table, it is not drawn at all, and `page check --render` fails the version. Where the window has no room beside the column, and in print, the note is a small indented block where it was written, so it must make sense there too. Keep a note to a few lines. The margin fits about fifty-six characters a line, and a long note pushes the next one below its own block. Put longer material in the column as a paragraph.",
+    "x-example": "<aside class=\"sidenote\" id=\"logout-frequency\">Support runs \"log out all devices\" during account-takeover response, about twice a month.</aside>\n<p>Logout must revoke immediately, which rules out any store whose invalidation is eventually consistent.</p>"
+  },
+  ".facts": {
+    "description": "A grid of labels and values for summary facts, written as a definition list. As a direct child of an `lf-option` titled with a `<strong>`, it floats right as a narrow column where the option is wide enough, so the options' figures line up.",
+    "x-example": "<dl class=\"facts\">\n  <dt>Owner</dt><dd>payments</dd>\n  <dt>Rollout</dt><dd>behind a flag</dd>\n</dl>"
+  },
+  ".metric": {
+    "description": "A metric tile: one figure under the label that names it, with an optional change beside the figure in a `<small>`, written as a one-term definition list. A row of them goes in a `layout-tiles` block. It is set as type under a hairline rather than as a card; restyle it through the theme's tokens.",
+    "x-example": "<div class=\"layout-tiles\">\n  <dl class=\"metric\" id=\"open-failures\">\n    <dt>open failures</dt>\n    <dd><strong>2</strong> <small>change: -1</small></dd>\n  </dl>\n  <dl class=\"metric\" id=\"duration\">\n    <dt>sample duration</dt>\n    <dd><strong>4 min</strong></dd>\n  </dl>\n</div>"
+  },
+  "ol.steps": {
+    "description": "An ordered procedure with numbered markers.",
+    "x-example": "<ol class=\"steps\">\n  <li>Backfill the new store.</li>\n  <li>Verify counts, then flip reads.</li>\n</ol>"
+  },
+  "svg.drawing": {
+    "description": "A schematic the page draws itself as inline SVG, such as a layout or a mechanism, inside a `<figure>`, with `role=\"img\"` and a `<title>` stating its point. Paint its marks with these classes, whose colors follow the theme: `.frame` and `.frame-head` for a window or pane and its header; `.box`, with `.hot` for the one that matters; `.line` (`.soft`) for a line of text; `.highlight`; `.ghost` for where something would go; `.guide` and `.dim` for alignment and dimension lines; `.arrow`, with `.tip` (`.hot`) on its marker; `.mark` for an accent dot and `.glyph` for the character on it; and `.ok`, `.warn` and `.danger` fills. Text is muted; `.strong`, `.small` and `.mono` restyle it. Without a `width`, the drawing fills its figure; give a thumbnail one. For a mark particular to the subject, add a page-local class that uses the same tokens.",
+    "x-example": "<figure id=\"sidebar-width\">\n  <svg class=\"drawing\" viewBox=\"0 0 320 120\" role=\"img\" aria-labelledby=\"sidebar-width-t\">\n    <title id=\"sidebar-width-t\">The sidebar takes 240px left of the column</title>\n    <rect class=\"frame\" x=\"4\" y=\"4\" width=\"312\" height=\"112\" rx=\"6\"/>\n    <rect class=\"box hot\" x=\"16\" y=\"20\" width=\"72\" height=\"84\" rx=\"3\"/>\n    <rect class=\"line\" x=\"104\" y=\"24\" width=\"180\" height=\"6\" rx=\"3\"/>\n    <rect class=\"line soft\" x=\"104\" y=\"38\" width=\"150\" height=\"6\" rx=\"3\"/>\n    <text class=\"strong\" x=\"52\" y=\"66\" text-anchor=\"middle\">240</text>\n  </svg>\n  <figcaption>In a narrow window the sidebar returns to the column.</figcaption>\n</figure>"
+  },
+  "table": {
+    "description": "Rows of one shape compared column by column, such as runs per configuration. Columns size to their content, and a table wider than the measure wraps its cells, or scrolls inside itself once they can wrap no further, so set no widths or wrapping on it or its cells. Put identifiers such as test names and paths in `<code>`, which can break inside a cell; a bare identifier is one unbreakable word that holds its column wide and squeezes the others. `page check --render` warns when a table scrolls sideways while one of its cells wraps. A bare `<th>` is a column heading, drawn as a small muted label; `<th scope=\"row\">` names a row, in bold at the body's size. Add a `<caption>` when the section's heading doesn't say what the columns mean. For a few headline figures, put each figure in its own `dl` inside a `layout-tiles` block instead, and for alternatives the user picks between, use `lf-options`.",
+    "x-example": "<table id=\"tiers\">\n  <caption>Ceilings per plan, and what each is counted against.</caption>\n  <thead><tr><th>Plan</th><th class=\"num\">A minute</th><th>Counted against</th></tr></thead>\n  <tbody>\n    <tr><th scope=\"row\">Free</th><td class=\"num\">60</td><td>the token</td></tr>\n    <tr><th scope=\"row\">Team</th><td class=\"num\">600</td><td>the token</td></tr>\n  </tbody>\n</table>"
+  },
+  "td.num": {
+    "description": "A table cell holding a quantity, right-aligned so the figures in a column line up on their last digit. Put `class=\"num\"` on the column's heading cell too, or the heading sits left of its figures. Add the class to each such cell yourself. Leaf doesn't infer it, since \"60\" and \"60 sessions\" look alike.",
+    "x-example": "<tr><th scope=\"row\">Enterprise</th><td class=\"num\">6,000</td><td class=\"num\">12,000</td></tr>"
+  },
+  "details": {
+    "description": "Native disclosure with a clickable <summary>; find-in-page reaches the collapsed content. `page-authoring.md`, ‘Reading cost’, owns when to use one.",
+    "x-example": "<details>\n  <summary>Full diagnostic output</summary>\n  <pre>…</pre>\n</details>"
+  },
+  "pre > code[class*=\"language-\"]": {
+    "description": "A literal the user can select and quote, such as a command, a config file or a snippet of output. To color it, add `class=\"language-NAME\"` with a name from `$languages`; leave the class off where the body isn't source. For a walkthrough with numbered lines, highlighted ranges or remarks at a line, use `lf-code` instead.",
+    "x-example": "<pre><code class=\"language-bash\">leaf page check ~/.local/state/leaf/pages/auth-diagnosis --render</code></pre>"
+  }
+}

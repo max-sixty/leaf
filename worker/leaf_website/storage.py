@@ -10,6 +10,7 @@ exact bytes: the separately bundled public assets are a different module graph.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -19,6 +20,7 @@ import tarfile
 import time
 import urllib.request
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from http.client import HTTPResponse
@@ -28,12 +30,16 @@ from types import SimpleNamespace
 from typing import BinaryIO
 from urllib.parse import urlencode, urlsplit
 
+import anyio
+from starlette.datastructures import Headers
+from starlette.requests import Request
+
 from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
-from leaf.layer import running_leaf
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
+from leaf.runtime_selection import executing, execution_identity
 from leaf.schema import (
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
@@ -42,7 +48,6 @@ from leaf.schema import (
 from leaf.served_state.reading import record_reading
 from leaf.service import PageTransaction
 from leaf.state import STRING, Record, described, object_schema, page_key, state_home
-from starlette.requests import Request
 
 CHUNK_BYTES = 1024 * 1024
 
@@ -201,6 +206,17 @@ def _responses(
     source_error: str | None,
     blobs: _BlobSet,
 ) -> dict:
+    # A transaction can finish inside the website's event loop. Capture its ASGI
+    # responses in one other thread then, where anyio can own a fresh loop.
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            return executor.submit(
+                _responses, page, site_root, manifest, root, source_error, blobs
+            ).result()
     from leaf_website import WebsitePageEndpoint, page_routes
 
     revision = latest_revision(page.page_dir)
@@ -238,9 +254,15 @@ def _responses(
             continue
         name = snapshot.revision_names[item]
         paths.add(f"revisions/{name}")
-        for logical in set(artifact.resources) | set(artifact.widget_aliases):
-            path = f"revisions/{name.removesuffix('.html')}{logical}"
-            paths.add(path)
+        # Where the container serves the revision's resources: under the identity of
+        # the runtime and layer it executes (`http.PageEndpoint._named_root`).
+        served = (
+            f"revisions/{name.removesuffix('.html')}/{execution_identity(artifact)}"
+        )
+        for logical in set(executing(artifact).resources) | set(
+            artifact.widget_aliases
+        ):
+            paths.add(f"{served}{logical}")
     paths.update(
         f"versions/v{version['version']}.html" for version in snapshot.context.versions
     )
@@ -253,6 +275,16 @@ def _responses(
     result = {}
     for path in sorted(paths):
         address = urlsplit(f"{root.rstrip('/')}/{path}")
+        request_sent = False
+
+        async def receive():
+            nonlocal request_sent
+            if not request_sent:
+                request_sent = True
+                return {"type": "http.request", "body": b"", "more_body": False}
+            # This capture has no client to disconnect while a file streams.
+            await asyncio.Event().wait()
+
         request = Request(
             {
                 "type": "http",
@@ -262,13 +294,12 @@ def _responses(
                 "path": address.path,
                 "query_string": address.query.encode(),
                 "headers": [],
-            }
+            },
+            receive,
         )
         endpoint = WebsitePageEndpoint(
             request,
-            SimpleNamespace(
-                server_id=f"website-{manifest['release']}", leaf=running_leaf()
-            ),
+            SimpleNamespace(server_id=f"website-{manifest['release']}"),
             routes=routes,
             pages=manifest["pages"],
             release=manifest["release"],
@@ -276,15 +307,20 @@ def _responses(
         )
         endpoint.page_snapshot = snapshot
         endpoint.housekeeping = True
-        response = endpoint.respond()
-        if response.status_code != 200:
+        messages = []
+
+        async def capture(message, messages=messages):
+            messages.append(message)
+
+        anyio.run(endpoint, request.scope, request.receive, capture)
+        response, *body = messages
+        if response["status"] != 200:
             raise RuntimeError(
-                f"cannot publish saved page response {path}: {response.status_code}"
+                f"cannot publish saved page response {path}: {response['status']}"
             )
         result[path] = {
-            "status": response.status_code,
-            "headers": dict(response.headers),
-            **blobs.chunks(response.body),
+            "headers": dict(Headers(raw=response["headers"])),
+            **blobs.chunks(b"".join(chunk["body"] for chunk in body)),
         }
     return result
 

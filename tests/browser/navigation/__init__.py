@@ -1,8 +1,9 @@
 """Browser tests of comment marks, Go-to addresses and keyboard navigation, with the
 page constants and helpers their modules share."""
 
-from leaf.render_checks import rendered
 from render_harness import leaf_page, regions_side_by_side
+
+from leaf.render_checks import rendered
 
 READING_REGIONS_PAGE = leaf_page(
     "reading region navigation",
@@ -55,7 +56,7 @@ def color_cue_markup():
 
 
 # The keyboard walk's position, the reading the panel says in its field's place
-# (walk-position.js, `walkPosition`): `{text, kind, boundary}`, or null with no walk
+# (walk-position.js, `walkPosition`): `{text, kind, target}`, or null with no walk
 # under way. Evaluating it leaves a synchronous reader for `wait_for_function`.
 WALK_POSITION = """async () => {
   const {walkPosition} = await window.__lfCheckApi();
@@ -65,7 +66,7 @@ WALK_POSITION = """async () => {
 
 
 def walk_position(page):
-    """The walk's position where the user stands now, or None with no walk."""
+    """The walk's current position, or None with no walk."""
     return page.evaluate(WALK_POSITION)
 
 
@@ -78,7 +79,7 @@ def expect_walk_position(page, text):
     )
 
 
-# Each route the dispatcher would run from where the user stands, by the route's own id
+# Each route the dispatcher would run from the current location, by the route's own id
 # (a parameterized command's route rather than its row, `page.down` rather than
 # `page.move`), with the keys that reach it: the reading the bottom key line painted.
 OFFERED_ROUTES = """async () => {
@@ -92,6 +93,6 @@ OFFERED_ROUTES = """async () => {
 
 
 def offered_routes(page):
-    """`{route id: [keys]}` the dispatcher would run from where the user stands now."""
+    """`{route id: [keys]}` the dispatcher would run from the current location now."""
     rendered(page)
     return page.evaluate(OFFERED_ROUTES)

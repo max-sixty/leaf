@@ -1,0 +1,321 @@
+/** CodeMirror owns editing, selection, history and conflict presentation.
+ * The surrounding widget alone owns file revisions and disk writes.
+ */
+import { langForPath, leafEditorView, sizeObserver } from "/runtime/widget-api.js";
+import * as codemirror from "/vendor/codemirror.esm.js";
+import {
+  ChangeSet,
+  Compartment,
+  EditorState,
+  Prec,
+  Transaction,
+  EditorView,
+  keymap,
+  lineNumbers,
+  highlightActiveLineGutter,
+  highlightActiveLine,
+  dropCursor,
+  rectangularSelection,
+  crosshairCursor,
+  drawSelection,
+  history,
+  historyKeymap,
+  defaultKeymap,
+  LanguageSupport,
+  markdownLanguage,
+  HighlightStyle,
+  syntaxHighlighting,
+  indentOnInput,
+  placeholder,
+  bracketMatching,
+  tags,
+} from "/vendor/codemirror.esm.js";
+import {
+  diff,
+  unifiedMergeView,
+  getOriginalDoc,
+  originalDocChangeEffect,
+  autocompletion,
+  closeBrackets,
+  closeBracketsKeymap,
+  completionKeymap,
+} from "/vendor/extensions.esm.js";
+
+const LeafEditorView = leafEditorView(codemirror);
+
+const theme = EditorView.theme({
+  "&": { color: "var(--ink)", backgroundColor: "var(--card)" },
+  "&.cm-focused": { outline: "none" },
+  ".cm-scroller": { fontFamily: "var(--mono)", lineHeight: "24px" },
+  ".cm-content": { padding: "1rem 0", caretColor: "var(--accent)" },
+  ".cm-line": { padding: "0 .85rem" },
+  ".cm-gutters": {
+    backgroundColor: "var(--paper)",
+    color: "var(--muted)",
+    borderRight: "1px solid var(--rule)",
+  },
+  ".cm-lineNumbers .cm-gutterElement": {
+    padding: "0 .6rem 0 .8rem",
+    minWidth: "2.5rem",
+  },
+  ".cm-activeLine, .cm-activeLineGutter": {
+    backgroundColor: "color-mix(in srgb, var(--accent) 6%, transparent)",
+  },
+  ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)" },
+  ".cm-placeholder": { color: "var(--muted)" },
+  "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
+    { backgroundColor: "color-mix(in srgb, var(--accent) 24%, transparent)" },
+  ".cm-matchingBracket": {
+    backgroundColor: "color-mix(in srgb, var(--accent) 18%, transparent)",
+    outline: "1px solid color-mix(in srgb, var(--accent) 40%, transparent)",
+  },
+  ".cm-tooltip": {
+    backgroundColor: "var(--card)",
+    color: "var(--ink)",
+    border: "1px solid var(--border-2)",
+  },
+  ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
+    backgroundColor: "var(--accent)",
+    color: "var(--card)",
+  },
+  "&.cm-merge-b .cm-changedLine, .cm-inlineChangedLine": {
+    backgroundColor: "color-mix(in srgb, var(--ok) 9%, transparent)",
+  },
+  "&.cm-merge-b .cm-changedText": {
+    backgroundColor: "color-mix(in srgb, var(--ok) 23%, transparent)",
+  },
+  ".cm-deletedChunk": {
+    backgroundColor: "color-mix(in srgb, var(--danger) 9%, var(--card))",
+    padding: ".35rem .85rem",
+    borderLeft: "3px solid var(--danger)",
+  },
+  ".cm-deletedChunk .cm-deletedText": {
+    backgroundColor: "color-mix(in srgb, var(--danger) 19%, transparent)",
+  },
+  ".cm-deletedChunk .cm-deletedLine": { textDecoration: "none", opacity: ".85" },
+  ".cm-deletedText": { textDecoration: "line-through" },
+  ".cm-changedLineGutter": { backgroundColor: "var(--ok)" },
+  ".cm-deletedLineGutter": { backgroundColor: "var(--danger)" },
+});
+
+const highlighting = HighlightStyle.define([
+  { tag: tags.heading, color: "var(--accent)", fontWeight: "650" },
+  { tag: tags.strong, fontWeight: "650" },
+  { tag: tags.emphasis, fontStyle: "italic" },
+  { tag: [tags.link, tags.url], color: "var(--accent)", textDecoration: "underline" },
+  { tag: [tags.monospace, tags.string], color: "var(--syn-string)" },
+  { tag: [tags.keyword, tags.modifier], color: "var(--syn-keyword)" },
+  { tag: [tags.number, tags.bool], color: "var(--syn-number)" },
+  { tag: tags.comment, color: "var(--syn-comment)" },
+  { tag: [tags.meta, tags.processingInstruction], color: "var(--syn-comment)" },
+]);
+const isMarkdown = (filename) => langForPath(filename) === "markdown";
+
+/** Create a file editor. External text changes use CodeMirror transactions,
+ * mapping selection through the dependency's diff. Adopting changed external text
+ * starts a new undo history: earlier local edits belong to the replaced version.
+ * @param {HTMLElement} parent
+ * @param {{text?: string, filename?: string, original?: string | null, readOnly?: boolean,
+ *   label?: string, description?: string, onChange?: (text: string) => void,
+ *   onSave?: () => void}} [options]
+ */
+export function createEditor(
+  parent,
+  {
+    text = "",
+    filename = "",
+    original = null,
+    readOnly = false,
+    label = "File contents",
+    description = "Changes save automatically. If the file changes elsewhere, review both versions before saving.",
+    onChange,
+    onSave,
+  } = {},
+) {
+  const editable = new Compartment(),
+    language = new Compartment(),
+    hint = new Compartment(),
+    undoHistory = new Compartment();
+  let shownHint = "";
+  let readonly = readOnly,
+    markdown = isMarkdown(filename),
+    conflict = original,
+    replacing = false;
+  const readonlyExtension = () => [
+    EditorState.readOnly.of(readonly),
+    EditorView.editable.of(!readonly),
+    EditorView.contentAttributes.of({
+      "aria-readonly": String(readonly),
+      ...(readonly ? { tabindex: "0" } : {}),
+    }),
+  ];
+  const state = (value) =>
+    EditorState.create({
+      doc: value,
+      extensions: [
+        undoHistory.of(history()),
+        drawSelection(),
+        keymap.of([...defaultKeymap, ...historyKeymap]),
+        language.of(markdown ? new LanguageSupport(markdownLanguage) : []),
+        hint.of([]),
+        syntaxHighlighting(highlighting),
+        theme,
+        // Only the primary editor needs line coordinates and an active line.
+        // The read-only comparison presents both versions through text decorations.
+        original === null
+          ? [lineNumbers(), highlightActiveLineGutter(), highlightActiveLine()]
+          : [],
+        dropCursor(),
+        rectangularSelection(),
+        crosshairCursor(),
+        EditorState.allowMultipleSelections.of(true),
+        indentOnInput(),
+        bracketMatching(),
+        closeBrackets(),
+        autocompletion(),
+        keymap.of([...closeBracketsKeymap, ...completionKeymap]),
+        EditorState.tabSize.of(4),
+        EditorView.contentAttributes.of({
+          role: "textbox",
+          "aria-label": label,
+          "aria-description": description,
+          "aria-multiline": "true",
+          spellcheck: "false",
+          autocapitalize: "off",
+          autocomplete: "off",
+        }),
+        editable.of(readonlyExtension()),
+        EditorView.lineWrapping,
+        // A comparison is created with the disk version it shows and only ever moves
+        // to a later one (`setConflict`); the primary editor never shows one.
+        original === null
+          ? []
+          : unifiedMergeView({
+              original,
+              mergeControls: false,
+              allowInlineDiffs: true,
+              gutter: false,
+            }),
+        Prec.highest(
+          keymap.of([
+            {
+              key: "Mod-s",
+              run: () => {
+                onSave?.();
+                return true;
+              },
+              stopPropagation: true,
+            },
+          ]),
+        ),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged && !replacing) onChange?.(update.state.doc.toString());
+        }),
+      ],
+    });
+  let retained = state(text);
+  let view = new LeafEditorView({ state: retained, parent });
+  let scroll = { top: 0, left: 0 };
+  const reading = () => view?.state ?? retained;
+  const dispatch = (spec) => {
+    if (view) view.dispatch(spec);
+    else retained = retained.update(spec).state;
+  };
+  const revealCaret = () =>
+    dispatch({
+      effects: EditorView.scrollIntoView(reading().selection.main.head, {
+        y: "nearest",
+      }),
+    });
+  const resize =
+    original === null
+      ? sizeObserver(() => {
+          if (view?.hasFocus) revealCaret();
+        })
+      : null;
+  resize?.observe(view.scrollDOM);
+  const disconnect = () => {
+    if (!view) return;
+    retained = view.state;
+    scroll = { top: view.scrollDOM.scrollTop, left: view.scrollDOM.scrollLeft };
+    resize?.disconnect();
+    view.destroy();
+    view = null;
+  };
+  return {
+    get value() {
+      return reading().doc.toString();
+    },
+    set value(value) {
+      if (value === reading().doc.toString()) return;
+      replacing = true;
+      try {
+        const previous = reading().doc.toString();
+        dispatch({
+          changes: diff(previous, value).map((change) => ({
+            from: change.fromA,
+            to: change.toA,
+            insert: value.slice(change.fromB, change.toB),
+          })),
+          effects: undoHistory.reconfigure([]),
+          annotations: Transaction.addToHistory.of(false),
+        });
+        dispatch({ effects: undoHistory.reconfigure(history()) });
+      } finally {
+        replacing = false;
+      }
+    },
+    get readOnly() {
+      return readonly;
+    },
+    // Words an empty editor shows in place of the file, such as why no file is there.
+    set placeholder(text) {
+      if (shownHint === text) return;
+      shownHint = text;
+      dispatch({ effects: hint.reconfigure(text ? placeholder(text) : []) });
+    },
+    set readOnly(value) {
+      if (readonly === value) return;
+      readonly = value;
+      dispatch({ effects: editable.reconfigure(readonlyExtension()) });
+    },
+    get contentDOM() {
+      return view.contentDOM;
+    },
+    setLabel(label) {
+      const next = isMarkdown(label);
+      if (next === markdown) return;
+      markdown = next;
+      dispatch({
+        effects: language.reconfigure(
+          markdown ? new LanguageSupport(markdownLanguage) : [],
+        ),
+      });
+    },
+    setConflict(value) {
+      if (conflict === value) return;
+      conflict = value;
+      const originalLength = getOriginalDoc(reading()).length;
+      const changes = ChangeSet.of(
+        { from: 0, to: originalLength, insert: value },
+        originalLength,
+      );
+      dispatch({ effects: originalDocChangeEffect(reading(), changes) });
+    },
+    // Bring the caret into the editor's view, as a landing on the editor does: its room
+    // may have shrunk under the caret while the reader stood elsewhere.
+    revealCaret,
+    // A move by `moveBefore` collapses the native selection in the view it keeps.
+    placeSelection() {
+      view?.placeSelection();
+    },
+    connect() {
+      if (view) return;
+      view = new LeafEditorView({ state: retained, parent });
+      view.scrollDOM.scrollTop = scroll.top;
+      view.scrollDOM.scrollLeft = scroll.left;
+      resize?.observe(view.scrollDOM);
+    },
+    disconnect,
+  };
+}

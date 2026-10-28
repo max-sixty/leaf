@@ -2,18 +2,16 @@
 durable answer, the working message while the agent works, what an answer's head says it
 leaves, and the widgets its markup carries."""
 
+import json
 import re
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_carried_log_record, response_reference
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import interaction_log as interaction_model
-from leaf import service as service_model
-from leaf import thread as thread_model
-from leaf import todos as todos_model
-from leaf.render_checks import rendered
+from interact_support import (
+    append_carried_log_record,
+    append_command,
+    response_reference,
+)
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -22,12 +20,15 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_harness import (
-    held_frames,
+    expect_on_me,
     holding,
+    leaf_page,
     open_page,
     panel_settled,
     resized,
+    round_trip,
     sending,
+    stamp_page,
     told,
     write,
 )
@@ -43,6 +44,13 @@ from browser.threads import (
     stream_reply,
     thread_row,
 )
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import interaction_log as interaction_model
+from leaf import service as service_model
+from leaf import thread as thread_model
+from leaf import todos as todos_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -56,6 +64,206 @@ def open_margin_card(page, section):
     """Open the margin card of the thread on `section`, by its marker."""
     page.locator(f'[data-lf-margin-for="{section}"] .lf-margin-marker').click()
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_visible()
+
+
+@pytest.mark.parametrize("section", [None, "title"], ids=["page", "title"])
+def test_a_plain_agent_question_can_be_opened_and_answered(browser, serve, section):
+    """A plain question works both on the whole page and on its title."""
+    url = serve(
+        leaf_page(
+            "Rehearsal report",
+            '<h1 id="title">Rehearsal report</h1>'
+            '<p id="result">The backfill copied 310 million rows without errors.</p>',
+        )
+    )
+    question = "Which meeting should the invitation be for?"
+    opened = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "create",
+            str(serve.page_dir),
+            "--title",
+            "Meeting details",
+            "--text",
+            question,
+            *(["--section", section] if section else []),
+        ],
+    )
+    assert opened.exit_code == 0, opened.output
+    root = json.loads(opened.output)
+    page = open_page(browser, url)
+    if section:
+        assert root["anchor"]["section"] == section
+        open_margin_card(page, section)
+        card = page.locator(card_of(root["id"]))
+        reply = card.locator(".lf-thread-reply leaf-text")
+    else:
+        assert "anchor" not in root
+        expect(page.locator('[data-lf-margin-for="title"]')).to_have_count(0)
+        card = open_panel_thread(page, root["id"])
+        reply = page.locator(PANEL_REPLY)
+    expect(card.get_by_text(question, exact=True)).to_be_visible()
+    write(reply, "Thursday's review")
+    expect(reply).to_have_js_property("value", "Thursday's review")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+
+    page.keyboard.press("Shift+t")
+    expect(card.get_by_text(question, exact=True)).to_be_visible()
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Thursday's review")
+    with sending(page, "the meeting answer"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(card.get_by_text("Thursday's review", exact=True)).to_be_visible()
+    answer = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "reply" and event["author"] == "user"
+    )
+    assert answer["parent"] == root["id"]
+
+
+@pytest.mark.parametrize("anchor", ["page", "title", "removed"])
+def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
+    browser, serve, anchor
+):
+    """On me reaches the exact question, even when its thread has lost its passage."""
+    source = leaf_page(
+        "Rehearsal report",
+        '<h1 id="title">Rehearsal report</h1>'
+        '<p id="result">The backfill copied 310 million rows without errors.</p>',
+    )
+    url = serve(source)
+    runner = CliRunner()
+    opened = runner.invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "create",
+            str(serve.page_dir),
+            "--text",
+            "The rehearsal is complete.",
+            *(["--section", "title"] if anchor != "page" else []),
+        ],
+    )
+    assert opened.exit_code == 0, opened.output
+    root = json.loads(opened.output)
+    question = "Which production maintenance window did you book?"
+    asked = runner.invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(serve.page_dir),
+            root["id"],
+            "--obligation",
+            "--text",
+            question,
+        ],
+    )
+    assert asked.exit_code == 0, asked.output
+    message = json.loads(asked.output)
+    if anchor == "removed":
+        stamp_page(
+            serve.page_dir,
+            source.replace('<h1 id="title">Rehearsal report</h1>', ""),
+            "Remove the old heading",
+        )
+    page = open_page(browser, url)
+    mark = page.locator(".lf-fp-on-user")
+    expect_on_me(page, 1)
+    mark.click()
+    row = page.locator('.lf-fp-on-item[data-list="you"]')
+    expect(row).to_contain_text(question)
+    expect(row.get_by_role("button", name="Reply", exact=True)).to_be_visible()
+    row.get_by_role("button", name="Show", exact=True).click()
+    shown = page.locator(
+        f'.lf-page-thread:visible .lf-msg[data-event="{message["id"]}"]'
+    )
+    expect(shown).to_be_visible()
+    expect(shown).to_contain_text("Waiting on me")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    page.keyboard.press("m")
+    expect(shown).to_be_visible()
+    page.keyboard.press("c")
+    reply = page.locator("leaf-text:focus")
+    expect(reply).to_be_focused()
+    write(reply, "02:00–02:40 UTC on Thursday")
+    with sending(page, "the maintenance window"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect_on_me(page, 0)
+    assert any(
+        event["kind"] == "reply"
+        and event["author"] == "user"
+        and event["text"] == "02:00–02:40 UTC on Thursday"
+        for event in events_model.read_events(serve.page_dir)
+    )
+
+
+def test_a_thread_task_stays_on_me_until_done(browser, serve):
+    """Discussion of outside work is not completion; Done and Undo are explicit."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Can you check the mobile build?")
+    todo = todos_model.cmd_create(
+        serve.page_dir, root, "Try the build on your phone", "user"
+    )
+    assert todo["subject"] == {"kind": "thread", "id": root}
+    page = open_page(browser, url)
+    mark = page.locator(".lf-fp-on-user")
+    expect_on_me(page, 1)
+    mark.click()
+    row = page.locator(f'.lf-fp-on-item[data-obligation="{todo["id"]}"]')
+    expect(row).to_contain_text("Try the build on your phone")
+    row.get_by_role("button", name="Discuss", exact=True).click()
+    reply = page.locator(PANEL_REPLY)
+    write(reply, "Which phone should I use?")
+    with sending(page, "the device clarification"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect_on_me(page, 1)
+    page.locator(".lf-fp-controls .lf-fp-back", has_text="On me").click()
+    with sending(page, "the completed phone check"):
+        row.get_by_role("button", name="Done", exact=True).click()
+    expect_on_me(page, 0)
+    expect(row.locator(".lf-fp-said")).to_have_text("Done")
+    with sending(page, "undo the phone check"):
+        row.get_by_role("button", name="Undo", exact=True).click()
+    expect_on_me(page, 1)
+    expect(row.get_by_role("button", name="Done", exact=True)).to_be_visible()
+
+
+def test_a_thread_heads_with_the_task_it_holds_on_me(browser, serve):
+    """A to-do on the user that sits on a thread heads the thread with its title and a
+    Done, so a reader discussing it ends it there, and the line goes as they press."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Can you check the mobile build?")
+    todo = todos_model.cmd_create(
+        serve.page_dir, root, "Try the build on your phone", "user"
+    )
+    page = open_page(browser, url)
+    mark = page.locator(".lf-fp-on-user")
+    mark.click()
+    page.locator(f'.lf-fp-on-item[data-obligation="{todo["id"]}"]').get_by_role(
+        "button", name="Discuss", exact=True
+    ).click()
+    line = page.locator(".lf-thread-todo:visible")
+    expect(line).to_have_count(1)
+    expect(line).to_contain_text("To-do · Try the build on your phone")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    line.get_by_role("button", name="Done", exact=True).click()
+    holding(page, held, 1, "the thread's Done")
+    expect(line).to_have_count(0)
+    expect_on_me(page, 0)
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    assert events_model.read_events(serve.page_dir)[-1]["todo"] == todo["id"]
 
 
 def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
@@ -198,7 +406,7 @@ def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(
 
     On a real Codex App Server turn the card drew an empty agent bubble as the turn
     started, held the opening's first words as an edit of it behind "1 new reply", and
-    the answer, written by `leaf response reply` under a retry key of its own, took the
+    the answer, written by `leaf thread reply` under a retry key of its own, took the
     bubble away and appended itself. The provisional reply now joins the thread with
     its first words, its words join it as they come, and the answer to the same input
     is the same message.
@@ -299,14 +507,11 @@ def test_a_held_card_counts_a_streaming_reply_once_and_names_the_users_own_messa
     expect(thread.locator(".lf-msg.user")).to_have_count(2)
 
 
-def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_its_own(
+def test_an_answer_completing_its_stream_with_the_same_words_keeps_progress_hidden(
     browser, serve, request
 ):
-    """An App Server final repeats the words it streamed, and it folds the progress
-    before it into its disclosure. That fold is the answer's news, so a card the user
-    is writing in, which holds it, says a reply arrived rather than that a summary
-    changed.
-    """
+    """A final with the streamed words completes in place without news or bringing
+    back progress while the user writes their next message."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
     claim_for_codex(serve.page_dir, request)
@@ -322,10 +527,10 @@ def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_i
     page = open_page(browser, url)
     open_margin_card(page, "h-how")
     thread = page.locator(card_of(root))
-    expect(thread.locator(".lf-msg.agent")).to_have_count(2)
+    expect(thread.locator(".lf-msg.agent:visible")).to_have_count(1)
     write(thread.locator(":scope > .lf-thread-reply leaf-text"), "Also note the date")
 
-    thread_model.post_reply(
+    answer = thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
         "Recorded the release.",
@@ -335,26 +540,23 @@ def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_i
     with service_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
-    notice = thread.locator(".lf-thread-news")
-    expect(notice).to_have_text("1 new reply")
-    notice.click()
-    expect(notice).to_have_count(0)
-    expect(thread.locator(".lf-msg.agent").last.locator(".lf-msg-text")).to_have_text(
-        "Recorded the release."
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    message = thread.locator(f'.lf-msg[data-event="{answer["id"]}"]')
+    expect(message.locator(".lf-msg-text")).to_have_text("Recorded the release.")
+    expect(thread.locator(".lf-thread-working")).to_have_count(0)
+    expect(thread.locator(".lf-msg.agent:visible")).to_have_count(1)
+    expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_have_js_property(
+        "value", "Also note the date"
     )
 
 
 @pytest.mark.watch_shifts
 @pytest.mark.parametrize("streamed", [False, True])
-def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
+def test_an_idle_card_replaces_progress_with_the_answer(
     browser, serve, request, streamed
 ):
-    """The agent acknowledges a move with progress before it answers, and the answer
-    folds that progress into its disclosure. In an open card the user is reading but
-    not writing in, that fold changes only the thread's end, so the answer shows as it
-    lands, streamed or not. The progress disclosure stays put when the answer gains
-    its feedback control, and nothing above the progress moves.
-    """
+    """An idle card replaces progress with the answer as its first words arrive,
+    streamed or durable, and keeps everything above the progress in place."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
     claim_for_codex(serve.page_dir, request)
@@ -373,7 +575,7 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     if streamed:
         stream_reply(serve.page_dir, root, "Recording the release now.")
         told(page)
-        expect(thread.locator(".lf-msg.agent")).to_have_count(2)
+        expect(thread.locator(".lf-msg.agent:visible")).to_have_count(1)
     opening = thread.locator(".lf-msg").first
     resting = opening.bounding_box()
 
@@ -387,13 +589,13 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     with service_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
-    answer = thread.locator(".lf-msg.agent:not(.lf-summary-originals *)")
+    answer = thread.locator(".lf-msg.agent:visible")
     expect(answer.locator(".lf-msg-text")).to_have_text(
         "Recorded the release on the board."
     )
-    expect(thread.locator(".lf-thread-checkpoint")).to_have_count(1)
+    expect(thread.locator(".lf-thread-checkpoint")).to_have_count(0)
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
-    assert opening.bounding_box() == resting, "the fold moved what stood above it"
+    assert opening.bounding_box() == resting, "the answer moved what stood above it"
 
 
 def test_pending_progress_is_the_threads_working_message_and_never_unread(
@@ -402,7 +604,7 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     """While the agent works, its progress shows as one dim working message above the
     reply box, not as replies: each step replaces the last, nothing counts unread, and
     the earlier steps stay out of sight. The answer takes the working message's place
-    and folds the steps behind its own disclosure."""
+    and the earlier steps remain hidden."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Make the banner quieter", {"section": "h-how"}
@@ -426,7 +628,10 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     panel_settled(page, view="queue")
     page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
     card = page.locator('.lf-fp-on-item[data-list="agent"]')
-    expect(card.locator(".lf-fp-said")).to_have_text("Trying a lighter weight.")
+    card.locator(".lf-fp-on-line").click()
+    expect(card.locator(".lf-fp-answers .lf-fp-said")).to_have_text(
+        "Trying a lighter weight."
+    )
     # Nothing counts unread.
     expect(thread_row(page, root)).not_to_have_attribute("data-unread", "")
     page.locator(".lf-fp-close").click()
@@ -436,7 +641,9 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
             response.url.endswith("/api/interaction")
             and response.ok
             and any(
-                entry["type"] == "reply_visible" and entry.get("input_id") == root
+                entry["type"] == "reply_visible"
+                and entry.get("input_id") == root
+                and entry["presentation_kind"] == "working_words"
                 for entry in response.request.post_data_json["entries"]
             )
         )
@@ -523,9 +730,11 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     told(page)
     expect(line).to_have_count(0)
     expect(thread.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
+    for step in steps:
+        expect(thread.locator(f'.lf-msg[data-event="{step["id"]}"]')).to_be_hidden()
     expect(
-        thread.get_by_role("button", name="Show 3 progress messages", exact=True)
-    ).to_be_visible()
+        thread.get_by_role("button", name=re.compile("progress message"))
+    ).to_have_count(0)
 
     # A second session can post progress after the first session answered. It has
     # no owed input's workflow, so its own message supplies both author and time.
@@ -546,8 +755,9 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
 @pytest.mark.watch_shifts
 def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     """A step's words wrap, so a new step can change the working message's height. In a
-    seat where that would move the reply being typed, the step waits behind the
-    thread's notice, as a reply would, and the draft keeps its place."""
+    seat where that would move the reply being typed, the step waits and the draft
+    keeps its place. The notice says nothing of it, since progress is no unread news,
+    and sending the draft shows it."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
     thread_model.post_reply(
@@ -574,23 +784,27 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
         ephemeral=True,
     )
     told(page)
-    notice = thread.get_by_role("button", name="1 new message", exact=True)
-    expect(notice).to_be_visible()
     expect(words).to_have_text("Reading the jobs")
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
     assert editor.bounding_box() == pytest.approx(box, abs=0.5)
 
-    notice.click()
+    with sending(page, "the draft"):
+        editor.press("Enter")
     expect(words).to_contain_text("what each one needs before it can start")
-    assert editor.evaluate("box => box.value") == "Start with the mounts."
 
 
 def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, serve):
-    """A seat's notice keeps the width of the news it first said. News that grows past
-    it shows its first fact whole and drops the later one, which the notice's name
-    still says, rather than cutting the first fact mid-word ("1 new re…")."""
+    """A seat's notice keeps the width of the news it first said, with room at its end
+    for a count. News that grows past it shows its first fact whole and drops the
+    later one, which the notice's name still says, rather than cutting the first fact
+    mid-word ("1 new re…"). The count says "+1" in the room the notice kept, so a
+    reader with no tooltip knows more waits; the name doesn't repeat it."""
     url = serve(SEATED_OBLIGATION_PAGE)
-    root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
+    # An agent's opening message has no delivery receipt competing with the news.
+    root = panel_comment(
+        serve.page_dir, "Which job comes first?", {"section": "jobs"}, author="agent"
+    )
     page = open_page(browser, url)
     resized(page, 390, 900)
     thread = page.locator("#jobs .lf-page-thread")
@@ -598,14 +812,19 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     write(thread.locator("leaf-text"), "Start with the mounts.")
     rendered(page)
 
-    thread_model.post_reply(
-        serve.page_dir, {"responds": root}, "The mounts come first."
-    )
+    thread_model.post_reply(serve.page_dir, {"parent": root}, "The mounts come first.")
     told(page)
     notice = thread.get_by_role("button", name="1 new reply", exact=True)
     expect(notice).to_be_visible()
     rendered(page)
+    # Dropping a later fact must not cut a first fact that already fit.
+    assert notice.locator(":scope > span > span").evaluate(
+        "fact => fact.scrollWidth <= fact.clientWidth"
+    )
     width = notice.bounding_box()["width"]
+    expect(notice.locator(":scope > span")).not_to_have_attribute(
+        "data-lf-more", re.compile(".*")
+    )
 
     append_user_reply(serve.page_dir, root, "And the bird bath?")
     told(page)
@@ -615,6 +834,19 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     expect(notice).to_be_visible()
     rendered(page)
     assert notice.bounding_box()["width"] == pytest.approx(width, abs=0.5)
+    words = notice.locator(":scope > span")
+    expect(words).to_have_attribute("data-lf-more", "+1")
+    # The count draws in the room the notice kept past the words it follows.
+    count = words.evaluate(
+        """words => {
+            const after = getComputedStyle(words, "::after");
+            const start = words.getBoundingClientRect().right;
+            return {content: after.content, end: start + parseFloat(after.width),
+                right: words.parentElement.getBoundingClientRect().right};
+        }"""
+    )
+    assert count["content"] == '"+1" / ""', count
+    assert count["end"] <= count["right"] + 0.5, count
     facts = notice.locator(":scope > span > span")
     assert facts.nth(0).evaluate("fact => fact.scrollWidth <= fact.clientWidth")
     # The later fact wraps past the words' clip, so nothing of it draws or takes a press.
@@ -629,11 +861,40 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     )
 
 
-def test_a_streaming_answer_takes_the_working_messages_place_and_disclosure(
+def test_held_news_shows_every_fact_its_notice_first_said(browser, serve):
+    """A seat's notice that first says two facts keeps both on its line. Its room
+    measures the news as one line and the facts measure it in pieces, a fraction of a
+    pixel wider, which dropped the last fact and left a gap where it fit."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    thread = page.locator("#jobs .lf-page-thread")
+    expect(thread).to_be_visible()
+    write(thread.locator("leaf-text"), "Start with the mounts.")
+    rendered(page)
+
+    thread_model.post_reply(
+        serve.page_dir, {"responds": root}, "The mounts come first."
+    )
+    append_user_reply(serve.page_dir, root, "And the bird bath?")
+    told(page)
+    notice = thread.get_by_role(
+        "button", name="1 new reply · 1 new message", exact=True
+    )
+    expect(notice).to_have_attribute("data-room", "1 new reply · 1 new message")
+    rendered(page)
+    words = notice.locator(":scope > span")
+    assert words.evaluate(
+        "words => [...words.children].map(fact => fact.offsetTop)"
+    ) == [0, 0]
+    expect(words).not_to_have_attribute("data-lf-more", re.compile(".*"))
+
+
+def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     browser, serve, request
 ):
-    """An answer streaming in is the agent's next word: the working message gives way to
-    it, and its head holds the progress disclosure the fold will hold once it lands."""
+    """The first words of a streamed answer hide progress without a disclosure."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
     claim_for_codex(serve.page_dir, request)
@@ -654,11 +915,31 @@ def test_a_streaming_answer_takes_the_working_messages_place_and_disclosure(
     expect(thread.locator(".lf-thread-working")).to_have_count(0)
     streamed = thread.locator(".lf-msg.agent").last
     expect(streamed.locator(".lf-msg-text")).to_have_text("Recording the release now.")
-    show = streamed.locator(".lf-msg-head").get_by_role(
-        "button", name="Show 1 progress message", exact=True
+    expect(thread.locator(f'.lf-msg[data-event="{step["id"]}"]')).to_be_hidden()
+    expect(
+        thread.get_by_role("button", name=re.compile("progress message"))
+    ).to_have_count(0)
+
+    # Failure restores the progress status only when the held stream gives way to
+    # its failure receipt, so progress cannot reappear beside the retained stream.
+    write(thread.locator(":scope > .lf-thread-reply leaf-text"), "Keep this draft")
+    failure = thread_model.post_reply(
+        serve.page_dir,
+        {"responds": root},
+        "The turn failed; please retry.",
+        failure="turn_failed",
+        identity={"agent": "Codex", "session": "codex-thread"},
     )
-    show.press("Enter")
-    expect(thread.locator(f'.lf-msg[data-event="{step["id"]}"]')).to_be_visible()
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.clear_stream_reply("codex-thread", "leaf-turn")
+    told(page)
+    expect(streamed.locator(".lf-msg-text")).to_have_text("Recording the release now.")
+    expect(thread.locator(".lf-thread-working")).to_have_count(0)
+    thread.get_by_role("button", name="1 new reply", exact=True).click()
+    expect(
+        thread.locator(f'.lf-msg[data-event="{failure["id"]}"] .lf-msg-failure')
+    ).to_have_text("Couldn't answer")
+    expect(thread.locator(".lf-thread-working")).to_contain_text("Checking the board")
 
 
 def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request):
@@ -672,8 +953,8 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     question = thread_model.post_reply(
         serve.page_dir,
         {"responds": asked},
-        "One question:",
-        markup='<lf-ask id="store-choice">The session store or the page store?</lf-ask>',
+        "The session store or the page store?",
+        obligation=True,
         identity=codex,
     )
     promise = thread_model.post_reply(
@@ -686,7 +967,7 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     page = open_page(browser, url)
     for root, reply, words, section in (
         (asked, question, "Waiting on me", "h-how"),
-        (promised, promise, "To-do open", "lede"),
+        (promised, promise, "Still to do", "lede"),
     ):
         open_margin_card(page, section)
         thread = page.locator(card_of(root))
@@ -726,9 +1007,9 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         },
     )
     page = open_page(browser, url)
-    # Nobody's turn: the thread's row says it is open and no more.
+    # The unread reply is the row's mark, with no turn owed by either participant.
     status = thread_row(page, root).locator(".lf-fp-value")
-    expect(status).to_have_text(re.compile(r"^(Open)?$"))
+    expect(status).to_have_text("")
     card = open_panel_thread(page, root)
     receipt = page.locator(
         f'.lf-fp-view .lf-msg[data-event="{board["id"]}"] .lf-msg-sending'
@@ -740,9 +1021,9 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     with sending(page, "the card move"):
         page.keyboard.press("Enter")
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
-    expect(receipt).to_have_text("Sent")
+    expect(receipt).to_have_text(re.compile(r"^Queued for "))
     status = thread_row(page, root).locator(".lf-fp-value")
-    expect(status).to_have_text(re.compile(r"^(Open)?$"))
+    expect(status).to_have_text("")
     card = open_panel_thread(page, root)
 
     [moved] = [
@@ -802,6 +1083,12 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
         {"responds": answered["id"]},
         "Widened it to forty.",
     )
+    thread_model.post_reply(
+        serve.page_dir,
+        {"responds": unanswered["id"]},
+        "Checking the south pair.",
+        ephemeral=True,
+    )
     receipt = thread_model.post_reply(
         serve.page_dir,
         {"responds": unanswered["id"]},
@@ -813,7 +1100,10 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     page = open_page(browser, url)
     resized(page, 1200, 900)
     inline = page.locator(f'#cd-q .lf-msg[data-event="{receipt["id"]}"]')
-    expect(inline.locator(".lf-msg-failure")).to_have_text("Not answered")
+    expect(page.locator("#cd-q .lf-thread-working")).to_contain_text(
+        "Checking the south pair"
+    )
+    expect(inline.locator(".lf-msg-failure")).to_have_text("Couldn't answer")
     assert inline.get_attribute("data-failure") == "turn_failed"
     # The real answer above it wears nothing, so the mark is a difference the user
     # can see rather than a decoration every agent message carries.
@@ -824,11 +1114,11 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     # `needs_user` for recovery: the margin and panel name the action owed.
     margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
     expect(margin).to_have_attribute("data-lf-turn", "user")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("My turn to resend")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
 
     # Threads names the action owed on the thread's row, whole.
     status = thread_row(page, unanswered["id"]).locator(".lf-fp-value")
-    expect(status).to_have_text("My turn to resend")
+    expect(status).to_have_text("Send it again")
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the row clips its failure status"
     )
@@ -849,7 +1139,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("My turn to resend")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
 
     # The failed answer remains distinct from the muted clock without a chip face.
     head = page.evaluate(
@@ -891,7 +1181,7 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(serve.page_dir, root),
@@ -926,56 +1216,6 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
         }"""
     )
     assert held == {"scroller": True, "atEnd": True}, held
-
-
-def test_collapsing_progress_preserves_room_for_a_later_canceled_stream(
-    browser, serve, request
-):
-    """Only the disclosure's own change resizes the card, even before a frame paints:
-    the canceled stream's room stays, so the reply stands where it stood."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Keep this thread here.", {"section": "h-how"})
-    for words in ("Checking labels.", "Measuring controls.", "Checking both schemes."):
-        thread_model.post_reply(
-            serve.page_dir, {"responds": root}, words, ephemeral=True
-        )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": root,
-            "text": "The labels work.",
-        },
-    )
-    claim_for_codex(serve.page_dir, request)
-    stream_reply(
-        serve.page_dir,
-        root,
-        "This provisional answer has several lines of useful context. " * 5,
-    )
-    page = open_page(browser, url)
-    resized(page, 1400, 1200)
-    open_margin_card(page, "h-how")
-    card = page.locator(card_of(root))
-    stream = card.locator(f'.lf-msg[data-attempt="{STREAM_ATTEMPT}"]')
-    expect(stream).to_be_visible()
-    rendered(page)
-    reply = card.locator(".lf-thread-reply")
-    compact = card.bounding_box()["height"]
-    standing = reply.bounding_box()["y"]
-    progress = card.locator(".lf-summary-expand")
-    progress.press("Enter")
-    rendered(page)
-    with held_frames(page):
-        progress.press("Enter")
-        expect(progress).to_have_attribute("aria-expanded", "false")
-        with service_model.PageTransaction(serve.page_dir) as transaction:
-            transaction.clear_stream_reply("codex-thread", "leaf-turn")
-        expect(stream).to_have_count(0)
-    rendered(page)
-    assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
-    assert reply.bounding_box()["y"] == pytest.approx(standing, abs=0.5)
 
 
 def test_canceling_a_long_stream_keeps_the_panel_reading(browser, serve, request):
@@ -1027,8 +1267,8 @@ def test_a_reply_sent_after_progress_stands_below_it(browser, serve, request):
     user's message as the agent goes on. The agent's progress line was said before the
     user's next message, so that message stands below it, both as the send draws it
     and once the log holds it; the agent's next step stands below the message, the
-    earlier one staying where it was, still; and the answer folds only the step it
-    follows."""
+    earlier one staying where it was, still. The answer then hides all earlier
+    progress, including steps separated by the user's message."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
     claim_for_codex(serve.page_dir, request)
@@ -1074,8 +1314,7 @@ def test_a_reply_sent_after_progress_stands_below_it(browser, serve, request):
     expect(faces.last).to_have_attribute("data-lf-live", "")
     expect(faces.last).to_have_text(re.compile("Reading the changelog"))
 
-    # The answer folds the step it follows behind its head; the step the user spoke
-    # after stays where it was said.
+    # The answer hides both runs, including progress before the user's interruption.
     answer = thread_model.post_reply(
         serve.page_dir,
         {"responds": asked["id"]},
@@ -1083,21 +1322,24 @@ def test_a_reply_sent_after_progress_stands_below_it(browser, serve, request):
         identity={"agent": "Codex", "session": "codex-thread"},
     )
     told(page)
+    # Removing progress above the user's message waits for their reveal, so the
+    # existing words do not move while they read.
+    page.locator(PANEL_NEWS).click()
     expect(view.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
-    assert view.evaluate(TRANSCRIPT_ORDER)[-2:] == ["working", "And the changelog?"]
-    expect(view.locator(".lf-thread-working")).to_have_text(
-        re.compile("Checking the board")
-    )
-    expect(view.locator(".lf-thread-working")).not_to_have_attribute("data-lf-live", "")
+    assert view.evaluate(TRANSCRIPT_ORDER) == [
+        "Record the release",
+        "And the changelog?",
+    ]
+    expect(view.locator(".lf-thread-working")).to_have_count(0)
     expect(
-        view.get_by_role("button", name="Show 1 progress message", exact=True)
-    ).to_be_visible()
+        view.get_by_role("button", name=re.compile("progress message"))
+    ).to_have_count(0)
 
 
 @pytest.mark.watch_shifts
 def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, serve):
-    """A run of progress the user spoke after is one no answer folds, so its face
-    offers its earlier steps itself, and a rewrite of the step it shows waits behind the
+    """Until an answer arrives, progress before a user's message offers its earlier
+    steps itself, and a rewrite of the step it shows waits behind the
     thread's notice where it would move the user's message below it."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
@@ -1173,3 +1415,56 @@ def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, se
     expect(notice).to_be_visible()
     rendered(page)
     assert message.bounding_box() == pytest.approx(box, abs=0.5)
+
+
+def test_an_older_answer_keeps_newer_work_visible_without_its_progress_history(
+    browser, serve
+):
+    """Answering an earlier input hides progress without breaking the thread while
+    another input's workflow still runs."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "First task")
+    newer = append_command(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root,
+            "text": "New task",
+        },
+    )
+    progress = thread_model.post_reply(
+        serve.page_dir,
+        {"responds": newer["id"]},
+        "Checking the new task.",
+        ephemeral=True,
+    )
+    answer = append_command(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root,
+            "responds": root,
+            "text": "First task done.",
+        },
+    )
+    page = open_page(browser, url)
+    workflows = page.evaluate(
+        """async id => {
+          const {readThreads} = await window.__lfWidgetApi();
+          return readThreads().threads.find(thread => thread.id === id).workflows;
+        }""",
+        root,
+    )
+    assert any(workflow["stage"] == "working" for workflow in workflows), workflows
+    thread = open_panel_thread(page, root)
+    expect(thread.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
+    expect(thread.locator(".lf-thread-working")).to_contain_text(
+        "Checking the new task"
+    )
+    expect(thread.locator(f'.lf-msg[data-event="{progress["id"]}"]')).to_be_hidden()
+    expect(
+        thread.get_by_role("button", name=re.compile("progress message"))
+    ).to_have_count(0)
+    expect(thread.get_by_text("New task", exact=True)).to_be_visible()

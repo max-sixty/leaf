@@ -11,7 +11,7 @@ import {
   reflectFirstScopes,
   reflectKeys,
   saying,
-} from "../../skills/leaf/assets/runtime/keyboard/scopes.js";
+} from "../../browser/runtime/keyboard/scopes.js";
 import {
   activeRows,
   commandAvailable,
@@ -22,19 +22,17 @@ import {
   decisionControls,
   savedReadingSettled,
   setQuickShortcuts,
-} from "../../skills/leaf/assets/runtime/keyboard/bindings.js";
-import {
-  dispatchKey,
-  keyReady,
-} from "../../skills/leaf/assets/runtime/keyboard/dispatch.js";
-import { applicationState } from "../../skills/leaf/assets/runtime/semantic-state.js";
+} from "../../browser/runtime/keyboard/bindings.js";
+import { dispatchKey, keyReady } from "../../browser/runtime/keyboard/dispatch.js";
+import { applicationState } from "../../browser/runtime/semantic-state.js";
+import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
 
 // Ordinary control tests begin with saved input available; startup tests withhold it.
 beforeEach(() => applicationState.setPhase("ready"));
 
 test("saved-reading commands retain their key until their input is known", async () => {
   const { applicationState, readApplication } =
-    await import("../../skills/leaf/assets/runtime/semantic-state.js");
+    await import("../../browser/runtime/semantic-state.js");
   const phase = readApplication().phase;
   const owner = document.createElement("button");
   document.body.append(owner);
@@ -179,8 +177,7 @@ test("a document-ready scope retains commands whose own input needs saved state"
 });
 
 test("mixed routes and their context aliases retain each Decision's readiness", async () => {
-  const { applicationState } =
-    await import("../../skills/leaf/assets/runtime/semantic-state.js");
+  const { applicationState } = await import("../../browser/runtime/semantic-state.js");
   const phase = applicationState.read().phase;
   const owner = document.createElement("section");
   const decision = document.createElement("button");
@@ -404,9 +401,9 @@ test("a button a projected scope names activates before its declaration is paint
 // A projected entry retains native origin/surface/input without a second callback.
 test("a contribution invokes its declared command and derives refusal from it", async () => {
   const { registerContribution } =
-    await import("../../skills/leaf/assets/runtime/contributions.js");
+    await import("../../browser/runtime/contributions.js");
   const { contributionEntry } =
-    await import("../../skills/leaf/assets/runtime/contribution-controls.js");
+    await import("../../browser/runtime/contribution-controls.js");
   const target = document.createElement("section");
   document.body.append(target);
   let available = true;
@@ -468,9 +465,9 @@ test("a contribution invokes its declared command and derives refusal from it", 
 
 test("a control lookup during contribution normalization waits for the complete reading", async () => {
   const { registerContribution, watchContributions } =
-    await import("../../skills/leaf/assets/runtime/contributions.js");
+    await import("../../browser/runtime/contributions.js");
   const { contributionEntry } =
-    await import("../../skills/leaf/assets/runtime/contribution-controls.js");
+    await import("../../browser/runtime/contribution-controls.js");
   const target = document.createElement("section");
   document.body.append(target);
   let registration;
@@ -585,12 +582,11 @@ test("a shared button selects its live state and context-only routes retain thei
 // Getter controls are claimed at reflection, so their previous attributes must not
 // leave a projected command one reading behind its native source.
 test("a getter button and its contribution agree on their first and replacement readings", async () => {
-  const { live } =
-    await import("../../skills/leaf/assets/runtime/keyboard/bindings.js");
+  const { live } = await import("../../browser/runtime/keyboard/bindings.js");
   const { registerContribution } =
-    await import("../../skills/leaf/assets/runtime/contributions.js");
+    await import("../../browser/runtime/contributions.js");
   const { contributionEntry } =
-    await import("../../skills/leaf/assets/runtime/contribution-controls.js");
+    await import("../../browser/runtime/contribution-controls.js");
   const owner = document.createElement("section");
   let source = document.createElement("button");
   source.disabled = true;
@@ -645,12 +641,11 @@ test("a getter button and its contribution agree on their first and replacement 
 });
 
 test("source constraints and derived disabled output share one availability reading", async () => {
-  const { live } =
-    await import("../../skills/leaf/assets/runtime/keyboard/bindings.js");
+  const { live } = await import("../../browser/runtime/keyboard/bindings.js");
   const { registerContribution, contributionEntries } =
-    await import("../../skills/leaf/assets/runtime/contributions.js");
+    await import("../../browser/runtime/contributions.js");
   const { contributionEntry, presentContributionHost, trackContributionControl } =
-    await import("../../skills/leaf/assets/runtime/contribution-controls.js");
+    await import("../../browser/runtime/contribution-controls.js");
   const owner = document.createElement("section");
   const fieldset = document.createElement("fieldset");
   const legend = document.createElement("legend");
@@ -749,7 +744,7 @@ test("source constraints and derived disabled output share one availability read
 
 test("each contribution publication validates its current activation capability", async () => {
   const { registerContribution } =
-    await import("../../skills/leaf/assets/runtime/contributions.js");
+    await import("../../browser/runtime/contributions.js");
   const target = document.createElement("section");
   document.body.append(target);
   let action = false;
@@ -779,9 +774,9 @@ test("each contribution publication validates its current activation capability"
 
 test("a margin entry refuses what its grammar and its owner cannot state", async () => {
   const { registerContribution } =
-    await import("../../skills/leaf/assets/runtime/contributions.js");
+    await import("../../browser/runtime/contributions.js");
   const { contributionEntry } =
-    await import("../../skills/leaf/assets/runtime/contribution-controls.js");
+    await import("../../browser/runtime/contribution-controls.js");
   const entry = { key: "cancel", icon: "cross", label: "Cancel" };
   // Every axis has a default, so an axis named wrongly, the way a rename of this
   // vocabulary reaches a call site, would otherwise state nothing and say nothing.
@@ -835,9 +830,8 @@ test("a margin entry refuses what its grammar and its owner cannot state", async
 
 test("context aliases project the selected source route's availability", async () => {
   const { commandEntries, commandPresentations, bindings, live } =
-    await import("../../skills/leaf/assets/runtime/keyboard/bindings.js");
-  const { scopesAt } =
-    await import("../../skills/leaf/assets/runtime/keyboard/scopes.js");
+    await import("../../browser/runtime/keyboard/bindings.js");
+  const { scopesAt } = await import("../../browser/runtime/keyboard/scopes.js");
   const owner = document.createElement("section");
   const one = document.createElement("button");
   const two = document.createElement("button");
@@ -898,7 +892,7 @@ test("context aliases project the selected source route's availability", async (
 
 test("the command reference retains unavailable command identities", async () => {
   const { commandPresentations } =
-    await import("../../skills/leaf/assets/runtime/keyboard/bindings.js");
+    await import("../../browser/runtime/keyboard/bindings.js");
   const row = { id: "probe.leave", keys: ["Tab"], when: () => false, run: () => {} };
   assert.deepEqual(commandPresentations(row), []);
   assert.deepEqual(
@@ -910,8 +904,7 @@ test("the command reference retains unavailable command identities", async () =>
 });
 
 test("page command scopes share native activation and hand removed controls back", async () => {
-  const { pageScope } =
-    await import("../../skills/leaf/assets/runtime/keyboard/register.js");
+  const { pageScope } = await import("../../browser/runtime/keyboard/register.js");
   const control = document.createElement("button");
   document.body.append(control);
   let available = true;
@@ -946,7 +939,7 @@ test("page command scopes share native activation and hand removed controls back
 
 test("a projected scope withdrawal preserves a native control's pending handback", async () => {
   const { projectCommandScope } =
-    await import("../../skills/leaf/assets/runtime/keyboard/scopes.js");
+    await import("../../browser/runtime/keyboard/scopes.js");
   const owner = document.createElement("section");
   const control = document.createElement("button");
   owner.append(control);
@@ -977,7 +970,7 @@ test("a projected scope withdrawal preserves a native control's pending handback
 
 test("a disappearing projected command refuses instead of becoming a generic action", async () => {
   const { registerContribution } =
-    await import("../../skills/leaf/assets/runtime/contributions.js");
+    await import("../../browser/runtime/contributions.js");
   const owner = document.createElement("section");
   document.body.append(owner);
   let routeId = "probe.current";
@@ -1035,7 +1028,7 @@ test("a disappearing projected command refuses instead of becoming a generic act
 // every lent face, a button's child included, keeps an out-of-flow seat.
 test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", async () => {
   const { createCommandHints } =
-    await import("../../skills/leaf/assets/runtime/keyboard/command-hints.js");
+    await import("../../browser/runtime/keyboard/command-hints.js");
   const owner = document.createElement("section");
   const control = document.createElement("button");
   const badge = document.createElement("kbd");
@@ -1067,7 +1060,7 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
 });
 
 test("a scope's attachment and re-render run its latest callbacks and read only its own element", async () => {
-  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { html, render } = await import("/runtime/framework.js");
   const other = document.createElement("button");
   document.body.append(other);
   keys(other, "Elsewhere", [{ id: "probe.elsewhere", keys: ["x"], title: "x" }]);
@@ -1122,9 +1115,8 @@ test("a scope's attachment and re-render run its latest callbacks and read only 
 });
 
 test("a template scope refused on re-render withdraws its shortcuts, and its aliases follow each reading", async () => {
-  const { html, render } = await import("/vendor/browser-runtime.js");
-  const { scopesAt } =
-    await import("../../skills/leaf/assets/runtime/keyboard/scopes.js");
+  const { html, render } = await import("/runtime/framework.js");
+  const { scopesAt } = await import("../../browser/runtime/keyboard/scopes.js");
   const root = document.createElement("section");
   document.body.append(root);
   const paint = (title, second) =>
@@ -1164,9 +1156,8 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
 });
 
 test("a template scope's rows read the element the template renders", async () => {
-  const { html, render } = await import("/vendor/browser-runtime.js");
-  const { DISCLOSE } =
-    await import("../../skills/leaf/assets/runtime/keyboard/disclosure.js");
+  const { html, render } = await import("/runtime/framework.js");
+  const { DISCLOSE } = await import("../../browser/runtime/keyboard/disclosure.js");
   const root = document.createElement("section");
   document.body.append(root);
   render(
@@ -1191,7 +1182,7 @@ test("a template scope's rows read the element the template renders", async () =
 });
 
 test("template scopes follow current rows and retire without removing projected commands", async () => {
-  const { html, nothing, render } = await import("/vendor/browser-runtime.js");
+  const { html, nothing, render } = await import("/runtime/framework.js");
   const root = document.createElement("section");
   document.body.append(root);
   const invoked = [];
@@ -1436,4 +1427,32 @@ test("an announced scope says each live row's key and title", () => {
     { id: "fixture.off", keys: ["x"], title: "unavailable", when: () => false },
   ];
   assert.equal(saying(rows), "Escape cancel, g top");
+});
+
+test("a widget's declared commands stand from before it is placed until it withdraws them", () => {
+  const owner = document.createElement("section");
+  const declared = () => commandsWithin(owner).map(({ row }) => row.id);
+  // Declared while the element is out of the page, as a control built before it is
+  // placed is.
+  owner.lfCommands = {
+    title: "Declared",
+    rows: [{ id: "declared.run", title: "run", keys: ["Alt+1"], run: () => {} }],
+  };
+  commandsChanged(owner);
+  document.body.append(owner);
+  try {
+    assert.deepEqual(declared(), ["declared.run"]);
+    owner.lfCommands = null;
+    commandsChanged(owner);
+    assert.deepEqual(declared(), []);
+    // A malformed declaration is refused where the widget made it.
+    owner.lfCommands = {
+      title: "Declared",
+      rows: [{ id: "Not an id", title: "run", keys: ["Alt+1"], run: () => {} }],
+    };
+    assert.throws(() => commandsChanged(owner), /not a stable command id/);
+    assert.deepEqual(declared(), []);
+  } finally {
+    owner.remove();
+  }
 });

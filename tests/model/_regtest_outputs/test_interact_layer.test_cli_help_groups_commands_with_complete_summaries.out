@@ -10,18 +10,18 @@ Options:
   --help     Show this message and exit.
 
 Commands:
-  codex     Launch Codex and connect Leaf pages to its tasks.
-  data      Set or clear page-bound external data.
-  delivery  Read a delivery by its id, and confirm you received it.
-  file      Bind existing local files for editing on a page.
-  package   Create, check, install, and run packages.
-  page      Create, check, stamp, and read pages.
-  response  Reply to an update by the reference its delivery gave.
-  server    Start, run, or stop the local server.
-  status    Say the page waits on its user, or is done.
-  task      Open or end to-dos, start work on your list, and plan.
-  thread    Open, answer, edit, summarize, or resolve a thread.
-  wait      Confirm a delivery, if given, then wait for the next batch.
+  codex       Launch the experimental Codex terminal.
+  connection  Grant pages authenticated HTTPS reads.
+  data        Set or clear page-bound external data.
+  delivery    Read a delivery by its id, and confirm you received it.
+  file        Manage a page's access to local files.
+  package     Create, check, install, and run packages.
+  page        Create, check, stamp, and read pages.
+  server      Start, run, or stop the local server.
+  task        Create or end to-dos, start work on your list, and plan.
+  theme       Discover personal themes for page authoring.
+  thread      Create, answer, edit, summarize, or resolve a thread.
+  wait        Wait for the next batch.
 
 ## codex
 Usage: leaf codex [OPTIONS] COMMAND [ARGS]...
@@ -33,7 +33,18 @@ Options:
 
 Commands:
   launch  Launch an experimental streaming Codex terminal.
-  start   Keep PAGE connected after this turn ends.
+
+## connection
+Usage: leaf connection [OPTIONS] COMMAND [ARGS]...
+
+  Host credentials and origin grants for page-authored integrations.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  bind    Grant authenticated GET access to an HTTPS origin.
+  unbind  Withdraw one page connection.
 
 ## data
 Usage: leaf data [OPTIONS] COMMAND [ARGS]...
@@ -82,18 +93,22 @@ Options:
 
 Commands:
   check         Check the mutable page source.
-  claim         Take a page this session did not serve.
+  claim         Connect a page to this session.
+  close         Finish a page and stop watching for feedback.
   events        Print the event log as JSON lines.
   export        Export a stamped version to one HTML file.
-  init          Create or re-vendor a page directory.
-  instructions  Read selected-component instructions by audience as JSON.
+  init          Create a page directory or change its packages.
+  inspect       Read page source metrics and browser observations.
+  instructions  Read selected vocabulary instructions by audience as JSON.
   interactions  Read browser interactions and request diagnostics.
+  list          List this machine's pages and who holds each.
   media         Add images, video, or audio and print their page paths.
+  open          Keep a page available for feedback.
   picture       Picture a drawing comment as the user saw it.
   report        Report a state change onto a page widget, as a worker.
   stamp         Stamp the current source as the next version.
   state         Print where the page, a thread, or a widget stands.
-  transcript    Print the page's exchange as Markdown.
+  vocabulary    Print the vocabulary the page is written in as JSON.
 
 ## server
 Usage: leaf server [OPTIONS] COMMAND [ARGS]...
@@ -111,29 +126,17 @@ Commands:
 ## thread
 Usage: leaf thread [OPTIONS] COMMAND [ARGS]...
 
-  Open and answer threads as the agent, and maintain them.
+  Create and answer threads as the agent, and maintain them.
 
   Every write prints the records it appended, one JSON line each, as `page
-  events` prints them. `page state PAGE ID` reads one thread.
+  events` prints them. `page state PAGE MESSAGE` reads one thread.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
+  create     Create an agent thread \u2014 on a passage, or on the page whole.
   edit       Edit a message's text, or its thread's title.
-  open       Open an agent thread \u2014 on a passage, or on the page whole.
-  reply      Add an agent-initiated reply to a thread.
+  reply      Reply using an answer reference or a page and message.
   resolve    Close a thread as the agent.
   summarize  Summarize a contiguous message range.
-
-## response
-Usage: leaf response [OPTIONS] COMMAND [ARGS]...
-
-  Reply to a user update with the reference its delivery printed as
-  `answer.ref`.
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  reply  Reply to the update a reference names.

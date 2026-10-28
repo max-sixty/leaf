@@ -2,8 +2,8 @@
  *
  * Python stages one successor per page under its append lease, uploads missing
  * content-addressed chunks, then commits the returned content identity to atomically
- * publish the stored files and HTTP responses. The identity describes content, not
- * a prepare attempt: preparing identical content again keeps the same identity.
+ * publish the stored files and captured HTTP 200 responses. The identity describes
+ * content, not a prepare attempt: preparing identical content keeps the same identity.
  * Committed records, staged successors and in-flight delivery/restore streams are the
  * complete set of chunk owners. Replacing or committing a stage reclaims unused
  * bytes; an interrupted upload retains at most one successor until that page retries.
@@ -18,7 +18,7 @@
 
 import * as z from "zod/mini";
 import { createTarPacker } from "modern-tar";
-import type { ServedState } from "../../build/browser/contract.js";
+import type { ServedState } from "../../browser/types/contract.js";
 
 export const CHUNK_BYTES = 1024 * 1024;
 const digest = z.string().check(z.regex(/^[0-9a-f]{64}$/));
@@ -31,7 +31,6 @@ const publicationSchema = z.strictObject({
   responses: z.record(
     z.string(),
     z.strictObject({
-      status: z.number().check(z.int(), z.minimum(200), z.maximum(599)),
       headers: z.record(z.string(), z.string()),
       chunks,
     }),
@@ -81,7 +80,7 @@ export class PageStore {
       root TEXT, staged INTEGER, path TEXT, chunks TEXT, modified REAL,
       PRIMARY KEY(root, staged, path)
     ); CREATE TABLE IF NOT EXISTS leaf_responses (
-      root TEXT, staged INTEGER, path TEXT, status INTEGER, headers TEXT, chunks TEXT,
+      root TEXT, staged INTEGER, path TEXT, headers TEXT, chunks TEXT,
       PRIMARY KEY(root, staged, path)
     ); CREATE TABLE IF NOT EXISTS leaf_blobs (
       digest TEXT PRIMARY KEY, bytes BLOB
@@ -176,10 +175,9 @@ export class PageStore {
       }
       for (const [path, response] of responseEntries(publication)) {
         this.storage.sql.exec(
-          "INSERT INTO leaf_responses VALUES (?, 1, ?, ?, ?, ?)",
+          "INSERT INTO leaf_responses VALUES (?, 1, ?, ?, ?)",
           root,
           path,
-          response.status,
           JSON.stringify(response.headers),
           JSON.stringify(response.chunks),
         );
@@ -313,33 +311,9 @@ export class PageStore {
     const finish = () => {
       if (this.deliveries.delete(names)) this.collect();
     };
-    const reader = stream.getReader();
-    return new ReadableStream(
-      {
-        pull: async (controller) => {
-          try {
-            const { done, value } = await reader.read();
-            if (done) {
-              controller.close();
-              finish();
-            } else {
-              controller.enqueue(value);
-            }
-          } catch (error) {
-            controller.error(error);
-            finish();
-          }
-        },
-        cancel: async (reason) => {
-          try {
-            await reader.cancel(reason);
-          } finally {
-            finish();
-          }
-        },
-      },
-      { highWaterMark: 0 },
-    );
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+    void stream.pipeTo(writable).then(finish, finish);
+    return readable;
   }
 
   private body(names: string[]): ReadableStream<Uint8Array> {
@@ -366,11 +340,10 @@ export class PageStore {
   async response(root: string, path: string, head: boolean): Promise<Response | null> {
     const rows = this.storage.sql
       .exec<{
-        status: number;
         headers: string;
         chunks: string;
       }>(
-        "SELECT status, headers, chunks FROM leaf_responses WHERE root = ? AND path = ? AND staged = 0",
+        "SELECT headers, chunks FROM leaf_responses WHERE root = ? AND path = ? AND staged = 0",
         root,
         responseIdentity(path),
       )
@@ -380,16 +353,14 @@ export class PageStore {
     const headers = new Headers(JSON.parse(response.headers));
     headers.set("Cache-Control", "private, no-store");
     headers.set("Leaf-State-Source", "durable");
-    if (head || response.status === 204 || response.status === 304) {
-      return new Response(null, { status: response.status, headers });
-    }
+    if (head) return new Response(null, { headers });
     const body = this.body(JSON.parse(response.chunks));
     if (path === "api/state" || path.startsWith("api/state?")) {
       const state = (await new Response(body).json()) as ServedState;
       dateStateDelivery(state);
       headers.delete("Content-Length");
-      return Response.json(state, { status: response.status, headers });
+      return Response.json(state, { headers });
     }
-    return new Response(body, { status: response.status, headers });
+    return new Response(body, { headers });
   }
 }

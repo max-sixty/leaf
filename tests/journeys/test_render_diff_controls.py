@@ -3,14 +3,15 @@
 from html import escape
 
 import pytest
-from leaf import data as data_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_harness import (
     leaf_page,
     open_page,
     write,
 )
+
+from leaf import data as data_model
+from leaf.render_checks import rendered
 
 
 @pytest.mark.parametrize("width,scheme", [(1280, "light"), (390, "dark")])
@@ -43,7 +44,7 @@ def test_diff_filter_has_one_frame_and_clears_with_its_count_inside(
     field = diff.locator(".lf-diff-search")
     editor = field.locator("input")
     count = diff.locator(".lf-diff-progress")
-    rows = diff.locator(".lf-diff-file:not(.lf-diff-filtered)")
+    rows = diff.locator(".lf-diff-file:not([hidden])")
     expect(editor).to_have_accessible_name("Filter diff files")
     page.get_by_role("heading", name="Changed files").click()
     for _ in range(8):
@@ -129,14 +130,14 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
 
     def geometry():
         return buttons.evaluate_all("""buttons => buttons.map(button => {
-          const number = button.parentElement.querySelector('[data-line-number-content]');
-          const ink = new Range(); ink.selectNodeContents(number);
-          const bounds = button.querySelector('.lf-diff-line-plus').getBoundingClientRect();
-          return {right: bounds.right, number: ink.getBoundingClientRect().left,
+          const ink = new Range(); ink.selectNodeContents(button);
+          const plus = getComputedStyle(button, '::before');
+          const box = button.getBoundingClientRect();
+          return {right: box.left + parseFloat(plus.left) + parseFloat(plus.width), number: ink.getBoundingClientRect().left,
                   height: button.parentElement.getBoundingClientRect().height,
                   hitHeight: button.getBoundingClientRect().height,
                   background: getComputedStyle(button).backgroundColor,
-                  opacity: getComputedStyle(button).opacity};
+                  opacity: plus.opacity};
         })""")
 
     before = geometry()
@@ -144,13 +145,13 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
         assert reading["right"] <= reading["number"], reading
         assert reading["hitHeight"] == reading["height"], reading
         assert reading["opacity"] == "0", reading
-    native = page.locator("#native [data-gutter] > [data-line-index]").first
+    native = page.locator("#native .lf-diff-line").first
     assert before[0]["height"] == native.bounding_box()["height"]
     assert (
-        diff.locator("[data-gutter]").bounding_box()["width"]
-        == page.locator("#native [data-gutter]").bounding_box()["width"]
+        buttons.first.bounding_box()["width"]
+        == page.locator("#native .lf-diff-line-comment").first.bounding_box()["width"]
     )
-    diff.locator("[data-content] > [data-line]").first.hover()
+    diff.locator(".lf-diff-line > [data-line]").first.hover()
     after = geometry()
     assert after[0]["opacity"] == "1"
     assert after[0]["background"] == "rgba(0, 0, 0, 0)"
@@ -158,7 +159,7 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
         {k: v for k, v in r.items() if k != "opacity"} for r in before
     ]
     # Moving to the next line retires the previous gutter highlight.
-    diff.locator("[data-content] > [data-line]").nth(1).hover()
+    diff.locator(".lf-diff-line > [data-line]").nth(1).hover()
     assert geometry()[0]["opacity"] == "0"
     assert geometry()[1]["opacity"] == "1"
     buttons.first.hover()
@@ -198,7 +199,7 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
 def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     browser, serve, touch, scheme
 ):
-    """Moving the response into a source widget changes placement, not its face.
+    """Response text, focus cues and Markdown reading survive source-widget seating.
 
     Sending the same Markdown on both sides additionally exercises the complete
     reading vocabulary installed in declared trees, including a table that must
@@ -210,7 +211,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
             "Review source and prose",
             '<h1>Review source and prose</h1><p id="subject">Discuss this paragraph.</p>'
             '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
-            head="""<style id="response-inset-override" data-controls>
+            head="""<style id="response-inset-override">
               :is(.lf-fab-bar, .lf-margin-preview) {
                 --lf-thread-text-pad-block: 12px !important;
                 --lf-comment-text-end: 60px !important;
@@ -238,9 +239,19 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
         return field.evaluate("""node => {
           const style = getComputedStyle(node);
           const properties = ['font-family', 'font-size', 'line-height', 'color',
-            'min-height', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-            'border-top-width', 'border-top-color', 'border-radius', 'box-shadow'];
+            'padding-top', 'padding-right', 'padding-bottom', 'padding-left'];
           return Object.fromEntries(properties.map(name => [name, style.getPropertyValue(name)]));
+        }""")
+
+    def forced_ring(field):
+        return field.evaluate("""field => {
+          // A floating editor gives its frame the ring; a seated editor wears it.
+          for (const node of [field, field.closest('.lf-compose-field')]) {
+            const style = getComputedStyle(node);
+            if (style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0)
+              return [style.outlineWidth, style.outlineStyle, style.outlineColor];
+          }
+          return null;
         }""")
 
     def reading(message):
@@ -269,15 +280,13 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     expect(floating).to_be_focused()
     physical_face = face(floating)
     assert float(physical_face["padding-top"].removesuffix("px")) + 1 == 12
-    assert float(physical_face["padding-right"].removesuffix("px")) + 1 == 60
     page.emulate_media(forced_colors="active")
-    forced = floating.evaluate(
-        "node => [getComputedStyle(node).outlineWidth, "
-        "getComputedStyle(node).outlineStyle, getComputedStyle(node).outlineColor]"
-    )
-    assert forced[1] != "none"
+    forced = forced_ring(floating)
+    assert forced, "the floating response paints no focus ring in forced colors"
     page.emulate_media(forced_colors="none")
     write(floating, markdown)
+    draft_face = face(floating)
+    assert float(draft_face["padding-right"].removesuffix("px")) + 1 == 60
     floating.press("Control+Enter" if touch else "Enter")
     physical_reading = reading(page.locator(".lf-margin-preview .lf-msg-body").first)
     sent_insets = page.locator(".lf-margin-preview .lf-msg-text").first.evaluate(
@@ -300,14 +309,9 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     assert inline.evaluate("node => node.getRootNode() instanceof ShadowRoot")
     assert face(inline) == physical_face
     page.emulate_media(forced_colors="active")
-    assert (
-        inline.evaluate(
-            "node => [getComputedStyle(node).outlineWidth, "
-            "getComputedStyle(node).outlineStyle, getComputedStyle(node).outlineColor]"
-        )
-        == forced
-    )
+    assert forced_ring(inline) == forced
     page.emulate_media(forced_colors="none")
     write(inline, markdown)
+    assert face(inline) == draft_face
     inline.press("Control+Enter" if touch else "Enter")
     assert reading(diff.locator(".lf-msg-body").first) == physical_reading

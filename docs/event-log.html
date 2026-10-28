@@ -30,8 +30,7 @@
         </p>
         <p id="lede-contracts">
           This page explains the mechanism. The rules themselves live in the
-          <a
-            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/events.md"
+          <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/events.md"
             >events contract</a
           >
           and the package contract's
@@ -54,7 +53,7 @@
           authored initial values and logged actions. Packages declare their own verbs;
           Leaf processes those declarations without package-specific code.
         </p>
-        <lf-diagram id="layers-flow" data-height="499" parts="all">
+        <lf-diagram id="layers-flow" data-height="515" parts="all">
           <pre>
 flowchart TD
   accTitle: Widget actions update widget state
@@ -79,7 +78,7 @@ flowchart TD
               <td>Log</td>
               <td>
                 One record per line, append-only: messages and thread moves, actions and
-                reports, undos, versions and sign-offs, and bookkeeping such as reads
+                reports, undos and versions, and bookkeeping such as reads
               </td>
               <td>Leaf</td>
             </tr>
@@ -112,32 +111,30 @@ flowchart TD
       <section id="try">
         <h2>Try actions and undo</h2>
         <p id="try-walkthrough">
-          The sample below is a complete Leaf page with a log of its own, and its feed
-          lists that log newest first. Open <strong>Show activity</strong>, then type
-          <em>After the canary is healthy</em> into <em>Another option</em>, and press
-          <kbd>Enter</kbd>: press the notice counting new rows to reveal an
+          The inline sample uses this page’s event log and Undo. Its activity feed lists
+          the page’s history newest first. Open <strong>Show activity</strong>, then
+          type <em>After the canary is healthy</em> into <em>Another option</em>, and
+          press <kbd>Enter</kbd>: press the notice counting new rows to reveal an
           <code>add</code> and then a pick. Pick <em>Later</em>. Then press
           <kbd>z</kbd> three times. The first press brings back the pick of the added
           option, the second leaves nothing picked while the added option stays, and the
           third removes the option. Press the activity notice to read the changed
-          history; it waits so arrivals never move the text being read. Reset starts the
-          sample over.
+          history; it waits so arrivals never move the text being read. The three undos
+          return the choices to their starting state.
         </p>
-        <lf-sample id="try-sample" label="release question">
-          <template id="try-page" data-sample>
-            <lf-ask id="ship-ask">
-              <h2>When should this ship?</h2>
-              <lf-options id="ship" choose>
-                <lf-option id="ship-now"
-                  ><strong>Now</strong> Today, behind the flag.</lf-option
-                >
-                <lf-option id="ship-later"
-                  ><strong>Later</strong> Next week, after the load test.</lf-option
-                >
-              </lf-options>
-            </lf-ask>
-            <lf-activity id="sample-feed"></lf-activity>
-          </template>
+        <lf-sample id="try-sample" label="release question" interactive>
+          <lf-ask id="ship-ask">
+            <h2>When should this ship?</h2>
+            <lf-options id="ship" choose>
+              <lf-option id="ship-now"
+                ><strong>Now</strong> Today, behind the flag.</lf-option
+              >
+              <lf-option id="ship-later"
+                ><strong>Later</strong> Next week, after the load test.</lf-option
+              >
+            </lf-options>
+          </lf-ask>
+          <lf-activity id="sample-feed"></lf-activity>
         </lf-sample>
       </section>
 
@@ -303,6 +300,7 @@ flowchart TD
    "unit": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
    "depends": ["ship", "ship-option-1f82bf7ba6828718a418aa6076e29c63"],
    "state": {"origin": "lf-options",
+     "decides": false,
      "unit": "option",
      "record": null,
      "creates": {"child": "lf-option", "words": "text"},
@@ -321,6 +319,7 @@ flowchart TD
    "unit": "ship",
    "depends": ["ship", "ship-option-1f82bf7ba6828718a418aa6076e29c63"],
    "state": {"origin": "lf-options",
+     "decides": false,
      "unit": "widget",
      "record": {"kind": "attribute", "attr": "chosen"},
      "creates": null,
@@ -340,6 +339,7 @@ flowchart TD
    "unit": "ship",
    "depends": ["ship", "ship-later"],
    "state": {"origin": "lf-options",
+     "decides": false,
      "unit": "widget",
      "record": {"kind": "attribute", "attr": "chosen"},
      "creates": null,
@@ -365,7 +365,7 @@ flowchart TD
             <code>attention</code> records whether the action changes work the agent
             owes.</lf-note
           >
-          <lf-note at="18"
+          <lf-note at="19"
             >Leaf derives <code>meaning</code> and refuses a sender that supplies it. It
             keeps only what a reader without the registry could not recover: whether the
             action was made on the page or in a thread (<code>scope</code>), its fold
@@ -378,12 +378,12 @@ flowchart TD
             >Leaf generates the eight-hex <code>id</code>; <code>seq</code> is the
             record's line in the log.</lf-note
           >
-          <lf-note at="37"
+          <lf-note at="39"
             >This pick makes the obligation's answered condition hold, so it completes
             the obligation. <code>null</code> means it closes no thread; a group with a
             <code>resolves</code> attribute would name one here.</lf-note
           >
-          <lf-note at="59"
+          <lf-note at="62"
             >An undo names the gesture to withdraw. Leaf excludes that gesture when
             deriving state, and both records stay in the log.</lf-note
           >
@@ -399,8 +399,7 @@ flowchart TD
           </li>
           <li>
             <strong>The user's <code>undo</code></strong> withdraws one gesture of their
-            own: an action, a resolve or reopen, or an approval. Sent messages cannot be
-            withdrawn.
+            own: an action, or a resolve or reopen. Sent messages cannot be withdrawn.
           </li>
           <li>
             <strong>The author's <code>restated</code></strong
@@ -441,7 +440,7 @@ flowchart TD
           Typed external data under <code>data/</code> is replaced in place rather than
           logged, so the feed does not carry it. The events contract's
           <a
-            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/events.md#following-the-log"
+            href="https://github.com/max-sixty/leaf/blob/main/src/leaf/events.md#following-the-log"
             >Following the log</a
           >
           gives the feed's whole contract.
@@ -452,8 +451,7 @@ flowchart TD
         <h2>Where each rule is written</h2>
         <ul id="sources-list">
           <li>
-            <a
-              href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/events.md"
+            <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/events.md"
               >Events and threads</a
             >: every event kind, undo, admission and <code>meaning</code>, and the
             change feed.
@@ -476,9 +474,9 @@ flowchart TD
           </li>
           <li>
             <a
-              href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/layer-registry.md"
+              href="https://github.com/max-sixty/leaf/blob/main/src/leaf/layer-registry.md"
               >Layer composition</a
-            >: which recorded actions a re-vendored layer must still be able to read.
+            >: how recorded actions read once the page's layer changes.
           </li>
         </ul>
       </section>

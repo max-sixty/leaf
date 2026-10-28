@@ -7,7 +7,9 @@ import {
   keeps,
   keepsText,
   offer,
-  once,
+  offerAction,
+  LeafElement,
+  noChange,
   queueActions,
   queueItemKey,
   queueTitle,
@@ -23,15 +25,13 @@ import {
   threadActions,
   threadSummary,
   threadTurns,
-  watchProjection,
   whileConnected,
 } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-conversation-workspace",
-  class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
+  class extends LeafElement {
+    setup() {
       this.build();
       whileConnected(this, () => {
         const stopRegions = this.regionBodies.map(([name, body]) =>
@@ -58,7 +58,10 @@ customElements.define(
           this.presentation.unregister();
         };
       });
-      watchProjection(this, () => this.paintObligations());
+    }
+    render() {
+      this.paintObligations();
+      return noChange;
     }
     build() {
       this.mode = "Conversation";
@@ -75,6 +78,9 @@ customElements.define(
       /* The index, each queue in it, and the reader scroll on their own within the
          reader's fixed height, as a mail client's panes do. */
       .index,.reader { min-width:0; min-height:0; overflow:auto; --lf-holds-height:1; }
+      /* Leaf draws a rewrite's frame around the user's words, past the part's edge;
+         the reader keeps that room inside its scroll, in the gap beside it. */
+      .reader { padding-inline:12px; margin-inline:-12px; }
       .index { display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,2fr) repeat(3,minmax(0,1fr)); gap:8px; }
       .group { min-width:0; min-height:0; display:flex; flex-direction:column; }
       .group ul { overflow:auto; min-height:0; --lf-holds-height:1; }
@@ -101,7 +107,7 @@ customElements.define(
       toolbar.setAttribute("role", "group");
       toolbar.setAttribute("aria-label", "Reader layout");
       this.modes = ["Conversation", "Shelf", "Feed"].map((mode) => {
-        const button = offer("button", "lf-btn", mode);
+        const button = offerAction("word", "", mode);
         button.addEventListener("click", () => {
           this.mode = mode;
           void this.presentation.update({ release: true });
@@ -146,7 +152,7 @@ customElements.define(
       this.input.addEventListener("input", () => this.creationEdit++);
       this.input.autocomplete = "off";
       this.input.setAttribute("aria-label", "New conversation");
-      const create = offer("button", "lf-btn", "Start conversation");
+      const create = offerAction("word", "", "Start conversation");
       create.type = "submit";
       compose.append(this.input, create);
       compose.addEventListener("submit", (event) => event.preventDefault());
@@ -173,7 +179,7 @@ customElements.define(
           void this.presentation.update();
         },
       );
-      this.updateLists = offer("button", "lf-btn", "Lists current");
+      this.updateLists = offerAction("word", "", "Lists current");
       this.updateLists.addEventListener("click", () => this.indexOrder.show());
       toolbar.append(this.updateLists);
       this.layout.append(toolbar, body, compose);
@@ -197,7 +203,7 @@ customElements.define(
         let row = this.rows.get(key);
         if (!row) {
           const node = offer("li");
-          const button = offer("button", "lf-btn");
+          const button = offerAction("word", "");
           button.addEventListener("click", () => {
             void threadActions.open(key, { part: "thread" });
           });
@@ -301,9 +307,9 @@ customElements.define(
           let row = this.queueRows.get(identity);
           if (!row) {
             const node = offer("li");
-            const open = offer("button", "lf-btn");
+            const open = offerAction("word", "");
             open.addEventListener("click", () => void queueActions.open(key));
-            const done = offer("button", "lf-btn", "Done");
+            const done = offerAction("word", "", "Done");
             done.addEventListener("click", () => {
               this.indexOrder.release();
               void queueActions.done(key);

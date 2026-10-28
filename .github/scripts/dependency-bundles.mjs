@@ -5,11 +5,18 @@
 import { execFileSync } from "node:child_process";
 import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { styleEntries } from "../../build/styles.mjs";
+
+// The publisher loads this declaration from its trusted default-branch checkout,
+// never from the PR or its artifact. A sheet counts only when the build writes it, so
+// authored CSS remains outside this boundary.
+const styles = new Set(styleEntries.map(([, output]) => output));
 
 function generated(path) {
   return (
-    (path === "skills/leaf/kernel/kernel.json" ||
-      /^(?:skills\/leaf\/assets\/vendor|skills\/leaf\/packages\/[^/.]+\/vendor|skills\/leaf\/kernel)\/(?:[^/.][^/]*\/)*[^/.][^/]*\.(?:js|css|LICENSES\.txt)$/.test(
+    (styles.has(path) ||
+      path === "dist/kernel/kernel.json" ||
+      /^(?:browser\/vendor|packages\/[^/.]+\/vendor|dist\/kernel)\/(?:[^/.][^/]*\/)*[^/.][^/]*\.(?:js|css|LICENSES\.txt)$/.test(
         path,
       )) &&
     !path.split("/").some((part) => part === ".." || part === ".")

@@ -6,13 +6,13 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE, live_url
 from render_cases_navigation import NOTED_PAGE
 from render_harness import (
     INLINE_PAGE,
     PANEL_THREAD,
+    expect_open_threads,
     open_page,
     page_comment,
     panel_field,
@@ -23,74 +23,15 @@ from render_harness import (
 
 from browser.navigation import expect_walk_position
 from browser.threads import open_panel_thread
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
-    """User news takes the panel's seat for passing words over background news, which
-    comes back after it without being announced twice; the live region is retained
-    through every change, and the user stays where they stood."""
-    page = open_page(browser, serve(NOTED_PAGE))
-    page.locator(".lf-fp-threads").focus()
-    page.evaluate(
-        """async () => {
-          window.__lfStatusNodes = {'.lf-live': document.querySelector('.lf-live')};
-          window.__lfNoticeFocus = document.activeElement;
-          window.__lfLiveChanges = [];
-          new MutationObserver(() => {
-            const words = document.querySelector('.lf-live').textContent;
-            if (words) window.__lfLiveChanges.push(words);
-          }).observe(document.querySelector('.lf-live'), {
-            childList: true,
-            subtree: true,
-          });
-          const {notice} = await window.__lfWidgetApi();
-          notice('Agent replied — open Threads', {background: true});
-        }"""
-    )
-    live = page.locator(".lf-live")
-    notice = panel_field(page)
-    expect(live).to_have_text("Agent replied — open Threads")
-    # The placeholder ends with the key that enters the field where keys are shown.
-    expect(notice).to_have_attribute(
-        "placeholder", re.compile(r"^Agent replied — open Threads( c)?$")
-    )
-    rendered(page)
-    assert page.evaluate(
-        """() => Object.entries(window.__lfStatusNodes).every(
-          ([selector, node]) => document.querySelector(selector) === node
-        )"""
-    ), "a shared repaint replaced the retained live region"
-
-    page.evaluate("async () => (await window.__lfWidgetApi()).notice('Saved — sent')")
-    expect(live).to_have_text("Saved — sent")
-    expect(notice).to_have_attribute("placeholder", re.compile(r"^Saved — sent( c)?$"))
-    expect(notice).to_have_attribute(
-        "placeholder", re.compile(r"^Agent replied — open Threads( c)?$")
-    )
-    assert (
-        page.evaluate(
-            "() => window.__lfLiveChanges.filter("
-            "words => words === 'Agent replied — open Threads').length"
-        )
-        == 1
-    ), "restoring background news announced it again"
-    page.keyboard.press("g")
-    expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
-        "data-says", "notice"
-    )
-    assert page.evaluate(
-        """() => Object.entries(window.__lfStatusNodes).every(
-          ([selector, node]) => document.querySelector(selector) === node
-        ) && document.activeElement === window.__lfNoticeFocus"""
-    ), "notice transitions replaced the live region or moved the user"
 
 
 def test_overlapping_identical_live_announcements_are_fresh_changes(browser, serve):
     """Even overlapping identical words give the polite region two arrivals."""
     page = open_page(browser, serve(NOTED_PAGE))
-    page.locator(".lf-fp-threads").focus()
+    page.locator(".lf-fp-on-user").focus()
     page.evaluate(
         """async () => {
           window.__lfLiveNode = document.querySelector('.lf-live');
@@ -142,13 +83,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     )
     expect(
         page.locator(
-            ".lf-command-reference tr",
+            ".lf-command-reference [role=row]",
             has_text="Next on me",
         ).locator("kbd")
     ).to_have_text("m")
     expect(
         page.locator(
-            ".lf-command-reference tr",
+            ".lf-command-reference [role=row]",
             has_text="Previous on me",
         ).locator("kbd")
     ).to_have_text("M")
@@ -172,23 +113,20 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     and worth knowing and not what the next press does."""
     page = open_page(browser, serve(NOTED_PAGE))
     page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Move 60% of a page down"
-    )
-    expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Move 60% of a page up"
-    )
+    expect(page.locator(".lf-command-reference")).to_contain_text("Page down")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Page up")
     expect(page.locator(".lf-command-reference")).to_contain_text("Caret browsing")
     page.keyboard.press("Escape")
 
     refused = page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           try {
-            commands(document.body, 'A project scope', [
+            document.body.lfCommands = { title: 'A project scope', rows: [
               { id: 'test.no-line', keys: ['F2'],
                 run: () => {} },
-            ]);
+            ] };
+            commandsChanged(document.body);
             return 'declared';
           } catch (e) {
             return e.message;
@@ -205,13 +143,14 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # one thing no surface can project, so it is refused where declarations enter.
     modified = page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           try {
-            commands(document.body, 'A project scope', [
+            document.body.lfCommands = { title: 'A project scope', rows: [
               { id: 'test.bad-modifier', keys: ['Ctrl+k'],
                 title: 'a modifier the matcher never asks about',
                 line: 'a key that is really just k', run: () => {} },
-            ]);
+            ] };
+            commandsChanged(document.body);
             return 'declared';
           } catch (e) {
             return e.message;
@@ -226,10 +165,11 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # the reference omits from its presentation projection.
     routed = page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const declare = row => {
             try {
-              commands(document.body, 'A routed project scope', [row]);
+              document.body.lfCommands = { title: 'A routed project scope', rows: [row] };
+              commandsChanged(document.body);
               return 'declared';
             } catch (e) {
               return e.message;
@@ -270,17 +210,18 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # uses this for the Tab that closes it before the browser moves focus past its door.
     native = page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const owner = document.createElement('div');
           owner.tabIndex = -1;
           document.body.append(owner);
           owner.focus();
           let ran = 0;
-          commands(owner, 'A native companion', [
+          owner.lfCommands = { title: 'A native companion', rows: [
             { id: 'test.native-companion', keys: ['F2'],
               title: 'Run before the browser', line: 'run first',
               native: true, run: () => ran++ },
-          ]);
+          ] };
+          commandsChanged(owner);
           const event = new KeyboardEvent(
             'keydown', {key: 'F2', bubbles: true, cancelable: true}
           );
@@ -306,11 +247,11 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
 
     page.evaluate(
         """async () => {
-              (await window.__lfWidgetApi()).notice('Saved — sent');
+              (await window.__lfWidgetApi()).notice('Saved');
               dispatchEvent(new Event('resize'));
             }"""
     )
-    expect(panel_field(page)).to_have_attribute("placeholder", "Saved — sent")
+    expect(panel_field(page)).to_have_attribute("placeholder", "Saved")
 
     # And the page is still whole underneath. Everything that asks how far down the
     # page reaches asks it of the chrome's box, and one with no box answers 0 — the top
@@ -394,7 +335,7 @@ def test_a_field_names_no_key_to_a_finger(browser, serve):
 # page, since the command reference is a modal scope that shadows the page once open:
 # `runs`, what the page's enabled keys run from here; `runs_any`, what the reference can
 # run from here, a command whose shortcut the user turned off included; `dead`, the
-# commands of a scope the reference filters by liveness (one the user stands in, or one
+# commands of a scope the reference filters by liveness (one the user is located in, or one
 # that asks to be) that cannot run now, by the liveness each row declares for the
 # reference (`commandReferenceWhen`, else `when`); and `absent`, the commands of scopes
 # this page has not got. A command id another present scope also declares, where the
@@ -448,7 +389,7 @@ def shown_commands(page):
     help_el = page.locator(".lf-command-reference")
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
-    reference = help_el.locator("tr[data-lf-command]").evaluate_all(
+    reference = help_el.locator("[role=row][data-lf-command]").evaluate_all(
         "rows => rows.map(r => r.dataset.lfCommand)"
     )
     runnable = help_el.locator(
@@ -494,7 +435,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         return register, reference
 
     # No threads and one version: there is nothing to walk, so the walks are dead
-    # where the user stands, and the page has no thread scope and no link.
+    # the current location, and the page has no thread scope and no link.
     register, reference = surfaces_name_what_runs()
     assert {"thread.next", "thread.previous"} <= register["dead"]
     assert {"thread.primary", "link.follow"} <= register["absent"]
@@ -510,9 +451,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
             d, {"kind": "comment", "author": "user", "revision": 1, "text": text}
         )
     told(page)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", re.compile(r"^Threads, 2 open")
-    )
+    expect_open_threads(page, 2)
     register, reference = surfaces_name_what_runs()
     assert {"thread.next", "thread.previous"} <= register["runs"]
     assert "thread.primary" in reference
@@ -540,8 +479,6 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     for n, thread in enumerate(threads, start=1):
         open_panel_thread(page, thread)
         page.locator(".lf-fp-settle").click()
-        expect(page.locator(".lf-fp-threads")).to_have_attribute(
-            "aria-label", re.compile(rf"^Threads, {2 - n} open")
-        )
+        expect_open_threads(page, 2 - n)
     open_panel_thread(page, threads[0]).focus()
     surfaces_name_what_runs()

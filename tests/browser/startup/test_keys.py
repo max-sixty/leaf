@@ -4,8 +4,6 @@ controls waiting for saved history, and the help overlay."""
 import re
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_navigation import JOURNEY_V1, _publish
 from render_harness import (
@@ -26,6 +24,8 @@ from browser.startup import (
     HELD_KEYS_PAGE,
     _hold_startup,
 )
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -200,6 +200,9 @@ def test_package_reading_keys_work_while_history_waits_and_after_offline_fallbac
     page.route("**/api/state*", refuse)
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-held-keys")).to_have_count(0)
+    # The notice comes down when the controller takes the queue; its next
+    # presentation frame finishes releasing the offline hold.
+    rendered(page)
     second.focus()
     page.keyboard.press("ArrowLeft")
     expect(first).to_have_attribute("aria-selected", "true")
@@ -278,7 +281,7 @@ def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, s
     rendered(page)
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Page couldn't apply current state — reload")
+        "placeholder", re.compile("^Couldn't show the latest — reload")
     )
     assert (
         page.evaluate(
@@ -589,7 +592,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     A section is its title, so two drafts on a page are one heading and a project
     widget declaring under a heading a standard one already uses joins it. That is
     the scope talking rather than the declaration: "On a draft" names where the
-    user would be standing, and there is one such place however many modules
+    user would be located, and there is one such place however many modules
     have something to say about it. Sections used to key on their exact rows, so
     the same heading twice was two headings — and the user, who has one keyboard
     and one draft in front of them, got the reference split in half."""
@@ -600,10 +603,10 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
-          commands(document.body, 'On a draft',
-               [{ id: 'test.project-widget', keys: ['F2'],
-                  title: 'a project widget using the same heading' }]);
+          const { commandsChanged } = await window.__lfWidgetApi();
+          document.body.lfCommands = { title: 'On a draft', rows: [{ id: 'test.project-widget', keys: ['F2'],
+                  title: 'a project widget using the same heading' }] };
+          commandsChanged(document.body);
         }"""
     )
     page.keyboard.press("?")
@@ -618,8 +621,8 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
         )
     ).to_be_visible()
     expect(
-        page.locator(".lf-command-reference", has_text="Edit the text in place")
-    ).to_be_visible()
+        page.locator('.lf-command-reference [role=row][data-lf-command="draft.edit"]')
+    ).to_be_attached()
     # Help is a scope: the table stands down behind it, so c must open nothing under
     # the sheet, neither a panel view nor the page comment in the panel's field.
     page.keyboard.press("c")

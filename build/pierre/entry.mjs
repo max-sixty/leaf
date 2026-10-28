@@ -1,2 +1,2 @@
-export { preloadDiffHTML, preloadFile } from "@pierre/diffs/ssr";
-export { ResizeManager } from "@pierre/diffs";
+export { preloadFile, renderHTML } from "@pierre/diffs/ssr";
+export { DiffHunksRenderer } from "@pierre/diffs";

@@ -1,5 +1,5 @@
 (() => {
-  /* The margin-entry exhibit's one grid producer. It runs while the authored document
+  /* The margin-entry exhibit's retained Lit grid. It runs while the authored document
    * arrives, before widget upgrade, so labels wrap in the actual viewer's fonts and
    * column. Upgrade adopts these nodes and adds the runtime's contribution paint and
    * handlers; the fixed face hosts use that paint's shared geometry from first paint. */
@@ -61,7 +61,7 @@
     },
     {
       heading: "Turn and agent workflow",
-      summary: "My turn · awaiting agent · picked up · working · awaiting continuation",
+      summary: "My turn · awaiting agent · delivered · working · awaiting continuation",
       samples: [
         {
           name: "My turn",
@@ -79,7 +79,7 @@
           rank: "reading",
         },
         {
-          name: "Waiting for pickup",
+          name: "Waiting for delivery",
           detail: "unaccepted after the grace period",
           icon: "waiting",
           behavior: "status",
@@ -93,7 +93,7 @@
           rank: "reading",
         },
         {
-          name: "Picked up",
+          name: "Delivered",
           detail: "Thread · agent turn opened",
           icon: "comment",
           behavior: "disclosure",
@@ -208,92 +208,107 @@
     },
   ];
 
-  function render(host, { offer }) {
-    const labels = [];
-    const samples = [];
-    const generated = (tag, className, words = null) => {
-      const node = document.createElement(tag);
-      node.className = className;
-      if (words !== null) {
-        node.textContent = words;
-        labels.push({ node, words });
-      }
-      return node;
-    };
-
-    const sampleNode = (sample, groupIndex, sampleIndex) => {
-      const item = generated("div", "margin-entry-gallery-item");
-      item.dataset.marginEntrySample = sample.name.toLowerCase();
-      const key = `${host.id}-gallery-${groupIndex}-${sampleIndex}`;
-      const control = offer(
-        sample.behavior === "status" ? "span" : "button",
-        "margin-entry-gallery-face lf-margin-entry",
-      );
-      control.setAttribute("aria-label", sample.name);
-      if (control instanceof HTMLButtonElement) {
-        control.type = "button";
-        control.disabled = true;
-      }
-      let disclosure = null;
-      if (sample.interactive) {
-        disclosure = generated(
-          "span",
-          "margin-entry-gallery-disclosure",
-          sample.reveals,
-        );
-        disclosure.id = `${key}-disclosure`;
-        disclosure.hidden = !sample.expanded;
-      }
-      const copy = generated("span", "margin-entry-gallery-copy");
-      copy.append(
-        generated("span", "margin-entry-gallery-name", sample.name),
-        generated("span", "margin-entry-gallery-detail", sample.detail),
-      );
-      item.append(control, copy, ...(disclosure ? [disclosure] : []));
-      samples.push({ sample, key, control, disclosure });
-      return item;
-    };
-
-    const groupNode = (group, groupIndex) => {
-      const row = generated("div", "margin-entry-gallery-group");
-      const introduction = generated("div", "margin-entry-gallery-introduction");
-      introduction.append(
-        generated("strong", "margin-entry-gallery-heading", group.heading),
-        generated("span", "margin-entry-gallery-summary", group.summary),
-      );
-      const items = generated("div", "margin-entry-gallery-items");
-      items.append(
-        ...group.samples.map((sample, index) => sampleNode(sample, groupIndex, index)),
-      );
-      row.append(introduction, items);
-      return row;
-    };
-
-    const projection = generated("div", "margin-entry-gallery-projection");
-    projection.append(
-      generated("strong", "margin-entry-gallery-heading", "Projection"),
-      generated(
-        "span",
-        "margin-entry-gallery-summary",
-        "Compact margin face · full Page Map row",
-      ),
-      generated(
-        "p",
-        "margin-entry-gallery-projection-guide",
-        "Use the live Inspect projection control at this exhibit's margin. Press g then Shift+P to find the same disclosure as a labeled Page Map row.",
-      ),
+  function createView(host, { offerElement, generatedElement }) {
+    const { html, ref } = document.documentElement.lfInitial.lit;
+    const samples = GROUPS.map((group, groupIndex) =>
+      group.samples.map((sample, sampleIndex) => ({
+        sample,
+        key: `${host.id}-gallery-${groupIndex}-${sampleIndex}`,
+        control: null,
+        disclosure: null,
+      })),
     );
-    const result = generated(
-      "p",
-      "margin-entry-gallery-projection-result",
-      "The same contributed action serves both projections.",
-    );
-    result.id = `${host.id}-projection-result`;
-    result.hidden = true;
-    projection.append(result);
-    host.append(...GROUPS.map(groupNode), projection);
-    return { samples, labels, result };
+    const mark = ref((node) => node && generatedElement(node, { says: false }));
+    const face = (entry) =>
+      ref((node) => {
+        if (node)
+          entry.control = offerElement(
+            node,
+            "margin-entry-gallery-face lf-margin-entry",
+          );
+      });
+    const sampleView = (entry) => {
+      const { sample, key } = entry;
+      return html`<div
+        class="margin-entry-gallery-item"
+        data-margin-entry-sample=${sample.name.toLowerCase()}
+      >
+        ${
+          sample.behavior === "status"
+            ? html`<span ${face(entry)} aria-label=${sample.name}></span>`
+            : html`<button
+                ${face(entry)}
+                type="button"
+                disabled
+                aria-label=${sample.name}
+              ></button>`
+        }
+        <span class="margin-entry-gallery-copy">
+          <span class="margin-entry-gallery-name" ${mark}>${sample.name}</span>
+          <span class="margin-entry-gallery-detail" ${mark}>${sample.detail}</span>
+        </span>
+        ${
+          sample.interactive
+            ? html`<span
+                class="margin-entry-gallery-disclosure"
+                ${mark}
+                ${ref((node) => {
+                  if (node) entry.disclosure = node;
+                })}
+                id=${`${key}-disclosure`}
+                ?hidden=${!sample.expanded}
+                >${sample.reveals}</span
+              >`
+            : null
+        }
+      </div>`;
+    };
+    const view = {
+      samples: samples.flat(),
+      result: null,
+      render: () =>
+        html`${GROUPS.map(
+            (group, index) => html`
+              <div class="margin-entry-gallery-group">
+                <div class="margin-entry-gallery-introduction">
+                  <strong class="margin-entry-gallery-heading" ${mark}
+                    >${group.heading}</strong
+                  >
+                  <span class="margin-entry-gallery-summary" ${mark}
+                    >${group.summary}</span
+                  >
+                </div>
+                <div class="margin-entry-gallery-items">
+                  ${samples[index].map(sampleView)}
+                </div>
+              </div>
+            `,
+          )}
+          <div class="margin-entry-gallery-projection">
+            <strong class="margin-entry-gallery-heading" ${mark}>Projection</strong>
+            <span class="margin-entry-gallery-summary" ${mark}
+              >Compact margin face · full Page Map row</span
+            >
+            <p class="margin-entry-gallery-projection-guide" ${mark}>
+              Use the live Inspect projection control at this exhibit's margin. Press g
+              then Shift+P to find the same disclosure as a labeled Page Map row.
+            </p>
+            <p
+              class="margin-entry-gallery-projection-result"
+              ${mark}
+              ${ref((node) => {
+                if (node) view.result = node;
+              })}
+              id=${`${host.id}-projection-result`}
+              hidden
+            >
+              The same contributed action serves both projections.
+            </p>
+          </div>`,
+    };
+    host.replaceChildren();
+    return view;
   }
 
-  document.documentElement.lfInitial.register("lf-margin-entry-gallery", render);
+  document.documentElement.lfInitial.register("lf-margin-entry-gallery", createView);
 })();

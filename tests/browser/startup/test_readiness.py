@@ -6,8 +6,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record, append_command, wait_for
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import SHORT_SUGGESTION, SUGGESTION_PAGE
 from render_cases_layout import SHADOWED_DIFF
@@ -24,13 +22,16 @@ from render_harness import (
     consume_browser_errors,
     expect_obligations_answered,
     expect_panel_offers,
+    is_problem,
     leaf_page,
     open_page,
+    open_threads,
     open_versions,
     page_comment,
     panel_field,
     panel_menu,
     panel_settled,
+    panel_view,
     refuse,
     reported_browser_errors,
     selection_field,
@@ -39,11 +40,14 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import wait_until_ready
+from leaf.render_gate.page_code import run_page_code
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 # The status the panel's empty field says while the first state answer is held.
-LOADING = re.compile("^Loading saved state…")
+LOADING = re.compile("^Loading comments and choices…")
 
 
 VISUAL_ACTION_TIMING = """
@@ -326,10 +330,10 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     # The blanket answer claims no action before the first state answer.
     expect_panel_offers(page, "blanket:accept", offered=False)
 
-    threads = page.locator(".lf-fp-threads")
-    expect(threads).to_be_enabled()
-    threads.click()
-    panel_settled(page, view="threads")
+    on_me = page.locator(".lf-fp-on-user")
+    expect(on_me).to_be_enabled()
+    on_me.click()
+    panel_settled(page, view="queue")
     # The page's field takes words while the first state answer is still held.
     expect(page_comment(page)).to_be_editable()
     page.keyboard.press("Escape")
@@ -364,9 +368,8 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the Markdown renderer"
 
-    rows = page.locator(".lf-fp-view[data-view='threads'] .lf-fp-thread")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
+    open_threads(page)
     expect(rows).to_have_count(0)
 
     held.pop(0).continue_()
@@ -393,7 +396,7 @@ def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
     )
     expect(page.locator("main")).to_be_visible()
     expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Server offline")
+        "placeholder", re.compile("^Lost the connection")
     )
     assert page.locator("body").get_attribute("data-lf-applied") is None
     assert page.evaluate("() => window.__lfPresentation.releases") == 1
@@ -478,11 +481,7 @@ def test_invalid_visual_part_ids_report_the_package_error(browser, serve):
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
     """Malformed state leaves authored content readable but interaction unresolved."""
-    url = serve(
-        SHORT_SUGGESTION.replace(
-            "</title>", '</title><meta name="lf-review" content="sign-off">', 1
-        )
-    )
+    url = serve(SHORT_SUGGESTION)
     append_command(
         serve.page_dir,
         {
@@ -508,12 +507,12 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
             page.goto(url, wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         expect(panel_field(page)).to_have_attribute(
-            "placeholder", re.compile("^Page couldn't apply current state — reload")
+            "placeholder", re.compile("^Couldn't show the latest — reload")
         )
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
         expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "1")
         expect(page.locator("#sug lf-old")).to_be_visible()
-        # Versions, where the approval stands, is out of reach until state applies.
+        # Versions is out of reach until state applies.
         expect(
             panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
         ).to_be_disabled()
@@ -537,35 +536,39 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
     consume_browser_errors(page, "read failed: Unexpected token")
 
 
-def test_a_layer_mismatch_signals_startup_failure_on_window(browser, serve):
-    """Bootstrap listeners hear a document/runtime generation mismatch."""
-    url = serve(leaf_page("Mismatched layer", "<h1>Readable authored content</h1>"))
-    page = browser.new_page()
-    page.add_init_script(
-        """
-        window.__leafStartupFailures = 0;
-        window.addEventListener(
-          "lf-startup-failed",
-          () => window.__leafStartupFailures++,
-        );
-        """
+def test_a_tab_reloads_into_the_runtime_its_restarted_server_runs(browser, serve):
+    """A server restarted under another Leaf runs another runtime, whose state the
+    tab's code may misread. The tab refuses that server's answer, asks its source, and
+    reloads onto the document the server now serves (`runtime_selection.py`)."""
+    page = open_page(
+        browser, serve(leaf_page("Restarted", "<h1>Readable authored content</h1>"))
     )
+    page.evaluate("() => { window.lfSameDocument = true; }")
+    restarted = {"answers": True}
 
-    # Generation is deliberately a native module in the compiled distribution.
-    # Replace its declared value, without depending on its source serialization.
-    page.route(
-        "**/runtime/layer-generation.js",
-        lambda route: route.fulfill(
-            body='export const layerGeneration = "mismatched-runtime";',
-            content_type="application/javascript",
-        ),
-    )
-    page.goto(url, wait_until="domcontentloaded")
-    expect(page.get_by_role("status")).to_have_text(
-        "Leaf couldn't start. Waiting for the server to update."
-    )
-    assert page.evaluate("() => window.__leafStartupFailures") == 1
-    consume_browser_errors(page, "belong to different layers")
+    # The server's answers name another runtime until its source has said so once,
+    # which is the reading the reload lands on.
+    def another_runtime(route):
+        if not restarted["answers"]:
+            route.continue_()
+            return
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
+        )
+        if route.request.url.endswith("/registry.json"):
+            restarted["answers"] = False
+
+    page.route("**/api/state", another_runtime)
+    page.route("**/registry.json", another_runtime)
+    with page.expect_navigation():
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    wait_until_ready(page)
+    assert page.evaluate("() => window.lfSameDocument") is None
 
 
 def test_a_root_module_failure_leaves_authored_document_readable(browser, serve):
@@ -614,6 +617,52 @@ def test_the_first_startup_fault_names_the_page(browser, serve):
     expect(root).not_to_have_attribute("data-lf-interactive", "")
     reported_browser_errors(
         page, "Error: first fault", "Error: first fault", "Error: later fault"
+    )
+
+
+def test_a_boot_that_fails_after_it_waits_names_the_startup_fault(browser, serve):
+    """The entry boots in an async function, which the bundler needs (leaf.js), and a
+    failure after its first wait still reaches the window as an uncaught error, which
+    names the page's startup fault. Its annotation renderer, the module the boot
+    waits for, is refused here."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route(re.compile(r"annotation-overlay(/index)?\.js$"), refuse)
+    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    root = page.locator("html")
+    expect(root).to_have_attribute(
+        "data-lf-startup-error", re.compile("dynamically imported module")
+    )
+    assert "annotation-overlay" in root.evaluate(
+        "root => root.lfStartupException.message"
+    )
+    consume_browser_errors(page, "dynamically imported module")
+
+
+def test_what_an_inline_classic_script_throws_reaches_the_check(browser, serve):
+    """An inline classic script throws, and rejects, at once. Delivery holds it until
+    the runtime has read the page and listens (`revision_delivery._deferred`), so
+    plain `page check`, which hears what the runtime reports, names each with its
+    throw site as it would a module's."""
+    url = serve(
+        leaf_page("Early fault", '<p id="words">Words.</p>').replace(
+            "</main>",
+            "</main><script>function parseTimeFault() {"
+            " throw new TypeError('thrown while parsing'); }"
+            " Promise.reject(new RangeError('rejected while parsing'));"
+            " parseTimeFault();</script>",
+        )
+    )
+    reports = [
+        finding.values["text"]
+        for finding in run_page_code(browser.unwatched, url)
+        if finding.code == "page-report"
+    ]
+    assert any(
+        "TypeError: thrown while parsing" in text and "parseTimeFault" in text
+        for text in reports
+    ), reports
+    assert any("RangeError: rejected while parsing" in text for text in reports), (
+        reports
     )
 
 
@@ -699,8 +748,12 @@ def test_a_firefox_departure_reports_none_of_the_loads_it_aborts(
     # The import's rejection settles startup within the task that delivers it.
     page.evaluate("() => new Promise(done => setTimeout(() => setTimeout(done)))")
     assert page.evaluate("document.documentElement.dataset.lfStartupError") is None
-    # Firefox's own word on the aborted request is all the console holds.
-    consume_browser_errors(page, "Loading failed for the module")
+    # Firefox may also classify the loopback host as a bounce tracker during
+    # navigation. That browser privacy notice says nothing about page startup.
+    errors = consume_browser_errors(
+        page, "Loading failed for the module", "classified as a bounce tracker"
+    )
+    assert any(is_problem(error, "Loading failed for the module") for error in errors)
     assert not page.lf_errors
     assert not [
         event

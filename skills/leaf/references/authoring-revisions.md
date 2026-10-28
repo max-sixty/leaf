@@ -12,23 +12,22 @@ When `source.live` is false, `index.html` differs from the live revision and
 the rest of the output may be wrong until you do.
 
 `data_bindings` names each external data source and the widgets that read it; change a
-source's value with `leaf data set`. `leaf page state <page> <id>` shows one widget,
-with its actions, obligations and workflows, or one thread with its messages.
+source's value with `leaf data set`.
 
 ## Publish several authored files together
 
-When the HTML and its modules must change together, prepare a separate directory
-holding `index.html` and the whole `page/` tree, with any media it uses already in the
-live page. Take the current files' digest with `leaf.publishing.authored_digest` (and
-the files themselves with `leaf.publishing.authored_files`), then publish:
+When the HTML and its modules must change together, save `source.digest` from
+`leaf page state <page>` before copying or editing the files. It identifies the
+current `index.html` and complete `page/` tree, including an invalid source save.
+Prepare a separate directory holding the replacement `index.html` and whole `page/`
+tree, with any media it uses already in the live page, then publish:
 
 ```sh
-leaf page stamp <page> --from-directory <candidate> --if-source <digest> --text 'Updated the page'
+leaf page stamp <page> --replace <candidate> <digest> --text 'Updated the page'
 ```
 
-The stamp refuses if the page's files changed since you took the digest, and keeps the
-old files if the new ones fail the check. It doesn't touch the event log or external
-data.
+A successful stamp adds its version note while preserving the existing event history
+and external data.
 
 ## Revisions and user-owned words
 
@@ -43,8 +42,7 @@ has been made or a finding no longer holds, write the correct text directly and 
 the change in the version note.
 
 Use `lf-draft` for a passage whose wording belongs to the user. Their saved words stay
-in effect across revisions. The `<pre>` holds the exact Markdown, including leading
-blank lines, indentation and trailing whitespace; follow the `lf-draft` registry entry
+in effect across revisions. Follow the `lf-draft` registry entry
 for its HTML.
 
 ## Honor user state
@@ -62,8 +60,7 @@ Take in a user's answer to a page's obligation in a stamped version. Where the w
 `lf-option` elements you wrote, or the user's words as the body of a `needed`
 `lf-draft`. Leave an option the user added out of the markup; the log keeps it. Where
 the widget declares no form, as for an accepted suggestion or submitted playground
-settings, the next stamp takes in the answer. Until then the answer waits on you, as its
-delivered `handling` says. A worker's report likewise stays provisional until the
+settings, the next stamp takes in the answer. A worker's report likewise stays provisional until the
 stamped revision its `handling` asks for. When you work a decided suggestion into the
 surrounding prose, keep its surviving branch and its ids.
 
@@ -76,8 +73,7 @@ heading. Remove those marks in the next version you hand over.
 ## Keep the current page current
 
 [SOUL.md](../SOUL.md), "Keep the page current and the record trustworthy", sets the
-goal. Restructuring the page is an ordinary revision; write
-`index.html` whole rather than as a series of edits. Threads and user state follow ids
+goal. Restructuring the page is an ordinary revision. Threads and user state follow ids
 (`page-authoring.md`, "Stable anchors"), so a passage you keep keeps its id wherever it
 moves, and moving it needs neither a suggestion nor `restated`.
 
@@ -85,9 +81,9 @@ When a revision removes a passage a thread quotes, the thread moves to the survi
 section, or is detached if the section is gone too. When you know where the subject
 went, name the replacement passage (`threads.md`, "Preserve revised anchors").
 
-A list of work holds what is still to do. When an item of a plan, backlog or list of
+A work list shows unfinished items. When an item of a plan, backlog or list of
 problems is done, cut it down to its outcome and move it to the finished work,
-collapsed after the open work, such as a `<details>` at the foot or a tab of its own.
+collapsed after the open work, such as a `<details>` at the bottom or a separate tab.
 A widget that tracks completion itself, such as a board or task list, keeps its
 members. Remove material the current state replaces, such as a concluded run or a
 superseded section; keep older material, collapsed, only where current work needs its
@@ -95,12 +91,25 @@ context. Keep deferred work in the list with enough context to resume it.
 
 A decision the user answered and you have acted on becomes a record. Give its
 `lf-options` group the `settled` attribute, which collapses it to the pick, and say
-beside it what came of the choice. Keep the result and its evidence in the current
-reading flow while the reader still needs them (`page-authoring.md`, "Reading cost");
-retire the superseded interaction as finished work. Pose anything still worth asking
-as a new decision with new ids. Use `$restated` to withdraw the decision and ask again.
+beside it what you did about the choice. Anything the choice sets in motion that
+hasn't happened yet reads as decided, not under way. Keep the result and its evidence
+in the current reading flow while the reader still needs them (`page-authoring.md`,
+"Reading cost"); retire the superseded interaction as finished work. Pose anything
+still worth asking as a new decision with new ids. Use `$restated` to withdraw the
+decision and ask again.
 Don't mark a decision `settled` until you have finished applying it, and keep a section
 open while the user is still commenting there.
+
+A playground whose submitted configuration you have applied becomes a record too.
+Author each control at the chosen value, so the preview, Reset and the page's account
+of the choice agree, and keep it and its evidence open beside what came of the choice,
+since the user reads the record against that evidence. The user can still explore from
+it, and Reset brings them back to the record.
+
+The user reads threads to find out how their input was addressed. When a revision
+resolves the question or completes the work discussed in an open thread, reply there
+with the result and where the page shows it, so the thread is not left looking
+unanswered.
 
 Before handing the page back, check that its status, open to-dos and outstanding work
 agree with what you tell the user.

@@ -4,9 +4,6 @@ passes its height on, and where a bounded log keeps its reader."""
 import re
 
 import pytest
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -16,7 +13,7 @@ from render_harness import (
     fills_the_window,
     leaf_page,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     regions_side_by_side,
     resized,
     scroll_settled,
@@ -29,6 +26,9 @@ from render_harness import (
 from browser.widgets import (
     PLAYGROUND_PAGE,
 )
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -61,6 +61,42 @@ WORKSPACE_PAGE = leaf_page(
     head=regions_side_by_side("review-regions"),
     layout="workspace",
 )
+
+
+def test_workspace_root_scrollbar_appears_only_when_page_overflows(
+    scrollbar_browser, serve
+):
+    """A workspace scrolls its own panes, so a platform with classic scrollbars shows
+    the root's track only where the workspace flows past the window."""
+    page = open_page(
+        scrollbar_browser,
+        serve(WORKSPACE_PAGE),
+        # macOS draws the root's scrollbar as an overlay, which takes no width; a styled
+        # track is classic on every host, as Linux and Windows draw it.
+        init_script="""(() => {
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync('html::-webkit-scrollbar { width: 15px; }');
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        })()""",
+    )
+    resized(page, 1200, 900)
+    assert page.evaluate(
+        """() => {
+          const root = document.documentElement;
+          return root.scrollHeight === root.clientHeight &&
+            root.clientWidth === window.innerWidth;
+        }"""
+    )
+
+    resized(page, 1200, 420)
+    assert page.evaluate(
+        """() => {
+          const root = document.documentElement;
+          root.scrollTop = root.scrollHeight;
+          return root.scrollHeight > root.clientHeight &&
+            root.clientWidth < window.innerWidth && root.scrollTop > 0;
+        }"""
+    )
 
 
 @pytest.mark.parametrize("captured", [False, True], ids=["block", "text-document"])
@@ -110,7 +146,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     browser, serve
 ):
     """The workspace Layout takes the whole window, wider than a sidebar page's capped
-    frame, and the window's height above the panel's band: each pane's body scrolls on its own. Its
+    frame, and the window's height: each pane's body scrolls on its own. Its
     header is one row, the title with the status beside it, so the panes keep the
     window. A window too short to hold it hands the scroll to the page."""
     frame = """() => {
@@ -136,7 +172,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     queue = page.locator("#queue > :not(header, footer)")
     detail = page.locator("#detail > :not(header, footer)")
 
-    pane_posture(page, queue_pane, "bounded")
+    pane_scroll_behavior(page, queue_pane, "bounded")
     fills_the_window(page, workspace, True)
     own = page.evaluate(frame)
     assert own[0] < wide[0] and own[1] > wide[1], (own, wide)
@@ -178,7 +214,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
           parent.insertBefore(owner, next);
         })"""
     )
-    pane_posture(page, queue_pane, "bounded")
+    pane_scroll_behavior(page, queue_pane, "bounded")
     expect(queue).to_have_attribute("data-lf-more-below", "")
     queue.evaluate("el => el.scrollTop = el.scrollHeight")
     expect(queue).not_to_have_attribute("data-lf-more-below", "")
@@ -213,7 +249,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     # page's grid keeps the columns its width allows: the hold decides heights, not
     # placement.
     resized(page, 1280, 420)
-    pane_posture(page, queue_pane, "flow")
+    pane_scroll_behavior(page, queue_pane, "flow")
     fills_the_window(page, workspace, False)
     flow = page.evaluate(
         """() => {
@@ -226,10 +262,70 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     assert flow["queue"]["height"] > 1100, flow
     expect(queue).not_to_have_attribute("data-lf-more-below", "")
     expect(detail).not_to_have_attribute("data-lf-more-below", "")
-    # The posture is the window's, not the one the user came from.
+    # The scroll behavior is the window's, not the one the user came from.
     resized(page, 1280, 720)
-    pane_posture(page, queue_pane, "bounded")
+    pane_scroll_behavior(page, queue_pane, "bounded")
     fills_the_window(page, workspace, True)
+
+
+def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
+    browser, serve
+):
+    page = open_page(browser, serve(WORKSPACE_PAGE))
+    resized(page, 1200, 900)
+    geometry = page.evaluate(
+        """() => {
+          const main = document.querySelector('main');
+          const reader = document.querySelector('#queue > :not(header, footer)');
+          reader.scrollTop = reader.scrollHeight;
+          return {
+            mainBottom: main.getBoundingClientRect().bottom,
+            windowBottom: innerHeight,
+            endBottom: [...reader.querySelectorAll('p')].at(-1).getBoundingClientRect().bottom,
+            panelTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
+            paneBottom: document.querySelector('#queue').getBoundingClientRect().bottom,
+            footerTop: document.querySelector('main > footer').getBoundingClientRect().top,
+          };
+        }"""
+    )
+    assert abs(geometry["mainBottom"] - geometry["windowBottom"]) <= 1, geometry
+    assert geometry["endBottom"] <= geometry["panelTop"], geometry
+    assert geometry["footerTop"] - geometry["paneBottom"] <= 1, geometry
+    assert page.evaluate("document.scrollingElement.scrollHeight <= innerHeight + 1")
+    page.locator("body").focus()
+    page.keyboard.press(".")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-rest", "mark")
+    assert page.locator("main").evaluate(
+        "node => Math.abs(node.getBoundingClientRect().bottom - innerHeight) <= 1"
+    )
+
+
+def test_a_workspace_body_scroller_clears_the_panel(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Single-body workspace",
+                '<header><h1>Work</h1></header><div id="reader">'
+                '<div style="height:1100px"></div><p>End of work</p></div>',
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1200, 900)
+    geometry = page.evaluate(
+        """() => {
+          const reader = document.querySelector('#reader');
+          reader.scrollTop = reader.scrollHeight;
+          return {
+            scrolls: reader.scrollHeight > reader.clientHeight,
+            endBottom: reader.querySelector('p').getBoundingClientRect().bottom,
+            panelTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
+          };
+        }"""
+    )
+    assert geometry["scrolls"], geometry
+    assert geometry["endBottom"] <= geometry["panelTop"], geometry
 
 
 def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser, serve):
@@ -372,16 +468,18 @@ def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
 
 
 def clear_of_the_bottom_chrome(page, selector):
-    """Scroll the page to its end and measure one box against the floating panel's row.
+    """Scroll the target's reading box to its end and measure it against the panel.
 
     The row is the fixed chrome a page's last line has to scroll clear of; a page whose
     end room is missing leaves that line under it however far the user scrolls."""
     return page.evaluate(
-        """selector => {
-          const page = document.scrollingElement;
-          page.scrollTop = page.scrollHeight;
+        """async selector => {
+          const {scrollerFor} = await window.__lfWidgetApi();
+          const target = document.querySelector(selector);
+          const scroller = scrollerFor(target) ?? document.scrollingElement;
+          scroller.scrollTop = scroller.scrollHeight;
           const row = document.querySelector('.lf-fp-row').getBoundingClientRect();
-          const box = document.querySelector(selector).getBoundingClientRect();
+          const box = target.getBoundingClientRect();
           return {bottom: box.bottom, row: row.top, clear: box.bottom <= row.top + 1};
         }""",
         selector,
@@ -473,15 +571,17 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
 
     Whatever the user scrolls to in that full-height workspace clears the panel's row,
     as a document's last line does: the body scrolls as a whole and its end stands
-    above the band."""
+    above the band. So only the pane that is the body reserves the panel's room in its
+    own reader; the pane inside the section, which the body's end room already
+    clears, keeps its inset alone."""
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
     resized(page, 1280, 720)
     pane = page.locator("#workspace-pane")
-    pane_posture(page, pane, "flow")
+    pane_scroll_behavior(page, pane, "flow")
     assert pane.evaluate(
         """async node => {
           const leaf = await window.__lfWidgetApi();
-          return leaf.readingPosture(node) === 'flow'
+          return leaf.regionScrollBehavior(node) === 'flow'
             && leaf.scrollerFor(node) === document.getElementById('cells');
         }"""
     )
@@ -499,13 +599,30 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     page.locator("#pane-end").evaluate("node => node.scrollIntoView({block: 'end'})")
     end = clear_of_the_bottom_chrome(page, "#pane-end")
     assert end["clear"], end
+    # The body's end room already clears the panel, so the pane keeps only its inset.
+    assert foot_reserve(page) == 0
     page.close()
 
     direct = leaf_page("a pane as the workspace body", LONG_PANE, layout="workspace")
     page = open_page(browser, serve(direct))
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#workspace-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
     fills_the_window(page, page.locator("main"), True)
+    # A pane that reaches the window's foot keeps the panel's room in its reader.
+    assert foot_reserve(page) > 0
+
+
+def foot_reserve(page):
+    """How far #workspace-pane's reader pads its end beyond the pane inset."""
+    return page.locator("#workspace-pane > div").evaluate(
+        """reader => {
+          const style = getComputedStyle(reader);
+          return Math.round(
+            parseFloat(style.paddingBlockEnd) -
+              parseFloat(style.getPropertyValue('--pane-inset'))
+          );
+        }"""
+    )
 
 
 ZONE_PACKAGE = {
@@ -553,20 +670,20 @@ def test_a_package_pane_is_held_where_an_lf_pane_is(browser, serve):
     page.route("**/leaf.js", lambda route: boot.append(route))
     url = serve(NESTED_PANES_PAGE, layer_registry=ZONE_PACKAGE)
 
-    def postures():
+    def scroll_behaviors():
         for tag in ("zone", "pane"):
-            pane_posture(page, page.locator(f"#outer-{tag}"), "bounded")
-            pane_posture(page, page.locator(f"#inner-{tag}"), "flow")
+            pane_scroll_behavior(page, page.locator(f"#outer-{tag}"), "bounded")
+            pane_scroll_behavior(page, page.locator(f"#inner-{tag}"), "flow")
 
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(url, wait_until="commit")
         displayed(page)
         assert boot, "the runtime was not held"
-        postures()
+        scroll_behaviors()
         boot.pop().continue_()
         wait_until_ready(page)
-        postures()
+        scroll_behaviors()
     finally:
         for route in boot:
             route.continue_()
@@ -607,7 +724,9 @@ def test_an_lf_ask_gives_its_answer_what_its_context_leaves(browser, serve):
     page = open_page(browser, serve(with_premise))
     resized(page, 1280, 720)
     expect(page.locator("#card-playground-ask")).to_have_css("display", "flex")
-    pane_posture(page, page.locator(".lf-playground-controls-region"), "bounded")
+    pane_scroll_behavior(
+        page, page.locator(".lf-playground-controls-region"), "bounded"
+    )
     fills_the_window(page, page.locator("main"), True)
 
 
@@ -626,7 +745,7 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     )
     page = open_page(browser, serve(document))
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#workspace-pane"), "flow")
+    pane_scroll_behavior(page, page.locator("#workspace-pane"), "flow")
     room = page.evaluate(
         """() => {
           const probe = document.createElement('div');
@@ -651,13 +770,92 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     root = leaf_page("a workspace", LONG_PANE, layout="workspace")
     page = open_page(browser, serve(root))
     resized(page, 1280, 420)
-    pane_posture(page, page.locator("#workspace-pane"), "flow")
+    pane_scroll_behavior(page, page.locator("#workspace-pane"), "flow")
     end = clear_of_the_bottom_chrome(page, "#pane-end")
     assert end["clear"], end
 
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#workspace-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
     fills_the_window(page, page.locator("main"), True)
+
+
+@pytest.mark.parametrize(
+    "container", ["views", "pane", "plain", "workspace-footer", "pane-footer"]
+)
+def test_workspace_end_room_stays_inside_the_last_reading_region(
+    browser, serve, container
+):
+    """The frame reaches the window's foot; its final control scrolls clear of chrome.
+
+    Nested page and side views exercise the transfer: reserving clearance on the
+    outside view instead leaves a band below the actual reading pane.
+    """
+    reading = '<p>Start</p><div style="height:1200px"></div><button id="reading-end">Finish review</button>'
+    if container.endswith("footer"):
+        body, button = reading.split("<button", 1)
+        footer = '<footer style="text-align:center"><button' + button + "</footer>"
+        if container == "workspace-footer":
+            content = '<section id="reading">' + body + "</section>" + footer
+            frame = "main"
+        else:
+            content = (
+                '<lf-pane id="frame" label="Review"><div id="reading">'
+                + body
+                + "</div>"
+                + footer
+                + "</lf-pane>"
+            )
+            frame = "#frame"
+        scroller = "#reading"
+    elif container == "views":
+        content = (
+            '<lf-tabs id="outer"><lf-tab id="review" label="Review">'
+            '<lf-tabs id="frame" list="side"><lf-tab id="reading" label="Experiment">'
+            + reading
+            + '</lf-tab><lf-tab id="other" label="Other"><p>Other result</p></lf-tab>'
+            "</lf-tabs></lf-tab></lf-tabs>"
+        )
+        scroller = "#reading"
+    elif container == "pane":
+        content = (
+            '<lf-pane id="frame" label="Review"><div id="reading">'
+            + reading
+            + "</div></lf-pane>"
+        )
+        scroller = "#reading"
+    else:
+        content = '<div id="frame">' + reading + "</div>"
+        scroller = "#frame"
+    if not container.endswith("footer"):
+        frame = "#frame"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Review results",
+                "<header><h1>Review results</h1></header>" + content,
+                layout="workspace",
+            )
+        ),
+    )
+    for width, height in [(1440, 1000), (695, 988)]:
+        resized(page, width, height)
+        if width >= 720:
+            page.locator(scroller).evaluate("el => el.scrollTop = el.scrollHeight")
+        page.evaluate(
+            "() => document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight"
+        )
+        geometry = page.evaluate(
+            """selector => {
+            const frame = document.querySelector(selector).getBoundingClientRect();
+            const end = document.getElementById('reading-end').getBoundingClientRect();
+            const panel = document.querySelector('.lf-fp-row').getBoundingClientRect();
+            return {frameBottom: frame.bottom, endBottom: end.bottom, panelTop: panel.top, height: innerHeight};
+        }""",
+            frame,
+        )
+        assert geometry["frameBottom"] == pytest.approx(height, abs=6), geometry
+        assert geometry["endBottom"] <= geometry["panelTop"] + 1, geometry
 
 
 def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
@@ -675,7 +873,7 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
     )
     page = open_page(browser, serve(source))
     resized(page, 1000, 720)
-    pane_posture(page, page.locator("#workspace-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
     page.locator("#only").click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.keyboard.type("A thread on the paragraph.")
@@ -687,7 +885,7 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
     expect(row).to_have_attribute("data-lf-place", "pin")
     expect(page.locator("#workspace-pane .lf-margin-cluster")).to_have_count(0)
     expect(page.locator("#workspace-pane > *")).to_have_count(1)
-    pane_posture(page, page.locator("#workspace-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
 
 
 def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
@@ -716,24 +914,24 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
     )
     page = open_page(browser, serve(source))
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#host"), "bounded")
+    pane_scroll_behavior(page, page.locator("#host"), "bounded")
     for inner in ("#inner-pane", "#loose-pane"):
-        pane_posture(page, page.locator(inner), "flow")
+        pane_scroll_behavior(page, page.locator(inner), "flow")
     readings = page.evaluate(
         """async () => {
           const leaf = await window.__lfWidgetApi();
           const host = document.querySelector('#host-body');
           return Object.fromEntries(['inner-pane', 'loose-pane'].map(id => {
             const body = document.querySelector(`#${id} > div`);
-            return [id, {posture: leaf.readingPosture(id),
+            return [id, {scroll_behavior: leaf.regionScrollBehavior(id),
                          scroller: leaf.scrollerFor(document.getElementById(id)) === host,
                          fits: body.scrollHeight <= body.clientHeight}];
           }).concat([['host', host.scrollHeight > host.clientHeight]]));
         }"""
     )
     assert readings == {
-        "inner-pane": {"posture": "flow", "scroller": True, "fits": True},
-        "loose-pane": {"posture": "flow", "scroller": True, "fits": True},
+        "inner-pane": {"scroll_behavior": "flow", "scroller": True, "fits": True},
+        "loose-pane": {"scroll_behavior": "flow", "scroller": True, "fits": True},
         "host": True,
     }
 
@@ -741,7 +939,8 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
 def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, serve):
     """A sidebar page of body and track: the lede starts at the page's edge and keeps
     the reading measure, as does the status callout, every other region of the body
-    shares the body's two edges and every region of the track the track's, and the
+    shares the body's two edges and every region of the track its content edges,
+    leaving room for focus rings inside the track, and the
     checks table's box fills its panel. On a narrow
     window the track stacks under the body, and the bounded log opens on its newest
     line. Paper shows the log whole."""
@@ -760,6 +959,13 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
       const left = box.left + parseFloat(style.paddingLeft);
       const right = box.right - parseFloat(style.paddingRight);
       read.main = {{left, right, width: right - left}};
+      const track = document.querySelector('[data-lf-track-body]');
+      const trackBox = track.getBoundingClientRect();
+      const trackStyle = getComputedStyle(track);
+      read.track = {{
+        right: trackBox.right,
+        contentRight: trackBox.right - parseFloat(trackStyle.paddingRight),
+      }};
       return read;
     }}"""
 
@@ -776,7 +982,10 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
                 round(wide[track[0]][edge])
             }
     assert wide["lp-status"]["left"] == pytest.approx(page_box["left"], abs=1)
-    assert wide["lp-steps"]["right"] == pytest.approx(page_box["right"], abs=1)
+    assert wide["track"]["right"] == pytest.approx(page_box["right"], abs=1)
+    assert wide["lp-steps"]["right"] == pytest.approx(
+        wide["track"]["contentRight"], abs=1
+    )
     assert wide["lp-log"]["right"] < wide["lp-steps"]["left"]
     assert wide["lp-checks-table"]["width"] > wide["lp-checks"]["width"] - 48
     listing = page.locator("#lp-live-log pre")
@@ -853,6 +1062,51 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     page.evaluate(rebuild, 120)
     page.evaluate("() => new Promise(requestAnimationFrame)")
     assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
+
+
+def test_a_declared_inner_scroller_can_be_rebuilt_without_taking_a_nested_bound(
+    browser, serve
+):
+    """The host names its scrolling box even when a nested bound has a match first.
+    Replacing that box registers its successor and resumes following its end."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Nested bounded listings",
+                '<h1>Logs</h1><div id="outer" data-bound="end">'
+                '<div id="inner" data-bound="start"><div class="listing">'
+                + "<p>Nested entry</p>" * 30
+                + '</div></div><div id="listing" class="listing"></div></div>',
+                head="""<style>
+                  #outer { --lf-bound-box: .listing; max-block-size: none;
+                    overflow: visible; }
+                  #inner, #outer > .listing { max-block-size: 120px; overflow: auto; }
+                </style>""",
+            )
+        ),
+    )
+    regions = """async () => {
+      const { readingRegions } = await window.__lfCheckApi();
+      return Object.fromEntries(readingRegions()
+        .filter(({host}) => ['outer', 'inner'].includes(host.id))
+        .map(({host, body}) => [host.id, body.id]));
+    }"""
+    assert page.evaluate(regions) == {"outer": "listing", "inner": "inner"}
+    page.evaluate(
+        """() => {
+          const box = document.createElement('div');
+          box.id = 'replacement'; box.className = 'listing';
+          box.innerHTML = '<p>Arrived entry</p>'.repeat(60);
+          document.getElementById('listing').replaceWith(box);
+        }"""
+    )
+    page.wait_for_function(
+        """() => { const box = document.getElementById('replacement');
+          return box.scrollHeight > box.clientHeight &&
+            box.scrollHeight - box.scrollTop - box.clientHeight <= 2; }"""
+    )
+    assert page.evaluate(regions) == {"outer": "replacement", "inner": "inner"}
 
 
 def test_logs_in_a_hidden_tab_open_on_their_newest_entries(browser, serve):
@@ -1101,12 +1355,12 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             ),
         ),
         (
-            '<dl id="lp-k-traffic" class="panel"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
-            '<dl id="lp-k-traffic" class="panel"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="metric"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="metric"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
         ),
         (
-            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
-            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
+            '<dl id="lp-k-checks" class="metric"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
+            '<dl id="lp-k-checks" class="metric"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
         ),
         (
             '<li id="lp-step-checks"><small class="tag danger">blocked · now</small>',

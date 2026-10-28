@@ -5,7 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import SEATED_OBLIGATION_PAGE, panel_comment
@@ -23,12 +22,15 @@ from render_harness import (
     draft_control,
     draft_key,
     expect_error_waits_in_menu,
+    expect_panel_says,
     holding,
     http_error_console,
     open_page,
     page_comment,
     panel_field,
+    panel_says,
     panel_settled,
+    panel_view,
     round_trip,
     select_words,
     stored_draft,
@@ -36,8 +38,8 @@ from render_harness import (
     write,
 )
 
-from browser.drafts import PANEL_SAYS, expect_panel_says
 from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -64,7 +66,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     every edit door stays closed and the exact body remains recoverable, and the busy
     draft is readable content.
 
-    A refused save is then an editable state, with Retry and Cancel at the same
+    A refused save is then an editable state, with Retry and Discard at the same
     target."""
     page = open_page(browser, serve(JOURNEY_V1))
     page.evaluate(
@@ -134,7 +136,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     expect(item.get_by_role("status")).to_have_text("Save failed. The edit is kept.")
     expect(editor).to_have_js_property("value", "Keep these unsent words.")
     expect(item.get_by_role("button", name="Retry", exact=True)).to_be_visible()
-    expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    expect(item.get_by_role("button", name="Discard", exact=True)).to_be_visible()
 
     write(editor, "Keep the revised unsent words.")
     expect(item.locator(".lf-draft-status")).to_be_empty()
@@ -217,7 +219,7 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
     # The words went back to a box out of view, so the refusal says where they are.
     expect_panel_says(
         page,
-        "Couldn't send — refused before append. Draft kept — g i resumes writing",
+        "Couldn't take this — refused before append. Draft kept — g i resumes writing",
     )
 
     # Their passage still holds their draft, so opening it again finds the words.
@@ -267,7 +269,7 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     # about the passage's box, so it stands there over the words, which send nothing
     # until the user's first key or press there, and the leaf's dot waits for it.
     cover = page.locator(".lf-fab-bar .lf-compose-error")
-    expect(cover).to_have_text("Couldn't send — refused before append")
+    expect(cover).to_have_text("Couldn't take this — refused before append")
     expect(page.locator(".lf-fp-error-dot")).to_be_hidden()
     # The first Enter only lifts the cover, with the caret at the words' end, so the
     # words are never sent unseen; the error waits in the leaf's menu.
@@ -284,7 +286,7 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     holding(page, held, 1, "the comment sent again")
     assert held[0].request.post_data_json["text"] == words
     held.pop(0).continue_()
-    expect_error_waits_in_menu(page, "Couldn't send — refused before append")
+    expect_error_waits_in_menu(page, "Couldn't take this — refused before append")
     consume_browser_errors(page, http_error_console(400))
 
 
@@ -311,7 +313,7 @@ def test_a_refused_detached_comment_reopens_beside_its_words(held_events, serve)
     before = box.bounding_box()
     page.keyboard.press("Enter")
     holding(page, held, 1, "the detached comment")
-    expect(page.locator(".lf-fp-view[data-view=thread]")).to_have_count(1)
+    expect(page.locator(panel_view("thread"))).to_have_count(1)
 
     refuse(page, held)
     expect(box).to_be_focused()
@@ -363,7 +365,7 @@ def test_a_refusals_error_leaves_with_the_words_it_stood_over(held_events, serve
     box = page.locator(".lf-fab-input")
     cover = page.locator(".lf-fab-bar .lf-compose-error")
     dot = page.locator(".lf-fp-error-dot")
-    expect(cover).to_have_text("Couldn't send — refused before append")
+    expect(cover).to_have_text("Couldn't take this — refused before append")
     expect(dot).to_be_hidden()
     assert cover.evaluate(COVER_LINE_REMAINDER) == pytest.approx(0, abs=0.01)
 
@@ -373,7 +375,7 @@ def test_a_refusals_error_leaves_with_the_words_it_stood_over(held_events, serve
     compose(page, "#p9")
     expect(box).to_have_js_property("value", "")
     expect(cover).to_be_hidden()
-    expect_error_waits_in_menu(page, "Couldn't send — refused before append")
+    expect_error_waits_in_menu(page, "Couldn't take this — refused before append")
     consume_browser_errors(page, http_error_console(400))
 
 
@@ -445,7 +447,7 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
     assert stored_draft_text(page, "general") == later
     expect_error_waits_in_menu(
         page,
-        "Couldn't send — refused before append. Draft kept — g i resumes writing",
+        "Couldn't take this — refused before append. Draft kept — g i resumes writing",
     )
     consume_browser_errors(page, http_error_console(400))
 
@@ -493,8 +495,8 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     expect(box).to_have_js_property("value", parent)
     expect_panel_says(
         page,
-        "Couldn't send — refused before append. "
-        "Reply kept — it returns when its comment sends",
+        "Couldn't take this — refused before append. "
+        "Reply kept — it comes back once its comment is saved",
     )
     expect(card).to_have_count(0)
     assert not thread_listed(page, attempt), "the refused thread is still listed"
@@ -513,7 +515,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
 
     # The refusal covers the words it gave back until the user comes back to them.
     cover = page.locator(".lf-fp-field .lf-compose-error")
-    expect(cover).to_contain_text("Couldn't send — refused before append")
+    expect(cover).to_contain_text("Couldn't take this — refused before append")
     # Resume writing leads to the comment, the one place that brings the reply back,
     # and is the user coming back to its words: the error goes to the leaf's menu and
     # the caret stands at the words' end, where Enter sends them.
@@ -586,7 +588,7 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
                 "final": True,
             },
         )
-    expect_panel_says(page, "Reply kept — it returns when its comment sends")
+    expect_panel_says(page, "Reply kept — it comes back once its comment is saved")
 
     page.locator("h1").click()
     page.keyboard.press("g")
@@ -632,7 +634,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     attempt = held[0].request.post_data_json["attempt"]
     pending = page.locator(f'{PANEL_THREAD}[data-thread="pending:{attempt}"]')
     expect(pending).to_be_visible()
-    # The thread's view is the stop the user stands on.
+    # The thread's view is the stop the user is located on.
     pending.focus()
     expect(pending).to_be_focused()
 
@@ -648,13 +650,13 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
         )
     expect(pending).to_have_count(0)
     assert not thread_listed(page, attempt), "the refused thread is still listed"
-    # The view the user stood on went with the thread, so the field stands for the page
+    # The view the user was located on went with the thread, so the field stands for the page
     # again with the words in it and the caret in them, and the refusal needs no
     # address for them.
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", words)
-    expect_panel_says(page, "Couldn't send — refused before append")
-    assert "Draft kept" not in page.evaluate(PANEL_SAYS)
+    expect_panel_says(page, "Couldn't take this — refused before append")
+    assert "Draft kept" not in panel_says(page)
     assert stored_draft_text(page, "general") == words
     assert not [
         event
@@ -684,7 +686,7 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
     # Held: the gesture is the only thing that can have written the region, and the
     # words are said before the log has answered rather than because it did.
     holding(page, held, 1, "the send")
-    expect(live).to_have_text("Message sent")
+    expect(live).to_have_text("Message added")
 
     held.pop(0).continue_()
     page.unroute("**/api/event")
@@ -824,7 +826,7 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve):
 
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    standing = page.evaluate("() => document.activeElement.className")
+    current_location = page.evaluate("() => document.activeElement.className")
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -832,11 +834,11 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve):
         "Send this while I return to reading."
     )
     panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement.className") == standing
+    assert page.evaluate("() => document.activeElement.className") == current_location
 
 
 def test_a_held_reply_send_preserves_a_later_scroll(browser, serve):
-    """A wheel can move the reading place while the user stands in the thread the
+    """A wheel can move the reading place while the user is located in the thread the
     reply was sent in; its delivery moves neither."""
     url = serve(LONG_PAGE)
     (root,) = seed_panel_threads(serve.page_dir, 1, long_index=0, messages=20)

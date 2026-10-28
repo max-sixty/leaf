@@ -1,0 +1,82 @@
+# From Widget lab, Codex chat 01a15cf1-f0af-7161-9d37-be33355c50fe:
+# the author read the one-scroll guidance but chose fixed preview heights for
+# stability, then framed the comparison app inside the Leaf page as well.
+# Exercises that competing goal; existing live-stream and window-sample cases
+# guard legitimate bounded views.
+# Codex on af7984ae1 passed 0/4 samples under this rubric. The goal-and-consideration
+# rewrite passed 1/1, plus the independent-passages and window-sample guards (2/2).
+# Earlier state-preservation clarifications still produced separate preview panes.
+# This scores proposed structure and code, not a rendered browser implementation.
+description: generated-preview-keeps-its-state
+metadata:
+  purpose: Preserve completed generated previews during updates without turning the comparison into nested scrolling documents.
+  tags:
+    - layout
+    - authoring
+vars:
+  prompt: |
+    Build the Leaf presentation for a small widget-generation lab. I type a request;
+    two models stream standalone HTML widgets. I want to compare the finished widgets
+    side by side, try their forms, and save their HTML. The generated scripts must be
+    isolated from the lab. This is the page's main activity, not a figure in a report.
+
+    Your earlier reply promised: "I'll use complete previews to avoid layout changes
+    on each streamed chunk. Each result loads once, so you can interact with it without
+    live updates resetting it." There is already a plain HTML comparison app at
+    http://127.0.0.1:19347/lab/ with a prompt, run status, model cards and preview frames.
+    Its CSS sets each preview to 580px high. Its markup and script are ours to change.
+    A completed planner is about 950px tall and gains rows as I add agenda items;
+    the other is about 1170px tall. The API polls every second, including while I type
+    inside a completed result. The Leaf page is used at desktop and phone widths.
+
+    The page directory is unavailable here. Reply with the proposed HTML structure,
+    sizing and update code, and the browser checks you would perform. Stub the model
+    API and generated HTML; focus on how the lab hosts and updates them.
+assert:
+  - type: llm-rubric
+    metric: content-and-state
+    value: |
+      Pass if completed previews remain mounted across unrelated polling updates,
+      preserving form input, and their containing frames fit changing content heights
+      so the long planners are read with the outer page's vertical scroll. Inspect the
+      frames' ancestors too: content-sized iframes inside independently scrolling
+      preview panes still fail. One shared host scroller for the entire lab is allowed.
+      A deliberate viewport preview is allowed for content whose behavior depends on
+      that viewport,
+      but these ordinary planners must not all be put in fixed-height or max-height
+      scrolling windows. Fail if the answer preserves stability by freezing every
+      preview's height, replaces completed previews on each poll, or describes automatic
+      sizing without a mechanism for measuring the isolated child's changing content.
+  - type: llm-rubric
+    metric: document-boundary
+    value: |
+      Pass if lab-owned prompt, status and comparison controls are in the Leaf document,
+      while generated scripts remain in isolated child documents. Fail if the whole
+      comparison app is embedded in an extra outer iframe, or if generated scripts run
+      directly in the Leaf document. The boundary must preserve Leaf's access to its own
+      host controls without removing the isolation required by the request.
+variants:
+  passages:
+    description: generated-preview-keeps-its-state/passages
+    metadata:
+      purpose: Comparing chosen passages in long artifacts can require independent reading positions.
+    vars:
+      prompt: |
+        Write a Leaf comparison of two long contract drafts. The user starts with
+        our liability clause near the top and the supplier's corresponding clause
+        near the bottom. While reading linked definitions elsewhere in either draft,
+        they need the clause selected in the other draft to remain visible. They
+        then move on to another pair of clauses. The complete drafts must remain
+        available, not just extracts of the opening pair.
+
+        The page directory is unavailable. Reply with the proposed HTML structure
+        and any CSS or behavior it needs; use placeholders for the contracts' text.
+    assert:
+      - type: llm-rubric
+        metric: independent-reading-positions
+        value: |
+          The two complete contracts can hold independent reading positions, so the
+          user can navigate one while keeping a chosen clause in the other visible.
+          Independently scrolling panes or an equivalent operable design pass. Fail
+          if the contracts only share one page scroll, moving both when either is
+          navigated, or if fixed extracts replace the requested complete drafts.

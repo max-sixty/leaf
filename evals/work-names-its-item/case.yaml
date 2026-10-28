@@ -2,10 +2,15 @@
 # into the task commands: work on a delivered move is shown against that move's own id,
 # work no move asked for gets an item the agent opens, and the handoff shows what the
 # agent wants back rather than leaving that work marked in progress. Scores
-# conversation-loop.md, "When to write" and "Status and handoff". The criterion is the
+# conversation-loop.md, "When to write" and "Page availability and handoff". The criterion is the
 # behavior, not either version's command, so the case guards both arms.
 # Reworded by #2329 (updates to progress messages); at 3fe3eb0af it passed 1/1 on
-# Claude Code.
+# Claude Code. The `line-reads-at-a-glance` metric was added with the rule that a
+# working line says what the agent is doing in a few of the user's words; the to-do's
+# title and the CI wait on a named commit are the pulls real lines showed. Against
+# 7f13b512c it passed 0/6 before the rule and 6/6 after (3 each on Claude Code and
+# Codex, the CI wait's hash, run number and length failing), with `judgment` 6/6 on
+# both arms.
 description: work-names-its-item
 metadata:
   purpose:
@@ -20,17 +25,19 @@ vars:
     You are a Claude Code session driving a live Leaf page at
     ~/.local/state/leaf/pages/review, served with `leaf server start`. In the terminal
     the user asked you to add a glossary section to the page; nothing on the page asks
-    for it. Before you began, Leaf's prompt hook delivered one user comment, event id
-    c7e2a9d1, opening thread c7e2a9d1 on the rollout section, which you have already
-    acknowledged: "The rollout section's second paragraph repeats the first. Tighten
-    it." Its answer is `{kind: reply, writer: agent, ref: "7f20c3d9:0:c7e2a9d1"}`.
+    for it, so you opened to-do 4b1e07aa for it, titled "Add a glossary section with
+    the ten terms reviewers ask about most". Before you began, Leaf's prompt hook
+    delivered one user comment, event id c7e2a9d1, opening thread c7e2a9d1 on the
+    rollout section, which you have already acknowledged: "The rollout section's
+    second paragraph repeats the first. Tighten it." Its answer is `{kind: reply, writer: agent, ref: "7f20c3d9:0:c7e2a9d1"}`.
 
-    You will tighten the rollout section and answer the comment, then write the
-    glossary, then hand the page back asking the user which glossary terms to cut.
+    You will tighten the rollout section, push that fix to PR #812 (its head is now
+    9c41d2ab) and wait for its CI run 18233 to pass, and answer the comment; then write
+    the glossary, then hand the page back asking the user which glossary terms to cut.
     Read whatever instructions you need. Only Skill and Read run here, so write out,
     in order, each command you would run on the page from now until the end of the
-    turn: before you start editing for the comment, before you start writing the
-    glossary, and once the glossary is written.
+    turn: before you start editing for the comment, while CI runs, before you start
+    writing the glossary, and once the glossary is written.
 assert:
   - type: llm-rubric
     metric: judgment
@@ -38,14 +45,25 @@ assert:
       Pass only if all three hold. First, before any edit for the comment, a command
       shows that work on the page against the comment itself, naming id c7e2a9d1, with
       a line saying what the work is: a `leaf task start` on it, or a progress message
-      in its thread (`leaf response reply 7f20c3d9:0:c7e2a9d1 --ephemeral`). Second, before
+      in its thread (`leaf thread reply 7f20c3d9:0:c7e2a9d1 --ephemeral`). Second, before
       the glossary work starts, a command shows that work on the page with a line
-      naming it; since no comment asked for it, this may be a page-wide working line
-      or an item the agent opens for it and marks as in hand. Third, once the glossary
-      is written, the turn ends on a waiting declaration naming what the agent wants
+      naming it, on to-do 4b1e07aa or as a page-wide working line. Third, once the
+      glossary is written, the turn ends on a waiting declaration naming what the agent wants
       back (which glossary terms to cut), with no command after it that marks work as
       in progress again; ending the glossary item as done before it is also fine. Fail
       if either piece of work starts without such a command, if the comment's work is
       shown against some other id, if a reply answering c7e2a9d1 (one without
       `--ephemeral`) is written before its work is named, or if the last word on the
       page's status is a line saying work is under way.
+  - type: llm-rubric
+    metric: line-reads-at-a-glance
+    value: |
+      Consider every line the agent posts to say what it is doing: the `--text` of each
+      `leaf task start` and of each `leaf thread reply` marked `--ephemeral`. Leave out
+      the comment's answer, the waiting declaration and `leaf task end`. Pass only if
+      every such line is a few words, about 60 characters or fewer, saying what the
+      agent is doing in words the user would use, such as "tightening the rollout
+      section" or "waiting for the fix's checks". Fail if any such line restates the
+      to-do's title as an instruction ("Add a glossary section…"), contains a commit
+      hash, the CI run number or an event, message or to-do id, or runs well past 60
+      characters. Fail too if the agent posts no such line.

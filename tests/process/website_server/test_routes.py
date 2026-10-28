@@ -11,17 +11,25 @@ from dataclasses import replace
 import leaf_website as website_server
 import pytest
 from interact_support import comment as open_thread
-from interact_support import owed_answers, running_http_server
+from interact_support import (
+    owed_answers,
+    publish,
+    revision_root,
+    running_http_server,
+)
+from leaf_dev.commands import journey, verify_site
+
 from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
+from leaf.registry.storage import LAYER, layer_record, load_registry
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
+from leaf.runtime_selection import executing, serving_runtime
+from leaf.schema import LAYER_FILE
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
-from leaf_dev.commands import journey, verify_site
-
 from process.website_server import (
     FakeCodexHarness,
     get,
@@ -63,10 +71,12 @@ def test_a_published_document_names_its_page_to_a_crawler(
         "image": "/media/card.png",
     }
     addition = website_server.site_metadata(page_root, page)
-    resources = capture_artifact(
-        page_dir,
-        SourceDocument(PAGE_SOURCE),
-        json.loads((page_dir / "registry.json").read_text()),
+    resources = executing(
+        capture_artifact(
+            page_dir,
+            SourceDocument(PAGE_SOURCE),
+            load_registry(page_dir),
+        )
     ).resources
     delivery = page_delivery(
         resources, server_id="server", layer_id="layer", page_root=page_root
@@ -76,7 +86,6 @@ def test_a_published_document_names_its_page_to_a_crawler(
         1,
         1,
         executable="sha256:executable",
-        widgets={},
         resources=resources,
         registry={},
         delivery=replace(delivery, head=addition),
@@ -323,6 +332,7 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
         assert b"sitenote.js" not in document
         assert b"data-lf-release=" not in document
         assert headers.get("Content-Security-Policy") is None
+        assert headers["Cache-Control"] == "no-store"
         assert headers["Access-Control-Allow-Origin"] == "*"
         assert headers["Referrer-Policy"] == "no-referrer"
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
@@ -341,20 +351,17 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
         assert harness.attached == []
 
 
-def test_the_website_refuses_a_page_vendored_at_another_protocol(page_dir, tmp_path):
-    """The container serves only pages vendored at its own Leaf's protocol, as every
-    page server does; a site built across a breaking change breaks in the browser
-    otherwise."""
+def test_the_website_refuses_a_page_initialized_at_another_protocol(page_dir, tmp_path):
+    """The container serves only pages initialized at its own Leaf's protocol, as
+    every page server does; a site built across a breaking change breaks in the
+    browser otherwise."""
     site = tmp_path / "site"
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    registry_path = published / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["$events"]["protocol"] = 999
-    # A newer protocol may reshape the layer past this Leaf's schema.
-    registry["$future"] = 1
-    registry_path.write_text(json.dumps(registry))
+    record = layer_record(published)
+    (published / LAYER_FILE).unlink()
+    LAYER.write(published / LAYER_FILE, {**record, "protocol": 999})
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site))
     root = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision"
@@ -393,13 +400,14 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
 
         document, headers = get(f"{root}/examples/decision/")
         assert b"sitenote.js" not in document
-        artifact = revision_path(published, 1).stem
+        served = revision_root(published, 1)
         assert (
-            f'data-lf-entry="/examples/decision/revisions/{artifact}/leaf.js"'.encode()
-            in document
+            f'data-lf-entry="/examples/decision{served}/leaf.js"'.encode() in document
         )
         assert headers["Content-Security-Policy"] == "frame-ancestors 'self'"
         assert headers["Leaf-Session"] == "active"
+        # A visitor's private page stays out of the browser's disk cache.
+        assert headers["Cache-Control"] == "no-store"
 
         # A released document sends the public startup beacon, which the deployed site
         # answers at the edge. Nothing stands in front of this adapter, so it owes the
@@ -425,6 +433,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert state["agent"] == "Agent"
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
         assert headers["Leaf-Session"] == "active"
+        assert headers["Cache-Control"] == "no-store"
 
         raw_view, _ = get(
             verify_site.activation_url(f"{root}/examples/decision/", state)
@@ -516,7 +525,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             event for event in json.loads(served)["events"] if "failure" in event
         ]
         assert [event["id"] for event in failures] == [reply["id"]]
-        assert journey.startup_failed(failures)
+        assert journey.turn_failed(failures)
         assert journey.deployment_answer(failures, comment["id"]) is None
         repeated, _ = post(
             f"{root}/examples/decision/_leaf/agent/fail",
@@ -577,6 +586,68 @@ def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
         assert read_events(published) == before
 
 
+def test_the_adapter_serves_a_published_revision_at_its_release_address(
+    page_dir, tmp_path
+):
+    """A published revision's document loads its layer and runtime from the release
+    (`_leaf-release/<release>/<page>`), which the Worker serves from the build's
+    static tree. The adapter, with no Worker in front of it, serves the same bytes at
+    the same addresses, so a published page starts there as it does at the edge."""
+    publish(page_dir)
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    manifest_path = site / website_server.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    page = manifest["pages"]["/examples/decision"]
+    page["states"] = {"1": "unused"}
+    manifest_path.write_text(json.dumps(manifest))
+    release = f"{page['assets']}/revisions/{revision_path(published, 1).stem}"
+    # A revision a session saved after the release is the container's, never the
+    # release's: no address under the release names it.
+    (published / "index.html").write_text(
+        (published / "index.html")
+        .read_text()
+        .replace("</main>", "<p>Private.</p></main>")
+    )
+    assert website_server.activate_source(published).revision == 2
+    private = revision_path(published, 2)
+
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
+    )
+    root = f"http://127.0.0.1:{httpd.server_address[1]}"
+    with running_http_server(httpd):
+        name = revision_path(published, 1).name
+        document, _ = get(f"{root}/examples/decision/revisions/{name}")
+        assert f'data-lf-entry="{release}/leaf.js"'.encode() in document
+        current, _ = get(f"{root}/examples/decision/")
+        assert (
+            f'data-lf-entry="/examples/decision/revisions/{private.stem}/'.encode()
+            in current
+        )
+        runtime = serving_runtime().resources({}, {})
+        for logical in ("/leaf.js", "/runtime/widget-api.js"):
+            body, headers = get(f"{root}{release}{logical}")
+            assert body == runtime[logical].data, logical
+            assert headers["Cache-Control"] == "public, max-age=31536000, immutable"
+            assert headers["Access-Control-Allow-Origin"] == "*"
+        registry, headers = get(f"{root}{release}/registry.json")
+        assert json.loads(registry)["$layer"] == load_registry(published)["$layer"]
+        assert headers["Leaf-Release"] == manifest["release"]
+        for missing in (
+            f"{release}/api/state",
+            f"{page['assets']}/revisions/r9-x/a.js",
+            f"{page['assets']}/revisions/{private.name}",
+            f"{page['assets']}/revisions/{private.stem}/leaf.js",
+        ):
+            with pytest.raises(urllib.error.HTTPError) as refused:
+                get(f"{root}{missing}")
+            assert refused.value.code == 404, missing
+
+
 @pytest.mark.parametrize(
     ("page_root", "name"), [("", "index"), ("/examples", "examples")]
 )
@@ -598,11 +669,8 @@ def test_a_product_route_uses_the_same_real_page_server(
         document, _ = get(f"{root}{page_root}/")
         assert b"data-lf-site" not in document
         assert b"data-lf-share-url" not in document
-        artifact = revision_path(published, 1).stem
-        assert (
-            f'data-lf-entry="{page_root}/revisions/{artifact}/leaf.js"'.encode()
-            in document
-        )
+        served = revision_root(published, 1)
+        assert f'data-lf-entry="{page_root}{served}/leaf.js"'.encode() in document
         state = json.loads(get(f"{root}{page_root}/api/state")[0])
         assert state["publication"] == {
             "kind": "product",

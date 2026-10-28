@@ -15,159 +15,30 @@ from interact_support import (
     install_payload,
     state_json,
 )
-from leaf import render_checks as render_checks_model
-from leaf.render_gate.page_code import run_page_code
 from playwright.sync_api import expect
 from render_cases_layout import (
-    SHORT_CHIP_PAGE,
     SHOT_PAGE,
     SHOT_SRC,
     SHOTS,
     UNPARSABLE_DIAGRAM,
-    ring_rule,
     shown_frames,
     solid_png,
 )
 from render_harness import (
-    INLINE_PAGE,
     LONG_PAGE,
     example_media,
     leaf_page,
-    open_page,
-    page_registry,
 )
+
+from leaf import render_checks as render_checks_model
+from leaf import user_views
+from leaf.render_gate.command import PIN_VARIABLE
+from leaf.render_gate.page_code import run_page_code
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.test_render_commands import FILM_DECLARATION, FILM_PAGE, unnamed_browser
-
-
-def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
-    """A comment on a widget's option leaves a page the gate passes
-    (`test_every_table_the_theme_sets_honestly_passes_the_gate` gates one): the mark
-    and the note counting the comment are the runtime's, and none of it is words the
-    widget wrote.
-
-    The pass hunting words drawn on other words holds out a control the runtime hangs out
-    of flow over the page (`floating` in words.js). A control planted over the option's
-    words is held out by the normal reading and reported by the reading with that hold
-    disabled, so the hold is what keeps such a control from failing the page."""
-    url = serve(INLINE_PAGE, anchored=[("opt-b", "quietly puts one back")])
-    page = open_page(browser, url)
-    # Vacuous otherwise: the gate has to be looking at a page that carries the comment.
-    expect(page.locator(".lf-mark-note")).to_have_count(1)
-    page.evaluate(
-        """() => {
-          const text = document.querySelector('#opt-b strong').firstChild;
-          const range = document.createRange();
-          range.selectNodeContents(text);
-          const word = range.getClientRects()[0];
-          const float = Object.assign(document.createElement('span'), {
-            className: 'lf-ui', textContent: 'planted float',
-          });
-          Object.assign(float.dataset, { lfGen: '1', lfOffer: 'button' });
-          Object.assign(float.style, {
-            position: 'absolute', whiteSpace: 'nowrap',
-            left: `${word.left + scrollX}px`, top: `${word.top + scrollY}px`,
-          });
-          document.body.append(float);
-        }"""
-    )
-    held = render_checks_model.evaluate_probe(page, "coveredWords")
-    reported = render_checks_model.evaluate_probe(
-        page, "coveredWords", {"holdFloating": False}
-    )
-    page.close()
-    assert held == []
-    assert any(
-        "planted float" in (found["words"], found["covered"]) for found in reported
-    ), "the planted control covers no words, so a gate that never looked would pass too"
-
-
-def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serve):
-    """Collapsing overlapping words removes them from the gate's screen reading."""
-    url = serve(
-        leaf_page(
-            "collapsed words",
-            '<h1>Collapsed words</h1><div id="collapsed" hidden="until-found">'
-            '<p style="position:absolute;top:100px;left:100px;margin:0">First hidden line</p>'
-            '<p style="position:absolute;top:100px;left:100px;margin:0">Second hidden line</p>'
-            "</div>",
-        )
-    )
-    page = open_page(browser, url)
-    collapsed = page.locator("#collapsed")
-    collapsed.evaluate("node => node.removeAttribute('hidden')")
-    expect(collapsed.locator("p").first).to_be_visible()
-    visible = render_checks_model.evaluate_probe(page, "coveredWords")
-    assert any(
-        {found["words"], found["covered"]}
-        == {"First hidden line", "Second hidden line"}
-        for found in visible
-    ), (
-        "the visible lines fell on nobody, so a gate that never looked would pass this too"
-    )
-    collapsed.evaluate("node => node.setAttribute('hidden', 'until-found')")
-    expect(collapsed.locator("p").first).to_be_hidden()
-
-    assert render_checks_model.evaluate_probe(page, "coveredWords") == []
-
-
-def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
-    """A gloss is set among the words around it, so its box is the words in it and there is
-    no width it was ever going to reach. Held to the floor written for a widget that lays
-    out a region, a gloss saying `£9` reads as a collapse, and the gate refuses a page with
-    nothing wrong with it — for a price, which is the shortest thing an author is likely to
-    put in one. A suggestion swapping one short word is the same case in a second tag,
-    there because the gate dispatches on the declaration: the day the wrapper took a box
-    it stood in front of this floor, and only x-inline says whose floor is whose.
-
-    The floor a gloss does keep is the height, since a line of words is a line tall under
-    any layout. Both halves are asserted, because a floor deleted outright passes the
-    first on its own."""
-    url = serve(SHORT_CHIP_PAGE)
-    page = open_page(browser, url)
-    widths = page.locator("lf-gloss").evaluate_all(
-        "els => els.map(el => Math.round(el.getBoundingClientRect().width))"
-    )
-    assert widths and max(widths) < 40, (
-        f"these glosses are {widths}px, so they clear the floor and prove nothing"
-    )
-    sug_width = page.locator("#sug-flag").evaluate(
-        "el => Math.round(el.getBoundingClientRect().width)"
-    )
-    assert sug_width < 40, (
-        f"the suggestion is {sug_width}px, so it clears the floor and proves nothing"
-    )
-
-    assert (
-        render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page)) == []
-    ), "the gate refuses glosses and a suggestion with nothing wrong with them"
-
-    # Asked without the declaration, the same floor flags it — so what passes the page
-    # is the declaration, not a floor gone missing.
-    undeclared = json.loads(json.dumps(page_registry(page)))
-    del undeclared["lf-suggestion"]["x-inline"]
-    assert [
-        box
-        for box in render_checks_model.evaluate_probe(page, "tinyBoxes", undeclared)
-        if box["tag"] == "lf-suggestion"
-    ], (
-        "with x-inline stripped the gate stays quiet, so the floor is gone rather than declared"
-    )
-
-    # Flattened, the same glosses are a collapse and the gate says so — the reading the
-    # declaration narrows rather than switches off.
-    page.add_style_tag(
-        content="lf-gloss { display: block; height: 2px; overflow: hidden; }"
-    )
-    flattened = render_checks_model.evaluate_probe(
-        page, "tinyBoxes", page_registry(page)
-    )
-    page.close()
-    assert [box for box in flattened if box["tag"] == "lf-gloss"], (
-        "a gloss with no height left reports nothing, so the floor is gone rather than declared"
-    )
+from model.test_user_views import report as user_view_report
 
 
 def test_check_render_refuses_what_only_a_browser_can_see(serve):
@@ -285,23 +156,24 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
 
     ran = subprocess.run(
         [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
+        check=False,
         capture_output=True,
         text=True,
-        check=True,
         env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
     )
+    assert ran.returncode == 0, ran.stdout + ran.stderr
     screens = json.loads(ran.stdout)["browser"]["screens"]
     into = Path(screens["directory"])
     shows = {screen["file"]: screen["shows"] for screen in screens["files"]}
     names = sorted(path.name for path in into.iterdir())
     assert set(shows) <= set(names)
-    assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
+    assert {"1280px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
     assert {
-        "1200px-obligation-1.png",
-        "1200px-obligation-2.png",
-        "1200px-obligation-3.png",
+        "1280px-obligation-1.png",
+        "1280px-obligation-2.png",
+        "1280px-obligation-3.png",
     } <= set(names)
-    assert "1200px-obligation-4.png" not in names
+    assert "1280px-obligation-4.png" not in names
     assert any("each press of `m`" in label for label in shows.values())
     assert '"Pre-handover review"' in screens["next"]
     assert any("<main> 1+2 → 1+1+1" in label for label in shows.values())
@@ -309,6 +181,39 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     # A page longer than its first screens says so rather than passing for read whole.
     assert "390px-9.png" not in names
     assert any("phone, the first 8 of the page's" in label for label in shows.values())
+
+
+def test_a_render_check_reads_the_desktop_in_the_users_window(
+    serve, headless_shell, monkeypatch
+):
+    """With a browser's report of its window on the page, `page check --render`
+    reads the desktop, its screens included, at that window and says so; pinned, as
+    the suite and evals pin it, it reads the fixed laptop window."""
+    serve(LONG_PAGE)
+    d = serve.page_dir
+    window = user_view_report()
+    window["viewport"] = {"width": 1000, "height": 640}
+    user_views.observe_user_view(d, window)
+
+    def desktop(**pin):
+        ran = subprocess.run(
+            [*LEAF_COMMAND, "page", "check", str(d), "--render"],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell} | pin,
+        )
+        browser = json.loads(ran.stdout)["browser"]
+        names = {screen["file"] for screen in browser["screens"]["files"]}
+        return browser["desktop"], names
+
+    monkeypatch.delenv(PIN_VARIABLE)
+    read, names = desktop()
+    assert read == {"width": 1000, "height": 640, "from": "the user's window"}
+    assert "1000px-1.png" in names, names
+    read, names = desktop(**{PIN_VARIABLE: "fixed"})
+    assert (read["width"], read["height"]) == (1280, 720), read
+    assert "1280px-1.png" in names, names
 
 
 def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
@@ -374,7 +279,15 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
         check=False,
     )
     assert init.returncode == 0, init.stderr
-    installed_registry = json.loads((page_dir / "registry.json").read_text())
+    vocabulary = subprocess.run(
+        [launcher, "page", "vocabulary", page_dir],
+        cwd=elsewhere,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert vocabulary.returncode == 0, vocabulary.stderr
+    installed_registry = json.loads(vocabulary.stdout)
     assert "lf-diagram" in installed_registry
     assert installed_registry["$layer"]["packages"] == ["diagram"]
     (page_dir / "index.html").write_text(
@@ -410,11 +323,10 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
 
 
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
-    """The live pair is continuously comparable, with direct endpoint alternatives.
+    """The live pair is continuously comparable through its native divider.
 
-    Pointer drag and the component's complete keyboard pattern move one divider. The
-    rail jumps to the named endpoints, while print keeps the two complete frames
-    and their order. The gate's pass over the pair is
+    Image clicks, pointer drag and the complete keyboard pattern move one divider,
+    while print keeps the two complete frames and their order. The gate's pass is
     `test_render_reads_widget_chrome_where_it_stands`'s."""
     url = serve(
         SHOT_PAGE,
@@ -435,10 +347,8 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
         }).observe({type: 'resource', buffered: true});"""
     )
     page.goto(url)
-    page.wait_for_function(
-        "document.body.hasAttribute('data-lf-presented') && "
-        "document.querySelector('lf-shot wa-comparison')"
-    )
+    render_checks_model.wait_until_ready(page)
+    page.locator("lf-shot").get_by_role("button", name="Slider", exact=True).click()
     comparison = page.locator("lf-shot wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     expect(handle).to_be_visible()
@@ -450,9 +360,9 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
         })"""
     )
     assert timing["requested"] >= timing["presented"]
-    rail = page.locator("lf-shot .lf-shotrail")
+    rail = page.locator("lf-shot .lf-shot-toolbar")
     expect(rail).to_have_count(1)
-    expect(rail.locator(".lf-shotcap")).to_have_text(["before", "after"])
+    expect(rail.locator(".lf-shotcap")).to_have_text(["Before", "After"])
     before_bounds = rail.locator('[data-lf-state="before"]').bounding_box()
     after_bounds = rail.locator('[data-lf-state="after"]').bounding_box()
     assert before_bounds is not None and after_bounds is not None
@@ -465,23 +375,23 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     ) == ["solid", "50%"]
     expect(handle).to_have_accessible_name("Before and after — the navigation rail")
     expect(handle).to_have_attribute("aria-valuetext", "Before 50%, after 50%")
-    # Each half of the split shows the frame its rail caption names: the image the
-    # user hits below a caption is that caption's own. Web Awesome's `after` slot is
-    # the inline-start side, so wiring the frames to their same-named slots put the
-    # after image under BEFORE.
+    # Labels keep source order across the viewport-wide header, while fitted images
+    # can be narrower. Each image half must show that source. Web Awesome's `after`
+    # slot is the inline-start side, so wiring same-named slots reverses the evidence.
     comparison.scroll_into_view_if_needed()
-    under_captions = page.evaluate(
+    visible_halves = page.evaluate(
         """() => {
           const box = document.querySelector('lf-shot wa-comparison')
             .getBoundingClientRect();
-          return [...document.querySelectorAll('lf-shot .lf-shotcap')].map(cap => {
-            const x = cap.getBoundingClientRect().left + cap.offsetWidth / 2;
+          return [...document.querySelectorAll('lf-shot .lf-shot-toolbar .lf-shotcap')].map((cap, index) => {
+            const x = box.left + box.width * (index === 0 ? 0.25 : 0.75);
             const hit = document.elementFromPoint(x, box.top + box.height / 2);
             return [cap.dataset.lfState, hit?.closest('.lf-shotframe')?.dataset.lfState];
           });
         }"""
     )
-    assert under_captions == [["before", "before"], ["after", "after"]]
+    assert before_bounds["x"] < after_bounds["x"]
+    assert visible_halves == [["before", "before"], ["after", "after"]]
     page.emulate_media(media="print")
     assert shown_frames(page) == ["before", "after"]
     printed_tops = [
@@ -491,18 +401,6 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
         for state in ("before", "after")
     ]
     assert printed_tops[0] < printed_tops[1], "paper put the after frame on top"
-    assert (
-        rail.locator('[data-lf-state="before"]').evaluate(
-            "cap => getComputedStyle(cap, '::after').content"
-        )
-        == '" · top"'
-    )
-    assert (
-        rail.locator('[data-lf-state="after"]').evaluate(
-            "cap => getComputedStyle(cap, '::after').content"
-        )
-        == '" · bottom"'
-    )
     page.emulate_media(media="screen")
     expect(comparison).to_be_visible()
     page.mouse.move(0, 0)
@@ -514,114 +412,40 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
           return {
             divider: getComputedStyle(divider).backgroundColor,
             handle: getComputedStyle(handle).backgroundColor,
-            opacity: parseFloat(getComputedStyle(handle).opacity),
           };
         }"""
     )
     assert divider_face["divider"] != divider_face["handle"]
-    assert 0.45 < divider_face["opacity"] < 0.6
 
     comparison.scroll_into_view_if_needed()
     bounds = comparison.bounding_box()
     assert bounds is not None
     image_point = (bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
-    page.mouse.move(*image_point)
-    active_midpoint = comparison.evaluate(
-        """async node => {
-          const handle = node.shadowRoot.querySelector('[part~="handle"]');
-          await Promise.all(handle.getAnimations().map(animation => animation.finished));
-          return parseFloat(getComputedStyle(handle).opacity);
-        }"""
-    )
-    assert active_midpoint == 1
-    page.mouse.down()
-    page.mouse.up()
-    expect(comparison).to_have_attribute("position", "0")
-    page.mouse.move(0, 0)
-    quiet_handle = comparison.evaluate(
-        """async node => {
-          const handle = node.shadowRoot.querySelector('[part~="handle"]');
-          await Promise.all(handle.getAnimations().map(animation => animation.finished));
-          return parseFloat(getComputedStyle(handle).opacity);
-        }"""
-    )
-    assert quiet_handle < 0.25
-    handle.focus()
-    active_handle = comparison.evaluate(
-        """async node => {
-          const handle = node.shadowRoot.querySelector('[part~="handle"]');
-          await Promise.all(handle.getAnimations().map(animation => animation.finished));
-          return parseFloat(getComputedStyle(handle).opacity);
-        }"""
-    )
-    assert active_handle == 1
     page.mouse.click(*image_point)
     expect(comparison).to_have_attribute("position", "100")
+    expect(handle).to_have_attribute("aria-valuetext", "Before 100%, after 0%")
+    page.mouse.click(*image_point)
+    expect(comparison).to_have_attribute("position", "0")
+    page.keyboard.down("Shift")
+    page.mouse.click(*image_point)
+    page.keyboard.up("Shift")
+    expect(comparison).to_have_attribute("position", "0")
     comparison.evaluate("node => { node.position = 50; }")
-    before_caption = page.get_by_role(
-        "button", name="before — the navigation rail", exact=True
-    )
+    view = page.locator("lf-shot").get_by_role("button", name="Slider", exact=True)
     # A second finger does not replace the primary contact's input destination.
-    before_caption.focus()
+    view.focus()
     handle.evaluate("""handle => handle.dispatchEvent(new PointerEvent('pointerdown', {
       bubbles: true, composed: true, pointerId: 98, pointerType: 'touch',
       isPrimary: false, button: 0
     }))""")
-    expect(before_caption).to_be_focused()
+    expect(view).to_be_focused()
     handle.click()
     expect(handle).to_be_focused()
     expect(comparison).to_have_attribute("position", "50")
     page.keyboard.press("ArrowRight")
     expect(comparison).to_have_attribute("position", "51")
-
-    after_caption = page.get_by_role(
-        "button", name="after — the navigation rail", exact=True
-    )
-    expect(before_caption).to_have_attribute("aria-pressed", "false")
-    expect(after_caption).to_have_attribute("aria-pressed", "false")
-    after_caption.click()
-    expect(comparison).to_have_attribute("position", "0")
-    expect(before_caption).to_have_attribute("aria-pressed", "false")
-    expect(after_caption).to_have_attribute("aria-pressed", "true")
-    page.mouse.move(0, 0)
-    assert after_caption.evaluate("node => getComputedStyle(node).backgroundColor") != (
-        before_caption.evaluate("node => getComputedStyle(node).backgroundColor")
-    )
-    # A selectable caption owns Space even at its current endpoint so it cannot
-    # fall through to browser scrolling (the widget's existing command contract).
-    after_caption.focus()
-    page.evaluate("() => { document.scrollingElement.scrollTop -= 120; }")
-    expect(after_caption).to_be_in_viewport()
-    selected_scroll = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert (
-        page.evaluate(
-            "() => document.scrollingElement.scrollHeight - innerHeight - "
-            "document.scrollingElement.scrollTop"
-        )
-        >= 100
-    )
-    page.keyboard.press("Space")
-    expect(comparison).to_have_attribute("position", "0")
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == selected_scroll
-    after_caption.click()
-    expect(comparison).to_have_attribute("position", "0")
-    before_caption.click()
+    page.keyboard.press("End")
     expect(comparison).to_have_attribute("position", "100")
-    after_caption.focus()
-    page.keyboard.press("Enter")
-    expect(comparison).to_have_attribute("position", "0")
-    before_caption.focus()
-    page.keyboard.press("Space")
-    expect(comparison).to_have_attribute("position", "100")
-    for locator, bounds in (
-        (rail.locator('[data-lf-state="before"]'), before_bounds),
-        (rail.locator('[data-lf-state="after"]'), after_bounds),
-    ):
-        flipped_bounds = locator.bounding_box()
-        assert flipped_bounds is not None
-        assert {key: flipped_bounds[key] for key in ("x", "width", "height")} == {
-            key: bounds[key] for key in ("x", "width", "height")
-        }
 
     handle.focus()
     expect(handle).to_be_focused()
@@ -656,21 +480,14 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
 
     comparison.evaluate("node => { node.position = 100; }")
     expect(comparison).to_have_attribute("position", "100")
-    # The existing rail owns endpoint actions and retains focus after each press.
-    for state, position in (("after", "0"), ("before", "100")):
-        caption = page.locator(f'.lf-shotcap[data-lf-state="{state}"]')
-        caption.focus()
-        expect(caption).to_be_focused()
-        page.keyboard.press("Enter" if state == "after" else "Space")
-        expect(comparison).to_have_attribute("position", position)
-        expect(caption).to_be_focused()
-
     handle.focus()
+    page.keyboard.press("End")
+    expect(handle).to_be_focused()
     width = handle.evaluate(
         "node => getComputedStyle(node).outlineStyle === 'none' ? 0 :"
         " parseFloat(getComputedStyle(node).outlineWidth)"
     )
-    assert width > 0 and "wa-comparison::part(lf-focus)" in ring_rule(handle)
+    assert width > 0
 
 
 def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):

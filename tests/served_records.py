@@ -16,12 +16,13 @@ import json
 from pathlib import Path
 
 from interact_support import model_layer, served_thread
+from model_folds import NOW, UNCLAIMED, leaf_page, served_reading
+
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
 from leaf.projection import StateProjection, authored_rank, obligation_value
 from leaf.registry.contract import state_definition
 from leaf.structure import SourceDocument
-from model_folds import NOW, UNCLAIMED, leaf_page, served_reading
 
 PAGE = leaf_page("Served records", '<h1 id="h">Steps</h1><p id="p">Two steps.</p>')
 
@@ -45,8 +46,8 @@ BOTH_SIDES = (
         "agent": "Agent",
         "parent": "e1",
         "responds": "e1",
-        "text": "One question:",
-        "markup": '<lf-ask id="cadence">Weekly or daily?</lf-ask>',
+        "text": "Weekly or daily?",
+        "obligation": True,
     },
     {"kind": "comment", "text": "Tighten this."},
     {"kind": "comment", "text": "Rebuild the chart."},
@@ -106,12 +107,6 @@ BOTH_SIDES = (
 )
 
 
-SIGN_OFF_PAGE = PAGE.replace(
-    "</head>", '<meta name="lf-review" content="sign-off"></head>'
-)
-READY = {"kind": "note", "author": "agent", "version": 1, "text": "Ready"}
-
-
 SUGGESTION_PAGE = leaf_page(
     "Suggested change",
     '<lf-suggestion id="sug-refill" resolves="e1">'
@@ -163,13 +158,6 @@ def build() -> dict:
         "obligation_row": _served_obligation_row(),
         "state_definitions": state_definition_cases(),
         "readings": {
-            # A required approval of the exact stamped document, with no other
-            # obligations. Keep the whole browser reading for local approval folds.
-            "approval": served_reading(SIGN_OFF_PAGE, (READY,)),
-            # The same version once the user approved it.
-            "approved": served_reading(
-                SIGN_OFF_PAGE, (READY, {"kind": "done", "version": 1})
-            ),
             # The agent asks a question over a board it sent, and the user moves a
             # card on it without answering: the thread is the user's to answer, and
             # the move, which owes nothing, stands in it without holding it.
@@ -182,9 +170,9 @@ def build() -> dict:
                         "agent": "Agent",
                         "parent": "e1",
                         "responds": "e1",
-                        "text": "Here is the board.",
-                        "markup": model_layer()["lf-board"]["x-example"]
-                        + '<lf-ask id="first-card">Which card goes first?</lf-ask>',
+                        "text": "Here is the board. Which card goes first?",
+                        "markup": model_layer()["lf-board"]["x-example"],
+                        "obligation": True,
                     },
                     {
                         "kind": "action",
@@ -312,7 +300,7 @@ def build() -> dict:
 # a start's line stays current for (`activity.WORKING_GRACE`).
 HELD = {
     **UNCLAIMED,
-    "status": {"state": "working", "detail": "", "ts": NOW},
+    "status": {"state": "working", "ts": NOW},
     "listening": True,
     "session_alive": True,
     "claim_session": "served-records",
@@ -360,6 +348,7 @@ def obligation_value_cases():
         initial=None,
         actions=(),
         answered=False,
+        selected_unit=None,
     ):
         spec = {"unit": unit, **({"record": record} if record else {})}
         markup = f'<lf-value id="owner" {attrs}>{body}</lf-value>'
@@ -397,6 +386,7 @@ def obligation_value_cases():
             registry,
             projection,
             answered=answered,
+            unit=selected_unit,
         )
         state = {"value": initial}
         if unit != "widget":
@@ -414,6 +404,7 @@ def obligation_value_cases():
                 "authored": state,
                 "entries": entries,
                 "answered": answered,
+                **({"unit": selected_unit} if selected_unit is not None else {}),
                 "expected": {"value": value, "present": present},
             }
         )
@@ -484,6 +475,14 @@ def obligation_value_cases():
         body='<lf-container id="left"><lf-part id="a">A</lf-part></lf-container><lf-container id="right"></lf-container>',
         actions=[("a", {"value": "right", "rank": "1"})],
     )
+    for selected_unit in ("a", "b", "missing"):
+        add(
+            f"selected custom unit {selected_unit}",
+            unit="part",
+            initial={},
+            selected_unit=selected_unit,
+            actions=[("a", {"approved": True}), ("b", {"approved": False})],
+        )
     return cases
 
 

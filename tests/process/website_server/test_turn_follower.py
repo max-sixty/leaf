@@ -17,6 +17,7 @@ from interact_support import (
     take_stream_activity,
 )
 from interact_support import append_carried_log_record as append_event
+
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected
 from leaf.delivery import response_addresses
@@ -24,7 +25,6 @@ from leaf.event_log import read_events
 from leaf.interaction_log import read_interactions
 from leaf.state import session_record
 from leaf.thread import post_reply
-
 from process.website_server import (
     accept_in_turn,
     hosted_follower,
@@ -752,7 +752,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         identity={"agent": "Agent", "session": "leaf-website-agent"},
     )
     with website_server.PageTransaction(page_dir) as page:
-        page.set_status("waiting", "Finishing")
+        page.set_status("waiting")
     before = read_events(page_dir)
 
     website_server.WebsiteCodexHarness("codex")._finish_turn(
@@ -823,7 +823,7 @@ def test_hosted_completion_cannot_borrow_a_reused_session_generation(page_dir):
     prompt_turn("hosted-thread", "same-turn")
     with website_server.PageTransaction(page_dir) as page:
         page.take_claim(website_server.website_harness("hosted-thread", os.getpid()))
-        page.set_status("waiting", "New generation")
+        page.set_status("waiting")
     leaf_codex.set_stream_activity(
         "hosted-thread",
         "same-turn",

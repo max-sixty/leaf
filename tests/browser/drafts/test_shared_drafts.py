@@ -3,8 +3,6 @@ generations, settlement tombstones, storage failures, and a draft outliving its 
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.findings import Finding
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, SEATED_OBLIGATION_PAGE
 from render_cases_navigation import JOURNEY_V1, compose
@@ -34,6 +32,8 @@ from render_harness import (
 from browser.drafts import (
     cancel_draft,
 )
+from leaf import event_log as events_model
+from leaf.findings import Finding
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -388,7 +388,7 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
                     "error": "the earlier execution was refused",
                 },
             )
-        expect_panel_says(first, "Couldn't send")
+        expect_panel_says(first, "Couldn't take this")
         expected_error = Finding(
             "console-error",
             values={
@@ -663,7 +663,7 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
 def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
     browser, serve, one_user
 ):
-    """Cancel refreshes ownership before writing the shared tombstone."""
+    """Discard refreshes ownership before writing the shared tombstone."""
     url = serve(JOURNEY_V1)
     stale = open_page(
         browser, url, context=held_stale(one_user), init_script=DEAF_TO_DRAFT_NEWS

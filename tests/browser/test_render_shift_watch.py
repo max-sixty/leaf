@@ -1,13 +1,15 @@
 """The browser fixture fails the layout shifts the "Stability" rule forbids
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
-from datetime import UTC, datetime
+import re
+from datetime import UTC, datetime, timedelta
 from html import escape
 from urllib.parse import quote
 
 import pytest
-from leaf.render_checks import rendered
+from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
+from render_cases_interaction import OBLIGATION_PAGE
 from render_harness import (
     INPUT_WORK_WATCH_SOURCE,
     WATCH_PLATFORM_SOURCE,
@@ -17,8 +19,14 @@ from render_harness import (
     judge_watches,
     leaf_page,
     open_page,
+    place_step_matches,
+    refuse,
+    resized,
     take_browser_errors,
+    ticked,
 )
+
+from leaf.render_checks import rendered
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
 # field, or grows the field itself, as the page's `data-key` says.
@@ -49,9 +57,7 @@ def held_stretch(page):
     """Idle frames the sensor keeps unchanged readings for, on a CPU as slow as a CI
     runner's, so a credited move that follows is compared from a held frame
     (`shift_watch.js`, "Unchanged frames") with the frame timing CI has."""
-    page.context.new_cdp_session(page).send(
-        "Emulation.setCPUThrottlingRate", {"rate": 6}
-    )
+    slow_cpu(page, 6)
     page.evaluate(
         """count => new Promise((done) => {
           const next = () => (--count ? requestAnimationFrame(next) : done());
@@ -72,8 +78,8 @@ def field_page(browser, key=""):
 def within(node, place):
     """Whether a node the watch placed, by its steps innermost first, is the element
     `place` or inside it, as a text node in it (`["#text", "button#control"]`) or a
-    node in its shadow tree (`["div.cm-line", "#shadow-root", "leaf-text#field"]`)."""
-    return place in node
+    node in its shadow tree (`["div.cm-line", "#shadow-root", "leaf-text#field.scroll"]`)."""
+    return any(place_step_matches(step, place) for step in node)
 
 
 def moved_within(place, by=None):
@@ -206,19 +212,19 @@ def test_a_press_its_host_carries_into_an_opaque_frame_owns_what_it_moves(
         script.lfDocumentPort = port;
         port.onmessage = () => {
           above.style.height = '40px';
-          port.postMessage('grown');
+          port.postMessage({ type: 'grown' });
         };
-        port.postMessage('ready');
+        port.postMessage({ type: 'ready' });
       });
     </script>"""
     parent = """<button id=grow>Grow</button><script>
       const channel = new MessageChannel();
       const port = channel.port1;
       document.currentScript.lfDocumentPort = port;
-      window.passive = lfInputWork.capture(() => port.postMessage('grow'));
-      port.onmessage = event => { window[event.data] = true; };
+      window.passive = lfInputWork.capture(() => port.postMessage({ type: 'grow' }));
+      port.onmessage = event => { window[event.data.type] = true; };
       frame.onload = () => frame.contentWindow.postMessage(null, '*', [channel.port2]);
-      grow.onclick = () => port.postMessage('grow');
+      grow.onclick = () => port.postMessage({ type: 'grow' });
     </script>"""
     page = browser.new_page()
     page.goto(
@@ -423,15 +429,15 @@ def test_editcontext_growth_keeps_input_credit_with_its_actual_field(
             page,
             {
                 "code": "typing-moved",
-                "field": ["leaf-text#field"],
-                "node": ["leaf-text#field"],
+                "field": ["leaf-text#field.scroll"],
+                "node": ["leaf-text#field.scroll"],
             },
         )
     else:
         assert field.bounding_box()["y"] == pytest.approx(before["y"])
         page.evaluate("document.getElementById('above').style.height = '40px'")
         judge_watches()
-        consume_browser_errors(page, moved_within("leaf-text#field"))
+        consume_browser_errors(page, moved_within("leaf-text#field.scroll"))
 
 
 @pytest.mark.parametrize(
@@ -810,6 +816,8 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         ("region_growth", "button#reply"),
         ("tail_and_region_growth", "button#reply"),
         ("growing_port", None),
+        ("clipped_port", None),
+        ("clipped_extra", "button#later"),
         ("overgrown_port", "button#later"),
         ("sticky_extra", "button#reply"),
         ("prepend", "p#old"),
@@ -832,13 +840,20 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     # A floating port: nothing follows it in flow, so its foot is free to grow.
     floating = (
         "position:fixed;top:0;left:0;"
-        if fault in {"growing_port", "overgrown_port"}
+        if fault in {"growing_port", "overgrown_port", "clipped_port", "clipped_extra"}
         else ""
     )
+    overflow = "clip" if fault.startswith("clipped_") else "auto"
+    reply_position = "static" if fault.startswith("clipped_") else "sticky"
     tail = (
         " data-lf-append-tail"
         if fault
         in {"tail_growth", "region_growth", "tail_and_region_growth", "tail_replaced"}
+        else ""
+    )
+    hidden = (
+        '<div id="hidden" hidden>Earlier progress.</div>'
+        if fault.endswith("tail_replaced")
         else ""
     )
     page = browser.new_page()
@@ -847,11 +862,11 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         + quote(
             '<!doctype html><body style="margin:0;font:16px monospace">'
             f'<div id="port" data-lf-runtime style="{floating}width:360px;height:300px;'
-            'padding:5px;box-sizing:border-box;overflow:auto;overflow-anchor:none">'
+            f'padding:5px;box-sizing:border-box;overflow:{overflow};overflow-anchor:none">'
             '<section style="overflow:clip">'
             '<div id="source" data-lf-reflow="append">'
-            f'<p id="old"{tail} style="margin:0;height:40px">Already reading.</p></div>'
-            '<button id="reply" style="display:block;position:sticky;bottom:0">Reply</button></section>'
+            f'{hidden}<p id="old"{tail} style="margin:0;height:40px">Already reading.</p></div>'
+            f'<button id="reply" style="display:block;position:{reply_position};bottom:0">Reply</button></section>'
             '<article><p style="margin:0">Another conversation.</p>'
             '<button id="later">Later thread</button></article></div>'
             '<button id="outside">Outside the panel</button></body>'
@@ -880,6 +895,8 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           next.style.cssText = `margin:0;height:${fault.startsWith('sticky_') ? 400 : 40}px`;
           if (fault === 'prepend') source.prepend(next);
           else if (fault.endsWith('tail_replaced')) {
+            // Completing the tail removes its boxless progress checkpoint too.
+            document.getElementById('hidden').remove();
             next.style.height = '80px';
             document.getElementById('old').replaceWith(next);
             next.id = 'old';
@@ -895,7 +912,7 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           if (fault === 'growing_port') document.getElementById('port').style.height = '340px';
           if (fault === 'overgrown_port') document.getElementById('port').style.height = '350px';
           if (fault === 'old_growth') document.getElementById('old').style.height = '60px';
-          if (fault === 'extra_carry') document.getElementById('later').style.marginTop = '7px';
+          if (fault === 'extra_carry' || fault === 'clipped_extra') document.getElementById('later').style.marginTop = '7px';
           if (fault === 'sticky_extra') document.getElementById('reply').style.bottom = '7px';
           if (fault === 'moving_port') document.getElementById('port').style.marginTop = '7px';
           if (fault === 'outside') document.getElementById('outside').style.marginTop = '7px';
@@ -1561,7 +1578,8 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     judge_watches()
     moved = consume_browser_errors(page, {"code": "moved-without-input"})
     assert any(
-        within(error.values["node"], "lf-diff#patch.lf-rendered") for error in moved
+        within(error.values["node"], "lf-diff#patch.scroll.lf-rendered")
+        for error in moved
     ), moved
 
 
@@ -1951,7 +1969,7 @@ def test_an_activation_that_opens_nothing_leaves_a_later_open_passive(
                 "node": [
                     "details.lf-diff-fold",
                     "#shadow-root",
-                    "lf-diff#patch.lf-rendered",
+                    "lf-diff#patch.scroll.lf-rendered",
                 ],
             },
         )
@@ -2189,6 +2207,40 @@ def test_native_shift_evidence_survives_a_controlled_timer_clock(browser):
     consume_browser_errors(page, moved_within("textarea#field", by=[0, 40]))
 
 
+def test_a_media_change_announces_its_reading_before_its_event(browser):
+    """A media preference can change clipping without moving an outer box or
+    delivering a layout-shift entry. Its current value must refresh the reading even
+    before the query's change event reaches the watch."""
+    context = browser.new_context(forced_colors="none")
+    context.add_init_script("""(() => {
+      window.mediaHoldFirst = window.lfShiftsJudged === undefined;
+      const original = window.matchMedia;
+      window.matchMedia = function (...args) {
+        const query = original.apply(this, args);
+        query.addEventListener('change', event => event.stopImmediatePropagation());
+        return query;
+      };
+    })()""")
+    page = context.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            "<!doctype html><style>button {box-sizing:border-box;width:100px;"
+            "height:40px;border:0 solid transparent}"
+            "@media (forced-colors:active) {button {border-width:2px}}"
+            '</style><button id="control">Control</button>'
+        )
+    )
+    paint(page)
+    assert page.evaluate("mediaHoldFirst")
+    before = page.locator("#control").bounding_box()
+    page.emulate_media(forced_colors="active")
+    assert page.locator("#control").evaluate("node => node.clientLeft") == 2
+    assert page.locator("#control").bounding_box() == before
+    judge_watches()
+    assert take_browser_errors(page) == []
+
+
 @pytest.mark.parametrize("presentation", ["resize", "print", "color-scheme"])
 def test_a_native_presentation_change_seals_typing_before_its_layout(
     browser, presentation
@@ -2332,9 +2384,8 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # press's rendering is still open when the news lands. What moves the line is the
 # page's `data-motion`: the news growing a box above it (none), the news beginning a
 # bar's slide above it (`news`), or the press beginning that slide, which runs on past
-# news that moves nothing (`press`). The height slide is a conservative sensor
-# boundary: native height-induced sibling flow has no exact translation proof.
-# The matched marginTop arm proves press/news ownership with supported displacement.
+# news that moves nothing (`press`). The matched marginTop arm checks the same
+# ownership with translation instead of size-induced flow.
 NEWS = """<!doctype html><body style="margin:0">
 <script data-lf-entry>document.currentScript.lfRenderingState = () => ({updatesSettled: false, preparationsSettled: true});</script>
 <button id="press">Press</button>
@@ -2388,8 +2439,8 @@ def test_news_just_after_a_press_moves_nothing(browser, motion, work_ms):
     consume_browser_errors(page, moved_within("div#below"))
 
 
-def test_native_height_sibling_flow_without_displacement_proof_is_reported(browser):
-    """The sensor reports genuine native flow it cannot attribute, rather than guessing."""
+def test_press_owned_native_height_flow_is_credited(browser):
+    """A press-owned size animation carries a later box in the same flow."""
     page = news_page(browser, "press")
     assert page.evaluate("parseFloat(getComputedStyle(bar).height)") > 0
     assert (
@@ -2397,7 +2448,221 @@ def test_native_height_sibling_flow_without_displacement_proof_is_reported(brows
         > page.locator("#bar").bounding_box()["y"]
     )
     judge_watches()
-    consume_browser_errors(page, moved_within("div#below"))
+    assert take_browser_errors(page) == []
+
+
+@pytest.mark.parametrize("seated", [True, False], ids=["in-its-line", "in-the-window"])
+def test_press_owned_size_flow_crosses_a_shadow_boundary(browser, seated):
+    """A press-owned fold inside a widget's shadow root carries the page's reading after
+    the widget's host, and a control absolutely positioned in a later line of that root,
+    after the press's own rendering has ended, as a resolved thread's fold in a diff runs
+    on once the server's reading lands. A control positioned against the window isn't
+    carried by that flow, so a script moving it by the fold's travel still fails."""
+    line = "position:relative" if seated else ""
+    seat = "top:0" if seated else "top:400px"
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<button id="start">Start</button>'
+            '<div id="widget"></div><p id="below">Below the widget.</p>'
+            '<script>const root = widget.attachShadow({mode: "open"});'
+            'root.innerHTML = \'<div id="fold" style="height:300px"></div>'
+            f'<div style="{line}">A later line'
+            f'<button id="seated" style="position:absolute;left:200px;{seat}">'
+            "Seated</button></div>';"
+            'start.addEventListener("pointerdown", () => {'
+            'window.effect = root.getElementById("fold").animate('
+            '[{height:"300px"}, {height:"0px"}], {duration:400, fill:"forwards"});'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate(
+        """seated => {
+      effect.currentTime = 400;
+      if (!seated) widget.shadowRoot.getElementById('seated').style.top = '100px';
+    }""",
+        seated,
+    )
+    judge_watches()
+    if seated:
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, moved_within("button#seated"))
+
+
+@pytest.mark.parametrize("placement", ["carried", "preceding", "absolute"])
+@pytest.mark.parametrize("boxless", [False, True], ids=["direct", "boxless-parent"])
+def test_fold_reparenting_keeps_only_its_original_flow_credit(
+    browser, placement, boxless
+):
+    """A fold can reach its endpoint and join closed history in one task. Its old
+    following control is carried; a preceding or newly out-of-flow control's move
+    is independent even when it matches the fold's travel."""
+    follows = placement != "preceding"
+    control = (
+        '<button id="control" style="position:relative;display:block">Control</button>'
+    )
+    fold = '<div id="fold" style="height:100px"></div>'
+    if boxless:
+        fold = '<div style="display:contents">' + fold + "</div>"
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;padding-top:200px"><button id="start">Start</button>'
+            + (fold + control if follows else control + fold)
+            + '<details id="stash"><summary>History</summary></details>'
+            + """<script>
+            start.addEventListener('pointerdown', () => {
+              window.effect = fold.animate([{height:'100px'}, {height:'0px'}],
+                {duration:400, fill:'forwards'});
+              effect.playbackRate = 0;
+              effect.currentTime = 0;
+            });
+            </script>"""
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate(
+        """placement => {
+          if (placement === 'preceding') control.style.top = '-100px';
+          if (placement === 'absolute') {
+            const {top, height} = control.getBoundingClientRect();
+            const room = document.createElement('div');
+            room.style.height = `${height}px`;
+            control.before(room);
+            control.style.position = 'absolute';
+            control.style.top = `${top - 100}px`;
+          }
+          effect.currentTime = 400;
+          stash.append(fold);
+        }""",
+        placement,
+    )
+    judge_watches()
+    if placement == "carried":
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, moved_within("button#control"))
+
+
+def test_absolute_size_animation_cannot_credit_an_independent_control_move(browser):
+    """Matching travel does not join an out-of-flow effect to a later control."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<button id="start">Start</button>'
+            '<div id="size" style="position:absolute;height:0;width:20px"></div>'
+            '<button id="control" style="position:relative">Control</button>'
+            '<script>start.addEventListener("pointerdown", () => {'
+            'window.effect = size.animate([{height:"0px"}, {height:"120px"}],'
+            '{duration:400, fill:"forwards"});'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate("""() => {
+      effect.currentTime = 400;
+      control.style.top = '120px';
+    }""")
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#control"))
+
+
+def test_flex_row_size_animation_cannot_credit_independent_vertical_move(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<button id="start">Start</button>'
+            '<div style="display:flex;align-items:start">'
+            '<div id="size" style="height:0;width:20px"></div>'
+            '<button id="control" style="position:relative">Control</button>'
+            '</div><script>start.addEventListener("pointerdown", () => {'
+            'window.effect = size.animate([{height:"0px"}, {height:"120px"}],'
+            '{duration:400, fill:"forwards"});'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate("""() => {
+      effect.currentTime = 400;
+      control.style.top = '120px';
+    }""")
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#control"))
+
+
+def test_inline_siblings_cannot_credit_independent_vertical_move(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<button id="start">Start</button>'
+            '<div style="display:block">'
+            '<div id="size" style="display:inline-block;vertical-align:top;height:0;width:20px"></div>'
+            '<button id="control" style="position:relative;vertical-align:top">Control</button>'
+            '</div><script>start.addEventListener("pointerdown", () => {'
+            'window.effect = size.animate([{height:"0px"}, {height:"120px"}],'
+            '{duration:400, fill:"forwards"});'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate("""() => {
+      effect.currentTime = 400;
+      control.style.top = '120px';
+    }""")
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#control"))
+
+
+def test_width_animation_cannot_credit_a_script_height_change(browser):
+    """A native effect cannot claim a size change on an axis it does not animate."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<button id="start">Start</button>'
+            '<div id="size" style="display:block;height:0;width:20px"></div>'
+            '<button id="control" style="display:block">Control</button>'
+            '<script>start.addEventListener("pointerdown", () => {'
+            'window.effect = size.animate([{width:"20px"}, {width:"40px"}],'
+            '{duration:400, fill:"forwards"});'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    paint(page)
+    page.evaluate(
+        """() => { effect.currentTime = 400; size.style.height = '120px'; }"""
+    )
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#control"))
 
 
 @pytest.mark.parametrize("motion", ["press", "news"])
@@ -2674,6 +2939,164 @@ def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
     )
     page.locator("#grow").click()
     judge_watches()
+
+
+# A control a gesture is made on, below a box and above room to scroll into. Its press
+# or its `x` key does what the page's `data-how` says: scroll the window 9px; grow the
+# box above it 60px and scroll by as much, holding it still; grow the box 40px and
+# scroll 31px, taking back part of that; announce a command that travels and scroll
+# 9px; add a history entry, or rename the one it is on, and scroll 9px; scroll 9px for
+# a key the page leaves to the browser; or scroll by nothing while a frame loop no
+# input began scrolls 9px within the gesture's rendering, as a test's script may.
+AIMED = """<!doctype html><body style="margin:0">
+<div style="height: 100px"></div><div id="above"></div>
+<button id="control">Control</button><div style="height: 3000px"></div>
+<script>
+  const above = document.getElementById("above");
+  let passive = false;
+  const loop = () => {
+    if (passive) scrollBy(0, 9);
+    passive = false;
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+  const act = () => {
+    const how = document.body.dataset.how;
+    if (how === "travels")
+      document.dispatchEvent(
+        new CustomEvent("lf-command-invoked", { detail: { travels: true } }),
+      );
+    if (how === "adds an entry") history.pushState(null, "", "#elsewhere");
+    if (how === "renames its entry") history.replaceState(null, "", "#renamed");
+    if (how === "holds") above.style.height = "60px";
+    if (how === "takes back") above.style.height = "40px";
+    passive = how === "passive";
+    scrollBy(0, { holds: 60, "takes back": 31, passive: 0 }[how] ?? 9);
+  };
+  control.addEventListener("click", act);
+  control.addEventListener("keydown", (event) => {
+    if (event.key !== "x") return;
+    if (document.body.dataset.how !== "native") event.preventDefault();
+    act();
+  });
+</script>"""
+
+
+@pytest.mark.parametrize(
+    ("how", "gesture"),
+    [
+        ("scrolls", "press"),
+        ("scrolls", "key"),
+        ("holds", "press"),
+        ("takes back", "press"),
+        ("travels", "key"),
+        ("adds an entry", "press"),
+        ("renames its entry", "press"),
+        ("native", "key"),
+        ("passive", "press"),
+    ],
+)
+def test_a_scroll_during_a_gesture_may_not_carry_its_control(browser, how, gesture):
+    """Only a gesture that takes the user somewhere, by a command that declares it or
+    the history entry it adds, may scroll the control it was made on across the screen
+    (`shift_watch.js`, "Scrolls a gesture makes"). Layout coordinates remove scrolling,
+    so before this the watch compared the scrolled control's page position with itself
+    and found nothing."""
+    page = browser.new_page()
+    # Served from an origin, which a data: URL lacks, so it has a history to write.
+    page.route(
+        "http://aimed.test/",
+        lambda route: route.fulfill(body=AIMED, content_type="text/html"),
+    )
+    page.goto("http://aimed.test/")
+    paint(page)
+    page.evaluate("how => { document.body.dataset.how = how; }", how)
+    if gesture == "press":
+        page.locator("#control").click()
+    else:
+        page.locator("#control").focus()
+        page.keyboard.press("x")
+    page.wait_for_function("scrollY > 0")
+    paint(page)
+    judge_watches()
+    if how in ("scrolls", "renames its entry"):
+        consume_browser_errors(
+            page,
+            {
+                "code": "gesture-scrolled",
+                "node": ["button#control"],
+                "input": "click" if gesture == "press" else "keydown x",
+                "by": [0, -9],
+            },
+        )
+
+
+# A tab 40px past what its strip shows, the strip's 10px scroll-padding included: its
+# press scrolls the strip by what `data-by` says.
+STRIP = """<!doctype html><body style="margin:0">
+<div id="strip" style="width:200px;overflow-x:auto;white-space:nowrap;
+  scroll-padding:0 10px;margin:20px"><span style="display:inline-block;width:170px"
+  ></span><button id="tab"
+  style="width:60px;box-sizing:border-box">Tab</button><span
+  style="display:inline-block;width:400px"></span></div>
+<script>
+  tab.addEventListener("click", () => strip.scrollBy(+document.body.dataset.by, 0));
+</script>"""
+
+
+@pytest.mark.parametrize(("by", "found"), [(40, False), (80, True)])
+def test_a_press_may_bring_its_control_whole_into_its_scroller(browser, by, found):
+    """A scroll may bring the control a press lands on whole into the scroller that
+    showed only part of it, as the browser's own focus does, and no further
+    (`shift_watch.js`, "Scrolls a gesture makes")."""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(STRIP))
+    paint(page)
+    page.evaluate("by => { document.body.dataset.by = by; }", str(by))
+    # Press the part the strip shows; a locator's click would scroll the tab in first.
+    strip = page.locator("#strip").bounding_box()
+    page.mouse.click(strip["x"] + 190, strip["y"] + strip["height"] / 2)
+    page.wait_for_function("strip.scrollLeft > 0")
+    paint(page)
+    judge_watches()
+    if found:
+        consume_browser_errors(
+            page,
+            {"code": "gesture-scrolled", "node": ["button#tab"], "by": [-by, 0]},
+        )
+
+
+def test_editor_caret_navigation_may_scroll_but_an_edit_may_not(browser, serve):
+    """Editors implement the platform's caret keys themselves, preventing their
+    defaults. Their navigation may scroll, while an ordinary edit still holds aim."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Editor navigation",
+                '<div id="port" style="height:180px;overflow:auto">'
+                '<div id="editor" contenteditable="true" style="height:3000px">Words</div>'
+                "</div>",
+            )
+        ),
+    )
+    page.locator("#editor").focus()
+    page.evaluate("""() => {
+      document.getElementById('editor').addEventListener('keydown', event => {
+        event.preventDefault();
+        document.getElementById('port').scrollBy(0, 9);
+      });
+    }""")
+    page.keyboard.press("PageDown")
+    rendered(page)
+    assert page.locator("#port").evaluate("port => port.scrollTop") == 9
+    judge_watches()
+    assert not take_browser_errors(page)
+
+    page.keyboard.press("x")
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, {"code": "gesture-scrolled", "input": "keydown x"})
 
 
 def test_disposing_a_frame_releases_parent_input_without_unwatching_its_sibling(
@@ -3249,6 +3672,35 @@ grow.addEventListener('click',()=>room.style.height='40px')</script>""")
         consume_browser_errors(page, moved_within("div#menu"))
 
 
+def test_registered_property_translation_credits_the_box_it_carries(browser):
+    """A native animation can move translate through a registered property."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@property --slide { syntax: '<length>'; inherits: false; initial-value: 0px; }
+</style><body style="margin:0">
+<button id="start">Start</button>
+<div id="panel" style="translate:var(--slide) 0px"><p>Reading</p></div>
+<div id="room"></div><p id="below">Below</p>
+<script>start.onclick=()=>{
+  window.motion=panel.animate([{'--slide':'200px'},{'--slide':'0px'}], {duration:3000});
+}</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    page.wait_for_function("panel.getBoundingClientRect().left < 180")
+    assert page.evaluate("motion.playState") == "running"
+    before = page.locator("#panel").bounding_box()["x"]
+    page.evaluate("() => { room.style.height = '40px'; }")
+    paint(page)
+    assert before - page.locator("#panel").bounding_box()["x"] > 1
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert not names_move(errors, "div#panel"), errors
+    assert names_move(errors, "p#below"), errors
+
+
 @pytest.mark.parametrize("mode", ["static", "fallback"])
 def test_unused_anchor_cannot_bank_an_earlier_scroll(browser, mode):
     page = browser.new_page()
@@ -3296,6 +3748,233 @@ def gesture_motion_page(browser):
     page.goto("data:text/html," + quote(GESTURE_MOTION))
     paint(page)
     return page
+
+
+@pytest.mark.parametrize(
+    "fault,finish",
+    [("", False), ("child", False), ("consumer", False), ("", True), ("child", True)],
+)
+def test_a_direct_custom_property_translation_keeps_only_its_own_motion(
+    browser, fault, finish
+):
+    """A native custom-property tween carries its directly bound translation. It
+    cannot excuse an independent child move or replacement of that binding."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@property --travel { syntax: '<length>+'; inherits: false; initial-value: 0px 0px; }
+</style><body style="margin:0"><button id="start">Start</button>
+<div id="panel" style="margin-left:350px;translate:var(--travel)">
+<button id="control">Retained control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>start.onclick=()=>{
+window.motion=panel.animate([{'--travel':'-200px 0px'},{'--travel':'0px 0px'}],
+  {duration:1000});
+motion.onfinish=()=>panel.style.translate='';
+motion.pause();motion.currentTime=150;
+}</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    page.evaluate(
+        """({fault, finish}) => {
+          if (fault === 'child') control.style.marginLeft = '55px';
+          if (fault === 'consumer') panel.style.translate = '80px 0px';
+          if (finish) motion.finish();
+          else motion.currentTime = 800;
+          trigger.style.left = '40px';
+        }""",
+        {"fault": fault, "finish": finish},
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") == bool(fault), errors
+    if fault == "child":
+        finding = next(
+            error
+            for error in errors
+            if is_problem(error, moved_within("button#control"))
+        )
+        comparisons = shift_evidence(finding)["comparisons"]
+        motions = [
+            animation
+            for comparison in comparisons
+            for animation in comparison["animations"]
+            if within(animation["target"], "div#panel")
+        ]
+        assert motions, comparisons
+        assert any(
+            motion["selected"]
+            and "translate" in motion["properties"]
+            and motion["before"]
+            and motion["after"]
+            and "translate" in motion["before"]["values"]
+            and "translate" in motion["after"]["values"]
+            for motion in motions
+        ), motions
+
+
+@pytest.mark.parametrize(
+    "fault,finish",
+    [
+        ("", False),
+        ("child", False),
+        ("consumer", False),
+        ("coincidence", False),
+        ("all", False),
+        ("", True),
+        ("underlying", True),
+    ],
+)
+def test_inherited_custom_translation_credits_only_its_bound_consumer(
+    browser, fault, finish
+):
+    """A shadow stylesheet can carry a field's words through its host's animation.
+    Neither another descendant's layout nor a replacement translate inherits credit."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@property --travel { syntax: '<length>+'; inherits: true; initial-value: 0px 0px; }
+</style><body style="margin:0"><button id="start">Start</button>
+<div id="panel" style="margin-left:350px"></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>
+const root = panel.attachShadow({mode:'open'});
+root.innerHTML = '<style>#carrier {translate:var(--travel)}</style>' +
+  '<div id="carrier"><button id="control">Retained control</button></div>';
+const carrier = root.getElementById('carrier'), control = root.getElementById('control');
+start.onclick=()=>{
+window.motion=panel.animate([{'--travel':'-200px 0px'},{'--travel':'0px 0px'}],
+  {duration:1000});
+motion.pause();motion.currentTime=150;
+};
+</script></body>""")
+    )
+    if fault == "coincidence":
+        page.evaluate(
+            "panel.shadowRoot.getElementById('carrier').style.translate = '-170px 0px'"
+        )
+    paint(page)
+    page.locator("#start").click()
+    paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    page.evaluate(
+        """({fault, finish}) => {
+      const root=panel.shadowRoot;
+      if(fault==='all') root.getElementById('carrier').style.all='initial';
+      if(fault==='child') root.getElementById('control').style.marginLeft='55px';
+      if(fault==='consumer' || fault==='coincidence')
+        root.getElementById('carrier').style.translate='-40px 0px';
+      if (fault==='underlying') panel.style.setProperty('--travel', '80px 0px');
+      if(finish) motion.finish(); else motion.currentTime=800;
+      trigger.style.left="40px";
+    }""",
+        {"fault": fault, "finish": finish},
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") == bool(fault), errors
+
+
+@pytest.mark.parametrize("fault", [False, True])
+def test_a_sticky_inset_moves_its_box_only_within_its_block(browser, fault):
+    """A ride carries a scroller's messages while their sticky heads' insets travel
+    against the carry (box-motion.js), so a stuck head holds its line and one short of
+    it rides with its message. The inset is credited by the head's move within its
+    message, not read as an offset that cancels the carry; a head moving the other
+    way within its message still fails."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@property --carry { syntax: '<length>+'; inherits: false; initial-value: 0px 0px; }
+.msg { height:150px }
+header { position:sticky; top:6px; height:28px; background:white }
+</style><body style="margin:0"><button id="start">Start</button>
+<div id="scroller" style="height:200px;overflow:auto;width:300px">
+<div class="msg" style="translate:var(--carry)"><header>First message</header></div>
+<div class="msg" style="translate:var(--carry)"><header id="second">
+<button id="control">Second message</button></header></div>
+<div style="height:600px"></div></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>
+scroller.scrollTop = 100;
+start.onclick = () => {
+  window.motions = [...document.querySelectorAll('.msg')].flatMap((msg) => [
+    msg.animate([{'--carry':'0px 80px'},{'--carry':'0px 0px'}], {duration:1000}),
+    msg.querySelector('header').animate([{top:'-74px'},{top:'6px'}], {duration:1000}),
+  ]);
+  for (const motion of motions) { motion.pause(); motion.currentTime = 150; }
+};
+</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    first = page.locator("header").first.bounding_box()
+    page.evaluate(
+        """fault => {
+      for (const motion of motions) motion.currentTime = 400;
+      if (fault) second.style.marginTop = '-15px';
+      trigger.style.left = '40px';
+    }""",
+        fault,
+    )
+    paint(page)
+    assert page.locator("header").first.bounding_box() == first
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") == fault, errors
+
+
+@pytest.mark.parametrize("fault", [False, True])
+def test_native_anchor_follows_owned_translation_but_not_an_independent_offset(
+    browser, fault
+):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<button id="start">Start</button>
+<button id="source" style="position:absolute;left:350px;top:100px;anchor-name:--source">Anchor</button>
+<div id="tip" style="position:fixed;position-anchor:--source;left:anchor(left);top:anchor(bottom)">
+<button id="control">Attached control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>start.onclick=()=>{
+window.motion=source.animate([{translate:'-200px 0px'},{translate:'0px 0px'}],
+  {duration:1000,fill:'forwards'});
+motion.pause();motion.currentTime=150;
+}</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    paint(page)
+    page.evaluate(
+        """fault => {
+          motion.currentTime = 800;
+          if (fault) tip.style.marginLeft = '55px';
+          trigger.style.left = '40px';
+        }""",
+        fault,
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") == fault, errors
 
 
 def test_immediate_native_opening_and_typing(browser):
@@ -3918,6 +4597,84 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
         assert not errors, errors
 
 
+@pytest.mark.parametrize(
+    "property,fault",
+    [("marginLeft", False), ("marginLeft", True), ("translate", False)],
+    ids=["layout-native", "layout-authored", "translate-native"],
+)
+def test_cancelled_native_translation_credits_its_return_to_layout(
+    browser, property, fault
+):
+    """Cancelling a no-fill effect returns its subject to the underlying layout."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<button id="start">Start</button>
+<div id="panel" style="margin-left:350px"><p>Retained words</p></div>
+<script>start.onclick=()=>{
+  const keyframes = window.effectProperty === 'translate'
+    ? [{translate:'200px 0px'},{translate:'0px 0px'}]
+    : [{marginLeft:'550px'},{marginLeft:'350px'}];
+  window.motion=panel.animate(keyframes, {duration:1000});
+  motion.playbackRate=0;
+  motion.currentTime=500;
+}</script></body>""")
+    )
+    paint(page)
+    page.evaluate("property => window.effectProperty = property", property)
+    page.locator("#start").click()
+    paint(page)
+    before = page.locator("#panel p").bounding_box()
+    assert before["x"] > 400
+    page.evaluate(
+        """fault => {
+          if (fault) panel.style[window.effectProperty] =
+            window.effectProperty === 'translate' ? '80px 0px' : '430px';
+          motion.cancel();
+        }""",
+        fault,
+    )
+    paint(page)
+    after = page.locator("#panel p").bounding_box()
+    assert after["x"] == (430 if fault else 350)
+    judge_watches()
+    errors = take_browser_errors(page)
+    if fault:
+        assert names_move(errors, "div#panel"), errors
+    else:
+        assert not errors, errors
+
+
+@pytest.mark.parametrize("ending", ["cancel", "finish"])
+def test_ending_an_animation_after_its_target_detaches(browser, ending):
+    """A removed surface has no presentation for the motion watch to sample."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><section id="surface"><div id="words">Words</div></section>'
+        )
+    )
+    paint(page)
+    page.evaluate("""() => {
+      window.motion = words.animate(
+        [{translate: '20px 0px'}, {translate: '0px 0px'}], {duration: 1000});
+      motion.pause();
+      motion.currentTime = 500;
+    }""")
+    paint(page)
+    page.evaluate(
+        """ending => {
+      surface.remove();
+      motion[ending]();
+    }""",
+        ending,
+    )
+    paint(page)
+    judge_watches()
+
+
 FRAMES = """count => new Promise((done) => {
   const next = () => (--count ? requestAnimationFrame(next) : done());
   requestAnimationFrame(next);
@@ -4094,3 +4851,271 @@ sized.value = LINES;
         {"shift-watch-missed"} if change == "unheard rule" else set()
     )
     assert {error.code for error in errors} <= allowed, errors
+
+
+@pytest.mark.parametrize("surface", ["card", "inline"])
+def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
+    browser, serve, surface
+):
+    """Age advances while the thread and its controls stay put.
+
+    Metadata may move or stay reserved. The passive-region fault controls above
+    exercise the watcher's permitted motion independently of this surface's layout.
+    """
+    source = (
+        leaf_page(
+            "Inline task thread",
+            '<h1 id="title">Before the frost</h1><lf-test-plan id="jobs" label="Jobs">'
+            '<lf-test-task id="bracket" status="active" talk>'
+            "<strong>Which jobs can share a visit?</strong></lf-test-task></lf-test-plan>",
+        )
+        if surface == "inline"
+        else OBLIGATION_PAGE
+    )
+    page = open_page(
+        browser,
+        serve(
+            source,
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Check whether these jobs can share one visit.",
+                    "anchor": {"section": "bracket"},
+                }
+            ],
+        ),
+    )
+    resized(page, 1440, 900)
+    if surface == "card":
+        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+        surface_root = page.locator(".lf-margin-preview")
+    else:
+        surface_root = page.locator(".lf-page-thread[data-lf-runtime]")
+    header = surface_root.locator(".lf-msg-head").first
+    receipt = header.locator(".lf-msg-sending")
+    timestamp = header.locator("time")
+    expect(receipt).to_have_text(re.compile(r"^Queued for "))
+    expect(timestamp).to_have_text("just now")
+    # Age changes are news after Chrome's recent-input grace, even when opening the
+    # surface and resizing it happened immediately before this clock transition.
+    rendered(page)
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
+    protected = surface_root.locator("b, button, leaf-text, .lf-msg-body")
+    boxes = "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
+    before = protected.evaluate_all(boxes)
+    assert before
+    thread_before = surface_root.bounding_box()
+    owner = header.locator("xpath=..")
+    owner_before = owner.bounding_box()
+    page.route("**/api/state*", refuse)
+    now = datetime.now().astimezone()
+    for delta, age in [
+        (timedelta(minutes=1), "1m ago"),
+        (timedelta(minutes=10), "10m ago"),
+        (timedelta(hours=3), "3h ago"),
+    ]:
+        # Fixed Date advances the age without changing Chrome's monotonic clock;
+        # LayoutShift, frame readings and input attribution still share native time.
+        page.clock.set_fixed_time(now + delta)
+        ticked(page)
+        expect(timestamp).to_have_text(age)
+        expect(receipt).to_have_text(re.compile(r"^Queued for "))
+        judge_watches()
+        assert surface_root.bounding_box() == thread_before
+        assert owner.bounding_box() == owner_before
+        assert protected.evaluate_all(boxes) == before
+
+
+@pytest.mark.parametrize(
+    "fault, guard_mode, destination",
+    [
+        ("", "typing", "window"),
+        ("", "passive", "page"),
+        ("holder_x", "typing", "window"),
+        ("child_y", "typing", "window"),
+        ("inset_y", "passive", "page"),
+    ],
+)
+def test_real_floating_plane_retains_local_motion(
+    browser, serve, fault, guard_mode, destination
+):
+    """Owned plane changes excuse their placement, never extra holder/child motion.
+
+    The two planes belong to the shared placement factory. An editing presenter need
+    not use both: its following policy is independent of this guard's attribution.
+    """
+    source = leaf_page(
+        "Plane evidence",
+        '<p id="subject" style="position:fixed;left:100px;top:280px;'
+        'width:80px;height:30px;margin:0">Exact subject</p>'
+        '<div id="holder" style="visibility:hidden;position:fixed;width:220px;height:90px;'
+        'padding:12px;border:1px solid;box-sizing:border-box;background:white">'
+        '<textarea id="field" style="display:block;width:160px;height:36px;'
+        'box-sizing:border-box;resize:none"></textarea></div>'
+        '<p id="evidence" style="position:fixed;left:10px;top:440px;'
+        'width:300px;height:30px;margin:0">Paint evidence</p>',
+        layout=None,
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 900, 600)
+    # An unplaced surface has dimensions for its solver, but no reading to move.
+    paint(page)
+    expect(page.locator("#field")).to_be_hidden()
+    initial = "page" if destination == "window" else "window"
+    first = page.evaluate(
+        """async initial => {
+          const module = await window.__lfOverlayApi();
+          const ui = await module.floatingUi();
+          const holder = document.querySelector('#holder');
+          const subject = document.querySelector('#subject');
+          let plane = initial, answer;
+          const selection = () => module.floatingSelections().find(s => s.floating === holder);
+          const owner = module.floatingPlacement({floating:holder, update:()=>void place()});
+          async function place() {
+            owner.begin();
+            const reference = {
+              contextElement:subject,
+              getBoundingClientRect:()=>plane === 'page'
+                ? subject.getBoundingClientRect() : new DOMRect(410,150,80,30),
+            };
+            const placed = await owner.position(ui.computePosition, reference,
+              {placement:'right-start',middleware:[]}, ()=>plane, subject);
+            if (placed) {owner.stand(placed); answer = placed;}
+          }
+          owner.watch(subject, subject, ui.autoUpdate);
+          await place();
+          holder.style.removeProperty('visibility');
+          const original = selection();
+          window.planeControl = {
+            to:async destination => {plane=destination; await place(); window.injectPlaneFault?.();},
+            read:() => {
+              const current = selection();
+              return {plane:current.plane, edge:current.edges.top, sameSubject:current.subject===original.subject,
+                sameAnchor:current.anchor===original.anchor, sameTenure:current.tenure===original.tenure,
+                expected:{x:answer.x,y:answer.y}};
+            },
+          };
+          return planeControl.read();
+        }""",
+        initial,
+    )
+    assert first["plane"] == initial
+    field, holder = page.locator("#field"), page.locator("#holder")
+    field.fill("Keep these words.")
+    paint(page)
+    judge_watches()
+    assert take_browser_errors(page) == []
+    if guard_mode == "passive":
+        page.keyboard.press("Shift")
+        paint(page)
+    held_stretch(page)
+    before, holder_before = field.bounding_box(), holder.bounding_box()
+    page.evaluate("window.beforeField=document.querySelector('#field')")
+    page.evaluate("""()=>{
+      window.nativePlaneEntries=[];
+      new PerformanceObserver(list=>nativePlaneEntries.push(...list.getEntries().map(e=>({
+        at:e.startTime,sources:e.sources.map(s=>({kind:s.node?.nodeName,
+          previous:s.previousRect.toJSON(),current:s.currentRect.toJSON()}))
+      })))).observe({type:'layout-shift'});
+    }""")
+    page.evaluate(
+        """fault=>{
+          window.planeChanges=0;
+          const holder=document.querySelector('#holder');
+          let previous=holder.dataset.lfPlane;
+          new MutationObserver(()=>{
+            if(holder.dataset.lfPlane===previous) return;
+            previous=holder.dataset.lfPlane;
+            planeChanges++;
+          }).observe(holder,{attributes:true,attributeFilter:['data-lf-plane']});
+          window.injectPlaneFault = () => {
+            if(fault==='holder_x') holder.style.transform='translateX(80px)';
+            if(fault==='holder_y') holder.style.transform='translateY(80px)';
+            if(fault==='child_x') document.querySelector('#field').style.transform='translateX(80px)';
+            if(fault==='child_y') document.querySelector('#field').style.transform='translateY(80px)';
+            if(fault==='inset_y') {
+              const edge=planeControl.read().edge;
+              holder.style[edge]=`calc(${edge==='top'?80:-80}px + ${holder.style[edge]})`;
+            }
+            // Transform-only faults need a native paint signal; this extra source
+            // cannot establish the independently asserted field displacement.
+            if(fault) document.querySelector('#evidence').style.marginLeft='30px';
+          };
+        }""",
+        fault,
+    )
+    if guard_mode == "typing":
+        field.evaluate(
+            "(node,destination)=>node.addEventListener('beforeinput',()=>void planeControl.to(destination),{once:true})",
+            destination,
+        )
+        page.keyboard.insert_text("x")
+    else:
+        page.evaluate("destination=>planeControl.to(destination)", destination)
+    page.wait_for_function(
+        "destination=>planeControl.read().plane===destination", arg=destination
+    )
+    paint(page)
+    state = page.evaluate("planeControl.read()")
+    assert state["sameSubject"] and state["sameAnchor"] and state["sameTenure"], state
+    assert page.evaluate("planeChanges") == 1
+    judge_watches()
+    errors = take_browser_errors(page)
+    entries = page.evaluate("nativePlaneEntries")
+    assert entries, (fault, guard_mode, destination, "no Chrome paint admission")
+    after, holder_after = field.bounding_box(), holder.bounding_box()
+    assert page.evaluate("beforeField===document.querySelector('#field')")
+    assert after["width"] == before["width"]
+    assert after["height"] == before["height"]
+    assert holder_after["width"] == holder_before["width"]
+    assert holder_after["height"] == holder_before["height"]
+    assert state["expected"] != {axis: holder_before[axis] for axis in ["x", "y"]}
+    for axis in ["x", "y"]:
+        shifted = 80 if fault.endswith("_" + axis) else 0
+        assert holder_after[axis] == pytest.approx(
+            state["expected"][axis]
+            + (shifted if fault.startswith("holder") or fault == "inset_y" else 0),
+            abs=1,
+        )
+        assert after[axis] == pytest.approx(
+            state["expected"][axis] + before[axis] - holder_before[axis] + shifted,
+            abs=1,
+        )
+    expected = {"node": ["textarea#field"]} | (
+        {"code": "typing-moved", "field": ["textarea#field"]}
+        if guard_mode == "typing"
+        else {"code": "moved-without-input"}
+    )
+    if fault:
+        error = next(error for error in errors if is_problem(error, expected))
+        evidence = shift_evidence(error)
+        assert evidence["kind"] == guard_mode
+        comparisons = evidence["comparisons"]
+        assert comparisons
+        terms = [
+            term for comparison in comparisons for term in comparison["scroll_terms"]
+        ]
+        assert any(
+            term["branch"] == "floating_plane"
+            and term["owner"] == ["div#holder"]
+            and term["inputs"]["before"]["plane"] == initial
+            and term["inputs"]["after"]["plane"] == destination
+            and term["inputs"]["same_attachment"]
+            and not term["inputs"]["crosses_fixed"]
+            and term["inputs"][
+                "before_origin" if initial == "page" else "after_origin"
+            ]["camera"]["left"]
+            is not None
+            for term in terms
+        ), terms
+        assert any(
+            abs(comparison["scroll_credit"][axis]) >= 1
+            for comparison in comparisons
+            for axis in ["left", "top"]
+        ), comparisons
+    else:
+        assert errors == [], errors

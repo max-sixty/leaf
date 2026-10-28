@@ -4,16 +4,11 @@ resumed session to reconnect its leaf."""
 
 import json
 import os
-import select
 import shlex
-import shutil
 import subprocess
 import sys
-import threading
-from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from conftest import LEAF_COMMAND
 from interact_support import (
     PLUGIN_ROOT,
     STATED_TIMEOUT,
@@ -25,6 +20,7 @@ from interact_support import (
     wait_for,
     write_record,
 )
+
 from leaf import codex as codex_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -33,7 +29,6 @@ from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
-from leaf import reconnect as reconnect_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -60,10 +55,8 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
     assert hosting_model.start_server(
         claimed, harness=harness_model.session_harness()
     )  # a real detached server to clean up
-    session_model.cmd_waiting(claimed, "")
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
-    )
+    session_model.cmd_waiting(claimed)
+    cleanup_model.end_harness_instance("s1")
     wait_for(
         lambda: server_model.running_server(claimed),
         lambda running: not running,
@@ -97,11 +90,9 @@ def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
 
     record_claim(page_dir, id="released")
     leases_model.mark_hooks("released")
-    reconnect_model.NOTICES.write(
-        cleanup_model.session_file("released", "reconnect"),
-        {"pages": [str(page_dir)]},
+    held = leases_model.take_wait_lease(
+        leases_model.waiter_lease_path(None, "released")
     )
-    held = leases_model.take_lease(leases_model.waiter_lease_path(None, "released"))
     record_claim(page_dir, id="holder")
     leases_model.mark_hooks("holder")
     cleanup_model.end_harness_instance("released")
@@ -122,7 +113,7 @@ def test_desktop_codex_unloading_keeps_the_chat_page_owned(page_dir, native_code
         page_dir, harness="codex", chat=True, ts=cleanup_model.now_iso()
     )
     before = cleanup_model.session_record("s1")
-    hooks_model.cmd_hook("codex", {"hook_event_name": "SessionEnd", "session_id": "s1"})
+    cleanup_model.end_harness_instance("s1")
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
     assert service_model.page_claim(page_dir)["acquisition"] == claim["acquisition"]
     assert cleanup_model.session_record("s1")["generation"] == before["generation"]
@@ -130,16 +121,14 @@ def test_desktop_codex_unloading_keeps_the_chat_page_owned(page_dir, native_code
 
 
 @pytest.mark.parametrize("harness", ["claude-code", "codex"])
-def test_resumed_session_is_told_once_to_reconnect_its_retired_leaf(
-    page_dir, harness, capsys
-):
+def test_resumed_session_is_reminded_until_its_leaf_recovers(page_dir, harness, capsys):
     """A resumed ID finds its old page even after ownership and serving ended."""
     page_dir = page_dir.rename(page_dir.with_name("my leaf's page"))
     record_claim(page_dir, harness=harness)
     assert hosting_model.start_server(
         page_dir, harness=harness_model.hook_harness(harness, "s1")
     )
-    hooks_model.cmd_hook(harness, {"hook_event_name": "SessionEnd", "session_id": "s1"})
+    cleanup_model.end_harness_instance("s1")
     wait_for(
         lambda: server_model.running_server(page_dir),
         lambda running: not running,
@@ -161,175 +150,18 @@ def test_resumed_session_is_told_once_to_reconnect_its_retired_leaf(
             harness,
             {"hook_event_name": event, "session_id": "s1", "source": "resume"},
         )
-        assert capsys.readouterr().out == ""
-    # Another harness shutdown and resumed generation is still the same outage.
-    hooks_model.cmd_hook(harness, {"hook_event_name": "SessionEnd", "session_id": "s1"})
+        assert "leaf server start" in capsys.readouterr().out
+    # Another resumed generation still needs recovery advice.
+    cleanup_model.end_harness_instance("s1")
     hooks_model.cmd_hook(
         harness, {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
-    assert capsys.readouterr().out == ""
-
-
-@pytest.mark.parametrize("harness", ["claude-code", "codex"])
-def test_concurrent_resume_hooks_emit_one_reconnect_notice(page_dir, harness):
-    """Independent hook processes reserve the same durable outage only once."""
-    record_claim(page_dir, harness=harness)
-    write_record(
-        page_dir / "service.json",
-        {
-            "host": "127.0.0.1",
-            "bind": "127.0.0.1",
-            "port": 41000,
-            "enabled": True,
-            "lifetime": "session",
-            "server_id": "retired-server",
-        },
-    )
-    gate = threading.Barrier(2)
-
-    def resume():
-        gate.wait(timeout=STATED_TIMEOUT)
-        done = subprocess.run(
-            [*LEAF_COMMAND, "hook", "--harness", harness],
-            input=json.dumps(
-                {
-                    "hook_event_name": "SessionStart",
-                    "session_id": "s1",
-                    "source": "resume",
-                }
-            ),
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-        )
-        assert done.returncode == 0, done.stderr
-        return done.stdout
-
-    with ThreadPoolExecutor(max_workers=2) as workers:
-        outputs = list(workers.map(lambda _: resume(), range(2)))
-    [notice] = [output for output in outputs if output]
-    assert (
-        f"leaf server start {shlex.quote(str(page_dir.resolve()))}"
-        in json.loads(notice)["hookSpecificOutput"]["additionalContext"]
-    )
-
-
-def test_reconnect_publication_and_task_activity_writer_cannot_lock_each_other_out(
-    page_dir, tmp_path, spawn
-):
-    """A publisher waiting on the writer's first page cannot hold its second page."""
-    first = tmp_path / "a-old" / "page"
-    second = tmp_path / "a" / "page"
-    shutil.copytree(page_dir, first)
-    second.parent.mkdir()
-    page_dir.rename(second)
-    for page in (first, second):
-        record_claim(page, harness="codex")
-        session_model.cmd_waiting(page, "Watching the current turn")
-        write_record(
-            page / "service.json",
-            {
-                "host": "127.0.0.1",
-                "bind": "127.0.0.1",
-                "port": 41000,
-                "enabled": True,
-                "lifetime": "session",
-                "server_id": "retired-server",
-            },
-        )
-    common = """\
-import fcntl
-import os
-from pathlib import Path
-import sys
-from leaf import hooks, codex, service, state
-first = Path(os.environ["FIRST"])
-second = Path(os.environ["SECOND"])
-native_flock = fcntl.flock
-def names(fd, path):
-    held = os.fstat(fd if isinstance(fd, int) else fd.fileno())
-    return os.path.samestat(held, path.stat())
-"""
-    environment = os.environ | {"FIRST": str(first), "SECOND": str(second)}
-    writer = spawn(
-        [
-            sys.executable,
-            "-c",
-            common
-            + """\
-def second_page_is_available(fd, operation):
-    if operation == fcntl.LOCK_EX and names(fd, second / "events.jsonl"):
-        try:
-            return native_flock(fd, operation | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise RuntimeError("reconnect publisher holds the writer's second page while waiting for its first")
-    return native_flock(fd, operation)
-fcntl.flock = second_page_is_available
-enter = service.PageTransaction.__enter__
-def held_first_page(page):
-    entered = enter(page)
-    if page.page_dir == first:
-        print("writer holds first page", flush=True)
-        assert sys.stdin.readline() == "continue\\n"
-    return entered
-service.PageTransaction.__enter__ = held_first_page
-expected = state.session_record("s1")
-codex.set_stream_activity("s1", expected["turn"], {"kind": "working", "detail": "Both pages updated"}, expected=expected)
-""",
-        ],
-        env=environment,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    assert select.select([writer.stdout], [], [], STATED_TIMEOUT)[0], (
-        "the task writer never acquired its first page"
-    )
-    assert writer.stdout.readline() == "writer holds first page\n"
-    publisher = spawn(
-        [
-            sys.executable,
-            "-c",
-            common
-            + """\
-def observed_contention(fd, operation):
-    if operation == fcntl.LOCK_EX and names(fd, first / "events.jsonl"):
-        try:
-            return native_flock(fd, operation | fcntl.LOCK_NB)
-        except BlockingIOError:
-            print("publisher waiting for first page", flush=True)
-    return native_flock(fd, operation)
-fcntl.flock = observed_contention
-hooks.cmd_hook("codex", {"hook_event_name": "SessionStart", "session_id": "s1", "source": "resume"})
-""",
-        ],
-        env=environment,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    assert select.select([publisher.stdout], [], [], STATED_TIMEOUT)[0], (
-        "the reconnect publisher never contended on the writer's held page"
-    )
-    assert publisher.stdout.readline() == "publisher waiting for first page\n"
-    output, error = writer.communicate("continue\n", timeout=STATED_TIMEOUT)
-    assert writer.returncode == 0, f"{output}{error}"
-    output, error = publisher.communicate(timeout=STATED_TIMEOUT)
-    assert publisher.returncode == 0, f"{output}{error}"
-    context = json.loads(output)["hookSpecificOutput"]["additionalContext"]
-    for page in (first, second):
-        assert f"leaf server start {shlex.quote(str(page))}" in context
-        assert (
-            read_record(page / "stream.json")["activity"]["detail"]
-            == "Both pages updated"
-        )
+    assert "leaf server start" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("harness", ["claude-code", "codex"])
 @pytest.mark.parametrize("event", ["SessionStart", "UserPromptSubmit"])
-def test_a_stale_hook_cannot_consume_the_resumed_turns_reconnect_notice(
+def test_a_stale_hook_emits_no_reconnect_advice_for_an_old_turn(
     page_dir, harness, event, monkeypatch, capsys
 ):
     """An overlapping prompt can discard old context without silencing recovery."""
@@ -353,8 +185,7 @@ def test_a_stale_hook_cannot_consume_the_resumed_turns_reconnect_notice(
             records = reconnect_model.claim_records
 
             def resumed_while_discovering(sid):
-                # Exhaustion is after the former per-page notice reservations,
-                # but before the final check that decides whether to print them.
+                # Another turn opens before the final lifecycle reading.
                 yield from records(sid)
                 cleanup_model.prompt_turn(sid, "newer-turn")
 
@@ -386,7 +217,7 @@ def test_a_stale_hook_cannot_consume_the_resumed_turns_reconnect_notice(
         in json.loads(output)["hookSpecificOutput"]["additionalContext"]
     )
     hooks_model.cmd_hook(harness, resume)
-    assert capsys.readouterr().out == ""
+    assert "leaf server start" in capsys.readouterr().out
 
 
 def test_prompt_combines_reconnect_notice_and_pending_user_delivery(claimed, capsys):
@@ -425,9 +256,7 @@ def test_resume_needs_ownership_even_while_the_old_server_still_serves(claimed, 
     }
     hooks_model.cmd_hook("claude-code", resume)
     assert capsys.readouterr().out == ""
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
-    )
+    cleanup_model.end_harness_instance("s1")
     assert server_model.running_server(claimed)
     hooks_model.cmd_hook("claude-code", resume)
     command = f"leaf server start {shlex.quote(str(claimed.resolve()))}"
@@ -437,14 +266,12 @@ def test_resume_needs_ownership_even_while_the_old_server_still_serves(claimed, 
             "additionalContext"
         ]
     )
-    # Recovery is both ownership and serving. A hook confirming them rearms the
-    # next outage even when the same HTTP server survived throughout.
+    # Recovery is both ownership and serving, even when the same HTTP server
+    # survived throughout.
     record_claim(claimed)
     hooks_model.cmd_hook("claude-code", resume)
     assert capsys.readouterr().out == ""
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
-    )
+    cleanup_model.end_harness_instance("s1")
     hooks_model.cmd_hook("claude-code", resume)
     assert (
         command
@@ -497,12 +324,12 @@ def test_reconnect_notices_respect_intent_and_the_exact_page_owner(page_dir, cap
         elif case == "obsolete-claim":
             cleanup_model.write_json(
                 claim_path,
-                {key: value for key, value in raw.items() if key != "generation"},
+                {**raw, "format": "leaf-claim/0"},
             )
         elif case == "obsolete-service":
             cleanup_model.write_json(
                 page_dir / "service.json",
-                server_model.SERVICE.stored({"enabled": True}),
+                {**server_model.SERVICE.stored(service), "format": "leaf-service/0"},
             )
         elif case == "missing-service":
             (page_dir / "service.json").unlink()
@@ -518,47 +345,37 @@ def test_reconnect_notices_respect_intent_and_the_exact_page_owner(page_dir, cap
         (page_dir / "events.jsonl").write_bytes(events)
         (page_dir / "preview.json").unlink(missing_ok=True)
 
-    # An eligible outage is the positive control, but a fresh startup still has
-    # no resumed page to reconnect; the following resume sees it once.
+    # Retained ownership and current health decide recovery, whichever native
+    # SessionStart source brought the same session back to its page.
     record_claim(page_dir, id="reconnect-control")
     write_record(page_dir / "service.json", service)
-    hooks_model.cmd_hook(
-        "claude-code",
-        {
-            "hook_event_name": "SessionStart",
-            "session_id": "reconnect-control",
-            "source": "startup",
-        },
-    )
-    assert capsys.readouterr().out == ""
-    hooks_model.cmd_hook(
-        "claude-code",
-        {
-            "hook_event_name": "SessionStart",
-            "session_id": "reconnect-control",
-            "source": "resume",
-        },
-    )
-    assert (
-        f"leaf server start {shlex.quote(str(page_dir.resolve()))}"
-        in json.loads(capsys.readouterr().out)["hookSpecificOutput"][
-            "additionalContext"
-        ]
-    )
+    for source in ("startup", "compact", "resume"):
+        hooks_model.cmd_hook(
+            "claude-code",
+            {
+                "hook_event_name": "SessionStart",
+                "session_id": "reconnect-control",
+                "source": source,
+            },
+        )
+        assert (
+            f"leaf server start {shlex.quote(str(page_dir.resolve()))}"
+            in json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+                "additionalContext"
+            ]
+        ), source
 
 
 def test_session_end_cannot_release_a_page_claimed_by_its_successor(page_dir):
     serving(page_dir, 41000, "session")
     record_claim(page_dir, id="predecessor")
     record_claim(page_dir, id="successor")
-    session_model.cmd_waiting(page_dir, "successor is reviewing")
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "predecessor"}
-    )
+    session_model.cmd_waiting(page_dir)
+    cleanup_model.end_harness_instance("predecessor")
     assert service_model.page_claim(page_dir)["id"] == "successor"
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
     assert read_record(page_dir / "service.json")["enabled"] is True
-    assert declared(page_dir)["detail"] == "successor is reviewing"
+    assert declared(page_dir)["state"] == "waiting"
     assert server_model.running_server(page_dir)
 
 
@@ -627,7 +444,7 @@ def test_cold_session_end_does_not_wait_for_a_page_transaction(claimed):
             [
                 sys.executable,
                 "-S",
-                str(PLUGIN_ROOT / "skills/leaf/scripts/leaf/state.py"),
+                str(PLUGIN_ROOT / "src/leaf/state.py"),
             ],
             input=json.dumps({"hook_event_name": "SessionEnd", "session_id": "s1"}),
             text=True,

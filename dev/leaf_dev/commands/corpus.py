@@ -1,68 +1,120 @@
 """Generate examples/corpus.html: the composable authored fixtures on one page.
 
-The corpus is derived test content — edit an example, regression page, or
-developer gallery and rerun `leaf-dev corpus` (tests fail on a stale corpus). Each page's
-<main> body keeps its ids but not its document-level contents sidebar. Every source
-must therefore keep its ids disjoint, which this command enforces.
-An example that owns an element (a page/registry.json declaration with its module under
-page/widgets/) brings that element into the corpus through examples/corpus.page/, the
-corpus's own page directory, so its markup still names a declared element there.
+The corpus and its companions are ignored build output. Preview, probes, benchmarks
+and the combined-page tests generate them when requested. Edit their authored sources;
+`leaf-dev corpus` also generates a snapshot explicitly. Each page's
+<main> body keeps its ids and content, including its contents outline: the surrounding
+corpus tab scopes that outline to its source page. Every source must therefore keep
+its ids disjoint, which this command enforces.
+Each example's page declarations and files join examples/corpus.page/, so its
+markup keeps its named contracts and custom widgets in the composed page.
 
     uv run leaf-dev corpus
 """
 
 import html
 import json
-import shutil
-import sys
+import tempfile
 from pathlib import Path
 
 import click
 import turbohtml
-from leaf.registry.contract import is_element_name
-from leaf.registry.layer import merge_layer_declarations
-from leaf.structure import SourceDocument
-from leaf.thread_context import sample_events, thread_ids
+from click.testing import CliRunner
 
+from leaf.cli import cli
+from leaf.event_log import read_events
+from leaf.registry.contract import is_element_name
+from leaf.registry.kernel import kernel_event_ownership
+from leaf.registry.layer import merge_layer_declarations
+from leaf.state import flocked, replace_bytes
+from leaf.structure import SourceDocument, rel_tokens
+from leaf.thread_context import sample_events, thread_ids
 from leaf_dev import ROOT
 from leaf_dev.example_data import (
+    capture_file,
     catalog_sources,
+    data_companion,
     data_file,
     page_files,
     regression_sources,
     seed_log,
 )
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
-EXAMPLES_DIR = ROOT / "examples"
-CORPUS = EXAMPLES_DIR / "corpus.html"
-CORPUS_DATA = EXAMPLES_DIR / "corpus.data.json"
-CORPUS_EVENTS = EXAMPLES_DIR / "corpus.jsonl"
-CORPUS_PAGE = EXAMPLES_DIR / "corpus.page"
 # Focused chrome galleries with several live child pages stay separate; their
 # underlying widget and thread states already stand in the feature gallery.
-DEVELOPER_SOURCES = [
-    EXAMPLES_DIR / "developer" / "file-editor.html",
-    EXAMPLES_DIR / "developer" / "file-tree.html",
-    EXAMPLES_DIR / "developer" / "file-tree-input.html",
-    EXAMPLES_DIR / "developer" / "diff-thread-gallery.html",
-    EXAMPLES_DIR / "developer" / "feature-gallery.html",
-    EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
-    EXAMPLES_DIR / "developer" / "playwright-trace-gallery.html",
-]
-# Keep catalog order first, then include every other example, even one whose
-# catalog card is absent or commented out. The generated corpus never includes itself.
-SOURCES = [
-    *dict.fromkeys(
-        [
-            *catalog_sources(),
-            *sorted(
-                source for source in EXAMPLES_DIR.glob("*.html") if source != CORPUS
-            ),
-        ]
-    ),
-    *regression_sources(),
-    *DEVELOPER_SOURCES,
-]
+DEVELOPER_SOURCES = (
+    "file-editor",
+    "file-tree",
+    "file-tree-input",
+    "diff-thread-gallery",
+    "worktree-diffs",
+    "feature-gallery",
+    "visual-review-gallery",
+    "playwright-trace-gallery",
+    "motion",
+    "deck",
+    "detail",
+    "playground",
+)
+
+
+def sources(root: Path = ROOT) -> list[Path]:
+    """Catalog order first, then other examples, regression pages and galleries."""
+    examples = root / "examples"
+    return [
+        *dict.fromkeys(
+            [
+                *catalog_sources(root),
+                *sorted(
+                    path for path in examples.glob("*.html") if path.stem != "corpus"
+                ),
+            ]
+        ),
+        *regression_sources(root),
+        *(examples / "developer" / f"{name}.html" for name in DEVELOPER_SOURCES),
+    ]
+
+
+def source_root(source: Path) -> Path | None:
+    """The checkout owning the reserved generated corpus source, if selected."""
+    if source.name == "corpus.html" and source.parent.name == "examples":
+        return source.parent.parent
+    return None
+
+
+def composition_inputs(root: Path) -> tuple[list[Path], list[Path]]:
+    """Authored inputs and discovery directories a live corpus follows.
+
+    Keep the selection with the generator: examples and regression pages can arrive
+    or disappear, while the developer galleries are explicitly selected above.
+    Captures may live outside those directories; asset captures follow the asset pin
+    through the ordinary fixture reader.
+    """
+    inputs = [root / "docs" / "examples.html"]
+    discovering = [
+        root / "examples",
+        root / "tests" / "fixtures" / "pages",
+    ]
+    for source in sources(root):
+        companions = page_files(source)
+        discovering.append(companions)
+        inputs.extend(
+            [
+                source,
+                data_file(source),
+                seed_log(source),
+                companions,
+                *companions.rglob("*"),
+                *(
+                    capture_file(source, spec)
+                    for spec in data_companion(source).get("$captures", {}).values()
+                    if "asset" not in spec
+                ),
+            ]
+        )
+    return inputs, discovering
+
 
 HEAD = """\
 <!doctype html>
@@ -93,33 +145,33 @@ FOOT = """\
 """
 
 
-def build_data() -> dict:
+def build_data(inputs: list[Path], directory: Path) -> dict:
     """Compose corpus inputs with captures relative to the generated page."""
     sources = {}
     captures = {}
-    for source in SOURCES:
+    for source in inputs:
         companion = data_file(source)
         if not companion.exists():
             continue
-        document = json.loads(companion.read_text(encoding="utf-8"))
+        document = data_companion(source)
         for name, spec in document.pop("$captures", {}).items():
             # `file` and `asset` both name a path beside the source (example_data).
             key = "asset" if "asset" in spec else "file"
             capture_file = (source.parent / spec[key]).resolve()
-            relative_file = capture_file.relative_to(
-                EXAMPLES_DIR.resolve(), walk_up=True
-            )
+            relative_file = capture_file.relative_to(directory.resolve(), walk_up=True)
             corpus_spec = {**spec, key: relative_file.as_posix()}
             if name in captures:
                 if captures[name] != corpus_spec:
-                    sys.exit(
+                    raise ValueError(
                         f"corpus examples contribute conflicting data capture {name!r}"
                     )
                 continue
             captures[name] = corpus_spec
         for name, value in document.items():
             if name in sources and sources[name] != value:
-                sys.exit(f"corpus examples contribute conflicting data source {name!r}")
+                raise ValueError(
+                    f"corpus examples contribute conflicting data source {name!r}"
+                )
             sources[name] = value
     return ({"$captures": captures} if captures else {}) | sources
 
@@ -133,91 +185,52 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
     The tab's label is the page's title, so its opening eyebrow repeats the page's
     context. On screen the strip carries it; wherever there is no
     strip (unupgraded, in print, in a copy) the theme paints the label back onto the
-    panel. The eyebrow is the copy that has nowhere to be. lf-toc maps its closest
-    main, which after composition is the corpus's outer document, so a source page's
-    contents map would repeat one whole-corpus outline in every tab rather than
-    navigate that source page; the container holding only the map goes with it.
+    panel. The eyebrow is the copy that has nowhere to be. Contents outlines stay:
+    the enclosing corpus tab supplies their reading scope, and outlines inside a
+    live sample keep that sample's own document.
     """
     mains = parsed.tree.select("main")
     if len(mains) != 1:
-        sys.exit(f"{source.name}: expected exactly one <main>…</main>")
+        raise ValueError(f"{source.name}: expected exactly one <main>…</main>")
     [main] = mains
     text = parsed.html
     _, start = parsed.offsets(main.source_location.start_tag)
     end, _ = parsed.offsets(main.source_location.end_tag)
 
-    def span(element) -> tuple[int, int]:
-        return (
-            parsed.offsets(element.source_location.start_tag)[0],
-            parsed.offsets(element.source_location.end_tag)[1],
-        )
-
-    def children(element) -> list:
-        return [
-            child for child in element.children if isinstance(child, turbohtml.Element)
-        ]
-
-    cuts = []
-    first = next(iter(children(main)), None)
+    first = next(
+        (child for child in main.children if isinstance(child, turbohtml.Element)),
+        None,
+    )
     if (
         first is not None
         and first.tag == "p"
         and first.attrs.get("class") == ["eyebrow"]
     ):
-        cut_start, cut_end = span(first)
+        cut_start = parsed.offsets(first.source_location.start_tag)[0]
         if not text[start:cut_start].strip():
-            rest = text[cut_end:end]
-            cuts.append((cut_start, cut_end + len(rest) - len(rest.lstrip())))
-    for holder in main.select("aside, section"):
-        if [child.tag for child in children(holder)] != ["lf-toc"]:
-            continue
-        if holder.text.strip():
-            continue
-        cut_start, cut_end = span(holder)
-        before = text[start:cut_start]
-        cuts.append((cut_start - (len(before) - len(before.rstrip())), cut_end))
-    body, cursor = [], start
-    for cut_start, cut_end in sorted(cuts):
-        body.append(text[cursor : max(cursor, cut_start)])
-        cursor = max(cursor, cut_end)
-    body.append(text[cursor:end])
-    return "".join(body).strip()
+            start = parsed.offsets(first.source_location.end_tag)[1]
+    return text[start:end].strip()
 
 
-def build() -> str:
-    owner = {"corpus": CORPUS.name, "corpus-lede": CORPUS.name}
+def build(inputs: list[Path]) -> str:
+    owner = {"corpus": "corpus.html", "corpus-lede": "corpus.html"}
     tabs = []
     authored_assets = []
-    for source in SOURCES:
+    for source in inputs:
         stem = source.stem
         text = source.read_text(encoding="utf-8")
         parsed = SourceDocument(text)
         label = html.escape(parsed.authoring.title.strip(), quote=True)
-        for sheet in parsed.authoring.style_blocks:
-            if sheet["css"].strip():
-                css = "\n".join(line.rstrip() for line in sheet["css"].splitlines())
-                attrs = "".join(
-                    f' {name}="{html.escape(value, quote=True)}"'
-                    for name, value in sheet["attrs"].items()
-                )
-                authored_assets.append(
-                    f"<!-- {source.name} authored styles -->\n<style{attrs}>{css}</style>"
-                )
+        # Keep source order: an inline override after a linked stylesheet must
+        # still win. Assets inside main already travel with the page body.
         authored_assets.extend(
-            f"<!-- {source.name} authored script -->\n<script"
-            + "".join(
-                f' {name}="{html.escape(value, quote=True)}"'
-                for name, value in script["attrs"].items()
-            )
-            + f">{script['body']}</script>"
-            for script in parsed.authoring.inline_scripts
-            # Scripts inside main already travel with its body. Hoisting them
-            # as well duplicates identities and the samples' event sources.
-            if script["early_head"]
+            f"<!-- {source.name} authored {asset.tag} -->\n{asset.html}"
+            for asset in parsed.tree.select("head > style, head > script, head > link")
+            if asset.tag != "link" or "stylesheet" in rel_tokens(asset.attrs)
         )
         for i in ["corpus-" + stem] + parsed.all_ids:
             if i in owner:
-                sys.exit(
+                raise ValueError(
                     f"id '{i}' is in both {owner[i]} and {source.name}; rename one"
                 )
             owner[i] = source.name
@@ -228,35 +241,33 @@ def build() -> str:
     return head + "\n" + "\n".join(tabs) + "\n" + FOOT
 
 
-def build_page() -> dict[str, bytes]:
-    """The corpus's page directory: every element an example owns, with its modules.
+def build_page(inputs: list[Path]) -> dict[str, bytes]:
+    """The corpus's page directory: every example's declarations and page files.
 
-    An element is the example's own when it ships the module that defines it,
-    `widgets/<tag>.js`; a declaration without one narrows a layer widget for that page
-    alone (a playground's fixed id) and stays out of the corpus. An owning example's
-    other page files come along, since its modules import them.
+    Named instance contracts compose under `$data`, so each widget keeps its own
+    payload schema in the combined page. Conflicting tag declarations must be
+    resolved by their authors rather than silently dropping a page's contract.
     """
     declarations = {}
     files = {}
-    for source in SOURCES:
+    for source in inputs:
         page = page_files(source)
         if not page.is_dir():
             continue
-        registry = json.loads((page / "registry.json").read_text(encoding="utf-8"))
-        owned = {
-            tag: entry
-            for tag, entry in registry.items()
-            if is_element_name(tag) and (page / "widgets" / f"{tag}.js").is_file()
-        }
+        registry_path = page / "registry.json"
+        registry = (
+            json.loads(registry_path.read_text(encoding="utf-8"))
+            if registry_path.is_file()
+            else {}
+        )
+        owned = {tag: entry for tag, entry in registry.items() if is_element_name(tag)}
         shared = {
             key: entry for key, entry in registry.items() if not is_element_name(key)
         }
-        if not owned and not shared:
-            continue
         merge_layer_declarations(declarations, shared)
         for tag, entry in owned.items():
             if tag in declarations:
-                sys.exit(f"corpus examples both declare {tag!r}")
+                raise ValueError(f"corpus examples both declare {tag!r}")
             declarations[tag] = entry
         for path in sorted(page.rglob("*")):
             name = path.relative_to(page).as_posix()
@@ -268,22 +279,43 @@ def build_page() -> dict[str, bytes]:
                 ) + path.read_bytes()
                 continue
             if name in files and files[name] != path.read_bytes():
-                sys.exit(f"corpus examples contribute conflicting page file {name!r}")
+                raise ValueError(
+                    f"corpus examples contribute conflicting page file {name!r}"
+                )
             files[name] = path.read_bytes()
     if not declarations:
-        return {}
+        return files
     registry = json.dumps(declarations, indent=2, ensure_ascii=False) + "\n"
     return {"registry.json": registry.encode(), **files}
 
 
-def build_events() -> str:
-    """Carry the threads embedded samples explicitly depend on.
+def _run_leaf(*args: str, input_text: str | None = None) -> None:
+    result = CliRunner().invoke(cli, list(args), input=input_text)
+    if result.exit_code:
+        raise ValueError(f"leaf {' '.join(args)}: {result.output}") from (
+            result.exception
+        )
+
+
+def admitted_history(source: Path) -> list[dict]:
+    """The log a page built from `source` holds: its seed as the door admitted it,
+    with the fields admission derives, which a thread closure reads."""
+    with tempfile.TemporaryDirectory(prefix="leaf-corpus-") as scratch:
+        page = Path(scratch) / "page"
+        prepare_page(page, read_fixture(source), _run_leaf, final_status=None)
+        return read_events(page)
+
+
+def build_events(inputs: list[Path]) -> str:
+    """Carry the threads embedded samples explicitly depend on, as the commands
+    the corpus's own seed admits.
 
     The corpus otherwise starts undecided; composing every example's history would
     settle unrelated controls before the corpus can exercise them.
     """
+    derived = kernel_event_ownership()["derived"]
     combined = {}
-    for source in SOURCES:
+    for source in inputs:
         document = SourceDocument(source.read_text(encoding="utf-8"))
         selected = {
             thread
@@ -292,23 +324,20 @@ def build_events() -> str:
         }
         if not selected:
             continue
-        events = [
-            json.loads(line)
-            for line in seed_log(source).read_text().splitlines()
-            if line.strip()
-        ]
+        events = admitted_history(source)
         # A declaration naming nothing is a typo here and nothing else: the history
         # is the example's own shipped log, so a thread absent from it will be absent
         # from every page built from this source. `sample_events` seeds what a log
         # holds, because a served page may legitimately hold none of it yet.
         if unknown := selected - thread_ids(events):
-            sys.exit(
+            raise ValueError(
                 f"{source.name} declares sample threads its log does not "
                 f"hold: {', '.join(sorted(unknown))}"
             )
-        for event in sample_events(document, events, selected):
+        for record in sample_events(document, events, selected):
+            event = {key: value for key, value in record.items() if key not in derived}
             if event["id"] in combined and combined[event["id"]] != event:
-                sys.exit(
+                raise ValueError(
                     f"corpus examples contribute conflicting event {event['id']!r}"
                 )
             combined[event["id"]] = event
@@ -317,19 +346,45 @@ def build_events() -> str:
     )
 
 
+def generate(root: Path = ROOT) -> Path:
+    """Build a fresh snapshot at its stable, ignored path beside the examples.
+
+    The stable path lets user previews resume. Serialize writers and replace changed
+    files atomically so another preview never reads a partly written file, and a
+    repeated request doesn't wake its watcher. Source pages remain the only inputs.
+    """
+    inputs = sources(root)
+    output = root / "examples" / "corpus.html"
+    files = {
+        output: build(inputs).encode(),
+        data_file(output): (
+            json.dumps(build_data(inputs, output.parent), indent=2, ensure_ascii=False)
+            + "\n"
+        ).encode(),
+        seed_log(output): build_events(inputs).encode(),
+        **{
+            page_files(output) / name: data for name, data in build_page(inputs).items()
+        },
+    }
+    (root / ".tmp").mkdir(parents=True, exist_ok=True)
+    with flocked(root / ".tmp" / "corpus.lock"):
+        writes = []
+        for path, data in files.items():
+            if path.is_file() and path.read_bytes() == data:
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            writes.append((path, data, False))
+        replace_bytes(writes)
+        for path in page_files(output).rglob("*"):
+            if path.is_file() and path not in files:
+                path.unlink()
+    return output
+
+
 @click.command()
 def corpus() -> None:
-    """Regenerate examples/corpus.html and its companions."""
-    CORPUS.write_text(build(), encoding="utf-8")
-    CORPUS_DATA.write_text(
-        json.dumps(build_data(), indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    CORPUS_EVENTS.write_text(build_events(), encoding="utf-8")
-    shutil.rmtree(CORPUS_PAGE, ignore_errors=True)
-    for name, data in build_page().items():
-        (CORPUS_PAGE / name).parent.mkdir(parents=True, exist_ok=True)
-        (CORPUS_PAGE / name).write_bytes(data)
-    print(CORPUS)
-    print(CORPUS_DATA)
-    print(CORPUS_EVENTS)
+    """Generate the ignored examples/corpus.html snapshot and its companions."""
+    try:
+        click.echo(generate())
+    except (ValueError, OSError) as error:
+        raise click.ClickException(str(error)) from None

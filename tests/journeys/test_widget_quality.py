@@ -19,14 +19,15 @@ from browser.test_widget_quality import (
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from known_widget_findings import KNOWN, PACKAGES
+from model_folds import leaf_page
+from playwright.sync_api import expect
+from render_harness import displayed
+
 from leaf import cli as cli_model
 from leaf import layer as layer_model
 from leaf import schema as schema_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.widget_quality import widget_findings
-from model_folds import leaf_page
-from playwright.sync_api import expect
-from render_harness import displayed
 
 
 @pytest.mark.parametrize("package", PACKAGES, ids=lambda package: package.name)
@@ -102,16 +103,16 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     (widgets / "lf-badged.js").write_text(keyed("lf-badged", ", bindingBadge: null"))
     # An element the theme does not style is inline, whose box a padding would not
     # grow the way a block's grows.
-    (package / "theme.css").write_text(
-        ":scope:is(lf-grow, lf-holder, lf-fixed) { display: block; }\n"
-        ":scope:is(lf-fixed) { height: 100px; }\n"
-        ":scope:is(lf-pinned, lf-declared, lf-sideways) { display: block; "
+    (package / "widgets.css").write_text(
+        ":is(lf-grow, lf-holder, lf-fixed) { display: block; }\n"
+        "lf-fixed { height: 100px; }\n"
+        ":is(lf-pinned, lf-declared, lf-sideways) { display: block; "
         "block-size: 100px; }\n"
-        ":scope:is(lf-pinned) { overflow: auto; }\n"
-        ":scope:is(lf-declared) { overflow: auto; --lf-holds-height: 1; }\n"
-        ":scope:is(lf-sideways) { overflow-x: auto; }\n"
-        ":scope:is(lf-roomy) { display: flex; min-block-size: 100px; overflow: auto; }\n"
-        ":scope:is(lf-shallow) { display: block; block-size: 10px; overflow-x: auto; }\n"
+        "lf-pinned { overflow: auto; }\n"
+        "lf-declared { overflow: auto; --lf-holds-height: 1; }\n"
+        "lf-sideways { overflow-x: auto; }\n"
+        "lf-roomy { display: flex; min-block-size: 100px; overflow: auto; }\n"
+        "lf-shallow { display: block; block-size: 10px; overflow-x: auto; }\n"
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())

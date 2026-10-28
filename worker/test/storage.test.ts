@@ -68,7 +68,6 @@ describe("durable website page records", () => {
           const path = `revisions/r${revision}-0123456789abcdef/runtime/modules/resource-${resource}.js`;
           publication.record[path] = { chunks, modified: 1_700_000_000.125 };
           publication.responses[path] = {
-            status: 200,
             headers: {
               "content-type": "application/javascript; charset=utf-8",
               "content-length": "16",
@@ -99,6 +98,7 @@ describe("durable website page records", () => {
         "immutable module",
       );
     } finally {
+      await new Promise((resolve) => setImmediate(resolve));
       close();
     }
   });
@@ -132,16 +132,14 @@ describe("durable website page records", () => {
         record: { "media/private.png": { chunks: image, modified: 1_700_000_000.125 } },
         responses: {
           "api/state": {
-            status: 200,
             headers: { "Content-Type": "application/json", "Content-Length": "28" },
             chunks: state,
           },
           "media/private.png": {
-            status: 200,
             headers: { "Content-Type": "image/png" },
             chunks: image,
           },
-          "revisions/leaf.js": { status: 200, headers: {}, chunks: entry },
+          "revisions/leaf.js": { headers: {}, chunks: entry },
         },
       };
       expect(JSON.stringify(publication).length).toBeLessThan(10_000);
@@ -198,7 +196,7 @@ describe("durable website page records", () => {
         ...publication,
         record: {},
         responses: {
-          "api/state": { status: 200, headers: {}, chunks: ["f".repeat(64)] },
+          "api/state": { headers: {}, chunks: ["f".repeat(64)] },
         },
       };
       const { identity } = await restored.prepare(unfinished, manifest);
@@ -217,6 +215,7 @@ describe("durable website page records", () => {
         store.saveBlob("a".repeat(64), new Uint8Array([1]).buffer),
       ).rejects.toThrow("digest does not match");
     } finally {
+      await new Promise((resolve) => setImmediate(resolve));
       close();
     }
   });
@@ -253,6 +252,7 @@ describe("durable website page records", () => {
       store.publish(next, manifest);
       expect((await records(store))["/"]).toEqual(successor.record);
     } finally {
+      await new Promise((resolve) => setImmediate(resolve));
       close();
     }
   });
@@ -298,6 +298,7 @@ describe("durable website page records", () => {
         "no staged owner",
       );
     } finally {
+      await new Promise((resolve) => setImmediate(resolve));
       close();
     }
   });
@@ -313,7 +314,7 @@ describe("durable website page records", () => {
       const chunks = await capture(bytes, blobs);
       const first = {
         ...page("/", chunks),
-        responses: { "media/file": { status: 200, headers: {}, chunks } },
+        responses: { "media/file": { headers: {}, chunks } },
       };
       first.record["revisions/r2-private/shared.js"] = {
         chunks: [...chunks, chunks[0]],
@@ -351,10 +352,13 @@ describe("durable website page records", () => {
         ),
       ).toBe(true);
       await cancelled.body!.cancel();
+      await new Promise((resolve) => setImmediate(resolve));
       expect(store.blob(chunks[2])).not.toBeNull();
       await cancelledRestore.body!.cancel();
+      await new Promise((resolve) => setImmediate(resolve));
       expect(store.blob(chunks[2])).toBeNull();
     } finally {
+      await new Promise((resolve) => setImmediate(resolve));
       close();
     }
   });

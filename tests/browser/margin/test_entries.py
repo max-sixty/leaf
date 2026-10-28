@@ -1,14 +1,12 @@
 """How each margin entry is drawn, labelled and kept through repaints. The bounds on a
 repaint's work are held on the corpus (`journeys/test_render_gate.py`), and the feature
 gallery's margin atlas is read on the gallery's one journey
-(`navigation/test_tabs.py`)."""
+(`journeys/test_render_navigation.py`)."""
 
 import re
 
 import pytest
 from interact_support import append_command
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
 from render_cases_layout import token_colour
@@ -17,6 +15,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    open_threads,
     panel_settled,
     resized,
     sending,
@@ -26,6 +25,8 @@ from browser.margin import (
     DENSE_SUGGESTIONS_PAGE,
     _comment_on,
 )
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -291,9 +292,9 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
     label stands clear of the finger, above the entry or else beside it, while the
     press lasts, and a row arriving meanwhile doesn't move it. An
     action's release presses it once, and the browser's own click after it reaches
-    nothing the press put under the finger. After the release the label is the
-    platform's: a phone keeps the tapped entry hovered, so its label may stay until the
-    next tap elsewhere."""
+    nothing the press put under the finger. A phone keeps the entry a finger last
+    pressed hovered and focused until the next tap elsewhere, so neither reveals its
+    label there: a tap leaves none behind, and the label goes with the hold."""
     lead = "<p>Text before the target, so the label has room above it.</p>" * 4
     url = serve(
         leaf_page(
@@ -327,6 +328,10 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
         }"""
     )
     cdp = context.new_cdp_session(page)
+    tapped = page.locator(".lf-margin-entry").filter(has_text="Sent")
+    tapped.tap()
+    expect(tapped).to_be_focused()
+    expect(tapped.locator(":scope > .lf-margin-entry-label")).to_be_hidden()
     for name, words in (("Sent", "Sent2m ago"), ("Act on it", "Act on itActs at once")):
         entry = page.locator(".lf-margin-entry").filter(has_text=name)
         expect(entry).to_be_visible()
@@ -369,6 +374,7 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
             assert label.bounding_box() == held
         cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
         expect(entry).not_to_have_attribute("data-lf-held-word", "")
+        expect(label).to_be_hidden()
     rendered(page)
     assert page.evaluate("window.pressed") == ["act"]
 
@@ -602,6 +608,10 @@ def test_lit_margin_projection_reorders_retained_controls_without_moving_the_use
     box = action_a.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.down()
+    # Native pointer focus leaves B before arriving at A. That transfer stays
+    # inside the cluster, so it must not fold the options under the held press.
+    expect(action_a).to_be_focused()
+    expect(host).to_have_attribute("data-lf-options-open", "")
     page.evaluate("() => window.lfRetainedMargin.change()")
     expect(action_a).to_have_accessible_name("Action A now")
     assert action_a.evaluate("node => node === window.lfRetainedMarginA")
@@ -622,8 +632,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
 ):
     """The inline Lit seat reorders one retained control tree and completes its press."""
     page = open_page(browser, serve(PANEL_PAGE))
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
@@ -736,20 +745,19 @@ def test_a_margin_row_is_unseen_until_its_first_placement_lands(browser, serve):
         """async () => {
           const {contributionEntry, registerContribution} =
             await window.__lfWidgetApi();
-          return new Promise(resolve => requestAnimationFrame(() => {
-            const registration = registerContribution({
-              key: 'first-placement', target: document.querySelector('#how-cap'),
-              read: () => ({entries: [contributionEntry({
-                key: 'act', icon: 'dot', label: 'New margin action'
-              })]}), activate: () => {}
-            });
-            const row = registration.control('act', 'margin')
-              .closest('.lf-margin-cluster');
-            const rect = row.getBoundingClientRect();
-            resolve({place: row.dataset.lfPlace ?? null,
-              visibility: getComputedStyle(row).visibility,
-              width: rect.width, height: rect.height});
-          }));
+          await new Promise(requestAnimationFrame);
+          const registration = registerContribution({
+            key: 'first-placement', target: document.querySelector('#how-cap'),
+            read: () => ({entries: [contributionEntry({
+              key: 'act', icon: 'dot', label: 'New margin action'
+            })]}), activate: () => {}
+          });
+          const row = registration.control('act', 'margin')
+            .closest('.lf-margin-cluster');
+          const rect = row.getBoundingClientRect();
+          return {place: row.dataset.lfPlace ?? null,
+            visibility: getComputedStyle(row).visibility,
+            width: rect.width, height: rect.height};
         }"""
     )
     assert unplaced["place"] is None
@@ -909,6 +917,10 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
   </lf-column>
 </lf-board>
 """,
+        head="""<style>:root {
+          --pin-fill: light-dark(#e7cbff, #4a236b);
+          --pin-ink: light-dark(#241343, #fbe8a3);
+        }</style>""",
     ).replace("<body>", '<body data-rail="none">')
     events = [
         _comment_on("discussion"),
@@ -958,10 +970,10 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
             )
             faces.append(control.evaluate(read_face))
         assert faces == [faces[0]] * len(faces), faces
-        assert faces[0]["radius"] == "50% 50% 50% 3px", faces[0]
+        assert faces[0]["radius"] == "6px 6px 6px 0px", faces[0]
         assert faces[0]["background"] == token_colour(page, "--pin-fill"), faces[0]
         assert faces[0]["border"] == ["2px", token_colour(page, "--paper")], faces[0]
-        assert faces[0]["ink"] == "rgb(255, 255, 255)", faces[0]
+        assert faces[0]["ink"] == token_colour(page, "--pin-ink"), faces[0]
         status.hover()
         assert status.evaluate(read_face) == faces[0]
         page.mouse.move(0, 0)
@@ -1074,7 +1086,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "commonAction": True,
                 "width": "32px",
                 "minHeight": "32px",
-                "radius": "50%",
+                "radius": "6px",
                 "visibleWord": "first controls",
             },
             {
@@ -1084,7 +1096,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "commonAction": True,
                 "width": "32px",
                 "minHeight": "32px",
-                "radius": "50%",
+                "radius": "6px",
                 "visibleWord": "nested controls",
             },
             {
@@ -1094,7 +1106,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "commonAction": True,
                 "width": "32px",
                 "minHeight": "32px",
-                "radius": "50%",
+                "radius": "6px",
                 "visibleWord": "second controls",
             },
             {
@@ -1104,7 +1116,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "commonAction": True,
                 "width": "32px",
                 "minHeight": "32px",
-                "radius": "50%",
+                "radius": "6px",
                 "visibleWord": "slot a controls",
             },
             {
@@ -1114,7 +1126,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "commonAction": True,
                 "width": "32px",
                 "minHeight": "32px",
-                "radius": "50%",
+                "radius": "6px",
                 "visibleWord": "slot b controls",
             },
         ],

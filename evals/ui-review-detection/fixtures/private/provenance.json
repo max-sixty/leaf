@@ -7,8 +7,8 @@
   },
   "sources": {
     "timeline": {
-      "widget": "skills/leaf/packages/playwright/widgets/lf-trace.js",
-      "theme": "skills/leaf/packages/playwright/theme.css",
+      "widget": "packages/playwright/widgets/lf-trace.js",
+      "theme": "packages/playwright/theme.css",
       "data": ".tmp/compact-layout/source.data.json",
       "mechanism": "Exact rail item geometry (Vis boxes) and suppression of native point dots/stems; control restores Vis native dots/stems. Original action/moment times preserved; capture content and unrelated runtime omitted.",
       "input_times_ms": [
@@ -58,7 +58,7 @@
     },
     "shift": {
       "git": "152bd8950",
-      "path": "skills/leaf/packages/playwright/widgets/lf-trace.js",
+      "path": "packages/playwright/widgets/lf-trace.js",
       "rollout": "/Users/maximilian/.codex/archived_sessions/rollout-2026-10-05T15-15-35-01a10e22-f912-7801-ae35-fefbc94c3c9a.jsonl",
       "line": 193,
       "mechanism": "Full historical widget with only imported widget-api adapted. Defective variant reverses the imageHost-first DOM repair. Same synthetic image at checkpoint and intermediate frame isolates image placement from content.",
@@ -78,7 +78,7 @@
   },
   "dependency": {
     "commit": "a8ed7fffe91978a92cb1764e7305e80e59312ea8",
-    "path": "skills/leaf/packages/playwright/vendor/timeline.esm.js",
+    "path": "packages/playwright/vendor/timeline.esm.js",
     "sha256": "68578b4653af1c9f03e100eb9a09a263f5c8015846fc7cf60b51721bf217a546"
   }
 }

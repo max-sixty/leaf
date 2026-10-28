@@ -1,24 +1,26 @@
 """Comment marks painted on the page, the cues that tie them to their thread cards, and
 the notes that tell a screen reader of them."""
 
+import io
 import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
+from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
 from render_cases_layout import page_at_rest
 from render_cases_navigation import (
     COMMENTED_LIST_PAGE,
+    DIFF_PAGE,
     NOTED_PAGE,
     composer_quote,
+    current_location_mark,
     mark_point,
     painted,
     pending_text,
-    standing_mark,
+    wait_current_location,
     wait_for_pending_mark,
-    wait_standing,
 )
 from render_harness import (
     INLINE_PAGE,
@@ -30,6 +32,7 @@ from render_harness import (
     post_event,
     select,
     selection_field,
+    sending,
     stamp_page,
     told,
     write,
@@ -38,6 +41,7 @@ from render_harness import (
 from browser.navigation import (
     color_cue_markup,
 )
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -83,6 +87,57 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine):
         }"""
     )
     assert fills["end"] == fills["rest"], fills
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
+    request, serve, engine
+):
+    """Native ranges paint nested syntax with the widget's local palette.
+
+    Root-only highlight selectors lose this paint in Firefox, which accepts
+    the rules but does not inherit highlight styles into descendants.
+    """
+    page = open_page(request.getfixturevalue(engine), serve(DIFF_PAGE))
+    widget = page.locator("#patch")
+    row = widget.locator("[data-line]").first
+    expect(row.locator("span").first).to_be_visible()
+    row.scroll_into_view_if_needed()
+    widget.evaluate("""host => {
+      host.style.setProperty('--mark', 'light-dark(rgb(250, 160, 180), rgb(90, 50, 120))');
+      host.style.setProperty('--mark-ink', 'light-dark(rgb(120, 0, 40), rgb(250, 200, 230))');
+    }""")
+    backgrounds = []
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        paint = row.evaluate("""row => {
+          const names = ['lf-mark', 'lf-mark-hover', 'lf-mark-here',
+            'lf-pending', 'lf-react', 'lf-version-insert'];
+          const token = row.querySelector('span');
+          const read = (node, name) => {
+            const style = getComputedStyle(node, `::highlight(${name})`);
+            return {background: style.backgroundColor, decoration: style.textDecoration};
+          };
+          return Object.fromEntries(names.map(name => [name, read(token, name)]));
+        }""")
+        for name, style in paint.items():
+            assert style["background"] != "rgba(0, 0, 0, 0)", (scheme, name, style)
+            if name != "lf-version-insert":
+                assert "underline" in style["decoration"], (scheme, name, style)
+        backgrounds.append(paint["lf-mark"]["background"])
+        page.evaluate("CSS.highlights.delete('lf-mark')")
+        quiet = Image.open(io.BytesIO(row.screenshot())).convert("RGB")
+        row.evaluate("""row => {
+          const range = new Range();
+          range.selectNodeContents(row);
+          CSS.highlights.set('lf-mark', new Highlight(range));
+        }""")
+        marked = Image.open(io.BytesIO(row.screenshot())).convert("RGB")
+        assert ImageChops.difference(quiet, marked).getbbox(), (
+            f"{engine} painted no highlight over nested syntax in {scheme}"
+        )
+        page.evaluate("CSS.highlights.delete('lf-mark')")
+    assert backgrounds == ["rgb(250, 160, 180)", "rgb(90, 50, 120)"]
 
 
 def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
@@ -282,7 +337,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
 
     expect(thread).to_be_focused()
     expect(reply).to_be_visible()
-    wait_standing(page, "bold text")
+    wait_current_location(page, "bold text")
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(reply).to_be_visible()
@@ -297,7 +352,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     comment_note(page, "#p").press("Enter")
     expect(thread).to_be_focused()
-    # The note reopened this view without a trip, so the Page Map rung is the way out.
+    # The note reopened this view without a navigation step, so the Page Map rung is the way out.
     # A sequence armed afterward is an inner interaction; Escape cancels it first.
     page.keyboard.press("g")
     expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
@@ -317,7 +372,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(thread).to_be_focused()
     page.keyboard.press("t")
     expect(second).to_be_focused()
-    wait_standing(page, "neighbouring block")
+    wait_current_location(page, "neighbouring block")
     page.keyboard.press("Enter")
     expect(second.locator("leaf-text")).to_be_focused()
     page.keyboard.press("Escape")
@@ -340,14 +395,14 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(reply).to_be_visible()
 
 
-def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
+def test_the_page_marks_the_comment_the_user_is_located_in(browser, serve):
     """A user sent from a comment to its passage lands among every other mark on the
     page, all of them painted alike. The page says which one they asked for too: the
     thread holding the focus paints its own passage apart from the rest for as long as
     the user remains in that thread.
 
     Read off the focus rather than off the travel, so it answers where the user *is*.
-    The walk moves it, a reply box keeps it — standing in a comment is standing in it
+    The walk moves it, a reply box keeps it — being located in a comment keeps that location
     while writing back — and leaving the thread takes it down, rather than leaving a
     page wearing "you are here" about a comment nobody is in."""
     url = serve(INLINE_PAGE)
@@ -371,18 +426,18 @@ def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
     page.locator("#fig.lf-mark-el").wait_for()
 
-    assert standing_mark(page) == {
+    assert current_location_mark(page) == {
         "text": "",
         "elements": [],
     }, "a page nobody has opened a comment on is already saying the user is in one"
 
     page.keyboard.press("t")
-    wait_standing(page, "bold text")
+    wait_current_location(page, "bold text")
 
     # The four readings of a marked passage have to stay in this order, or one of them
     # stops being visible where they overlap: the posted mark, the hover over it, the
-    # standing comment's own ink, and above all three the draft the user is writing.
-    # Asked with the pointer actually resting on the standing mark, because that is the
+    # current comment's own ink, and above all three the draft the user is writing.
+    # Asked with the pointer actually resting on the current-location mark, because that is the
     # overlap the order exists for and because nothing registers the hover until a mouse
     # has been over a passage. A higher highlight supplies only the properties it states,
     # so this is what lets one mark say "clickable" and "you are here" at once.
@@ -398,50 +453,50 @@ def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
     assert all(r is not None for r in ranks) and ranks == sorted(set(ranks)), (
         f"the marks' paint order is not strictly increasing: {ranks}"
     )
-    assert standing_mark(page)["text"] == "bold text", (
-        "the pointer resting on the standing mark took its own ink away"
+    assert current_location_mark(page)["text"] == "bold text", (
+        "the pointer resting on the current-location mark took its own ink away"
     )
 
     page.keyboard.press("t")
-    wait_standing(page, "neighbouring block")
+    wait_current_location(page, "neighbouring block")
 
     # A passage with no words to paint says the same thing with the outline it already
     # wears, so the two kinds of anchor answer one question and not two.
     page.keyboard.press("t")
-    wait_standing(page, "", ["fig"])
+    wait_current_location(page, "", ["fig"])
     # Past the last comment the walk comes round to the first, and back again.
     first = page.locator(
         f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
     )
     page.keyboard.press("t")
     expect(first).to_be_focused()
-    wait_standing(page, "bold text")
+    wait_current_location(page, "bold text")
     page.keyboard.press("Shift+t")
     expect(
         page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]')
     ).to_be_focused()
-    wait_standing(page, "", ["fig"])
+    wait_current_location(page, "", ["fig"])
     page.keyboard.press("Shift+t")
-    wait_standing(page, "neighbouring block")
+    wait_current_location(page, "neighbouring block")
     page.keyboard.press("Shift+t")
     expect(first).to_be_focused()
-    wait_standing(page, "bold text")
+    wait_current_location(page, "bold text")
 
-    # Standing in a comment while writing back to it is still standing in it: the reply
+    # Located in a comment while writing back to it is still located in it: the reply
     # box is inside the thread, and knowing which passage it is on is worth most there.
     first.locator("leaf-text").focus()
-    wait_standing(page, "bold text")
+    wait_current_location(page, "bold text")
 
     # And leaving the thread takes it down. A mark that outlived the user's attention
     # would be a page insisting on a comment nobody is in.
     page.evaluate("() => document.activeElement.blur()")
-    wait_standing(page, "")
+    wait_current_location(page, "")
     assert painted(page, "lf-mark") != "", (
-        "the posted marks went down with the standing one"
+        "the posted marks went down with the current one"
     )
 
 
-def test_the_mark_ramp_ranks_posted_pointed_and_standing(browser, serve):
+def test_the_mark_ramp_ranks_posted_pointed_and_current_location(browser, serve):
     """Three things a mark can be — posted, indicated, stood in — are three steps of one
     wash, ranked apart from the page's own ground, so a hand resting where it just
     clicked never lights the two alike."""
@@ -470,18 +525,9 @@ def test_the_mark_ramp_ranks_posted_pointed_and_standing(browser, serve):
     # from its neighbour. The floor is 4, against a just noticeable difference near 2.3
     # and the palette's own 6.4 and 6.5 in light, 7.4 and 7.2 in dark.
     ramp = page.evaluate("""() => {
-        // The marks' rules are adopted, not linked (runtime/marks.css).
-        const rules = [...document.styleSheets, ...document.adoptedStyleSheets].flatMap(s => {
-            try { return [...s.cssRules] } catch { return [] }
-        });
-        const probe = document.createElement('div');
-        document.body.append(probe);
-        const declared = (name) => {
-            const r = rules.find(r => (r.selectorText ?? '') === `::highlight(${name})`);
-            if (!r?.style?.backgroundColor) return null;
-            probe.style.backgroundColor = r.style.backgroundColor;
-            return getComputedStyle(probe).backgroundColor;
-        };
+        const declared = (name) =>
+            getComputedStyle(document.getElementById('p'), `::highlight(${name})`)
+                .backgroundColor;
         const paper = getComputedStyle(document.body).backgroundColor;
         const canvas = document.createElement('canvas');
         canvas.width = canvas.height = 1;
@@ -506,26 +552,20 @@ def test_the_mark_ramp_ranks_posted_pointed_and_standing(browser, serve):
         const ground = over(null);
         const steps = {};
         for (const [step, name] of [['posted', 'lf-mark'], ['pointed', 'lf-mark-hover'],
-                                    ['standing', 'lf-mark-here']]) {
-            const css = declared(name);
-            steps[step] = css === null ? null : over(css);
+                                    ['currentLocation', 'lf-mark-here']]) {
+            steps[step] = over(declared(name));
         }
-        probe.remove();
-        if (Object.values(steps).some(v => v === null)) return {missing: steps};
         return {
             fromGround: Object.fromEntries(
                 Object.entries(steps).map(([k, v]) => [k, +de(v, ground).toFixed(2)])),
             apart: {
                 'posted→pointed': +de(steps.posted, steps.pointed).toFixed(2),
-                'pointed→standing': +de(steps.pointed, steps.standing).toFixed(2),
+                'pointed→current-location': +de(steps.pointed, steps.currentLocation).toFixed(2),
             },
         };
     }""")
-    assert "missing" not in ramp, (
-        f"a step of the mark ramp has no wash rule at all: {ramp['missing']}"
-    )
     order = ramp["fromGround"]
-    assert order["posted"] < order["pointed"] < order["standing"], (
+    assert order["posted"] < order["pointed"] < order["currentLocation"], (
         "the three things a mark can be are not three steps away from the page's own"
         f" ground, so the wash does not rank them: {order}"
     )
@@ -653,7 +693,8 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
         "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
     write(page.locator(".lf-composer leaf-text"), "Too short.")
-    page.keyboard.press("ControlOrMeta+Enter")
+    with sending(page, "the comment on the second passage"):
+        page.keyboard.press("ControlOrMeta+Enter")
     expect_comment_notes(page, "#p2", 1)
     c4 = [e for e in events_model.read_events(d) if e.get("kind") == "comment"][-1][
         "id"

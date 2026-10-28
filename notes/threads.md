@@ -1,12 +1,8 @@
 # Remaining Thread plans
 
-Compact navigation, agent-written summary checkpoints, shared Thread surfaces,
-live samples, and message workflows are implemented. Leaf suggests an older
-contiguous range when a discussion grows long; the agent reads it and writes the
-summary. Users can unfold the original messages, and the agent can replace an
-overlapping summary as the discussion grows. Their contracts live in
+The current contracts live in
 [threads](../skills/leaf/references/threads.md),
-[session lifetime](../skills/leaf/scripts/leaf/session-lifetime.md), and
+[session lifetime](../src/leaf/session-lifetime.md), and
 [the module Thread API](../skills/leaf/references/module-annotations.md#widget-local-thread-placement).
 
 ## Current status
@@ -29,7 +25,7 @@ working resumption path, not a phrase in status text.
 
 ## Shared evidence
 
-Use real Leaf components and the same seeded histories: sparse and crowded pages,
+Use real Leaf widgets and the same seeded histories: sparse and crowded pages,
 a long exchange, an oversized message, an unanswered question, queued input during
 older work, a healthy external wait, interrupted progress, and an unfinished draft.
 Exercise direct gestures and keyboard routes in light/dark themes and wide/narrow

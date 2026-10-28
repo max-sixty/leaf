@@ -1,0 +1,31 @@
+{
+  "lf-file-tree": {
+    "description": "An optional keyboard-accessible file navigator, drawn with Pierre Trees, from a file-list source or another widget's declared files output.",
+    "x-instructions": "Bind `source` to a `file-list` feed, or set `for` to a widget that publishes a compatible `files` output; the package's author instructions say when each fits.",
+    "type": "object",
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+      "for": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "aria-label": { "type": "string", "minLength": 1 }
+    },
+    "required": ["id"],
+    "oneOf": [{ "required": ["source"] }, { "required": ["for"] }],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-data": {
+      "files": {
+        "contract": "file-list",
+        "source": "source",
+        "reference": "for",
+        "output": "files",
+        "property": "value"
+      }
+    },
+    "x-refers": { "for": {} },
+    "x-upgrade": true,
+    "x-shadow": true,
+    "x-height": true,
+    "x-example": "<lf-file-tree id=\"project-files\" source=\"project-files\" aria-label=\"Project files\"></lf-file-tree>"
+  }
+}

@@ -6,13 +6,9 @@ import re
 
 import pytest
 from interact_support import wait_for
-from leaf import data as data_model
-from leaf import user_views as user_views_model
-from leaf.render_checks import wait_until_ready
-from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import SHORT_SUGGESTION, live_url
-from render_cases_navigation import data_projection_page
+from render_cases_navigation import DATA_PROJECTION_MODULE, data_projection_page
 from render_harness import (
     PANEL,
     displayed,
@@ -22,6 +18,11 @@ from render_harness import (
     wait_for_revision,
     watched,
 )
+
+from leaf import data as data_model
+from leaf import user_views as user_views_model
+from leaf.render_checks import wait_until_ready
+from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -77,6 +78,51 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         assert page.locator("body").bounding_box()["height"] == pytest.approx(
             900, abs=1
         )
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+
+
+def test_external_link_geometry_is_complete_before_runtime_startup(browser, serve):
+    """The inline mark must not rewrap prose when the module graph arrives."""
+    source = leaf_page(
+        "External link",
+        '<h1>Read the change</h1><p id="copy">'
+        '<a id="link" href="https://example.com/change" target="_self" rel="author">'
+        "Pull request with <strong>evidence</strong></a> "
+        '<span id="after">adopted the boundary. The runner checkout remains stable, '
+        "the supervisor owns the sandbox process tree, and bounded files cross back."
+        "</span></p>",
+    )
+    boot = []
+    page = browser.new_page(viewport={"width": 678, "height": 900})
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    geometry = """() => {
+      const range = document.createRange();
+      range.selectNodeContents(document.querySelector('#after'));
+      return [...range.getClientRects()].map(rect => rect.toJSON());
+    }"""
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(source), wait_until="commit")
+        displayed(page)
+        expect(page.locator("#copy")).to_be_visible()
+        before = page.evaluate(geometry)
+        assert before, "the authored words did not have visible geometry"
+        assert boot, "the positive control did not hold the boot module"
+        authored = page.locator("#link").evaluate(
+            "link => document.documentElement.lfInitial.authoredCopy(link).outerHTML"
+        )
+        assert authored == (
+            '<a id="link" href="https://example.com/change" target="_self" rel="author">'
+            "Pull request with <strong>evidence</strong></a>"
+        )
+        boot.pop().continue_()
+        wait_until_ready(page)
+        expect(page.locator("#link > svg.lf-external-mark")).to_be_visible()
+        expect(page.locator("#link")).to_have_attribute("target", "_blank")
+        assert page.evaluate(geometry) == before
     finally:
         for route in boot:
             route.continue_()
@@ -142,25 +188,24 @@ def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
     expect(host.locator(PANEL)).to_have_attribute("data-rest", "mark")
     child = host.frame_locator("#practice iframe")
     expect(child.locator(PANEL)).to_have_attribute("data-rest", "row")
-    context.close()
 
 
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
     """A data renderer runs after the initial page dressing, but what it contributes
     is still part of the Leaf and should carry the same visible navigation contract."""
     url = data_projection_page(serve)
-    module = serve.page_dir / "widgets" / "lf-feed.js"
+    # The page's own module for the family, which takes the package's place.
+    module = serve.page_dir / "page" / "widgets" / "lf-feed.js"
+    module.parent.mkdir(parents=True, exist_ok=True)
     module.write_text(
-        module.read_text()
-        .replace("{offer,", "{keeps, keepsText, offer,")
-        .replace(
+        DATA_PROJECTION_MODULE.replace("{keeps,", "{keeps, keepsText,").replace(
             "const row = document.createElement('p');\n"
-            "      row.append(value, offer('button', 'inspect', 'Inspect'));",
+            "      row.append(words, offer('button', 'inspect', 'Inspect'));",
             """const prior = [...this.children].find(row => row.dataset.lfDatum === key);
       const row = prior ?? document.createElement('p');
       const link = row.querySelector('a') ?? document.createElement('a');
-      keeps(link, 'href', value === 'Ready' ? 'https://example.com/status' : '#title');
-      keepsText(link, value);
+      keeps(link, 'href', words === 'Ready' ? 'https://example.com/status' : '#title');
+      keepsText(link, words);
       if (!prior) {
         link.target = '_self';
         link.rel = 'author';
@@ -260,12 +305,22 @@ def test_reduced_motion_reaches_declared_shadow_stages(
     }
     package = tmp_path / ".leaf"
     package.mkdir()
-    (package / "shadow.css").write_text("""
-.pulse { animation: package-pulse 30s linear infinite; }
-.pulse::before { content: 'Activity'; animation: package-pulse 30s linear infinite; }
+    # The sheet reaches both trees and names each widget it styles: by tag in the
+    # document, by its host in the shadow tree.
+    (package / "widget-shadow.css").write_text("""
+lf-motion-light .pulse, :host(lf-motion-shadow) .pulse {
+  animation: package-pulse 30s linear infinite;
+}
+lf-motion-light .pulse::before, :host(lf-motion-shadow) .pulse::before {
+  content: 'Activity'; animation: package-pulse 30s linear infinite;
+}
 @keyframes package-pulse { from { opacity: .25; } to { opacity: 1; } }
-button { transition: background-color 30s linear; background-color: rgb(10, 20, 30); }
-button.chosen { background-color: rgb(40, 50, 60); }
+lf-motion-light button, :host(lf-motion-shadow) button {
+  transition: background-color 30s linear; background-color: rgb(10, 20, 30);
+}
+lf-motion-light button.chosen, :host(lf-motion-shadow) button.chosen {
+  background-color: rgb(40, 50, 60);
+}
 """)
     modules = {}
     for tag, declaration in registry.items():
@@ -284,7 +339,6 @@ customElements.define('{tag}', class extends HTMLElement {{
     pulse.ends = [];
     pulse.addEventListener('animationend', event => pulse.ends.push(event.pseudoElement));
     const button = document.createElement('button'); button.textContent = 'Choose';
-    button.style.transition = 'background-color 30s linear';
     button.onclick = () => button.classList.toggle('chosen');
     const nodes = [pulse, button];
     {stage};
@@ -443,12 +497,12 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
     )
 
 
-def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
+def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a_shift(
     browser, serve
 ):
     """A region is bounded exactly when the stylesheet makes its body scroll, a flowing
     region is carried by the one containing it, and a scroller change is announced once
-    the new geometry exists. Nothing is told the posture: a class stands in for the
+    the new geometry exists. Nothing is told the scroll behavior: a class stands in for the
     container query that decides it on a page."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     readings = page.evaluate(
@@ -495,7 +549,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
           const flow = {
             outer: scrollerName(leaf.effectiveScroller('outer-pane')),
             preview: scrollerName(leaf.effectiveScroller(previewId)),
-            posture: leaf.readingPosture(previewId),
+            scroll_behavior: leaf.regionScrollBehavior(previewId),
           };
 
           // Each change waits out the frame its shift was announced in, so the next
@@ -507,7 +561,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
           const held = {
             outer: scrollerName(leaf.effectiveScroller('outer-pane')),
             preview: scrollerName(leaf.effectiveScroller(previewId)),
-            posture: leaf.readingPosture(previewId),
+            scroll_behavior: leaf.regionScrollBehavior(previewId),
             focusRegion: leaf.readingRegionFor(outer.querySelector('#pane-heading')).id,
           };
 
@@ -517,7 +571,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
           await frames();
           const previewFlows = {
             preview: scrollerName(leaf.effectiveScroller(previewId)),
-            posture: leaf.readingPosture(previewId),
+            scroll_behavior: leaf.regionScrollBehavior(previewId),
           };
 
           // Hidden until it is removed below.
@@ -570,15 +624,18 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
     assert readings["flow"] == {
         "outer": "document",
         "preview": "document",
-        "posture": "flow",
+        "scroll_behavior": "flow",
     }
     assert readings["held"] == {
         "outer": "outer-body",
         "preview": "preview-body",
-        "posture": "bounded",
+        "scroll_behavior": "bounded",
         "focusRegion": "outer-pane",
     }
-    assert readings["previewFlows"] == {"preview": "outer-body", "posture": "flow"}
+    assert readings["previewFlows"] == {
+        "preview": "outer-body",
+        "scroll_behavior": "flow",
+    }
     preview = "lf-region:outer-host:preview"
     assert readings["shifts"] == [
         [

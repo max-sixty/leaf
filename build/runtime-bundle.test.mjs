@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { kernelOutputs } from "./runtime-bundle.mjs";
 
-/** The layer a page vendors with the kernel: the source minus what it replaces. */
+/** The runtime a Leaf serves with the kernel: the source minus what it replaces. */
 async function vendor(layer, kernel, output) {
   await cp(layer, output, { recursive: true });
   const record = JSON.parse(kernel.get("kernel.json"));
@@ -21,7 +21,7 @@ async function vendor(layer, kernel, output) {
   return record;
 }
 
-test("the kernel preserves native packages, shared state, and stampable generation", async () => {
+test("the kernel preserves native packages and shared state", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "leaf-install-bundle-"));
   const layer = join(temporary, "input");
   const output = join(temporary, "output");
@@ -31,14 +31,12 @@ test("the kernel preserves native packages, shared state, and stampable generati
     "runtime/state.js": "export const state = { clicks: 0, annotations: false };",
     "runtime/vendor-bridge.js": 'export { state } from "./state.js";',
     "runtime/widget-api.js": 'export { state } from "./state.js";',
+    "runtime/portable-api.js": 'export { state } from "./state.js";',
     "runtime/check-api.js": 'export { state } from "./state.js";',
     "runtime/annotation-overlay/check-api.js": 'export { state } from "../state.js";',
     "runtime/media.js":
-      'export { state } from "./state.js"; export { rendered } from "../vendor/browser-runtime.js";',
-    "runtime/layer-client.js":
-      'export { layerGeneration } from "./layer-generation.js";',
-    "runtime/layer-generation.js":
-      'export const layerGeneration = "__LEAF_LAYER_GENERATION__";',
+      'export { state } from "./state.js"; export { rendered } from "./framework.js";',
+    "runtime/layer-client.js": 'export { state } from "./state.js";',
     "runtime/annotation-overlay/index.js":
       'import { state } from "../state.js"; export { state }; state.annotations = true; export const vendor = () => import("../../vendor/example.js");',
     "runtime/bootstrap.js": "(() => { window.boot = true; })();",
@@ -46,10 +44,10 @@ test("the kernel preserves native packages, shared state, and stampable generati
       'import { state } from "/runtime/widget-api.js"; state.clicks += 1;',
     "vendor/example.js": 'export { state } from "/runtime/vendor-bridge.js";',
     "vendor/lit.js": "export const html = (strings) => strings.join('');\n",
-    "vendor/browser-runtime.js":
-      'export { rendered } from "./browser-runtime/render.js";\n',
-    "vendor/browser-runtime/render.js":
-      'import { html } from "../lit.js";\nimport { state } from "../../runtime/state.js";\n\nexport const rendered = () => html([state]);\n',
+    "vendor/signals-core.js": "export const signal = (value) => ({ value });\n",
+    "runtime/framework.js": 'export { rendered } from "./framework/render.js";\n',
+    "runtime/framework/render.js":
+      'import { html } from "/vendor/lit.js";\nimport { signal } from "/vendor/signals-core.js";\nimport { state } from "../state.js";\n\nexport const rendered = () => html([signal(state).value]);\n',
   };
   try {
     for (const [path, source] of Object.entries(sources)) {
@@ -65,11 +63,15 @@ test("the kernel preserves native packages, shared state, and stampable generati
     const leaf = await import(pathToFileURL(join(output, "leaf.js")));
     const api = await import(pathToFileURL(join(output, "runtime/widget-api.js")));
     const checks = await import(pathToFileURL(join(output, "runtime/check-api.js")));
+    const portable = await import(
+      pathToFileURL(join(output, "runtime/portable-api.js"))
+    );
     const overlayChecks = await import(
       pathToFileURL(join(output, "runtime/annotation-overlay/check-api.js"))
     );
     assert.equal(leaf.state.annotations, false);
     assert.equal(checks.state, leaf.state);
+    assert.equal(portable.state, leaf.state);
     assert.equal(overlayChecks.state, leaf.state);
     const annotations = await leaf.annotations();
     assert.equal(leaf.state.annotations, true);
@@ -82,18 +84,20 @@ test("the kernel preserves native packages, shared state, and stampable generati
     api.state.clicks += 1;
     assert.equal(annotations.state.clicks, 1);
 
-    // The kernel is runtime modules and chunks named after their modules; it
-    // absorbs the framework and leaves widgets, upstream vendor modules, and the
-    // generation and classic scripts nothing imports native.
+    // The kernel is runtime modules and chunks named after their modules, but for
+    // the one holding what the portable helpers reach, the shared state here; it
+    // absorbs the framework and its signals and leaves widgets, upstream vendor
+    // modules, and the classic scripts nothing imports native.
     assert.deepEqual([...kernel.keys()].sort(), [
       "kernel.json",
       "leaf.js",
       "runtime/annotation-overlay/check-api.js",
-      "runtime/bundle-annotation-overlay~index.js",
-      "runtime/bundle-state.js",
+      "runtime/bundle-annotation-overlay.js",
+      "runtime/bundle-portable.js",
       "runtime/check-api.js",
       "runtime/layer-client.js",
       "runtime/media.js",
+      "runtime/portable-api.js",
       "runtime/vendor-bridge.js",
       "runtime/widget-api.js",
     ]);
@@ -103,30 +107,27 @@ test("the kernel preserves native packages, shared state, and stampable generati
       "runtime/annotation-overlay/check-api.js",
       "runtime/annotation-overlay/index.js",
       "runtime/check-api.js",
+      "runtime/framework.js",
+      "runtime/framework/render.js",
       "runtime/layer-client.js",
       "runtime/media.js",
+      "runtime/portable-api.js",
       "runtime/state.js",
       "runtime/vendor-bridge.js",
       "runtime/widget-api.js",
-      "vendor/browser-runtime.js",
-      "vendor/browser-runtime/render.js",
+      "vendor/signals-core.js",
     ]);
     assert.match(kernel.get("leaf.js").toString(), /import\("\/widgets\/custom.js"\)/);
-    assert.match(
-      kernel.get("runtime/layer-client.js").toString(),
-      /from "\/runtime\/layer-generation.js"/,
-    );
     const javascript = [...kernel]
       .filter(([path]) => path.endsWith(".js"))
       .map(([, bytes]) => bytes)
       .join("\n");
-    assert.equal(javascript.split('"__LEAF_LAYER_GENERATION__"').length - 1, 0);
     // The framework shares the runtime's one state instance and the page's one Lit.
     assert.equal(javascript.split("clicks: 0").length - 1, 1);
     assert.match(javascript, /from "\/vendor\/lit\.js"/);
     // A lazily imported kernel module is a chunk, and its vendor import stays native.
     assert.match(javascript, /import\("\/vendor\/example\.js"\)/);
-    assert.doesNotMatch(javascript, /from "[^"]*browser-runtime|bundle-[A-Z0-9]{8}/);
+    assert.doesNotMatch(javascript, /from "[^"]*signals-core|bundle-[A-Z0-9]{8}/);
     // A historical developer arm may predate the optional diagnostic entry.
     await rm(join(layer, "runtime/annotation-overlay/check-api.js"));
     const historical = join(temporary, "historical");

@@ -1,7 +1,7 @@
 # Datastore review
 
 This note considers editable table rows and externally supplied records. The current
-storage contract is [page-storage.md](../skills/leaf/scripts/leaf/page-storage.md):
+storage contract is [page-storage.md](../src/leaf/page-storage.md):
 authored markup supplies initial values, the event log records user and agent changes,
 and `data/` holds external values. A row feature should use those owners.
 

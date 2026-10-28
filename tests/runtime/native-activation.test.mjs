@@ -2,12 +2,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 // Importing the page's own parts declares "On a link".
-import "../../skills/leaf/assets/runtime/keyboard/page.js";
-import { dispatchKey } from "../../skills/leaf/assets/runtime/keyboard/dispatch.js";
-import {
-  keys,
-  reflectFirstScopes,
-} from "../../skills/leaf/assets/runtime/keyboard/scopes.js";
+import "../../browser/runtime/keyboard/page.js";
+import { dispatchKey } from "../../browser/runtime/keyboard/dispatch.js";
+import { keys, reflectFirstScopes } from "../../browser/runtime/keyboard/scopes.js";
 
 // One press from wherever focus stands: whether Leaf answered it, and whether the
 // browser's own default survives.

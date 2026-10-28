@@ -24,7 +24,7 @@ vars:
     \ cards; remove smart margin placement,\n3500\u20134200 LOC, lose local markers; remove the hosted\
     \ AI agent, 1200\u20131400 LOC,\nretain public interactive demos; remove drawing comments, 900\u2013\
     1050 LOC,\nkeep ordinary anchored text comments. Mark implementation proofs as pending.\n\nThe vendored\
-    \ vocabulary is `packages/default/registry.json` under the Leaf\nskill's base directory. The page\
+    \ vocabulary is `../../packages/default/registry.json` relative to the Leaf\nskill's base directory. The page\
     \ directory is not reachable from here, so\nreply with the complete `index.html`, rather than writing\
     \ a file.\n"
 assert:

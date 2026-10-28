@@ -9,20 +9,21 @@ private copy through Leaf's canonical Python server. The catalog previews and th
 product card come from the max-sixty/leaf-assets revision pinned in `leaf-assets.json`.
 
 The worked examples and developer package galleries become complete Leaf page directories
-under examples/<name>/. The same preparation path that serves a local fixture vendors
-each page's selected layer, stamps its authored versions, applies its companion event
+under examples/<name>/. The same preparation path that serves a local fixture records
+each page's selected packages, stamps its authored versions, applies its companion event
 log and data, and closes the finished page without claiming it for an agent. A second,
 derived tree contains the immutable live shell Cloudflare serves before the canonical
 server answers its API requests.
 
 Every `leaf` command a build runs comes from the Leaf its caller hands it. `leaf-dev
 site` hands it an installation prepared from this checkout (`leaf_dev.commands.distribution`)
-beside its output, so each page vendors the compiled kernel.
-The website's container image installs the same tree, so a revision a hosted session
-writes captures the layer the published revisions were built from. The suite and
+beside its output, so each page runs the compiled kernel, which the live shell
+publishes beside each revision. The website's container image installs the same tree,
+so a revision a hosted session writes captures the layer the published revisions were
+built from and runs the same runtime. The suite and
 `refresh-previews` serve the site with this checkout's adapter, which refuses pages
-another Leaf vendored, so they build with the checkout's own Leaf; the suite's browser
-probes also import source modules a compiled kernel no longer has.
+at another page protocol, so they build with the checkout's own Leaf; the suite's
+browser probes also import source modules a compiled kernel no longer has.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote through the website server's routing and refuses a site
@@ -53,28 +54,24 @@ from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
 import click
-from leaf.files import latest_revision, list_revisions
-from leaf.live_shell import write_live_shell
-from leaf.revision_delivery import DeliveryAddress, rebase_document
-from leaf.schema import (
-    BROWSER_DIRS,
-    DATA_DIR,
-    PAGE_STATE_FILES,
-    SERVED_PATH,
-    SESSION_ROUTE_DIRS,
-    VENDORED_FILES,
-)
-from leaf.structure import FRAME_ANCESTORS_CSP
 from leaf_website import (
     SITE_MANIFEST,
     SITE_ORIGIN,
-    PageRoute,
     initial_state,
-    page_routes,
     published_page,
     site_metadata,
 )
 
+from leaf.files import latest_revision, list_revisions
+from leaf.live_shell import write_live_shell
+from leaf.schema import (
+    BROWSER_DIRS,
+    DATA_DIR,
+    LAYER_TOP_FILES,
+    PAGE_STATE_FILES,
+    SESSION_ROUTE_DIRS,
+)
+from leaf.structure import FRAME_ANCESTORS_CSP
 from leaf_dev import LEAF_COMMAND, ROOT, docs
 from leaf_dev.arms import environment
 from leaf_dev.commands.distribution import prepare
@@ -82,6 +79,7 @@ from leaf_dev.docs import catalog_preview, media_url, product_route, product_sou
 from leaf_dev.example_data import catalog_sources, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import (
+    fixture_environment,
     package_selection_args,
     prepare_page,
     read_fixture,
@@ -155,52 +153,51 @@ def published_pages(
     return product + examples
 
 
-def resolves(routes: tuple[PageRoute, ...], url: str) -> bool:
-    """Whether the website server answers one public URL with a file.
-
-    The page and the path inside it are the server's own reading
-    (`leaf_website.published_page`), and inside a page it serves its document and only
-    the files `SERVED_PATH` admits. A link to any other file the build holds, such as
-    a page's log or the site manifest, reaches nothing live.
-
-    Inside a page this restates the server's own decision (`PageEndpoint._get`) as
-    "a served path the page directory holds as a file". The server also answers
-    paths no file backs, a stamped version and a revision's captured resources, so
-    a link to one of those stops the build until this learns it. The server itself
-    cannot be asked from here: it refuses a page
-    another Leaf vendored, as the prepared install vendors the published ones, and
-    every request it answers is appended to the page's interaction log.
-    """
-    selected = published_page(routes, unquote(urlsplit(url).path))
-    if selected is None:
-        return False
-    page_dir, _, inside, _ = selected
-    if inside == "/":
-        return (page_dir / "index.html").is_file()
-    return bool(SERVED_PATH.fullmatch(inside)) and (page_dir / inside[1:]).is_file()
-
-
 def check_links(out: Path) -> None:
-    dead = []
+    """Check the delivered documents against the public asset tree.
+
+    Authored paths name captured resources, not files served at the page root. The
+    live shell has already addressed them; read those bytes, and map each release
+    prefix to its public page directory as the Worker's releaseAssetRoute does.
+    The asset tree contains only public files, apart from the private `_leaf`
+    namespace the Worker refuses.
+    """
+    assets = asset_site(out)
     manifest = json.loads((out / SITE_MANIFEST).read_text(encoding="utf-8"))
-    routes = page_routes(out, manifest["pages"])
-    for page_root, page_dir, _ in routes:
-        for page in sorted(page_dir.rglob("*.html")):
-            relative = page.relative_to(page_dir)
-            html = rebase_document(
-                page.read_text(encoding="utf-8"),
-                DeliveryAddress(page_root, page_root),
-            )
-            public_page = f"{page_root}/{relative}"
-            for target in local_targets(html):
-                public_target = urljoin(public_page, target)
-                if not resolves(routes, public_target):
-                    dead.append(f"{public_page} → {target}")
+
+    def resolves(url: str) -> bool:
+        path = unquote(urlsplit(url).path)
+        for root, page in manifest["pages"].items():
+            if path.startswith(page["assets"] + "/"):
+                page_root = root.rstrip("/")
+                path = page_root + path.removeprefix(page["assets"])
+                route = ((page_root, assets / page_root.lstrip("/"), page["kind"]),)
+                selected = published_page(route, path)
+                if selected is None:
+                    return False
+                inside = selected[2]
+                if inside == "/" or inside == "/api" or inside.startswith("/api/"):
+                    return False
+                break
+        if path == "/_leaf" or "/_leaf/" in path:
+            return False
+        target = assets / path.lstrip("/")
+        if target.is_dir():
+            target /= "index.html"
+        return target.is_file()
+
+    dead = []
+    for page in sorted(assets.rglob("*.html")):
+        public_page = "/" + page.relative_to(assets).as_posix()
+        for target in local_targets(page.read_text(encoding="utf-8")):
+            public_target = urljoin(public_page, target)
+            if not resolves(public_target):
+                dead.append(f"{public_page} → {target}")
     # A card image is named in a content attribute rather than an href, so the sweep
     # above never sees it: an unfurled link is the one surface whose broken image
     # nobody browsing the site would notice.
     for route, page in sorted(manifest["pages"].items()):
-        if not resolves(routes, page["image"]):
+        if not resolves(page["image"]):
             dead.append(f"{route} → {page['image']} (og:image)")
     if dead:
         sys.exit(
@@ -215,7 +212,7 @@ def leaf(
     done = subprocess.run(
         [*command, *args],
         cwd=ROOT,
-        env=env,
+        env=fixture_environment(env),
         capture_output=True,
         text=True,
         input=input_text,
@@ -410,7 +407,7 @@ def publish_live_shells(
         "routes": {
             "layer": list(BROWSER_DIRS),
             "session": list(SESSION_ROUTE_DIRS),
-            "files": list(VENDORED_FILES),
+            "files": list(LAYER_TOP_FILES),
         },
         "pages": {},
     }

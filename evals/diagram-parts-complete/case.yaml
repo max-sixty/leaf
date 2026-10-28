@@ -15,7 +15,7 @@ vars:
     Write a Leaf page section for this review of a release flow. The user wants to
     comment on individual boxes in the diagram, especially the decisions, as well
     as on the diagram as a whole. Use the diagram package's lf-diagram element;
-    its authoring entry is in `packages/diagram/registry.json` relative to the
+    its authoring entry is in `../../packages/diagram/registry.json` relative to the
     leaf skill's base directory.
 
     The flow is: Ready? (A) goes to Tested? (B) on yes and Wait (C) on no.

@@ -7,10 +7,16 @@
 # both arms (1/1 each). Reading the initial known-answer output caught a page edit
 # before the answer despite a passing grade; after clarifying the source and rubric,
 # the candidate answered first (1/1), while the base read page state first (0/1).
-# `delegated-work-visible` was added on 2026-10-20 for the TODO item on keeping
-# delegated work visible. On e5113c687's instructions it passed 3/3 on Claude Code
-# and 2/2 on Codex, each run leaving a progress reply and then working plan steps, a
-# `--todo` reply or both, so it guards rather than separates.
+# `delegated-work-visible` was added on 2026-10-20 for the backlog item on keeping
+# delegated work visible (issue #4018). On e5113c687's instructions it passed 3/3
+# on Claude Code and 2/2 on Codex, each run leaving a progress reply and then
+# working plan steps, a `--todo` reply or both, so it guards rather than separates.
+# The during-work verification waits 40 s, and a comment posted once it starts
+# checks that page input still reaches the agent (`reached-during-verify`). Real
+# misses from 18 to 28 Oct were foreground calls 200k to 600k tokens into their
+# sessions. On 68337d366 these fresh sessions backgrounded the wait 6/6 with
+# SKILL.md's sentence on background commands and 3/3 without it, so it guards
+# rather than separates.
 description: parent-keeps-leaf-responsive
 metadata:
   purpose: The parent owns the Leaf conversation while workers do substantive work; known answers and page integration stay with the parent.

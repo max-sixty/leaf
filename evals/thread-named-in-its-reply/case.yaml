@@ -1,4 +1,4 @@
-# Added with `--title` on `thread reply` and `page state <page> <id>` for a thread's
+# Added with `--title` on `thread reply` and `page state <page> <message>` for a thread's
 # history (#1374). Base at 69bee09a8 ran a separate `leaf thread title` (0 of 3);
 # the change 3 of 3. No other case fell across all 16 run at once, x3 per arm.
 # Reworded by #2329 (updates to progress messages); at 3fe3eb0af it passed 1/1 on
@@ -7,7 +7,7 @@ description: thread-named-in-its-reply
 metadata:
   purpose:
     "Threads reference: an untitled thread is named by `--title` on the reply that answers it,
-    and a long thread's elided middle is read with `leaf page state <page> <thread-id>`."
+    and a long thread's elided middle is read with `leaf page state <page> <message>`."
   tags:
     - threads
 vars:
@@ -33,7 +33,7 @@ assert:
       Read the commands. Pass only if all three hold. First, the earlier messages are
       read with `leaf page state <page> 3fa1c2d9` (or the same command naming
       7c41d0e2), optionally paged with `--after`, before the reply. Second, the answer
-      is one `leaf response reply` naming the exact reference `7f20c3d9:0:7c41d0e2`, and it or a progress message (`--ephemeral`) posted
+      is one `leaf thread reply` naming the exact reference `7f20c3d9:0:7c41d0e2`, and it or a progress message (`--ephemeral`) posted
       before it carries `--title` with a few words naming the thread's subject; that
       progress message may come before the read. Third, no separate command names the
       thread: fail on any `leaf thread title`, `leaf thread read`, or `leaf page

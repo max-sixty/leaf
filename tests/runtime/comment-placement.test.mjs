@@ -18,12 +18,15 @@ import { floatingPlacement } from "/runtime/annotation-overlay/floating.js";
 document.documentElement.style.setProperty("--thread-card-min", "320px");
 document.documentElement.style.setProperty("--thread-card", "592px");
 
-// A window boundary, keyed by its edges as commentBoundary keys one.
-const windowBoundary = (left, top, width, height) =>
-  Object.assign(new DOMRect(left, top, width, height), {
+// A window boundary, keyed by its edges as commentBoundary keys one, with no chrome
+// beside any columns, so its room across them is itself.
+const windowBoundary = (left, top, width, height) => {
+  const boundary = Object.assign(new DOMRect(left, top, width, height), {
     inRegion: null,
     key: [left, top, left + width, top + height],
   });
+  return Object.assign(boundary, { across: () => boundary });
+};
 const boundary = windowBoundary(8, 50, 1284, 797);
 // A paragraph `width` wide from x = `left`, from y = `top` to `bottom`.
 const block = (left, width, top, bottom) => new DOMRect(left, top, width, bottom - top);
@@ -33,6 +36,20 @@ const scroller = (scrollTop, height = 3000) => {
   box.ownerDocument = { scrollingElement: box };
   return box;
 };
+// Floating UI's platform for a surface of `dimensions()` in the window, unscaled.
+const windowPlatform = (dimensions) => ({
+  getElementRects: ({ reference }) => ({
+    reference: reference.getBoundingClientRect(),
+    floating: { x: 0, y: 0, ...dimensions() },
+  }),
+  getOffsetParent: () => window,
+  getDimensions: dimensions,
+  getClippingRect: ({ rootBoundary }) => rootBoundary,
+  convertOffsetParentRelativeRectToViewportRelativeRect: ({ rect }) => rect,
+  isElement: () => false,
+  getDocumentElement: () => document.documentElement,
+  isRTL: () => false,
+});
 const side = (clear, { scrolled = 1000, document = 3000, coarse = false } = {}) =>
   commentSide({
     clear,
@@ -99,21 +116,20 @@ test("a submitted frame survives supersession until it lands, then follows scrol
       coarse: false,
     };
     const editor = commentPlacement();
-    editor.choose({ ...input, clear: unanchored ? null : clear });
+    const original = editor.choose({ ...input, clear: unanchored ? null : clear });
     const box = new DOMRect(980, 317, 320, 160);
     const card = commentPlacement();
     card.adopt({ box, placement: editor.capture() });
     const opening = card.choose(input);
-    assert.equal(opening.side, editor.side);
+    assert.equal(opening.side, original.side);
     assert.equal(opening.fresh, false);
-    const top = box.top - (unanchored ? clear.bottom : clear.top);
-    assert.deepEqual(opening.hold, { top, foot: top + box.height });
-    assert.deepEqual(card.choose(input).hold, opening.hold);
+    assert.equal(opening.adopted, true);
+    assert.equal(card.choose(input).adopted, true);
 
     const scrolled = block(300, 660, 200, 400);
     const reading = card.choose({ ...input, clear: scrolled, row: scrolled.top });
     assert.equal(reading.fresh, false);
-    assert.deepEqual(reading.hold, opening.hold);
+    assert.equal(reading.adopted, true);
     card.landed({
       x: box.left,
       y: box.top - 100,
@@ -122,12 +138,12 @@ test("a submitted frame survives supersession until it lands, then follows scrol
           scale: { x: 1, y: 1 },
           column: scrolled.right - 320,
           attachmentInline: scrolled.left,
-          line: card.line(scrolled, scrolled.top),
+          line: unanchored ? scrolled.bottom : scrolled.top,
         },
         held: { height: box.height },
       },
     });
-    assert.equal(card.choose({ ...input, clear: scrolled }).hold, undefined);
+    assert.equal(card.choose({ ...input, clear: scrolled }).adopted, false);
 
     const reflowed = block(300, 700, 200, 400);
     assert.equal(card.choose({ ...input, clear: reflowed }).fresh, true);
@@ -135,7 +151,7 @@ test("a submitted frame survives supersession until it lands, then follows scrol
     const resized = windowBoundary(8, 50, 1084, 797);
     const afterResize = card.choose({ ...input, boundary: resized });
     assert.equal(afterResize.fresh, true);
-    assert.equal(afterResize.hold, undefined);
+    assert.equal(afterResize.adopted, false);
   }
 });
 
@@ -153,88 +169,30 @@ test("a page scroll that moves a region's shown bounds keeps the side", () => {
   };
   const card = commentPlacement();
   assert.equal(card.choose({ ...input, boundary: region(58, 597) }).fresh, true);
-  assert.equal(card.choose({ ...input, boundary: region(50, 560) }).fresh, false);
+  // A placement superseded before it lands opened nothing, so the next is still
+  // opening: a card opened as Floating UI first loads makes room clear of its target.
+  // It keeps the side the first chose, so it is not fresh.
+  const again = card.choose({ ...input, boundary: region(58, 597) });
+  assert.deepEqual([again.fresh, again.opening], [false, true]);
+  card.landed({
+    x: clear.left,
+    y: clear.bottom + 8,
+    middlewareData: {
+      scaled: {
+        scale: { x: 1, y: 1 },
+        column: clear.left,
+        attachmentInline: clear.left,
+        line: clear.bottom,
+      },
+      held: { height: 160 },
+    },
+  });
+  const landed = card.choose({ ...input, boundary: region(50, 560) });
+  assert.deepEqual([landed.fresh, landed.opening], [false, false]);
   assert.equal(
     card.choose({ ...input, boundary: region(50, 560, [0, 0, 900, 500]) }).fresh,
     true,
   );
-});
-
-test("a growing card holds its top while read and its foot for the turn that joins a draft", () => {
-  const clear = block(300, 660, 300, 500);
-  const input = {
-    clear,
-    boundary,
-    row: clear.top,
-    scroller: scroller(1000),
-    coarse: false,
-  };
-  const card = commentPlacement();
-  const land = () =>
-    card.landed({
-      x: 980,
-      y: 292,
-      middlewareData: {
-        scaled: {
-          scale: { x: 1, y: 1 },
-          column: 0,
-          attachmentInline: clear.left,
-          line: card.line(clear, clear.top),
-        },
-        held: { height: 200 },
-      },
-    });
-  const place = (reading) => {
-    const { fresh, hold } = card.choose(input);
-    const edge = card.holding({ fresh, hold, ...reading });
-    land();
-    return edge;
-  };
-  const turn = (key, author) => ({ key, author });
-  assert.equal(
-    place({ transcript: 100, drafting: false, latest: turn("a", "agent") }),
-    "top",
-  );
-  // The user starts a reply: its first line holds the top.
-  assert.equal(
-    place({
-      transcript: 100,
-      drafting: true,
-      latest: turn("a", "agent"),
-      draftText: "Hi",
-    }),
-    "top",
-  );
-  // An agent turn joins while they draft: the reply row holds, keyed to that turn.
-  assert.equal(
-    place({
-      transcript: 160,
-      drafting: true,
-      latest: turn("b", "agent"),
-      draftText: "Hi",
-    }),
-    "foot",
-  );
-  assert.equal(
-    place({
-      transcript: 160,
-      drafting: true,
-      latest: turn("b", "agent"),
-      draftText: "Hi",
-    }),
-    "foot",
-  );
-  // A new edit releases it.
-  assert.equal(
-    place({
-      transcript: 160,
-      drafting: true,
-      latest: turn("b", "agent"),
-      draftText: "Hi!",
-    }),
-    "top",
-  );
-  assert.deepEqual(card.heldAt("top"), { top: -8 });
 });
 
 test("beside, clearing a margin row never costs the card width", async () => {
@@ -389,19 +347,7 @@ test("zoom clearance reaches the solver through the floating driver", async () =
 test("a carried surface stands where it was dropped, past the attachment limit", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   const dimensions = () => ({ width: 320, height: 100 });
-  const platform = {
-    getElementRects: ({ reference }) => ({
-      reference: reference.getBoundingClientRect(),
-      floating: { x: 0, y: 0, ...dimensions() },
-    }),
-    getOffsetParent: () => window,
-    getDimensions: dimensions,
-    getClippingRect: () => boundary,
-    convertOffsetParentRelativeRectToViewportRelativeRect: ({ rect }) => rect,
-    isElement: () => false,
-    getDocumentElement: () => document.documentElement,
-    isRTL: () => false,
-  };
+  const platform = windowPlatform(dimensions);
   // One line of words with the whole room right of it, which the surface stands beside,
   // and one across the window, which it stands under; each dropped well away from it.
   for (const { clear, dropped, side } of [
@@ -449,19 +395,7 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
   const ui = await import("/vendor/floating-ui.esm.js");
   let height = 300;
   const dimensions = () => ({ width: 320, height });
-  const platform = {
-    getElementRects: ({ reference }) => ({
-      reference: reference.getBoundingClientRect(),
-      floating: { x: 0, y: 0, ...dimensions() },
-    }),
-    getOffsetParent: () => window,
-    getDimensions: dimensions,
-    getClippingRect: () => boundary,
-    convertOffsetParentRelativeRectToViewportRelativeRect: ({ rect }) => rect,
-    isElement: () => false,
-    getDocumentElement: () => document.documentElement,
-    isRTL: () => false,
-  };
+  const platform = windowPlatform(dimensions);
   // floating.js's own middleware, reduced to the height the landing reads.
   const held = { name: "held", fn: ({ rects }) => ({ data: rects.floating }) };
   const card = commentPlacement();
@@ -470,13 +404,13 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
   // An element 700px down, `scrolled` further by a scroll of the page.
   const place = async (scrolled = 0) => {
     const clear = block(300, 300, 700 - scrolled, 730 - scrolled);
-    const { fresh, hold } = card.choose({
+    card.choose({
       clear,
       boundary,
       scroller: scroller(1000),
       coarse: false,
     });
-    const edge = card.holding({ fresh, hold, transcript: 0, drafting: false });
+    const edge = "top";
     const { reference, placement, middleware } = card.options(ui, {
       clear,
       row: clear.top,
@@ -485,7 +419,7 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
       fit(room) {
         ({ stood } = room);
       },
-      hold: () => card.heldAt(edge),
+      edge,
     });
     const answer = await ui.computePosition(
       { getBoundingClientRect: () => reference },
@@ -502,6 +436,9 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
   height = 150;
   assert.equal(await place(), 700 - 8);
   assert.equal(stood, 300);
+  // Repeated fitting at the smaller size must not ratchet the growth room down.
+  assert.equal(await place(), 700 - 8);
+  assert.equal(stood, 300);
   height = 300;
   assert.equal(await place(), boundary.bottom - 300);
   // Once a scroll moves its line, from the first fit after it, it keeps only the
@@ -511,4 +448,92 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
   assert.equal(stood, 300);
   await place(10);
   assert.equal(stood, 150);
+});
+
+test("a rising card has the window's height and keeps the top it stood at", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  let height = 120;
+  const platform = windowPlatform(() => ({ width: 320, height }));
+  const held = { name: "held", fn: ({ rects }) => ({ data: rects.floating }) };
+  const card = commentPlacement();
+  // The height the last fit offered the card.
+  let room = null;
+  // An element 700px down, with 155px of room under the card's line.
+  const clear = block(300, 300, 700, 730);
+  const place = async (rises = false) => {
+    card.choose({
+      clear,
+      boundary,
+      scroller: scroller(1000),
+      coarse: false,
+    });
+    const { reference, placement, middleware } = card.options(ui, {
+      clear,
+      row: clear.top,
+      lastRow: clear.bottom,
+      boundary,
+      fit(offered) {
+        room = offered.height;
+      },
+      edge: "top",
+      rises,
+    });
+    const answer = await ui.computePosition(
+      { getBoundingClientRect: () => reference },
+      document.body,
+      { placement, middleware: [...middleware, held], platform, strategy: "fixed" },
+    );
+    card.landed(answer);
+    return answer.y;
+  };
+  await place();
+  // Holding its top, a card is offered the room below it.
+  height = 150;
+  assert.equal(await place(), 692);
+  assert.equal(room, boundary.bottom - 692);
+  // Rising, it is offered the window's height, and the boundary lifts it.
+  height = 400;
+  assert.equal(await place(true), boundary.bottom - 400);
+  assert.equal(room, boundary.height);
+  // Shorter again, it comes back down to the top it held.
+  height = 150;
+  assert.equal(await place(true), 692);
+});
+
+test("chrome beside a card's columns leaves it the window's height", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  const platform = windowPlatform(() => ({ width: 320, height: 700 }));
+  // A row like the floating panel's stands under the columns left of 600, so a card
+  // reaching over them has 45px less room than the window's foot.
+  const whole = windowBoundary(8, 50, 1284, 842);
+  const rowed = Object.assign(windowBoundary(8, 50, 1284, 797), {
+    across: ({ left }) => (left < 600 ? rowed : whole),
+  });
+  const placed = async (clear) => {
+    const card = commentPlacement();
+    card.choose({ clear, boundary: rowed, scroller: scroller(1000), coarse: false });
+    let offered = null;
+    const { reference, placement, middleware } = card.options(ui, {
+      clear,
+      row: clear.top,
+      boundary: rowed,
+      fit: ({ room }) => (offered = room),
+      rises: true,
+    });
+    const { x, y } = await ui.computePosition(
+      { getBoundingClientRect: () => reference },
+      document.body,
+      { placement, middleware, platform, strategy: "fixed" },
+    );
+    return { x, foot: y + 700, room: offered };
+  };
+  // Beside words that end at 600, the card stands in the margin, past the row.
+  const margin = await placed(block(100, 500, 300, 330));
+  assert.equal(margin.x, 608);
+  assert.equal(margin.room, whole);
+  assert.equal(margin.foot, whole.bottom);
+  // Beside words that end at 500, it reaches over the row's columns and stops above it.
+  const over = await placed(block(100, 400, 300, 330));
+  assert.equal(over.room, rowed);
+  assert.equal(over.foot, rowed.bottom);
 });

@@ -1,11 +1,11 @@
-/** `protocolBreaks` refuses a schema change a page vendored at the same protocol, or a
- * Leaf at the same record format, would break on, names a served change for the author
- * to judge, and passes one every side takes in stride (`protocol.mjs`). */
+/** `protocolBreaks` refuses a schema change a page's log at the same protocol, or a
+ * Leaf at the same record format, would break on, and passes one every side takes in
+ * stride (`protocol.mjs`). */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { protocolBreaks } from "./protocol.mjs";
 
-// One event kind the browser sends, the served state, and one record.
+// One event kind and one record.
 const baseline = {
   protocol: 4,
   events: {
@@ -23,17 +23,9 @@ const baseline = {
           required: ["kind", "id"],
           additionalProperties: false,
         },
-        browser: { required: ["kind"] },
       },
     },
   },
-  served: {
-    $defs: { ViewAnswer: { type: "object", properties: { ok: { type: "boolean" } } } },
-    type: "object",
-    properties: { title: { type: "string", maxLength: 80 } },
-    required: ["title"],
-  },
-  verb: {},
   records: {
     claim: {
       since: 3,
@@ -51,12 +43,10 @@ function changed(edit, before = baseline) {
   edit(current);
   return protocolBreaks(before, current);
 }
-const none = { refused: [], served: [] };
-const refused = (...lines) => ({ refused: lines, served: [] });
-const served = (...lines) => ({ refused: [], served: lines });
+const none = [];
+const refused = (...lines) => lines;
 
 const note = (schemas) => schemas.events.kinds.note.record.properties;
-const browser = (schemas) => schemas.events.kinds.note.browser;
 
 test("an event record, which a page sends and every Leaf reads, may change neither way", () => {
   assert.deepEqual(
@@ -94,59 +84,6 @@ test("an event record, which a page sends and every Leaf reads, may change neith
   assert.deepEqual(
     changed((s) => (s.events.kinds.other = s.events.kinds.note)),
     refused("event other: an older Leaf or page reads a kind it doesn't know"),
-  );
-});
-
-test("what the browser sends may loosen but not tighten", () => {
-  assert.deepEqual(
-    changed((s) => (browser(s).required = [])),
-    none,
-  );
-  assert.deepEqual(
-    changed((s) => (browser(s).properties = { tone: { const: "plain" } })),
-    refused('event note.tone: values "none" → ["plain"]'),
-  );
-  // A field the contract newly names narrows its record's, whatever else it names.
-  const named = structuredClone(baseline);
-  browser(named).properties = { slug: { maxLength: 30 } };
-  assert.deepEqual(
-    changed((s) => (browser(s).properties.tone = { const: "plain" }), named),
-    refused('event note.tone: values "none" → ["plain"]'),
-  );
-  assert.deepEqual(
-    changed((s) => delete browser(s).properties.slug, named),
-    none,
-  );
-  // A field new to the record was never sent, so the contract may bound it at once.
-  assert.deepEqual(
-    changed((s) => {
-      note(s).extra = { type: "string" };
-      browser(s).properties = { extra: { maxLength: 9 } };
-    }),
-    none,
-  );
-  assert.deepEqual(
-    changed((s) => (browser(s).additionalProperties = false)),
-    refused("event note.*: a closed object refuses fields it took"),
-  );
-});
-
-test("what Leaf serves may tighten, and each loosening is served for the author to judge", () => {
-  assert.deepEqual(
-    changed((s) => (s.served.properties.title.maxLength = 120)),
-    served("served state.title: maxLength 80 → 120"),
-  );
-  assert.deepEqual(
-    changed((s) => (s.served.properties.title.maxLength = 60)),
-    none,
-  );
-  assert.deepEqual(
-    changed((s) => (s.served.properties.title.type = ["string", "null"])),
-    served('served state.title: type ["string"] → ["string","null"]'),
-  );
-  assert.deepEqual(
-    changed((s) => delete s.served.properties.title),
-    served("served state.title: the field is gone"),
   );
 });
 
@@ -253,64 +190,61 @@ test("the comparison sees through unions, references and maps", () => {
     changed((s) => (note(s).slug.maxLength = 5), branched),
     refused('event note.slug: maxLength "none" → 5'),
   );
-  // A served variant dropped takes its fields with it.
+  // A record's variant dropped takes its fields with it.
+  const claim = (s) => s.records.claim.schema.properties;
   const variants = structuredClone(baseline);
-  variants.served.properties.pick = {
+  claim(variants).pick = {
     anyOf: [
       { type: "object", properties: { x: { type: "string" } } },
       { type: "null" },
     ],
   };
   assert.deepEqual(
-    changed((s) => (s.served.properties.pick = { type: "null" }), variants),
-    served(
-      'served state.pick: type ["object"] → ["null"]',
-      "served state.pick.x: the field is gone",
+    changed((s) => (claim(s).pick = { type: "null" }), variants),
+    refused(
+      'record claim.pick: type ["object"] → ["null"]',
+      "record claim.pick.x: the field is gone",
+      // Read by position, a reader taking the old branches meets one it lacks.
+      'record claim.pick: {"type":"null"} → false',
     ),
   );
-  // A served branch dropped takes the fields no other branch names, at any depth.
+  // A branch dropped takes the fields no other branch names, at any depth.
   const payloads = structuredClone(baseline);
   const payload = (field) => ({
     type: "object",
     properties: { payload: { type: "object", properties: { [field]: {} } } },
   });
-  payloads.served.properties.pick = { anyOf: [payload("y"), payload("x")] };
+  claim(payloads).pick = { anyOf: [payload("y"), payload("x")] };
+  const gone = (lines) => lines.filter((line) => line.endsWith("the field is gone"));
   assert.deepEqual(
-    changed((s) => s.served.properties.pick.anyOf.pop(), payloads),
-    served("served state.pick.payload.x: the field is gone"),
+    gone(changed((s) => claim(s).pick.anyOf.pop(), payloads)),
+    refused("record claim.pick.payload.x: the field is gone"),
   );
   const shared = structuredClone(payloads);
-  shared.served.properties.pick.properties = payload("x").properties;
-  assert.deepEqual(
-    changed((s) => s.served.properties.pick.anyOf.pop(), shared),
-    none,
-  );
-  // A reference compares by its text, and its target where it is declared.
+  claim(shared).pick.properties = payload("x").properties;
+  assert.deepEqual(gone(changed((s) => claim(s).pick.anyOf.pop(), shared)), none);
+  // A reference compares by its text.
   const nested = structuredClone(baseline);
-  nested.served.$defs.Tree = {
-    type: "object",
-    properties: { child: { $ref: "#/$defs/Tree" } },
-  };
-  nested.served.properties.tree = { $ref: "#/$defs/Tree" };
+  claim(nested).tree = { $ref: "#/$defs/Tree" };
   const inline = { type: "object", properties: { child: { type: "string" } } };
   assert.deepEqual(
-    changed((s) => (s.served.properties.tree = inline), nested),
-    served('served state.tree: $ref "#/$defs/Tree" → "none"'),
-  );
-  assert.deepEqual(
-    changed((s) => (s.served.$defs.Tree.properties.child = { type: "string" }), nested),
-    served('served Tree.child: $ref "#/$defs/Tree" → "none"'),
+    changed((s) => (claim(s).tree = inline), nested),
+    refused(
+      'record claim.tree: type "none" → ["object"]',
+      'record claim.tree.child: type "none" → ["string"]',
+      'record claim.tree: $ref "#/$defs/Tree" → "none"',
+    ),
   );
   // A position `prefixItems` stops naming holds what `items` allows.
   const tuple = structuredClone(baseline);
-  tuple.served.properties.pair = {
+  claim(tuple).pair = {
     type: "array",
     prefixItems: [{ type: "string" }],
     items: { type: "number" },
   };
   assert.deepEqual(
-    changed((s) => (s.served.properties.pair.prefixItems = []), tuple),
-    served('served state.pair[0]: type ["string"] → ["number"]'),
+    changed((s) => (claim(s).pair.prefixItems = []), tuple),
+    refused('record claim.pair[0]: type ["string"] → ["number"]'),
   );
   // A map's newly named field must take what the map took.
   const mapped = structuredClone(baseline);
@@ -318,5 +252,40 @@ test("the comparison sees through unions, references and maps", () => {
   assert.deepEqual(
     changed((s) => (note(s).counts.properties = { x: { type: "string" } }), mapped),
     refused('event note.counts.x: type ["number"] → ["string"]'),
+  );
+});
+
+test("an annotation changes nothing, inside a conditional too", () => {
+  const conditional = structuredClone(baseline);
+  Object.assign(conditional.records.claim.schema, {
+    if: { properties: { page: { const: "x" } } },
+    then: { properties: { pid: { type: "integer" }, description: { type: "string" } } },
+  });
+  const then = (s) => s.records.claim.schema.then.properties;
+  assert.deepEqual(
+    changed((s) => (then(s).pid.description = "The server's process"), conditional),
+    none,
+  );
+  // A map keeps every name, and `$defs` is compared, since a reference reads it.
+  assert.deepEqual(
+    changed(
+      (s) => (s.records.claim.schema.then.dependentRequired = { description: ["pid"] }),
+      conditional,
+    ).length,
+    1,
+  );
+  const defs = structuredClone(conditional);
+  defs.records.claim.schema.then.$defs = { rule: { type: "string" } };
+  assert.deepEqual(
+    changed((s) => (s.records.claim.schema.then.$defs.rule.type = "integer"), defs)
+      .length,
+    1,
+  );
+  // A field named like an annotation is still a field.
+  assert.deepEqual(
+    changed((s) => (then(s).description.type = "integer"), conditional),
+    refused(
+      'record claim: then {"properties":{"pid":{"type":"integer"},"description":{"type":"string"}}} → {"properties":{"pid":{"type":"integer"},"description":{"type":"integer"}}}',
+    ),
   );
 });

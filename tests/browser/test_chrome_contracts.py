@@ -7,8 +7,6 @@ from urllib.parse import urljoin
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.media import store_uploaded_media
-from leaf.render_checks import rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -19,22 +17,37 @@ from render_cases_layout import (
     toggle_queue,
     with_one_obligation,
 )
+from render_cases_navigation import source_revision
 from render_harness import (
     LONG_PAGE,
+    PANEL,
+    CutOff,
+    expect_panel_says,
     leaf_page,
+    nudge,
     open_page,
+    open_threads,
     page_comment,
+    panel_field,
     panel_settled,
+    panel_view,
     resized,
+    round_trip,
     select,
     selection_field,
+    sending,
     stamp_page,
     told,
     wait_for_revision,
     write,
 )
 
+from browser.test_render_floating_panel import finish_held, held_motion, hold_motion
 from browser.threads import open_panel_thread
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.media import store_uploaded_media
+from leaf.render_checks import rendered
 
 
 def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):
@@ -114,11 +127,11 @@ def test_live_revision_retains_the_runtime_favicon(browser, serve):
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme):
-    """The reply surround stays continuous as focus enters and leaves the thread.
-
-    An opaque shared surface also lets a pinned reply cover scrolled messages without
-    introducing a differently colored band above its input.
+def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
+    """The thread and its reply row paint no ground of their own as focus enters and
+    leaves the thread, so the card's opaque face shows behind them: no band above the
+    field, no focus tint, and nothing over the field's ring while the card's surface
+    draws it (box-motion.js).
     """
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
@@ -126,6 +139,7 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
     resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     preview = page.locator(".lf-margin-preview")
+    face = preview.locator(".lf-margin-preview-card")
     thread = preview.locator(".lf-page-thread")
     surround = thread.locator(".lf-thread-reply")
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
@@ -137,17 +151,17 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
             expect(reply).to_be_focused()
         elif state == "outside":
             preview.get_by_role("button", name="Dismiss thread").focus()
-        surface = thread.evaluate("""node => {
-          const color = getComputedStyle(node).backgroundColor;
+        alpha = face.evaluate("""node => {
           const canvas = document.createElement('canvas');
           canvas.width = canvas.height = 1;
           const paint = canvas.getContext('2d');
-          paint.fillStyle = color;
+          paint.fillStyle = getComputedStyle(node).backgroundColor;
           paint.fillRect(0, 0, 1, 1);
-          return {color, alpha: paint.getImageData(0, 0, 1, 1).data[3]};
+          return paint.getImageData(0, 0, 1, 1).data[3];
         }""")
-        assert surface["alpha"] == 255, (scheme, state, surface)
-        expect(surround).to_have_css("background-color", surface["color"])
+        assert alpha == 255, (scheme, state)
+        for part in (thread, surround):
+            expect(part).to_have_css("background-color", "rgba(0, 0, 0, 0)")
 
 
 def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
@@ -164,12 +178,22 @@ def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
     page.locator("#passage").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
+
+    def resting_box():
+        # Layout already has its final width while Send still rides the box's
+        # growth (box-motion.js). Compare their geometry only once it rests.
+        rendered(page)
+        page.wait_for_function(
+            """() => !document.querySelector('.lf-fab-bar')
+              .getAnimations({subtree: true}).some(motion =>
+                Number.isFinite(motion.effect?.getComputedTiming().endTime))"""
+        )
+        return field.bounding_box()
+
     page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
-    rendered(page)
-    before = field.bounding_box()
+    before = resting_box()
     page.keyboard.press("Space")
-    rendered(page)
-    after = field.bounding_box()
+    after = resting_box()
     assert after["height"] == pytest.approx(before["height"], abs=1)
     assert after["y"] == pytest.approx(before["y"], abs=1)
     reservation = field.evaluate("""el => {
@@ -181,6 +205,133 @@ def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
         sendStart: send.left};
     }""")
     assert reservation["textEnd"] == pytest.approx(reservation["sendStart"], abs=0.1)
+
+
+# The field's shadow root is closed, so the reading keeps each root as it is attached.
+KEEP_ROOTS = """(() => {
+  const attach = Element.prototype.attachShadow;
+  const roots = (window.__lfRoots = new WeakMap());
+  Element.prototype.attachShadow = function (init) {
+    const root = attach.call(this, init);
+    roots.set(this, root);
+    return root;
+  };
+})()"""
+
+# The caret's node and offset in the field. An offset between elements has no box; the
+# caret after them ends their text, which is the text the browser draws it beside.
+CARET_AT = """
+  const root = window.__lfRoots.get(box);
+  let [{startContainer: at, startOffset: offset}] = document
+    .getSelection().getComposedRanges({shadowRoots: [root]});
+  while (at.nodeType === Node.ELEMENT_NODE && offset > 0) {
+    at = at.childNodes[offset - 1];
+    offset = at.nodeType === Node.TEXT_NODE ? at.length : at.childNodes.length;
+  }"""
+
+# How far past the caret's offset the boxes clipping the field's words let paint run.
+CARET_ROOM = rf"""box => {{{CARET_AT}
+  const caret = document.createRange();
+  caret.setStart(at, offset);
+  let clip = Infinity;
+  for (let node = at.parentElement; node; node = node.parentElement) {{
+    const style = getComputedStyle(node);
+    const right = node.getBoundingClientRect().right;
+    if (style.overflowX === 'clip') {{
+      const margin = parseFloat(style.overflowClipMargin) || 0;
+      clip = Math.min(clip, right + margin);
+    }}
+    const inset = /^inset\(([^)]+)\)$/.exec(style.clipPath);
+    if (inset) {{
+      const sides = inset[1].trim().split(/\s+/).map(parseFloat);
+      clip = Math.min(clip, right - (sides[1] ?? sides[0]));
+    }}
+  }}
+  return clip - caret.getBoundingClientRect().right;
+}}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
+    """The caret after a line's last character stands at the very end of the text
+    column: in a box that grows with its words, and after a trailing space that fits
+    beside Send. Firefox paints the caret a pixel wide from that offset onward, pulled
+    inside only by a scroll container (nsCaret, `AdjustRectForClipping`), so a field
+    clipping its words at the column's end hid it, and it read as gone under Send.
+    Chromium and WebKit pull a line-end caret back inside the line's block, and WebKit
+    has no `overflow-clip-margin` to read."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page("Compact comment", '<p id="passage">A passage to comment on.</p>')
+        ),
+        init_script=KEEP_ROOTS,
+    )
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    hold_motion(page)
+    # The box grows with its words, so the caret after the last word ends its column.
+    page.keyboard.insert_text(
+        "it's not really a feed as much as a list? I see a feed as"
+    )
+    rendered(page)
+    held_motion(page, ".lf-fab-ground")
+    # Read the final moving frame, before cleanup restores the field's resting clip.
+    page.evaluate("""() => __lfHeld.filter(a => a.playState !== 'idle').forEach(a => {
+      a.currentTime = Number(a.effect.getTiming().duration) - 0.01;
+    })""")
+    assert field.evaluate(CARET_ROOM) >= 1
+    finish_held(page)
+    # At a narrow allocation the trailing space fits beside Send (see above).
+    resized(page, 346, 900)
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
+    page.keyboard.press("Space")
+    rendered(page)
+    assert field.evaluate(CARET_ROOM) >= 1
+
+
+# The ink the browser draws the caret in, beside the ink of the field's words.
+CARET_INK = f"""box => {{{CARET_AT}
+  const holder = at.nodeType === Node.TEXT_NODE ? at.parentElement : at;
+  return [getComputedStyle(holder).caretColor,
+    getComputedStyle(holder.closest('.cm-content')).color];
+}}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_caret_after_a_list_bullet_is_drawn(engine, request, serve):
+    """A new list item shows its bullet with the caret just past the hidden source
+    marker, so the browser places the caret inside the marker's text. The caret takes
+    that text's ink, so hiding the marker's glyphs must leave the ink alone, however
+    the caret arrived: continuing the list, deleting the marker's space, or arrows."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page("Compact comment", '<p id="passage">A passage to comment on.</p>')
+        ),
+        init_script=KEEP_ROOTS,
+    )
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.type("- one")
+    page.keyboard.press("Shift+Enter")
+    expect(field).to_have_js_property("value", "- one\n- ")
+    rendered(page)
+    caret, words = field.evaluate(CARET_INK)
+    assert caret == words
+    page.keyboard.press("Backspace")
+    expect(field).to_have_js_property("value", "- one\n-")
+    rendered(page)
+    caret, words = field.evaluate(CARET_INK)
+    assert caret == words
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("ArrowRight")
+    rendered(page)
+    caret, words = field.evaluate(CARET_INK)
+    assert caret == words
 
 
 # Two threads put the card's navigation on the row too, which a finger's larger
@@ -206,13 +357,16 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
         "button => button.closest('.lf-margin-thread-controls') !== null"
     )
     centers = preview.evaluate(
-        """preview => ['.lf-resolve', '.lf-margin-preview-close'].map(selector => {
-          const rect = preview.querySelector(selector).getBoundingClientRect();
-          return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};
-        })"""
+        """preview => ['.lf-margin-preview-expand', '.lf-resolve', '.lf-margin-preview-close']
+          .map(selector => {
+            const rect = preview.querySelector(selector).getBoundingClientRect();
+            return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};
+          })"""
     )
-    assert centers[0]["y"] == pytest.approx(centers[1]["y"], abs=1), centers
-    assert centers[0]["x"] < centers[1]["x"]
+    assert all(c["y"] == pytest.approx(centers[0]["y"], abs=1) for c in centers), (
+        centers
+    )
+    assert centers[0]["x"] < centers[1]["x"] < centers[2]["x"], centers
     if thread_count == 2:
         row = preview.evaluate(
             """preview => {
@@ -485,47 +639,6 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     assert "::highlight(lf-version-insert)" in selected["marks"]
 
 
-def test_indication_defaults_yield_to_widget_faces_in_document_and_shadow(
-    browser, serve
-):
-    """A widget can choose its indication face in either kind of rendering root.
-
-    Ordinary indicated elements still get the shared contour. The default must
-    yield to layered widget rules, while action-target apparatus keeps its face.
-    """
-    page = open_page(
-        browser, serve(leaf_page("indication-faces", '<h1 id="t">Indication</h1>'))
-    )
-    readings = page.evaluate(
-        """async () => {
-          const {shadowStage} = await window.__lfWidgetApi();
-          const {inBaseLayer} = await window.__lfWidgetApi();
-          const nodes = () => {
-            const style = document.createElement('style');
-            style.textContent = inBaseLayer('.custom-indication, .lf-action-target { outline: 4px dashed red; }');
-            return [style, ...['default-indication', 'custom-indication', 'lf-action-target'].map(cls => {
-              const p = document.createElement('p');
-              p.className = cls;
-              p.textContent = cls;
-              p.setAttribute('data-lf-indicated', '');
-              return p;
-            })];
-          };
-          const main = document.querySelector('main');
-          main.append(...nodes());
-          const host = document.createElement('div');
-          main.append(host);
-          const shadow = shadowStage(host, nodes());
-          return [main, shadow].map(root =>
-            [...root.querySelectorAll('[data-lf-indicated]')].map(p => {
-              const s = getComputedStyle(p);
-              return [s.outlineStyle, s.outlineWidth];
-            }));
-        }"""
-    )
-    assert readings == [[["solid", "2px"], ["dashed", "4px"], ["solid", "1px"]]] * 2
-
-
 def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     browser, serve
 ):
@@ -672,9 +785,11 @@ SURFACE_PAGES = {
 def toggle_surface(page, surface, open=True):
     if surface == "queue":
         toggle_queue(page, open)
+    elif open:
+        open_threads(page)
     else:
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, open, "threads" if open else None)
+        page.locator(".lf-fp-close").click()
+        panel_settled(page, open=False)
 
 
 @pytest.mark.parametrize(
@@ -707,7 +822,7 @@ def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
       };
     }"""
     before = page.evaluate(shape)
-    region = page.locator(f'.lf-fp-view[data-view="{surface}"]')
+    region = page.locator(panel_view(surface))
 
     toggle_surface(page, surface)
     expect(region).to_be_visible()
@@ -728,8 +843,7 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
     dialog paints over the panel, and reads above it."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1440, 900)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     stacking = page.evaluate(
         """async () => {
           const { stackLevel } = await window.__lfCheckApi();
@@ -837,46 +951,423 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     work, observer deliveries, cancellation — is tests/runtime/rendering.test.mjs."""
     url = serve(leaf_page("Settled", '<h1 id="h">Settled</h1><p id="p">Words.</p>'))
     page = open_page(browser, url)
-    toggle = page.locator(".lf-fp-threads")
+    toggle = page.locator(".lf-fp-on-user")
     toggle.hover()
     rendered(page)
-    # The reading on either side of the press: as it goes down, before any listener has
-    # answered it, and once its click has passed every listener.
+    # Read before dispatch: an earlier pointerdown capture listener may already have
+    # queued the repaint by the time a listener installed here receives the event.
+    assert page.evaluate(
+        "() => Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
+    )
+    # Once the click has passed every listener, its repaint is pending.
     page.evaluate(
         """() => {
           const state = document.querySelector('script[data-lf-entry]').lfRenderingState;
           const settled = () => Object.values(state()).every(Boolean);
           window.__lfPress = [];
           const read = () => window.__lfPress.push(settled());
-          addEventListener('pointerdown', read, {capture: true, once: true});
           addEventListener('click', read, {once: true});
         }"""
     )
     toggle.click()
-    assert page.evaluate("window.__lfPress") == [True, False]
+    assert page.evaluate("window.__lfPress") == [False]
     rendered(page)
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
-    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_visible()
+    expect(page.locator(panel_view("queue"))).to_be_visible()
 
 
-@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
-def test_send_room_moves_to_every_line_only_while_the_field_scrolls(
+# The words of the field's draft, row by row as the field draws them.
+WORD_ROWS = """box => {
+  const content = window.__lfRoots.get(box).querySelector('.cm-content');
+  const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+  const rows = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    for (const word of node.data.matchAll(/\\S+/g)) {
+      const range = document.createRange();
+      range.setStart(node, word.index);
+      range.setEnd(node, word.index + word[0].length);
+      const top = range.getClientRects()[0].top;
+      const row = rows.find((r) => Math.abs(r.top - top) < 4);
+      if (row) row.words.push(word[0]);
+      else rows.push({top, words: [word[0]]});
+    }
+  }
+  return rows.map((r) => r.words.join(" "));
+}"""
+
+
+# The comment whose words moved as it was typed in the panel's field.
+REPORTED_DRAFT = (
+    "great, let's go with the more square form. I don't have a strong view of which"
+    " one is better, and the other parts of this thread can wait until later"
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_scrolling_draft_shows_the_caret_s_row_with_the_padding_beside_it(
     engine, request, serve
 ):
-    """The field holds Send's room after its last words until its words scroll, and on
-    every line while they do, in an engine without CSS scroll-state queries as in
-    Chromium. Keyed on the query alone, WebKit and Firefox held it on every line
-    always, so the change never reached them."""
+    """A line typed at the end of a draft that scrolls leaves nothing below it to scroll
+    to, and the caret taken to the first line leaves nothing above. Revealing only the
+    caret, as a native textarea does, left the field's padding out of view, and in
+    Firefox the foot of the caret's row too."""
     page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
     field = page_comment(page)
-    scrolls = "el => el.scrollHeight > el.clientHeight"
+    hidden = """box => ({
+      below: box.scrollHeight - box.clientHeight - box.scrollTop,
+      above: box.scrollTop,
+    })"""
+    page.keyboard.type("line 0")
+    for line in range(1, 40):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"line {line}")
+        if field.evaluate("box => box.scrollHeight > box.clientHeight + 40"):
+            break
+    else:
+        raise AssertionError("the draft never scrolled")
+    for key in ("Shift+Enter", "w", "ControlOrMeta+Home"):
+        page.keyboard.press(key)
+        rendered(page)
+        shown = field.evaluate(hidden)
+        if key == "ControlOrMeta+Home":
+            assert shown["above"] < 1, shown
+        else:
+            assert shown["below"] < 1, (key, shown)
 
-    write(field, "First line.\nSecond line.")
-    assert not field.evaluate(scrolls)
-    expect(field).to_have_js_property("endRoom", "last-line")
-    write(field, "A long draft scrolls inside its field. " * 120)
-    assert field.evaluate(scrolls)
-    expect(field).to_have_js_property("endRoom", "every-line")
-    write(field, "Short again.")
-    expect(field).to_have_js_property("endRoom", "last-line")
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_space_after_the_last_word_moves_no_word(engine, request, serve):
+    """Where a draft's words wrap turns on the words alone, so a space typed after the
+    last word leaves every word on its row, as in a textarea. With Send's room kept
+    after the last word only, a word that fit only without the room rose to the row
+    above when a space followed it; under CodeMirror's `break-spaces`, a word ending
+    at the row's edge fell to the next row with the space."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    words = REPORTED_DRAFT.split()
+    write(field, words[0])
+    rendered(page)
+    for end in range(2, len(words) + 1):
+        draft = " ".join(words[:end])
+        write(field, draft)
+        rows = field.evaluate(WORD_ROWS)
+        page.keyboard.press("Space")
+        assert field.evaluate(WORD_ROWS) == rows, draft
+
+
+def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
+    browser, serve
+):
+    """Unread replies announce once each, whether they arrive while the page is open or
+    were waiting when it opened, regardless of the panel's disclosure. The user keeps
+    a draft open in a thread no reply lands in, so exposure acknowledges none of them."""
+    url = serve(leaf_page("Reply arrivals", "<h1>Reply arrivals</h1>"))
+    directory = serve.page_dir
+    drafting, a, b = (
+        append_carried_log_record(
+            directory,
+            {"kind": "comment", "author": "user", "revision": 1, "text": text},
+        )
+        for text in ("Draft here", "A", "B")
+    )
+    append_carried_log_record(
+        directory,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": a["id"],
+            "text": "Earlier",
+        },
+    )
+    page = open_page(browser, url)
+    live = page.locator(".lf-live")
+    expect(live).to_have_text("Earlier")
+
+    open_panel_thread(page, drafting["id"])
+    draft = panel_field(page)
+    write(draft, "Keep this draft")
+    draft.focus()
+    page.evaluate(
+        """() => {
+          window.__lfReplyAnnouncements = [];
+          new MutationObserver(() => {
+            const words = document.querySelector('.lf-live').textContent;
+            if (words) window.__lfReplyAnnouncements.push(words);
+          }).observe(document.querySelector('.lf-live'), {childList: true, subtree: true});
+        }"""
+    )
+    append_carried_log_record(
+        directory,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": b["id"],
+            "text": "For B",
+        },
+    )
+    told(page)
+    expect(live).to_have_text("For B")
+    expect(draft).to_be_focused()
+    expect(draft).to_have_js_property("value", "Keep this draft")
+
+    reads = CutOff().hold(page)
+    append_carried_log_record(
+        directory,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": a["id"],
+            "text": "More for A",
+        },
+    )
+    append_carried_log_record(
+        directory,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": b["id"],
+            "text": "More for B",
+        },
+    )
+    reads.restore()
+    told(page)
+    expect(live).to_have_text("2 replies in 2 threads")
+    expect(draft).to_be_focused()
+    expect(draft).to_have_js_property("value", "Keep this draft")
+
+    # A fresh server snapshot of unchanged content makes no fresh announcement;
+    # a fresh document announces what the user has still not read. Moving the
+    # freshness token ensures this actually admits another read.
+    nudge(directory)
+    told(page)
+    round_trip(page)
+    expect(live).to_have_text("2 replies in 2 threads")
+    assert page.evaluate("() => window.__lfReplyAnnouncements") == [
+        "For B",
+        "2 replies in 2 threads",
+    ]
+    page.reload()
+    expect(page.locator(".lf-live")).to_have_text("4 replies in 2 threads")
+
+
+def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):
+    """An older visible notice cannot replace a newer one already waiting."""
+    page = open_page(browser, serve(leaf_page("Notice order", "<h1>Notice order</h1>")))
+    page.evaluate(
+        """async () => {
+          const {notice} = await window.__lfWidgetApi();
+          notice('Updated to v3', {background: true});
+          notice('Updated to v4', {background: true});
+          notice('Saved');
+        }"""
+    )
+    expect_panel_says(page, "Saved")
+    expect_panel_says(page, "Updated to v4")
+
+
+@pytest.mark.parametrize("viewport", [None, "width=device-width, initial-scale=1"])
+def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, viewport):
+    """The runtime starts in WebKit; the panel's field offers to comment on a selection.
+
+    A module feature WebKit lacks fails the whole module graph before the runtime runs:
+    CSS module scripts did, and an iPhone user saw only that Leaf could not start. A
+    long press that selects words hands the page no mouseup, and Playwright cannot make
+    one, so the selection is placed with no pointer gesture at all."""
+    source = PHONE_PAGE
+    if viewport:
+        source = source.replace(
+            "<head>", f'<head><meta name="viewport" content="{viewport}">'
+        )
+    page = open_page(None, serve(source), context=iphone)
+    assert page.evaluate("innerWidth") == page.viewport_size["width"]
+    metas = page.locator('meta[name="viewport"]')
+    expect(metas).to_have_count(1)
+    expect(metas).to_have_attribute(
+        "content", viewport or "width=device-width, initial-scale=1, viewport-fit=cover"
+    )
+    page.locator("#p1").evaluate("""paragraph => {
+      const range = document.createRange();
+      range.setStart(paragraph.firstChild, 0);
+      range.setEnd(paragraph.firstChild, "Paragraph one".length);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    }""")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_hidden()
+    # The panel's field quotes the selection, where the finger that made it finds it,
+    # and the On me mark keeps its seat; the leaf's menu stays shut.
+    comment = selection_field(page)
+    expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
+    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    box = comment.bounding_box()
+    assert box["x"] + box["width"] <= page.evaluate("innerWidth"), box
+    comment.tap()
+    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
+    expect(field).to_be_focused()
+    write(field, "From a phone")
+    with sending(page, "the comment"):
+        page.locator(".lf-fab-bar").get_by_role(
+            "button", name="Comment", exact=True
+        ).tap()
+    [comment] = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert comment["text"] == "From a phone"
+    assert comment["anchor"]["quote"] == "Paragraph one", comment
+
+
+@pytest.mark.parametrize(
+    "surface, scheme",
+    [
+        *((surface, "light") for surface in ("general", "panel", "margin", "outlet")),
+        ("outlet", "dark"),
+    ],
+)
+def test_a_draft_wears_the_faces_its_sent_message_wears(
+    browser, serve, surface, scheme
+):
+    """The composer's Markdown preview draws each construct the way the message will.
+
+    The preview stands in the field's closed shadow root, where the theme's element
+    rules do not reach, so it reads the faces from the theme's tokens instead of
+    stating its own. It had stated its own from birth: a quote drafted upright with a
+    heavy dark rule was sent italic with a light one, and code sat a size and a chip
+    shape away from how it arrived. DevTools reads the closed root, as it reads any.
+    """
+    if surface == "outlet":
+        url = serve(
+            leaf_page(
+                "Draft faces",
+                "<h1>Draft faces</h1>"
+                '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>',
+            )
+        )
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "review-patch",
+            """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+""",
+        )
+        anchor = {
+            "section": "patch",
+            "datum": '["app.py","new",1]',
+            "source": "review-patch",
+            "source_revision": source_revision(serve.page_dir, "review-patch"),
+        }
+    else:
+        url = serve(LONG_PAGE)
+        anchor = {"section": "p0"}
+    panel_comment(serve.page_dir, MARKDOWN, anchor)
+    page = open_page(browser, url, color_scheme=scheme)
+    if surface == "outlet":
+        thread = page.locator("#patch .lf-page-thread")
+        box_selector = "#patch .lf-thread-reply leaf-text"
+    elif surface == "margin":
+        resized(page, 1440, 900)
+        page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+        thread = page.locator(".lf-margin-preview .lf-page-thread")
+        box_selector = ".lf-margin-preview .lf-thread-reply leaf-text"
+    else:
+        root = next(
+            event["id"]
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "comment"
+        )
+        thread = open_panel_thread(page, root)
+        box_selector = '.lf-fp-field leaf-text[name="reply"]'
+    body = thread.locator(".lf-msg-body").first
+    expect(body.locator("blockquote")).to_be_visible()
+    # A source renderer can leave the code's colors correct while turning an inline
+    # phrase into a separate block. Read its line beside the preceding prose too.
+    flow = body.locator("p code").evaluate("""code => {
+      const words = document.createRange();
+      words.selectNode(code.previousSibling);
+      return {words: words.getBoundingClientRect().top,
+              code: code.getBoundingClientRect().top};
+    }""")
+    assert flow["code"] == pytest.approx(flow["words"], abs=4), flow
+    # Read first: the page's general box stands in the panel's field with no view open,
+    # the one place a page thread starts, so writing there puts the thread's view away.
+    sent = body.evaluate(
+        """(body, [faces, face]) => Object.fromEntries(Object.entries(faces)
+          .map(([name, [selector]]) => {
+            const style = getComputedStyle(body.querySelector(selector));
+            return [name, Object.fromEntries(
+              [...face, "font-size"].map((p) => [p, style.getPropertyValue(p)]))];
+          }))""",
+        [FACES, FACE],
+    )
+    sent_size = body.evaluate("body => getComputedStyle(body).fontSize")
+    box = page_comment(page) if surface == "general" else page.locator(box_selector)
+    if surface == "outlet":
+        # Reply rests as a press; open it by user input before write() focuses it.
+        box.click()
+    write(box, MARKDOWN)
+    box.evaluate("box => box.id = 'draft-face-editor'")
+    cdp = page.context.new_cdp_session(page)
+    cdp.send("DOM.enable")
+    cdp.send("CSS.enable")
+    document = cdp.send("DOM.getDocument", {"depth": -1, "pierce": True})["root"]
+
+    def find(node):
+        attrs = node.get("attributes", [])
+        if dict(zip(attrs[::2], attrs[1::2])).get("id") == "draft-face-editor":
+            return node
+        for child in node.get("children", []) + node.get("shadowRoots", []):
+            if found := find(child):
+                return found
+        return None
+
+    root = find(document)["shadowRoots"][0]["nodeId"]
+
+    def drawn(selector):
+        node = cdp.send("DOM.querySelector", {"nodeId": root, "selector": selector})
+        assert node["nodeId"], f"the draft draws no {selector}"
+        style = {
+            entry["name"]: entry["value"]
+            for entry in cdp.send(
+                "CSS.getComputedStyleForNode", {"nodeId": node["nodeId"]}
+            )["computedStyle"]
+        }
+        return {name: style[name] for name in [*FACE, "font-size"]}
+
+    draft = {name: drawn(selector) for name, (_, selector) in FACES.items()}
+
+    # Inline constructs are sized against the words around them, and the draft's words
+    # are the box's type where the message's are the body's; a code block is set at the
+    # code size whatever holds it. A draft marks a heading by weight alone, at the size
+    # of its words, so a heading's size is left out.
+    def px(value):
+        return float(value.removesuffix("px"))
+
+    size = {
+        "draft": box.evaluate("box => getComputedStyle(box).fontSize"),
+        "sent": sent_size,
+    }
+    for face, which in ((draft, "draft"), (sent, "sent")):
+        del face["heading"]["font-size"]
+        for name in FACES.keys() - {"heading", "code block"}:
+            share = px(face[name]["font-size"]) / px(size[which])
+            face[name]["font-size"] = round(share, 3)
+    differ = {
+        name: {
+            k: (v, sent[name][k]) for k, v in draft[name].items() if v != sent[name][k]
+        }
+        for name in FACES
+    }
+    assert not any(differ.values()), differ

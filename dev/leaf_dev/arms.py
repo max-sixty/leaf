@@ -36,22 +36,31 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import IO, Self
+from typing import IO, NamedTuple, Self
 
 import click
+
 from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.render_gate import browser as browser_model
-
+from leaf.render_gate import command as render_command_model
 from leaf_dev import ROOT
 from leaf_dev.browser import shell_executable
-from leaf_dev.page_fixtures import prepare_page, read_fixture, record_run_context
+from leaf_dev.page_fixtures import (
+    admit_events,
+    fixture_environment,
+    prepare_page,
+    read_event_lines,
+    read_fixture,
+    record_run_context,
+)
 
 # The uv project names this package's `pyproject.toml` as a workspace member, so uv
 # needs that file to read the lock. The package itself stays out: the launcher never
@@ -67,6 +76,10 @@ PAYLOAD = (
     "bin",
     "hooks",
     "skills",
+    "src",
+    "browser",
+    "packages",
+    "dist",
     "package.json",
     "leaf-distribution.json",
     "pyproject.toml",
@@ -80,15 +93,16 @@ PAYLOAD = (
 # The harnesses an arm's child runs, named as the shipped harness names itself.
 HARNESSES = (ClaudeCodeHarness.name, CodexHarness.name)
 
-# The models evals run, pinned so runs on different days compare: each harness's
-# agents, the judge behind `llm-rubric` assertions, the screenshot judge, and the
-# agent that plays the user in a page's browser.
+# Pin authors and the simulated user separately from quality judges, so changing
+# the author under evaluation never changes who assesses its output.
 MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
     CodexHarness.name: "gpt-6.1-sol",
-    "judge": "claude-sonnet-5-5",
-    "screenshots": "gpt-6.1-sol",
     "user": "claude-sonnet-5-5",
+}
+JUDGE_MODELS = {
+    ClaudeCodeHarness.name: "claude-opus-5-5",
+    CodexHarness.name: "gpt-6-astra",
 }
 
 
@@ -98,31 +112,44 @@ def run_directory(parent: Path) -> Path:
     return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
 
 
-def environment(**extra: str) -> dict[str, str]:
+def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
     """This process's environment without the agent session it may be running in.
 
     A harness run from a Claude Code or Codex session inherits that session's
     identity: its id, job directory, effort level and App Server endpoint. A `leaf`
     command would sign events as that session, and a child would use its transport
-    and settings. An inherited LEAF_HOST_LAUNCHER would override the arm's launcher.
+    and settings. Inherited LEAF and LEAF_HOST_LAUNCHER would point at the parent's
+    launcher instead of the arm's.
     `CLAUDE_CONFIG_DIR` stays, since it names where the login lives. Nor does PATH
     keep `uv run`'s environment or the bin directory of a Leaf tree, such as the
     one the session's harness added for its own Leaf plugin: the `leaf` in either
     would shadow the launcher a child harness puts on PATH for the arm's plugin.
+    When supplied, `payload` puts that arm's bin directory first on the clean PATH.
 
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
     set. It outranks CHROME_PATH and CHROME_BIN, which hosts set for other tools
     (GitHub's runner image sets CHROME_BIN to its Chrome), so leaf-dev's children
-    draw with the build `headless_shell` drives, as the suite's fixture arranges."""
+    draw with the build `headless_shell` drives, as the suite's fixture arranges.
+    It also pins `page check --render` to the fixed desktop window
+    (LEAF_RENDER_VIEWPORT), unless that variable is set, so a judged page's verdict
+    doesn't depend on the window of whichever browser last viewed it."""
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV, "LEAF_HOST_LAUNCHER")
+        if key
+        not in (
+            *IDENTITY_VARIABLES,
+            APP_SERVER_ENV,
+            "LEAF",
+            "LEAF_HOST_LAUNCHER",
+            "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
+        )
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     if browser_model.VARIABLE not in env:
         env[browser_model.VARIABLE] = shell_executable()
+    env.setdefault(render_command_model.PIN_VARIABLE, "fixed")
     venv = os.environ.get("VIRTUAL_ENV")
     env["PATH"] = os.pathsep.join(
         entry
@@ -130,6 +157,8 @@ def environment(**extra: str) -> dict[str, str]:
         if not (venv and entry == str(Path(venv) / "bin"))
         and not (Path(entry).parent / "skills" / "leaf").is_dir()
     )
+    if payload is not None:
+        env["PATH"] = os.pathsep.join((str(payload / "bin"), env["PATH"]))
     return {**env, **extra}
 
 
@@ -141,7 +170,7 @@ def run_leaf(
     timeout: float | None = None,
     input_text: str | None = None,
 ) -> subprocess.CompletedProcess:
-    """Run an arm's launcher under a state home of its own."""
+    """Run an arm's launcher under its state home, without personal configuration."""
     proc = subprocess.run(
         [str(arm / "bin/leaf"), *args],
         input=input_text,
@@ -149,7 +178,7 @@ def run_leaf(
         text=True,
         check=False,
         timeout=timeout,
-        env=environment(XDG_STATE_HOME=str(state)),
+        env=fixture_environment(environment(XDG_STATE_HOME=str(state))),
     )
     if check and proc.returncode:
         raise click.ClickException(
@@ -160,11 +189,18 @@ def run_leaf(
 
 @contextmanager
 def serving(arm: Path, state: Path, page: Path):
-    """Serve `page` with the arm's `leaf server run --temporary` under the state home
+    """Serve `page` with the arm's `leaf server run --lifetime temporary` under the state home
     `state`, and yield the tokened URL it prints. Retirement joins the owned process
     through its active requests and sample cleanup before the caller reuses its page."""
     server = subprocess.Popen(
-        [str(arm / "bin" / "leaf"), "server", "run", "--temporary", str(page)],
+        [
+            str(arm / "bin" / "leaf"),
+            "server",
+            "run",
+            "--lifetime",
+            "temporary",
+            str(page),
+        ],
         env=environment(XDG_STATE_HOME=str(state)),
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
@@ -180,27 +216,58 @@ def serving(arm: Path, state: Path, page: Path):
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
-    launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
-    its working tree. Developer pages use the same compiled kernel as the website.
+    launcher under the state home `state`. Callers make the arm's kernel current
+    before building (`current_kernel`), then serve or check the page from that arm.
     """
-    from leaf_dev.commands.distribution import cached_installation
-
     prepare_page(
         page,
         read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
-        partial(run_leaf, cached_installation(arm), state, check=True),
+        partial(run_leaf, arm, state, check=True),
     )
     record_run_context(page, purpose="automated", run=state, authored_source=source)
 
 
+class ServedPage(NamedTuple):
+    """A page `serving_source` serves: its directory, its keyed address, and its arm's
+    launcher under its state home."""
+
+    directory: Path
+    address: str
+    leaf: Callable[..., subprocess.CompletedProcess]
+
+
+# The page `serving_source` serves while it does, for an input that writes to it from
+# outside the tab, as the agent or another tab does (stills.py, `held_news`).
+served_page: ContextVar[ServedPage] = ContextVar("served_page")
+
+
 @contextmanager
-def serving_source(arm: Path, source: Path, scratch: Path):
-    """Build `source` into a page under `scratch` (`build_source`), serve it
-    (`serving`), and yield the address."""
+def serving_source(arm: Path, source: Path, scratch: Path, log: Path | None = None):
+    """Build `source` into a page under `scratch` (`build_source`), admit `log`'s
+    events after its own history, unacknowledged as a writer's would be
+    (`admit_events`), serve it (`serving`), and yield the address, all from `arm`
+    with its kernel current (`current_kernel`)."""
+    from leaf_dev.commands.distribution import current_kernel
+
+    arm = current_kernel(arm)
     state, page = scratch / "state", scratch / "page"
     build_source(arm, state, source, page)
+    if log is not None:
+        admit_events(
+            arm,
+            page,
+            read_event_lines(log),
+            log=log,
+            env=environment(XDG_STATE_HOME=str(state)),
+        )
     with serving(arm, state, page) as address:
-        yield address
+        bound = served_page.set(
+            ServedPage(page, address, partial(run_leaf, arm, state, check=True))
+        )
+        try:
+            yield address
+        finally:
+            served_page.reset(bound)
 
 
 def merge_base(ref: str = "HEAD") -> str:
@@ -265,6 +332,24 @@ def extract_payload(
         copy_working(paths, dest)
 
 
+def arm_commit(ref: str | None) -> str:
+    """The commit `ref` names, HEAD's for the working tree."""
+    return subprocess.run(
+        ["git", "-C", ROOT, "rev-parse", f"{ref or 'HEAD'}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+def extract_arm(ref: str | None, dest: Path) -> str:
+    """Extract an arm's payload without building its environment, for a caller that
+    serves it through `serving_source`, whose first `uv run` in the arm builds one.
+    Return the commit."""
+    extract_payload(dest, ref)
+    return arm_commit(ref)
+
+
 def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) -> str:
     """Extract `paths` at `ref`, or as the working tree has it when `ref` is None,
     into `dest`, replacing any earlier arm there, and build its environment; return
@@ -281,12 +366,7 @@ def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) ->
     subprocess.run(
         [dest / ".venv/bin/python", "-m", "compileall", "-q", dest], check=True
     )
-    return subprocess.run(
-        ["git", "-C", ROOT, "rev-parse", f"{ref or 'HEAD'}^{{commit}}"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
+    return arm_commit(ref)
 
 
 def base_ref(ref: str | None) -> str:
@@ -355,15 +435,14 @@ def install_codex_plugin(
 
 
 def codex_home(path: Path, config: str = "") -> Path:
-    """Make `path` a Codex home holding a copy of the host's login and `config` as its
+    """Make `path` a Codex home sharing the host's login and holding `config` as its
     `config.toml`, so a Codex child run with `CODEX_HOME=path` reads none of the
     host's settings, plugins, hooks or task history. Codex still reads the user's
-    `~/.agents/skills`, which `CODEX_HOME` does not move."""
+    `~/.agents/skills`, which `CODEX_HOME` does not move. Keep one credential file:
+    a child refreshing a copied login would leave the host's refresh token stale."""
     path.mkdir(mode=0o700)
     host = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-    auth = path / "auth.json"
-    shutil.copyfile(host / "auth.json", auth)
-    auth.chmod(0o600)
+    (path / "auth.json").symlink_to((host / "auth.json").resolve())
     (path / "config.toml").write_text(config)
     return path
 
@@ -596,6 +675,7 @@ def run_agent(
     dirs: Iterable[Path] = (),
     env: dict | None = None,
     harness: str = ClaudeCodeHarness.name,
+    model: str | None = None,
     limit: float = TURN_LIMIT,
     **options: str | bool,
 ) -> list[dict]:
@@ -605,8 +685,9 @@ def run_agent(
     notifications live beside `err` with a `.codex.jsonl` suffix. Both harnesses
     have the same `limit`, TURN_LIMIT unless the caller bounds its turn more
     tightly; a timeout retains their partial native evidence and
-    marks `out.with_suffix(".timed-out")` without fabricating completion. `options`
-    passes a Claude Code child's `model` and `sandbox` (`claude_child`).
+    marks `out.with_suffix(".timed-out")` without fabricating completion. `model`
+    overrides either harness's author default; `options` passes Claude Code's
+    remaining child options (`claude_child`).
     """
     if harness == CodexHarness.name:
         with (
@@ -620,6 +701,7 @@ def run_agent(
                 timed_out=out.with_suffix(".timed-out"),
                 dirs=dirs,
                 env=env,
+                model=model,
             ) as child,
             out.open("w") as stream,
         ):
@@ -633,7 +715,14 @@ def run_agent(
     with out.open("w") as stdout, err.open("w") as stderr:
         try:
             subprocess.run(
-                **claude_child(cwd, *args, dirs=dirs, env=env, **options),
+                **claude_child(
+                    cwd,
+                    *args,
+                    dirs=dirs,
+                    env=env,
+                    model=model or MODELS[harness],
+                    **options,
+                ),
                 stdin=subprocess.DEVNULL,
                 stdout=stdout,
                 stderr=stderr,
@@ -1018,7 +1107,7 @@ class PageClient:
         revision and the retry key, as the browser does.
 
         An answer naming another layer than the one posted on admitted nothing: the
-        page was re-vendored between the state read and the post. A tab reloads onto
+        page was re-initialized between the state read and the post. A tab reloads onto
         that layer and the user moves again, so the move is posted again under it.
         """
         layer = self.state()["layer"]["generation"]

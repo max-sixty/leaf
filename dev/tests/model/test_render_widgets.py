@@ -1,7 +1,8 @@
 """Board, suggestion, ask, and widget composition tests."""
 
-from leaf.structure import SourceDocument
 from leaf_dev.commands import corpus as corpus_model
+
+from leaf.structure import SourceDocument
 
 
 def test_the_composed_corpus_carries_each_examples_head_modules():
@@ -12,12 +13,12 @@ def test_the_composed_corpus_carries_each_examples_head_modules():
     composed = {
         script["body"]
         for script in SourceDocument(
-            corpus_model.CORPUS.read_text()
+            corpus_model.build(corpus_model.sources())
         ).authoring.inline_scripts
         if script["early_head"]
     }
     carried = 0
-    for source in corpus_model.SOURCES:
+    for source in corpus_model.sources():
         for script in SourceDocument(source.read_text()).authoring.inline_scripts:
             if script["early_head"]:
                 assert script["body"] in composed, source.name
@@ -27,8 +28,10 @@ def test_the_composed_corpus_carries_each_examples_head_modules():
 
 def test_the_composed_corpus_preserves_stylesheet_access():
     """Each source stylesheet keeps its declarations when the corpus hoists it."""
-    composed = SourceDocument(corpus_model.CORPUS.read_text()).authoring.style_blocks
-    for source in corpus_model.SOURCES:
+    composed = SourceDocument(
+        corpus_model.build(corpus_model.sources())
+    ).authoring.style_blocks
+    for source in corpus_model.sources():
         for sheet in SourceDocument(source.read_text()).authoring.style_blocks:
             assert any(
                 item["css"].strip() == sheet["css"].strip()

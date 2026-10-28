@@ -1,14 +1,15 @@
 # The one project: the repository is the plugin, and the plugin is this uv
-# project. A harness copies the tracked tree into its plugin cache; `bin/leaf`
-# there runs `uv run --project <that copy>`, and the environment appears on the
+# project. A harness installs the tree or loads it in place; `bin/leaf`
+# runs `uv run --project <that root>`, and the environment appears on the
 # first run, synced into `.venv` beside this file: one environment per
 # installed version.
 #
-# The module lives at `skills/leaf/scripts/leaf` because the skill directory is
-# what a harness reads, and `module-root` points the build backend at it rather
-# than moving the tree to suit packaging. `uv sync` installs the project
-# editable, so `schema.py`'s `SKILL_ROOT` still resolves through `__file__`
-# into the tree and finds `assets/` and `packages/` beside it.
+# The Python application lives at `src/leaf`;
+# `module-root` points the build backend there. This is Leaf's layout, not a
+# harness requirement: the plugin root is the installation boundary, while
+# `skills/leaf/SKILL.md` is the agent's instruction entry point. `uv sync`
+# installs the project editable, so `schema.py` resolves application resources
+# through `__file__` into this same tree.
 #
 # Dependencies state the lowest version the suite passes on, with no upper cap.
 # `uv.lock` ships in the install, so a harness runs the versions the suite last
@@ -24,8 +25,8 @@
 # psutil is a compiled extension, so every install fetches a platform wheel for it
 # rather than pure Python. It is a runtime dependency because every page claim
 # reads the process tree above it (`machine.py`).
-# pywhatwgurl checks the `uri` format with a WHATWG URL parser
-# (`registry/schema.py`). It is pure Python, so URL validation needs no native
+# pywhatwgurl resolves captured resource URLs and checks the `uri` format with a
+# WHATWG URL parser. It is pure Python, so URL validation needs no native
 # build toolchain on older Linux systems.
 # regress is an ECMAScript regular-expression engine; schema `pattern`s are read
 # with it (`registry/schema.py`) so they mean what they mean to the browser rather
@@ -52,7 +53,7 @@ dependencies = [
   "linkify-it-py>=2",
   "markdown-it-py>=4",
   "mdit-py-plugins>=0.4",
-  "playwright>=1.63",
+  "playwright>=1.64",
   "psutil>=6",
   "pywhatwgurl>=0.1.2",
   "regress>=2026.9",
@@ -74,13 +75,13 @@ requires = ["uv_build>=0.9"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-module-root = "skills/leaf/scripts"
+module-root = "src"
 module-name = "leaf"
 
 [dependency-groups]
 dev = [
   # Accessible snapshots with rendered boxes for corpus round-trip checks.
-  "playwright>=1.63",
+  "playwright>=1.64",
   "pytest>=9.1",
   "pytest-xdist>=3",
   "axe-playwright-python>=0.1.4",
@@ -116,14 +117,14 @@ leaf-website = { workspace = true }
 # Apply the same scope to directory scans and filenames passed by pre-commit.
 force-exclude = true
 extend-exclude = [
-  "skills/leaf/assets/vendor",
-  "skills/leaf/packages/**/vendor",
+  "browser/vendor",
+  "packages/**/vendor",
   "evals/ui-review-detection/fixtures",
 ]
 
 # SessionEnd runs before a managed environment exists (bin/leaf), on system Python.
 [tool.ruff.per-file-target-version]
-"skills/leaf/scripts/leaf/state.py" = "py39"
+"src/leaf/state.py" = "py39"
 
 # The suite is round trips through a real browser rather than computation, so tests
 # shard independently: every test gets its own tmp_path, XDG homes, and server.
@@ -136,7 +137,7 @@ extend-exclude = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tests"]
-addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.commands.suite_profile"
+addopts = "-n 2 --dist loadgroup --max-worker-restart=0 --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.commands.suite_profile"
 markers = [
   "network: requires external network access after development setup",
   "shifts_unsurveyed: its browser tests await a shift survey, so they do not reject unsolicited layout shifts",
@@ -144,8 +145,11 @@ markers = [
 ]
 # A test still running after half an hour is hung, not slow: the slowest takes under
 # three minutes on CI, so even ten times slower it finishes. The worker prints every
-# thread's stack, which names the call that blocked, and exits; xdist reports the test
-# as crashed and starts a fresh worker for the rest. Without this, a call with no
+# thread's stack, which names the call that blocked, and exits. xdist reports the test
+# as crashed, and `--max-worker-restart=0` (addopts) then ends the run once the other
+# workers finish the tests already sent to them. Replacing the crashed worker instead
+# leaves a `--dist loadgroup` run with every worker idle, waiting for a test that never
+# comes, until something kills it (xdist 3.8.0). Without the timeout, a call with no
 # deadline of its own (`page.evaluate`, a new page, a lock) holds the run until the CI
 # job's six-hour limit. Pytest cancels this timer when a test reports a failure,
 # so it does not bound that test's cleanup. CI also bounds the whole Python/profile
@@ -161,7 +165,7 @@ faulthandler_exit_on_timeout = true
 # protocol fixes. A new framework gets its pattern here; a definition only a
 # removed caller used gets deleted.
 [tool.vulture]
-paths = ["build", "dev", "hooks", "skills", "tests", "worker"]
+paths = ["build", "dev", "evals", "hooks", "src", "packages", "skills", "tests", "worker"]
 exclude = ["vendor/", "node_modules/"]
 min_confidence = 60
 ignore_decorators = [
@@ -189,14 +193,19 @@ ignore_names = [
   "do_*",
   "list_directory",
   "log_message",
+  "protocol_version",
+  "close_connection",
   "daemon_threads",
   "handlers",
+  # urllib.request calls this HTTPRedirectHandler override by name.
+  "redirect_request",
   # a reference held only so its page stays in the recent pages (samples.py)
   "parent_memory",
   # click, uvicorn, markdown-it
   "get_command",
   "format_commands",
   "command_class",
+  "group_class",
   "main_loop",
   "validateLink",
 ]

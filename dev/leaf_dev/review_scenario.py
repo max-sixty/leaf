@@ -12,11 +12,11 @@ import shutil
 from pathlib import Path
 
 import click
+
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.service import page_claim
 from leaf.thread import successful_replies
-
 from leaf_dev import ROOT
 from leaf_dev.arms import PageClient, run_leaf
 from leaf_dev.eval_cases import definition
@@ -30,12 +30,17 @@ COMMENTS = {
     "reconnect": ("triage-lede", "Is the same review still connected?"),
     "escape": ("triage-why", "Did the interrupted check change anything?"),
     "resume": ("triage-why", "Did resuming the check change anything?"),
+    "unload": ("triage-lede", "Who signs off once the migration is fixed?"),
     "held-escape": (
         "triage-lede",
         "If the migration slips, which work can still ship?",
     ),
     "woken": ("triage-lede", "Which item would you cut if we had to ship today?"),
     "after-wake": ("triage-why", "And which one would you keep at any cost?"),
+    "dropped": ("triage-why", "Does the export bug block the release too?"),
+    "deferred": ("triage-lede", "Could the export fix ship in a patch release?"),
+    "first-wake": ("triage-lede", "Which card should I read first?"),
+    "boundary": ("triage-why", "Is the timezone bug a regression?"),
     "first": ("triage-lede", "Who owns the migration fix?"),
     "ending": ("triage-why", "When could that fix land?"),
     # Real author intent exercises the rich interface without naming its commands.

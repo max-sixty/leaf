@@ -3453,14 +3453,15 @@ export function createFloatingPanel({
   // run, from what stands before it. One keyed list of rules, headings and items, so an
   // item that moves to another group, as one whose place leaves the page does, keeps
   // its node, and the focus and drawing in it. `line` draws an item, given the group it
-  // stands in.
+  // stands in. A rule belongs to its group, so replacing the group's first item
+  // does not replace the rule and make the keyed renderer move surviving cards.
   function groupedItems(groups, line) {
     const rows = [];
     let running = false;
     for (const group of groups) {
       const headed = group.headed !== false;
       if (rows.length && (headed || !running))
-        rows.push({ key: `rule:${queueItemKey(group.items[0])}`, rule: true });
+        rows.push({ key: `rule:${group.key}`, rule: true });
       running = !headed;
       if (headed) rows.push({ key: group.key, group });
       for (const item of group.items)

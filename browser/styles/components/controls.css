@@ -162,12 +162,15 @@
    appear only for the message under pointer or focus, and hidden they keep their
    room. A reply with no feedback keeps no row below its words. The reaction picker
    is an overlaid menu below its trigger; opening it never moves this message or the
-   threads after it. At rest only feedback already left earns flow space. */
+   threads after it. At rest only feedback already left earns flow space. The words
+   run up to the group, past the head's gap, since a control's face stands inside
+   its box. */
 .lf-msg-controls {
   display: flex;
   flex: none;
   align-items: center;
   gap: var(--lf-msg-edit-gap);
+  margin-inline-start: calc(-1 * var(--sp-2));
 }
 .lf-msg-controls:empty {
   display: none;
@@ -176,7 +179,7 @@
    good, and a head is too narrow for two controls at the aim floor, so it is left out
    there, and a finger copies a message's words by selecting them. */
 @media (pointer: coarse), (hover: none) {
-  .lf-msg-copy {
+  .lf-msg-controls > .lf-msg-copy {
     display: none;
   }
 }

@@ -13,7 +13,7 @@ from .widgets import (
 
 # The vocabularies this process has validated, by a digest of their content, oldest
 # first. Validation is a pure function of the vocabulary, `source` naming it only in a
-# rejection, and every page vendored from one layer composes the same one: the suite's
+# rejection, and every page selecting one layer composes the same one: the suite's
 # pages, a site build's examples, and a harness's pages each validated it anew, about a
 # tenth of a second apiece for the bundled packages.
 _VALIDATED: dict[bytes, None] = {}

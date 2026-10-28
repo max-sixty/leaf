@@ -54,9 +54,9 @@ from .revision_artifact import (
 )
 from .schema import (
     BROWSER_DIRS,
+    LAYER_TOP_FILES,
     MEDIA_DIR,
     RENDER_CHECKS_DIR,
-    VENDORED_FILES,
 )
 from .structure import (
     UTF8_BOM,
@@ -80,7 +80,7 @@ _PAGE_PATH = re.compile(
     "/(?:"
     + "|".join(
         [f"(?:page|{MEDIA_DIR}|{'|'.join(BROWSER_DIRS)})/.+"]
-        + [re.escape(name) for name in VENDORED_FILES]
+        + [re.escape(name) for name in LAYER_TOP_FILES]
     )
     + ")"
 )
@@ -293,6 +293,14 @@ def rebase_document(
                             else "",
                         )
                     )
+            # Delivery's own scripts (`runtime_element`) run where they stand.
+            authored = "data-lf-runtime" not in attrs
+            if (
+                authored
+                and tag == "script"
+                and script_kind(attrs) in {"module", "classic"}
+            ):
+                edits.extend(_deferred(source, span, location, attrs))
             if tag in {"script", "style"} and location.end_tag is not None:
                 start = index(location.start_tag.end_line, location.start_tag.end_col)
                 end = index(location.end_tag.start_line, location.end_tag.start_col)
@@ -305,12 +313,46 @@ def rebase_document(
                     delivered = rebase_module(
                         body.encode("utf-8"), "/index.html", address
                     ).decode("utf-8")
+                    if authored and script_kind(attrs) == "classic":
+                        # An inline classic script runs from a deferred `data:` file,
+                        # which keeps its global scope and sloppy mode. Its lines are
+                        # padded to where it stands, and `sourceURL` names the
+                        # document, so an error it throws names its line in index.html.
+                        line = location.start_tag.end_line
+                        text = "\n" * (line - 1) + delivered
+                        text += "\n//# sourceURL=index.html"
+                        url = "data:text/javascript;charset=utf-8," + quote(
+                            text, safe=""
+                        )
+                        _, tag_end = span(location.start_tag)
+                        edits.append((tag_end - 1, tag_end - 1, f' src="{url}"'))
+                        delivered = ""
                 else:
                     continue
                 if delivered != body:
                     edits.append((start, end, delivered))
 
     return _spliced(source, edits)
+
+
+def _deferred(source: str, span, location, attrs: dict) -> list[tuple[int, int, str]]:
+    """Edits that hold a page's script until the runtime has read the page.
+
+    The runtime's module runs once the document has parsed, and so does every deferred
+    script after it, in document order. A classic script the parser would run where it
+    stands, or one marked `async`, could run first, changing what the runtime reads
+    as authored and throwing before anything listens. So delivery defers it: `async`
+    goes, and a classic script gains `defer`, an inline one by moving its text to a
+    `data:` file (`rebase_document`). What it gives up is running mid-parse, which
+    leaves `document.write` ignored."""
+    edits = []
+    if "async" in attrs:
+        edits.append((*span(location.attrs["async"]), ""))
+    if script_kind(attrs) == "classic" and "defer" not in attrs:
+        _, end = span(location.start_tag)
+        at = end - (2 if source[end - 2 : end] == "/>" else 1)
+        edits.append((at, at, " defer"))
+    return edits
 
 
 def _spliced(source: str, edits: list[tuple[int, int, str]]) -> str:

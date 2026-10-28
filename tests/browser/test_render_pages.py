@@ -10,6 +10,7 @@ from click.testing import CliRunner
 from interact_support import (
     add_test_widget,
     append_carried_log_record,
+    declare_on_page,
     record_claim,
 )
 from PIL import Image, ImageChops, ImageStat
@@ -91,6 +92,7 @@ from browser.threads import open_panel_thread
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
+from leaf.registry.storage import load_registry
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
 
@@ -578,10 +580,13 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     the target on the strength of its entry. This rules out a consumer that knows one
     widget by name and silently misses the next."""
     url = serve(PICTURE_PAGE)
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry = load_registry(serve.page_dir)
     assert registry["lf-diagram"]["x-visual"], "this test needs the shipped declaration"
-    registry["lf-code"]["x-visual"] = "whole"  # a widget core has never heard of
-    (serve.page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_on_page(
+        serve.page_dir,
+        # A widget core has never heard of.
+        lambda registry: registry["lf-code"].update({"x-visual": "whole"}),
+    )
     page = open_page(browser, url)
 
     # The inner svg belongs to the renderer and carries generated ids; the anchor
@@ -1527,6 +1532,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + '<div data-width="wide">Room.</div></span></div>'
         + '<div id="padded" style="margin-inline: -600px; padding-inline: 600px">'
         + '<div data-width="wide">Room.</div></div>'
+        + '<div id="pinned" style="position: fixed; inset: auto 0 0 0">Pinned.</div>'
     )
     column = open_page(browser, serve(leaf_page("Column", body + extras)))
     resized(column, 1726, 900)
@@ -1555,7 +1561,8 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # An obligation that spans its block is a breakout the theme grows, so the gate reads it
     # as one, even where it reaches further than a table of two columns does; a box the
     # page pulls out of the column by its margins, an inline one, or one it grows round
-    # its block by margins and padding of its own, still stands in the margin.
+    # its block by margins and padding of its own, still stands in the margin. A fixed
+    # box across the column's edges answers for itself, as it hangs off the window.
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
         ("past-column", "<div id=pulled>"),
@@ -1859,6 +1866,7 @@ def test_what_an_outer_column_draws_outside_itself_stays_whole(
     page.keyboard.press("Tab")  # keyboard modality, so focus draws its ring
     for link in ("#first", "#last"):
         page.locator(link).focus()
+        rendered(page)
         ring = current_location_ring(page)
         assert ring, f"the link {link} the keyboard stands on wears no ring"
         assert ring["cuts"] == [], (link, ring["cuts"])

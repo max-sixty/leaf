@@ -1326,7 +1326,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 	function commentDestination() {
 		if (offeredSelection) return {
 			...commenting("selection"),
-			box: null,
+			box: pageComment.box,
 			go: commentOnOfferedSelection
 		};
 		const here = currentTarget();
@@ -5128,11 +5128,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 		if (thread && !thread.resolved && !noticeReading().visible && !statusContextReading().goTo) return {
 			says: "turn",
-			words: "Reply"
+			words: "Reply",
+			offers: true
 		};
 		const stance = key ? null : statusContextReading().stance;
 		if (!key && selectedWords) return {
 			says: "selection",
+			offers: true,
 			words: [
 				stance,
 				navigationWords(),
@@ -5159,9 +5161,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 		return {
 			says: "turn",
-			words: "Reply"
+			words: "Reply",
+			offers: true
 		};
 	}
+	const spoken = ({ label, voice }) => html`<span data-voice=${voice ?? "agent"}>${label}</span>`;
 	function turnLead(key, input) {
 		if (fieldReading(key, input).says !== "turn") return "";
 		const thread = threadByKey(key);
@@ -5169,7 +5173,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const position = !walk?.shown ? "" : walk.kind === "thread" && walk.target === thread?.id ? `${walk.position} of ${walk.total}` : walk.text;
 		const attention = Boolean(position) && !currentLocationIn(host) ? null : threadAttention(thread, agentName());
 		if (!attention) return position;
-		return html`<span data-voice=${attention.voice}>${attention.label}</span>${position ? ` · ${position}` : ""}`;
+		return html`${spoken(attention)}${position ? ` · ${position}` : ""}`;
 	}
 	const whereTo = (key) => key ? "Reply in this thread" : "Comment on the page";
 	function saying(key, input) {
@@ -5177,6 +5181,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (input) {
 			keeps(input, "data-says", reading.says);
 			keeps(input, "data-voice", reading.voice === "leaf" ? "leaf" : null);
+			keeps(input, "data-offers", reading.offers ? "" : null);
 		}
 		return reading.words;
 	}
@@ -5322,7 +5327,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const word = thread.resolved ? "Resolved" : attention?.label;
 		const since = thread.resolved ? shortAgo(thread.resolved.ts) : "";
 		const draft = draftHasContent(replyContext(thread.key)) && "Draft";
-		return html`${word ? html`<span data-voice=${attention?.voice ?? "agent"}>${word}</span>` : nothing}${since ? html` <span class="lf-fp-age">${since}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+		return html`${word ? spoken({
+			label: word,
+			voice: attention?.voice
+		}) : nothing}${since ? html` <span class="lf-fp-age">${since}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
 	};
 	const rows = () => pageControls();
 	const VIEWS = Object.freeze({
@@ -7186,7 +7194,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		markRoom();
 		keeps(host, "data-expanded", expanded ? "" : null);
 		const reading = fieldReading(replying ? top.thread : null, input);
-		keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
+		keeps(host, "data-offers", !search && reading.offers ? "" : null);
 		keeps(host, "data-tone", status().tone || null);
 		keeps(host, "data-asks", status().asks ? "" : null);
 		render(panelTemplate(), host);
@@ -8657,12 +8665,6 @@ registerPageControl({
 const payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
 const payloadDateLines = (provenance) => ["committed", "installed"].filter((kind) => provenance[kind]).map((kind) => `${kind}: ${provenance[kind]}`);
 const shortCommit = (provenance) => provenance.commit ? `${provenance.commit.slice(0, 8)}${provenance.dirty ? "+" : ""}` : "unknown";
-const otherPayloadLines = (relation, provenance) => [
-	...provenance.commit ? [`${relation} commit: ${provenance.commit}`] : [],
-	...provenance.dirty !== void 0 ? [`${relation} dirty: ${provenance.dirty}`] : [],
-	...payloadDateLines(provenance).map((line) => `${relation} ${line}`)
-];
-const servedBy = (identity) => identity.served_by ? ` · served by ${shortCommit(identity.served_by)}${payloadAge(identity.served_by) ? ` · ${payloadAge(identity.served_by)}` : ""}` : "";
 if (SHARE_ROOT) registerPageControl({
 	key: "share",
 	rank: PAGE_CONTROL_RANK.share,
@@ -8702,11 +8704,10 @@ registerPageControl({
 });
 const preview = () => runtime.state?.preview ?? null;
 function previewLabel() {
-	const identity = pageIdentity();
-	const producer = identity.layer.producer ?? {};
+	const producer = pageIdentity().layer.producer ?? {};
 	const stem = `${preview().interaction === "user" ? "User" : "Preview"} · ${preview().checkout}${producer.commit ? `@${producer.commit}` : ""}`;
 	const age = payloadAge(producer);
-	return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${servedBy(identity)}`;
+	return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}`;
 }
 function previewDiagnostics() {
 	const identity = pageIdentity();
@@ -8720,7 +8721,6 @@ function previewDiagnostics() {
 		...producer.commit ? [`commit: ${producer.commit}`] : [],
 		...producer.dirty !== void 0 ? [`dirty: ${producer.dirty}`] : [],
 		...payloadDateLines(producer),
-		...identity.served_by ? otherPayloadLines("served by", identity.served_by) : [],
 		`started: ${started}`,
 		...runtimeLines(),
 		`layer generation: ${identity.layer.generation}`,
@@ -8756,7 +8756,7 @@ const layerShown = () => {
 function layerNamed() {
 	const identity = pageIdentity();
 	const age = payloadAge(identity.layer.producer ?? {});
-	return `Leaf ${layerIdentity(identity)}${age ? ` · ${age}` : ""}${servedBy(identity)}`;
+	return `Leaf ${layerIdentity(identity)}${age ? ` · ${age}` : ""}`;
 }
 function layerDiagnostics() {
 	const identity = pageIdentity();
@@ -8767,7 +8767,6 @@ function layerDiagnostics() {
 		...producer.commit ? [`commit: ${producer.commit}`] : [],
 		...producer.dirty !== void 0 ? [`dirty: ${producer.dirty}`] : [],
 		...payloadDateLines(producer),
-		...identity.served_by ? otherPayloadLines("served by", identity.served_by) : [],
 		...fingerprint ? [`fingerprint: ${fingerprint}`] : [],
 		`generation: ${identity.layer.generation}`,
 		...runtimeLines(),

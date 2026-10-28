@@ -79,22 +79,6 @@ OBSTACLES = {
         " shorter than the window ends in Leaf's paper below the body the author"
         " coloured"
     ),
-    "parser-blocking-script": (
-        "page check refuses a classic inline script: it runs before the runtime,"
-        " which reads the authored main from the live DOM when its module runs"
-        " (version.js, initialDocument) and hears errors only from then on"
-        " (validation/source.py)"
-    ),
-    "scrollbar-clearance": (
-        "the render gate refuses a horizontally scrolling row whose padding below its"
-        " controls is less than the 15px an overlay scrollbar widens to under the"
-        " pointer (scrollbars.js)"
-    ),
-    "past-column": (
-        "the render gate refuses a position: fixed box that straddles the edge of"
-        " main's content box, reading a badge pinned to the window's corner as content"
-        " spilling into the margin (layout.js, misplacedBoxes)"
-    ),
 }
 KNOWN = {
     "article": {
@@ -121,9 +105,6 @@ KNOWN = {
             "light inherited font-family on main > div:0 > section:5 > table:0 and 89 more #a7a90862",
             "light inherited font-variant-numeric on main > div:0 > section:5 > table:0 and 109 more #64d52e9b",
             "light inherited line-height on main > header:0 > h1:0 and 117 more #66a50cd8",
-        },
-        "scrollbar-clearance": {
-            "scrollbar-clearance <nav>",
         },
     },
     "editorial": {
@@ -178,13 +159,14 @@ KNOWN = {
             "light inherited font-size on main > p:0 #5fa0b4aa",
             "light inherited line-height on main > h1:0 and 5 more #1be9666f",
         },
-        "past-column": {
-            "past-column <div>",
-        },
     },
     "script": {
-        "parser-blocking-script": {
-            "parser-blocking-script <script>",
+        "color-scheme": {
+            "color-scheme on the root",
+        },
+        "inherited": {
+            "dark inherited line-height on main > h1:0 #0199a976",
+            "light inherited line-height on main > h1:0 #0199a976",
         },
     },
 }

@@ -63,7 +63,7 @@ leaf task end <page> <todo> done --text "<where the result is>"
 ```
 
 `leaf task create` prints the to-do's `id`.
-Housekeeping such as re-vendoring, restarting the server, or merging needs
+Housekeeping such as changing packages, restarting the server, or merging needs
 no to-do.
 
 When the work runs to several steps, some of which may wait on the user, write your plan

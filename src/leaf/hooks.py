@@ -321,7 +321,7 @@ def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
     import sys
     import tempfile
 
-    from .session_runtime import own_launcher, selected_launcher
+    from .session_runtime import delivering_launcher, own_launcher
 
     try:
         payload = json.load(sys.stdin)
@@ -329,8 +329,8 @@ def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
         raise Refused(
             f"hook expects the harness's JSON payload on stdin ({error.msg})"
         ) from error
-    launcher = selected_launcher(payload.get("session_id") or "")
-    if launcher is not None and launcher != own_launcher():
+    launcher = delivering_launcher(payload.get("session_id") or "")
+    if launcher != own_launcher():
         # Delegate the whole hook before publishing lifecycle or pickup. Keeping
         # the stdin as a file avoids a pipe-size limit on large tool payloads;
         # exec retains cancellation and the watch's exact lifetime.

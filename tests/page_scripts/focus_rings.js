@@ -221,6 +221,18 @@
       return false;
     };
     const focused = deepFocus();
+    const { accent } = accentSwatch();
+    // A colour as the screenshot holds it, whatever space it was written in: a canvas
+    // paints it into sRGB.
+    const canvas = document.createElement("canvas").getContext("2d", {
+      willReadFrequently: true,
+    });
+    const srgb = (colour) => {
+      canvas.clearRect(0, 0, 1, 1);
+      canvas.fillStyle = colour;
+      canvas.fillRect(0, 0, 1, 1);
+      return [...canvas.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+    };
     const claimed = globalThis.__lfRingClaims;
     delete globalThis.__lfRingClaims;
     const answers = [];
@@ -264,7 +276,14 @@
       // two defects. The innermost box is the more useful of the two answers anyway: it
       // is the box the control lives in.
       const taken = {};
+      // What of the page the ring can show through: every band that clips it, and the
+      // window. The pixel reading below samples only there.
+      const clip = { top: 0, left: 0, bottom: innerHeight, right: innerWidth };
       const took = (band, who) => {
+        clip.top = Math.max(clip.top, band.top);
+        clip.left = Math.max(clip.left, band.left);
+        clip.bottom = Math.min(clip.bottom, band.bottom);
+        clip.right = Math.min(clip.right, band.right);
         // Only the sides where this box is showing the control's own edge, which is the
         // claim a box can be held to: where the control can be seen, so can the ring
         // around it. Asked of the edge rather than of the size, because the two answers
@@ -616,8 +635,53 @@
           break;
         }
       }
+      // Hit testing sees only boxes that take hits, so paint that takes none passes the
+      // reading above: a box shadow, a pseudo-element or a layer with no pointer events,
+      // or a ring never painted at all. A margin card's sticky message head lays paper
+      // over the room above it as a shadow, and the ring on the message under it read
+      // whole with its top run gone. So each run is also read off the screenshot where
+      // nothing in front of the ring takes hits, which leaves every box hit testing
+      // can see to the reading above and its excuses. `rings_drawn` takes the
+      // screenshot and reports a run the ring's colour doesn't cover.
+      //
+      // Only the layer's own ring is read, whose colour is known; a rounded ring's
+      // corners curve off the run's line, so the run is read short of them.
+      const runs = [];
+      if (here) {
+        const radius = Math.max(
+          ...["TopLeft", "TopRight", "BottomLeft", "BottomRight"].map(
+            (corner) => parseFloat(cs[`border${corner}Radius`]) || 0,
+          ),
+        );
+        const end = radius + grow + w + 1;
+        const exposed = (x, y) => {
+          const front = document.elementsFromPoint(x, y)[0];
+          return !front || front === el || holds(el, front) || holds(front, el);
+        };
+        for (const [side, line, horizontal] of [
+          ["top", ring.top + w / 2, true],
+          ["bottom", ring.bottom - w / 2, true],
+          ["left", ring.left + w / 2, false],
+          ["right", ring.right - w / 2, false],
+        ]) {
+          const [from, to] = horizontal
+            ? [ring.left + end, ring.right - end]
+            : [ring.top + end, ring.bottom - end];
+          const points = [];
+          for (let t = from; t <= to; t += 4) {
+            const [x, y] = horizontal ? [t, line] : [line, t];
+            if (x < clip.left || x >= clip.right || y < clip.top || y >= clip.bottom)
+              continue;
+            if (orderedAt(x, y) && exposed(x, y)) points.push([x, y]);
+          }
+          if (points.length >= 4) runs.push({ side, points });
+        }
+      }
       answers.push({
         who: named(el),
+        ink: srgb(outlined ? cs.outlineColor : accent),
+        ringAt: at(ring),
+        runs,
         here,
         mark: el.matches(".lf-mark-el"),
         pseudo: pseudo ? "after" : null,

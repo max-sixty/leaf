@@ -13,9 +13,9 @@ is live and whether an invalid source save leaves the last valid version active.
 `digest` identifies the current index.html and complete page/ tree, even when invalid,
 for `page stamp --replace`. Before the first valid revision, an invalid candidate
 registry leaves no active document or readable vocabulary; its
-source error still remains readable. A page this Leaf cannot serve as
-vendored (`layer.incompatible_layer`) is still read, its `source.error` the refusal
-naming the re-vendor: the reading gives the agent the page's context, and the error
+source error still remains readable. A page at a protocol this Leaf cannot
+serve (`layer.incompatible_layer`) is still read, its `source.error` the refusal
+naming `page init`: the reading gives the agent the page's context, and the error
 says not to act on it before `page init`.
 """
 

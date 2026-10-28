@@ -3311,10 +3311,12 @@ export function createFloatingPanel({
     else if (item.offers?.done)
       answers = html`<button
         type="button"
-        class="lf-fp-face lf-fp-answer"
+        class="lf-fp-face lf-fp-answer lf-fp-icon-btn"
+        aria-label="Done"
+        title="Done"
         @click=${() => queueActions.done(queueItemKey(item))}
       >
-        Done
+        ${actionTemplate("done", "lf-action-icon")}
       </button>`;
     else if (inWords && thread) {
       discussHere = false;

@@ -1449,7 +1449,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
     declared = CliRunner().invoke(cli_model.cli, ["page", "open", str(serve.page_dir)])
     assert declared.exit_code == 0, declared.output
     claim = service_model.page_claim(serve.page_dir)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(serve.page_dir, claim["id"] if claim else None)
     )
     try:

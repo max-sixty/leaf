@@ -65,6 +65,8 @@ from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.detached import StartRefused
+from leaf.interaction_log import read_interactions
+from leaf.registry.kernel import kernel_protocol
 
 
 def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
@@ -834,6 +836,10 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     [woke] = outcome
     assert woke.startswith(f"{claimed} has new input")
     assert not leases_model.wait_is_live(claimed, "s1")
+    # The page keeps how the watch ended, and the protocol its Leaf spoke.
+    [ended] = read_interactions(claimed, types=("watch",))
+    assert (ended["session"], ended["ended"]) == ("s1", "woke")
+    assert ended["protocol"] == kernel_protocol()
 
     # Input arriving once the watch runs wakes the session at once, between turns
     # or within one, where it reaches the turn at its next tool result.
@@ -1026,6 +1032,25 @@ def test_a_watch_superseded_during_a_pass_leaves_its_input_to_the_newer(
         assert read_watch_pass(newer, None, lambda tick: tick.page_dir).delivered
     finally:
         newer.release()
+
+
+def test_a_watch_an_older_leaf_runs_takes_no_input(tmp_path, monkeypatch):
+    """A watch holds the page protocol its Leaf speaks. A Leaf at a later protocol,
+    which re-vendors the pages it reads, reads a lease an older Leaf holds as no
+    watch, since that watch can't read those pages, so admission nudges the session
+    past it; a Leaf at the same or an earlier protocol reads it as live."""
+    path = tmp_path / "wait"
+    lease = leases_model.take_wait_lease(path)
+    try:
+        monkeypatch.setattr(leases_model, "waiter_lease_path", lambda *_: path)
+        assert leases_model.wait_is_live(None, "s1")
+        speaks = kernel_protocol()
+        monkeypatch.setattr(leases_model, "kernel_protocol", lambda: speaks + 1)
+        assert not leases_model.wait_is_live(None, "s1")
+        monkeypatch.setattr(leases_model, "kernel_protocol", lambda: speaks - 1)
+        assert leases_model.wait_is_live(None, "s1")
+    finally:
+        leases_model.release_lease(lease)
 
 
 @pytest.mark.parametrize("newer_ends", [False, True])

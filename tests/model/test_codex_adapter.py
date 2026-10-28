@@ -2359,7 +2359,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
     )
     [(path, _)] = codex_records("codex-thread")
     lease = adapter_lease("codex-thread", None)
-    waiter = leases_model.take_lease(
+    waiter = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, "codex-thread")
     )
     assert waiter

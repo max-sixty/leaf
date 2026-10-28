@@ -185,10 +185,12 @@ representative desktop viewport.
   done, ‹ and › for back and next, and the symbols for play, pause, copy and undo, so
   they can tell what the control does before hovering it. The words on Leaf's controls
   compete with the page's own words for the reader's attention, and a symbol is
-  smaller and quieter. Draw it from `runtime/icon-paths.js` and give the control its
-  name as tooltip and accessible name, without the word beside the symbol. An action
-  shows one symbol, or one word, wherever Leaf offers it, so a reader who learns it in
-  one place knows it in every other. One control
+  smaller and quieter. The control names its action from `ACTIONS` in
+  `runtime/icon-paths.js`, which gives it the action's symbol, and says its name as
+  tooltip and accessible name, without the word beside the symbol. An action shows one
+  symbol, or one word, wherever Leaf offers it, so a reader who learns it in one place
+  knows it in every other, and a press names an action, never an icon, so its symbol
+  can't drift. One control
   whose symbol follows its state, such as play turning to pause, replaces a button for
   each state. A symbol that is only related to the action, such as a speech bubble for
   answering a question, leaves the reader guessing, and a tooltip doesn't fix that:

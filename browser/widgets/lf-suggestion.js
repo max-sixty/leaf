@@ -42,8 +42,8 @@ const WORDS = { accept: "Accept", reject: "Reject" };
 // The outcome of the decision in force, or null while the suggestion is undecided.
 const outcomeOf = (state) => state.decide?.detail?.outcome ?? null;
 const FACE = {
-  accept: { icon: "check", tone: "positive", rank: "primary" },
-  reject: { icon: "cross", tone: "negative", rank: "secondary" },
+  accept: { action: "accept", tone: "positive", rank: "primary" },
+  reject: { action: "reject", tone: "negative", rank: "secondary" },
 };
 
 // ---------- word-level emphasis ----------
@@ -202,10 +202,10 @@ customElements.define(
       const pending = Boolean(this.#staging || this.#deciding);
       let words;
       const change = () => (words ??= this.#label());
-      const failed = (key, icon, label, rank) =>
+      const failed = (key, action, label, rank) =>
         contributionEntry({
           key,
-          icon,
+          action,
           label,
           rank,
           state: "failed",
@@ -216,7 +216,7 @@ customElements.define(
         undo: () =>
           contributionEntry({
             key: "undo",
-            icon: "undo",
+            action: "undo",
             label: "Undo",
             accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change()}`,
             rank: "primary",
@@ -226,7 +226,7 @@ customElements.define(
             scope: this.#commandScope,
           }),
         retry: () => failed("retry", "retry", "Retry", "complete"),
-        "cancel-failure": () => failed("cancel-failure", "cross", "Cancel", "escape"),
+        "cancel-failure": () => failed("cancel-failure", "cancel", "Cancel", "escape"),
       };
       const decision = (kind) =>
         contributionEntry({

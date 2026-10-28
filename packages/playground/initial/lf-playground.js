@@ -9,7 +9,7 @@
  * x-refers). This producer checks only what needs the values themselves, such as a
  * range value against its bounds or a choice control's value among its choices. */
 import { html, nothing, ref, render } from "/vendor/lit.js";
-import { iconElement } from "../../../browser/runtime/icon-paths.js";
+import { actionOffers } from "../../../browser/runtime/icon-paths.js";
 
 const own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
 const belongsTo = (host, member) =>
@@ -24,10 +24,9 @@ const ownControls = (host, preview) => [
   ),
 ];
 
-function createPlayground(
-  host,
-  { tabStore, offerElement, offerActionElement, generatedElement },
-) {
+function createPlayground(host, tools) {
+  const { tabStore, offerElement, generatedElement } = tools;
+  const { offerActionElement } = actionOffers(tools);
   const presets = own(host, "lf-playground-preset");
   const outputs = own(host, "lf-playground-output");
   const previews = own(host, "lf-playground-preview");
@@ -212,10 +211,14 @@ function createPlayground(
     });
   const inputOffer = offered((element) => offerElement(element, "lf-playground-input"));
   const radioOffer = offered((element) => offerElement(element, ""));
-  const action = (role, cls, label) =>
-    offered((element) => offerActionElement(element, role, cls, label));
-  const resetOffer = action("symbol", "lf-playground-reset", "Reset");
-  const revealOffer = action("symbol", "lf-playground-reveal", "Show instruction");
+  const action = (role, cls, label, options) =>
+    offered((element) => offerActionElement(element, role, cls, label, options));
+  const resetOffer = action("symbol", "lf-playground-reset", undefined, {
+    action: "reset",
+  });
+  const revealOffer = action("symbol", "lf-playground-reveal", "Show instruction", {
+    action: "more",
+  });
   const submitOffer = action("commit", "lf-playground-submit");
   const presetOffer = action("word", "lf-playground-preset");
   const nativeInputs = (control) => [
@@ -230,8 +233,6 @@ function createPlayground(
     );
   const instructionId = `${host.id}-instruction`;
   const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
-  const retryIcon = iconElement("retry", "lf-action-icon");
-  const moreIcon = iconElement("more", "lf-action-icon");
   const offline = Boolean(document.querySelector("script[data-lf-offline]"));
   const presetBar = () =>
     !presets.length
@@ -496,15 +497,13 @@ function createPlayground(
             aria-label="Instruction to agent"
           >
             <div class="lf-playground-actions">
-              <button ${resetOffer}>${retryIcon}</button>
+              <button ${resetOffer}></button>
               <button
                 ${revealOffer}
                 popovertarget=${instructionId}
                 aria-controls=${instructionId}
                 aria-expanded="false"
-              >
-                ${moreIcon}
-              </button>
+              ></button>
               <button ${submitOffer} data-room=${`${submitLabel}\nUndo choice`}>
                 <span data-lf-gen="1">${chosen() ? "Undo choice" : submitLabel}</span>
               </button>

@@ -7,6 +7,7 @@
 //   node tests/js_facts.mjs imports FILE...   {file: {reads, stars}} names read elsewhere
 //   node tests/js_facts.mjs queries FILE...   {file: [selector]} handed to DOM queries
 //   node tests/js_facts.mjs literals FILE...  {file: {constants, calls}} literal values
+//   node tests/js_facts.mjs presses FILE...   {file: [press]} each press and its dressing
 //
 // Every module is read with oxc, which parses JavaScript and TypeScript, the language
 // chosen by the file's extension, into one ESTree, so a TypeScript module's exported
@@ -14,6 +15,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { parseSync } from "oxc-parser";
+import { Tokenizer } from "parse5";
 import { served } from "./served-paths.mjs";
 
 const [command, ...files] = process.argv.slice(2);
@@ -383,7 +385,325 @@ function literals() {
   return JSON.stringify(read);
 }
 
-const commands = { keydown, exports, imports, queries, literals };
+// The calls that dress an element, and which argument holds the classes they give it.
+const CLASS_ARGUMENT = {
+  offer: 1,
+  el: 1,
+  offerElement: 1,
+  offered: 0,
+  offerAction: 1,
+  offeredAction: 1,
+  offerActionElement: 2,
+  selectableOffer: 1,
+  selectableOffered: 1,
+  copyControl: 0,
+};
+// The builders that give an element a role's face (prepaint.js, `ACTION_FACES`), and
+// the calls that make an element of the tag they are handed first.
+const ROLE_BUILDERS = new Set(["offerAction", "offeredAction", "offerActionElement"]);
+const MAKERS = new Set(["offer", "el", "createElement"]);
+
+const callee = (node) =>
+  node?.type !== "CallExpression"
+    ? null
+    : node.callee.type === "Identifier"
+      ? node.callee.name
+      : method(node);
+
+// The names a binding pattern declares.
+function declared(pattern) {
+  switch (pattern?.type) {
+    case "Identifier":
+      return [pattern.name];
+    case "ObjectPattern":
+      return pattern.properties.flatMap((p) => declared(p.argument ?? p.value));
+    case "ArrayPattern":
+      return pattern.elements.flatMap(declared);
+    case "RestElement":
+      return declared(pattern.argument);
+    case "AssignmentPattern":
+      return declared(pattern.left);
+    default:
+      return [];
+  }
+}
+
+// The node that declares `name` where `node` reads it, by the lexical scopes around
+// `node`: a variable's declarator, or a function or class declaration. A parameter, an
+// import, a destructured or loop binding, and a global declare nothing to follow.
+function declaration(name, node, parents) {
+  for (let at = parents.get(node); at; at = parents.get(at)) {
+    if (/Function/.test(at.type) && at.params.some((p) => declared(p).includes(name)))
+      return null;
+    if (at.type === "CatchClause" && declared(at.param).includes(name)) return null;
+    const head = at.type.startsWith("For") ? (at.init ?? at.left) : null;
+    if (head?.declarations?.some((d) => declared(d.id).includes(name))) return null;
+    const statements =
+      at.type === "SwitchCase" ? at.consequent : Array.isArray(at.body) ? at.body : [];
+    for (let statement of statements) {
+      if (statement.type.startsWith("Export")) statement = statement.declaration;
+      if (statement?.type === "ImportDeclaration")
+        if (statement.specifiers.some((s) => s.local.name === name)) return null;
+      if (/^(Function|Class)Declaration$/.test(statement?.type))
+        if (statement.id?.name === name) return statement;
+      for (const declarator of statement?.declarations ?? [])
+        if (declared(declarator.id).includes(name))
+          return declarator.id.type === "Identifier" ? declarator : null;
+    }
+  }
+  return null;
+}
+
+// What a name read at `node` is bound to: a variable's initial value, a declared
+// function or class, or, for `this.name`, the field or the assignment to it in the
+// enclosing class.
+function bound(node, parents) {
+  if (node?.type === "Identifier") {
+    const found = declaration(node.name, node, parents);
+    return found?.type === "VariableDeclarator" ? found.init : found;
+  }
+  if (node?.type !== "MemberExpression" || node.object.type !== "ThisExpression")
+    return null;
+  const name = node.property.name;
+  let body = parents.get(node);
+  while (body && body.type !== "ClassBody") body = parents.get(body);
+  if (!body) return null;
+  const field = body.body.find(
+    (member) => member.type === "PropertyDefinition" && member.key.name === name,
+  );
+  if (field?.value) return field.value;
+  let assigned = null;
+  walk(body, (n) => {
+    if (
+      n.type === "AssignmentExpression" &&
+      n.left.type === "MemberExpression" &&
+      n.left.object.type === "ThisExpression" &&
+      n.left.property.name === name
+    )
+      assigned ??= n.right;
+  });
+  return assigned;
+}
+
+// The strings an expression can evaluate to, through templates, conditions,
+// concatenation and the constants it names.
+function strings(node, parents, seen = new Set()) {
+  switch (node?.type) {
+    case "Literal":
+      return typeof node.value === "string" ? [node.value] : [];
+    case "TemplateLiteral":
+      return [
+        ...node.quasis.map((quasi) => quasi.value.cooked ?? quasi.value.raw),
+        ...node.expressions.flatMap((e) => strings(e, parents, seen)),
+      ];
+    case "ConditionalExpression":
+      return [node.consequent, node.alternate].flatMap((e) =>
+        strings(e, parents, seen),
+      );
+    case "LogicalExpression":
+    case "BinaryExpression":
+      return [node.left, node.right].flatMap((e) => strings(e, parents, seen));
+    case "Identifier":
+      if (seen.has(node)) return [];
+      seen.add(node);
+      return strings(bound(node, parents), parents, seen);
+    default:
+      return [];
+  }
+}
+
+const classNames = (values) =>
+  values.flatMap((value) => value.split(/\s+/)).filter((name) => /^[\w-]+$/.test(name));
+
+// Whether a role's builder dresses what `node` hands an element, and the classes the
+// calls in it give the element, read from each call's class argument (`CLASS_ARGUMENT`).
+// At `depth` above 0 the functions it calls are followed too, that many steps.
+function dressing(node, parents, depth) {
+  const found = { role: false, classes: [] };
+  const calls = [];
+  walk(node, (n) => {
+    const name = callee(n);
+    if (ROLE_BUILDERS.has(name)) found.role = true;
+    if (Object.hasOwn(CLASS_ARGUMENT, name))
+      found.classes.push(...strings(n.arguments[CLASS_ARGUMENT[name]], parents));
+    if (depth > 0 && n.callee?.type === "Identifier") calls.push(n.callee);
+  });
+  for (const name of calls) {
+    const inner = dressing(bound(name, parents), parents, depth - 1);
+    found.role ||= inner.role;
+    found.classes.push(...inner.classes);
+  }
+  return found;
+}
+
+// Every press a module builds: `{line, site, kind, built, classes}`, where `built` says
+// how a role's builder dresses it, or is null, and `classes` are the classes it is built
+// with, read only where a class is given (`class`, a class argument, `className`).
+//
+// - "template": a `<button>`, or an element whose `role` is "button", in a template
+//   literal or an HTML string, read with parse5's tokenizer so quoting holds, each
+//   `${…}` standing in as a marker. A role dresses it from an expression in its
+//   element part: "role in its tag" when a builder is called there, "role through a
+//   name" when the part names a directive kept in a constant, or a callback handed to
+//   `ref`, whose binding calls one, directly or through a function it calls.
+// - "made": a "button" made by `offer`, `el` or `createElement`, with the `className`
+//   later given to the variable it is bound to; "role as it is made" when it is made
+//   as `offerActionElement`'s element.
+// - "copy control": a `copyControl(…)`, "role in its options" when they name a role.
+// - "scripted role": an element a module makes, bound in scope, and gives the role
+//   "button" with `setAttribute`, `keeps` or `keepsAttribute`. An element the code was
+//   handed, as a margin entry's host writer is, can't be followed and isn't read.
+function presses() {
+  const read = {};
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    const program = tree(file);
+    const parents = new Map();
+    const assigned = [];
+    walk(program, (node, _loops, parent) => {
+      parents.set(node, parent);
+      if (
+        node.type === "AssignmentExpression" &&
+        node.left.type === "MemberExpression" &&
+        node.left.property.name === "className" &&
+        node.left.object.type === "Identifier"
+      )
+        assigned.push(node);
+    });
+    const found = [];
+    const press = (start, end, kind, built, values) =>
+      found.push({
+        line: source.slice(0, start).split("\n").length,
+        site: source.slice(start, Math.min(end, start + 100)).replace(/\s+/g, " "),
+        kind,
+        built: built || null,
+        classes: classNames(values),
+      });
+    // The classes given to the variable a made element is bound to, after it is made.
+    const givenLater = (binding) =>
+      assigned
+        .filter((a) => declaration(a.left.object.name, a, parents) === binding)
+        .flatMap((a) => strings(a.right, parents));
+    const bindingOf = (made) => {
+      const parent = parents.get(made);
+      if (parent?.type === "VariableDeclarator" && parent.init === made) return parent;
+      if (parent?.type === "AssignmentExpression" && parent.left.type === "Identifier")
+        return declaration(parent.left.name, parent, parents);
+      return null;
+    };
+    walk(program, (node) => {
+      if (
+        node.type === "TemplateLiteral" ||
+        (node.type === "Literal" && typeof node.value === "string")
+      )
+        templatePresses(node, parents, press);
+      const name = callee(node);
+      const args = node.arguments ?? [];
+      if (MAKERS.has(name) && strings(args[0], parents).includes("button")) {
+        const parent = parents.get(node);
+        const asMade =
+          ROLE_BUILDERS.has(callee(parent)) && parent.arguments[0] === node;
+        press(node.start, node.end, "made", asMade && "role as it is made", [
+          ...strings(args[CLASS_ARGUMENT[name]], parents),
+          ...givenLater(bindingOf(node)),
+        ]);
+      }
+      if (name === "copyControl") {
+        const role = args[1]?.properties?.some(
+          (p) => p.key?.name === "role" && strings(p.value, parents).some(Boolean),
+        );
+        press(node.start, node.end, "copy control", role && "role in its options", [
+          ...strings(args[0], parents),
+        ]);
+      }
+      const receiver =
+        name === "setAttribute" &&
+        text(args[0]) === "role" &&
+        text(args[1]) === "button"
+          ? node.callee.object
+          : ["keeps", "keepsAttribute"].includes(name) &&
+              text(args[1]) === "role" &&
+              text(args[2]) === "button"
+            ? args[0]
+            : null;
+      const binding =
+        receiver?.type === "Identifier"
+          ? declaration(receiver.name, receiver, parents)
+          : null;
+      const made = binding?.init;
+      if (MAKERS.has(callee(made)))
+        press(node.start, node.end, "scripted role", null, [
+          ...strings(made.arguments[CLASS_ARGUMENT[callee(made)]], parents),
+          ...givenLater(binding),
+        ]);
+    });
+    read[file] = found;
+  }
+  return JSON.stringify(read);
+}
+
+// The presses a template literal or an HTML string holds (`presses`, "template").
+function templatePresses(node, parents, press) {
+  const expressions = node.expressions ?? [];
+  // Where each run of the markup starts in the markup and in the module's source.
+  const runs = [];
+  let markup = "";
+  if (node.type === "Literal") {
+    runs.push([0, node.start + 1]);
+    markup = node.value;
+  } else
+    node.quasis.forEach((quasi, i) => {
+      runs.push([markup.length, quasi.start]);
+      markup += quasi.value.raw + (i < expressions.length ? `lfexpr${i}z` : "");
+    });
+  if (!/<[a-z]/i.test(markup)) return;
+  const inSource = (offset) => {
+    const [start, from] = runs.findLast(([at]) => at <= offset);
+    return from + offset - start;
+  };
+  const marked = (value) =>
+    [...value.matchAll(/lfexpr(\d+)z/g)].map((match) => expressions[match[1]]);
+  const onStartTag = ({ tagName, attrs, location }) => {
+    const role = attrs.find((attr) => attr.name === "role");
+    const asButton =
+      role?.value === "button" ||
+      marked(role?.value ?? "").some((e) => strings(e, parents).includes("button"));
+    if (tagName !== "button" && !asButton) return;
+    const value = attrs.find((attr) => attr.name === "class")?.value ?? "";
+    const classes = [
+      value.replace(/lfexpr\d+z/g, " "),
+      ...marked(value).flatMap((e) => strings(e, parents)),
+    ];
+    // The element part: an expression standing in the tag as an attribute name.
+    const parts = attrs.flatMap((attr) => marked(attr.name));
+    const handed = parts.flatMap((part) => {
+      const names = [];
+      walk(part, (n) => {
+        if (callee(n) === "ref") names.push(n.arguments[0]);
+      });
+      return [part, ...names].filter((n) => bound(n, parents));
+    });
+    const direct = parts.map((part) => dressing(part, parents, 0));
+    const named = handed.map((name) => dressing(bound(name, parents), parents, 1));
+    press(
+      inSource(location.startOffset),
+      inSource(location.endOffset - 1) + 1,
+      "template",
+      direct.some((d) => d.role)
+        ? "role in its tag"
+        : named.some((d) => d.role) && "role through a name",
+      [...classes, ...[...direct, ...named].flatMap((d) => d.classes)],
+    );
+  };
+  // The tokenizer calls a handler for every kind of token; only start tags matter.
+  const handler = new Proxy(
+    { onStartTag },
+    { get: (own, name) => own[name] ?? (() => {}) },
+  );
+  new Tokenizer({ sourceCodeLocationInfo: true }, handler).write(markup, true);
+}
+
+const commands = { keydown, exports, imports, queries, literals, presses };
 if (!commands[command])
   throw new Error(`usage: js_facts.mjs ${Object.keys(commands).join("|")} FILE...`);
 process.stdout.write(commands[command]());

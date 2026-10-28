@@ -1535,12 +1535,13 @@ def test_controls_are_built_by_role_and_never_by_face():
     words = {name for name in faces if not name.startswith("lf-")} | {"button"}
     assert words == {"primary", "button"}, words
     spelled = []
-    for source, text in _bundled_modules():
+    for source in _bundled_modules():
         if source == owner:
             continue
+        text = source.read_text()
         where = source.relative_to(ROOT)
         spelled += [f"{where}: {match[1]}" for match in named.finditer(text)]
-        code = _uncommented(text)
+        code = re.sub(r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*", "", text, flags=re.DOTALL)
         for literal in re.findall(r"([\"'`])((?:(?!\1).)*)\1", code):
             classes = literal[1].split()
             if (
@@ -1561,89 +1562,14 @@ def test_controls_are_built_by_role_and_never_by_face():
 
 
 def _bundled_modules():
-    """(path, text) of each module the runtime and the bundled packages ship, their
-    vendored bundles aside."""
-    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
-        for source in sorted(root.rglob("*.js")):
-            if "vendor" not in source.parts:
-                yield source, source.read_text()
-
-
-def _uncommented(text):
-    """A module's code, each comment blanked to its line breaks so that what follows
-    keeps its line number. A `//` after a colon or a word is a URL's."""
-    return re.sub(
-        r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*",
-        lambda comment: "\n" * comment[0].count("\n"),
-        text,
-        flags=re.DOTALL,
-    )
-
-
-def _reach(code, at, stops):
-    """The index of the first character of `stops` at `at`'s depth, or of the bracket
-    that closes that depth, stepping over brackets, quoted strings, and a template
-    literal's text with the `${…}` expressions inside it."""
-    open_ = []
-    while at < len(code):
-        char = code[at]
-        if open_ and open_[-1] == "`":
-            if char == "\\":
-                at += 1
-            elif char == "`":
-                open_.pop()
-            elif code.startswith("${", at):
-                open_.append("}")
-                at += 1
-        elif char in "\"'":
-            at += 1
-            while code[at] != char:
-                at += 2 if code[at] == "\\" else 1
-        elif char == "`":
-            open_.append("`")
-        elif char in "([{":
-            open_.append(")]}"["([{".index(char)])
-        elif char in ")]}":
-            if not open_:
-                return at
-            open_.pop()
-        elif char in stops and not open_:
-            return at
-        at += 1
-    return at
-
-
-def _opening_tag(code, at):
-    """The opening tag at `at`: the markup that dresses its element, the expressions in
-    its element part, where a directive such as `offeredAction` stands, and the index
-    of its closing `>`.
-
-    The markup keeps the `${…}` its `class` binds and those of its element part, and
-    drops those bound to any other attribute, property or event, since a handler's
-    selector names no class the element wears."""
-    markup, parts = "", []
-    while at < len(code) and code[at] != ">":
-        if not code.startswith("${", at):
-            markup += code[at]
-            at += 1
-            continue
-        end = _reach(code, at + 2, "")
-        bound = re.search(r"([\w-]*)=\"?$", markup)
-        if not bound:
-            parts.append(code[at + 2 : end])
-        if not bound or bound[1] == "class":
-            markup += code[at + 2 : end]
-        at = end + 1
-    return markup, parts, at
-
-
-def _binding(code, name):
-    """What a module binds `name` to, as a constant, a property or a class field: the
-    text from its `=` to the end of the statement, or "" where it binds none."""
-    match = re.search(
-        rf"(?:\b(?:const|let|var)\s+|\bthis\.#?|#){re.escape(name)}\s*=(?![=>])", code
-    )
-    return code[match.end() : _reach(code, match.end(), ";")] if match else ""
+    """Each module the runtime and the bundled packages ship, their vendored bundles
+    aside."""
+    return [
+        source
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for source in sorted(root.rglob("*.js"))
+        if "vendor" not in source.parts
+    ]
 
 
 # The presses that keep a face of their own rather than a role's (browser/AGENTS.md,
@@ -1741,106 +1667,11 @@ PRESS_FAMILIES = {
 }
 
 
-_ROLE_BUILDER = re.compile(r"\b(?:offerAction|offeredAction|offerActionElement)\s*\(")
-
-
-def _presses():
-    """(path, line, the press's tag or making, how a role dresses it or None, the
-    markup or making that dresses it) for every press a bundled module builds.
-
-    A press is a `<button>`, or an element marked `role="button"`, in a template or an
-    HTML string; a "button" made by `offer`, `el` or `document.createElement`; a copy
-    control, Web Awesome's copy button, made by `copyControl`; and an element a module
-    makes and then gives the role `button` by script. A role dresses it when its tag
-    holds `offeredAction`, or a directive or callback that calls a role's builder, when
-    `offerActionElement` takes it as it is made, or when `copyControl`'s options name
-    a role. The dressing is its tag's markup, with the bindings a name in its element
-    part stands for, or its making and the `className` it is given after. An element
-    handed to the code that gives it the role, as a margin entry's host writer is
-    handed its host, can't be traced from there and goes unread."""
-    for source, text in _bundled_modules():
-        code = _uncommented(text)
-        tags = {match.start() for match in re.finditer(r"<button\b", code)}
-        tags |= {
-            code.rfind("<", 0, match.start())
-            for match in re.finditer(r"(?<=\s)role=[\"']?button\b", code)
-        }
-        for start in sorted(tags):
-            markup, parts, end = _opening_tag(code, start)
-            # A name the element part hands over, a directive kept in a constant or a
-            # callback given to `ref`, and the calls in what it is bound to.
-            handed = {
-                name
-                for part in parts
-                for pair in re.findall(
-                    r"^\s*(?:this\.)?#?([\w$]+)\s*$|\bref\(\s*(?:this\.)?#?([\w$]+)\s*\)",
-                    part,
-                )
-                for name in pair
-                if name
-            }
-            bound = [_binding(code, name) for name in handed]
-            bound += [
-                _binding(code, callee)
-                for text in list(bound)
-                for callee in re.findall(r"\b([\w$]+)\s*\(", text)
-            ]
-            how = (
-                "role in its tag"
-                if _ROLE_BUILDER.search(markup)
-                else "role through a name"
-                if _ROLE_BUILDER.search(" ".join(bound))
-                else None
-            )
-            site = code[start : end + 1]
-            yield (
-                source,
-                code.count("\n", 0, start) + 1,
-                site,
-                how,
-                " ".join([markup, *bound]),
-            )
-        # (start, end, making, how a role dresses it) of each press made in script.
-        made = []
-        for match in re.finditer(r"\b(offer|el|createElement)\(", code):
-            tag = code[match.end() : _reach(code, match.end(), ",")]
-            if not re.search(r"([\"'`])button\1", tag):
-                continue
-            end = _reach(code, match.end(), "")
-            making = code[match.end() : end]
-            before = code[max(0, match.start() - 200) : match.start()]
-            if match[1] == "createElement" and (
-                name := re.search(r"([\w$]+)\s*=\s*(?:document\.)?$", before)
-            ):
-                making += " ".join(
-                    re.findall(rf"\b{name[1]}\.className\s*=([^;]*)", code)
-                )
-            built = re.search(rf"{_ROLE_BUILDER.pattern}\s*(?:[\w$]+\.)*$", before)
-            how = "role as it is made" if built else None
-            made.append((match.start(), end, making, how))
-        for match in re.finditer(r"(?<!function )\bcopyControl\(", code):
-            end = _reach(code, match.end(), "")
-            making = code[match.end() : end]
-            named = re.search(r"\brole:\s*[\"'`]\w", making)
-            how = "role in its options" if named else None
-            made.append((match.start(), end, making, how))
-        for match in re.finditer(
-            r"(?:\b([\w$]+)\.setAttribute\(|\b(?:keeps|keepsAttribute)\(\s*([\w$]+)\s*,)"
-            r"\s*[\"']role[\"']\s*,\s*[\"']button[\"']\s*\)",
-            code,
-        ):
-            making = _binding(code, match[1] or match[2])
-            if re.search(r"\b(?:offer|el|createElement)\(", making):
-                made.append((match.start(), match.end() - 1, making, None))
-        for start, end, making, how in made:
-            site = code[start : end + 1]
-            yield source, code.count("\n", 0, start) + 1, site, how, making
-
-
 def test_every_press_is_built_by_role_or_family():
-    """Every press a bundled module builds (`_presses`) wears a role's face or belongs
-    to a family in `PRESS_FAMILIES` by a class it is built with, and every family's
-    class names some press that needs it.
+    """Every press a bundled module builds wears a role's face or belongs to a family in
+    `PRESS_FAMILIES` by a class it is built with, and every family's class names some
+    press that needs it. `js_facts.mjs presses` reads the presses and says what they
+    are, how a role dresses them and which classes they are built with.
 
     Before this check only a role's classes were watched, so a press drawn with a face
     of its own passed: the floating panel's symbols and a message's Edit and Add
@@ -1850,23 +1681,22 @@ def test_every_press_is_built_by_role_or_family():
     family_classes = {
         name for classes, _reason in PRESS_FAMILIES.values() for name in classes
     }
-    family_class = re.compile(
-        r"(?<![\w-])(" + "|".join(sorted(family_classes)) + r")(?![\w-])"
-    )
     reached, unbuilt, worn = set(), [], set()
-    for source, line, site, how, dressing in _presses():
-        reached.add("tag" if site.startswith("<") else "made")
-        if how:
-            reached.add(how)
-        elif classes := set(family_class.findall(dressing)):
-            worn |= classes
-            reached.add("family")
-        else:
-            site = " ".join(site.split())
-            unbuilt.append(f"{source.relative_to(ROOT)}:{line}: {site}")
-    assert reached == {
-        "tag",
+    for module, presses in json.loads(js_facts("presses", _bundled_modules())).items():
+        for press in presses:
+            reached |= {press["kind"], press["built"]}
+            if press["built"]:
+                continue
+            if classes := family_classes & set(press["classes"]):
+                worn |= classes
+                reached.add("family")
+            else:
+                where = Path(module).relative_to(ROOT)
+                unbuilt.append(f"{where}:{press['line']}: {press['site']}")
+    assert reached - {None} == {
+        "template",
         "made",
+        "copy control",
         "role in its tag",
         "role through a name",
         "role as it is made",

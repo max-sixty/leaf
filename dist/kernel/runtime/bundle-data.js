@@ -1,7 +1,7 @@
 import { PAGE_PAINT_ATTRIBUTE, afterScript, bindQueuedWork, cancelRender, dataBody, frameFor, measure, nextAnimation, nextFrame, nextRender, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, sizeObserver, skipped, under, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
 import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, selectsAll, takesLetters, typesText, x } from "./bundle-dom-move.js";
 import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, html, inUi, isElementName, isReaction, keyed, lastMovedAt, layerRoot, live, loadShadowRules, marks, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, share, stateSpecs, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-layer-stack.js";
-import { LayerRefused, PRESS, PRESSABLE, actionElement, actionTemplate, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, keys, labelOf, layoutChanged, live as live$1, notice, offer, offered, offeredAction, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
+import { LayerRefused, PRESS, PRESSABLE, actionTemplate, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, keys, labelOf, layoutChanged, live as live$1, nameAction, namedAction, notice, offer, offered, offeredAction, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { clippedContents, clippedPlace, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
@@ -1826,10 +1826,11 @@ function paintRecordingControls(video, bar, enterFullScreen) {
       ${enterFullScreen ? html`<button
               ${offered("lf-video-full-screen")}
               tabindex="-1"
-              aria-label="Full screen"
-            >
-              ${actionTemplate("expand", "lf-video-icon")}
-            </button>` : nothing}`, bar);
+              ${namedAction("expand", {
+		label: "Full screen",
+		className: "lf-video-icon"
+	})}
+            ></button>` : nothing}`, bar);
 }
 function prepare(video) {
 	const bar = offer("div", "lf-video-controls");
@@ -3618,9 +3619,7 @@ var MessageEditor = class {
 		const actions = offer("span", "lf-msg-edit-actions");
 		const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
 		cancel.type = "button";
-		cancel.setAttribute("aria-label", "Discard");
-		cancel.title = "Discard";
-		cancel.append(actionElement("discard", "lf-msg-control-icon"));
+		nameAction(cancel, "discard", { className: "lf-msg-control-icon" });
 		actions.append(cancel);
 		this.foot = document.createElement("span");
 		this.foot.className = "lf-msg-edit-foot";
@@ -3928,12 +3927,9 @@ var ReactionStripView = class {
           ${offered("lf-msg-control lf-react-trigger")}
           aria-expanded="false"
           aria-controls=${this.#paletteId}
-          aria-label="Add reaction"
-          title="Add reaction"
+          ${namedAction("react", { className: "lf-msg-control-icon" })}
           @click=${() => this.#registration.toggle()}
-        >
-          ${actionTemplate("react", "lf-msg-control-icon")}
-        </button>
+        ></button>
         <span
           class="lf-react-palette"
           id=${this.#paletteId}
@@ -4253,12 +4249,12 @@ var MessageView = class {
 		const rewrite = model.editable && !editing ? html`<button
             ${offered("lf-msg-control lf-msg-edit")}
             tabindex="-1"
-            aria-label="Edit message"
-            title="Edit message"
+            ${namedAction("edit", {
+			label: "Edit message",
+			className: "lf-msg-control-icon"
+		})}
             @click=${() => this.openEdit()}
-          >
-            ${actionTemplate("edit", "lf-msg-control-icon")}
-          </button>` : nothing;
+          ></button>` : nothing;
 		render$1(html`
         ${header}
         <div

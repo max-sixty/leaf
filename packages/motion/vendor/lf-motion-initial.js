@@ -92,7 +92,7 @@
     retry: { name: "Retry", icon: "retry" },
     save: { name: "Save", icon: "save" },
     send: { name: "Send", icon: "send" },
-    show: { name: "Show on page", icon: "locate" },
+    show: { name: "Show", icon: "locate" },
     start: { name: "Start", icon: "start" },
     suggest: { name: "Suggest", icon: "edit" },
     undo: { name: "Undo", icon: "undo" },

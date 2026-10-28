@@ -251,6 +251,10 @@ custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
 
 ### Shadow stages and styles
 
+Declare `x-shadow` when the user should quote and comment on the words a widget's
+shadow root shows. A root attached any other way, as a vendored component or a page
+script's own custom element attaches one, is opaque to comments.
+
 Build an `x-shadow` widget's shadow root with `shadowStage(host, nodes)`, never
 `attachShadow`; it applies the theme's styles and returns the root. For a template,
 stage a container with `shadowStage(host, [container])` and render into that container.

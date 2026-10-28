@@ -114,7 +114,7 @@ const observations = (label, rows, describe) => html` <dt>${label}</dt>
               ${rows.map((row) => html` <li>
                     <code>${row.at}</code>: ${describe(row)}
                     ${destinations.has(row) ? html`<button
-                            ${offeredAction("symbol", "", void 0, { action: "show" })}
+                            ${offeredAction("symbol", "", "Show on page", { action: "show" })}
                             @click=${() => showOnPage(row)}
                           ></button>` : nothing}
                   </li>`)}

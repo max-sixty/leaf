@@ -136,11 +136,14 @@ def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
     pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
 
     page.locator("#right-head").focus()
+    assert page.evaluate(reading) == "right-reading"
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(panel_view("threads"))).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
+    # Closing the focused view leaves body active. It is no selected passage;
+    # the landing must read the remembered pane rather than scan the whole page.
     assert page.evaluate(reading) == "right-reading"
     page.keyboard.press("d")
     page.wait_for_function(f"() => ({tops})()[1] > 0")

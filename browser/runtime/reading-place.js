@@ -334,7 +334,7 @@ export const pageReadingBlock = () => pageReading({ bodies: false });
 // screen, or, for a node inside a block, that block. Only failing that is it what they
 // are reading.
 export function landingPlace(from = null) {
-  if (from && !inChrome(from)) {
+  if (from && from !== document.body && !inChrome(from)) {
     const blocks = textBlocks(from);
     const own = blocks.length ? blocks : [blockAt(from)].filter(Boolean);
     const shown = blocksOnScreen(readingRegionFor(from), own).next().value?.[0];

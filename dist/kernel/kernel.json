@@ -176,7 +176,7 @@
     "runtime/reach.js": "9f0295a13f7db4c1790b124903de60754a46c9b744ed4c9c7bca62825ddbd4c1",
     "runtime/reactions.js": "06ab04692647955a264c1b12b61894da3fc26f9e22e2bac527dc48bc1fc9bd94",
     "runtime/reading-continuity.js": "32a427008825410c38189220c0fb7f29e33c01529aa54d28e663fc54a71c72db",
-    "runtime/reading-place.js": "3b67c55078ee04450202d1d68ca0793a0d67f42fafd446ca60d08bfa084d3022",
+    "runtime/reading-place.js": "68701af3238d20a19a76cb508dc61e6efef07ef0d9ad58b170c8d33afb0d5388",
     "runtime/reading-regions.js": "0860caddb44ad23e9f963e18e5f470f1f39e97c9f1a1d18c9bda62681ac077cb",
     "runtime/rect.js": "e644db75c699b4dd9d39562198ffdfb0fdf7c3106d66a5a813fcfb5b619c619f",
     "runtime/references.js": "90d9c1513fc7ee4371b23615cce6e320bafa24a8c4c0d482c67ee4ef9a68febf",

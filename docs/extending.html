@@ -1,4 +1,9 @@
 <!doctype html>
+<!--
+  Extending: how to implement widgets, themes and packages that participate in
+  Leaf's shared mechanisms. How it works introduces those mechanisms;
+  Pages and interface covers composing and operating a page with them.
+-->
 <html lang="en">
   <head>
     <title>Extending Leaf</title>
@@ -173,9 +178,11 @@
           content.
         </p>
         <p id="extending-scope">
-          Start with the ownership boundaries, follow the package tutorial, or look up
-          the CSS contract. For composing a page from existing widgets and themes, see
-          the <a href="/ui/">UI guide</a>.
+          This guide covers the interfaces for implementing widgets, themes and
+          packages, with a package tutorial and CSS contracts.
+          <a href="/how-it-works/">How it works</a> introduces Leaf's core concepts and
+          how they fit together. <a href="/ui/">Pages and interface</a> covers composing
+          and operating a page with existing capabilities.
         </p>
       </header>
 
@@ -377,7 +384,7 @@ flowchart TD
             </figure>
             <details id="package-contract-details">
               <summary>
-                Independent capabilities, validation and captured packages
+                Independent capabilities, validation and package selection
               </summary>
               <p id="what-is-customizable">
                 Leaf's core, called the kernel, supplies the browser runtime, shared
@@ -406,13 +413,13 @@ flowchart TD
                 defines those interfaces.
               </p>
               <p id="package-captured-layer">
-                Each page directory contains a validated composition of its selected
-                packages: its <em>layer</em>. <code>page init</code> builds the
-                registry, theme and package modules, and each revision captures the
-                layer it uses. The Leaf serving, checking or exporting the page supplies
-                the browser runtime. Updating that runtime leaves captured content and
-                decisions intact; the public package interface must still use a
-                compatible page protocol. The
+                <code>page init</code> records the page's package and theme selection.
+                The Leaf serving, checking or exporting the page composes its
+                <em>layer</em> from that selection and supplies the browser runtime.
+                Each revision captures the authored content, page-owned declarations and
+                modules, and the package selection. Historical revisions run with the
+                current Leaf's runtime and composed layer while retaining their authored
+                content and recorded decisions. The
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#package-contract"
                   >package contract</a
@@ -628,8 +635,8 @@ $ leaf page check PAGE --render</code></pre>
               Widget packages style their own elements; theme packages supply
               presentation across the page. Stylesheet roles set where rules reach, and
               the cascade sets which rule wins.
-              <a href="/ui/#styles">Themes in the UI guide</a> covers selecting a theme
-              and making local page adjustments.
+              <a href="/ui/#styles">Themes in Pages and interface</a> covers selecting a
+              theme and making local page adjustments.
             </p>
             <h3 id="styles-try-title">Which rule wins</h3>
             <p id="styles-try-lede">
@@ -1019,7 +1026,8 @@ flowchart TD
       <footer class="site-footer" id="colophon">
         <p id="links">
           <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
-          <a href="/how-it-works/">How it works</a> · <a href="/ui/">UI</a> ·
+          <a href="/how-it-works/">How it works</a> ·
+          <a href="/ui/">Pages and interface</a> ·
           <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>

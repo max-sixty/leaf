@@ -48,7 +48,7 @@ import { keeps } from "../keeps.js";
 import { advertisesKeys, submitBindings, spell, PRESS } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce } from "../notifications.js";
-import { iconTemplate } from "../icons.js";
+import { actionTemplate } from "../icons.js";
 import { drawingThumbnail } from "./drawing-context.js";
 import {
   LitElement,
@@ -148,29 +148,23 @@ function mediaTemplate({ drawing, target, media, sent, actions }) {
               })}
             </button>
             <button
-              ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke")}
+              ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
               @mousedown=${(event) => event.preventDefault()}
               @click=${actions.undoStroke}
-            >
-              ${iconTemplate("undo", "lf-mark-icon")}
-            </button>
+            ></button>
             <button
-              ${offeredAction("mark", "lf-corner-mark", "Remove drawing")}
+              ${offeredAction("mark", "lf-corner-mark", "Remove drawing", { action: "remove" })}
               @mousedown=${(event) => event.preventDefault()}
               @click=${actions.removeDrawing}
-            >
-              ${iconTemplate("cross", "lf-mark-icon")}
-            </button>
+            ></button>
           </span>
         `
       : null,
     media.map(({ index, url }) => {
       const remove = html`<button
-        ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`)}
+        ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
         @click=${() => actions.removeMedia(index)}
-      >
-        ${iconTemplate("cross", "lf-mark-icon")}
-      </button>`;
+      ></button>`;
       // A sent message's picture is the one its message draws (markdown.js, the image
       // rule), in a paragraph of its own as the message sets it, with the removal mark
       // a rewrite adds.
@@ -228,7 +222,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     hintLabel.value = hint?.label ?? "";
   };
   // `sends` states the box's own submit action. Composers send by default; a caller whose
-  // action differs, such as adding an option, supplies the matching icon.
+  // action differs, such as adding an option, names that action.
   function wireInput(
     ta,
     {
@@ -250,7 +244,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       send,
       sendClass = "",
       sends,
-      icon = "send",
+      action: submitAction = "send",
       altLabel = null,
       altSend = null,
       // `true` to take an attached image; otherwise the sentence the user is told instead.
@@ -300,7 +294,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // Firefox lacks speech recognition; WebKit has it only under its prefix.
     const Recognition =
       globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
-    const offersDictation = Boolean(Recognition && icon === "send" && !submitIn);
+    const offersDictation = Boolean(
+      Recognition && submitAction === "send" && !submitIn,
+    );
     let dictation = null;
     let loadingDictation = false;
     let dictationGeneration = 0;
@@ -484,7 +480,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         @mousedown=${keepEditing}
         @click=${() => pressed(send)}
       >
-        ${iconTemplate(icon, "lf-action-icon")}
+        ${actionTemplate(submitAction, "lf-action-icon")}
       </button>`;
       if (submitIn) render(submitControl, submitIn, { renderBefore: submitEnd });
       const drawn = drawing?.read() ?? null;
@@ -527,7 +523,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             title=${live || !status ? micAction : `${micAction} (${status})`}
             @mousedown=${(event) => event.preventDefault()}
           >
-            ${iconTemplate("microphone", "lf-action-icon")}
+            ${actionTemplate("dictate", "lf-action-icon")}
           </button>`
         : nothing;
       const content = html`

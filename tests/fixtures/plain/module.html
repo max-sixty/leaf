@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flaky tests this week</title>
+    <meta
+      name="description"
+      content="The tests that failed and then passed on retry this week, grouped by suite and ranked by how often."
+    />
+    <style>
+      :root {
+        --ink: #0f172a;
+        --muted: #64748b;
+        --line: #e2e8f0;
+        --hot: #dc2626;
+        --warm: #ea580c;
+      }
+      body {
+        margin: 0;
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+        color: var(--ink);
+        background: #f8fafc;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 32px 20px 80px;
+      }
+      header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 22px;
+      }
+      .summary {
+        color: var(--muted);
+        margin: 0;
+      }
+      .suites {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .suite {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .suite h2 {
+        margin: 0;
+        padding: 10px 14px;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+        border-bottom: 1px solid var(--line);
+        background: #f1f5f9;
+      }
+      .suite ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .test {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 4px 12px;
+        padding: 10px 14px;
+      }
+      .test + .test {
+        border-top: 1px solid var(--line);
+      }
+      .name {
+        font:
+          12.5px/1.4 ui-monospace,
+          Menlo,
+          monospace;
+        overflow-wrap: anywhere;
+      }
+      .count {
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+      .count.hot {
+        color: var(--hot);
+      }
+      .count.warm {
+        color: var(--warm);
+      }
+      .meter {
+        grid-column: 1 / -1;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--line);
+      }
+      .meter span {
+        display: block;
+        height: 100%;
+        border-radius: 2px;
+        background: currentColor;
+      }
+      [aria-busy="true"] {
+        min-height: 120px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Flaky tests this week</h1>
+        <p class="summary" id="summary">Loading…</p>
+      </header>
+      <section class="suites" id="suites" aria-busy="true"></section>
+    </main>
+    <script type="module" src="page/flaky.js"></script>
+  </body>
+</html>

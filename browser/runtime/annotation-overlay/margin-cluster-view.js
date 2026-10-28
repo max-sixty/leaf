@@ -88,6 +88,7 @@ class MarginClusterView extends HTMLElement {
         this.#more,
         contributionEntry({
           key: "options",
+          action: model.toggle.action,
           icon: model.toggle.icon,
           label: model.toggle.label,
           accessibleLabel: model.moreLabel,

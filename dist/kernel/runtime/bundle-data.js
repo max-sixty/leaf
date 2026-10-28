@@ -8774,7 +8774,14 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 			yield* elementsWithin(child);
 		}
 	}
-	const unrooted = (value, root) => root && value.includes(root) ? value.split(root).join("/") : value;
+	const deferredScript = "data:text/javascript;charset=utf-8,";
+	const unrooted = (value, root) => {
+		if (value.startsWith(deferredScript)) {
+			value = deferredScript + value.slice(35).replace(/^(?:%0A)+/, "");
+			if (root) value = value.split(encodeURIComponent(root)).join("%2F");
+		}
+		return root && value.includes(root) ? value.split(root).join("/") : value;
+	};
 	const sameValue = (held, value, arrivingRoot) => unrooted(held, authoredRoot) === unrooted(value, arrivingRoot);
 	function sameAuthoredMarkup(before, after, arrivingRoot) {
 		if (before.isEqualNode(after)) return true;

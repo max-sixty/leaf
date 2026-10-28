@@ -244,7 +244,7 @@
     "runtime/validation.js": "0b0baf462a06521c479756cbe0a151ae0e43d5b12546e791e117fdfb6438a52f",
     "runtime/version-picker.js": "0d3b2afd2c0433a60c76c9cede301945c3de4bb287357239cf6fdaf9994284d6",
     "runtime/version-signal.js": "2fd7de64264ad0318dbb2e7e8e44ec4a576f84c4f8f128e240f57f595dbedbeb",
-    "runtime/version.js": "9eb88a0842e0e2d0959117215d8d18755f5569cf595b93d4520ad289c49bbfdc",
+    "runtime/version.js": "35c7dd6f69e949bd1b88747cca442fc0a9beebec845514783b634705893f5d03",
     "runtime/video-controls.js": "416295f808f7ce62e81eeb80163eb1bbbd844ab404bd7f9f298d393e4e99020f",
     "runtime/visible-target-parts.js": "5da29b54967c434353455d23197ff8ce75e2fbe7d90b1b70743761e5c4172a41",
     "runtime/visual-parts.js": "5c7d8ebee59ea72fdfc5de099114ee6707fadd67310e7c623153b8f5ca4582b5",

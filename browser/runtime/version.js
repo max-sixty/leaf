@@ -1311,8 +1311,17 @@ export function createVersionController({
   // never touched it. Any attribute may name media; comparison removes only the
   // exact delivery root rather than keeping a second list of resource attributes.
   // Script and style bodies use that same rule without reclassifying their content.
-  const unrooted = (value, root) =>
-    root && value.includes(root) ? value.split(root).join("/") : value;
+  const deferredScript = "data:text/javascript;charset=utf-8,";
+  const unrooted = (value, root) => {
+    if (value.startsWith(deferredScript)) {
+      // revision_delivery defers inline classics as URL-encoded source, padded to
+      // their document line. That diagnostic padding is not the script's identity.
+      value =
+        deferredScript + value.slice(deferredScript.length).replace(/^(?:%0A)+/, "");
+      if (root) value = value.split(encodeURIComponent(root)).join("%2F");
+    }
+    return root && value.includes(root) ? value.split(root).join("/") : value;
+  };
   // One attribute, read the same way: an address that differs only by the revision it
   // was delivered under is the same address, and the page keeps the one it has, which
   // is still served because revisions are immutable.

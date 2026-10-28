@@ -735,9 +735,9 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     from outside it: it leaves, and its replacement arrives through capture and upgrade
     like any new element. The question beside it that the revision did not touch is the
     same element it always was, still holding the user's focus. Its image, SVG link,
-    custom media attribute, inline CSS and module carry different delivery roots in
-    each revision; none changes its authored
-    identity, and parser-time initial-render marks must not make it look rewritten."""
+    custom media attribute, inline CSS and scripts carry different delivery roots in
+    each revision. The deferred classic script's line padding changes too. None changes
+    authored identity, and parser-time initial-render marks must not make it look rewritten."""
     first = leaf_page(
         "Widgets first",
         """
@@ -748,6 +748,7 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
   <svg width="16" height="16"><image width="16" height="16" xlink:href="/page/held.svg"></image></svg>
   <style>#wd-keep { --held-image: url("/page/held.svg"); }</style>
   <script type="module">if (false) import("/runtime/widget-api.js");</script>
+  <script>if (false) import("/runtime/widget-api.js");</script>
 </lf-option>
   <lf-option id="wd-drop">Drop the store</lf-option>
 </lf-options></lf-ask>
@@ -760,6 +761,7 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     )
     second = (
         first.replace("Widgets first", "Widgets second")
+        .replace('<lf-ask id="wd-store-ask">', '\n<lf-ask id="wd-store-ask">')
         .replace(
             '<lf-option id="wd-later">Start later</lf-option>',
             '<lf-option id="wd-later">Start later</lf-option>\n'

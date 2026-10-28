@@ -9,8 +9,8 @@ import {
   onUserInput,
 } from "./focus.js";
 import { pagePresented, pageUpgraded } from "./page-paint.js";
-import { whenArrived, whenArriving } from "./presentation.js";
-import { afterSettling, sizeObserver } from "./rendering.js";
+import { whenArrived } from "./presentation.js";
+import { sizeObserver } from "./rendering.js";
 const child = document.documentElement.lfSample;
 const commands = new Map();
 const observers = new Map();
@@ -57,20 +57,13 @@ if (child) {
       focused: Boolean(node && node !== document.body),
     });
   });
-  // The reader's own input here, a press, a key or a wheel, is theirs to move the
-  // frame with, so the containing page applies a size it held while they read. So is
-  // what that input sets going, until its rendering settles (rendering.js,
-  // `afterSettling`): a height measured meanwhile, such as a disclosure the press
-  // opened, says it came of a gesture, and the page applies it though it holds a
-  // height that came of nothing the reader did. The inputs are the document's one
-  // reading of them (focus.js, `onUserInput`). Activation is input of its own, since a
-  // click, by pointer or by Enter or Space, lands after the press that began it has
-  // settled.
-  let gestures = 0;
+  // The reader's own input here, a press, a key or a wheel, makes the frame theirs to
+  // move, so the containing page stops holding its size (lf-sample.js, `#release`).
+  // The inputs are the document's one reading of them (focus.js, `onUserInput`).
+  // Activation is input of its own, since a click, by pointer or by Enter or Space,
+  // lands after the press that began it.
   const input = (event) => {
     if (!event.isTrusted || event.type === "blur") return;
-    gestures++;
-    afterSettling(() => gestures--);
     sampleNotice("input", { type: event.type });
   };
   onUserInput(input);
@@ -85,7 +78,7 @@ if (child) {
     const next = Math.ceil(document.body.getBoundingClientRect().height);
     if (next !== height) {
       height = next;
-      sampleNotice("height", { height, gesture: gestures > 0 });
+      sampleNotice("height", { height });
     }
   };
   // The containing page's image shows this part of the viewport where the frame stands.
@@ -112,20 +105,10 @@ if (child) {
       );
     // Presentation is not this document's whole arrival: work it deferred, its own
     // samples' children included, lands later, and the containing page reads as
-    // arriving until it has. Arrival can begin again, as when one of its samples is
-    // Reset, and the containing page reads as arriving again until it lands.
+    // arriving until it has.
     if (upgraded && !arriving && pagePresented()) {
       arriving = true;
-      void (async () => {
-        await whenArrived();
-        sampleNotice("arrived");
-        for (;;) {
-          await whenArriving();
-          sampleNotice("arriving");
-          await whenArrived();
-          sampleNotice("arrived");
-        }
-      })();
+      void whenArrived().then(() => sampleNotice("arrived"));
     }
     if (upgraded || !(document.body && pageUpgraded())) return;
     upgraded = true;

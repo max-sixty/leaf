@@ -1,5 +1,6 @@
 """Static document, version, and page-state tests."""
 
+import copy
 import gc
 import hashlib
 import json
@@ -40,6 +41,7 @@ from interact_support import (
     command_findings,
     comment,
     declare_data_input,
+    declare_on_page,
     found,
     fresh_process,
     lock_contention,
@@ -51,6 +53,7 @@ from interact_support import (
     response_reference,
     stamp,
     state_json,
+    vendored_at_another_protocol,
     write_revision,
 )
 from leaf_dev.example_data import captured_value, patch_manifest
@@ -79,10 +82,15 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
-from leaf.registry.contract import DECLARED_WORDS, RANK, detail_schema
+from leaf.registry.contract import DECLARED_WORDS, RANK, detail_schema, stamp_words
 from leaf.registry.schema import schema_error
-from leaf.registry.storage import read_page_registry, require_registry
+from leaf.registry.storage import (
+    load_registry,
+    read_page_registry,
+    require_registry,
+)
 from leaf.render_gate import readings as render_gate_readings
+from leaf.runtime_selection import executing
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.validation import composition as validation_model
@@ -297,9 +305,11 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert artifact.resources["/page/app.js"].mime == "application/javascript"
     assert artifact.registry == read_page_registry(page_dir).registry
     assert artifact.implementations["lf-options"]["path"] == "/widgets/lf-options.js"
-    # The vendored layer is captured whole; the runtime is the delivering Leaf's.
-    assert "/vendor/plot.LICENSES.txt" in artifact.resources
-    assert "/leaf.js" not in artifact.resources
+    # The layer and the runtime are the delivering Leaf's, so the revision holds
+    # neither, and a document runs with both.
+    for supplied in ("/widgets/lf-options.js", "/vendor/plot.LICENSES.txt", "/leaf.js"):
+        assert supplied not in artifact.resources
+        assert supplied in executing(artifact).resources
     assert artifact_model.read_artifact(page_dir, first.revision) is artifact
     unchanged = revisioning_model.activate_source(page_dir)
     assert not unchanged.created and unchanged.revision == first.revision
@@ -311,40 +321,8 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     changed = artifact_model.read_artifact(page_dir, second.revision)
     assert changed.digest != artifact.digest
     assert changed.resources["/page/value.js"].data == b"export const value = 2;"
-    files_model.replace_files(
-        [(page_dir / "vendor" / "plot.esm.js", b"// replacement module", False)]
-    )
-    third = revisioning_model.activate_source(page_dir)
-    assert third.error is None, third.error
-    assert third.created and third.revision == second.revision + 1
-    replaced = artifact_model.read_artifact(page_dir, third.revision)
-    assert replaced.resources["/vendor/plot.esm.js"].data == b"// replacement module"
-    assert replaced.digest != changed.digest
     historical = artifact_model.read_artifact(page_dir, first.revision)
     assert historical.resources["/page/value.js"].data == b"export const value = 1;"
-    assert (
-        historical.resources["/vendor/plot.esm.js"].data
-        == artifact.resources["/vendor/plot.esm.js"].data
-    )
-
-
-def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_dir):
-    """A page's layer files are the user's to edit, in place if their editor does,
-    so a revision holds its own copy of each and never shares one's inode."""
-    first = revisioning_model.activate_source(page_dir)
-    assert first.error is None, first.error
-    captured = (
-        files_model.revision_path(page_dir, first.revision).with_suffix("")
-        / "resources"
-    )
-    for layer_file in ("theme.css", "vendor/plot.esm.js", "widgets/lf-options.js"):
-        assert (captured / layer_file).stat().st_ino != (
-            page_dir / layer_file
-        ).stat().st_ino, layer_file
-    theme = (captured / "theme.css").read_bytes()
-    with (page_dir / "theme.css").open("r+b") as stream:
-        stream.write(b"/* edited in place */")
-    assert (captured / "theme.css").read_bytes() == theme
 
 
 def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch):
@@ -461,6 +439,7 @@ def test_a_revision_holds_every_page_file_with_its_served_type(page_dir):
 
 def test_module_capture_reads_javascript_syntax_and_rewrites_only_imports(page_dir):
     authored = page_dir / "page"
+    authored.mkdir()
     (authored / "value.js").write_text("export const value = 1;")
     (authored / "options.js").write_text("export const options = true;")
     module = """// import "https://outside.example/comment.js";
@@ -497,6 +476,7 @@ const computed = import(text, { with: { type: './missing.js' } });
 
 def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_path):
     authored = page_dir / "page"
+    authored.mkdir()
     (authored / "data.json").write_text('{"value": 1}')
     (authored / "notes.txt").write_text("notes")
     outside = tmp_path / "outside.js"
@@ -605,6 +585,7 @@ def test_artifact_cache_holds_a_bundle_by_its_content_addressed_path(page_dir):
 
 def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
     authored = page_dir / "page"
+    authored.mkdir()
     (authored / "data.json").write_text('{"value": 1}')
     initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
@@ -649,6 +630,7 @@ def test_one_check_reports_every_capture_problem(page_dir, tmp_path):
     save names the same ones: capture goes on past each refused reference, in the
     same file, in other files, and in files nothing names."""
     authored = page_dir / "page"
+    authored.mkdir(exist_ok=True)
     (authored / "data.json").write_text('{"value": 1}')
     (authored / "app.js").write_text(
         'import "lodash";\nimport "../../outside.js";\nimport "./missing.js";\n'
@@ -1158,11 +1140,11 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
 
 
 def test_page_init_reports_malformed_current_source_after_revendoring(page_dir):
-    """A real layer repair reports current declaration errors that block activation."""
+    """A real layer repair, here taking the page to this Leaf's protocol, reports
+    current declaration errors that block activation."""
     source = page_dir / "index.html"
     source.write_text(PAGE.replace("</main>", '<p id="plan">Duplicate.</p></main>'))
-    theme = page_dir / "theme.css"
-    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
+    vendored_at_another_protocol(page_dir)
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert "index.html will not activate until" in result.output
@@ -1521,10 +1503,12 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     which widget takes a language: a tag whose declaration carries x-language is held to
     $languages on the strength of the declaration. A thirteenth widget that colors
     something — a terminal transcript, a diff — is covered without the lint moving."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-gloss"]["properties"]["dialect"] = {"type": "string"}
-    registry["lf-gloss"]["x-language"] = "dialect"
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    def declare(registry):
+        registry["lf-gloss"]["properties"]["dialect"] = {"type": "string"}
+        registry["lf-gloss"]["x-language"] = "dialect"
+
+    declare_on_page(page_dir, declare)
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -1594,9 +1578,7 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
     """A package can supply a pane under its own name without joining a built-in tag
     list: the role its registry entry declares is what the grammar reads, and the page
     arranges both panes in a workspace however it likes."""
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-zone"] = {
+    zone = {
         "description": "A project package's differently named pane.",
         "type": "object",
         "properties": {
@@ -1609,7 +1591,7 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
         "x-reading-role": "pane",
         "x-upgrade": False,
     }
-    registry_path.write_text(json.dumps(registry))
+    declare_on_page(page_dir, lambda registry: registry.update({"lf-zone": zone}))
     version = page_dir / "index.html"
     regions = """<header><h2>Plan</h2></header>
   <div id="regions" style="display: grid; grid-template-columns: 1fr 2fr">
@@ -1675,28 +1657,21 @@ def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
     assert not found(findings, "parts-in-layout")
 
 
-def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_dir):
+def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none():
     """A layer that names none colors none, so a page declaring one is asking for
     something it cannot get. The list is therefore read and indexed, never tested for
     emptiness: an empty list that stood the check down would be a check retiring itself
     the moment its list moved — and this is the check whose failures the user can't
-    see either way, so silence is the one outcome it must not have."""
-    registry = json.loads((page_dir / "registry.json").read_text())
+    see either way, so silence is the one outcome it must not have.
+
+    Read where the words become the schema (`registry.contract.stamp_words`): no page
+    can compose such a layer over the shipped one, whose widget examples name
+    languages."""
+    registry = copy.deepcopy(model_layer())
     registry["$languages"]["names"] = []
     registry["$languages"]["paths"] = {}
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            "<h2>Plan</h2>\n"
-            '<lf-code id="walk" language="python"><pre>x = 1\n</pre></lf-code>',
-        )
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(
-        findings, "attribute-schema", "<lf-code>", keyword="enum", path=["language"]
-    )
+    stamp_words(registry)
+    assert registry["lf-code"]["properties"]["language"]["enum"] == []
 
 
 def test_check_rejects_loose_content_in_items_container(page_dir):
@@ -1782,10 +1757,12 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
 
 @pytest.mark.parametrize("widget", ["lf-suggestion", "lf-options"])
 def test_resolves_names_a_thread_for_every_declared_answering_widget(page_dir, widget):
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
-    registry_path.write_text(json.dumps(registry))
+    declare_on_page(
+        page_dir,
+        lambda registry: registry["lf-options"]["properties"].update(
+            resolves={"type": "string"}
+        ),
+    )
     source = (
         PAGE.replace(
             "<lf-options>",
@@ -1814,7 +1791,7 @@ def test_resolves_names_a_thread_for_every_declared_answering_widget(page_dir, w
 
 
 def test_message_widget_thread_references_use_the_same_namespace(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = copy.deepcopy(load_registry(page_dir))
     registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
     markup = (
         '<lf-options id="answer" choose resolves="plan">'
@@ -3010,14 +2987,14 @@ def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
     for revision in files_model.list_revisions(page_dir):
         files_model.revision_path(page_dir, revision).unlink()
 
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["$data"]["contracts"]["other-rows"] = {
-        "description": "Another meaning.",
-        "schema": {"type": "array"},
-    }
-    registry["lf-test-data"]["x-data"]["data"]["contract"] = "other-rows"
-    registry_path.write_text(json.dumps(registry))
+    def declare(registry):
+        registry["$data"]["contracts"]["other-rows"] = {
+            "description": "Another meaning.",
+            "schema": {"type": "array"},
+        }
+        registry["lf-test-data"]["x-data"]["data"]["contract"] = "other-rows"
+
+    declare_on_page(page_dir, declare)
 
     data_model.cmd_data_set(page_dir, "project-feed", [])
     assert data_model.read_contracts(page_dir) == {"project-feed": "other-rows"}
@@ -3074,18 +3051,19 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
     declare_data_input(
         page_dir, "project-feed", {"type": "array"}, contract="rows", activate=False
     )
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["$data"]["contracts"]["other-rows"] = {
-        "description": "Another meaning.",
-        "schema": {"type": "object"},
-    }
-    registry["lf-other-data"] = {
-        **registry["lf-test-data"],
-        "description": "A differently typed test input.",
-        "x-data": {"data": {"contract": "other-rows", "source": "source"}},
-    }
-    registry_path.write_text(json.dumps(registry))
+
+    def declare(registry):
+        registry["$data"]["contracts"]["other-rows"] = {
+            "description": "Another meaning.",
+            "schema": {"type": "object"},
+        }
+        registry["lf-other-data"] = {
+            **registry["lf-test-data"],
+            "description": "A differently typed test input.",
+            "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+        }
+
+    declare_on_page(page_dir, declare)
     publish(page_dir)
     append_carried_log_record(
         page_dir,
@@ -3141,18 +3119,19 @@ def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source
     declare_data_input(
         page_dir, "project-feed", {"type": "array"}, contract="rows", activate=False
     )
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["$data"]["contracts"]["other-rows"] = {
-        "description": "Another meaning.",
-        "schema": {"type": "array"},
-    }
-    registry["lf-other-data"] = {
-        **registry["lf-test-data"],
-        "description": "A differently typed test input.",
-        "x-data": {"data": {"contract": "other-rows", "source": "source"}},
-    }
-    registry_path.write_text(json.dumps(registry))
+
+    def declare(registry):
+        registry["$data"]["contracts"]["other-rows"] = {
+            "description": "Another meaning.",
+            "schema": {"type": "array"},
+        }
+        registry["lf-other-data"] = {
+            **registry["lf-test-data"],
+            "description": "A differently typed test input.",
+            "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+        }
+
+    declare_on_page(page_dir, declare)
     source = page_dir / "index.html"
     draft = source.read_text()
     source.write_text(
@@ -3164,7 +3143,9 @@ def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source
     assert activation.error is None
     source.write_text(draft)
     documents = data_contracts_model.page_data_document_readings(
-        page_dir, events_model.read_events(page_dir), registry
+        page_dir,
+        events_model.read_events(page_dir),
+        read_page_registry(page_dir).registry,
     )
     immutable, errors = data_contracts_model.merge_data_document_readings(documents)
     assert errors == [] and "project-feed" not in immutable
@@ -3959,17 +3940,18 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
 
 def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     """A layer can add idless column content without changing card indexes."""
-    registry_file = page_dir / "registry.json"
-    registry = json.loads(registry_file.read_text())
-    registry["lf-label"] = {
-        "description": "An inline label.",
-        "type": "object",
-        "properties": {},
-        "x-content": "markup",
-        "x-upgrade": False,
-        "x-owners": ["lf-column"],
-    }
-    registry_file.write_text(json.dumps(registry))
+
+    def declare(registry):
+        registry["lf-label"] = {
+            "description": "An inline label.",
+            "type": "object",
+            "properties": {},
+            "x-content": "markup",
+            "x-upgrade": False,
+            "x-owners": ["lf-column"],
+        }
+
+    declare_on_page(page_dir, declare)
     board = (
         '<lf-board id="reading-board">'
         '<lf-column id="reading-todo" label="To do">'
@@ -4294,8 +4276,6 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
     declare_data_input(
         page_dir, "project-feed", {"type": "array"}, contract="rows", activate=False
     )
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
     source = (
         (page_dir / "index.html")
         .read_text()
@@ -4309,11 +4289,14 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
     )
     for revision in range(1, 4):
         write_revision(page_dir, revision, source.encode())
-    registry["$data"]["contracts"]["current-rows"] = registry["$data"]["contracts"][
-        "rows"
-    ]
-    registry["lf-test-data"]["x-data"]["data"]["contract"] = "current-rows"
-    registry_path.write_text(json.dumps(registry))
+
+    def declare(registry):
+        contracts = registry["$data"]["contracts"]
+        contracts["current-rows"] = contracts["rows"]
+        registry["lf-test-data"]["x-data"]["data"]["contract"] = "current-rows"
+
+    declare_on_page(page_dir, declare)
+    registry = read_page_registry(page_dir).registry
     write_revision(page_dir, 4, source.encode())
     append_command(
         page_dir,

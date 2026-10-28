@@ -995,7 +995,7 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
         harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
     claim = service_model.page_claim(page_dir)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, claim["id"])
     )
     assert lease
@@ -1256,7 +1256,7 @@ def test_a_turn_that_shares_a_user_message_leaves_the_delivery_owed(
     target = codex_model.stream_reply_target(prepared.payload)
     items = _joined_items(prepared.payload, join)
     # The task's watcher, which the Stop hook asks whether the reply will commit.
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(page_dir, "codex-thread")
     )
     assert lease

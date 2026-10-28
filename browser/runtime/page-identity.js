@@ -11,7 +11,6 @@ export function pageIdentity() {
     url: String(url),
     delivery: DELIVERY,
     layer: state?.layer ?? null,
-    served_by: state?.leaf ?? null,
     preview: state?.preview ?? null,
     session_reference: runtime.sessionReference,
     browser: { user_agent: navigator.userAgent },

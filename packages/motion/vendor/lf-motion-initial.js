@@ -174,74 +174,65 @@
   }
 
   // packages/motion/initial/lf-motion.js
-  document.documentElement.lfInitial.register(
-    "lf-motion",
-    (host, tools) => {
-      const { offerElement, tabStore, authoredBody } = tools;
-      const { offerActionElement } = actionOffers(tools);
-      const saved = JSON.parse(
-        tabStore.get(`motion:${host.id}`) || '{"time":0,"rate":1}'
-      );
-      const body = document.createElement("div");
-      body.className = "lf-motion-body";
-      authoredBody(body);
-      const drawing = {};
-      const offered = (key, cls) => (node) => {
-        if (node) drawing[key] = offerElement(node, cls);
-      };
-      const controlsRef = offered("controls", "lf-motion-controls");
-      const playRef = (node) => {
-        if (node)
-          drawing.play = offerActionElement(node, "symbol", "lf-motion-play", void 0, {
-            action: "play"
-          });
-      };
-      const timeRef = offered("time", "lf-motion-time");
-      const clockRef = offered("clock", "lf-motion-clock");
-      const speedLabelRef = offered("speedLabel", "lf-motion-speed");
-      const speedRef = offered("speed", "");
-      const template = ({
-        time = Math.min(Number(host.getAttribute("duration")), saved.time),
-        rate = saved.rate,
-        label = "Play",
-        playing = false
-      } = {}) => html`
-      <div
-        ${ref(controlsRef)}
-        role="group"
-        aria-label=${host.getAttribute("aria-label")}
-      >
-        <button
-          ${ref(playRef)}
-          ${ref((node) => node && showAction(node, playing ? "pause" : "play"))}
-          aria-label=${label}
-          title=${label}
-        ></button>
-        <input
-          ${ref(timeRef)}
-          type="range"
-          name="time"
-          min="0"
-          max=${host.getAttribute("duration")}
-          step="1"
-          aria-label="Time"
-          aria-valuetext=${`${Math.round(time)} milliseconds`}
-          .value=${live(String(time))}
-        />
-        <span ${ref(clockRef)}>${Math.round(time)} ms</span>
-        <label ${ref(speedLabelRef)}
-          >Speed<select ${ref(speedRef)} name="speed">
-            ${[1, 0.5, 0.25].map(
-        (value) => html`<option value=${value} .selected=${live(rate === value)}>
+  document.documentElement.lfInitial.register("lf-motion", (host, tools) => {
+    const { offerElement, tabStore, authoredBody } = tools;
+    const { offerActionElement } = actionOffers(tools);
+    const saved = JSON.parse(tabStore.get(`motion:${host.id}`) || '{"time":0,"rate":1}');
+    const body = document.createElement("div");
+    body.className = "lf-motion-body";
+    authoredBody(body);
+    const drawing = {};
+    const offered = (key, cls) => (node) => {
+      if (node) drawing[key] = offerElement(node, cls);
+    };
+    const controlsRef = offered("controls", "lf-motion-controls");
+    const playRef = (node) => {
+      if (node)
+        drawing.play = offerActionElement(node, "symbol", "lf-motion-play", void 0, {
+          action: "play"
+        });
+    };
+    const timeRef = offered("time", "lf-motion-time");
+    const clockRef = offered("clock", "lf-motion-clock");
+    const speedLabelRef = offered("speedLabel", "lf-motion-speed");
+    const speedRef = offered("speed", "");
+    const template = ({
+      time = Math.min(Number(host.getAttribute("duration")), saved.time),
+      rate = saved.rate,
+      label = "Play",
+      playing = false
+    } = {}) => html`
+    <div ${ref(controlsRef)} role="group" aria-label=${host.getAttribute("aria-label")}>
+      <button
+        ${ref(playRef)}
+        ${ref((node) => node && showAction(node, playing ? "pause" : "play"))}
+        aria-label=${label}
+        title=${label}
+      ></button>
+      <input
+        ${ref(timeRef)}
+        type="range"
+        name="time"
+        min="0"
+        max=${host.getAttribute("duration")}
+        step="1"
+        aria-label="Time"
+        aria-valuetext=${`${Math.round(time)} milliseconds`}
+        .value=${live(String(time))}
+      />
+      <span ${ref(clockRef)}>${Math.round(time)} ms</span>
+      <label ${ref(speedLabelRef)}
+        >Speed<select ${ref(speedRef)} name="speed">
+          ${[1, 0.5, 0.25].map(
+      (value) => html`<option value=${value} .selected=${live(rate === value)}>
                   ${value}×
                 </option>`
-      )}
-          </select></label
-        >
-      </div>
-      ${body}
-    `;
-      return Object.assign(drawing, { render: template });
-    }
-  );
+    )}
+        </select></label
+      >
+    </div>
+    ${body}
+  `;
+    return Object.assign(drawing, { render: template });
+  });
 })();

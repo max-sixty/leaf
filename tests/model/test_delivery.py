@@ -15,6 +15,7 @@ from interact_support import (
     _start,
     append_carried_log_record,
     append_command,
+    declare_on_page,
     delivered,
     freeze_events,
     last_deliverable_seq,
@@ -36,6 +37,7 @@ from leaf import codex as codex_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
+from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread as thread_model
@@ -148,11 +150,12 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     assert not set(replying) & set(on_page + in_thread)
 
 
-def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
+def test_active_handling_survives_a_broken_page_declaration(page_dir, capsys):
+    """An event is delivered with the handling of the revision it was read under, so
+    a page declaration the next revision cannot take leaves that handling intact."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
+    registry = registry_storage.active_registry(page_dir)
     comment = {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     active = registry_contract.event_clauses(
         {
@@ -162,9 +165,8 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
         },
         registry,
     )
-    del registry["$events"]["handling"]
-    del registry["$events"]["answering"]
-    registry_path.write_text(json.dumps(registry))
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "registry.json").write_text('{"$events": {"handling": ')
 
     serving(page_dir, 1)
     session_model.cmd_waiting(page_dir)
@@ -232,8 +234,8 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
     assert delivery_model.read_delivery(payload["id"]) == payload
 
 
-def test_delivery_without_a_registry_has_no_handling(page_dir):
-    (page_dir / "registry.json").unlink()
+def test_delivery_without_a_layer_has_no_handling(page_dir):
+    (page_dir / schema_model.LAYER_FILE).unlink()
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
@@ -389,6 +391,7 @@ def test_recordless_requests_wake_without_user_obligations(
     from leaf.files import latest_revision
     from leaf.served_state.context import read_page
 
+    (page_dir / "page").mkdir(exist_ok=True)
     declaration = _stateful_page_declaration(page_dir, "lf-archive")
     verb = {
         "unit": "widget",
@@ -398,8 +401,8 @@ def test_recordless_requests_wake_without_user_obligations(
         "archive": {**verb, "attention": True},
         "edit": verb,
     }
-    (page_dir / "page" / "registry.json").write_text(
-        json.dumps({"lf-archive": declaration})
+    declare_on_page(
+        page_dir, lambda registry: registry.__setitem__("lf-archive", declaration)
     )
     source = PAGE.replace(
         "</section>", '<lf-archive id="row">Archive this</lf-archive></section>'

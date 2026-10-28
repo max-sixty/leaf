@@ -485,35 +485,74 @@ function bound(node, parents) {
   return assigned;
 }
 
-// The strings an expression can evaluate to, through templates, conditions,
-// concatenation and the constants it names.
-function strings(node, parents, seen = new Set()) {
+// The whole words an expression's string value can hold, through templates,
+// conditions, concatenation, Lit's `classMap` and the constants it names. A word that
+// touches a dynamic part or a join, as in `"lf-react" + "-icon"` or `lf-${kind}`, is
+// unknown and left out.
+function words(node, parents, seen = new Set()) {
   switch (node?.type) {
     case "Literal":
-      return typeof node.value === "string" ? [node.value] : [];
+      return typeof node.value === "string" ? joined([node.value]) : [];
     case "TemplateLiteral":
-      return [
-        ...node.quasis.map((quasi) => quasi.value.cooked ?? quasi.value.raw),
-        ...node.expressions.flatMap((e) => strings(e, parents, seen)),
-      ];
-    case "ConditionalExpression":
-      return [node.consequent, node.alternate].flatMap((e) =>
-        strings(e, parents, seen),
+      return joined(
+        node.quasis.flatMap((quasi, i) => [
+          quasi.value.cooked ?? quasi.value.raw,
+          node.expressions[i],
+        ]),
+        parents,
+        seen,
       );
+    case "BinaryExpression": {
+      const operands = (n) =>
+        n.type === "BinaryExpression" && n.operator === "+"
+          ? [...operands(n.left), ...operands(n.right)]
+          : [n.type === "Literal" && typeof n.value === "string" ? n.value : n];
+      return node.operator === "+" ? joined(operands(node), parents, seen) : [];
+    }
+    case "ConditionalExpression":
     case "LogicalExpression":
-    case "BinaryExpression":
-      return [node.left, node.right].flatMap((e) => strings(e, parents, seen));
+      return [node.consequent ?? node.left, node.alternate ?? node.right].flatMap((e) =>
+        words(e, parents, seen),
+      );
+    case "CallExpression":
+      // Lit's `classMap({name: on})` sets each name whose value isn't literally false.
+      return callee(node) !== "classMap"
+        ? []
+        : (node.arguments[0]?.properties ?? [])
+            .filter(
+              (p) => !p.computed && !(p.value?.type === "Literal" && !p.value.value),
+            )
+            .flatMap((p) => joined([String(p.key.name ?? p.key.value)]));
     case "Identifier":
       if (seen.has(node)) return [];
       seen.add(node);
-      return strings(bound(node, parents), parents, seen);
+      return words(bound(node, parents), parents, seen);
     default:
       return [];
   }
 }
 
-const classNames = (values) =>
-  values.flatMap((value) => value.split(/\s+/)).filter((name) => /^[\w-]+$/.test(name));
+// The whole words of text joined, in order, from static strings and the expressions
+// between them. An expression counts only where whitespace or an end stands on both
+// sides of it, and a string's edge word only where it ends the text or meets whitespace.
+function joined(parts, parents, seen) {
+  const run = parts.filter((part) => part !== undefined && part !== "");
+  const open = (part, edge) =>
+    part === undefined || (typeof part === "string" && edge.test(part));
+  return run.flatMap((part, i) => {
+    const [before, after] = [run[i - 1], run[i + 1]];
+    if (typeof part !== "string")
+      return open(before, /\s$/) && open(after, /^\s/)
+        ? words(part, parents, seen)
+        : [];
+    const list = part.split(/\s+/);
+    if (before !== undefined && !/^\s/.test(part)) list.shift();
+    if (after !== undefined && !/\s$/.test(part)) list.pop();
+    return list.filter(Boolean);
+  });
+}
+
+const classNames = (values) => values.filter((name) => /^[\w-]+$/.test(name));
 
 // Whether a role's builder dresses what `node` hands an element, and the classes the
 // calls in it give the element, read from each call's class argument (`CLASS_ARGUMENT`).
@@ -525,7 +564,7 @@ function dressing(node, parents, depth) {
     const name = callee(n);
     if (ROLE_BUILDERS.has(name)) found.role = true;
     if (Object.hasOwn(CLASS_ARGUMENT, name))
-      found.classes.push(...strings(n.arguments[CLASS_ARGUMENT[name]], parents));
+      found.classes.push(...words(n.arguments[CLASS_ARGUMENT[name]], parents));
     if (depth > 0 && n.callee?.type === "Identifier") calls.push(n.callee);
   });
   for (const name of calls) {
@@ -579,11 +618,14 @@ function presses() {
         built: built || null,
         classes: classNames(values),
       });
-    // The classes given to the variable a made element is bound to, after it is made.
+    // The classes given to the variable a made element is bound to, after it is made;
+    // none where the element is bound to nothing this module declares.
     const givenLater = (binding) =>
-      assigned
-        .filter((a) => declaration(a.left.object.name, a, parents) === binding)
-        .flatMap((a) => strings(a.right, parents));
+      !binding
+        ? []
+        : assigned
+            .filter((a) => declaration(a.left.object.name, a, parents) === binding)
+            .flatMap((a) => words(a.right, parents));
     const bindingOf = (made) => {
       const parent = parents.get(made);
       if (parent?.type === "VariableDeclarator" && parent.init === made) return parent;
@@ -599,21 +641,21 @@ function presses() {
         templatePresses(node, parents, press);
       const name = callee(node);
       const args = node.arguments ?? [];
-      if (MAKERS.has(name) && strings(args[0], parents).includes("button")) {
+      if (MAKERS.has(name) && words(args[0], parents).includes("button")) {
         const parent = parents.get(node);
         const asMade =
           ROLE_BUILDERS.has(callee(parent)) && parent.arguments[0] === node;
         press(node.start, node.end, "made", asMade && "role as it is made", [
-          ...strings(args[CLASS_ARGUMENT[name]], parents),
+          ...words(args[CLASS_ARGUMENT[name]], parents),
           ...givenLater(bindingOf(node)),
         ]);
       }
       if (name === "copyControl") {
         const role = args[1]?.properties?.some(
-          (p) => p.key?.name === "role" && strings(p.value, parents).some(Boolean),
+          (p) => p.key?.name === "role" && words(p.value, parents).length > 0,
         );
         press(node.start, node.end, "copy control", role && "role in its options", [
-          ...strings(args[0], parents),
+          ...words(args[0], parents),
         ]);
       }
       const receiver =
@@ -633,7 +675,7 @@ function presses() {
       const made = binding?.init;
       if (MAKERS.has(callee(made)))
         press(node.start, node.end, "scripted role", null, [
-          ...strings(made.arguments[CLASS_ARGUMENT[callee(made)]], parents),
+          ...words(made.arguments[CLASS_ARGUMENT[callee(made)]], parents),
           ...givenLater(binding),
         ]);
     });
@@ -645,7 +687,9 @@ function presses() {
 // The presses a template literal or an HTML string holds (`presses`, "template").
 function templatePresses(node, parents, press) {
   const expressions = node.expressions ?? [];
-  // Where each run of the markup starts in the markup and in the module's source.
+  // Where each run of the markup starts in the markup and in the module's source. The
+  // markup is the text Lit receives, escapes cooked, so an escape before a tag in its
+  // run moves the tag's site by the characters the escape saves.
   const runs = [];
   let markup = "";
   if (node.type === "Literal") {
@@ -654,7 +698,9 @@ function templatePresses(node, parents, press) {
   } else
     node.quasis.forEach((quasi, i) => {
       runs.push([markup.length, quasi.start]);
-      markup += quasi.value.raw + (i < expressions.length ? `lfexpr${i}z` : "");
+      markup +=
+        (quasi.value.cooked ?? quasi.value.raw) +
+        (i < expressions.length ? `lfexpr${i}z` : "");
     });
   if (!/<[a-z]/i.test(markup)) return;
   const inSource = (offset) => {
@@ -663,17 +709,21 @@ function templatePresses(node, parents, press) {
   };
   const marked = (value) =>
     [...value.matchAll(/lfexpr(\d+)z/g)].map((match) => expressions[match[1]]);
+  // The whole words of an attribute's value, its text joined with the expressions its
+  // markers stand for.
+  const valueWords = (value) =>
+    joined(
+      value.split(/(lfexpr\d+z)/).map((piece, i) => (i % 2 ? marked(piece)[0] : piece)),
+      parents,
+      new Set(),
+    );
   const onStartTag = ({ tagName, attrs, location }) => {
     const role = attrs.find((attr) => attr.name === "role");
-    const asButton =
-      role?.value === "button" ||
-      marked(role?.value ?? "").some((e) => strings(e, parents).includes("button"));
+    const asButton = valueWords(role?.value ?? "").includes("button");
     if (tagName !== "button" && !asButton) return;
-    const value = attrs.find((attr) => attr.name === "class")?.value ?? "";
-    const classes = [
-      value.replace(/lfexpr\d+z/g, " "),
-      ...marked(value).flatMap((e) => strings(e, parents)),
-    ];
+    const classes = valueWords(
+      attrs.find((attr) => attr.name === "class")?.value ?? "",
+    );
     // The element part: an expression standing in the tag as an attribute name.
     const parts = attrs.flatMap((attr) => marked(attr.name));
     const handed = parts.flatMap((part) => {

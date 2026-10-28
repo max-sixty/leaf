@@ -42,10 +42,12 @@ def test_dynamic_import_with_rejection_handler(tmp_path, handlers):
     ]
 
 
-# One press a line, each in a block of its own. The first eight are presses the press
-# check once misread: a family name in a title or a label taken for a class, a
-# `className` given to another block's `button`, spacing or a bound role that hid a
-# press, and a `>` inside a quoted attribute that ended the tag.
+# One press a line, each in a block of its own. The first eight, and the five after
+# them, are presses the press check once misread: a family name in a title or a label
+# taken for a class, a `className` given to another block's `button`, spacing or a
+# bound role that hid a press, a `>` inside a quoted attribute that ended the tag; a
+# `className` on a parameter given to an unrelated `button`, a family name joined to
+# more text, an escaped quote read raw, and Lit's `classMap` unread.
 PRESSES = """\
 { html`<button class="own-face" title="lf-react">`; }
 { offer("button", "own-face", "lf-react"); }
@@ -60,6 +62,11 @@ PRESSES = """\
 { offerActionElement(document.createElement("button"), "symbol"); }
 { copyControl("lf-x", { role: "symbol" }); }
 { const grip = offer("span", "lf-grip"); grip.setAttribute("role", "button"); }
+{ function style(button) { button.className = "lf-react"; } function make() { return document.createElement("button"); } }
+{ offer("button", "lf-react" + "-icon"); }
+{ html`<button class="lf-react${suffix}">`; }
+{ html`<button title=\\"a > b\\" class="lf-react">`; }
+{ html`<button class=${classMap({ "lf-react": true, "lf-off": false, own: on })}>`; }
 """
 # Each line's press: the kind it is read as, how a role dresses it, and its classes.
 READ = [
@@ -76,6 +83,11 @@ READ = [
     ("made", "role as it is made", []),
     ("copy control", "role in its options", ["lf-x"]),
     ("scripted role", None, ["lf-grip"]),
+    ("made", None, []),
+    ("made", None, []),
+    ("template", None, []),
+    ("template", None, ["lf-react"]),
+    ("template", None, ["lf-react", "own"]),
 ]
 
 

@@ -1,6 +1,6 @@
 import { PAGE_PAINT_ATTRIBUTE, afterScript, bindQueuedWork, cancelRender, dataBody, frameFor, layoutChanged, measure, nextAnimation, nextFrame, nextRender, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, under, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
 import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, selectsAll, takesLetters, typesText, x } from "./bundle-dom-move.js";
-import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, html, inUi, isElementName, isReaction, keyed, lastMovedAt, layerRoot, live, loadShadowRules, marks, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, share, stateSpecs, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-layer-stack.js";
+import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, html, inUi, isElementName, isReaction, keyed, lastMovedAt, layerRoot, live, loadShadowRules, marks, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, ref, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, share, stateSpecs, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-layer-stack.js";
 import { LayerRefused, PRESS, PRESSABLE, actionTemplate, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, keys, labelOf, live as live$1, nameAction, namedAction, notice, offer, offered, offeredAction, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { clippedContents, clippedPlace, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
@@ -3547,14 +3547,14 @@ var MessageEditor = class {
 		this.node = offer("div", "lf-msg-editor lf-comment-box");
 		this.input = offer(TEXT_FIELD);
 		this.input.name = "edit";
-		const actions = offer("span", "lf-msg-edit-actions");
+		const actions = this.actions = offer("span", "lf-msg-edit-actions");
 		const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
 		cancel.type = "button";
 		nameAction(cancel, "discard", { className: "lf-msg-control-icon" });
 		actions.append(cancel);
 		this.foot = document.createElement("span");
 		this.foot.className = "lf-msg-edit-foot";
-		this.node.append(this.input, actions);
+		this.node.append(this.input);
 		this.input.value = loadDraft(ctx) || said();
 		const whole = () => sync.value();
 		let opened = null;
@@ -3648,7 +3648,7 @@ var MessageEditor = class {
 		});
 		opened = whole();
 		this.input.after(this.foot);
-		keys(this.node, "Editing a message", [{
+		for (const where of [this.node, actions]) keys(where, "Editing a message", [{
 			id: "message.edit.close",
 			keys: ["Escape"],
 			title: "discard",
@@ -3848,20 +3848,11 @@ var ReactionStripView = class {
 		this.#commands = commands;
 		this.node = document.createElement("div");
 		this.node.classList.add("lf-react-strip", "lf-react-surface");
-		this.node.setAttribute("role", "group");
-		this.node.setAttribute("aria-label", "React to this reply");
 	}
 	present(model) {
 		this.#model = model;
 		this.node.classList.toggle("lf-open", model.latest);
-		render$1(html` <button
-          ${offered("lf-msg-control lf-react-trigger")}
-          aria-expanded="false"
-          aria-controls=${this.#paletteId}
-          ${namedAction("react", { className: "lf-msg-control-icon" })}
-          @click=${() => this.#registration.toggle()}
-        ></button>
-        <span
+		render$1(html`<span
           class="lf-react-palette"
           id=${this.#paletteId}
           popover="auto"
@@ -3882,12 +3873,21 @@ var ReactionStripView = class {
                 <span class="lf-react-glyph">${choice.glyph}</span>
               </button>`)}
         </span>`, this.node);
-		this.#registration ??= this.#commands.registerSurface(this.node, {
-			trigger: this.node.querySelector(".lf-react-trigger"),
-			palette: this.node.querySelector(".lf-react-palette")
-		});
 		return this.node;
 	}
+	trigger = html`<button
+    ${offered("lf-msg-control lf-react-trigger")}
+    aria-expanded="false"
+    aria-controls=${this.#paletteId}
+    ${namedAction("react", { className: "lf-msg-control-icon" })}
+    @click=${() => this.#registration.toggle()}
+    ${ref((trigger) => {
+		if (trigger) this.#registration ??= this.#commands.registerSurface(this.node, {
+			trigger,
+			palette: this.node.querySelector(".lf-react-palette")
+		});
+	})}
+  ></button>`;
 	#press(name) {
 		const model = this.#model;
 		this.#commands.actions.setReaction(model.thread, model.message, name, !model.choices.find((choice) => choice.name === name).inForce);
@@ -4096,7 +4096,7 @@ var MessageView = class {
 			generatedElement(this.node, { says: false });
 			this.node.dataset.lfOffer = "";
 			this.node.addEventListener("dblclick", (event) => {
-				if (event.target.closest?.(".lf-msg-editor, a[href]")) return;
+				if (event.target.closest?.(".lf-msg-editor, .lf-msg-controls, a[href]")) return;
 				if (!this.#model?.editable) return;
 				window.getSelection()?.removeAllRanges();
 				this.openEdit();
@@ -4151,6 +4151,16 @@ var MessageView = class {
 		if (holds && this.#authored.some((node) => !this.node.contains(node))) this.#authoredTake++;
 		if (!model.reactions) this.#reaction?.retire();
 		const strip = model.reactions ? (this.#reaction ??= new ReactionStripView(this.#commands.reaction)).present(model.reactions) : nothing;
+		const rewrite = editing ? this.#editor.actions : model.editable ? html`<button
+            ${offered("lf-msg-control lf-msg-edit")}
+            tabindex="-1"
+            ${namedAction("edit", {
+			label: "Edit message",
+			className: "lf-msg-control-icon"
+		})}
+            @click=${() => this.openEdit()}
+          ></button>` : nothing;
+		const react = model.reactions ? this.#reaction.trigger : nothing;
 		const receipt = model.workflowLabel ? html`<span
           class="lf-msg-sending"
           title=${model.workflowTitle}
@@ -4175,18 +4185,9 @@ var MessageView = class {
                   >unsaved edit</span
                 >` : nothing}
         </span>
-        ${headerControls}
+        ${headerControls}<span class="lf-msg-controls">${rewrite}${react}</span>
       </div>
     `;
-		const rewrite = model.editable && !editing ? html`<button
-            ${offered("lf-msg-control lf-msg-edit")}
-            tabindex="-1"
-            ${namedAction("edit", {
-			label: "Edit message",
-			className: "lf-msg-control-icon"
-		})}
-            @click=${() => this.openEdit()}
-          ></button>` : nothing;
 		render$1(html`
         ${header}
         <div
@@ -4196,7 +4197,7 @@ var MessageView = class {
           ${model.body.drawing ? html`<span class="lf-drawing-reference">Drawing comment</span>` : nothing}
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
-        ${strip} ${rewrite}
+        ${strip}
       `, this.node);
 		if (this.#authored && !this.#dressed) {
 			markDeclared(this.node);
@@ -6443,6 +6444,7 @@ const STOPPED = /* @__PURE__ */ new Set([
 	"stale",
 	"interrupted"
 ]);
+const words = (header) => [...header.querySelectorAll(":scope > :not(.lf-msg-controls)")];
 function workingMessage(thread, attention, messages) {
 	if (thread.resolved || messages.at(-1)?.provisional) return null;
 	const covered = new Set(thread.summaries.flatMap(({ covers }) => covers));
@@ -6798,15 +6800,15 @@ var ThreadView = class {
 					margin: "0",
 					anchorName: "none"
 				});
-				for (const node of reading.children) {
+				for (const node of words(reading)) {
 					node.classList.toggle("lf-held-header-item", false);
 					node.style.removeProperty("--lf-held-header-width");
 				}
 				header.after(reading);
 			} else this.#releaseHeaderItems();
-			const widths = [...reading.children].map((node) => node.getBoundingClientRect().width);
+			const widths = words(reading).map((node) => node.getBoundingClientRect().width);
 			if (resizing) reading.remove();
-			const items = [...header.children].map((node, index) => ({
+			const items = words(header).map((node, index) => ({
 				node,
 				width: widths[index]
 			}));

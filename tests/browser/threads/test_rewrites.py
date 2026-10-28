@@ -913,14 +913,14 @@ UNDER_EDIT_ACTIONS = """message => {
 def test_a_cards_message_controls_cover_its_head(browser, serve):
     """The margin card kept no room in a head for a message's control, since it draws no
     reactions, so an open rewrite's Discard and Save stood over the head's time and
-    receipt, the words and the controls reading through each other. The head keeps its
-    Edit's room as every other surface's does, and the rewrite's pair, two glyphs,
-    stands in that room and covers the head beyond it: nothing under the pair shows
-    while the rewrite is open, and opening it moves none of the head's words. The
-    row is the rewrite's: the card's Resolve leaves it while the rewrite is open.
+    receipt, the words and the controls reading through each other. The pair, two
+    glyphs, stands among the head's controls in its Edit's place, and the head's labels
+    give up its room: nothing of them shows under the pair while the rewrite is open,
+    and opening it moves none of the head's words. The row is the rewrite's: the card's
+    Resolve leaves it while the rewrite is open.
 
     Under a finger each glyph takes the aim floor, so the pair reaches past the Edit's
-    room over the head's labels, which it doesn't at a desktop's card width."""
+    room into the head's labels, which it doesn't at a desktop's card width."""
     context = browser.new_context(has_touch=True, is_mobile=True)
     page, card, message = _rewrite_surface(
         browser, serve, "card", size=(390, 844), context=context
@@ -944,9 +944,10 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     pair = message.evaluate(UNDER_EDIT_ACTIONS)
     assert pair["under"], f"no words of the head reach under the pair: {pair}"
     shown = page.screenshot(clip=pair["box"])
-    # The head's words go clear; hiding the head would hide the pair anchored to it.
+    # The head's words go clear; hiding the head would hide the pair standing in it.
     head.evaluate(
-        "head => [head, ...head.querySelectorAll('*')]"
+        "head => head.querySelectorAll("
+        "':scope > :not(.lf-msg-controls), :scope > :not(.lf-msg-controls) *')"
         ".forEach((e) => e.style.setProperty('color', 'transparent', 'important'))"
     )
     one_frame(page)

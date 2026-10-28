@@ -537,7 +537,7 @@ RING_SCOPE_OPENER = {
     "On me": ".lf-fp-on-user",
     "the leaf's menu": ".lf-fp-leaf",
     "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
-    "a reaction palette": f"{PANEL_THREAD} .lf-react-strip > .lf-react-trigger",
+    "a reaction palette": f"{PANEL_THREAD} .lf-msg-controls > .lf-react-trigger",
     # Any control inside the diff puts the user in its scope, where `]` lands a line.
     "a landed diff line": "#pr-exact-patch summary",
 }
@@ -561,7 +561,7 @@ RING_SCOPE_WIDTH = {
 # thread whose view holds the selector (`open_panel_thread_holding`).
 RING_SCOPE_THREAD = {
     "a resolved thread": ".lf-fp-controls .lf-fp-settle.lf-reopen",
-    "a reaction palette": ".lf-react-strip > .lf-react-trigger",
+    "a reaction palette": ".lf-msg-controls > .lf-react-trigger",
     "message media": ".lf-message-media",
 }
 
@@ -695,7 +695,7 @@ def _each_aim_surface(page, page_dir):
     # The agent's answer in the other thread, with its reaction palette open: its chips
     # show only while it stands.
     open_panel_thread(page, answered)
-    page.locator(f"{PANEL_THREAD} .lf-react-strip > .lf-react-trigger").first.click()
+    page.locator(f"{PANEL_THREAD} .lf-msg-controls > .lf-react-trigger").first.click()
     expect(
         page.locator(".lf-react-palette:popover-open .lf-react").first
     ).to_be_visible()

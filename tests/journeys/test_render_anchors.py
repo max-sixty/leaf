@@ -1129,7 +1129,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     panel_settled(page, open=False)
 
     strip = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-react-strip')
-    strip.locator(".lf-react-trigger").click()
+    thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-react-trigger').click()
     with sending(page, "the inline reaction"):
         strip.locator('.lf-react[data-token="change"]').click()
     reacted = events_model.read_events(serve.page_dir)[-1]

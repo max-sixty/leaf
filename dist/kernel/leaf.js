@@ -5617,7 +5617,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	stage.addEventListener("click", (event) => pressAt(event.target), { capture: true });
 	stage.addEventListener("click", judgePress);
-	const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+	const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg:has(> .lf-msg-body > .lf-msg-editor)"));
 	const overPanel = (node) => Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
 	onCurrentLocation((node, cause) => {
 		if (!trail.value.at(-1)?.thread || cause === "drop" || overPanel(node)) return;

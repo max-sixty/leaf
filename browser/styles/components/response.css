@@ -550,14 +550,13 @@ button.lf-media-open {
   display: none;
 }
 /* Beside a thread's first message the thread's controls keep their own room past the
-   head (surfaces.css), so there the head takes Resolve's room, and the pair its place. */
+   head (surfaces.css), so there the pair moves over into Resolve's place. */
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
-  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint):has(
-    > .lf-msg-body > .lf-msg-editor
-  )
-  > .lf-msg-head {
-  margin-inline-end: 0;
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
+  > .lf-msg-head
+  > .lf-msg-controls:has(> .lf-msg-edit-actions) {
+  margin-inline-end: calc(-1 * (var(--lf-thread-action-room) + var(--sp-2)));
 }
 
 :is(.lf-fab-bar, .lf-margin-preview) {

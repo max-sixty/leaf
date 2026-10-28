@@ -10,7 +10,7 @@ import { afterScript, nextRender, sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { SCROLL_SLACK, atScrollEnd } from "./scrolling.js";
 import { shadowRootsIn, upFrom } from "./shadow.js";
-import { LAYOUT } from "./widget-elements.js";
+import { LAYOUT } from "./widget-upgrade.js";
 import { keeps } from "./keeps.js";
 
 // Scroll owners opt into reach with `scroll`. Their CSS owns overflow, including

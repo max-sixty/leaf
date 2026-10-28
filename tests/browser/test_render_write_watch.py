@@ -211,3 +211,41 @@ def test_child_list_restatements_are_judged_across_one_delivery(browser):
         ("children", "div#frame-and-restatement"),
         ("children", "div#frame-between-restatement"),
     }
+
+
+def test_menu_line_measurement_only_credits_removing_and_restoring_limits(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<div class="lf-fp-state" data-held>'
+            '<span class="lf-fp-summary" style="--lines: 1">Away</span>'
+            '<span class="lf-fp-explain" style="--lines: 3">Details</span>'
+            "</div>"
+        )
+    )
+    page.evaluate("""() => {
+      const state = document.querySelector('.lf-fp-state');
+      const lines = [...state.children];
+      const limits = lines.map(line => line.getAttribute('style'));
+      state.removeAttribute('data-held');
+      for (const line of lines) line.removeAttribute('style');
+      // A retained menu is measured without the previous opening's line limits.
+      for (const line of lines) line.getBoundingClientRect();
+      state.setAttribute('data-held', '');
+      lines.forEach((line, i) => line.setAttribute('style', limits[i]));
+    }""")
+    assert take_browser_errors(page) == []
+
+    # Direct restatements on those same nodes still fail the watch.
+    page.evaluate("""() => {
+      document.querySelector('.lf-fp-state').setAttribute('data-held', '');
+      for (const line of document.querySelectorAll('.lf-fp-state > span'))
+        line.setAttribute('style', line.getAttribute('style'));
+    }""")
+    failures = consume_browser_errors(page, {"code": "unchanged-write"})
+    assert {(f.values["what"], *f.values["node"]) for f in failures} == {
+        ("data-held", "div.lf-fp-state"),
+        ("style", "span.lf-fp-summary"),
+        ("style", "span.lf-fp-explain"),
+    }

@@ -15,7 +15,7 @@
 import {
   announce,
   html,
-  showAction,
+  nameAction,
   render,
   el,
   generated,
@@ -105,10 +105,8 @@ function updateDisclosureControl(owner) {
   const button = owner.querySelector(":scope > .lf-call-tools .lf-call-toggle");
   if (!button) return;
   const expand = groups.some((group) => !group.open);
-  showAction(button, expand ? "expand-all" : "collapse-all");
   const label = `${expand ? "Expand" : "Collapse"} all ${groups.length} call-tree ${groups.length === 1 ? "root" : "roots"}`;
-  keeps(button, "aria-label", label);
-  keeps(button, "title", label);
+  nameAction(button, expand ? "expand-all" : "collapse-all", { label });
 }
 
 function buildToolbar(owner) {

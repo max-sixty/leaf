@@ -695,8 +695,9 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     expect(widget.locator(".lf-trace-action")).to_have_text(first_call["title"])
     expect(widget.locator(".lf-trace-phase")).to_contain_text("Start")
     widget.get_by_role("button", name="Next", exact=True).click()
-    expect(widget.locator(".lf-trace-phase")).to_have_text(
-        f"Completion · {(first_call['endTime'] - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
+    expect(widget.locator(".lf-trace-phase")).to_have_text("Completion")
+    expect(widget.locator(".lf-trace-position")).to_have_text(
+        f"{(first_call['endTime'] - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
     )
     expect(widget.locator(".lf-trace-missing-image")).to_be_visible()
 

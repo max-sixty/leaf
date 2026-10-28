@@ -355,7 +355,7 @@ def test_z_shows_a_settlement_the_user_left_before_taking_it(browser, serve, ges
     page = open_page(browser, url)
     open_panel_thread(page, root).focus()
     with sending(page, f"the {gesture}"):
-        page.keyboard.press("r" if gesture == "resolve" else "Enter")
+        page.keyboard.press("r")
     round_trip(page)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
@@ -588,6 +588,32 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     expect(reply).to_have_js_property("value", "Back to this.")
     expect_open_threads(page, 18)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
+
+
+def test_a_reply_in_a_resolved_thread_reopens_it(browser, serve):
+    """A resolved thread opened in the floating panel keeps its reply box, and the
+    user's reply there reopens the thread, with no Reopen first."""
+    url = serve(LONG_PAGE, comments=1)
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+    )
+    page = open_page(browser, url)
+    expect_open_threads(page, 0)
+    open_panel_thread(page, root)
+    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
+    reply = page.locator(PANEL_REPLY)
+    reply.click()
+    page.keyboard.type("One more thing.")
+    with sending(page, "the reply"):
+        page.keyboard.press("Enter")
+    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
+    expect_open_threads(page, 1)
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "reply"
 
 
 def test_a_late_reply_reopens_its_resolved_thread(browser, serve):

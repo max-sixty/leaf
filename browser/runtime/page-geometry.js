@@ -15,7 +15,7 @@
 import { watchScrolls } from "./arrivals.js";
 import { cancelRender, nextRender } from "./rendering.js";
 import { coarsePointer } from "./pointer.js";
-import { LAYOUT } from "./widget-elements.js";
+import { LAYOUT } from "./widget-upgrade.js";
 import { keepsText } from "./keeps.js";
 
 export function createPageGeometry({

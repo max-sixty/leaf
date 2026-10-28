@@ -52,9 +52,6 @@ export const readPart = (derive) => applicationState.select(derive).read;
 // before one has arrived. Every surface naming the agent's side reads it here.
 const agent = readPart((root) => root.authoritative?.agent ?? null);
 export const agentName = () => agent() || "the agent";
-// The same name where it opens a sentence or stands alone as a label.
-export const agentLabel = () =>
-  agentName().replace(/^./, (first) => first.toUpperCase());
 // Whether a session holds the page's claim, by the server's reading: false before one
 // has arrived.
 export const pageClaimed = readPart(

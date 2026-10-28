@@ -138,7 +138,8 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { PAGE_SCOPE, tabStore } from "./storage.js";
+import { PAGE_SCOPE } from "./storage.js";
+import { tabStore } from "./tab-store.js";
 import {
   authoredBody,
   initialOrigin,
@@ -146,7 +147,8 @@ import {
   unmarkedCopy,
 } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
-import { el, layoutChanged, reveal } from "./widget-elements.js";
+import { el, reveal } from "./widget-elements.js";
+import { layoutChanged } from "./widget-upgrade.js";
 import { settleMarginContentLayout } from "./content-layout.js";
 import { keeps } from "./keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";

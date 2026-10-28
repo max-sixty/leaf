@@ -100,6 +100,10 @@ const exactClosures = {
     "repaint.js",
     "shadow.js",
     "arrivals.js",
+    // A widget's declared commands arrive by the event it dispatches, and a malformed
+    // declaration is reported as its failure.
+    "widget-upgrade.js",
+    "page-paint.js",
   ],
 };
 

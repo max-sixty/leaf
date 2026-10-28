@@ -37,7 +37,7 @@ them:
   revision.
 
 The effective registry is validated only where it differs from the active revision's
-captured copy. Vendored sheets are validated when `page init` composes them.
+captured copy. A layer's sheets are validated whenever a Leaf composes it.
 
 A reference to a thread, such as a widget's `resolves`, is checked against the thread
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening
@@ -114,8 +114,7 @@ They are the command's, so the suite takes none.
 
 The gate serves its probe modules and the runtime they import from the Leaf running
 the command (`runtime_selection.py`), so the probes always meet the runtime they were
-written for. The vendored layer is the page's to keep, so the gate does not re-vendor
-it.
+written for.
 
 ## Passages
 

@@ -36,7 +36,6 @@ from starlette.requests import Request
 
 from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
-from leaf.layer import running_leaf
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
@@ -298,9 +297,7 @@ def _responses(
         )
         endpoint = WebsitePageEndpoint(
             request,
-            SimpleNamespace(
-                server_id=f"website-{manifest['release']}", leaf=running_leaf()
-            ),
+            SimpleNamespace(server_id=f"website-{manifest['release']}"),
             routes=routes,
             pages=manifest["pages"],
             release=manifest["release"],

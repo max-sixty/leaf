@@ -832,8 +832,8 @@ def restarting_server(page_dir: Path, harness: Harness | None):
     """Hold a page's service down for the block, and start it again after, for the
     session `harness` names.
 
-    `page init` re-vendors inside this, since no server runs across a re-vendor:
-    the layer it serves and the code it runs are both what the re-vendor replaces.
+    `page init` rewrites a page's layer record inside this, since a server reads the
+    record once, as it starts, and one an older Leaf started runs that Leaf's code.
     The service goes down through `cmd_stop`, since a disabled service is what keeps
     a revival and a second start out of the block. A watching `leaf wait` goes on
     watching through the gap: a stopped service does not end a wait
@@ -884,8 +884,8 @@ def restarting_server(page_dir: Path, harness: Harness | None):
     cmd_stop(page_dir, restart=mark, owner=held)
     if not same_claim(page_claim(page_dir), held):
         raise Refused(
-            f"another session took {page_dir} while it was being re-vendored; "
-            "re-vendor it from there"
+            f"another session took {page_dir} while it was being re-initialized; "
+            "re-initialize it from there"
         )
     if not comes_back:
         note(Finding("server-unowned", values={"page": str(page_dir)}))
@@ -903,7 +903,7 @@ def restarting_server(page_dir: Path, harness: Harness | None):
             del service["restart"]
             write_service(page_dir, {**service, "enabled": True})
     if not resumed:
-        note(Finding("stopped-while-revendored", values={"page": str(page_dir)}))
+        note(Finding("stopped-during-init", values={"page": str(page_dir)}))
         return
     try:
         start_server(page_dir, persistent=persistent, revive=True, harness=harness)
@@ -921,7 +921,7 @@ def _restarts_for_session(page_dir: Path, harness: Harness | None) -> bool:
     if harness is None or not claimant_matches(claim, harness):
         raise Refused(
             f"{page_dir} is served for another session, and only that session can "
-            "start its server again; re-vendor it from there, or take the page over "
-            f"first with `leaf server start {page_dir}`"
+            "start its server again; re-initialize it from there, or take the page "
+            f"over first with `leaf server start {page_dir}`"
         )
     return True

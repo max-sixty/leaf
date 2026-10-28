@@ -24,10 +24,6 @@
       "description": "The news token of the facts this answer read (`served_state.reading`), which the tab's freshness reads compare.",
       "type": "string"
     },
-    "leaf": {
-      "description": "The Leaf serving the page, as `layer.payload_provenance` reads it, sent only where it is another than the one that vendored the page.",
-      "$ref": "#/$defs/Provenance"
-    },
     "release": {
       "description": "The leaf.page release that served the page.",
       "type": "string"

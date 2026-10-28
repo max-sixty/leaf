@@ -85,7 +85,7 @@ class _Page(click.ParamType):
 def page_argument(*, renew: bool, required: bool = True):
     """Declare a command's PAGE, passed as `page_dir`, the page it names. Every
     command says whether naming the page renews its layer: a write may, while a read
-    or a service stop must not re-vendor the page it acts on."""
+    or a service stop must not renew the page it acts on."""
     return click.argument(
         "page_dir", metavar="PAGE", type=_Page(renew=renew), required=required
     )
@@ -1194,7 +1194,7 @@ def run(page_dir: Path, host: str | None, lifetime: str) -> None:
 
 
 @server.command("_serve", hidden=True)
-# A re-vendor here would restart the server this process is becoming.
+# Renewing the layer here would restart the server this process is becoming.
 @page_argument(renew=False)
 @serve_flags("session", "persistent")
 @click.option("--revive", is_flag=True, hidden=True)

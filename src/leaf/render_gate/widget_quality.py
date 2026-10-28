@@ -218,7 +218,7 @@ def _page_findings(
 ) -> list[Finding]:
     """`keeps-first-box`, `shows-context-keys` and `grows-with-content` over each page
     of examples, served
-    from a page vendored with the package's layer and thrown away after."""
+    from a page selecting the package and thrown away after."""
     findings = []
     with tempfile.TemporaryDirectory(prefix="leaf-widgets-") as temporary:
         page_dir = Path(temporary)

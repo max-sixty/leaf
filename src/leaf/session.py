@@ -156,7 +156,7 @@ class Watch:
     `watch_state` is ownership/lifetime; `lost` separately says the server is
     down with nothing left to bring it back: never served, or dead after a
     revival that did not hold. A stopped service is not lost: `server stop` is
-    the agent's own choice, and `page init` stops a served page to re-vendor it and
+    the agent's own choice, and `page init` stops a served page to re-initialize it and
     starts it again, so the wait watches a disabled service without reviving it.
 
     Between passes native subscriptions follow this session's claim partition,

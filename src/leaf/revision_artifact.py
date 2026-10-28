@@ -413,7 +413,7 @@ _CSS_MARK = ("", "")
 def _read_css(source: str, declarations: bool) -> _CssReading:
     """Parse a stylesheet once for every address it is delivered at.
 
-    A sheet's text is the same for every page that vendored the same layer and every
+    A sheet's text is the same for every page that selects the same layer and every
     revision that captured it, while the address it is delivered at names one
     revision. Parsing the composed theme takes a few hundred milliseconds, which a
     parse keyed on the address paid again for every new revision's first document.

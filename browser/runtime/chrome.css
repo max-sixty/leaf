@@ -417,7 +417,7 @@ html[data-lf-region-capture] main * {
   }
 
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
-     mask is the page's actual vendored mark, so a project that replaces icon.svg does
+     mask is the layer's own mark, so a package that replaces icon.svg does
      not keep an unrelated leaf-like glyph in the panel. Shape is identity and colour
      is state, from the same registry-owned tones the tab icon wears. Each state adds
      no specificity, so a forced palette's later rule replaces every tone. */

@@ -328,15 +328,12 @@ def _size(box: dict) -> str:
 
 def _declared(words, sep: str = ": "):
     """A registry finding's words: the file it read (`registry`), the element
-    declaration `at` names, then `words`; and, for a fault in a vendored layer, how to
-    replace it (`revendor`, the page to re-vendor)."""
+    declaration `at` names, then `words`."""
 
     def said(at: str, v: dict) -> str:
         text = f"{at} {words(v)}" if at else words(v)
         if "registry" in v:
             text = f"{v['registry']}{sep}{text}"
-        if "revendor" in v:
-            text += f"; run `leaf page init {v['revendor']}` to re-vendor it"
         return text
 
     return said
@@ -836,7 +833,7 @@ _TEXT = {
     ),
     # Widgets, against the registry that declares them.
     "unknown-widget": lambda at, v: (
-        f"{_line(at, v)}: unknown widget — not in the vendored registry.json"
+        f"{_line(at, v)}: unknown widget — not in the page's registry"
     ),
     "attribute-schema": lambda at, v: f"{_line(at, v)}: {v['reason']}",
     "member-record-slot": lambda at, v: (
@@ -985,7 +982,7 @@ _TEXT = {
     ),
     "message-stylesheet": lambda at, v: (
         "<link rel=stylesheet> in message markup dresses the whole document it is put"
-        " into; the page serves the one vendored theme it was reviewed with"
+        " into; the page serves the one theme its layer composes"
     ),
     "sample-loop": lambda at, v: (
         f"sample {_json(v['samples'])} selects thread {v['thread']!r}, which"
@@ -1607,15 +1604,15 @@ _TEXT = {
     ),
     "foreign-layer": lambda at, v: _unservable_layer(
         v,
-        f"was initialized by a Leaf at page protocol {v['vendored']}, and this Leaf"
+        f"was initialized by a Leaf at page protocol {v['recorded']}, and this Leaf"
         f" ({v['leaf']}) speaks protocol {v['protocol']}",
         "Update the page's Leaf runtime",
     ),
     "newer-layer": lambda at, v: (
-        f"{v['page']} was initialized at page protocol {v['vendored']} by a newer"
+        f"{v['page']} was initialized at page protocol {v['recorded']} by a newer"
         f" Leaf, and this Leaf ({v['leaf']}) speaks protocol {v['protocol']}, so it"
         f" can neither serve nor write the page. Use a Leaf at protocol"
-        f" {v['vendored']} or later; in Claude Code, `/reload-plugins` loads an"
+        f" {v['recorded']} or later; in Claude Code, `/reload-plugins` loads an"
         " installed update."
     ),
     "no-registry": lambda at, v: "the page has no layer.json",
@@ -1868,14 +1865,16 @@ _TEXT = {
             else "None of its updates still owes an answer."
         )
     ),
-    # A re-vendor a command naming the page made (`vendoring.renew_layer`), and the
-    # service it held down (`hosting.restarting_server`).
-    "unready-revendor": lambda at, v: (
-        f"re-vendored {v['page']}, but index.html will not activate until"
+    # A `page init`, or the renewal a command naming the page made
+    # (`vendoring.renew_layer`), and the service it held down
+    # (`hosting.restarting_server`).
+    "unready-reinit": lambda at, v: (
+        f"re-initialized {v['page']}, but index.html will not activate until"
         " `leaf page check` passes:\n" + "\n".join(f"  - {e}" for e in v["errors"])
     ),
-    "revendor-refused": lambda at, v: (
-        f"{v['page']} needs a re-vendor this Leaf could not make: {v['error']}"
+    "renewal-refused": lambda at, v: (
+        f"{v['page']} is at an older page protocol, and this Leaf could not take it"
+        f" to its own: {v['error']}"
     ),
     "server-stays-stopped": lambda at, v: (
         f"{v['page']}'s server stays stopped; `leaf server start {v['page']}` serves"
@@ -1885,9 +1884,9 @@ _TEXT = {
         f"{v['page']}'s server has no live session owner, so it stays stopped;"
         f" `leaf server start {v['page']}` serves it for this one."
     ),
-    "stopped-while-revendored": lambda at, v: (
-        f"{v['page']}'s server was stopped while it was re-vendored, so it stays"
-        " stopped."
+    "stopped-during-init": lambda at, v: (
+        f"{v['page']}'s server was stopped while `page init` held it down, so it"
+        " stays stopped."
     ),
     # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (

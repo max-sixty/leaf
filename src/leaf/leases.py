@@ -184,7 +184,7 @@ def end_if_terminated() -> None:
 
 @contextlib.contextmanager
 def page_locked(page_dir: Path):
-    """Serialize one page's service changes, re-vendoring, and contract-bearing
+    """Serialize one page's service changes, `page init`, and contract-bearing
     writes.
 
     The lock is the page directory itself, flocked through a descriptor on it,
@@ -212,7 +212,7 @@ def page_locked(page_dir: Path):
 
 
 def contract_writer(function):
-    """Keep a CLI event's validation and append on one vendored contract."""
+    """Keep a CLI event's validation and append on one layer record."""
 
     @functools.wraps(function)
     def locked(page_dir: Path, *args, **kwargs):

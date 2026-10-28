@@ -44,13 +44,13 @@ from .layer import files_identity, stylesheet
 from .registry.storage import selected
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import Resource, RevisionArtifact, resource_type
-from .schema import ASSETS, KERNEL, RUNTIME_DIRS, RUNTIME_ENTRY, VENDORED_FILES
+from .schema import ASSETS, KERNEL, LAYER_TOP_FILES, RUNTIME_DIRS, RUNTIME_ENTRY
 from .state import PLUGIN_ROOT, json_bytes
 
 # Every input of a layer this tree composes: the core layer files beside the
 # runtime, and the bundled packages (`layer.layer_inputs`).
 LAYER_SOURCES = (
-    *(f"browser/{name}" for name in VENDORED_FILES if name != "registry.json"),
+    *(f"browser/{name}" for name in LAYER_TOP_FILES if name != "registry.json"),
     "browser/registry.json",
     "browser/widgets",
     "packages",

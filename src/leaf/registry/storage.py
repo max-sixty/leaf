@@ -303,7 +303,7 @@ def active_registry(page_dir: Path) -> dict | None:
 def page_vocabulary(page_dir: Path, revision: int | None) -> dict | None:
     """The vocabulary one of the page's documents is read in.
 
-    A revision's is the registry its capture froze, which a later re-vendor or page
+    A revision's is the registry its capture froze, which a later `page init` or page
     declaration cannot reach. With no revision, the document is the candidate, so its
     vocabulary is the layer composed with the page's own declarations — the same one
     the candidate would be captured under. None before `page init`.

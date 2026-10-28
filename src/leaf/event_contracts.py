@@ -479,7 +479,7 @@ def admitting_registry(view, event: dict) -> dict:
     """The vocabulary that admits one event: the one its own document captured.
 
     An event names the revision it was made against, and that revision's artifact
-    holds the registry its page was rendered from — so a re-vendor, which replaces
+    holds the registry its page was rendered from — so a `page init`, which changes
     the layer without touching an existing revision, cannot reinterpret a command
     the user made against the document in front of them. Admission records that
     semantic definition in the event. An event naming no revision takes the newest,
@@ -852,7 +852,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
     applies without a page directory, a server, or a browser under it.
     """
     registry = admitting_registry(view, event)
-    # The kernel's records are this Leaf's own, whichever Leaf vendored the page: no
+    # The kernel's records are this Leaf's own, whichever Leaf initialized the page: no
     # layer can change them, and a page at this protocol reads what they add
     # (`registry.kernel.kernel_protocol`).
     contracts = kernel_event_kinds()

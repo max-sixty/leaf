@@ -80,7 +80,7 @@ from leaf.registry.storage import layer_metadata
 from leaf.revision_artifact import read_revision
 from leaf.revision_delivery import Delivery, runtime_element
 from leaf.revisioning import activate_source
-from leaf.schema import PAGE_ROUTE_DIRS, REVISION_NAME, VENDORED_FILES
+from leaf.schema import LAYER_TOP_FILES, PAGE_ROUTE_DIRS, REVISION_NAME
 from leaf.served_state.context import read_page
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
@@ -136,7 +136,7 @@ SITE_ORIGIN = "https://leaf.page"
 SITE_NAME = "leaf"
 PAGE_RESOURCE = re.compile(
     rf"^/(?:{'|'.join(PAGE_ROUTE_DIRS)})(?:/|$)"
-    rf"|^/(?:{'|'.join(map(re.escape, VENDORED_FILES))})$"
+    rf"|^/(?:{'|'.join(map(re.escape, LAYER_TOP_FILES))})$"
 )
 # A healthy App Server stream is quiet between items, so a running turn says nothing
 # for stretches — through a model request, or a `leaf` command that renders a page.
@@ -282,7 +282,7 @@ class _Binding(Slot):
 
 def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
     """Read immutable delivery metadata once while this process keeps the page
-    (`leaf.page_memory`), refusing a page vendored at another protocol."""
+    (`leaf.page_memory`), refusing a page at another protocol."""
 
     def bind() -> tuple[dict, dict | None]:
         # The protocol before the identity, whose reader checks a shape that is this

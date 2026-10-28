@@ -11,12 +11,12 @@ from render_harness import (
     LONG_PAGE,
     PANEL_THREAD,
     open_page,
-    open_threads,
     panel_control,
     panel_field,
     panel_view,
     resized,
     round_trip,
+    show_resolved,
 )
 
 from leaf.render_checks import rendered
@@ -447,8 +447,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(result).to_have_attribute("data-lf-selected", "true")
     page.keyboard.press("Enter")
     expect(help_el).to_be_hidden()
-    open_threads(page)
-    expect(page.locator(".lf-fp-thread[data-resolved]")).to_have_count(1)
+    expect(show_resolved(page)).to_have_count(1)
 
 
 # On me stands for the panel's views: its mark is the row's control, and Threads, a tab

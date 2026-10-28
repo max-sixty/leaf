@@ -926,6 +926,10 @@ export function createFloatingPanel({
       };
     return { says: "turn", words: "Reply", offers: true };
   }
+  // A thread's word as whoever says it says it: Leaf's own in italic (`data-voice`,
+  // thread/workflow.js, `workflowVoice`).
+  const spoken = ({ label, voice }) =>
+    html`<span data-voice=${voice ?? "agent"}>${label}</span>`;
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): whose turn it is, in the agent's voice, then a
   // walk's position. The thread walk standing on this thread says only its place,
@@ -945,9 +949,9 @@ export function createFloatingPanel({
     // reached (`clearFor`), names that stop alone: the user is at it now, not at this
     // thread's turn.
     const away = Boolean(position) && !currentLocationIn(host);
-    return [away ? null : threadAttention(thread, agentName())?.label, position]
-      .filter(Boolean)
-      .join(" · ");
+    const attention = away ? null : threadAttention(thread, agentName());
+    if (!attention?.label) return position;
+    return html`${spoken(attention)}${position ? ` · ${position}` : nothing}`;
   }
   // Where the words go, as the focused field's placeholder says it; the thread's own
   // name already heads its view.
@@ -1179,7 +1183,7 @@ export function createFloatingPanel({
     const attention = thread.resolved ? null : threadAttention(thread, agentName());
     const word = thread.resolved ? !headed && "Resolved" : attention?.label;
     const draft = draftHasContent(replyContext(thread.key)) && "Draft";
-    return html`${word ? html`<span data-voice=${attention?.voice ?? "agent"}>${word}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+    return html`${word ? spoken({ label: word, voice: attention?.voice }) : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
   };
   const rows = () => pageControls();
 

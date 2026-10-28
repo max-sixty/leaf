@@ -611,6 +611,7 @@
      apart from the lines spoken: an error, Leaf's own state, or an instruction about
      the agent (the user's choice, 26 October 2026; `saying`). */
   .lf-fp-field leaf-text[data-voice="leaf"]::part(placeholder),
+  .lf-fp-field .lf-compose-placeholder-lead [data-voice="leaf"],
   .lf-fp-value [data-voice="leaf"] {
     font-style: italic;
   }

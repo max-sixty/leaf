@@ -5172,12 +5172,15 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			offers: true
 		};
 	}
+	const spoken = ({ label, voice }) => html`<span data-voice=${voice ?? "agent"}>${label}</span>`;
 	function turnLead(key, input) {
 		if (fieldReading(key, input).says !== "turn") return "";
 		const thread = threadByKey(key);
 		const { walk } = statusContextReading();
 		const position = !walk?.shown ? "" : walk.kind === "thread" && walk.target === thread?.id ? `${walk.position} of ${walk.total}` : walk.text;
-		return [Boolean(position) && !currentLocationIn(host) ? null : threadAttention(thread, agentName())?.label, position].filter(Boolean).join(" · ");
+		const attention = Boolean(position) && !currentLocationIn(host) ? null : threadAttention(thread, agentName());
+		if (!attention?.label) return position;
+		return html`${spoken(attention)}${position ? ` · ${position}` : nothing}`;
 	}
 	const whereTo = (key) => key ? "Reply in this thread" : "Comment on the page";
 	function saying(key, input) {
@@ -5331,7 +5334,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const attention = thread.resolved ? null : threadAttention(thread, agentName());
 		const word = thread.resolved ? !headed && "Resolved" : attention?.label;
 		const draft = draftHasContent(replyContext(thread.key)) && "Draft";
-		return html`${word ? html`<span data-voice=${attention?.voice ?? "agent"}>${word}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+		return html`${word ? spoken({
+			label: word,
+			voice: attention?.voice
+		}) : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
 	};
 	const rows = () => pageControls();
 	const VIEWS = Object.freeze({

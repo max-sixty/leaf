@@ -429,7 +429,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :where(
   .lf-btn,
   .button,
-  .lf-icon-action,
+  button.lf-icon-action,
   .lf-compose-submit,
   .lf-compose-dictate,
   .lf-msg-control,
@@ -445,11 +445,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     inset: min(0px, (100% - var(--aim-floor)) / 2);
   }
 }
-/* A mark on a vendor control, Copy, takes its press on its button part, so the reach
-   is the part's: one on the host would take the press from the button and copy
-   nothing. Its own rule, so an engine refusing a pseudo-element after a part keeps
-   the rest. */
-.lf-mark-action.lf-ui::part(button)::after {
+/* A symbol or mark on a vendor control, Copy, takes its press on its button part, so
+   the reach is the part's: one on the host would take the press from the button and
+   copy nothing. Its own rule, so an engine refusing a pseudo-element after a part
+   keeps the rest. */
+:is(.lf-icon-action, .lf-mark-action).lf-ui::part(button)::after {
   content: "";
   position: absolute;
   inset: min(0px, (100% - var(--aim-floor)) / 2);

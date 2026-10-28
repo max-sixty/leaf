@@ -4824,7 +4824,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
     >
       ${exit ? actionTemplate(exit.action ?? "close", "lf-action-icon") : html`${actionTemplate("on-me", "lf-action-icon")}<span class="lf-fp-num"
                 >${onUser || ""}</span
-              ><span class="lf-fp-news" ?hidden=${!news}></span>`}
+              ><span class="lf-fp-news lf-unread-dot" ?hidden=${!news}></span>`}
     </button>`;
 		const roomLabel = expanded ? "Less room to write" : "More room to write";
 		return html`
@@ -4863,18 +4863,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
           <div class="lf-fp-row">
             <button
               type="button"
-              class="lf-fp-face lf-fp-expand"
+              ${offeredAction("symbol", "lf-fp-expand", roomLabel, { action: expanded ? "fit" : "expand" })}
               aria-pressed=${String(expanded)}
-              aria-label=${roomLabel}
-              title=${roomLabel}
               @mousedown=${(event) => event.preventDefault()}
               @click=${() => {
 			expanded = !expanded;
 			paint();
 		}}
-            >
-              ${actionTemplate(expanded ? "fit" : "expand", "lf-action-icon")}
-            </button>
+            ></button>
             <button
               type="button"
               class="lf-fp-face lf-fp-leaf"
@@ -4901,7 +4897,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                 >${onUser || ""}</span
               >
               <span
-                class="lf-fp-news-dot"
+                class="lf-fp-news-dot lf-unread-dot"
                 aria-hidden="true"
                 ?data-shown=${news > 0}
               ></span>
@@ -6203,7 +6199,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			thread: thread.key
 		})}
       >
-        <span class="lf-fp-news-mark"
+        <span class="lf-fp-news-mark lf-unread-dot"
           >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
         >
         <span class="lf-fp-label">${threadHeading(thread)}</span>
@@ -6592,18 +6588,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         </button>` : nothing;
 		const show = arrivesAt(item) ? html`<button
           type="button"
-          class="lf-fp-face lf-fp-icon-btn lf-fp-show"
-          aria-label="Show"
-          title="Show"
+          ${offeredAction("symbol", "lf-fp-show", void 0, { action: "show" })}
           @click=${() => {
 			const route = trail.value.at(-1);
 			queueActions.open(queueItemKey(item)).then((arrived) => {
 				if (arrived && trail.value.at(-1) === route) close();
 			});
 		}}
-        >
-          ${actionTemplate("show", "lf-action-icon")}
-        </button>` : nothing;
+        ></button>` : nothing;
 		let answers;
 		let discussHere = true;
 		if (list === "done" && !record) answers = card ? html`<span class="lf-fp-said"
@@ -6614,13 +6606,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			discussHere = false;
 			answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture ? html`<button
                 type="button"
-                class="lf-fp-face lf-fp-icon-btn"
-                aria-label="Undo"
-                title="Undo"
+                ${offeredAction("symbol", "", void 0, { action: "undo" })}
                 @click=${() => withdraw(gesture)}
-              >
-                ${actionTemplate("undo", "lf-action-icon")}
-              </button>` : nothing}${waiting ? html`<button
+              ></button>` : nothing}${waiting ? html`<button
                 type="button"
                 class="lf-fp-face lf-fp-answer"
                 @click=${() => open({
@@ -6974,8 +6962,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			crumb: onTabs("threads"),
 			aux: html`<button
         type="button"
-        class="lf-fp-face lf-fp-icon-btn"
-        aria-label="Find a thread or message"
+        ${offeredAction("symbol", "", "Find a thread or message", { action: "find" })}
         aria-pressed=${String(searching)}
         @click=${() => {
 				if (!searching) {
@@ -6984,9 +6971,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				}
 				closeThreadSearch();
 			}}
-      >
-        ${actionTemplate("find", "lf-action-icon")}
-      </button>`
+      ></button>`
 		};
 	}
 	function queueControls() {
@@ -7023,9 +7008,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               ${iconTemplate("down", "lf-action-icon")}Next unread
             </button>` : nothing}${onPageSeat ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-icon-btn lf-fp-on-page"
-              aria-label=${inMessage ? "Show in message" : "Show on page"}
-              title=${inMessage ? "Show in message" : "Show on page"}
+              ${offeredAction("symbol", "lf-fp-on-page", inMessage ? "Show in message" : "Show on page", { action: "show" })}
               ?disabled=${!thread.anchor}
               ?data-unoffered=${!thread.anchor}
               @click=${() => {
@@ -7042,13 +7025,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				intent
 			}));
 		}}
-            >
-              ${actionTemplate("show", "lf-action-icon")}
-            </button>` : nothing}<button
+            ></button>` : nothing}<button
         type="button"
-        class="lf-fp-face lf-fp-icon-btn lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
-        aria-label=${thread.resolved ? "Reopen" : "Resolve thread"}
-        title=${thread.resolved ? "Reopen" : "Resolve thread"}
+        ${offeredAction("symbol", `lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}`, thread.resolved ? "Reopen" : "Resolve thread", { action: thread.resolved ? "reopen" : "resolve" })}
         aria-disabled=${String(!(thread.resolved ? thread.offers.reopen : thread.offers.resolve))}
         @click=${() => {
 			if (!thread.resolved) dismissReply(thread.key);
@@ -7060,9 +7039,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				...settlement
 			}).catch(() => {});
 		}}
-      >
-        ${actionTemplate(thread.resolved ? "reopen" : "resolve", "lf-action-icon")}
-      </button>`;
+      ></button>`;
 		return {
 			crumb: html`<span class="lf-fp-facts"
         >${keyed(thread.key, html`<span class="lf-fp-news-outlet"></span>`)}</span

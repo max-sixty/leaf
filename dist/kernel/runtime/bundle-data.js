@@ -1648,7 +1648,8 @@ function makeLink(heading) {
 		label: "Copy link to section",
 		success: "Link copied",
 		error: "Unable to copy link",
-		action: "copy-link"
+		action: "copy-link",
+		role: "symbol"
 	});
 	control.tabIndex = -1;
 	const link = {
@@ -1802,11 +1803,10 @@ function paintRecordingControls(video, bar, enterFullScreen) {
 	keeps(bar, "role", "group");
 	keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
 	render$1(html`<button
-        ${offered("lf-video-play")}
+        ${offeredAction("symbol", "lf-video-play", !video.paused ? "Pause recording" : "Play recording", { action: "play" })}
         tabindex="-1"
-        aria-label=${!video.paused ? "Pause recording" : "Play recording"}
       >
-        ${actionTemplate("play", "lf-video-icon")}${actionTemplate("pause", "lf-video-icon")}
+        ${actionTemplate("pause", "lf-action-icon")}
       </button>
       <input
         ${offered("lf-video-time")}
@@ -1824,12 +1824,9 @@ function paintRecordingControls(video, bar, enterFullScreen) {
 	}}
       />
       ${enterFullScreen ? html`<button
-              ${offered("lf-video-full-screen")}
+              ${offeredAction("symbol", "lf-video-full-screen", "Full screen", { action: "expand" })}
               tabindex="-1"
-              aria-label="Full screen"
-            >
-              ${actionTemplate("expand", "lf-video-icon")}
-            </button>` : nothing}`, bar);
+            ></button>` : nothing}`, bar);
 }
 function prepare(video) {
 	const bar = offer("div", "lf-video-controls");
@@ -4235,7 +4232,9 @@ var MessageView = class {
       <div class="lf-msg-head" data-lf-reflow="text">
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          >${dated ? html`<time datetime=${model.timestamp}>${model.age}</time>` : nothing}${model.unread ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>` : nothing}
+          >${dated ? html`<time datetime=${model.timestamp}>${model.age}</time>` : nothing}${model.unread ? html`<span class="lf-msg-new lf-unread-dot"
+                  ><span class="lf-quiet">New</span></span
+                >` : nothing}
           ${receipt}
           ${model.leaves ? html`<span class="lf-msg-leaves">${model.leaves}</span>` : nothing}
           ${model.failure ? html`<span class="lf-msg-failure">${NOT_ANSWERED}</span>` : nothing}

@@ -1104,10 +1104,6 @@ html[data-lf-region-capture] main * {
     justify-content: space-between;
     gap: 8px;
   }
-  .lf-copyable-head wa-copy-button::part(button) {
-    min-width: var(--aim-floor);
-    min-height: var(--aim-floor);
-  }
   .lf-copyable-text pre {
     margin-block: 0 10px;
     padding: 8px;

@@ -202,11 +202,10 @@
      keeps their height. Only the wide row does, so the mark standing at the fourth line
      resizes nothing and stands in the frame the line arrives. */
   .lf-fp-row > .lf-fp-expand {
+    --lf-icon-action-face: var(--lf-line);
     position: absolute;
     inset-block-start: var(--lf-fp-row-pad);
     inset-inline-start: var(--lf-fp-row-pad);
-    width: var(--lf-line);
-    height: var(--lf-line);
   }
   .lf-floating-panel[data-expanded] .lf-fp-row:has(> .lf-fp-expand) {
     min-height: calc(2 * var(--lf-line) + 2 * var(--lf-fp-row-pad) + 4px);
@@ -346,23 +345,11 @@
      (box-motion.js). Drawn only once the draft ran long, it was new to the box, which
      uncovered it where it stood as the top edge rose past it. */
   .lf-fp-expand {
-    flex: none;
-    display: grid;
-    place-items: center;
-    width: 24px;
-    min-height: 0;
-    height: 1lh;
-    padding: 0;
-    color: var(--lf-fp-muted);
     opacity: 0;
     visibility: hidden;
     transition:
       opacity var(--lf-motion-box-resize),
       visibility 0s var(--lf-motion-box-resize);
-  }
-  .lf-fp-expand .lf-action-icon {
-    width: 14px;
-    height: 14px;
   }
   .lf-floating-panel[data-long] .lf-fp-expand {
     opacity: 1;
@@ -703,10 +690,6 @@
     position: absolute;
     top: 6px;
     left: 19px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
     box-shadow: 0 0 0 1.5px var(--lf-fp-surface);
   }
   /* The row's one small notice, beside the seat (floating-panel.js, `rowNotice`): a
@@ -849,11 +832,10 @@
     left: auto;
     right: -3px;
   }
+  /* The folded leaf's dot is a size up, to read beside its count. */
   .lf-fp-news-dot {
     width: 8px;
     height: 8px;
-    border-radius: 50%;
-    background: var(--accent);
   }
   .lf-floating-panel[data-rest="mark"] :is(.lf-fp-badge, .lf-fp-news-dot)[data-shown] {
     display: block;
@@ -862,7 +844,10 @@
   /* ---------- an opened view: its name over it, its controls at its foot ---------- */
   /* Drawn only while a view is open, since it stands over the page while it is
      (geometry.js, `declareOccluder`). */
+  /* A symbol in a view stands as tall as the panel's other presses, a line under a
+     finger (`--lf-fp-press`). */
   .lf-fp-opened {
+    --lf-icon-action-face: var(--lf-fp-press);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -1027,17 +1012,6 @@
   .lf-fp-count[data-zero] {
     color: var(--lf-fp-muted);
   }
-  .lf-fp-icon-btn {
-    display: grid;
-    place-items: center;
-    min-width: max(var(--lf-fp-press), var(--aim-floor));
-    padding: 0;
-    color: var(--lf-fp-muted);
-  }
-  .lf-fp-icon-btn:hover,
-  .lf-fp-icon-btn[aria-pressed="true"] {
-    color: var(--ink);
-  }
   /* A view's chooser: its symbol, an icon press's size and face, under the select that
      takes the press (floating-panel.js, `chooser`), which wears the ring. */
   .lf-fp-chooser {
@@ -1065,16 +1039,6 @@
   }
   :is(.lf-fp-on-page, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
-  }
-  /* Resolve is the check, turning the ok ink on hover; Reopen in its place is the
-     check drawn done, as on a thread card's head (response.css). */
-  .lf-fp-settle.lf-resolve:not([aria-disabled="true"]):hover,
-  .lf-fp-settle.lf-reopen {
-    color: var(--ok-ink);
-  }
-  .lf-fp-settle .lf-action-icon {
-    width: 14px;
-    height: 14px;
   }
   /* Next unread is news's way in, so it wears the accent an unread reply's New does. */
   .lf-fp-next-unread {
@@ -1252,14 +1216,12 @@
   .lf-fp-item[data-lf-urgent] .lf-fp-value {
     color: var(--accent);
   }
+  /* A row keeps its dot's room whether or not it has news. */
   .lf-fp-news-mark {
     align-self: center;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
   }
-  .lf-fp-thread[data-unread] .lf-fp-news-mark {
-    background: var(--accent);
+  .lf-fp-thread:not([data-unread]) .lf-fp-news-mark {
+    visibility: hidden;
   }
   .lf-fp-thread[data-yours] .lf-fp-value {
     color: var(--accent);

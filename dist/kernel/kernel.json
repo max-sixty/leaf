@@ -251,7 +251,7 @@
     "runtime/visible-target-parts.js": "5da29b54967c434353455d23197ff8ce75e2fbe7d90b1b70743761e5c4172a41",
     "runtime/visual-parts.js": "cc52473549a188fa86a5f59ae3a0aea4ee2d42b92227caba410062dbbabd60e1",
     "runtime/walk-position.js": "305d2b7cea0522f487c1ca1e7e94570600fee24ac61b6b4a21d75c4a60f7dfdb",
-    "runtime/widget-api.js": "deb246c46a38d39743ca517b5b6dd491f74a9115186bad7e69daa29025ece798",
+    "runtime/widget-api.js": "79ee88d7200e4b7c8fa7c7745fc5fb27d8775470f159bbfddcb23d17f4fc1f88",
     "runtime/widget-controller.js": "28551a45616d104772ff38171d4a85b29a13fd19b06435b7b3b6f25ac73cd9db",
     "runtime/widget-descriptors.js": "e6ac3d8999443e1d219477d027ebac5371507e89071d1624f9c5338e631bc652",
     "runtime/widget-elements.js": "b3a85c932bfc0c9c0db85e2fd1f93ccd1fc060618361d39949f04955f76419b4",

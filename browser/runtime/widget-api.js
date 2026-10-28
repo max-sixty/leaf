@@ -31,13 +31,7 @@ export {
   signal,
 } from "/runtime/framework.js";
 export { move } from "./dom-move.js";
-export {
-  actionElement,
-  actionTemplate,
-  iconElement,
-  iconTemplate,
-  showAction,
-} from "./icons.js";
+export { actionTemplate, iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { LeafElement } from "./leaf-element.js";
 export { quoted } from "./widget-descriptors.js";
@@ -228,6 +222,8 @@ export {
   generated,
   generatedElement,
   motionPreview,
+  nameAction,
+  namedAction,
   offer,
   offerAction,
   offered,

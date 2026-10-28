@@ -46,7 +46,7 @@ import {
   render,
   relabel,
   inChrome,
-  showAction,
+  nameAction,
   keeps,
   keepsText,
   langForPath,
@@ -1620,11 +1620,10 @@ customElements.define(
       // With nothing to open it keeps its room, so the count beside it stays put.
       button.toggleAttribute("inert", !folds.length);
       const open = folds.some((details) => !details.open);
-      showAction(button, open ? "expand-all" : "collapse-all");
       // No number: the count beside it also counts files that have nothing to open.
-      const label = `${open ? "Expand" : "Collapse"} all files`;
-      keeps(button, "aria-label", label);
-      keeps(button, "title", label);
+      nameAction(button, open ? "expand-all" : "collapse-all", {
+        label: `${open ? "Expand" : "Collapse"} all files`,
+      });
     }
 
     shownFolds() {

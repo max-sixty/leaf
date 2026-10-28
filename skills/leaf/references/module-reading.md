@@ -118,11 +118,14 @@ for what something is or holds, such as a kind or a state. A press shows an acti
 symbol instead, so each action looks the same wherever it is offered. `ACTIONS` in
 `runtime/icon-paths.js` lists Leaf's actions with their symbol and name, and
 `offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-authoring.md`, "Generated controls"). `actionElement(action, className)` and
-`actionTemplate(action, className)` draw an action's symbol where your widget gives the
-press its face itself. `showAction(control, action)` makes a control show `action`'s
-symbol, replacing the symbol it shows if that differs, for a press whose action follows
-its state, such as Expand all turning to Collapse all.
+(`module-authoring.md`, "Generated controls"). Where your widget gives the press its
+face itself, `nameAction(control, action, {label, title, className})`, or
+`namedAction(action, {…})` in a template's element part, gives it the action's symbol
+and says the action's name as its tooltip and accessible name, unless `label` or
+`title` says more. Call it again with another action for a press whose action follows
+its state, such as Expand all turning to Collapse all; it swaps only the symbol.
+`actionTemplate(action, className)` draws an action's symbol that isn't a press's whole
+face, such as the second of two symbols a press swaps by CSS.
 
 ## Page readings
 

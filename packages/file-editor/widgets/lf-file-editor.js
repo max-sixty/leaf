@@ -50,8 +50,8 @@ import {
   focused,
   handBack,
   html,
-  actionTemplate,
   iconTemplate,
+  namedAction,
   isNativeLayer,
   LeafElement,
   nothing,
@@ -293,13 +293,11 @@ customElements.define(
               }${retryable ? html`&nbsp;` : nothing}<button
                 ${offered("lf-file-editor-retry")}
                 ?hidden=${!retryable}
-                aria-label="Retry"
-                title="Retry"
+                ${namedAction("retry", { className: "lf-file-editor-icon" })}
                 aria-description=${failure?.message ?? nothing}
                 aria-disabled=${busy ? "true" : nothing}
                 @click=${(event) => retry(event.currentTarget)}
-              >
-                ${actionTemplate("retry", "lf-file-editor-icon")}</button
+              ></button
               ><button
                 ${offered("lf-file-editor-conflict")}
                 ?hidden=${!conflicted}

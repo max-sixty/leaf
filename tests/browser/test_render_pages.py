@@ -1866,7 +1866,6 @@ def test_what_an_outer_column_draws_outside_itself_stays_whole(
     page.keyboard.press("Tab")  # keyboard modality, so focus draws its ring
     for link in ("#first", "#last"):
         page.locator(link).focus()
-        rendered(page)
         ring = current_location_ring(page)
         assert ring, f"the link {link} the keyboard stands on wears no ring"
         assert ring["cuts"] == [], (link, ring["cuts"])

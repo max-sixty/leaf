@@ -40,6 +40,7 @@ that no longer occurs fails it until it goes. A failure prints each new finding'
 first, ready to file; when an obstacle lifts, its entries go.
 """
 
+import hashlib
 import shutil
 from contextlib import ExitStack, contextmanager
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -98,32 +99,28 @@ OBSTACLES = {
 KNOWN = {
     "article": {
         "inherited": {
-            "inherited color on body and 38 more",
-            "inherited color on main > blockquote:0 and 5 more",
-            "inherited color on main > pre:0 and 1 more",
-            "inherited font-family on body and 24 more",
-            "inherited font-family on main > table:0 and 18 more",
-            "inherited font-size on body and 19 more",
-            "inherited font-size on main > pre:0",
-            "inherited font-size on main > table:0 > thead:0 > tr:0 > th:0 and 2 more",
-            "inherited font-style on main > blockquote:0 and 2 more",
-            "inherited font-variant-numeric on main > table:0 and 18 more",
-            "inherited line-height on body and 19 more",
-            "inherited line-height on main > h3:0",
-            "inherited line-height on main > pre:0",
-            "inherited line-height on main > table:0 > thead:0 > tr:0 > th:0 and 2 more",
-            "inherited line-height on main > table:0 and 15 more",
+            "dark inherited color on body and 46 more #dfba8c06",
+            "dark inherited font-family on body and 43 more #38373dea",
+            "dark inherited font-size on body and 23 more #ab5e1941",
+            "dark inherited font-style on main > blockquote:0 and 2 more #854bcf57",
+            "dark inherited font-variant-numeric on main > table:0 and 18 more #d0599126",
+            "dark inherited line-height on body and 40 more #6a23811c",
+            "light inherited color on body and 46 more #dfba8c06",
+            "light inherited font-family on body and 43 more #38373dea",
+            "light inherited font-size on body and 23 more #ab5e1941",
+            "light inherited font-style on main > blockquote:0 and 2 more #854bcf57",
+            "light inherited font-variant-numeric on main > table:0 and 18 more #d0599126",
+            "light inherited line-height on body and 40 more #6a23811c",
         },
     },
     "dashboard": {
         "inherited": {
-            "inherited font-family on main > div:0 > section:5 > table:0 and 89 more",
-            "inherited font-variant-numeric on main > div:0 > section:5 > table:0 and 109 more",
-            "inherited line-height on main > div:0 > section:0 > h2:0 and 5 more",
-            "inherited line-height on main > div:0 > section:5 > table:0 > thead:0 > tr:0 > th:0 and 5 more",
-            "inherited line-height on main > div:0 > section:5 > table:0 and 103 more",
-            "inherited line-height on main > header:0 > h1:0",
-            "inherited line-height on main > nav:0 > h3:0",
+            "dark inherited font-family on main > div:0 > section:5 > table:0 and 89 more #a7a90862",
+            "dark inherited font-variant-numeric on main > div:0 > section:5 > table:0 and 109 more #64d52e9b",
+            "dark inherited line-height on main > header:0 > h1:0 and 117 more #66a50cd8",
+            "light inherited font-family on main > div:0 > section:5 > table:0 and 89 more #a7a90862",
+            "light inherited font-variant-numeric on main > div:0 > section:5 > table:0 and 109 more #64d52e9b",
+            "light inherited line-height on main > header:0 > h1:0 and 117 more #66a50cd8",
         },
         "scrollbar-clearance": {
             "scrollbar-clearance <nav>",
@@ -134,9 +131,10 @@ KNOWN = {
             "color-scheme on the root",
         },
         "inherited": {
-            "inherited color on main > blockquote:0",
-            "inherited color on main > figure:0 > figcaption:0 and 1 more",
-            "inherited font-variant-numeric on main > dl:0 > div:0 > dt:0 and 2 more",
+            "dark inherited color on main > figure:0 > figcaption:0 and 2 more #8aec8976",
+            "dark inherited font-variant-numeric on main > dl:0 > div:0 > dt:0 and 2 more #17f31538",
+            "light inherited color on main > figure:0 > figcaption:0 and 2 more #8aec8976",
+            "light inherited font-variant-numeric on main > dl:0 > div:0 > dt:0 and 2 more #17f31538",
         },
     },
     "form": {
@@ -149,10 +147,10 @@ KNOWN = {
     },
     "instrument": {
         "inherited": {
-            "inherited font-size on main > section:1 > div:3 > code:0",
-            "inherited line-height on main > section:0 > h1:0",
-            "inherited line-height on main > section:1 > div:3 > code:0",
-            "inherited line-height on main > section:1 > h2:0",
+            "dark inherited font-size on main > section:1 > div:3 > code:0 #63f91bb0",
+            "dark inherited line-height on main > section:0 > h1:0 and 2 more #8e05b5be",
+            "light inherited font-size on main > section:1 > div:3 > code:0 #63f91bb0",
+            "light inherited line-height on main > section:0 > h1:0 and 2 more #8e05b5be",
         },
     },
     "module": {
@@ -163,8 +161,8 @@ KNOWN = {
             "color-scheme on the root",
         },
         "inherited": {
-            "inherited line-height on main > header:0 > h1:0",
-            "inherited line-height on main > section:0 > section:0 > h2:0 and 2 more",
+            "dark inherited line-height on main > header:0 > h1:0 and 3 more #66fbabf9",
+            "light inherited line-height on main > header:0 > h1:0 and 3 more #66fbabf9",
         },
     },
     "motion": {
@@ -175,10 +173,10 @@ KNOWN = {
             "color-scheme on the root",
         },
         "inherited": {
-            "inherited font-size on main > p:0",
-            "inherited line-height on main > h1:0",
-            "inherited line-height on main > p:0",
-            "inherited line-height on main > ul:0 > li:0 > div:0 > h2:0 and 3 more",
+            "dark inherited font-size on main > p:0 #5fa0b4aa",
+            "dark inherited line-height on main > h1:0 and 5 more #1be9666f",
+            "light inherited font-size on main > p:0 #5fa0b4aa",
+            "light inherited line-height on main > h1:0 and 5 more #1be9666f",
         },
         "past-column": {
             "past-column <div>",
@@ -523,9 +521,11 @@ def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str, str]]:
     reached it from an ancestor (`inherited`), the `canvas`, a positioned box's
     `position`, an element `missing` from the Leaf page or `added` to it, and the root's
     `color-scheme`, where the author left it alone and Leaf's differs. A property that
-    differs the same way on many elements is one finding, naming the first. Its pin
-    names the property and the elements, not the values, so `KNOWN` holds still while a
-    theme's colours change but not while an override reaches anything new.
+    differs on several elements is one finding. Its pin names the reading, the
+    property, and the complete set of elements by a digest, with the first and a count
+    to read it by, and not the values, so `KNOWN` holds still while a theme's colours
+    change but not while an override reaches any other element or property. The words
+    list every element.
 
     The root's colour scheme decides what every system colour resolves to under the
     page, so where Leaf's differs, the dark medium is compared with the standalone page
@@ -555,18 +555,26 @@ def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str, str]]:
         dark = next(at for at, m in enumerate(MEDIA) if m["color_scheme"] == "dark")
         readings[dark] = alone.dark_under(served_scheme)
 
-    def compare(label, plain, served):
+    def compare(label, plain, served, reading):
         changed, missing, added = _styles(plain, served)
         alike = {}
         for kind, key, prop, now, was in changed:
-            alike.setdefault((kind, prop, now, was), []).append(key)
-        for (kind, prop, now, was), keys in alike.items():
+            alike.setdefault((kind, prop), []).append((key, now, was))
+        for (kind, prop), where in alike.items():
+            keys = [key for key, *_ in where]
             more = f" and {len(keys) - 1} more" if len(keys) > 1 else ""
+            digest = hashlib.sha256("\n".join(sorted(keys)).encode()).hexdigest()[:8]
+            values = {}
+            for key, now, was in where:
+                values.setdefault((now, was), []).append(key)
             note(
                 kind,
-                f"{kind} {prop} on {keys[0]}{more}",
-                f"{label}: {prop} is {now!r} where the author's {kind} value gives"
-                f" {was!r}, on {keys[0]}{more}",
+                f"{reading} {kind} {prop} on {keys[0]}{more} #{digest}",
+                f"{label}: {prop}, where the author's {kind} value gives "
+                + "; ".join(
+                    f"{was!r}, is {now!r} on {', '.join(on)}"
+                    for (now, was), on in values.items()
+                ),
             )
         for key in missing:
             note("missing", f"missing {key}", f"{label}: {key} is missing")
@@ -590,9 +598,9 @@ def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str, str]]:
             )
 
     for medium, plain, served in zip(MEDIA, readings, leaf.media, strict=True):
-        compare(" and ".join(medium.values()), plain, served)
+        compare(" and ".join(medium.values()), plain, served, medium["color_scheme"])
     if alone.dialogs:
-        compare("dialog open", alone.dialogs, leaf.dialogs)
+        compare("dialog open", alone.dialogs, leaf.dialogs, "dialog")
     rest = alone.media[0]
     positioned = {
         element["key"]

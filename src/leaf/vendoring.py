@@ -15,6 +15,7 @@ reports its check errors. A page with no active revision stays unactivated.
 
 from __future__ import annotations
 
+import os
 import re
 import secrets
 import shutil
@@ -31,9 +32,10 @@ from .layer import (
     compose_layer,
     input_paths,
     layer_inputs,
+    named_package,
 )
 from .leases import lock_is_held, page_locked
-from .locations import first_overlap, located, path_is_within
+from .locations import first_overlap, located, path_is_within, paths_same
 from .refusals import Refused
 from .registry.kernel import kernel_protocol
 from .registry.storage import LAYER, layer_record
@@ -228,12 +230,18 @@ def _unready(page_dir: Path, errors: list[Finding]) -> Finding | None:
     )
 
 
-def start_throwaway_page(page_dir: Path, packages: tuple[str, ...]) -> None:
-    """Start a page in an empty directory selecting `packages`, for a reading Leaf
-    takes and then deletes, as `package check --render` does with a package's
-    worked examples."""
-    LAYER.write(page_dir / LAYER_FILE, _record(packages, None, None))
-    start_log(page_dir)
+def start_throwaway_page(page_dir: Path, package: Path) -> None:
+    """Start a page in an empty directory selecting `package` as `page init` would, by
+    the name it is installed or bundled under, or else by path, for a reading Leaf
+    takes and then deletes, as `package check --render` does with a package's worked
+    examples. The mandatory layer needs no selection."""
+    if any(paths_same(package, root) for root in layer_inputs()):
+        selected = ()
+    elif (named := named_package(package.name)) and paths_same(named, package):
+        selected = (package.name,)
+    else:
+        selected = (f"./{os.path.relpath(package)}",)
+    _init_page(page_dir, selected)
 
 
 def _refuse_package_target(page_dir: Path, inputs: list[Path]) -> None:

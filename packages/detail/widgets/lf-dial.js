@@ -253,7 +253,7 @@ customElements.define(
     #foldRun({ container, after, blocks }) {
       const marker = offer("div", "lf-dial-more");
       const button = offerAction("symbol", "lf-dial-unfold", "Show the rest", {
-        icon: "more",
+        action: "more",
       });
       button.addEventListener("click", () =>
         this.#unfoldRun(marker, { pressed: true }),

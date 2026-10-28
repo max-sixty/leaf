@@ -49,6 +49,7 @@ import {
   closeNativeLayer,
   isNativeLayer,
   initialRender,
+  render,
   nextFrame,
   isCanonicalMediaUrl,
   layoutChanged,
@@ -393,7 +394,7 @@ customElements.define(
 
     #paint() {
       if (!this.#drawing) return;
-      this.#drawing.paint();
+      render(this.#drawing.render(), this, { host: this });
       this.#paintHandle();
       paintKeys();
     }

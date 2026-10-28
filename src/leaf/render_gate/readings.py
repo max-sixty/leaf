@@ -293,11 +293,6 @@ def _widget_findings(context: _SchemeContext) -> list[Finding]:
     invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
-    # Shadow roots the registry doesn't declare: the passage walk, the
-    # capture and the id lookups cross exactly the declared ones, so an
-    # undeclared root's words silently anchor quotes astray. Generated controls
-    # are UI rather than page words, so their implementation roots are exempt.
-    undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", context.registry)
     # Words a widget's own chrome holds with nothing saying whose they are.
     unreachable = evaluate_probe(page, "unreachableWords")
     # x-verbatim promises the words this scheme renders. Source provenance was
@@ -331,8 +326,6 @@ def _widget_findings(context: _SchemeContext) -> list[Finding]:
         found.append(Finding("missing-upgrades", values={"tags": missing_upgrades}))
     if tiny:
         found.append(Finding("tiny-boxes", values={"boxes": tiny}))
-    if undeclared_shadow:
-        found.append(Finding("undeclared-shadow", values={"hosts": undeclared_shadow}))
     found += map(Finding.read, unreachable)
     found += dishonest_verbatim
     found += map(Finding.read, silent)

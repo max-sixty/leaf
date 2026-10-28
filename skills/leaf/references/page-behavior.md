@@ -42,6 +42,12 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   asked for less motion. Leaf stops only its own CSS motion for that user, so stop or
   shorten the page's under `@media (prefers-reduced-motion: reduce)`.
 
+A page script may define custom elements with shadow DOM of their own. Comments can't
+quote the words only such a shadow root shows, and Leaf reads the element's own children
+in its place, so put words the user should quote in the light DOM and slot them, or
+write the element as a widget declaring `x-shadow` (`module-authoring.md`, "Shadow
+stages and styles").
+
 Reach a widget's methods with `whileInterfaceConnected` (`module-authoring.md`,
 "Startup and presentation"). The rest of `/runtime/widget-api.js` is there where its
 helpers save work; `module-authoring.md` is for writing widgets. For text that changes

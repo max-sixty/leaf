@@ -11,7 +11,6 @@ import "/widgets/lf-shot.js";
 import {
   LeafElement,
   html,
-  iconTemplate,
   nothing,
   repeat,
   ref,
@@ -48,12 +47,10 @@ import {
 // cross, named for what it closes (runtime/widget-elements.js, `closeControl`).
 const closeButton = (popover, name) =>
   html`<button
-    ${offeredAction("symbol", "", name, { title: `${name} (Esc)` })}
+    ${offeredAction("symbol", "", name, { title: `${name} (Esc)`, action: "close" })}
     popovertarget=${popover}
     popovertargetaction="hide"
-  >
-    ${iconTemplate("cross", "lf-action-icon")}
-  </button>`;
+  ></button>`;
 const fact = (name, value) =>
   html`<div>
     <dt ${generated({ says: true })}>${name}</dt>

@@ -50,12 +50,14 @@ import {
   focused,
   handBack,
   html,
+  actionTemplate,
   iconTemplate,
   isNativeLayer,
   LeafElement,
   nothing,
   offered,
   offeredAction,
+  render,
   rove,
   rowWalk,
   shadowStage,
@@ -112,7 +114,6 @@ customElements.define(
       const view = (this.#view = el("div", "lf-file-editor-view lf-ui"));
       const mount = el("div", "lf-file-editor-edit");
       const comparisonMount = el("div", "lf-file-editor-comparison");
-      view.append(mount);
       shadowStage(this, [view]);
       const useFile = () => {
         if (busy || !latest) return;
@@ -200,20 +201,6 @@ customElements.define(
         owed = false,
         connected = false,
         slow = false;
-      const editor = createEditor(mount, {
-        readOnly: true,
-        onChange() {
-          generation++;
-          remember();
-          paint();
-          schedule();
-        },
-        onSave() {
-          clearTimeout(timer);
-          if (failure) retry(editor.contentDOM);
-          else void flush();
-        },
-      });
       // Landing the reader back in the editor shows them where they type.
       const returnToEditor = () => {
         focusDestination(editor.contentDOM, "return");
@@ -312,7 +299,7 @@ customElements.define(
                 aria-disabled=${busy ? "true" : nothing}
                 @click=${(event) => retry(event.currentTarget)}
               >
-                ${iconTemplate("retry", "lf-file-editor-icon")}</button
+                ${actionTemplate("retry", "lf-file-editor-icon")}</button
               ><button
                 ${offered("lf-file-editor-conflict")}
                 ?hidden=${!conflicted}
@@ -377,6 +364,22 @@ customElements.define(
         `;
       };
       const thisBinding = this.getAttribute("binding");
+      // CodeMirror discovers its shadow root from the connected mount.
+      render(this.#template(), view, this.renderOptions);
+      const editor = createEditor(mount, {
+        readOnly: true,
+        onChange() {
+          generation++;
+          remember();
+          paint();
+          schedule();
+        },
+        onSave() {
+          clearTimeout(timer);
+          if (failure) retry(editor.contentDOM);
+          else void flush();
+        },
+      });
       function schedule(delay = 500) {
         clearTimeout(timer);
         if (connected && api.writable && !latest && !failure && dirty())

@@ -10,7 +10,7 @@
    One stored fact each rather than the combinations of them: what a finding has to name
    is the restore that broke, and the geometry the combinations would add is measured on
    the first visit already. */
-import { tabStore } from "./storage.js";
+import { tabStore } from "./tab-store.js";
 import { DESIGN_MODE_KEY } from "./design-readings.js";
 // The tab coordinate is shared by restoration evidence and the optional owner.
 export const ANNOTATIONS_KEY = "lf-annotations";

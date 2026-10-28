@@ -1,5 +1,5 @@
 {
-  "protocol": 34,
+  "protocol": 36,
   "events": {
     "ownership": {
       "derived": ["meaning","attention"],
@@ -27,34 +27,6 @@
       "report": {"verb_writer":"agent","record":{"type":"object","properties":{"attention":{"type":"boolean"},"id":{"type":"string","minLength":1},"ts":{"type":"string","minLength":1},"author":{"type":"string","minLength":1},"kind":{"const":"report"},"seq":{"type":"integer","minimum":1},"widget":{"type":"string","minLength":1},"action":{"type":"string","minLength":1},"detail":{"type":"object"},"meaning":{"type":"object","properties":{"scope":{"enum":["page","thread"]},"unit":{"type":"string","minLength":1},"depends":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},"state":{"type":"object","properties":{"origin":{"type":"string","minLength":1},"unit":{"type":"string","minLength":1},"record":{"type":["object","null"]},"creates":{"type":["object","null"]},"decides":{"type":"boolean"},"detail":{"type":["object","boolean"]}},"required":["origin","unit","record","creates","decides","detail"],"additionalProperties":false}},"required":["scope","unit","depends"],"additionalProperties":false},"revision":{"type":"integer","minimum":1},"agent":{"type":"string","minLength":1},"session":{"type":"string","minLength":1}},"required":["attention","id","ts","author","kind","seq","widget","action","detail","revision","meaning"],"additionalProperties":false}},
       "note": {"record":{"type":"object","properties":{"attention":{"type":"boolean"},"id":{"type":"string","minLength":1},"ts":{"type":"string","minLength":1},"author":{"type":"string","minLength":1},"kind":{"const":"note"},"seq":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":1},"revision":{"type":"integer","minimum":1},"publication":{"type":"string","pattern":"^r[1-9][0-9]*-[a-f0-9]{16}$"},"text":{"type":"string","minLength":1},"restated":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},"settles":{"type":"array","items":{"type":"object","properties":{"kind":{"enum":["report","todo"]},"id":{"type":"string","minLength":1}},"required":["kind","id"],"additionalProperties":false},"uniqueItems":true},"agent":{"type":"string","minLength":1},"session":{"type":"string","minLength":1}},"required":["attention","id","ts","author","kind","seq","version","revision","text"],"dependentSchemas":{"publication":{"properties":{"author":{"const":"agent"}}}},"additionalProperties":false}},
       "error": {"record":{"type":"object","properties":{"attention":{"type":"boolean"},"id":{"type":"string","minLength":1},"ts":{"type":"string","minLength":1},"author":{"type":"string","minLength":1},"kind":{"const":"error"},"seq":{"type":"integer","minimum":1},"revision":{"type":"integer","minimum":1},"text":{"type":"string","minLength":1}},"required":["attention","id","ts","author","kind","seq","text"],"additionalProperties":false},"browser":{"required":["kind","text"]}}
-    }
-  },
-  "verb": {
-    "$id": "leaf:verb",
-    "type": "object",
-    "properties": {
-      "detail": {"type":"object","properties":{"type":{"const":"object"},"properties":{},"required":{},"additionalProperties":{"const":false}},"required":["type","additionalProperties"],"additionalProperties":false},
-      "unit": {"type":"string","minLength":1},
-      "record": {"oneOf":[{"type":"object","properties":{"kind":{"const":"attribute"},"attr":{"type":"string","pattern":"^[a-z][a-z0-9-]*$"}},"required":["kind","attr"],"additionalProperties":false},{"type":"object","properties":{"kind":{"const":"position"},"within":{"type":"string","pattern":"^lf-[a-z0-9]+(?:-[a-z0-9]+)*$"}},"required":["kind","within"],"additionalProperties":false},{"type":"object","properties":{"kind":{"const":"body"}},"required":["kind"],"additionalProperties":false},{"type":"object","properties":{"kind":{"const":"value"},"attr":{"type":"string","pattern":"^[a-z][a-z0-9-]*$"}},"required":["kind","attr"],"additionalProperties":false}]},
-      "writer": {"const":"agent"},
-      "attention": {"const":true},
-      "creates": {"type":"object","properties":{"child":{"type":"string","pattern":"^lf-[a-z0-9]+(?:-[a-z0-9]+)*$"},"words":{"type":"string","pattern":"^[a-z][a-z0-9-]*$"}},"required":["child","words"],"additionalProperties":false},
-      "decides": {"const":true},
-      "contract": {"type":"object","properties":{"field":{"type":"string","minLength":1},"attribute":{"type":"string","pattern":"^[a-z][a-z0-9-]*$"}},"required":["field","attribute"],"additionalProperties":false},
-      "text": {"const":true}
-    },
-    "required": ["unit"],
-    "allOf": [{"if":{"required":["record"]},"then":{"properties":{"detail":false,"creates":false,"contract":false,"decides":false}},"else":{"required":["detail"]}}],
-    "additionalProperties": false,
-    "if": {
-      "required": ["writer"]
-    },
-    "then": {
-      "required": ["record"],
-      "properties": {"record":{"properties":{"kind":{"enum":["attribute","value"]}}},"creates":false}
-    },
-    "else": {
-      "properties": {"text":false}
     }
   },
   "records": {
@@ -98,6 +70,10 @@
       "since": 19,
       "schema": {"type":"object","properties":{"page":{"type":"string"},"connections":{"type":"object","additionalProperties":{"type":"object","properties":{"origin":{"type":"string"},"credential":{"type":"string"},"header":{"type":"string"},"prefix":{"type":"string"},"remaining":{"type":"integer","minimum":0}},"required":["origin","credential","header","prefix","remaining"]}}},"required":["page","connections"]}
     },
+    "layer": {
+      "since": 36,
+      "schema": {"description":"A page's layer selection, `layer.json` in its directory: the packages and personal theme every Leaf that reads the page composes, the generation an open document speaks, and the page protocol a Leaf last initialized it at.","type":"object","properties":{"packages":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},"theme":{"anyOf":[{"type":"null"},{"type":"object","properties":{"name":{"type":"string","minLength":1},"source":{"enum":["explicit","default"]}},"required":["name","source"]}]},"generation":{"type":"string","minLength":1},"protocol":{"type":"integer"}},"required":["packages","theme","generation","protocol"]}
+    },
     "pointed": {
       "since": 24,
       "schema": {"description":"The pages whose input a hook handed a session's turn by pointer, in the state home's `sessions/<digest>.pointed` (`state.session_file`).","type":"object","properties":{"turn":{"description":"The turn the pointers were handed to.","type":"string"},"opened":{"description":"When that turn last opened (`turn_opened`): a prompt that opens it again hands the input over anew.","type":"string"},"pages":{"description":"Each page directory, with the last log position pointed at.","type":"object","additionalProperties":{"type":"integer"}}},"required":["turn","opened","pages"]}
@@ -112,7 +88,7 @@
     },
     "service": {
       "since": 13,
-      "schema": {"description":"The page's desired service, in the page directory's `service.json`, which `hosting.py` writes.","type":"object","properties":{"host":{"description":"The address a URL names.","type":"string"},"bind":{"description":"The address the server binds.","type":"string"},"port":{"description":"The port the server listens on.","type":"integer"},"enabled":{"description":"Whether the page should be served.","type":"boolean"},"lifetime":{"description":"Whether the server stops when no live session claims the page, or runs until `leaf server stop`.","enum":["session","persistent"]},"runtime":{"description":"The Leaf that served it (`hosting.payload_provenance`).","type":"object"},"server_id":{"description":"The serving incarnation the server lease names.","type":"string"},"restart":{"description":"The mark `page init` leaves while it holds a served page down to re-vendor it (`hosting.restarting_server`).","type":"string"}},"required":["host","bind","port","enabled","lifetime","runtime","server_id"]}
+      "schema": {"description":"The page's desired service, in the page directory's `service.json`, which `hosting.py` writes.","type":"object","properties":{"host":{"description":"The address a URL names.","type":"string"},"bind":{"description":"The address the server binds.","type":"string"},"port":{"description":"The port the server listens on.","type":"integer"},"enabled":{"description":"Whether the page should be served.","type":"boolean"},"lifetime":{"description":"Whether the server stops when no live session claims the page, or runs until `leaf server stop`.","enum":["session","persistent"]},"runtime":{"description":"The Leaf that served it (`hosting.payload_provenance`).","type":"object"},"server_id":{"description":"The serving incarnation the server lease names.","type":"string"},"restart":{"description":"The mark `page init` leaves while it holds a served page down to rewrite its layer record (`hosting.restarting_server`).","type":"string"}},"required":["host","bind","port","enabled","lifetime","runtime","server_id"]}
     },
     "session": {
       "since": 13,

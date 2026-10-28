@@ -197,17 +197,19 @@ const outcomeOf = (state) => state?.decide.detail.outcome ?? null;
 const decision = (app) => outcomeOf(app.read().effective.widgets.get("choice").state);
 
 test("semantic publication opens before subscribers and seals the newest nested epoch", async () => {
-  const document = {};
   const coordinator = createPresentationCoordinator({ reportFailure: assert.fail });
   const lifecycle = [];
+  const publications = [];
   const app = createSemanticApplication({
     presentation: {
-      begin(epoch) {
-        lifecycle.push(["begin", epoch]);
-        return coordinator.begin(document, epoch);
+      begin() {
+        const publication = coordinator.begin();
+        publications.push(publication);
+        lifecycle.push(["begin", publications.indexOf(publication)]);
+        return publication;
       },
       seal(publication) {
-        lifecycle.push(["seal", publication.semanticEpoch]);
+        lifecycle.push(["seal", publications.indexOf(publication)]);
         return coordinator.seal(publication);
       },
     },
@@ -224,9 +226,9 @@ test("semantic publication opens before subscribers and seals the newest nested 
     .subscribe((phase) => {
       if (phase !== "offline" || nested) return;
       nested = true;
-      assert.equal(coordinator.read().semanticEpoch, 1);
-      const renderer = coordinator.attach("widget", {});
-      presentation = renderer.present("offline");
+      assert.equal(coordinator.read().sealed, false);
+      const renderer = coordinator.attach("widget");
+      presentation = renderer.present();
       app.acceptData({ version: "empty", sources: {} }, 1);
     });
 
@@ -239,15 +241,27 @@ test("semantic publication opens before subscribers and seals the newest nested 
   ]);
   assert.deepEqual(coordinator.read().pending, ["widget"]);
   let ready = false;
-  const readiness = coordinator.whenPresented(document, 2).then((outcome) => {
+  const readiness = coordinator.whenCurrentPresented().then((outcome) => {
     ready = true;
     return outcome;
   });
   await Promise.resolve();
   assert.equal(ready, false);
-  presentation.resolve("proof");
+  presentation.resolve();
   await presentation.ready;
   assert.equal(await readiness, "presented");
+
+  // Transport-only adoption still opens and seals a fresh presentation boundary;
+  // coordinator readiness needs no second copy of the application's semantic epoch.
+  const epoch = app.read().semanticEpoch;
+  lifecycle.length = 0;
+  app.setReach("offline", "Disconnected");
+  assert.equal(app.read().semanticEpoch, epoch);
+  assert.deepEqual(lifecycle, [
+    ["begin", 3],
+    ["seal", 3],
+  ]);
+  assert.equal(coordinator.currentPresented(), true);
 });
 
 test("one synchronous immutable reading combines authored, accepted, and later pending gestures", () => {

@@ -277,11 +277,16 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
         (f.code, f.at, f.widths) for f in clipped
     } - {("clipped-content", *box) for box in cut} == {
         ("page-scrolls", "", (600, 880)),
-        ("scrollbar-clearance", "<div id=strip>", (600, 880)),
     }, reading.failures
-    [strip] = [f for f in reading.failures if f.code == "scrollbar-clearance"]
+    # A strip that leaves no room for an overlay scrollbar is advice: the bar covers its
+    # last line only under the pointer, and the room is the author's to choose.
+    [strip] = reading.advice
+    assert (strip.code, strip.at, strip.widths) == (
+        "scrollbar-clearance",
+        "<div id=strip>",
+        (600, 880),
+    ), reading.advice
     assert strip.values["clear"] == 0, strip
-    assert reading.advice == []
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
@@ -1268,9 +1273,6 @@ def _author_lying_callout(tmp_path):
         "    connectedCallback() {\n"
         "      if (!once(this)) return;\n"
         '      this.textContent = "Entirely different words.";\n'
-        '      const stage = document.createElement("div");\n'
-        "      this.append(stage);\n"
-        '      stage.attachShadow({ mode: "open" }).textContent = "shadow words";\n'
         "    }\n"
         "  },\n"
         ");\n"
@@ -1447,7 +1449,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
     declared = CliRunner().invoke(cli_model.cli, ["page", "open", str(serve.page_dir)])
     assert declared.exit_code == 0, declared.output
     claim = service_model.page_claim(serve.page_dir)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(serve.page_dir, claim["id"] if claim else None)
     )
     try:
@@ -1466,9 +1468,11 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     on one page, beside the DevTools issues the page owns.
 
     `lf-callout` declares x-verbatim while its module renders other words in the
-    body's stead (quotes would strand on words the screen no longer shows), and
-    attaches a shadow root its declaration doesn't declare (the passage walk crosses
-    only the declared ones, so an undeclared root's words anchor astray).
+    body's stead (quotes would strand on words the screen no longer shows).
+    `author-card` is the clean control beside it: a page script's own custom element
+    with a shadow root it attached itself, which the gate accepts, since the passage
+    reading leaves an undeclared root's words alone and reads its host by its light
+    children, as the file does.
 
     `lf-dusk` replaces its words in the dark scheme only, so the verbatim check runs in
     each color scheme and reports it once, there.
@@ -1558,8 +1562,18 @@ customElements.define("field-host", class extends HTMLElement {{
     shadow_frame = escape(
         "<head>" + control + "<body><field-host></field-host></body>", quote=True
     )
+    # Its root shows words of its own, slots one light child and leaves another out.
+    author_card = """<script type="module">
+customElements.define("author-card", class extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" }).innerHTML =
+      '<h3>Shown by the root</h3><p><slot name="lead"></slot></p>';
+  }
+});
+</script>"""
     source = (
-        CUSTOM_WIDGET_PAGE.replace("</head>", control)
+        CUSTOM_WIDGET_PAGE.replace("</head>", author_card + control)
         .replace(
             '<h1 id="title">Project vocabulary</h1>',
             f"""<h1 id="title">Project vocabulary</h1>
@@ -1576,7 +1590,9 @@ customElements.define("field-host", class extends HTMLElement {{
             "</lf-dusk>\n"
             '<lf-stager id="staged-note"><strong>Heads up</strong> Staged.</lf-stager>\n'
             '<lf-veil id="veiled-note" label="Escalated">'
-            "<strong>Heads up</strong> Clipped words.</lf-veil>\n</main>",
+            "<strong>Heads up</strong> Clipped words.</lf-veil>\n"
+            '<author-card id="author-card"><span slot="lead">Slotted lead.</span>'
+            "Unslotted source.</author-card>\n</main>",
         )
     )
 
@@ -1594,9 +1610,7 @@ customElements.define("field-host", class extends HTMLElement {{
         return [f for f in failures if f.code == code and at in f.at]
 
     assert reported("verbatim", "custom-note"), failures
-    assert any("<div>" in f.values["hosts"] for f in reported("undeclared-shadow")), (
-        failures
-    )
+    assert not [f for f in failures if "author-card" in f.at + str(f)], failures
     dusk = reported("verbatim", "dusk-note")
     assert [f.scheme for f in dusk] == ["dark"], failures
     assert {f.values["value"] for f in reported("silent-word")} >= {
@@ -1617,65 +1631,6 @@ customElements.define("field-host", class extends HTMLElement {{
         and dict(f.values["details"])["url"].endswith(src)
         for f in issues
     ), issues
-
-
-def test_the_render_gate_checks_custom_controls_at_their_form_boundary(browser, serve):
-    page = open_page(browser, serve(leaf_page("Custom control", "<h1>Controls</h1>")))
-    page.evaluate(
-        """async () => {
-          const { offer } = await window.__lfWidgetApi();
-          customElements.define('test-control', class extends HTMLElement {
-            static formAssociated = true;
-            constructor() {
-              super();
-              this.attachInternals();
-              this.attachShadow({mode: 'open'}).innerHTML = '<input aria-label="Choice">';
-            }
-          });
-          const control = offer('test-control');
-          control.setAttribute('name', 'choice');
-          control.append(offer('test-control'));
-          const native = offer('input');
-          native.id = 'native-field';
-          document.querySelector('main').append(control, native);
-        }"""
-    )
-    assert render_checks_model.evaluate_probe(page, "undeclaredShadowRoots", {}) == []
-
-    page.locator("main > test-control").evaluate(
-        "node => node.removeAttribute('data-lf-gen')"
-    )
-    assert render_checks_model.evaluate_probe(page, "undeclaredShadowRoots", {}) == [
-        "<test-control>"
-    ]
-
-
-def test_the_render_gate_checks_undeclared_shadow_roots_inside_thread_chrome(
-    browser, serve
-):
-    """A reply panel is runtime UI, while a widget inside its message remains page
-    content. Only a control built through offer is exempt from the declaration check;
-    inheriting the panel's UI ancestry cannot hide an undeclared widget root."""
-    page = open_page(browser, serve(leaf_page("Reply widget", "<h1>Reply</h1>")))
-    page.evaluate(
-        """async () => {
-          const {offer} = await window.__lfWidgetApi();
-          for (const tag of ['generated-control', 'reply-widget'])
-            customElements.define(tag, class extends HTMLElement {
-              constructor() {
-                super();
-                this.attachShadow({mode: 'open'}).innerHTML = '<p>Shadow words</p>';
-              }
-            });
-          const panel = document.createElement('div');
-          panel.className = 'lf-page-thread lf-ui';
-          panel.append(offer('generated-control'), document.createElement('reply-widget'));
-          document.querySelector('main').append(panel);
-        }"""
-    )
-    assert render_checks_model.evaluate_probe(page, "undeclaredShadowRoots", {}) == [
-        "<reply-widget>"
-    ]
 
 
 def _author_stateful_verbatim_widget(tmp_path):

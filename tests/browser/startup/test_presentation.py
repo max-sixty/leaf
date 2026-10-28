@@ -8,7 +8,7 @@ import pytest
 from interact_support import wait_for
 from playwright.sync_api import expect
 from render_cases_interaction import SHORT_SUGGESTION, live_url
-from render_cases_navigation import data_projection_page
+from render_cases_navigation import DATA_PROJECTION_MODULE, data_projection_page
 from render_harness import (
     PANEL,
     displayed,
@@ -194,11 +194,11 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     """A data renderer runs after the initial page dressing, but what it contributes
     is still part of the Leaf and should carry the same visible navigation contract."""
     url = data_projection_page(serve)
-    module = serve.page_dir / "widgets" / "lf-feed.js"
+    # The page's own module for the family, which takes the package's place.
+    module = serve.page_dir / "page" / "widgets" / "lf-feed.js"
+    module.parent.mkdir(parents=True, exist_ok=True)
     module.write_text(
-        module.read_text()
-        .replace("{keeps,", "{keeps, keepsText,")
-        .replace(
+        DATA_PROJECTION_MODULE.replace("{keeps,", "{keeps, keepsText,").replace(
             "const row = document.createElement('p');\n"
             "      row.append(words, offer('button', 'inspect', 'Inspect'));",
             """const prior = [...this.children].find(row => row.dataset.lfDatum === key);

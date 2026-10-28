@@ -14,15 +14,13 @@ from interact_support import (
     check_findings,
     comment,
     decide,
+    declare_on_page,
     found,
     publish,
     published,
     stamp,
     state_json,
     suggested,
-)
-from model.test_interact_anchors import (
-    declare_part_prefixes,
 )
 
 from leaf import cli as cli_model
@@ -32,6 +30,16 @@ from leaf import files as files_model
 from leaf import structure as structure_model
 from leaf.events import build_threads
 from leaf.registry import storage as registry_storage
+
+
+def declare_part_prefixes(page_dir, *prefixes):
+    """Give the page's diagram part-id prefixes in place of its authored list."""
+    declare_on_page(
+        page_dir,
+        lambda registry: registry["lf-diagram"].update(
+            {"x-visual": {"prefixes": list(prefixes)}}
+        ),
+    )
 
 
 def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
@@ -56,7 +64,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
     refused = event_contracts_model.visual_anchor_error(
         {"anchor": {"section": "flow", "visual": "edge:B"}},
         {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
-        json.loads((page_dir / "registry.json").read_text()),
+        registry_storage.read_page_registry(page_dir).registry,
     )
     assert (refused.code, refused.values["declared"]["prefixes"]) == (
         "undeclared-visual",
@@ -66,7 +74,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
         assert event_contracts_model.visual_anchor_error(
             {"anchor": {"section": "flow", "visual": unrenderable}},
             {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
-            json.loads((page_dir / "registry.json").read_text()),
+            registry_storage.read_page_registry(page_dir).registry,
         ), unrenderable
 
     # The file lists none of these parts, so markup cannot drop one; a declaration

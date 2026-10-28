@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Why the tide is late</title>
+    <meta
+      name="description"
+      content="An explainer on why high tide arrives at a different time every day, and why it can lag the moon by hours."
+    />
+    <style>
+      :root {
+        --paper: #f6f1e7;
+        --ink: #1d1a16;
+        --ink-soft: #5a5247;
+        --rule: #d8cdb8;
+        --sea: #0f3b4f;
+        --sea-ink: #e8f1f2;
+        --accent: #c2410c;
+        --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        --sans: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        --step--1: 0.85rem;
+        --step-0: clamp(1.06rem, 1rem + 0.3vw, 1.2rem);
+        --step-1: calc(var(--step-0) * 1.25);
+        --step-2: calc(var(--step-1) * 1.25);
+        --step-4: clamp(2.4rem, 1.6rem + 3.6vw, 4.6rem);
+        --measure: 64ch;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-padding-top: 4.5rem;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: var(--step-0) / 1.6 var(--serif);
+      }
+      main {
+        display: grid;
+        grid-template-columns:
+          [full-start] minmax(1rem, 1fr)
+          [content-start] min(var(--measure), 100% - 2rem)
+          [content-end] minmax(1rem, 1fr) [full-end];
+      }
+      main > * {
+        grid-column: content;
+      }
+      main > .full,
+      main > .masthead {
+        grid-column: full;
+      }
+
+      .masthead {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.8rem clamp(1rem, 4vw, 3rem);
+        background: color-mix(in srgb, var(--paper) 92%, transparent);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--rule);
+        font-family: var(--sans);
+      }
+      .brand {
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        font-size: var(--step--1);
+      }
+      .masthead nav {
+        display: flex;
+        gap: 1.2rem;
+        font-size: var(--step--1);
+      }
+      .masthead nav a {
+        color: var(--ink-soft);
+        text-decoration: none;
+      }
+      .progress {
+        position: absolute;
+        left: 0;
+        bottom: -1px;
+        height: 2px;
+        width: 100%;
+        background: var(--accent);
+        transform-origin: 0 50%;
+        transform: scaleX(0);
+      }
+
+      .hero {
+        padding: clamp(3rem, 8vw, 7rem) 0 2rem;
+      }
+      .kicker {
+        font: 600 var(--step--1) / 1 var(--sans);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin: 0 0 1.2rem;
+      }
+      h1 {
+        font-size: var(--step-4);
+        line-height: 1.02;
+        letter-spacing: -0.02em;
+        font-weight: 600;
+        margin: 0 0 1.4rem;
+      }
+      .dek {
+        font-size: var(--step-1);
+        line-height: 1.4;
+        color: var(--ink-soft);
+        font-style: italic;
+        margin: 0;
+      }
+      h2 {
+        font-size: var(--step-2);
+        line-height: 1.15;
+        font-weight: 600;
+        margin: 3rem 0 0.8rem;
+      }
+      p {
+        margin: 0 0 1.1em;
+      }
+      .lead::first-letter {
+        float: left;
+        font-size: 4.2em;
+        line-height: 0.82;
+        padding: 0.06em 0.08em 0 0;
+        color: var(--sea);
+        font-weight: 600;
+      }
+      blockquote.pull {
+        margin: 2.4rem 0;
+        padding: 0 0 0 1.4rem;
+        border-left: 3px solid var(--accent);
+        font-size: var(--step-2);
+        line-height: 1.25;
+        font-style: italic;
+      }
+      a {
+        color: var(--sea);
+        text-underline-offset: 0.18em;
+      }
+
+      figure.full {
+        margin: 3rem 0;
+        padding: clamp(2rem, 5vw, 4rem) 0;
+        background: var(--sea);
+        color: var(--sea-ink);
+        display: grid;
+        grid-template-columns: subgrid;
+      }
+      figure.full > * {
+        grid-column: content;
+      }
+      figure.full .wide {
+        grid-column: full;
+        padding-inline: clamp(1rem, 4vw, 3rem);
+      }
+      figure.full svg {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      figcaption {
+        font: var(--step--1) / 1.5 var(--sans);
+        margin-top: 1rem;
+      }
+      .toggle {
+        display: inline-flex;
+        margin-bottom: 1rem;
+        border: 1px solid color-mix(in srgb, var(--sea-ink) 40%, transparent);
+        border-radius: 999px;
+        overflow: hidden;
+        font: 600 var(--step--1) / 1 var(--sans);
+      }
+      .toggle button {
+        all: unset;
+        cursor: pointer;
+        padding: 0.5rem 1rem;
+        color: var(--sea-ink);
+      }
+      .toggle button[aria-pressed="true"] {
+        background: var(--sea-ink);
+        color: var(--sea);
+      }
+
+      .facts {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+        gap: 1.5rem;
+        margin: 2rem 0;
+        padding: 1.5rem 0;
+        border-block: 1px solid var(--rule);
+        font-family: var(--sans);
+      }
+      .facts dt {
+        font-size: var(--step--1);
+        color: var(--ink-soft);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .facts dd {
+        margin: 0.2rem 0 0;
+        font: 600 var(--step-2) / 1.1 var(--serif);
+      }
+
+      footer.colophon {
+        grid-column: full;
+        margin-top: 4rem;
+        padding: 2rem clamp(1rem, 4vw, 3rem);
+        border-top: 1px solid var(--rule);
+        font: var(--step--1) / 1.5 var(--sans);
+        color: var(--ink-soft);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="masthead">
+        <span class="brand">Tidewater</span>
+        <nav aria-label="Sections">
+          <a href="#moon">The moon</a>
+          <a href="#basin">The basin</a>
+        </nav>
+        <div class="progress" aria-hidden="true"></div>
+      </header>
+
+      <section class="hero" id="top">
+        <p class="kicker">Explainer · Coastal science</p>
+        <h1>Why the tide is late</h1>
+        <p class="dek">
+          High water should follow the moon. In most harbours it trails it by hours, and
+          the reason is the shape of the sea floor.
+        </p>
+      </section>
+
+      <p class="lead" id="intro">
+        Every schoolchild learns that the moon pulls the oceans into a bulge, and that
+        the Earth turns beneath it. That picture predicts two high tides a day, each
+        arriving about fifty minutes later than the last. It gets the rhythm right. It
+        gets the timing wrong almost everywhere.
+      </p>
+
+      <h2 id="moon">The moon sets the beat</h2>
+      <p id="moon-1">
+        The lunar day is 24 hours and 50 minutes. Gravity from the moon, and to a lesser
+        degree the sun, raises a force that varies smoothly over that period. What the
+        ocean does with that beat depends on the instrument it is played on.
+      </p>
+
+      <figure class="full" id="figure-curve">
+        <div class="wide">
+          <div class="toggle" role="group" aria-label="Show">
+            <button type="button" aria-pressed="true" data-show="both">Both</button>
+            <button type="button" aria-pressed="false" data-show="force">
+              Moon's pull
+            </button>
+            <button type="button" aria-pressed="false" data-show="water">
+              Water level
+            </button>
+          </div>
+          <svg
+            viewBox="0 0 1200 300"
+            role="img"
+            aria-label="Forcing and water-level curves over two days"
+          >
+            <line
+              x1="0"
+              y1="150"
+              x2="1200"
+              y2="150"
+              stroke="currentColor"
+              stroke-opacity="0.18"
+            />
+            <path data-curve="force" fill="none" stroke="#f9c784" stroke-width="3" />
+            <path data-curve="water" fill="none" stroke="#7dd3fc" stroke-width="3" />
+          </svg>
+        </div>
+        <figcaption>
+          <b>Figure 1.</b> The moon's pull (amber) and the water level at a sheltered
+          estuary (blue), about 6.6 hours late.
+        </figcaption>
+      </figure>
+
+      <h2 id="basin">Every basin has a note of its own</h2>
+      <p id="basin-1">
+        A body of water sloshes at a natural period set by its length and depth. When
+        that period is close to the lunar half-day, the basin resonates and the tide
+        grows enormous: the Bay of Fundy's natural period is about 13 hours, so a modest
+        push becomes a 16-metre range.
+      </p>
+
+      <blockquote class="pull" id="pull">
+        The ocean is not a puddle following the moon. It is a set of bells, each struck
+        twice a day.
+      </blockquote>
+
+      <dl class="facts" id="facts">
+        <div>
+          <dt>Lunar day</dt>
+          <dd>24 h 50 m</dd>
+        </div>
+        <div>
+          <dt>Fundy range</dt>
+          <dd>16 m</dd>
+        </div>
+        <div>
+          <dt>Bristol lag</dt>
+          <dd>6 h 40 m</dd>
+        </div>
+      </dl>
+
+      <p id="lag-1">
+        A tide is a wave thousands of kilometres long, and in shallow water such a wave
+        travels at a speed set by depth alone. Crossing a shelf to reach a port takes
+        hours, and every hour of travel is an hour of lag.
+      </p>
+
+      <footer class="colophon">
+        Set in the reader's system serif. Figures are schematic.
+      </footer>
+    </main>
+
+    <script>
+      const bar = document.querySelector(".progress");
+      const onScroll = () => {
+        const max = document.documentElement.scrollHeight - innerHeight;
+        bar.style.transform = `scaleX(${max > 0 ? scrollY / max : 0})`;
+      };
+      addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+
+      const curve = (lag, amp) => {
+        let d = "";
+        for (let x = 0; x <= 1200; x += 6) {
+          const y = 150 - amp * Math.cos((x / 600) * 2 * Math.PI * (24 / 12.42) - lag);
+          d += `${x ? "L" : "M"}${x},${y.toFixed(1)}`;
+        }
+        return d;
+      };
+      document.querySelector('[data-curve="force"]').setAttribute("d", curve(0, 90));
+      document.querySelector('[data-curve="water"]').setAttribute("d", curve(3.3, 120));
+
+      for (const button of document.querySelectorAll(".toggle button")) {
+        button.addEventListener("click", () => {
+          for (const b of document.querySelectorAll(".toggle button"))
+            b.setAttribute("aria-pressed", String(b === button));
+          for (const path of document.querySelectorAll("[data-curve]"))
+            path.style.opacity = ["both", path.dataset.curve].includes(
+              button.dataset.show,
+            )
+              ? 1
+              : 0.08;
+        });
+      }
+    </script>
+  </body>
+</html>

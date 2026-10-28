@@ -464,10 +464,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   // A claim on the region for the reading as it stands, which a failure settles with
   // the fail-soft box.
   #claim() {
-    return this.#region.present(
-      untracked(() => this.#controller?.read() ?? {}),
-      (reason) => failSoftUnreported(this, reason),
-    );
+    return this.#region.present((reason) => failSoftUnreported(this, reason));
   }
 
   // Claim the region for a reading that draws later, leaving the claim open.
@@ -496,8 +493,8 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   #connect() {
     this.#connected = true;
     this.#region = this.#descriptor
-      ? attachWidgetPresentation(this.#descriptor.id, "render", this)
-      : attachApplicationPresentation(this.#regionName, this);
+      ? attachWidgetPresentation(this.#descriptor.id, "render")
+      : attachApplicationPresentation(this.#regionName);
     const parentChanged = this.#connectedParent !== this.parentElement;
     this.#connectedParent = this.parentElement;
     if (registry[this.localName]?.["x-data"])

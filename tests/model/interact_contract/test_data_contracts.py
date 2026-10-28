@@ -28,6 +28,7 @@ from leaf.findings import Rejected
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.structure import SourceDocument
+from model.interact_contract import declare_vocabulary, vocabulary
 
 
 @pytest.mark.parametrize(
@@ -107,9 +108,9 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, code, v
     """A contract is executable widget vocabulary: its name carries meaning and its
     schema admits bytes to the browser, so package checking refuses an ambiguous name,
     an undocumented contract, or a schema no boundary can run."""
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     registry["$data"]["contracts"] = contracts
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 
@@ -138,7 +139,7 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, code, v
 )
 def test_a_widget_data_input_is_one_complete_contract(page_dir, change, code):
     declare_data_input(page_dir, "project-feed", {"type": "array"})
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     change(registry["lf-test-data"])
 
     finding = registry_refusal(
@@ -151,7 +152,7 @@ def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
     """x-data requires the canonical string contract, not one byte-for-byte schema;
     packages remain free to document or further constrain the attribute."""
     declare_data_input(page_dir, "project-feed", {"type": "array"})
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     registry["lf-test-data"]["properties"]["source"]["description"] = (
         "The page-owned feed id."
     )
@@ -191,7 +192,7 @@ def test_a_measured_widget_joins_one_data_input_to_one_run_receipt(
     """The generic check cannot infer a widget's source or write receipt. Its registry
     declaration names both, and the registry door refuses a half-readable join before
     an authored value can silently miss the freshness advisory."""
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     change(registry["lf-num"])
 
     finding = registry_refusal(
@@ -204,7 +205,7 @@ def test_a_measurement_run_cannot_also_be_replay_writable(page_dir):
     """The run receipt belongs to the authored version. Letting replay write it
     would give the browser a newer freshness boundary than file checks and page state
     read from the immutable document."""
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     widget = registry["lf-num"]
     widget["x-upgrade"] = True
     widget["properties"]["restated"] = {"type": "boolean"}
@@ -226,7 +227,7 @@ def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
     value record on the same attribute would make replay paint a source that the
     already-mounted watcher correctly does not consume."""
     declare_data_input(page_dir, "project-feed", {"type": "array"})
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     widget = registry["lf-test-data"]
     widget["x-state"] = {
         "rebind": {
@@ -261,47 +262,33 @@ def test_revendoring_keeps_a_new_binding_before_its_first_revision(page_dir):
     assert result.exit_code == 0, result.output
     assert data_model.read_contracts(page_dir)["report"] == "text-document"
     assert (
-        data_model.read_data(
-            page_dir, files_model.read_json(page_dir / "registry.json")
-        )["sources"]["report"]["value"]
+        data_model.read_data(page_dir, registry_storage.load_registry(page_dir))[
+            "sources"
+        ]["report"]["value"]
         == "New report."
     )
 
 
-@pytest.mark.parametrize("contract_retained", [True, False])
-def test_revendoring_an_unreadable_edit_does_not_require_historical_bindings(
-    page_dir, contract_retained
-):
+def test_revendoring_an_unreadable_edit_does_not_require_historical_bindings(page_dir):
     """A runtime refresh is independent of an unreadable candidate's source error."""
     source = page_dir / "index.html"
-    if contract_retained:
-        source.write_text(
-            source.read_text().replace(
-                "</main>",
-                '<lf-text-document id="report" source="report"></lf-text-document></main>',
-            )
+    source.write_text(
+        source.read_text().replace(
+            "</main>",
+            '<lf-text-document id="report" source="report"></lf-text-document></main>',
         )
-        activated = revisioning_model.activate_source(page_dir)
-        assert activated.error is None and activated.created
-        data_model.cmd_data_set(page_dir, "report", "Retained report.")
-    else:
-        declare_data_input(page_dir, "builds", {"type": "array"}, contract="builds")
-        data_model.cmd_data_set(page_dir, "builds", [])
+    )
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.created
+    data_model.cmd_data_set(page_dir, "report", "Retained report.")
     revisions = files_model.list_revisions(page_dir)
     source.write_bytes(b"\xff")
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
-    if contract_retained:
-        assert result.exit_code == 0, result.output
-        assert data_model.read_contracts(page_dir)["report"] == "text-document"
-        assert (
-            read_page_data(page_dir)["sources"]["report"]["value"] == "Retained report."
-        )
-    else:
-        assert result.exit_code == 0, result.output
-        reading = read_page_data(page_dir)["sources"]["builds"]
-        assert "error" in reading and "value" not in reading
+    assert result.exit_code == 0, result.output
+    assert data_model.read_contracts(page_dir)["report"] == "text-document"
+    assert read_page_data(page_dir)["sources"]["report"]["value"] == "Retained report."
     assert files_model.list_revisions(page_dir) == revisions
     assert source.read_bytes() == b"\xff"
     status, findings = check_findings(page_dir)
@@ -346,6 +333,7 @@ def _page_owned_deferred_source(page_dir):
         '<lf-local-data id="example-local-data" source="example"></lf-local-data>'
     )
     authored = page_dir / "page" / "registry.json"
+    authored.parent.mkdir(exist_ok=True)
     authored.write_text(
         json.dumps(
             {
@@ -531,18 +519,17 @@ def test_a_reply_publishing_saved_edits_checks_its_markup_under_their_registry(
     declare_data_input(
         page_dir, "shared", {"type": "array"}, contract="rows", activate=False
     )
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
+    registry = vocabulary(page_dir)
     registry["lf-test-other"] = deepcopy(registry["lf-test-data"])
     registry["$data"]["contracts"]["other-rows"] = deepcopy(
         registry["$data"]["contracts"]["rows"]
     )
-    registry_path.write_text(json.dumps(registry))
+    declare_vocabulary(page_dir, registry)
     (page_dir / "index.html").write_text(PAGE)
     assert revisioning_model.activate_source(page_dir).error is None
     # The saved edit moves one widget type to another contract and uses neither.
     registry["lf-test-other"]["x-data"]["data"]["contract"] = "other-rows"
-    registry_path.write_text(json.dumps(registry))
+    declare_vocabulary(page_dir, registry)
     opened = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Show both."}
     )

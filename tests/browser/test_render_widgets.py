@@ -1,5 +1,6 @@
 "Board, suggestion, question, and widget composition tests."
 
+import json
 from pathlib import Path
 
 import pytest
@@ -137,6 +138,22 @@ def test_board_moves_preserve_live_sample_and_control_state(browser, serve, rout
             });
           }
           window.previewFirstPaint = false;
+          window.boardDragInput = [];
+          // Keep the actual hit and moving geometry: a later snapshot cannot tell
+          // whether a coordinate press reached the grip or Sortable cancelled it.
+          const grip = document.querySelector('#card-heater > .lf-grip');
+          for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
+            document.addEventListener(type, event => {
+              window.boardDragInput.push({
+                type, at: event.timeStamp, x: event.clientX, y: event.clientY,
+                target: [event.target.tagName, event.target.id, event.target.getAttribute('class')],
+                gripHit: event.composedPath().includes(grip),
+                ...(type === 'pointerdown' ? {
+                  grip: grip.getBoundingClientRect().toJSON(), scroll: [scrollX, scrollY],
+                } : {}),
+              });
+            }, {capture: true});
+          }
           new MutationObserver((records, observer) => {
             const preview = document.querySelector('.lf-motion-preview.lf-inhand');
             if (!preview) return;
@@ -153,7 +170,14 @@ def test_board_moves_preserve_live_sample_and_control_state(browser, serve, rout
         page.mouse.down()
         page.mouse.move(x + 20, y + 35, steps=8)
         preview = page.locator(".lf-motion-preview.lf-inhand")
-        expect(preview).to_have_text("Heated perch")
+        try:
+            expect(preview).to_have_text("Heated perch")
+        except AssertionError as error:
+            error.add_note(
+                "Board drag input: "
+                + json.dumps(page.evaluate("window.boardDragInput"))
+            )
+            raise
         expect(page.locator(".lf-motion-preview")).to_have_count(1)
         assert page.evaluate("window.previewAllocations") == 2
         expect(page.locator("#col-todo > lf-card")).to_have_count(2)

@@ -19,7 +19,7 @@ class PathLocation(NamedTuple):
     comparison alone.
 
     That is the whole point of the form. The callers are set intersections: every
-    package input against every other, every input against every vendored
+    package input against every other, every input against every page
     destination — 786 containment tests over the shipped layer's thirty-six
     distinct paths. Asked path-by-path, each test re-resolved both paths and
     stat'd its way up both ancestor chains, so `page init` spent two thirds of

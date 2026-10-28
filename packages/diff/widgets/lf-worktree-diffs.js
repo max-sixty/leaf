@@ -4,8 +4,6 @@
 import {
   LeafElement,
   initialRender,
-  keepsText,
-  noChange,
   PAGE_INTERFACE,
   whileConnected,
 } from "/runtime/widget-api.js";
@@ -13,9 +11,18 @@ import {
 customElements.define(
   "lf-worktree-diffs",
   class extends LeafElement {
+    #view;
+
+    createRenderRoot() {
+      return this.#view?.root ?? this;
+    }
+
     setup() {
-      const drawing = initialRender(this);
-      const update = () => drawing.update(keepsText);
+      this.#view = initialRender(this);
+      const update = () => {
+        this.requestUpdate();
+        this.performUpdate();
+      };
       whileConnected(this, (signal) => {
         update();
         this.ownerDocument.addEventListener(PAGE_INTERFACE, update, { signal });
@@ -23,7 +30,7 @@ customElements.define(
     }
 
     render() {
-      return noChange;
+      return this.#view.render();
     }
   },
 );

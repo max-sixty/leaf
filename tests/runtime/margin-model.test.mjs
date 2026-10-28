@@ -111,7 +111,7 @@ test("a folded cluster stands as its toggle and opens to every control", () => {
   // Placement's fold is only a request: unfolded, the face is the pair.
   const whole = clusterProjection(entry);
   assert.equal(whole.folded, false);
-  assert.deepEqual(whole.toggle, { icon: "more", label: "More options" });
+  assert.deepEqual(whole.toggle, { action: "more", label: "More options" });
   assert.equal(whole.primary.record.key, "accept");
   assert.deepEqual(choiceNames(whole.options.visible), ["reject"]);
 });

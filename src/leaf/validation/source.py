@@ -11,14 +11,12 @@ from leaf.data_contracts import (
     measurement_lag,
 )
 from leaf.findings import Finding, Rejected
-from leaf.layer import incompatible_layer
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import IncompatibleLayer, read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.sample_content import initial_sample_events
-from leaf.schema import VENDORED_FILES
-from leaf.structure import SourceDocument, script_kind
+from leaf.structure import SourceDocument
 from leaf.styles import (
     css_syntax_errors,
     inline_style_at,
@@ -85,36 +83,9 @@ def _source_bytes(page_dir: Path) -> tuple[bytes, Finding | None]:
 
 def _document_errors(page_dir: Path, parser) -> list[Finding]:
     """Validate the authored document shell before reading its vocabulary."""
-    errors = [
-        Finding("missing-vendored", values={"file": name})
-        for name in VENDORED_FILES
-        if not (page_dir / name).exists()
-    ]
-
-    errors.extend(structure_errors(parser))
+    errors = structure_errors(parser)
     errors.extend(page_boundary_errors(parser))
     errors.extend(authored_allocation_errors(parser))
-
-    # A page's scripts are its author's, of any kind, so long as each runs after Leaf
-    # has read the page: the runtime holds the authored main as the page's baseline and
-    # listens for errors from the moment its module runs, and a deferred script or a
-    # module runs after it, in document order. A parser-blocking or async script can
-    # run first, changing what Leaf reads as authored and throwing where no check
-    # hears it.
-    for script in [
-        *parser.authoring.inline_scripts,
-        *parser.authoring.external_scripts,
-    ]:
-        attrs = script["attrs"]
-        kind = script_kind(attrs)
-        if kind not in {"module", "classic"}:
-            continue
-        if "async" in attrs:
-            errors.append(Finding("async-script", "<script>", {"line": script["line"]}))
-        elif kind == "classic" and not ("src" in attrs and "defer" in attrs):
-            errors.append(
-                Finding("parser-blocking-script", "<script>", {"line": script["line"]})
-            )
 
     errors.extend(document_declaration_errors(parser))
 
@@ -310,6 +281,8 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
     try:
         page_registry = read_page_registry(page_dir)
         registry = page_registry.registry if page_registry is not None else None
+        if page_registry is None:
+            errors.append(Finding("no-layer", values={"page": str(page_dir)}))
     except IncompatibleLayer as error:
         return SourceCheck(
             SourceReading(document, None), None, list(error.findings), []
@@ -318,8 +291,6 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         registry = None
         errors.extend(error.findings)
     reading = SourceReading(document, registry)
-    if registry is not None and (refusal := incompatible_layer(page_dir, registry)):
-        return SourceCheck(reading, registry, [refusal], [])
     contracts = read_contracts(page_dir)
     # A conflicting binding lies within one document, and history holds none
     # (`data_contracts.data_binding_errors`), so the check reads this one alone.

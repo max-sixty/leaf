@@ -1,4 +1,4 @@
-/** Which schema changes break a page vendored at the current protocol, or a Leaf
+/** Which schema changes break a page's log at the current protocol, or a Leaf
  * sharing a record's format (`layer-registry.md`, "Page protocol").
  *
  * `protocol-baseline.json` holds each schema as it last stood (`baselineSchemas`), and
@@ -7,17 +7,14 @@
  * keyword, and names each change the side that must accept the other's values would
  * refuse:
  *
- * - what a page sends (browser commands): the current schema accepts what the baseline
- *   did, and the browser door, which validates, refuses a newly closed object;
- * - an event record, which a page sends and every Leaf at the number writes into the
- *   log and reads back: both ways;
- * - an x-state verb, which a page's vendored registry declares and this Leaf reads:
- *   the current schema accepts what the baseline did;
+ * - an event record, which every Leaf at the number writes into the log and reads
+ *   back: both ways;
  * - a `state.Record`: both ways, at the same `since`, since every Leaf writing that
  *   format reads what the others wrote.
  *
- * The served state is not among them: the Leaf serving a page also supplies the
- * runtime that reads it (`runtime_selection.py`), so no older reader meets it.
+ * What a page sends, the x-state verbs its layer declares and the served state are
+ * not among them: the Leaf serving a page also supplies its runtime and composes its
+ * layer (`runtime_selection.py`), so no older reader or sender meets them.
  *
  * The comparison is by position, so it reads no reference and merges no union: a
  * reference compares by its text, and its target where it is declared; union, `allOf`
@@ -287,8 +284,8 @@ const OLDER_READS = { newConsumes: false, validates: false };
 const READ = { newConsumes: true, validates: false };
 
 /** The schemas the baseline holds: each a `protocolSchemas` reading carries but the
- * served state, which only the generated types read. */
-export const baselineSchemas = ({ served: _served, ...held }) => held;
+ * served state and the x-state verb, which only the generated types read. */
+export const baselineSchemas = ({ served: _served, verb: _verb, ...held }) => held;
 
 /** Each change from `baseline` to `current` that some Leaf would refuse or misread,
  * as lines naming where and what; none where nothing changes either way. `baseline`
@@ -310,18 +307,10 @@ export function protocolBreaks(baseline, current) {
         refused.push([where, "an older Leaf or page reads a kind it doesn't know"]);
       else {
         compare(where, kinds[kind].record, now[kind].record, SENT, OLDER_READS);
-        if (kinds[kind].browser && !now[kind].browser)
-          refused.push([where, "the browser no longer sends it"]);
-        else if (kinds[kind].browser)
-          compare(where, kinds[kind].browser, now[kind].browser, {
-            ...SENT,
-            overlay: kinds[kind].record,
-          });
       }
     }
     if (!isDeepStrictEqual(baseline.events.ownership, current.events.ownership))
       refused.push(["$events.ownership", "changed"]);
-    compare("x-state verb", baseline.verb, current.verb, READ);
   }
   for (const [kind, { since, schema }] of Object.entries(current.records)) {
     const where = `record ${kind}`;

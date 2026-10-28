@@ -572,9 +572,12 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     consume_browser_errors(page, http_error_console(400))
 
 
-def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
-    """Done paints its semantic result while delivery is held, and repeated presses
-    still produce one action."""
+def test_a_done_press_answers_optimistically_and_the_next_press_follows_its_face(
+    browser, serve
+):
+    """Done paints its semantic result while delivery is held, without a busy or
+    disabled face, so a press in flight does what Done then says: take the answer back,
+    then give it again."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_OBLIGATIONS:
         append_carried_log_record(serve.page_dir, event)
@@ -589,21 +592,23 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     done.click()
     holding(page, held, 1, "the answer")
 
-    expect(done).to_have_attribute("aria-busy", "true")
-    expect(done).to_have_attribute("aria-pressed", "true")
-    done.click()
-    done.click()
-
-    held[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
     expect(done).to_have_attribute("aria-pressed", "true")
     expect(done).not_to_have_attribute("aria-busy", "true")
-    assert [
-        (e["widget"], e["action"])
-        for e in events_model.read_events(serve.page_dir)
-        if e["kind"] == "action"
-    ] == [("tq-set", "answer")]
+    expect(done).to_be_enabled()
+    done.click()
+    expect(done).to_have_attribute("aria-pressed", "false")
+    done.click()
+    expect(done).to_have_attribute("aria-pressed", "true")
+
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "true")
+    events = events_model.read_events(serve.page_dir)
+    answers = [e for e in events if e["kind"] == "action" and e["widget"] == "tq-set"]
+    withdrawn = {e["undoes"] for e in events if e["kind"] == "undo"}
+    assert [e["action"] for e in answers if e["id"] not in withdrawn] == ["answer"]
 
 
 def test_closing_a_thread_withdraws_the_obligation_in_it(browser, serve):

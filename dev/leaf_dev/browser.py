@@ -11,7 +11,7 @@ from pathlib import Path
 from playwright.sync_api import Browser, FrameLocator, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf.render_checks import wait_for_probe, wait_until_ready
+from leaf.render_checks import rendered, wait_for_probe, wait_until_ready
 from leaf_dev import ROOT
 
 DESKTOP = (1440, 900)
@@ -214,6 +214,11 @@ def threads_tab(page: Page | FrameLocator):
     On me mark opens On, or Threads itself while nothing waits on the user but a reply
     they have not read; another view, stance or search is closed first by its exit.
     `page` may be a live sample's frame."""
+    # A stance's exit becomes the mark in the repaint frame. Read the controls only
+    # after the previous input has rendered, before choosing a pointer route.
+    rendered(
+        page.locator("html").element_handle().owner_frame(), facts=("updatesSettled",)
+    )
     host = page.locator(".lf-floating-panel")
     if host.get_attribute("data-open") not in ("queue", "threads"):
         exit_control = page.locator(".lf-fp-exit")

@@ -13,11 +13,7 @@ from pathlib import Path
 
 from leaf.event_log import read_events
 from leaf.files import list_revisions
-from leaf.findings import Finding
-from leaf.layer import payload_provenance, provenance_label, same_leaf
 from leaf.leases import page_locked
-from leaf.registry.contract import RegistryError
-from leaf.registry.storage import layer_metadata
 
 from .source import check_source, moved_threads, source_advice
 
@@ -26,33 +22,6 @@ def cmd_check(page_dir: Path, render: bool = False) -> dict:
     """Check the mutable source without activating or stamping it."""
     with page_locked(page_dir):
         return _check(page_dir, render)
-
-
-def leaf_versions(page_dir: Path) -> list[Finding]:
-    """The Leaf that vendored the page beside the one checking it, where they differ.
-
-    Between protocol bumps an update can still break an older page (`AGENTS.md`,
-    "Pages across Leaf updates"), and nothing compares the page's files with this
-    Leaf's to say so. Both versions and their dates are informational; the protocol
-    compatibility check owns the instruction to update the page's runtime."""
-    try:
-        page_leaf = layer_metadata(page_dir).get("producer", {})
-    except RegistryError:
-        return []  # `check_source` reports the broken layer
-    this_leaf = payload_provenance()
-    if same_leaf(page_leaf, this_leaf):
-        return []
-    return [
-        Finding(
-            "leaf-version",
-            values={
-                "vendored": provenance_label(page_leaf),
-                "running": provenance_label(this_leaf),
-                "page": str(page_dir),
-            },
-            severity="advice",
-        )
-    ]
 
 
 def _check(page_dir: Path, render: bool) -> dict:
@@ -66,7 +35,7 @@ def _check(page_dir: Path, render: bool) -> dict:
         }
 
     # A page this Leaf can neither serve nor write passes no check of its source: the
-    # re-vendor that repairs it comes first (`layer.incompatible_layer`).
+    # repair it names comes first (`layer.incompatible_layer`).
     if refusal := write_refusal(page_dir):
         return reported(1, [refusal])
     events = read_events(page_dir)
@@ -76,7 +45,6 @@ def _check(page_dir: Path, render: bool) -> dict:
         *result.errors,
         *moved_threads(page_dir, events, active - 1, result),
         *source_advice(page_dir, result),
-        *leaf_versions(page_dir),
     ]
     if result.errors:
         return reported(1, found)

@@ -293,11 +293,6 @@ def _widget_findings(context: _SchemeContext) -> list[Finding]:
     invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
-    # Shadow roots the registry doesn't declare: the passage walk, the
-    # capture and the id lookups cross exactly the declared ones, so an
-    # undeclared root's words silently anchor quotes astray. Generated controls
-    # are UI rather than page words, so their implementation roots are exempt.
-    undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", context.registry)
     # Words a widget's own chrome holds with nothing saying whose they are.
     unreachable = evaluate_probe(page, "unreachableWords")
     # x-verbatim promises the words this scheme renders. Source provenance was
@@ -331,8 +326,6 @@ def _widget_findings(context: _SchemeContext) -> list[Finding]:
         found.append(Finding("missing-upgrades", values={"tags": missing_upgrades}))
     if tiny:
         found.append(Finding("tiny-boxes", values={"boxes": tiny}))
-    if undeclared_shadow:
-        found.append(Finding("undeclared-shadow", values={"hosts": undeclared_shadow}))
     found += map(Finding.read, unreachable)
     found += dishonest_verbatim
     found += map(Finding.read, silent)
@@ -369,13 +362,13 @@ def thread_findings(context: _SchemeContext, known: list[Finding]) -> list[Findi
     return [finding for finding in found if finding not in known]
 
 
-def _keyed(records: list) -> dict[tuple[str, str], Finding]:
+def _keyed(records: list, severity: str = "error") -> dict[tuple[str, str], Finding]:
     """Width-dependent readings, such as overlay track collisions and clipped
     controls, each keyed by its element's place and kind. Covered words name the
     places of both elements as theirs."""
     return {
         (json.dumps(record["place"], sort_keys=True), record["code"]): Finding.read(
-            record
+            record, severity=severity
         )
         for record in records
     }
@@ -519,8 +512,11 @@ def margin_changes(page, readings, height: int) -> list[int]:
 def swept_faults(samples) -> list[Finding]:
     """Sideways overflow, misplaced boxes and clipped content, scrollbar collisions,
     clipped controls and covered words across the gate's geometry samples, with the
-    widths each run spans and what it reads at the narrowest. Each refuses the version, since a control cut
-    off at 400px is as far out of reach as one cut off at 540px.
+    widths each run spans and what it reads at the narrowest. Each refuses the version,
+    since a control cut off at 400px is as far out of reach as one cut off at 540px,
+    except a scrollbar collision, which is advice: the overlay bar covers the row's
+    last line only while the pointer is on it, the same page shows it outside Leaf,
+    and how much room to leave is the author's call.
 
     `samples` are (width, `geometryReading`) pairs, several at a width where the gate
     read it more than once (`version._render_version_attempt` says where). A fault any
@@ -530,7 +526,7 @@ def swept_faults(samples) -> list[Finding]:
     def faults(reading):
         return (
             _overflow(reading["overflow"], reading["misplaced"])
-            | _keyed(reading["scrollbars"])
+            | _keyed(reading["scrollbars"], severity="advice")
             | _keyed(reading["clipped"])
             | _keyed(reading["covered"])
         )

@@ -181,7 +181,7 @@ summary from before a compaction, doesn't carry its rules.
 
 - `references/serving-pages.md`: for the first handoff, `--export`, an unreachable
   URL, whether an operation changes a page's URL, `--host`, a persistent page,
-  re-vendoring a served page, a page a Leaf update broke, or resuming another
+  changing a served page's packages, a page a Leaf update broke, or resuming another
   session's page.
 - `references/module-authoring.md`: before writing or changing a page-owned or
   package widget, or using a Leaf helper `page-behavior.md` doesn't describe in a page

@@ -1,6 +1,7 @@
-/* The package-owned synchronous drawing delivery starts before the first paint.
-   A module adopts that same drawing, or produces it for later markup. Source copies
-   and original node routes belong to the early coordinator (prepaint.js). */
+/* Parser delivery renders each package's retained view before the first paint.
+   A module reads the same view and returns its template from its live render;
+   later markup initializes it on demand. Source copies and original node routes
+   belong to the early coordinator (prepaint.js). */
 const coordinator = (node) =>
   node.ownerDocument?.documentElement?.lfInitial ?? document.documentElement.lfInitial;
 

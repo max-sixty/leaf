@@ -771,7 +771,7 @@ def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:
 
 
 def ignore(directory, names):
-    """Leave the vendored layer and service files out of a run's copy of a page."""
+    """Leave layer and service files out of a run's copy of a page."""
     return {
         n
         for n in names

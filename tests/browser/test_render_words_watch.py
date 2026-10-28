@@ -800,6 +800,60 @@ def test_words_a_later_listener_can_cancel_native_disclosure_activation(browser)
     consume_browser_errors(page, {"code": "words-left-screen"})
 
 
+@pytest.mark.parametrize("route", ["backdrop", "escape", "cancel-handler"])
+def test_words_a_modal_the_browser_dismisses_puts_away_its_fields(browser, route):
+    """Native modal dismissal owns its hidden fields, including a cancel handler
+    that closes the dialog itself instead of accepting the default."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<dialog closedby=any><textarea id=field></textarea></dialog>
+        <script>
+          const dialog = document.querySelector('dialog');
+          dialog.showModal();
+        </script>""")
+    )
+    page.locator("#field").fill("Keep until dismissed")
+    if route == "cancel-handler":
+        page.evaluate("""() => dialog.addEventListener('cancel', event => {
+          event.preventDefault(); dialog.close();
+        })""")
+    if route == "escape":
+        page.keyboard.press("Escape")
+    else:
+        page.mouse.click(1, 1)
+    expect(page.locator("dialog")).not_to_have_attribute("open", "")
+    judge_watches()
+
+
+@pytest.mark.parametrize("press", ["none", "inside", "outside-blocked"])
+def test_words_a_modal_a_timer_closes_still_fail(browser, press):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<dialog closedby=any><textarea id=field></textarea></dialog>
+        <script>document.querySelector('dialog').showModal();</script>""")
+    )
+    page.locator("#field").fill("Keep my words")
+    if press == "outside-blocked":
+        page.locator("dialog").evaluate(
+            "dialog => { dialog.closedBy = 'closerequest'; }"
+        )
+        page.mouse.move(1, 1)
+    if press == "inside":
+        box = page.locator("dialog").bounding_box()
+        page.mouse.move(box["x"] + 2, box["y"] + 2)
+    if press != "none":
+        page.mouse.down()
+    page.evaluate("""() => new Promise(done => setTimeout(() => {
+      document.querySelector('dialog').close(); done();
+    }))""")
+    if press != "none":
+        page.mouse.up()
+    judge_watches()
+    consume_browser_errors(page, {"code": "words-left-screen"})
+
+
 POPOVER = """<button id=open popovertarget=pop>Open</button>
 <div id=pop popover><textarea id=field></textarea></div>
 <button id=elsewhere style="position:fixed;right:0;bottom:0">Elsewhere</button>"""

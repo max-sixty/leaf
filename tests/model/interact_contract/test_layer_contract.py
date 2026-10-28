@@ -40,6 +40,7 @@ from leaf.findings import Finding
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import storage as registry_storage
+from model.interact_contract import vocabulary
 
 
 @pytest.mark.parametrize(
@@ -78,7 +79,7 @@ def test_idioms_have_nonblank_authoring_fields_and_no_widget_behavior(
 def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
     """The layer facts' schema holds names as the hand checks before it did: a
     trailing newline is no part of a token or contract name, and an optional
-    `records: null` a same-protocol Leaf vendored still reads as absent."""
+    `records: null` a package declares reads as absent."""
     kernel = shipped_core_registry()
 
     def facts(**changes):
@@ -121,7 +122,7 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
         ],
     )
     assert result.exit_code == 0, result.output
-    merged = json.loads((page_dir / "registry.json").read_text())[section]
+    merged = registry_storage.load_registry(page_dir)[section]
     shipped = shipped_core_registry()[section]
     assert merged == shipped
 
@@ -154,7 +155,7 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
         ],
     )
     assert result.exit_code == 0, result.output
-    merged = json.loads((page_dir / "registry.json").read_text())["$events"]["handling"]
+    merged = registry_storage.load_registry(page_dir)["$events"]["handling"]
     shipped = cleanup_model.kernel_registry()["$events"]["handling"]
     assert merged["comment"] == [{"text": "Reply in French."}]
     assert "reply" not in merged
@@ -906,7 +907,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         ],
     )
     assert result.exit_code == 0, result.output
-    keys = json.loads((page_dir / "registry.json").read_text())["$keys"]
+    keys = registry_storage.load_registry(page_dir)["$keys"]
     assert keys["x-space"] == "wider, in this project"
     assert keys["x-says"]  # the rest of the shipped members stand
 
@@ -933,11 +934,11 @@ def test_the_field_docs_hold_to_the_fields_their_schema_admits(fact):
 @pytest.mark.parametrize("key", ["kinds", "ownership", "protocol"])
 def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, key):
     """A layer cannot change the event kinds, their ownership, or the protocol
-    numbering them, so a page's vendored copy is the kernel's of the Leaf that
-    vendored it."""
+    numbering them, so every page's vocabulary carries the kernel's of the Leaf
+    reading it."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     if key == "kinds":
         registry["$events"][key]["signal"] = registry["$events"][key]["error"]
     elif key == "ownership":
@@ -959,10 +960,10 @@ def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, 
 def test_the_kernel_facts_are_not_a_layer_extension(page_dir, tmp_path, fact):
     """Python reads the running Leaf's kernel facts and the browser a copy generated
     from them, so a layer's change to one, even taking a member out, would reach
-    neither runtime; a page's older runtime still reads `$marks` from its vocabulary."""
+    neither runtime."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
-    shipped = json.loads((page_dir / "registry.json").read_text())[fact]
+    shipped = registry_storage.load_registry(page_dir)[fact]
     member = next(key for key in shipped if key != "description")
     (overlay / "registry.json").write_text(json.dumps({fact: {member: None}}))
 

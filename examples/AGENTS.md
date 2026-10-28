@@ -1,7 +1,7 @@
 # The examples
 
 Each top-level HTML file here is both a complete user page and an integration fixture,
-and the website publishes it with the same vendored layer. The active cards in
+and the website publishes it with the same layer. The active cards in
 `docs/examples.html` decide which pages the catalog lists, and in what groups and order.
 
 ## Catalog pages

@@ -456,3 +456,25 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     rendered(child)
     assert page.evaluate("scrollY") == before
     expect(editor).to_be_focused()
+
+
+def test_an_exported_file_editor_stays_unavailable_without_starting_a_read(
+    browser, serve
+):
+    """A captured page cannot read files; its editor shows that refusal without a busy transition."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Captured file",
+                '<h1>File</h1><lf-file-editor id="file" binding="notes"></lf-file-editor>',
+            ),
+            packages=["file-editor"],
+        ),
+    )
+    editor = page.locator("lf-file-editor")
+    expect(editor.locator(".lf-file-editor-status")).to_contain_text("Unavailable")
+    expect(
+        editor.get_by_role("textbox", name="File contents", exact=True)
+    ).to_have_attribute("aria-readonly", "true")
+    expect(editor.get_by_role("button", name="Retry")).to_be_hidden()

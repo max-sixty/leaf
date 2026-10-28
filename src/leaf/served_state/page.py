@@ -59,7 +59,11 @@ def read_served_page(
         if active is not None
         else context.registry
     )
-    identity = selected_registry["$layer"] if active is not None else context.layer
+    identity = (
+        context.serve_layer(selected_registry["$layer"])
+        if active is not None
+        else context.layer
+    )
     state = {
         "layer": identity,
         "now": context.now,

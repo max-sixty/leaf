@@ -1112,8 +1112,8 @@ def deliverable(
     (`event_contracts.write_refusal`), where `receive_batch` refuses its receipt.
     Handed over anyway, it stayed pending, so a watch woke its session on every pass
     and a Codex watch opened a turn for it each time. Its session's hooks and
-    commands re-vendor such a page before they read it (`vendoring.renew_layer`), so
-    input waits here only on a page whose re-vendor was refused, and the hooks name
+    commands renew such a page's layer before they read it (`vendoring.renew_layer`),
+    so input waits here only on a page whose renewal was refused, and the hooks name
     why (`hook_transport.remedies`).
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
@@ -1260,7 +1260,7 @@ def receive_batch(
     restart's new generation and its claim, and an old envelope can be confirmed
     after ownership returns to its receiver. A receiver with no session takes
     receipt only while no session holds the page. Nor does one take it on a page
-    vendored at another protocol (`event_contracts.write_refusal`): its body could
+    at another protocol (`event_contracts.write_refusal`): its body could
     record no pickup there, and every transport retires a refused receipt rather
     than retrying it, leaving the input for a Leaf that can write the page.
     """

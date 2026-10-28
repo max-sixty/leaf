@@ -1,9 +1,13 @@
-/* Delivery reserves the real screenshot inspection drawing before behavior loads.
- * The view draws its symbols from the layer's icon table, which only this build-time
- * entry can import: shot-view.js also loads at run time beside the widget. */
-import { iconMarkup } from "../../../browser/runtime/icon-paths.js";
+/* Delivery and behavior use one retained screenshot template and root. The build
+ * entry supplies the layer's actions because shot-view.js also loads at run time. */
+import { render } from "/vendor/lit.js";
+import { actionOffers } from "../../../browser/runtime/icon-paths.js";
 import { ShotView } from "../widgets/shot-view.js";
-document.documentElement.lfInitial.register(
-  "lf-shot",
-  (host, tools) => new ShotView(host, { ...tools, iconMarkup }),
-);
+document.documentElement.lfInitial.register("lf-shot", (host, tools) => {
+  const view = new ShotView(host, { ...tools, ...actionOffers(tools) });
+  // Fitting needs the connected stage and frame labels. Draw their canonical
+  // template once to measure; the coordinator draws its resulting geometry.
+  render(view.render(), host, { host });
+  view.fit();
+  return view;
+});

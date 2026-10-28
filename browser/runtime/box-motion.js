@@ -145,7 +145,7 @@ function listen() {
 // the deviation of its Gaussian, so the shadow has faded to nothing seen by then. Read
 // off `element`, where the theme registers them as lengths. Cut at the drop and one
 // blur, the shadow stopped in a step.
-export const liftReach = (element, level) => {
+const liftReach = (element, level) => {
   const lift = getComputedStyle(element);
   const [drop, blur] = ["drop", "blur"].map((part) =>
     Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`)),

@@ -540,14 +540,6 @@ def test_a_comment_may_name_a_visual_inventory_part(page_dir):
     assert "--part needs --section" in unseated.output
 
 
-def declare_part_prefixes(page_dir, *prefixes):
-    """Give the page's diagram part-id prefixes in place of its authored list."""
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-diagram"]["x-visual"] = {"prefixes": list(prefixes)}
-    registry_path.write_text(json.dumps(registry))
-
-
 def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_dir):
     original = PAGE.replace(
         "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha and Gamma</p>'

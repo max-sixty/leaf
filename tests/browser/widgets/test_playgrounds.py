@@ -143,9 +143,14 @@ def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, se
     assert (
         card.evaluate("e => getComputedStyle(e, '::before').content") == '"Field note"'
     )
+    inputs = page.locator("#card-playground input").element_handles()
+    assert inputs
     held.pop().continue_()
     wait_until_ready(page)
     expect(card).to_have_css("border-radius", "12px")
+    # The live renderer takes the initial template's parts, preserving native fields.
+    assert page.locator("#card-playground input").count() == len(inputs)
+    assert page.evaluate("inputs => inputs.every(input => input.isConnected)", inputs)
 
 
 def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(

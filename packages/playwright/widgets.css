@@ -24,6 +24,13 @@ lf-trace {
   font: var(--t-5) / 1.45 var(--sans);
   overflow-wrap: anywhere;
 }
+/* Before its module connects, reserve the waiting line without generating copy.
+ * The live template owns the actual waiting message. */
+lf-trace:not(:defined)::before {
+  content: "";
+  display: block;
+  block-size: 1lh;
+}
 .lf-trace-view {
   display: contents;
 }

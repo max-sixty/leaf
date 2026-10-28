@@ -403,7 +403,7 @@ customElements.define('lf-button-pairs', class extends HTMLElement {
       ['mode-on', 'word'],
       ['mode-off', 'word'],
     ]) {
-      const button = offerAction(role, '', id, {icon});
+      const button = offerAction(role, '', id, {action: icon});
       button.id = id;
       if (id.startsWith('mode-')) button.setAttribute('aria-pressed', String(id === 'mode-on'));
       this.append(button);

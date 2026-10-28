@@ -6,7 +6,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { signal } from "/runtime/framework.js";
-import { html, LeafElement, nothing, noChange } from "/runtime/widget-api.js";
+import {
+  html,
+  LeafElement,
+  nothing,
+  noChange,
+  shadowStage,
+} from "/runtime/widget-api.js";
 import { focused, focusDestination } from "/runtime/focus.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
 import {
@@ -542,7 +548,7 @@ test("a setup that throws inside its own shadow root shows its failure there", a
     tag,
     class extends LeafElement {
       setup() {
-        this.attachShadow({ mode: "open" }).append(document.createElement("p"));
+        shadowStage(this, [document.createElement("p")]);
         throw new Error("cannot stage");
       }
       render() {

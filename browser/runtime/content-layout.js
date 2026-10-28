@@ -6,7 +6,7 @@
    Imports are inert; boot opens it once for every interactive document. */
 import { nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { repaintPage } from "./repaint.js";
-import { layoutChanged } from "./widget-elements.js";
+import { layoutChanged } from "./widget-upgrade.js";
 import { layoutBox, pageDocument } from "./passages.js";
 import { marks } from "./kernel-facts.js";
 import { pageControlsChanged } from "./page-controls.js";

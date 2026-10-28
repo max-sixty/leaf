@@ -200,6 +200,9 @@ def test_package_reading_keys_work_while_history_waits_and_after_offline_fallbac
     page.route("**/api/state*", refuse)
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-held-keys")).to_have_count(0)
+    # The notice comes down when the controller takes the queue; its next
+    # presentation frame finishes releasing the offline hold.
+    rendered(page)
     second.focus()
     page.keyboard.press("ArrowLeft")
     expect(first).to_have_attribute("aria-selected", "true")
@@ -600,10 +603,10 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
-          commands(document.body, 'On a draft',
-               [{ id: 'test.project-widget', keys: ['F2'],
-                  title: 'a project widget using the same heading' }]);
+          const { commandsChanged } = await window.__lfWidgetApi();
+          document.body.lfCommands = { title: 'On a draft', rows: [{ id: 'test.project-widget', keys: ['F2'],
+                  title: 'a project widget using the same heading' }] };
+          commandsChanged(document.body);
         }"""
     )
     page.keyboard.press("?")

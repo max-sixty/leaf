@@ -22,13 +22,6 @@ export const servedExecutable = /** @type {HTMLMetaElement | null} */ (
   document.querySelector('meta[name="lf-executable"][data-lf-runtime]')
 )?.content;
 
-export const documentWidgetDigests = (doc) => {
-  const stated = doc.querySelector('meta[name="lf-widgets"][data-lf-runtime]')?.content;
-  return stated ? JSON.parse(stated) : {};
-};
-
-export const servedWidgets = documentWidgetDigests(document);
-
 export function initializeServedDocument() {
   applicationState.identify(
     servedRevision ? parseInt(servedRevision, 10) : null,

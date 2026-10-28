@@ -36,6 +36,7 @@ import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
 import { watchPassageRoot } from "./passages.js";
 import { watchArrivalsIn } from "./arrivals.js";
+import { stagesFailure } from "./widget-upgrade.js";
 
 // A stage's theme <style>, kept while its rules are unchanged. A widget stages again
 // whenever its content changes, and a fresh <style> restyles every node in the root,
@@ -44,7 +45,7 @@ import { watchArrivalsIn } from "./arrivals.js";
 const stageStyles = new WeakMap();
 
 export function shadowStage(host, nodes) {
-  const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+  const root = host.shadowRoot ?? stageFor(host);
   // The stages' one registry (arrivals.js), and the watch over what stands in them: no
   // observer crosses the boundary on its own.
   watchArrivalsIn(root);
@@ -72,4 +73,14 @@ export function shadowStage(host, nodes) {
   // does not cross the boundary on its own.
   watchPassageRoot(root);
   return root;
+}
+
+// An x-shadow widget shows only what its stage holds, so its failure box stands there,
+// and the widget's next stage replaces it.
+function stageFor(host) {
+  stagesFailure(host, (box) => {
+    shadowStage(host, [box]);
+    return true;
+  });
+  return host.attachShadow({ mode: "open" });
 }

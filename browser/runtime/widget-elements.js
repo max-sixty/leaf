@@ -1,17 +1,15 @@
-/* The chrome a widget injects, the words it labels, and the room it measures.
+/* The chrome a widget injects and the words it labels.
 
    A behavior module builds injected controls with `offer`, a press wearing one of
    Leaf's control faces with `offerAction` by its role, marks words it writes that
    should stand apart from the author's with `generatedElement`, and uses `relabel`
    when a control's label is also one of the page's words. A Lit template reaches the
    same writers through element directives built by `elementDirective`. A behavior module
-   reads a box from inside `measure`: a widget upgrades wherever the runtime connects
-   it, and a shut panel is `display: none`, where every word measures zero. A label
+   reads a box from inside `measure` (shown-box.js). A label
    whose words change holds one room for all of them with `data-room`, which the
-   theme sizes without script and which cuts words past it (controls.css). A module calls
-   `layoutChanged(el)` after view state rearranges descendants without resizing its
-   outer box — `ResizeObserver` already covers size changes, and geometry consumers
-   listen to this signal instead of watching every DOM mutation.
+   theme sizes without script and which cuts words past it (controls.css). A module that
+   rearranges what it holds inside an unchanged box says so with `layoutChanged`
+   (widget-upgrade.js).
 
    A control is built so the browser does as much of it as it can. `offer` builds the
    corresponding native element, so activation, disabled state, focus, and
@@ -41,13 +39,12 @@
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
 import { PRESSES, WORKS } from "./control-selectors.js";
-import { sizeObserver } from "./rendering.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
-import { shownBox } from "./geometry.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
-import { iconElement, iconTemplate } from "./icons.js";
+import { actionName, actionOffers, showAction } from "./icon-paths.js";
+import { actionTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
 import { isNativeLayer } from "./shadow-tree.js";
 import { keeps, keepsText } from "./keeps.js";
@@ -141,69 +138,6 @@ export const dragging = (el, on) => {
   hands.value = held;
   paintKeysWithin(el);
 };
-
-// ResizeObserver covers size changes. A view swap can instead keep its outer box while
-// rearranging descendants, so the widget states that geometry change explicitly.
-export const LAYOUT = "lf-layout";
-export const layoutChanged = (el) => {
-  el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
-};
-
-// A number a widget can only read off a box the browser has laid out. Three ship: the
-// room a pick mark's word will need, the room a card keeps clear of its grip, the width
-// of a roster's state column. Every one is measured rather than stated for the same
-// reason — the face this page is actually set in, which no constant names across two
-// platforms — and every one reads 0 where there is no box to read.
-//
-// A widget upgrades wherever the runtime connects it, and not every one of those places
-// is drawn. A message body is built for every comment the log carries and connected
-// whether or not the user has opened the panel, and a shut panel is `display: none`:
-// every box beneath it is zero. `once` then refuses the second upgrade that would put
-// it right, and the body is cached for the life of the tab and never rebuilt — so a
-// zero taken there is indistinguishable from a measurement and stands for good. A pick
-// column collapsed to nothing, a grip drawn over the card's own title.
-//
-// So the module states the measurement and the runtime takes it: now, where there is
-// something to read, and otherwise the first time there is. ResizeObserver is the
-// browser's own answer to "this has a box now", and the one that answers it wherever
-// the element sits — a message scrolled past the panel's own fold has been laid out
-// just the same, which is the question an IntersectionObserver would get wrong.
-//
-// The observation ends at the reading it was waiting for, so what a measurement writes
-// cannot return through what triggered it: after the unobserve there is no second
-// delivery to the element that was just written.
-const measurements = new WeakMap();
-const drawn = (el) => {
-  const box = shownBox(el);
-  return Boolean(box.width || box.height);
-};
-const unmeasured = sizeObserver((entries) => {
-  const taking = [];
-  for (const { target } of entries) {
-    if (!drawn(target)) continue;
-    unmeasured.unobserve(target);
-    taking.push(measurements.get(target));
-    measurements.delete(target);
-  }
-  // Every one released before any of them is taken: a measurement writes room its own
-  // widget spends, which resizes it, and a widget still observed when that happens is a
-  // second delivery inside the round that wrote it.
-  for (const take of taking) take();
-});
-export function measure(el, take) {
-  // `shownBox`, not this element's own rect: a `display: contents` wrapper draws no box
-  // of its own and never will, and its contents are what the measurement is about. Asked
-  // the narrow way it would wait forever, holding the take and the observation with it.
-  if (drawn(el)) {
-    // A wait already pending for this element is over: it was waiting for the box
-    // this reading just found. Left pending it would deliver a second reading of
-    // the same number, which is harmless and still a claim that nothing was read.
-    if (measurements.delete(el)) unmeasured.unobserve(el);
-    return take();
-  }
-  measurements.set(el, take);
-  unmeasured.observe(el);
-}
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
 // one aimed at what it holds. This is the second: the nearest thing between `node` and
@@ -331,38 +265,38 @@ export function elementDirective(name, write) {
 export const offered = elementDirective("offered", offerElement);
 
 // A press that wears one of Leaf's control faces is built by its role, never by naming
-// the face's classes: `offerAction(role, className, label, {title, icon})` and, in a
-// template, `<button ${offeredAction(role, className, label)}>`. prepaint.js
-// (`ACTION_FACES`) lists the roles and says what each is for; `className` places the
-// control and never restyles its face. A symbol or mark is named by `label` as its
-// tooltip and accessible name; `icon` draws its symbol from icons.js, which a template
-// writes as the button's content. Initial producers receive the same `offerAction`.
-/** @type {LeafInitial["offerActionElement"]} */
-const offerActionElement = (...args) =>
-  document.documentElement.lfInitial.offerActionElement(...args);
-/**
- * @param {LeafActionRole} role
- * @param {string} [className]
- * @param {string} [label]
- * @param {{title?: string, icon?: string}} [options]
- */
-export function offerAction(role, className, label, { title, icon } = {}) {
-  const control = document.documentElement.lfInitial.offerAction(
-    role,
-    className,
-    label,
-    title === undefined ? undefined : { title },
-  );
-  if (icon)
-    control.append(
-      iconElement(icon, role === "mark" ? "lf-mark-icon" : "lf-action-icon"),
-    );
-  return control;
-}
+// the face's classes: `offerAction(role, className, label, {title, action})` and, in a
+// template, `<button ${offeredAction(role, className, label, {action})}></button>`.
+// prepaint.js (`ACTION_FACES`) lists the roles and says what each is for; `className`
+// places the control and never restyles its face. A symbol or mark names its `action`
+// (icon-paths.js, `ACTIONS`), whose symbol it shows and whose name it says as its
+// tooltip and accessible name unless `label` says more. Initial producers wrap the
+// tools they receive with the same `actionOffers`.
+const { offerAction, offerActionElement } = actionOffers({
+  offerAction: (...args) => document.documentElement.lfInitial.offerAction(...args),
+  offerActionElement: (...args) =>
+    document.documentElement.lfInitial.offerActionElement(...args),
+});
+export { offerAction };
 export const offeredAction = elementDirective("offeredAction", offerActionElement);
-// A control that is a vendor element, such as Web Awesome's copy button, wears its
-// role's face through the element writer (copy-control.js).
-export { offerActionElement };
+
+// A press whose face its surface draws rather than a role, such as the floating
+// panel's or a message's controls, still takes its symbol and name from its action:
+// `nameAction(button, action, {label, title, className})`, or in a template
+// `<button class="…" ${namedAction(action)}></button>`. It shows `action`'s symbol
+// first and says the action's name as tooltip and accessible name unless `label` says
+// more, as a symbol role does, so the name and the symbol can't drift apart.
+/**
+ * @param {Element} control @param {string} action
+ * @param {{label?: string, title?: string, className?: string}} [options]
+ */
+export function nameAction(control, action, { label, title, className } = {}) {
+  const name = label ?? actionName(action);
+  keeps(control, "aria-label", name);
+  keeps(control, "title", title ?? name);
+  showAction(control, action, className);
+}
+export const namedAction = elementDirective("namedAction", nameAction);
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. Chromium does not begin text selection inside a form control, so those
@@ -501,19 +435,20 @@ export function relabel(node, label, { says } = {}) {
 // closes, since the glyph alone says only "close". `name` is the accessible name, such
 // as "Close threads"; `title` is the hover's, which says the key where one closes it too.
 export const closeControl = ({ name, title = name, className = "" }) =>
-  offerAction("symbol", className, name, { title, icon: "cross" });
+  offerAction("symbol", className, name, { title, action: "close" });
 
 // The anchored response bar has one control grammar of its own. Its buttons share the
 // field's type, border, height, and floating elevation without claiming to be target-
 // margin entries. The repeated anatomy lets Comment, Suggest, and package reactions
-// change vocabulary without each inventing a button shape. Restating the anatomy a
-// control already wears writes nothing (keeps.js).
+// change vocabulary without each inventing a button shape. A reaction shows its glyph,
+// and Leaf's own actions their symbol (icon-paths.js, `ACTIONS`). Restating the anatomy
+// a control already wears writes nothing (keeps.js).
 export function responseAction(
   control,
-  { glyph = null, icon = null, label, behavior = "action", collapse = false },
+  { glyph = null, action = null, label, behavior = "action", collapse = false },
 ) {
-  if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
-    throw new TypeError("A response action needs exactly one glyph or icon");
+  if (Boolean(String(glyph ?? "").trim()) === Boolean(action))
+    throw new TypeError("A response action needs exactly one glyph or action");
   control.classList.toggle("lf-response-control", true);
   control.classList.toggle("lf-response-action", true);
   keeps(control, "data-lf-behavior", behavior);
@@ -524,8 +459,8 @@ export function responseAction(
   if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
   render(
     html`${
-        icon
-          ? iconTemplate(icon)
+        action
+          ? actionTemplate(action)
           : html`<span class="lf-response-action-glyph" aria-hidden="true"
               >${glyph}</span
             >`

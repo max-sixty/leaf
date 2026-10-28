@@ -2,11 +2,11 @@
 
 import json
 import struct
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
 
 import pytest
 import tinycss2
-from interact_support import PAGE
+from interact_support import PAGE, package_path, page_packages
 
 from leaf import revisioning as revisioning_model
 from leaf.exporting import AssetInliner, ReadableAssets
@@ -19,6 +19,7 @@ from leaf.revision_artifact import (
     capture_local_resource,
     read_artifact,
     resource_dependencies,
+    rewrite_css,
 )
 from leaf.revision_delivery import (
     Delivery,
@@ -127,40 +128,24 @@ def test_export_walks_css_imports_without_recursion_and_retains_their_meaning(
     assert reads == Counter({path: 1 for path in resources})
 
 
-@pytest.mark.parametrize("early_lit", [False, True])
-def test_initial_producers_are_captured_once_and_called_after_each_complete_host(
-    early_lit,
-):
+def test_initial_producers_are_captured_once_and_called_after_each_complete_host():
     source = (
         "<html><head><title>Initial</title></head><body><main>"
         '<lf-early id="first"><p>First</p></lf-early>'
         '<lf-early id="second"><p>Second</p></lf-early>'
-        + (
-            "<lf-lit></lf-lit>"
-            if early_lit
-            else "<template><lf-lit></lf-lit></template>"
-        )
-        + "<template><lf-unused></lf-unused></template>"
+        "<template><lf-unused></lf-unused></template>"
         "</main></body></html>"
     )
     registry = {
         "lf-early": {"x-initial": "/vendor/early.js"},
         "lf-unused": {"x-initial": "/vendor/unused.js"},
-        "lf-lit": {"x-initial": "/vendor/lit-producer.js"},
     }
     resources = {
         "/runtime/prepaint.js": Resource(
             b'window.prepaint = "</script>";', "application/javascript"
         ),
-        "/vendor/initial-dependencies.json": Resource(
-            b'{"/vendor/lit-producer.js":["/vendor/lit-initial.js"]}',
-            "application/json",
-        ),
         "/vendor/lit-initial.js": Resource(
             b"window.lit = true;", "application/javascript"
-        ),
-        "/vendor/lit-producer.js": Resource(
-            b"window.litProducer = true;", "application/javascript"
         ),
         "/vendor/early.js": Resource(
             b'window.initial = "</script>";', "application/javascript"
@@ -176,7 +161,6 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
         1,
         None,
         executable="sha256:fixture",
-        widgets={},
         resources=resources,
         registry=registry,
         delivery=Delivery(
@@ -188,7 +172,7 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
     parsed = SourceDocument(delivered.removeprefix("\ufeff"))
     scripts = parsed.tree.find_all("script")
     calls = [script for script in scripts if "lfInitial.mount" in script.text]
-    assert len(calls) == 2 + early_lit
+    assert len(calls) == 2
     assert [script.previous_sibling.tag for script in calls[:2]] == [
         "lf-early",
         "lf-early",
@@ -204,18 +188,13 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
     import_map = json.loads(parsed.tree.select_one('script[type="importmap"]').text)[
         "imports"
     ]
-    if early_lit:
-        assert (
-            delivered.index("window.prepaint")
-            < delivered.index("window.lit =")
-            < delivered.index("window.initial")
-        )
-        assert delivered.index("window.lit =") < delivered.index("window.litProducer")
-        assert import_map["/vendor/lit.js"] == ADDRESS("/vendor/lit-shared.js")
-        assert import_map[ADDRESS("/vendor/lit.js")] == ADDRESS("/vendor/lit-shared.js")
-    else:
-        assert "window.lit" not in delivered
-        assert "/vendor/lit.js" not in import_map
+    assert (
+        delivered.index("window.prepaint")
+        < delivered.index("window.lit =")
+        < delivered.index("window.initial")
+    )
+    assert import_map["/vendor/lit.js"] == ADDRESS("/vendor/lit-shared.js")
+    assert import_map[ADDRESS("/vendor/lit.js")] == ADDRESS("/vendor/lit-shared.js")
     assert mark_declared(source, registry, resources) == source
 
 
@@ -376,6 +355,17 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
     )
 
 
+def test_an_unavailable_url_drops_its_declaration_beside_one_the_browser_drops():
+    """A sheet the capture accepts may hold a declaration the browser ignores; omitting
+    an unavailable URL beside it keeps the rest of the rule instead of failing."""
+    rewritten = rewrite_css(
+        'main { broken; background: url("x.png"); color: red }', lambda url: None
+    )
+
+    assert "color: red" in rewritten
+    assert "x.png" not in rewritten
+
+
 def test_capture_delivery_and_export_read_one_set_of_stylesheet_urls(tmp_path):
     """Capture decides which files a stylesheet needs, delivery re-addresses them, and
     export embeds them, so all three have to find the same URLs in one sheet: a URL
@@ -424,8 +414,11 @@ def test_a_revision_shares_the_files_it_captured_unchanged(page_dir):
     bytes, and writes the ones that changed."""
     sheet = page_dir / "page" / "style.css"
     sheet.parent.mkdir(exist_ok=True)
+    (page_dir / "page" / "base.css").write_text("main { margin: 0; }")
     source = PAGE.replace(
-        "</head>", '<link rel="stylesheet" href="page/style.css"></head>'
+        "</head>",
+        '<link rel="stylesheet" href="page/base.css">'
+        '<link rel="stylesheet" href="page/style.css"></head>',
     )
 
     def activate(text, css):
@@ -496,6 +489,7 @@ def test_authored_lazy_positioning_import_uses_the_runtimes_public_provider(page
     capture: the Leaf delivering it supplies the provider with its runtime."""
     provider = "/vendor/floating-ui.esm.js"
     module = f'export const position = () => import("{provider}");'
+    (page_dir / "page").mkdir()
     (page_dir / "page" / "position.js").write_text(module)
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -518,16 +512,29 @@ def test_authored_lazy_positioning_import_uses_the_runtimes_public_provider(page
     ).data.decode() == module.replace(provider, ROOT + provider)
 
 
-def test_a_vendored_replacement_of_a_public_provider_is_captured_and_served(page_dir):
+def test_a_package_replacement_of_a_public_provider_is_served(page_dir):
     """A package may replace a public vendor module, and the page then runs its own:
-    the revision captures the vendored file, which wins over the runtime's."""
+    the layer's file wins over the runtime's, and the revision captures neither."""
+    from click.testing import CliRunner
+
+    from leaf import cli as cli_model
+
     provider = "/vendor/floating-ui.esm.js"
     own = b"export const computePosition = () => 'the package\\'s own';"
-    (page_dir / provider[1:]).write_bytes(own)
+    package = page_dir.parent / "positioning"
+    (package / "vendor").mkdir(parents=True)
+    (package / provider[1:]).write_bytes(own)
+    selection = (*page_packages(), package_path(package))
+    initialized = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "init", str(page_dir)]
+        + [arg for name in selection for arg in ("--package", name)],
+    )
+    assert initialized.exit_code == 0, initialized.output
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
     artifact = read_artifact(page_dir, activated.revision)
-    assert artifact.resources[provider].data == own
+    assert provider not in artifact.resources
     assert executing(artifact).resources[provider].data == own
 
 
@@ -663,6 +670,45 @@ def test_inert_json_cannot_end_or_reshape_its_script_element():
     assert json.loads(serialized)["said"] == hostile
 
 
+@pytest.mark.parametrize(
+    "script, deferred",
+    [
+        ('<script src="/page/a.js"></script>', True),
+        ('<script async src="/page/a.js"></script>', True),
+        ('<script defer src="/page/a.js"></script>', True),
+        ('<script type="module" async src="/page/a.js"></script>', False),
+        ('<script type="module" src="/page/a.js"></script>', False),
+    ],
+)
+def test_delivery_holds_every_script_until_the_runtime_has_read_the_page(
+    script, deferred
+):
+    """The runtime's module runs once the document has parsed, and every deferred
+    script after it, so delivery defers a classic script and drops `async`: none can
+    change the page before the runtime reads it, or throw before it listens. A module
+    is deferred already."""
+    source = f"<html><head></head><body><main>{script}</main></body></html>"
+    delivered = SourceDocument(rebase_document(source, ADDRESS))
+    [attrs] = [s["attrs"] for s in delivered.authoring.external_scripts]
+    assert "async" not in attrs
+    assert ("defer" in attrs) is deferred
+
+
+def test_an_inline_classic_script_runs_deferred_from_its_own_text():
+    """An inline classic script moves to a deferred `data:` file holding its text,
+    padded to its line and named index.html, so its errors name where it stands."""
+    source = (
+        "<html><head></head><body><main>\n<p>a</p>\n"
+        "<script>var x = 1 % 2; // & </script></main></body></html>"
+    )
+    delivered = SourceDocument(rebase_document(source, ADDRESS))
+    [script] = delivered.authoring.external_scripts
+    assert "defer" in script["attrs"]
+    prefix, text = script["attrs"]["src"].split(",", 1)
+    assert prefix == "data:text/javascript;charset=utf-8"
+    assert unquote(text) == "\n\nvar x = 1 % 2; // & \n//# sourceURL=index.html"
+
+
 @pytest.mark.parametrize("explicit_html", [True, False])
 def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
     """A host's marks land on the document's own wrapper tags, whether or not the
@@ -679,7 +725,6 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
         1,
         None,
         executable="sha256:fixture",
-        widgets={},
         resources={},
         registry={},
         delivery=Delivery(
@@ -742,7 +787,6 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         1,
         None,
         executable="sha256:fixture",
-        widgets={},
         resources={"/media/a.png": png(1200, 750), "/media/b.png": png(1100, 800)},
         registry=registry,
         delivery=Delivery(address=ADDRESS),

@@ -146,7 +146,7 @@ the panel and the transcript say when the agent did.
 transaction's lease. A retry whose `attempt` was accepted gets that record back
 without repeating the gesture, and an `attempt` the log holds for a different command
 is refused (HTTP 409). Otherwise admission reads the vocabulary the event's revision
-captured, so re-vendoring cannot reinterpret a document the user acted on; checks the
+captured, so `page init` cannot reinterpret a document the user acted on; checks the
 command against its kind's record schema before any gate reads its fields; allocates
 the id; runs the kind's gates against the page and the current log; derives `meaning`
 and `attention`; and validates the finished record against its stored schema.
@@ -331,10 +331,10 @@ to-do is made from an obligation.
 - An agent `reply` may move its thread with an `anchor` captured against its revision,
   or detach it with a null anchor, in the same append as the message explaining it. A
   thread whose opening comment `holds` a command goal cannot move or detach.
-- A body is Markdown, stored as typed and rendered by the page's vendored runtime, so
+- A body is Markdown, stored as typed and rendered by the serving Leaf's runtime, so
   the renderer and the panel's styles version together; raw HTML shows as text. A
   widget rides the `markup` field, which only `leaf thread create` and the reply commands
-  accept, validated against the vendored registry. The door refuses a Markdown link or
+  accept, validated against the page's registry. The door refuses a Markdown link or
   image, in text or markup, to a `/media/…` path the page directory cannot answer.
 - A raster image pasted into a browser text box is stored first as page media, and the
   draft holds an ordinary Markdown image at `/media/<digest>.<ext>`; no draft or event

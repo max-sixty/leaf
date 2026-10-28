@@ -26,6 +26,7 @@ from leaf import passages as passages_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.registry import storage as registry_storage
+from model.interact_contract import declare_vocabulary, vocabulary
 
 
 def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
@@ -436,7 +437,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
 def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     server, page_dir
 ):
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     registry["lf-suggestion"]["x-state"]["label"] = {
         "detail": {
             "type": "object",
@@ -446,7 +447,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
         },
         "unit": "widget",
     }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_vocabulary(page_dir, registry)
     snippet = '<lf-suggestion id="proposal" resolves="c1"><lf-new><p id="proposed">Ship after validation.</p></lf-new></lf-suggestion>'
     source = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + snippet)
     (page_dir / "index.html").write_text(source)

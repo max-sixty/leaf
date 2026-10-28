@@ -876,11 +876,11 @@ function widgetReading(inputs, descriptor) {
   };
 }
 
-/** @typedef {{ readonly semanticEpoch: number }} SemanticPresentationPublication */
+/** @typedef {object} SemanticPresentationPublication */
 
 /**
  * @typedef {{
- *   begin(semanticEpoch: number): SemanticPresentationPublication;
+ *   begin(): SemanticPresentationPublication;
  *   seal(publication: SemanticPresentationPublication): unknown;
  * }} PresentationLifecycle
  */
@@ -953,7 +953,7 @@ export function createSemanticApplication({ presentation } = {}) {
   /** @type {SemanticPresentationPublication | null} */
   let activePresentation = null;
 
-  if (presentation) presentation.seal(presentation.begin(initial.semanticEpoch));
+  if (presentation) presentation.seal(presentation.begin());
 
   /**
    * @param {SemanticDocument} document
@@ -1293,7 +1293,7 @@ export function createSemanticApplication({ presentation } = {}) {
           next.phase !== prior.phase ||
           next.document.revision !== prior.document.revision,
       );
-    if (presentation) activePresentation = presentation.begin(next.semanticEpoch);
+    if (presentation) activePresentation = presentation.begin();
     publicationDepth += 1;
     try {
       return publisher.publish(next);

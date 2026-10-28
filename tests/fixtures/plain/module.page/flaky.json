@@ -1,0 +1,26 @@
+{
+  "week": "19 October",
+  "suites": [
+    {
+      "name": "browser",
+      "tests": [
+        { "name": "test_render_threads::test_reply_keeps_draft", "retries": 14 },
+        { "name": "test_render_margin::test_rail_follows_resize", "retries": 6 },
+        { "name": "test_render_drafts::test_restore_after_reload", "retries": 2 }
+      ]
+    },
+    {
+      "name": "process",
+      "tests": [
+        { "name": "test_server::test_restart_keeps_claim", "retries": 9 },
+        { "name": "test_hooks::test_stop_waits_for_delivery", "retries": 3 }
+      ]
+    },
+    {
+      "name": "journeys",
+      "tests": [
+        { "name": "test_render_gate::test_page_fixture_renders[corpus]", "retries": 11 }
+      ]
+    }
+  ]
+}

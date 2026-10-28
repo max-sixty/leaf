@@ -49,6 +49,7 @@ export const runtimeEntries = [
   "runtime/layer-client.js",
   "runtime/media.js",
   "runtime/widget-api.js",
+  "runtime/portable-api.js",
   "runtime/check-api.js",
 ];
 
@@ -116,6 +117,24 @@ async function nativeImports(layerRoot, local, assetRoot) {
           ? browserPath(relative(layerRoot, resolve(dirname(path), specifier)))
           : specifier;
     });
+}
+
+/** The modules `runtime/portable-api.js` re-exports, which the compiler captures with
+ * their dependencies into one chunk. Left to its default, it splits them along every
+ * set of entries reaching each one, so a plain page loading the portable helpers, and
+ * a Leaf page's boot beside it, would fetch a handful of small chunks rather than one.
+ */
+async function portableHomes(layerRoot) {
+  const entry = join(layerRoot, "runtime/portable-api.js");
+  const module = parse(await readFile(entry, "utf8"), {
+    ecmaVersion: "latest",
+    sourceType: "module",
+  });
+  return new Set(
+    module.body
+      .filter((node) => node.source)
+      .map((node) => resolve(dirname(entry), node.source.value)),
+  );
 }
 
 /** Retain native static edges and keep their runtime imports as kernel entries. */
@@ -242,6 +261,7 @@ function kernelFacts(layerRoot, read) {
 async function compile(layerRoot, entries, assetRoot, minify) {
   const native = await nativeRuntimeEntries(layerRoot, assetRoot);
   entries = [...new Set([...entries, ...native.entries])];
+  const portable = await portableHomes(layerRoot);
   const inlined = new Set();
   const result = await build({
     cwd: layerRoot,
@@ -260,6 +280,7 @@ async function compile(layerRoot, entries, assetRoot, minify) {
       minify,
       minifyInternalExports: minify,
       comments: false,
+      codeSplitting: { groups: [{ name: "portable", test: (id) => portable.has(id) }] },
     },
     write: false,
   });

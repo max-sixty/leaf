@@ -6,7 +6,7 @@
  */
 
 import { ringBox, visibleFocus } from "../focus.js";
-import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
+import { shownParts } from "../geometry.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
   targetElement,
@@ -32,6 +32,7 @@ export function createAnchorPaint({
   targetPaint,
   pointer,
   currentLocationThreadId,
+  currentLocationObligation,
   rowThread,
   threadRow,
   marginThread,
@@ -82,10 +83,12 @@ export function createAnchorPaint({
     // Private controls and a face wearing another control's ring keep that paint, and
     // so does an obligation the user arrived at: its location ring (chrome.css) is its
     // focus cue, and a projected contour beside it drew a second line round it.
-    const ownsRing =
-      active &&
-      ringBox(active) === active &&
-      !active.hasAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
+    // Read that owner's current location too: its reflected attribute may still
+    // describe the previous location until the mechanical repaint.
+    const obligation = currentLocationObligation();
+    const obligationRing =
+      obligation && (active === obligation || shownParts(obligation).includes(active));
+    const ownsRing = active && ringBox(active) === active && !obligationRing;
     if (ownsRing && active.getRootNode() === document && pageWords(active))
       elements.add(active);
     const focus = new Set(ownsRing && elements.has(active) ? [active] : []);

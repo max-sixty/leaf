@@ -134,6 +134,7 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
     folder.mkdir()
     target = folder / "notes.txt"
     target.write_text("hello\n")
+    (page_dir / "page").mkdir(exist_ok=True)
     page = resolve_dir(str(respelled(page_dir)), renew=False)
     bind_file(page, "notes", respelled(target))
     changes, _generation = page_changes(page)

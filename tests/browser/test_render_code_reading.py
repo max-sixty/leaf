@@ -1,5 +1,6 @@
 """Reader code views retain source evidence while changing line presentation."""
 
+import re
 from html import escape
 from socket import gethostname
 
@@ -88,7 +89,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     source = leaf_page(
         "Code reading",
         '<h1 id="title">Code reading</h1><p id="note">Original review.</p>'
-        f'<lf-code id="code" language="python"><pre>{escape(code)}</pre></lf-code>',
+        f'<lf-code id="code" language="python" hi="2"><pre>{escape(code)}</pre></lf-code>',
     )
     url = live_url(serve(source))
     context = browser.new_context(
@@ -100,6 +101,14 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     page = open_page(browser, url, context=context)
     host = page.locator("#code")
     pre = host.locator("pre")
+    # What lf-code declares rather than asks for, which only Leaf reads: its `w`
+    # (`lfCommands`), a Copy control standing after its block (`data-lf-copy`), and the
+    # word its highlighted line says to a listener (`data-lf-quiet`).
+    expect(host).to_have_attribute(
+        "aria-keyshortcuts", re.compile(r"^w$", re.IGNORECASE)
+    )
+    expect(host.locator(":scope > pre + .lf-code-copy")).to_have_count(1)
+    expect(host.locator(".lf-code-line.hi > .lf-quiet")).to_have_text("highlighted")
     before = pre.evaluate("e => ({text:e.textContent, height:e.clientHeight})")
     page.evaluate(
         "window.sourceRows = [...document.querySelectorAll('#code .lf-code-line')]"

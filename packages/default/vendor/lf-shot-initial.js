@@ -1,4 +1,7 @@
 (() => {
+  // leaf-initial-lit:lit
+  var { AsyncDirective, AsyncReplaceDirective, CSSResult, Directive, LitElement, PartType, ReactiveElement, TemplateResultType, UnsafeHTMLDirective, UntilDirective, _$LE, _$LH, adoptStyles, asyncAppend, asyncReplace, cache, choose, classMap, clearPart, createRef, css, customElement, defaultConverter, directive, eventOptions, getCommittedValue, getCompatibleStyle, getDirectiveClass, guard, html, ifDefined, insertPart, isCompiledTemplateResult, isDirectiveResult, isPrimitive, isServer, isSingleExpression, isTemplateResult, join, keyed, literal, live, map, mathml, noChange, notEqual, nothing, property, query, queryAll, queryAssignedElements, queryAssignedNodes, queryAsync, range, ref, removePart, render, repeat, setChildPartValue, setCommittedValue, standardProperty, state, staticHtml, staticMathml, staticSvg, styleMap, supportsAdoptingStyleSheets, svg, templateContent, unsafeCSS, unsafeHTML, unsafeMathML, unsafeSVG, unsafeStatic, until, when, withStatic } = document.documentElement.lfInitial.lit;
+
   // browser/runtime/icon-paths.js
   var SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
   var ICONS = {
@@ -6,6 +9,9 @@
     add: '<path d="M8 3v10M3 8h10"/>',
     change: '<path d="M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13"/>',
     check: '<path d="m3 8.25 3.15 3.15L13 4.75"/>',
+    // A task app's ticked circle, for the to-do the user ends: a bare check is Resolve's,
+    // and a to-do on a thread stands under its thread's Resolve.
+    checked: '<circle cx="8" cy="8" r="5.5"/><path d="m5.6 8.15 1.7 1.7 3.1-3.3"/>',
     comment: '<path d="M3 3.25h10v7H7.25L4 12.75v-2H3z"/>',
     // The common copy glyph: the front sheet at the bottom right. Mirrored, with the front
     // sheet at the bottom left, two squares read as a window's Restore button.
@@ -48,14 +54,131 @@
     up: '<path d="m4 9.75 4-4 4 4"/>',
     waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>'
   };
+  var SVG = "http://www.w3.org/2000/svg";
   var iconMarkup = (icon) => {
     const markup = ICONS[icon];
     if (!markup) throw new TypeError(`Unknown Leaf icon: ${icon}`);
     return markup;
   };
-
-  // leaf-initial-lit:lit
-  var { AsyncDirective, AsyncReplaceDirective, CSSResult, Directive, LitElement, PartType, ReactiveElement, TemplateResultType, UnsafeHTMLDirective, UntilDirective, _$LE, _$LH, adoptStyles, asyncAppend, asyncReplace, cache, choose, classMap, clearPart, createRef, css, customElement, defaultConverter, directive, eventOptions, getCommittedValue, getCompatibleStyle, getDirectiveClass, guard, html, ifDefined, insertPart, isCompiledTemplateResult, isDirectiveResult, isPrimitive, isServer, isSingleExpression, isTemplateResult, join, keyed, literal, live, map, mathml, noChange, notEqual, nothing, property, query, queryAll, queryAssignedElements, queryAssignedNodes, queryAsync, range, ref, removePart, render, repeat, setChildPartValue, setCommittedValue, standardProperty, state, staticHtml, staticMathml, staticSvg, styleMap, supportsAdoptingStyleSheets, svg, templateContent, unsafeCSS, unsafeHTML, unsafeMathML, unsafeSVG, unsafeStatic, until, when, withStatic } = document.documentElement.lfInitial.lit;
+  function iconElement(icon, className = "lf-margin-entry-icon") {
+    const svg2 = document.createElementNS(SVG, "svg");
+    svg2.setAttribute("viewBox", "0 0 16 16");
+    svg2.setAttribute("focusable", "false");
+    svg2.setAttribute("aria-hidden", "true");
+    svg2.setAttribute("class", className);
+    svg2.dataset.lfIcon = icon;
+    svg2.innerHTML = iconMarkup(icon);
+    return svg2;
+  }
+  var ACTIONS = {
+    accept: { name: "Accept", icon: "check" },
+    add: { name: "Add", icon: "add" },
+    arrange: { name: "Arrange", icon: "arrange" },
+    cancel: { name: "Cancel", icon: "cross" },
+    close: { name: "Close", icon: "cross" },
+    collapse: { name: "Collapse", icon: "collapse" },
+    comment: { name: "Comment", icon: "comment" },
+    copy: { name: "Copy", icon: "copy" },
+    "copy-link": { name: "Copy link", icon: "link" },
+    dictate: { name: "Dictate", icon: "microphone" },
+    discard: { name: "Discard", icon: "cross" },
+    done: { name: "Done", icon: "checked" },
+    edit: { name: "Edit", icon: "edit" },
+    expand: { name: "Expand", icon: "expand" },
+    find: { name: "Find", icon: "search" },
+    "collapse-all": { name: "Collapse all", icon: "fold" },
+    "expand-all": { name: "Expand all", icon: "unfold" },
+    fit: { name: "Fit", icon: "fit" },
+    minimize: { name: "Minimize", icon: "subtract" },
+    more: { name: "More options", icon: "more" },
+    next: { name: "Next", icon: "next" },
+    // A find bar's steps run up and down its matches, as a browser's do.
+    "next-match": { name: "Next match", icon: "down" },
+    "on-me": { name: "On me", icon: "inbox" },
+    pause: { name: "Pause", icon: "pause" },
+    play: { name: "Play", icon: "play" },
+    previous: { name: "Previous", icon: "previous" },
+    "previous-match": { name: "Previous match", icon: "up" },
+    react: { name: "Add reaction", icon: "reaction" },
+    remove: { name: "Remove", icon: "cross" },
+    reject: { name: "Reject", icon: "cross" },
+    reopen: { name: "Reopen", icon: "check" },
+    reset: { name: "Reset", icon: "retry" },
+    resolve: { name: "Resolve", icon: "check" },
+    retry: { name: "Retry", icon: "retry" },
+    save: { name: "Save", icon: "save" },
+    send: { name: "Send", icon: "send" },
+    show: { name: "Show", icon: "locate" },
+    start: { name: "Start", icon: "start" },
+    suggest: { name: "Suggest", icon: "edit" },
+    undo: { name: "Undo", icon: "undo" },
+    "zoom-in": { name: "Zoom in", icon: "add" },
+    "zoom-out": { name: "Zoom out", icon: "subtract" }
+  };
+  var actionIcon = (action) => {
+    const named = ACTIONS[action];
+    if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
+    return named.icon;
+  };
+  var actionName = (action) => {
+    actionIcon(action);
+    return ACTIONS[action].name;
+  };
+  var SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
+  function actionFace(role, label, action) {
+    if (!SYMBOLIC.has(role)) {
+      if (action !== void 0)
+        throw new TypeError(`A ${role} says its label and shows no action's symbol`);
+      return label;
+    }
+    if (action === void 0) throw new TypeError(`A ${role} names the action it shows`);
+    const name = actionName(action);
+    return label ?? name;
+  }
+  function showAction(control, action, className = "lf-action-icon") {
+    const icon = actionIcon(action);
+    const drawn = control.querySelector(":scope > svg[data-lf-icon]");
+    if (drawn?.getAttribute("data-lf-icon") === icon) return;
+    const symbol = iconElement(icon, className);
+    if (drawn) drawn.replaceWith(symbol);
+    else control.prepend(symbol);
+  }
+  var drawAction = (node, role, action) => showAction(node, action, role === "mark" ? "lf-mark-icon" : "lf-action-icon");
+  function actionOffers(base) {
+    const titled = (title) => title === void 0 ? void 0 : { title };
+    return {
+      /**
+       * @param {LeafActionRole} role @param {string} [className] @param {string} [label]
+       * @param {{title?: string, action?: string}} [options]
+       */
+      offerAction(role, className, label, { title, action } = {}) {
+        const node = base.offerAction(
+          role,
+          className,
+          actionFace(role, label, action),
+          titled(title)
+        );
+        if (SYMBOLIC.has(role)) drawAction(node, role, action);
+        return node;
+      },
+      /**
+       * @template {Element} T
+       * @param {T} node @param {LeafActionRole} role @param {string} [className]
+       * @param {string} [label] @param {{title?: string, action?: string}} [options]
+       */
+      offerActionElement(node, role, className, label, { title, action } = {}) {
+        base.offerActionElement(
+          node,
+          role,
+          className,
+          actionFace(role, label, action),
+          titled(title)
+        );
+        if (SYMBOLIC.has(role)) drawAction(node, role, action);
+        return node;
+      }
+    };
+  }
 
   // packages/default/widgets/shot-view.js
   var SHOT_VIEWS = {
@@ -188,7 +311,13 @@
       this.outlineRef = (node) => node && tools.offerActionElement(node, "word", "lf-shot-outline");
       this.scaleRef = (node) => {
         if (node)
-          this.scaleTrigger = tools.offerActionElement(node, "symbol", "lf-shot-scale");
+          this.scaleTrigger = tools.offerActionElement(
+            node,
+            "symbol",
+            "lf-shot-scale",
+            "Image options",
+            { action: "more" }
+          );
       };
       let optionsId;
       do
@@ -196,10 +325,8 @@
       while (document.getElementById(optionsId));
       this.optionsId = optionsId;
       host.replaceChildren();
-      this.paint();
-      if (this.fit()) this.paint();
     }
-    paint() {
+    render() {
       const { host, tools, optionsId } = this;
       const { offerElement, generatedElement, keeps } = tools;
       const offered = (cls, save = void 0) => ref((node) => {
@@ -290,101 +417,85 @@
       });
       keeps(host, "data-lf-shot-mode", this.view);
       keeps(host, "data-lf-shot-outlines", this.outlines);
-      render(
-        html`
-        <div ${offered("lf-shot-toolbar lf-ui", (node) => this.toolbar = node)}>
-          ${caption("before")}
-          <div ${offered("lf-shot-actions")}>
-            ${choices("Comparison view", SHOT_VIEWS, this.view, this.chooseView)}
-            <div ${offered("lf-shot-tools")}>
-              <button
-                ${ref(this.scaleRef)}
-                type="button"
-                aria-label="Image options"
-                popovertarget=${optionsId}
-                @click=${this.toggleOptions ?? null}
-              >
-                <svg
-                  viewBox="0 0 16 16"
-                  focusable="false"
-                  aria-hidden="true"
-                  class="lf-action-icon"
-                  data-lf-icon="more"
-                  .innerHTML=${this.tools.iconMarkup("more")}
-                ></svg>
-              </button>
-              <button
-                ${ref(this.outlineRef)}
-                type="button"
-                aria-label="Outline changes"
-                title="Outline changes"
-                aria-pressed=${String(this.outlines)}
-                aria-description=${this.description ?? nothing}
-                ?disabled=${this.view === "pixels" || !this.reading?.regions.length}
-                @click=${this.toggleOutlines ?? null}
-              >
-                Outline
-              </button>
-              <div
-                ${offered("lf-shotoptions", (node) => this.options = node)}
-                id=${optionsId}
-                popover="auto"
-                role="group"
-                aria-label="Image options"
-              >
-                ${choices(
-          "Image scale",
-          { fit: "Fit", actual: "100%" },
-          this.actual ? "actual" : "fit",
-          this.chooseScale,
-          "lf-shot-scale-options"
-        )}
-                <label
-                  ${offered("choice lf-shotchoice")}
-                  ?hidden=${!this.metadata.focus}
-                >
-                  <input
-                    ${offered("")}
-                    type="checkbox"
-                    .checked=${this.full}
-                    @change=${this.changeFull ?? null}
-                  />
-                  <span ${offered("")}>Full frame</span>
-                </label>
-                <div ${offered("lf-shot-pixel-key")}>
-                  <span ${offered("lf-shot-key-swatch")} aria-hidden="true"></span>
-                  <span ${offered("")}>Changed pixels</span>
-                </div>
+      return html`
+      <div ${offered("lf-shot-toolbar lf-ui", (node) => this.toolbar = node)}>
+        ${caption("before")}
+        <div ${offered("lf-shot-actions")}>
+          ${choices("Comparison view", SHOT_VIEWS, this.view, this.chooseView)}
+          <div ${offered("lf-shot-tools")}>
+            <button
+              ${ref(this.scaleRef)}
+              type="button"
+              popovertarget=${optionsId}
+              @click=${this.toggleOptions ?? null}
+            ></button>
+            <button
+              ${ref(this.outlineRef)}
+              type="button"
+              aria-label="Outline changes"
+              title="Outline changes"
+              aria-pressed=${String(this.outlines)}
+              aria-description=${this.description ?? nothing}
+              ?disabled=${this.view === "pixels" || !this.reading?.regions.length}
+              @click=${this.toggleOutlines ?? null}
+            >
+              Outline
+            </button>
+            <div
+              ${offered("lf-shotoptions", (node) => this.options = node)}
+              id=${optionsId}
+              popover="auto"
+              role="group"
+              aria-label="Image options"
+            >
+              ${choices(
+        "Image scale",
+        { fit: "Fit", actual: "100%" },
+        this.actual ? "actual" : "fit",
+        this.chooseScale,
+        "lf-shot-scale-options"
+      )}
+              <label ${offered("choice lf-shotchoice")} ?hidden=${!this.metadata.focus}>
+                <input
+                  ${offered("")}
+                  type="checkbox"
+                  .checked=${this.full}
+                  @change=${this.changeFull ?? null}
+                />
+                <span ${offered("")}>Full frame</span>
+              </label>
+              <div ${offered("lf-shot-pixel-key")}>
+                <span ${offered("lf-shot-key-swatch")} aria-hidden="true"></span>
+                <span ${offered("")}>Changed pixels</span>
               </div>
             </div>
           </div>
-          ${caption("after")}
         </div>
-        <div
-          class="lf-shotstage"
-          tabindex="0"
-          role="region"
-          aria-label=${`Screenshot comparison \u2014 ${host.getAttribute("alt")}`}
-          ${box((node) => this.stage = node)}
-        >
-          <div class="lf-shotcanvas" ${box((node) => this.canvas = node)}>
-            ${["before", "after"].map(frame)}
-            ${this.pixels ? html`<div
-                    class="lf-shotpixels lf-shotimage lf-media-frame"
-                    role="img"
-                    aria-label=${`changed pixels: ${host.getAttribute("alt")}`}
-                    ${box()}
-                  >
-                    <div class="lf-shotplane" ${box()}>
-                      <img alt="" src=${this.images[1]?.src || nothing} />
-                      <span class="lf-shot-pixel-mask" style=${pixelStyle}></span>
-                    </div>
-                  </div>` : nothing}
-          </div>
+        ${caption("after")}
+      </div>
+      <div
+        class="lf-shotstage"
+        tabindex="0"
+        role="region"
+        aria-label=${`Screenshot comparison \u2014 ${host.getAttribute("alt")}`}
+        ${box((node) => this.stage = node)}
+      >
+        <div class="lf-shotcanvas" ${box((node) => this.canvas = node)}>
+          ${["before", "after"].map(frame)}
+          ${this.pixels ? html`<div
+                  class="lf-shotpixels lf-shotimage lf-media-frame"
+                  role="img"
+                  aria-label=${`changed pixels: ${host.getAttribute("alt")}`}
+                  ${box()}
+                >
+                  <div class="lf-shotplane" ${box()}>
+                    <img alt="" src=${this.images[1]?.src || nothing} />
+                    <span class="lf-shot-pixel-mask" style=${pixelStyle}></span>
+                  </div>
+                </div>` : nothing}
         </div>
-      `,
-        host
-      );
+      </div>
+    `;
     }
     fit() {
       const { host, stage, metadata, images, frames } = this;
@@ -411,8 +522,10 @@
   };
 
   // packages/default/initial/lf-shot.js
-  document.documentElement.lfInitial.register(
-    "lf-shot",
-    (host, tools) => new ShotView(host, { ...tools, iconMarkup })
-  );
+  document.documentElement.lfInitial.register("lf-shot", (host, tools) => {
+    const view = new ShotView(host, { ...tools, ...actionOffers(tools) });
+    render(view.render(), host, { host });
+    view.fit();
+    return view;
+  });
 })();

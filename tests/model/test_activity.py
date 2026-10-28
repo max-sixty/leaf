@@ -233,7 +233,7 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
         "operation": "work",
     }
 
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -615,7 +615,7 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
     serving(claimed, 1)
     session_model.cmd_waiting(claimed)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -644,7 +644,7 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     serving(claimed, 1)
     session_model.cmd_waiting(claimed)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -729,7 +729,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     and its own date, and the step is reported beside it."""
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -796,7 +796,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
 def test_a_malformed_old_stream_record_is_ignored(claimed):
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -845,7 +845,7 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
 def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -1047,7 +1047,7 @@ def test_a_process_free_publication_keeps_input_without_claimant_facts(claimed):
     )
     session_model.cmd_waiting(claimed)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
+    lease = leases_model.take_wait_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -1212,7 +1212,7 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
             "text": "Handled before the next turn.",
         },
     )
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(d, "s"))
+    lease = leases_model.take_wait_lease(leases_model.waiter_lease_path(d, "s"))
     assert lease
     try:
         declare("working", "revising the plan")
@@ -1351,7 +1351,7 @@ def test_an_ended_pickup_keeps_the_invitation_the_agent_declared(page_dir):
         {"kind": "comment", "author": "user", "revision": 1, "text": "Comment 0."},
     )
     claim = record_claim(page_dir, id="s", pid=os.getpid(), agent="Claude")
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(page_dir, "s"))
+    lease = leases_model.take_wait_lease(leases_model.waiter_lease_path(page_dir, "s"))
     assert lease
     try:
         with service_model.PageTransaction(page_dir) as transaction:

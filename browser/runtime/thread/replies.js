@@ -416,8 +416,10 @@ export const replyIsEditing = (key) => {
   return compositions.has(replyContext(key));
 };
 
-// Every reply renderer and route shares the same admission: open conversation,
-// or a settled conversation whose native editing session still owns its words.
+// Cards, the margin and reply routes share one admission: open conversation, or a
+// settled conversation whose native editing session still owns its words. A reply
+// part a presentation nominates stands in a resolved thread too, where its place is
+// already given and a reply reopens the thread (primary-reader.js).
 export const replyAvailable = (thread) =>
   !thread.resolved || replyIsEditing(threadKey(thread));
 

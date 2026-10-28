@@ -1167,17 +1167,24 @@ const offerElement = (node, cls) => {
 	if (cls) node.classList.add(...cls.split(" ").filter(Boolean));
 	return node;
 };
+const offerActionElement = (node, role, cls, label, { title = label } = {}) => {
+	offerElement(node, cls);
+	if (label !== void 0 && (role === "symbol" || role === "mark")) {
+		node.setAttribute("aria-label", label);
+		node.setAttribute("title", title);
+	}
+	return node;
+};
+const offerAction = (role, cls, label, options) => {
+	const node = offerActionElement(document.createElement("button"), role, cls, label, options);
+	if (label !== void 0 && role !== "symbol" && role !== "mark") node.textContent = label;
+	return node;
+};
 const plainTools = (host) => ({
 	tabStore,
 	offerElement,
-	offerActionElement(node, role, cls, label, { title = label } = {}) {
-		offerElement(node, cls);
-		if (label !== void 0 && (role === "symbol" || role === "mark")) {
-			node.setAttribute("aria-label", label);
-			node.setAttribute("title", title);
-		}
-		return node;
-	},
+	offerActionElement,
+	offerAction,
 	authoredBody(node) {
 		node.append(...host.childNodes);
 		return node;

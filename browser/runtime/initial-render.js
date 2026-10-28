@@ -26,19 +26,35 @@ const offerElement = (node, cls) => {
   if (cls) node.classList.add(...cls.split(" ").filter(Boolean));
   return node;
 };
+// `label` names the press, as prepaint.js's constructors take it: a symbol or mark says
+// it as its accessible name and tooltip, and `offerAction` writes a worded role's words.
+const offerActionElement = (node, role, cls, label, { title = label } = {}) => {
+  offerElement(node, cls);
+  if (label !== undefined && (role === "symbol" || role === "mark")) {
+    node.setAttribute("aria-label", label);
+    node.setAttribute("title", title);
+  }
+  return node;
+};
+const offerAction = (role, cls, label, options) => {
+  const node = offerActionElement(
+    document.createElement("button"),
+    role,
+    cls,
+    label,
+    options,
+  );
+  if (label !== undefined && role !== "symbol" && role !== "mark")
+    node.textContent = label;
+  return node;
+};
 // The producer tools a widget that also runs off Leaf may use, in the shapes
 // prepaint.js gives them; the others stay Leaf's.
 const plainTools = (host) => ({
   tabStore,
   offerElement,
-  offerActionElement(node, role, cls, label, { title = label } = {}) {
-    offerElement(node, cls);
-    if (label !== undefined && (role === "symbol" || role === "mark")) {
-      node.setAttribute("aria-label", label);
-      node.setAttribute("title", title);
-    }
-    return node;
-  },
+  offerActionElement,
+  offerAction,
   authoredBody(node) {
     node.append(...host.childNodes);
     return node;

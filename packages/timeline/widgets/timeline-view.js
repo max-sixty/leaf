@@ -1,11 +1,12 @@
 /* lf-timeline's drawing: transport, chart and step list. The initial renderer
- * (`lf-timeline.js` beside this file) bundles this module and draws before first
- * paint, so the widget first shows whole; the widget module
- * (`../widgets/lf-timeline.js`) adopts the returned drawing and only adds behavior
- * to it, and a widget arriving later is drawn by the same bundle. Nothing loads this
- * file at run time, so its imports resolve at build time: Lit binds to the
- * initialized instance, and the axis geometry is the kernel's `time-axis.js`, the
- * one the Playwright timeline also draws with.
+ * (`../initial/lf-timeline.js`) bundles this module and draws before first paint, so
+ * the widget first shows whole; the widget module (`lf-timeline.js` beside this file)
+ * adopts the returned drawing and only adds behavior to it, and a widget arriving
+ * later is drawn by the same bundle. On a page without Leaf nothing drew first, so the
+ * widget module imports this one and draws with it (`initialRender`). Its imports are
+ * the portable helpers either way: in the bundle Lit binds to the initialized instance,
+ * and the axis geometry is the kernel's `time-axis.js`, the one the Playwright
+ * timeline also draws with.
  *
  * The model is the event: each instant and each span's start is one step, events
  * that start together share it, and a span's end is not a step. The playhead stands
@@ -25,13 +26,17 @@
  * or the paper's width when printing, lays them out again; the lane count and the
  * label rows that width allows set the height.
  */
-import { html, nothing, ref, render, repeat } from "/vendor/lit.js";
 import {
+  actionOffers,
   assignRows,
   axisTicks,
+  html,
+  nothing,
+  ref,
+  render,
+  repeat,
   textWidth,
-} from "../../../browser/runtime/time-axis.js";
-import { actionOffers } from "../../../browser/runtime/icon-paths.js";
+} from "/runtime/portable-api.js";
 
 // The track's inset at each end, so a mark at 0 or at the end isn't cut in half. The
 // theme reads it as --lf-timeline-edge.

@@ -5,7 +5,8 @@ import test from "node:test";
 import { render, nothing, html, LeafElement } from "/runtime/widget-api.js";
 import { authoredBody, initialRender, initialOrigin } from "/runtime/initial-render.js";
 import { unmarkedCopy } from "/runtime/initial-render.js";
-import { tabStore } from "/runtime/storage.js";
+import { tabStore } from "/runtime/tab-store.js";
+import { actionOffers } from "/runtime/icon-paths.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import {
   rememberAuthoredParents,
@@ -361,4 +362,29 @@ test("a parser template becomes the live element's same Lit root without losing 
   assert.equal(input.value, "Reader's draft");
   assert.equal(disclosure.open, false);
   host.remove();
+});
+
+test("off Leaf, a producer gets both role constructors in prepaint's shapes", () => {
+  document.body.innerHTML = "<main><lf-plain-host></lf-plain-host></main>";
+  const host = document.querySelector("lf-plain-host");
+  const root = document.documentElement;
+  const leaf = root.lfInitial;
+  delete root.lfInitial;
+  try {
+    const drawing = initialRender(host, (_, tools) => {
+      const offers = actionOffers(tools);
+      const play = offers.offerAction("symbol", "play", "Play", { action: "play" });
+      const send = offers.offerAction("commit", "", "Send");
+      host.append(play, send);
+      return { play, send, render: () => nothing };
+    });
+    assert.equal(drawing.play.localName, "button");
+    assert.equal(drawing.play.type, "button");
+    assert.equal(drawing.play.getAttribute("aria-label"), "Play");
+    assert.ok(drawing.play.querySelector("svg"));
+    assert.equal(drawing.send.textContent, "Send");
+    assert.equal(drawing.send.getAttribute("aria-label"), null);
+  } finally {
+    root.lfInitial = leaf;
+  }
 });

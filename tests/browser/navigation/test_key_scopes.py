@@ -552,7 +552,7 @@ def test_a_native_modal_escapes_inherited_inertness_for_its_commands(browser, se
     """
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate("""async () => {
-      const {commands} = await window.__lfWidgetApi();
+      const {commandsChanged} = await window.__lfWidgetApi();
       const region = document.createElement('section');
       region.inert = true;
       const dialog = document.createElement('dialog');
@@ -560,9 +560,10 @@ def test_a_native_modal_escapes_inherited_inertness_for_its_commands(browser, se
       const button = document.createElement('button');
       button.id = 'escaped-modal-control';
       button.textContent = 'Run the modal command';
-      commands(button, 'Inside the native modal', [{id:'test.inert-modal', keys:['v'],
+      button.lfCommands = { title: 'Inside the native modal', rows: [{id:'test.inert-modal', keys:['v'],
         title:'Run the modal command',
-        run:() => { button.dataset.runs = String(Number(button.dataset.runs || 0) + 1); }}]);
+        run:() => { button.dataset.runs = String(Number(button.dataset.runs || 0) + 1); }}] };
+      commandsChanged(button);
       dialog.append(button);
       region.append(dialog);
       document.querySelector('main').append(region);
@@ -618,18 +619,19 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
     page = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const host = document.createElement('section');
           host.id = 'key-owning-widget';
           const box = document.createElement('textarea');
           host.append(box);
           document.querySelector('main').append(host);
-          commands(host, 'Around a text box', [
+          host.lfCommands = { title: 'Around a text box', rows: [
             {id: 'test.widget',
              keys: ['a', 'Enter', 'Shift+ArrowLeft', 'Mod+z', 'Escape'],
              title: 'Work the widget', line: 'work widget',
              run: (binding) => host.dataset.fired = binding},
-          ]);
+          ] };
+          commandsChanged(host);
           box.focus();
         }"""
     )
@@ -653,17 +655,18 @@ def test_radio_and_slider_keys_stay_with_the_control_inside_a_modal(browser, ser
     page = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const dialog = document.createElement('dialog');
           dialog.id = 'control-key-owner';
           dialog.innerHTML = '<label>First<input type="radio" name="choice" value="one" checked></label>' +
             '<label>Second<input type="radio" name="choice" value="two"></label>' +
             '<label>Amount<input type="range" min="0" max="100" value="50"></label>';
           document.querySelector('main').append(dialog);
-          commands(dialog, 'Around native controls', [{id: 'test.ancestor',
+          dialog.lfCommands = { title: 'Around native controls', rows: [{id: 'test.ancestor',
             keys: ['ArrowDown', 'Shift+ArrowRight', 'Home'],
             title: 'Work the widget', line: 'work widget',
-            run: (binding) => dialog.dataset.fired = binding}]);
+            run: (binding) => dialog.dataset.fired = binding}] };
+          commandsChanged(dialog);
           dialog.showModal();
         }"""
     )
@@ -681,11 +684,12 @@ def test_radio_and_slider_keys_stay_with_the_control_inside_a_modal(browser, ser
     expect(host).not_to_have_attribute("data-fired")
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const slider = document.querySelector('#control-key-owner input[type="range"]');
-          commands(slider, 'Exact control', [{id: 'test.control', keys: ['ArrowDown'],
+          slider.lfCommands = { title: 'Exact control', rows: [{id: 'test.control', keys: ['ArrowDown'],
             title: 'Work this control', line: 'work control',
-            run: () => slider.value = 75}]);
+            run: () => slider.value = 75}] };
+          commandsChanged(slider);
         }"""
     )
     page.keyboard.press("ArrowDown")
@@ -763,7 +767,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     page = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const { commands, showNativeLayer } = await window.__lfWidgetApi();
+          const { showNativeLayer, commandsChanged } = await window.__lfWidgetApi();
           const { shadowStage } = await window.__lfWidgetApi();
           const host = document.createElement('section');
           host.id = 'around-native-layer';
@@ -789,10 +793,11 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
           dialog.append(shadowHost);
           host.append(dialog);
           document.querySelector('main').append(host);
-          commands(host, 'Around a native layer', [
+          host.lfCommands = { title: 'Around a native layer', rows: [
             {id: 'test.outer-escape', keys: ['Escape'], title: 'Work the outer widget',
              line: 'work outer', run: () => { host.dataset.fired = 'Escape'; }},
-          ]);
+          ] };
+          commandsChanged(host);
           const opener = document.createElement('button');
           opener.id = 'open-native-layer';
           opener.textContent = 'Open the modal';
@@ -960,9 +965,8 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     page = open_page(browser, serve(NOTED_PAGE))
     answers = page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const {commandDeclarationsWithin, renderingState} = await window.__lfCheckApi();
-          const {paintKeys} = await window.__lfWidgetApi();
           const registeredOn = element => commandDeclarationsWithin(element)
             .some(({source}) => source === element);
           const settled = () => new Promise((resolve, reject) => {
@@ -980,7 +984,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
           // Read after all repaint work has settled; the second paint finds the
           // refused scope gone rather than refusing it again.
           const painted = async (button) => {
-            paintKeys();
+            commandsChanged(document.body);
             await settled();
             return button.getAttribute('aria-keyshortcuts');
           };
@@ -990,7 +994,8 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             document.querySelector('main').append(button);
             let declaration = 'declared';
             try {
-              commands(button, id, rows, when);
+              button.lfCommands = { title: id, rows: rows, when: when };
+              commandsChanged(button);
             } catch (error) {
               declaration = error.message;
             }
@@ -1005,7 +1010,8 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             const button = document.createElement('button');
             button.id = id;
             document.querySelector('main').append(button);
-            commands(button, id, rows);
+            button.lfCommands = { title: id, rows: rows };
+            commandsChanged(button);
             const declared = button.getAttribute('aria-keyshortcuts');
             await settled();
             const framed = button.getAttribute('aria-keyshortcuts');
@@ -1013,14 +1019,16 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             return {declared, framed};
           };
           // Declared twice before any paint: the first declaration ambiguous, the second
-          // sound. Only the frame reads the superseded one, so this is the case a paintKeys
+          // sound. Only the frame reads the superseded one, so this is the case a repaint
           // call cannot reach.
           const redeclaredAtTheFrame = async (id, first, second) => {
             const button = document.createElement('button');
             button.id = id;
             document.querySelector('main').append(button);
-            commands(button, id, first);
-            commands(button, id, second);
+            button.lfCommands = { title: id, rows: first };
+            commandsChanged(button);
+            button.lfCommands = { title: id, rows: second };
+            commandsChanged(button);
             await settled();
             const framed = button.getAttribute('aria-keyshortcuts');
             const registered = registeredOn(button);
@@ -1093,14 +1101,14 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     # belong to separate focus locations, so they are not a conflict in either scope.
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           let first;
           for (const label of ['First', 'Second']) {
             const button = document.createElement('button');
             button.textContent = label;
             document.querySelector('main').append(button);
             if (!first) first = button;
-            commands(button, 'Repeated controls', [
+            button.lfCommands = { title: 'Repeated controls', rows: [
               {id: 'test.repeated', keys: ['F3'], title: () => `Work ${label}`,
                line: 'work', run: () => button.dataset.fired = '1'},
               ...(label === 'Second' ? [{
@@ -1108,7 +1116,8 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
                 line: 'second only', reach: 'on the second control',
                 run: () => button.dataset.secondFired = '1',
               }] : []),
-            ]);
+            ] };
+            commandsChanged(button);
           }
           first.focus();
         }"""
@@ -1143,15 +1152,16 @@ def test_a_partially_shadowed_row_keeps_each_other_live_binding(browser, serve):
     page = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const target = document.createElement('button');
           target.id = 'local-down';
           target.textContent = 'Local down';
           document.querySelector('main').prepend(target);
-          commands(target, 'On local down', [{
+          target.lfCommands = { title: 'On local down', rows: [{
             id: 'test.local-down', keys: ['d'], title: 'Local down', line: 'local down',
             run: () => { target.dataset.pressed = '1'; },
-          }]);
+          }] };
+          commandsChanged(target);
           target.focus();
         }"""
     )
@@ -1174,24 +1184,26 @@ def test_a_focused_scope_owns_its_declared_key_while_the_command_is_unavailable(
     page = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const outer = document.createElement('div');
           outer.id = 'outer-scope';
           const inner = document.createElement('button');
           inner.textContent = 'Inner scope';
           outer.append(inner);
           document.querySelector('main').prepend(outer);
-          commands(outer, 'Outer scope', [
+          outer.lfCommands = { title: 'Outer scope', rows: [
             { id: 'test.outer-f2', keys: ['F2'], title: 'Run outer F2',
               line: 'outer F2', run: () => { outer.dataset.f2 = '1'; } },
             { id: 'test.outer-f3', keys: ['F3'], title: 'Run outer F3',
               line: 'outer F3', run: () => { outer.dataset.f3 = '1'; } },
-          ]);
-          commands(inner, 'Inner scope', [
+          ] };
+          commandsChanged(outer);
+          inner.lfCommands = { title: 'Inner scope', rows: [
             { id: 'test.inner-f2', keys: ['F2'], title: 'Run inner F2',
               line: 'inner F2', when: () => false,
               run: () => { inner.dataset.f2 = '1'; } },
-          ]);
+          ] };
+          commandsChanged(inner);
           inner.focus();
         }"""
     )
@@ -1229,22 +1241,24 @@ def test_an_unavailable_inner_escape_keeps_the_next_unwind_reachable(browser, se
     page = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const outer = document.createElement('div');
           outer.id = 'outer-escape-scope';
           const inner = document.createElement('button');
           inner.textContent = 'Inner escape scope';
           outer.append(inner);
           document.querySelector('main').prepend(outer);
-          commands(outer, 'Outer scope', [
+          outer.lfCommands = { title: 'Outer scope', rows: [
             { id: 'test.outer-escape', keys: ['Escape'], title: 'Leave outer scope',
               line: 'leave outer scope', run: () => { outer.dataset.escaped = '1'; } },
-          ]);
-          commands(inner, 'Inner scope', [
+          ] };
+          commandsChanged(outer);
+          inner.lfCommands = { title: 'Inner scope', rows: [
             { id: 'test.inner-escape', keys: ['Escape'], title: 'Leave inner scope',
               line: 'leave inner scope', when: () => false,
               run: () => { inner.dataset.escaped = '1'; } },
-          ]);
+          ] };
+          commandsChanged(inner);
           inner.focus();
         }"""
     )
@@ -1452,16 +1466,17 @@ def test_a_back_gesture_takes_a_step_inside_a_modal_before_the_modal(browser, se
     open_threads(page)
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const dialog = document.createElement('dialog');
           dialog.id = 'inner-step';
           const button = document.createElement('button');
           button.textContent = 'Inside';
           dialog.append(button);
           document.querySelector('main').append(dialog);
-          commands(button, 'Inside the dialog', [{id: 'test.inner', keys: ['Escape'],
+          button.lfCommands = { title: 'Inside the dialog', rows: [{id: 'test.inner', keys: ['Escape'],
             title: 'Take the inner step', when: () => !button.dataset.fired,
-            run: () => (button.dataset.fired = 'Escape')}]);
+            run: () => (button.dataset.fired = 'Escape')}] };
+          commandsChanged(button);
           dialog.showModal();
           button.focus();
         }"""
@@ -1906,7 +1921,7 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
     page = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const {commands, paintKeys} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           const form = document.createElement('form');
           const button = document.createElement('button');
           button.id = 'command-form-button';
@@ -1914,16 +1929,17 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
           form.append(button);
           document.querySelector('main').prepend(form);
           window.commandForm = {runs: 0, submits: 0, available: true,
-            invalidate: paintKeys};
+            invalidate: () => commandsChanged(form)};
           form.addEventListener('submit', event => {
             event.preventDefault();
             window.commandForm.submits++;
           });
-          commands(form, 'In the command form', [{
+          form.lfCommands = { title: 'In the command form', rows: [{
             id: 'test.apply-form', keys: ['x'], title: 'Apply command', control: button,
             when: () => window.commandForm.available,
             run: () => window.commandForm.runs++,
-          }]);
+          }] };
+          commandsChanged(form);
         }"""
     )
     button = page.locator("#command-form-button")
@@ -1970,7 +1986,7 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
     assert page.evaluate("() => [commandForm.runs, commandForm.submits]") == [6, 0]
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           document.querySelector('fieldset').disabled = false;
           const one = document.querySelector('#command-form-button');
           const two = document.createElement('button');
@@ -1979,13 +1995,14 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
           one.form.append(two);
           commandForm.routes = [];
           commandForm.firstRouteAvailable = false;
-          commands(one.form, 'Routed form', [{
+          one.form.lfCommands = { title: 'Routed form', rows: [{
             id: 'test.form-routes', keys: ['1', '2'], title: 'Apply route', control: one,
             routes: [{id: 'test.form-one', title: 'First', binding: '1',
               when: () => commandForm.firstRouteAvailable},
               {id: 'test.form-two', title: 'Second', binding: '2', control: two}],
             run: binding => commandForm.routes.push(binding),
-          }]);
+          }] };
+          commandsChanged(one.form);
           commandForm.invalidate();
         }"""
     )

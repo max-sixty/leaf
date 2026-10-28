@@ -5,14 +5,20 @@
  * ambiguous identities cannot supply a stable node:<id> Comment coordinate.
  * Rendering is inert: source callbacks never execute, links and images are disabled,
  * and Pele escapes labels and filters styles. A refused source remains visible with
- * its diagnostic; Leaf never salvages a diagram by dropping statements. */
+ * its diagnostic; Leaf never salvages a diagram by dropping statements.
+ *
+ * It imports only the helpers that load in any document, so a plain HTML page that maps
+ * `/runtime/` and `/vendor/` draws it too, in the fonts that page's `--sans` and `--mono`
+ * name, else the browser's sans-serif. What Leaf adds it reads from outside: the drawing
+ * under way as a `pending-task` event and the named boxes as the visual parts this
+ * module registers, which only Leaf's Comment reads. */
 import {
+  PendingTaskEvent,
   bodyText,
   once,
   failSoft,
   registerVisualParts,
-  widgetController,
-} from "/runtime/widget-api.js";
+} from "/runtime/portable-api.js";
 
 // Room for a 15px overlay track plus the drawing's stroke. CSS lets a native
 // classic track consume this same padding, retaining 1px around the marks.
@@ -51,7 +57,7 @@ customElements.define(
       this.visualPartRegistration = registerVisualParts(this, () =>
         [...this.visualParts].map(([id, part]) => ({ id, ...part })),
       );
-      widgetController(this).present(this.render());
+      this.dispatchEvent(new PendingTaskEvent(this.render()));
     }
 
     async render() {

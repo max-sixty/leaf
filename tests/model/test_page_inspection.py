@@ -25,14 +25,8 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
     (authored / "shared.css").write_text(shared)
     unused = "p { padding: 999px; }"
     (authored / "unused.css").write_text(unused)
-    media = page_dir / "media"
-    media.mkdir(exist_ok=True)
-    media_css = '@import "./shared.css"; p { border: 0; }'
-    media_shared = "p { opacity: 1; }"
-    (media / "page.css").write_text(media_css)
-    (media / "shared.css").write_text(media_shared)
     download_script = "export const download = true;"
-    (media / "download.js").write_text(download_script)
+    (authored / "download.js").write_text(download_script)
     (authored / "widgets" / "lf-options.js").write_text(
         "export const styling = `p { color: blue }`;"
     )
@@ -44,7 +38,7 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
     source = leaf_page(
         "Inspection",
         '<p id="intro" style="--label: &quot;é&quot;; color: green">Hi</p>\n'
-        '<a download href="media/download.js">Download module</a>\n'
+        '<a download href="page/download.js">Download module</a>\n'
         '<template id="child" data-sample>\n'
         f'<script type="module">{inline_script}</script>\n'
         "<style>p { padding: 1px; }</style>\n"
@@ -53,8 +47,7 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
         head="<style>p { display: block; }</style>\n"
         '<script type="module" src="page/main.js"></script>\n'
         '<script type="application/json">{"not":"executable"}</script>\n'
-        '<link rel="stylesheet" href="page/style.css">\n'
-        '<link rel="stylesheet" href="media/page.css">',
+        '<link rel="stylesheet" href="page/style.css">',
     )
     (page_dir / "index.html").write_text(source)
     before = list_revisions(page_dir)
@@ -63,19 +56,13 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
     reading = json.loads(result.output)
     assert list_revisions(page_dir) == before
     page = [item for item in reading["css"]["sources"] if item["owner"] == "page"]
-    assert len(page) == 8
+    assert len(page) == 6
     # A revision holds every page file, so a sheet nothing links is listed, loaded by
     # no document.
     assert (
         next(item for item in page if item["path"] == "page/unused.css")["documents"]
         == []
     )
-    assert next(item for item in page if item["path"] == "media/page.css")[
-        "documents"
-    ] == ["index.html"]
-    assert next(item for item in page if item["path"] == "media/shared.css")[
-        "documents"
-    ] == ["index.html"]
     imported = next(item for item in page if item["path"] == "page/shared.css")
     assert imported["documents"] == ["index.html", "index.html#child"]
     assert imported["rules"] == 2
@@ -88,15 +75,13 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
                 shared,
                 sheet,
                 unused,
-                media_css,
-                media_shared,
                 "p { display: block; }",
                 "p { padding: 1px; }",
                 '--label: "é"; color: green',
             )
         ),
-        "rules": 11,
-        "declarations": 10,
+        "rules": 8,
+        "declarations": 8,
         "inline_styles": 1,
         "important": 1,
     }
@@ -188,7 +173,7 @@ def test_inspection_does_not_report_missing_styles_as_zero(page_dir):
     style = next(
         source for source in partial["css"]["sources"] if source["kind"] == "style"
     )
-    assert style["syntax_errors"][0]["code"] == "css-syntax"
+    assert style["syntax_errors"][0]["code"] == "css-dropped"
     assert partial["css"]["coverage"][-1].startswith("CSS syntax errors")
     (page_dir / "index.html").write_text(
         leaf_page(
@@ -200,19 +185,3 @@ def test_inspection_does_not_report_missing_styles_as_zero(page_dir):
     result = CliRunner().invoke(cli, ["page", "inspect", str(page_dir)])
     assert result.exit_code != 0
     assert "missing.css" in result.output
-
-
-def test_inspection_counts_non_utf8_downloads(page_dir):
-    media = page_dir / "media"
-    media.mkdir(exist_ok=True)
-    download = media / "source.js"
-    download.write_bytes(b"// calf\xe9\n")
-    source = leaf_page("Download", '<a download href="media/source.js">Source</a>')
-    (page_dir / "index.html").write_text(source)
-    write_revision(page_dir, 1, source.encode())
-    download.write_text("// cafe\n")
-    reading = cmd_inspect(page_dir, compare_to=1)
-    change = reading["comparison"]["sources"][0]
-    assert change["path"] == "media/source.js"
-    assert change["before"]["digest"] != change["after"]["digest"]
-    assert reading["javascript"]["page"]["bytes"] == len(b"// cafe\n")

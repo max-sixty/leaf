@@ -7,10 +7,9 @@
    same writers through element directives built by `elementDirective`. A behavior module
    reads a box from inside `measure` (shown-box.js). A label
    whose words change holds one room for all of them with `data-room`, which the
-   theme sizes without script and which cuts words past it (controls.css). A module calls
-   `layoutChanged(el)` after view state rearranges descendants without resizing its
-   outer box — `ResizeObserver` already covers size changes, and geometry consumers
-   listen to this signal instead of watching every DOM mutation.
+   theme sizes without script and which cuts words past it (controls.css). A module that
+   rearranges what it holds inside an unchanged box says so with `layoutChanged`
+   (widget-upgrade.js).
 
    A control is built so the browser does as much of it as it can. `offer` builds the
    corresponding native element, so activation, disabled state, focus, and
@@ -44,7 +43,7 @@ import { tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
-import { actionOffers } from "./icon-paths.js";
+import { actionName, actionOffers, showAction } from "./icon-paths.js";
 import { actionTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
 import { isNativeLayer } from "./shadow-tree.js";
@@ -138,13 +137,6 @@ export const dragging = (el, on) => {
   else held.delete(el);
   hands.value = held;
   paintKeysWithin(el);
-};
-
-// ResizeObserver covers size changes. A view swap can instead keep its outer box while
-// rearranging descendants, so the widget states that geometry change explicitly.
-export const LAYOUT = "lf-layout";
-export const layoutChanged = (el) => {
-  el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
 };
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
@@ -285,8 +277,26 @@ const { offerAction, offerActionElement } = actionOffers({
   offerActionElement: (...args) =>
     document.documentElement.lfInitial.offerActionElement(...args),
 });
-export { offerAction };
+export { offerAction, offerActionElement };
 export const offeredAction = elementDirective("offeredAction", offerActionElement);
+
+// A press whose face its surface draws rather than a role, such as the floating
+// panel's or a message's controls, still takes its symbol and name from its action:
+// `nameAction(button, action, {label, title, className})`, or in a template
+// `<button class="…" ${namedAction(action)}></button>`. It shows `action`'s symbol
+// first and says the action's name as tooltip and accessible name unless `label` says
+// more, as a symbol role does, so the name and the symbol can't drift apart.
+/**
+ * @param {Element} control @param {string} action
+ * @param {{label?: string, title?: string, className?: string}} [options]
+ */
+export function nameAction(control, action, { label, title, className } = {}) {
+  const name = label ?? actionName(action);
+  keeps(control, "aria-label", name);
+  keeps(control, "title", title ?? name);
+  showAction(control, action, className);
+}
+export const namedAction = elementDirective("namedAction", nameAction);
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. Chromium does not begin text selection inside a form control, so those

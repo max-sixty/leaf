@@ -35,9 +35,9 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   reaches the log.
 - Leaf takes printed letter keys before the page's listeners, for its own walks and
   commands, and handles other keys, such as Escape, on `document` once they bubble
-  there. Give the interface keys of its own with `commands()` (`module-input.md`,
-  "Commands and keyboard routes"), or handle arrows, Enter and Escape on the page's own
-  elements, which hear them first.
+  there. Give the interface keys of its own by declaring them as an element's
+  `lfCommands` (`module-input.md`, "Commands and keyboard routes"), or handle arrows,
+  Enter and Escape on the page's own elements, which hear them first.
 - A revision that changes only content patches the page in place without running
   scripts again, so an element it adds or replaces has none of the listeners the script
   attached. Listen on `main` or another stable ancestor, or set up again when

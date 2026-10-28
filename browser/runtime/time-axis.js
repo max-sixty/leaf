@@ -1,6 +1,6 @@
 /* Geometry for a horizontal time axis, shared by the widgets that draw one: the
  * Playwright recording timeline (`packages/playwright/widgets/timeline.js`) and
- * `lf-timeline` (`packages/timeline/initial/timeline-view.js`, bundled into its
+ * `lf-timeline` (`packages/timeline/widgets/timeline-view.js`, also bundled into its
  * initial renderer). Times are milliseconds from the axis origin; positions are
  * pixels along the drawn span. Nothing here touches the DOM except the canvas
  * that measures text, so both a parser-time drawing and a module can call it.

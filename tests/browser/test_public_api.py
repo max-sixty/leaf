@@ -203,6 +203,36 @@ def test_render_check_preserves_an_authored_classic_script_named_leaf(browser, s
     assert not [f for f in findings if f.severity == "error"]
 
 
+def test_closing_an_output_observer_during_its_body_read_keeps_the_browser_usable(
+    browser, serve, monkeypatch
+):
+    """An abandoned render check must not poison the next page's driver call."""
+    from playwright.sync_api import APIResponse, Error
+
+    page = browser.unwatched.new_page()
+    observe_output_documents(page)
+    text = APIResponse.text
+
+    def held_text(response):
+        # Let the caller close the context at the response-body boundary, rather
+        # than relying on teardown winning a race against the driver's RPC.
+        page.evaluate("globalThis.readingEntryBody = true")
+        with pytest.raises(Error, match="closed"):
+            page.wait_for_function("false")
+        return text(response)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(APIResponse, "text", held_text)
+        page.goto(
+            serve(leaf_page("closing observer", "<h1>Closing</h1>"), packages=()),
+            wait_until="commit",
+        )
+        page.wait_for_function("globalThis.readingEntryBody")
+        page.context.close()
+        next_page = browser.unwatched.new_page()
+        assert next_page.evaluate("1 + 1") == 2
+
+
 def test_output_capture_fetch_failure_reaches_the_browsers_network_boundary(
     browser, serve, monkeypatch
 ):

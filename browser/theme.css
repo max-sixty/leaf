@@ -1462,6 +1462,12 @@ lf-old {
 lf-new {
   background: var(--add-tint);
 }
+/* How many passages a version changed, counted on what holds them (a tab, a settled
+   decision): a .tag in the tint the changed words wear. */
+.tag.lf-change-count {
+  background: var(--add-tint);
+  color: var(--ok-ink);
+}
 /* The words that moved, deepened against the slot's own tint: the module's ranges
  * through the highlight registry (lf-suggestion.js #emphasize), so no node is
  * wrapped. Layout-free

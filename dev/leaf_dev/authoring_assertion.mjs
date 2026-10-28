@@ -45,10 +45,16 @@ export default async function grade(output, context, load = loadApiProvider) {
     });
     response = await provider.callApi(
       `Judge the completed task against this criterion:
-${diagnostics.criterion}
+${diagnostics.criterion ?? ""}
 ${context.config.rubric}
 
-Request, later user messages and original browser decision task:
+Saved request and later user messages:
+${diagnostics.comparison.brief}
+
+Original browser decision task:
+${diagnostics.comparison.decision_task ?? ""}
+
+Author output and feedback:
 ${output}
 
 The final page is the author's result after all user feedback. The optional

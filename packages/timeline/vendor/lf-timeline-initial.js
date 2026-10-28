@@ -2,55 +2,6 @@
   // leaf-initial-lit:lit
   var { AsyncDirective, AsyncReplaceDirective, CSSResult, Directive, LitElement, PartType, ReactiveElement, TemplateResultType, UnsafeHTMLDirective, UntilDirective, _$LE, _$LH, adoptStyles, asyncAppend, asyncReplace, cache, choose, classMap, clearPart, createRef, css, customElement, defaultConverter, directive, eventOptions, getCommittedValue, getCompatibleStyle, getDirectiveClass, guard, html, ifDefined, insertPart, isCompiledTemplateResult, isDirectiveResult, isPrimitive, isServer, isSingleExpression, isTemplateResult, join, keyed, literal, live, map, mathml, noChange, notEqual, nothing, property, query, queryAll, queryAssignedElements, queryAssignedNodes, queryAsync, range, ref, removePart, render, repeat, setChildPartValue, setCommittedValue, standardProperty, state, staticHtml, staticMathml, staticSvg, styleMap, supportsAdoptingStyleSheets, svg, templateContent, unsafeCSS, unsafeHTML, unsafeMathML, unsafeSVG, unsafeStatic, until, when, withStatic } = document.documentElement.lfInitial.lit;
 
-  // browser/runtime/time-axis.js
-  var TICK_SPACING = 84;
-  var STEPS = [1, 2, 5];
-  function tickStep(pxPerMs) {
-    for (let power = 1; power < 1e9; power *= 10)
-      for (const step of STEPS)
-        if (step * power * pxPerMs >= TICK_SPACING) return step * power;
-    return 1e9;
-  }
-  function tickLabel(time2, step) {
-    if (time2 === 0) return "0 s";
-    const digits = step >= 1e3 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
-    return `${(time2 / 1e3).toFixed(digits)} s`;
-  }
-  function axisTicks(from, to, duration, pxPerMs) {
-    const step = tickStep(pxPerMs);
-    const minor = step / (String(step)[0] === "2" ? 4 : 5);
-    const ticks = [];
-    for (let time2 = Math.floor(from / minor) * minor; time2 <= to; time2 += minor) {
-      const rounded = Math.round(time2 * 1e3) / 1e3;
-      if (rounded < 0 || rounded > duration) continue;
-      const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
-      ticks.push({
-        time: rounded,
-        major,
-        label: major ? tickLabel(rounded, step) : null,
-        step
-      });
-    }
-    return ticks;
-  }
-  function assignRows(items, start, end) {
-    const rows = [];
-    const rowOf = /* @__PURE__ */ new Map();
-    for (const item of items.toSorted((a, b) => start(a) - start(b))) {
-      let row = rows.findIndex((last) => last <= start(item));
-      if (row < 0) row = rows.push(-Infinity) - 1;
-      rows[row] = end(item);
-      rowOf.set(item.id, row);
-    }
-    return rowOf;
-  }
-  var measuring = null;
-  function textWidth(text, font) {
-    measuring ??= document.createElement("canvas").getContext("2d");
-    measuring.font = font;
-    return measuring.measureText(text).width;
-  }
-
   // browser/runtime/icon-paths.js
   var SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
   var ICONS = {
@@ -58,6 +9,9 @@
     add: '<path d="M8 3v10M3 8h10"/>',
     change: '<path d="M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13"/>',
     check: '<path d="m3 8.25 3.15 3.15L13 4.75"/>',
+    // A task app's ticked circle, for the to-do the user ends: a bare check is Resolve's,
+    // and a to-do on a thread stands under its thread's Resolve.
+    checked: '<circle cx="8" cy="8" r="5.5"/><path d="m5.6 8.15 1.7 1.7 3.1-3.3"/>',
     comment: '<path d="M3 3.25h10v7H7.25L4 12.75v-2H3z"/>',
     // The common copy glyph: the front sheet at the bottom right. Mirrored, with the front
     // sheet at the bottom left, two squares read as a window's Restore button.
@@ -128,7 +82,7 @@
     "copy-link": { name: "Copy link", icon: "link" },
     dictate: { name: "Dictate", icon: "microphone" },
     discard: { name: "Discard", icon: "cross" },
-    done: { name: "Done", icon: "check" },
+    done: { name: "Done", icon: "checked" },
     edit: { name: "Edit", icon: "edit" },
     expand: { name: "Expand", icon: "expand" },
     find: { name: "Find", icon: "search" },
@@ -154,7 +108,7 @@
     retry: { name: "Retry", icon: "retry" },
     save: { name: "Save", icon: "save" },
     send: { name: "Send", icon: "send" },
-    show: { name: "Show on page", icon: "locate" },
+    show: { name: "Show", icon: "locate" },
     start: { name: "Start", icon: "start" },
     suggest: { name: "Suggest", icon: "edit" },
     undo: { name: "Undo", icon: "undo" },
@@ -166,6 +120,10 @@
     if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
     return named.icon;
   };
+  var actionName = (action) => {
+    actionIcon(action);
+    return ACTIONS[action].name;
+  };
   var SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
   function actionFace(role, label, action) {
     if (!SYMBOLIC.has(role)) {
@@ -174,8 +132,8 @@
       return label;
     }
     if (action === void 0) throw new TypeError(`A ${role} names the action it shows`);
-    actionIcon(action);
-    return label ?? ACTIONS[action].name;
+    const name = actionName(action);
+    return label ?? name;
   }
   function showAction(control, action, className = "lf-action-icon") {
     const icon = actionIcon(action);
@@ -222,7 +180,56 @@
     };
   }
 
-  // packages/timeline/initial/timeline-view.js
+  // browser/runtime/time-axis.js
+  var TICK_SPACING = 84;
+  var STEPS = [1, 2, 5];
+  function tickStep(pxPerMs) {
+    for (let power = 1; power < 1e9; power *= 10)
+      for (const step of STEPS)
+        if (step * power * pxPerMs >= TICK_SPACING) return step * power;
+    return 1e9;
+  }
+  function tickLabel(time2, step) {
+    if (time2 === 0) return "0 s";
+    const digits = step >= 1e3 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
+    return `${(time2 / 1e3).toFixed(digits)} s`;
+  }
+  function axisTicks(from, to, duration, pxPerMs) {
+    const step = tickStep(pxPerMs);
+    const minor = step / (String(step)[0] === "2" ? 4 : 5);
+    const ticks = [];
+    for (let time2 = Math.floor(from / minor) * minor; time2 <= to; time2 += minor) {
+      const rounded = Math.round(time2 * 1e3) / 1e3;
+      if (rounded < 0 || rounded > duration) continue;
+      const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
+      ticks.push({
+        time: rounded,
+        major,
+        label: major ? tickLabel(rounded, step) : null,
+        step
+      });
+    }
+    return ticks;
+  }
+  function assignRows(items, start, end) {
+    const rows = [];
+    const rowOf = /* @__PURE__ */ new Map();
+    for (const item of items.toSorted((a, b) => start(a) - start(b))) {
+      let row = rows.findIndex((last) => last <= start(item));
+      if (row < 0) row = rows.push(-Infinity) - 1;
+      rows[row] = end(item);
+      rowOf.set(item.id, row);
+    }
+    return rowOf;
+  }
+  var measuring = null;
+  function textWidth(text, font) {
+    measuring ??= document.createElement("canvas").getContext("2d");
+    measuring.font = font;
+    return measuring.measureText(text).width;
+  }
+
+  // packages/timeline/widgets/timeline-view.js
   var EDGE = 12;
   var LABEL_GAP = 8;
   var LABEL_CHROME = 12;

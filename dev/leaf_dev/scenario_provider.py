@@ -36,6 +36,7 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
             metadata,
             harness=config["harness"],
             shots=Path(config["screenshots"]) / work.name,
+            viewports=tuple(config["viewports"]),
         )
         response.setdefault("metadata", {})["work"] = str(work)
         return response

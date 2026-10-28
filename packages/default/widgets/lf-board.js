@@ -49,7 +49,6 @@ import {
   quoted,
   says,
   announce,
-  commands,
   labelOf,
   layoutChanged,
   saying,
@@ -72,6 +71,7 @@ import {
   focused,
   declarationFor,
   shownAnswer,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -324,7 +324,7 @@ customElements.define(
       // grip answers Space too, and said Enter on every surface for as long as the word and
       // the press were separate objects.
       grip.title = `Drag to move — or ${labelOf(grab)} to grab`;
-      return commands(grip, "On a card grip", [
+      const rows = [
         grab,
         {
           id: "board.move",
@@ -366,7 +366,10 @@ customElements.define(
             else this.#cancel(true);
           },
         },
-      ]);
+      ];
+      grip.lfCommands = { title: "On a card grip", rows };
+      commandsChanged(grip);
+      return rows;
     }
     #grip(card) {
       const grip = offer("button", "lf-grip", "⠿");

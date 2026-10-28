@@ -45,9 +45,10 @@ A widget that must also run on a page without Leaf's runtime, such as a chart an
 app shows, imports only from `/runtime/portable-api.js`, the part of the helper
 surface any document can load; `widget-api.js` re-exports all of it. The host maps
 `/runtime/` and `/vendor/` to a Leaf install with an import map of its own, as a Leaf
-page does, and runs none of Leaf's runtime. Such a widget extends `HTMLElement`, and
-Leaf hears from it only through standard events it dispatches on itself, which a plain
-page may ignore:
+page does, and runs none of Leaf's runtime. Such a widget extends `HTMLElement` and
+draws into the box the page gives it. Leaf hears from it only through standard events
+it dispatches on itself and declarations it leaves on its elements, which a plain page
+ignores:
 
 - Drawing under way: `this.dispatchEvent(new PendingTaskEvent(promise))`, the Web
   Components Community Group's `pending-task` protocol. Leaf holds the page's
@@ -55,8 +56,28 @@ page may ignore:
   (`module-state.md`, "The widget controller").
 - A failure: `failSoft` and `reportFailure` dispatch an `error` event ("Upgrade"),
   which Leaf reports to the author as the page's error.
+- Keys: an element's `lfCommands` and `commandsChanged` (`module-input.md`, "Commands
+  and keyboard routes"). A plain page binds none and advertises none. A button that must
+  work off Leaf makes its own press, from its own click listener: its row names it as
+  `control` and has no `run`, and the widget draws it `aria-disabled` while the press
+  can't act, which is the availability Leaf reads. Where a key leaves the user is the
+  row's `lands(from)` (`module-input.md`, "Command rows"), which only Leaf calls.
+- A Copy control: a block's `data-lf-copy` and `lfCopy()` (`module-reading.md`,
+  "Code"), and a quiet word: `data-lf-quiet` (`module-scroll-and-motion.md`,
+  "Notices and spoken words"). Leaf finds these in the page and in the shadow stages
+  it builds (`shadowStage`), not in a shadow root a page script attaches itself, where
+  the widget shows neither.
+- Comment targets: `registerVisualParts` (`module-annotations.md`, "Visual parts"),
+  which only Leaf reads.
+- Words for a listener: `announce(message)` (`module-scroll-and-motion.md`, "Notices
+  and spoken words"), which only Leaf says.
+- A first drawing (`x-initial`): `initialRender(host, createView)` ("First paint"),
+  which off Leaf draws with the factory the widget passes.
+- Working state in `tabStore`, which keeps nothing on a plain page: a read there
+  answers null.
 
-`lf-chart` in the default package is the worked example.
+`lf-chart` and `lf-code` in the default package, `lf-diagram`, `lf-motion` and
+`lf-timeline` are the worked examples.
 
 ## What a behavior module owes
 
@@ -77,7 +98,8 @@ script", lists.
   values through `keeps` ("Scheduling paints", "Writes that change nothing").
 - Record the user's choices only through the widget controller, and keep working state
   in `tabStore` (`module-state.md`, "The widget controller", "Tab-local working state").
-- Register commands at upgrade (`module-input.md`, "Commands and keyboard routes").
+- Declare commands at upgrade, as an element's `lfCommands` (`module-input.md`,
+  "Commands and keyboard routes").
 - Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
   "Focus and layers").
 - Animate with `motion`, never `element.animate` (`module-scroll-and-motion.md`,
@@ -212,9 +234,18 @@ moving anything. `leaf package check --render` reports a widget that moves as
   before any factory script runs, including a custom classic script with no build.
   Delivery renders that template into `view.root ?? host`; `root` isolates a generated
   region when the host also retains authored children. The module gets
-  the view with `initialRender(host)`, which also initializes later arrivals. Its
-  `LeafElement.render()` returns the same view's template with its live inputs, so Lit
-  retains the first drawing's nodes and bindings. The factory does not keep a second
+  the view with `initialRender(host, createView)`, which also initializes later
+  arrivals, and draws the view's template with its live inputs into the same root, so
+  Lit retains the first drawing's nodes and bindings. On a page without Leaf nothing
+  drew first, so `initialRender` calls `createView` itself, with tools that write only
+  the widget's own classes, types and names, and renders it; a widget that also runs
+  off Leaf passes the factory it imports, and keeps it in a module of its own that the
+  bundle imports too. It defines its element at once where `drawsFirst()` is true,
+  and elsewhere defines it once a dynamic import of that module resolves, so a Leaf
+  page fetches nothing it doesn't run and every page draws the widget in the task that
+  upgrades it. `actionOffers(tools)` returns `offerAction` and
+  `offerActionElement` that also draw a symbol's or mark's icon from its `action`, and
+  `showAction(control, action)` redraws a press's symbol when its action changes. The factory does not keep a second
   paint or update method. A view needing generated-node measurements may mount its
   template with public Lit `render` before measuring; delivery commits the measured
   template in the same root. A producer that only reserves geometry and draws nothing

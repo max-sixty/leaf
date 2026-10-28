@@ -163,8 +163,8 @@ Leaf serves its page, and a package's `vendor/` file at one of those paths repla
 there. `widget-api.js` can change in any update; `leaf package check --render` and
 `leaf page check --render` report a module it breaks.
 
-Registries merge in order: kernel, `default`, then the selected packages in command
-order, then the page's theme, and a later package wins a collision. A later package replaces an element or
+Registries merge in order: kernel, `default`, the page's theme, then the selected
+packages in command order, and a later package wins a collision. A later package replaces an element or
 idiom entry whole and can't delete one. Shared `$` entries merge by member, and a map
 member merges one level further by key; `null` deletes at either level if the merged
 registry still validates. `page init` records the selected packages in

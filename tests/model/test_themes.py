@@ -1,5 +1,6 @@
 """Theme choices become recorded selections, independent of later preferences."""
 
+import json
 import os
 from pathlib import Path
 
@@ -131,6 +132,28 @@ def test_a_page_recording_no_theme_choice_reads_in_leaf_s_look(tmp_path):
     assert ".callout" in selected(layer_record(page), page).registry
     cmd_init(page)
     assert ".callout" in selected(layer_record(page), page).registry
+
+
+def test_a_project_package_restates_a_theme_s_idiom(tmp_path, monkeypatch):
+    """The theme composes before the content packages, so a project package that
+    restates one of its idioms replaces the entry and its rule follows the theme's."""
+    project = tmp_path / "proj" / ".leaf"
+    project.mkdir(parents=True)
+    callout = {
+        "description": "project callout",
+        "x-example": '<aside class="callout">…</aside>',
+    }
+    (project / "registry.json").write_text(json.dumps({".callout": callout}))
+    (project / "elements.css").write_text(".callout { background: teal; }\n")
+    monkeypatch.chdir(project.parent)
+    page = tmp_path / "page"
+    cmd_init(page, ("./.leaf",))
+    layer = selected(layer_record(page), page)
+    assert layer.registry[".callout"] == callout
+    sheet = layer.files["/theme.css"].decode()
+    assert sheet.index(
+        "background: var(--lf-ground);\n  padding: 12px 16px"
+    ) < sheet.index("background: teal")
 
 
 def test_none_names_no_theme_in_the_catalogue(tmp_path):

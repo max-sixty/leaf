@@ -445,7 +445,7 @@ def selected_layer(
     packages: tuple[str, ...], theme: str | None, page_dir: Path
 ) -> LayerComposition:
     """The layer this Leaf composes for the page at `page_dir` that selects
-    `packages` and the `theme`, the package composed last: its core and
+    `packages` and the `theme`, composed before them: its core and
     bundled packages, the user's installed ones, as this process first read them,
     and the copies the page holds of packages it selects by path.
 
@@ -458,7 +458,7 @@ def selected_layer(
     page, and an installed name another snapshot after `package install`; and a
     page's copy by its stamp too, since its next `page init` replaces it in place."""
     if theme is not None:
-        packages = (*(name for name in packages if name != theme), theme)
+        packages = (theme, *(name for name in packages if name != theme))
     inputs = tuple(layer_inputs(packages, page_dir))
     copies = tuple(file_stamp(root) for root in inputs if root.is_relative_to(page_dir))
     return _composed(inputs, copies)

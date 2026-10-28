@@ -271,14 +271,14 @@ def validate_package_dir(package: Path) -> list:
 
 
 def package_layer_inputs(package: Path) -> list[Path]:
-    """The layer a new page selecting this package composes: the mandatory layer, with
-    this package when it is not already in it, and Leaf's default theme last."""
+    """The layer a new page selecting this package composes: the mandatory layer and
+    Leaf's default theme before this package when it is not already in it."""
     inputs = layer_inputs()
-    if not any(paths_same(package, root) for root in inputs):
-        inputs.append(package)
     theme = named_package(DEFAULT_THEME)
     if theme is not None and not any(paths_same(theme, root) for root in inputs):
         inputs.append(theme)
+    if not any(paths_same(package, root) for root in inputs):
+        inputs.append(package)
     return inputs
 
 

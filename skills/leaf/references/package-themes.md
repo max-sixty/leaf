@@ -31,14 +31,16 @@ default = "editorial"
 
 A page takes one theme, so a personal theme is the page's whole look and replaces
 `reading`. One that only adjusts the reading look, such as its palette, is selected
-with `reading` as a content package too: `leaf page init <page> --package reading
---theme dense`.
+as a content package on a page that keeps `reading`: `leaf page init <page> --package
+dense`.
 
 `leaf theme list` returns the available choices, default and author instructions.
 The author's selection follows the user's request first, then the task and those
 instructions; leaving it unspecified uses the default on a new page. Select one with
 `leaf page init <page> --theme dense`. Content packages remain independent; the
-selected theme composes last.
+selected theme composes right after Leaf's default package and before them, so a
+project package can restate a theme's idiom, such as `.callout`, and its rules win a
+tie with the theme's.
 
 A page captures its selected theme when initialized. Re-initializing preserves that
 choice, even if the user's default changes; an explicit `--theme` replaces it.

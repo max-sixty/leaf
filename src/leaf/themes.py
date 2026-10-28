@@ -1,7 +1,8 @@
 """Theme selection, recorded with a page's packages.
 
-A theme is a page's look: an ordinary named package composed after the content
-packages. Leaf bundles one, `reading` (`DEFAULT_THEME`), which a new page takes
+A theme is a page's look: an ordinary named package composed right after Leaf's
+default package and before the content packages, so a project package can restate
+what the theme declares, as it once restated Leaf's own idioms. Leaf bundles one, `reading` (`DEFAULT_THEME`), which a new page takes
 unless the user's TOML catalogue names another default; the catalogue lists the
 personal themes agents may select, and each package's author instructions describe
 its intended uses. A page that takes none starts from the browser's defaults and
@@ -133,7 +134,7 @@ def theme_package(theme: dict | None) -> str | None:
 
 
 def with_theme(packages: tuple[str, ...], theme: dict | None) -> tuple[str, ...]:
-    """The selected theme composes last, once, after the content packages."""
+    """The selected theme composes first, once, before the content packages."""
     if (name := theme_package(theme)) is None:
         return packages
-    return (*[package for package in packages if package != name], name)
+    return (name, *[package for package in packages if package != name])

@@ -127,10 +127,10 @@ export function createThreadPreview({
     "symbol",
     "lf-margin-preview-step",
     "Previous thread",
-    { icon: "previous" },
+    { action: "previous" },
   );
   const previewNext = offerAction("symbol", "lf-margin-preview-step", "Next thread", {
-    icon: "next",
+    action: "next",
   });
   previewNav.append(previewPrevious, previewPosition, previewNext);
   // Open in panel moves the card's thread into the floating panel's view of it, which
@@ -140,7 +140,7 @@ export function createThreadPreview({
     "symbol",
     "lf-margin-preview-expand",
     "Open in panel",
-    { icon: "expand" },
+    { action: "expand" },
   );
   const previewList = el("div", "lf-margin-preview-list");
   let dismiss = () => {};

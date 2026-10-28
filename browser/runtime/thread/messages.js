@@ -56,7 +56,7 @@ import { addressableWord, sectionLabel } from "../addressable-names.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { importWidgets, rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
-import { iconTemplate } from "../icons.js";
+import { actionTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
 import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
@@ -524,7 +524,7 @@ export class MessageView {
             title="Edit message"
             @click=${() => this.openEdit()}
           >
-            ${iconTemplate("edit", "lf-msg-control-icon")}
+            ${actionTemplate("edit", "lf-msg-control-icon")}
           </button>`
         : nothing;
     render(

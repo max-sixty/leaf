@@ -227,10 +227,10 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	});
 	const previewNav = el("span", "lf-margin-preview-nav");
 	const previewPosition = el("span", "lf-margin-preview-position");
-	const previewPrevious = offerAction("symbol", "lf-margin-preview-step", "Previous thread", { icon: "previous" });
-	const previewNext = offerAction("symbol", "lf-margin-preview-step", "Next thread", { icon: "next" });
+	const previewPrevious = offerAction("symbol", "lf-margin-preview-step", "Previous thread", { action: "previous" });
+	const previewNext = offerAction("symbol", "lf-margin-preview-step", "Next thread", { action: "next" });
 	previewNav.append(previewPrevious, previewPosition, previewNext);
-	const previewOpenInPanel = offerAction("symbol", "lf-margin-preview-expand", "Open in panel", { icon: "expand" });
+	const previewOpenInPanel = offerAction("symbol", "lf-margin-preview-expand", "Open in panel", { action: "expand" });
 	const previewList = el("div", "lf-margin-preview-list");
 	let dismiss = () => {};
 	const carry = surfaceGrip({
@@ -925,6 +925,7 @@ var MarginClusterView = class extends HTMLElement {
 			this.#toggle = model.toggle;
 			presentContributionEntry(this.#more, contributionEntry({
 				key: "options",
+				action: model.toggle.action,
 				icon: model.toggle.icon,
 				label: model.toggle.label,
 				accessibleLabel: model.moreLabel,

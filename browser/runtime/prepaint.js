@@ -1358,6 +1358,8 @@
         throw new TypeError(
           `initial renderer for <${host.localName}> must be synchronous`,
         );
+      if (drawing !== null)
+        root.lfInitial.lit.render(drawing.render(), drawing.root ?? host, { host });
       drawings.set(host, drawing);
       return drawing;
     },

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { render } from "/runtime/widget-api.js";
 import { initialRender } from "/runtime/initial-render.js";
 import { assignRows } from "/runtime/time-axis.js";
 import "../../packages/timeline/initial/lf-timeline.js";
@@ -79,7 +80,10 @@ test("A step paints what came before as done and leaves later events open", () =
   const row = drawing.rows[1];
   const mark = drawing.eventElement("s-work");
   row.focus();
-  assert.equal(drawing.show(2), 2);
+  drawing.current = 2;
+  const host = controls.closest("lf-timeline");
+  render(drawing.render(), host, { host });
+  assert.equal(drawing.current, 2);
   assert.equal(drawing.controls, controls);
   assert.equal(drawing.rows[1], row);
   assert.equal(drawing.eventElement("s-work"), mark);
@@ -95,7 +99,9 @@ test("A step paints what came before as done and leaves later events open", () =
   assert.match(work.getAttribute("style"), /--lf-timeline-done: 0\.5/);
   assert.equal(drawing.rows[2].getAttribute("aria-current"), "step");
   assert.equal(drawing.previous.getAttribute("aria-disabled"), null);
-  assert.equal(drawing.show(99), 3, "a step past the end clamps to the last");
+  drawing.current = 99;
+  render(drawing.render(), host, { host });
+  assert.equal(drawing.current, 3, "a step past the end clamps to the last");
   assert.equal(drawing.next.getAttribute("aria-disabled"), "true");
 });
 

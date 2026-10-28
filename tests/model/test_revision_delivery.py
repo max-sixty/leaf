@@ -126,40 +126,24 @@ def test_export_walks_css_imports_without_recursion_and_retains_their_meaning(
     assert reads == Counter({path: 1 for path in resources})
 
 
-@pytest.mark.parametrize("early_lit", [False, True])
-def test_initial_producers_are_captured_once_and_called_after_each_complete_host(
-    early_lit,
-):
+def test_initial_producers_are_captured_once_and_called_after_each_complete_host():
     source = (
         "<html><head><title>Initial</title></head><body><main>"
         '<lf-early id="first"><p>First</p></lf-early>'
         '<lf-early id="second"><p>Second</p></lf-early>'
-        + (
-            "<lf-lit></lf-lit>"
-            if early_lit
-            else "<template><lf-lit></lf-lit></template>"
-        )
-        + "<template><lf-unused></lf-unused></template>"
+        "<template><lf-unused></lf-unused></template>"
         "</main></body></html>"
     )
     registry = {
         "lf-early": {"x-initial": "/vendor/early.js"},
         "lf-unused": {"x-initial": "/vendor/unused.js"},
-        "lf-lit": {"x-initial": "/vendor/lit-producer.js"},
     }
     resources = {
         "/runtime/prepaint.js": Resource(
             b'window.prepaint = "</script>";', "application/javascript"
         ),
-        "/vendor/initial-dependencies.json": Resource(
-            b'{"/vendor/lit-producer.js":["/vendor/lit-initial.js"]}',
-            "application/json",
-        ),
         "/vendor/lit-initial.js": Resource(
             b"window.lit = true;", "application/javascript"
-        ),
-        "/vendor/lit-producer.js": Resource(
-            b"window.litProducer = true;", "application/javascript"
         ),
         "/vendor/early.js": Resource(
             b'window.initial = "</script>";', "application/javascript"
@@ -187,7 +171,7 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
     parsed = SourceDocument(delivered.removeprefix("\ufeff"))
     scripts = parsed.tree.find_all("script")
     calls = [script for script in scripts if "lfInitial.mount" in script.text]
-    assert len(calls) == 2 + early_lit
+    assert len(calls) == 2
     assert [script.previous_sibling.tag for script in calls[:2]] == [
         "lf-early",
         "lf-early",
@@ -203,18 +187,13 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
     import_map = json.loads(parsed.tree.select_one('script[type="importmap"]').text)[
         "imports"
     ]
-    if early_lit:
-        assert (
-            delivered.index("window.prepaint")
-            < delivered.index("window.lit =")
-            < delivered.index("window.initial")
-        )
-        assert delivered.index("window.lit =") < delivered.index("window.litProducer")
-        assert import_map["/vendor/lit.js"] == ADDRESS("/vendor/lit-shared.js")
-        assert import_map[ADDRESS("/vendor/lit.js")] == ADDRESS("/vendor/lit-shared.js")
-    else:
-        assert "window.lit" not in delivered
-        assert "/vendor/lit.js" not in import_map
+    assert (
+        delivered.index("window.prepaint")
+        < delivered.index("window.lit =")
+        < delivered.index("window.initial")
+    )
+    assert import_map["/vendor/lit.js"] == ADDRESS("/vendor/lit-shared.js")
+    assert import_map[ADDRESS("/vendor/lit.js")] == ADDRESS("/vendor/lit-shared.js")
     assert mark_declared(source, registry, resources) == source
 
 

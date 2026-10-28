@@ -53,7 +53,7 @@ import { elementById } from "../passages.js";
 import { designName } from "../design-readings.js";
 import { addressableWord, sectionLabel } from "../addressable-names.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
-import { rememberPassageParts } from "../widget-loader.js";
+import { importWidgets, rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { iconTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
@@ -182,6 +182,7 @@ export function prepareAuthoredMessage(message, thread) {
       descriptors,
       nodes,
       root: template.content,
+      preparation: null,
     });
   }
   const prepared = authoredMessages.get(key);
@@ -191,7 +192,16 @@ export function prepareAuthoredMessage(message, thread) {
       descriptor.document.message !== message.id
     )
       throw new TypeError("an authored message changed its frozen document identity");
-  return prepared;
+  // The captured document owns preparation for its entire lifetime. Concurrent
+  // state reads join it, including after its nodes leave the inert fragment for a
+  // drawing. A failed import remains a failed state read; the next read may retry.
+  return (prepared.preparation ??= importWidgets(prepared.root).then(
+    () => prepared,
+    (error) => {
+      prepared.preparation = null;
+      throw error;
+    },
+  ));
 }
 const authoredMessage = (message) => {
   const prepared = authoredMessages.get(message.attempt ?? message.id);

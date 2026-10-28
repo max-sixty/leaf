@@ -43,7 +43,7 @@ import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
 import { generatedElement, offeredAction } from "../widget-elements.js";
 import { measure } from "../shown-box.js";
-import { keeps, layoutPx } from "../keeps.js";
+import { keeps, layoutPx, roomPx } from "../keeps.js";
 import { commandsOn } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import {
@@ -326,6 +326,7 @@ export class ThreadView {
   #headerSlot = null;
   #observedHeader = null;
   #sizes = sizeObserver(() => this.#retainHeaderSlot());
+  #marginNews = sizeObserver(() => this.#fitMarginNews());
 
   constructor(commands) {
     this.#commands = commands;
@@ -547,10 +548,11 @@ export class ThreadView {
     if (marginControls && prior)
       marginControls.anchor.presented(threadChange(prior, model)?.joined);
     // Where the settlement stands:
-    // - on a margin card, its own controls row, which also stands the notice, whole,
-    //   before Previous and Next: its own place with the thread's facts, as the
-    //   floating panel's head holds it (the user's choice, 16 October), rather than
-    //   over the end of the message head beside it.
+    // - on a margin card, its own controls row, which also stands the notice before
+    //   Previous and Next: its own place with the thread's facts, as the floating
+    //   panel's head holds it (the user's choice, 16 October), rather than over the end
+    //   of the message head beside it. The notice takes the room the heads leave it
+    //   (`#fitMarginNews`).
     // - elsewhere, the head's controls row, which reserves the room of one icon control
     //   (shadow.css, `--lf-thread-action-room`) beside the first message's own
     //   controls. A foot row of its own drew resolved threads unlike open ones.
@@ -613,6 +615,8 @@ export class ThreadView {
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
+    if (marginControls && model.news) measure(this.node, () => this.#watchMarginNews());
+    else this.#releaseMarginNews();
     this.#continuity?.after(bodyPlace);
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
@@ -626,6 +630,57 @@ export class ThreadView {
             this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node),
     );
     return this.node;
+  }
+
+  // A margin card's notice stands in its actions row, whose track takes its width from
+  // the heads' track (annotation-chrome.css), so the notice takes only the room the
+  // heads leave beside each one's name and time, its padding and the Edit beside them
+  // included, and where that room is short of its first fact it says one count
+  // instead (held-news.js, `newsNotice`). The room is the notice's width and the
+  // narrowest head's spare width together, which the two tracks trade one for one, so
+  // drawing the notice at it changes nothing it was read from.
+  #fitMarginNews() {
+    const notice = this.#news.node;
+    let spare = Infinity;
+    for (const head of this.node.querySelectorAll(
+      ".lf-thread-transcript .lf-msg-head",
+    )) {
+      if (!head.checkVisibility()) continue;
+      const style = getComputedStyle(head);
+      const name = head.querySelector(":scope > b");
+      const time = head.querySelector(":scope > .lf-msg-meta > time");
+      const need =
+        parseFloat(style.paddingInlineStart) +
+        parseFloat(style.paddingInlineEnd) +
+        (name?.scrollWidth ?? 0) +
+        (name && time ? parseFloat(style.columnGap) : 0) +
+        (time?.scrollWidth ?? 0);
+      spare = Math.min(spare, head.getBoundingClientRect().width - need);
+    }
+    if (spare === Infinity || !notice.isConnected)
+      notice.style.removeProperty("--lf-news-room");
+    else
+      notice.style.setProperty(
+        "--lf-news-room",
+        roomPx(Math.max(0, notice.getBoundingClientRect().width + spare)),
+      );
+  }
+
+  // Each head's name and time, and the notice, can change size while news waits, as a
+  // time ticks on from "just now".
+  #watchMarginNews() {
+    this.#marginNews.disconnect();
+    this.#marginNews.observe(this.#news.node);
+    for (const words of this.node.querySelectorAll(
+      ".lf-thread-transcript .lf-msg-head > :is(b, .lf-msg-meta > time)",
+    ))
+      this.#marginNews.observe(words);
+    this.#fitMarginNews();
+  }
+
+  #releaseMarginNews() {
+    this.#marginNews.disconnect();
+    this.#news.node.style.removeProperty("--lf-news-room");
   }
 
   #releaseHeaderSlot() {
@@ -890,6 +945,7 @@ export class ThreadView {
   dispose() {
     this.#sizes.disconnect();
     this.#releaseHeaderSlot();
+    this.#marginNews.disconnect();
     this.#continuity?.release();
     this.retire();
     this.#reply?.dispose();

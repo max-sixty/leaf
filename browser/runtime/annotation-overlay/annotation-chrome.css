@@ -661,24 +661,27 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-thread .lf-thread-transcript .lf-msg-body * {
     scroll-margin-top: calc(var(--lf-msg-head-height) + var(--focus-ring-landing));
   }
-  /* A head row narrower than its words, as when the actions row holds a notice of
-     news (thread-card.js), gives up room in one order: first the annotations after the
-     time, each cut with an ellipsis, then the author's name, with an ellipsis; the time
-     is never cut. The metadata's grid keeps the time's whole width as its least
-     (`min-width: min-content`, where an annotation's track contributes nothing), and
-     its shrink weight, a million to the name's one, spends its room before any of the
-     name's while it has room to give, so the name keeps its whole width whenever the
-     annotations alone can make the room. The heads' track narrows while the actions
-     row holds a notice of news, the card keeping its width (thread-preview.js). */
+  /* A head row narrower than its words, as on a phone's card holding news beside
+     Previous and Next or the user's Edit, gives up room in one order: first the
+     annotations after the time, then the time, each cut with an ellipsis, then the
+     author's name, with an ellipsis, so the head says whose words these are for as
+     long as it can. Each shrinks with a weight a million to the next's one, so it
+     spends its room before any of the next's while it has room to give. The heads'
+     track narrows while the actions row holds a notice of news, the card keeping its
+     width (thread-preview.js). Reversed on 28 October, when the user asked that a
+     name not be cut: the time never cut and the name giving up the room first
+     (#3104), which left a phone's card reading "M51d ago" for "Me" even once the
+     notice was down to one count. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta {
-    display: grid;
-    grid-auto-flow: column;
-    grid-template-columns: max-content;
-    grid-auto-columns: minmax(0, max-content);
     gap: 0;
     flex-shrink: 1000000;
-    min-width: min-content;
     overflow: hidden;
+  }
+  .lf-margin-thread .lf-thread-transcript .lf-msg-meta > time {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   /* An unread reply's dot hangs before the name, in the transcript's gutter, so the
      name stays over the words and nothing moves when the reply reads. The head clips
@@ -698,6 +701,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* Each annotation carries its own gap, so one cut to nothing takes its gap too. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new) {
+    flex-shrink: 1000000;
     padding-inline-start: var(--sp-2);
     min-width: 0;
     overflow: hidden;
@@ -725,16 +729,21 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     padding-inline-start: var(--sp-2);
   }
   /* The notice takes at most a notice's room beside a head's words (`--lf-news-width`,
-     surfaces.css), dropping whole the facts past it and counting them in the room it
-     keeps at its end, so the heads' track keeps an author and a time whole beside the
-     actions. Drawn whole, "1 new reply · 1 new message" left the heads 41px, and the
-     head of the user's message read "M51d ago", its name cut against the time.
-     Rejected: the time giving way while news waits, which frees a time's 43px, too
-     little for a name beside a whole notice; and the notice wrapping beneath the
-     actions, which would stand over the first message's words in the actions'
-     track. */
+     surfaces.css), and no more than the heads leave beside each one's name and time
+     (`--lf-news-room`, thread-card.js, `#fitMarginNews`). It drops whole the facts
+     past it and counts them in the room it keeps at its end, and where even its first
+     fact doesn't fit it says one count of all that waits (held-news.js, `newsNotice`).
+     A desktop card's heads keep their names and times whole beside it. On a phone's
+     card, whose three controls, notice and Edit each take a finger's width, a head
+     still lacks room for both, and its time gives way first (above). Drawn whole,
+     "1 new reply · 1 new message" left the heads 41px, and the head of the user's
+     message read "M51d ago". Rejected: the notice wrapping beneath the actions, which
+     would stand over the first message's words in the actions' track. */
   .lf-margin-thread .lf-margin-thread-controls .lf-thread-news {
-    max-inline-size: var(--lf-news-width);
+    max-inline-size: min(
+      var(--lf-news-width),
+      var(--lf-news-room, var(--lf-news-width))
+    );
     padding-inline-end: var(--lf-news-count-room);
   }
   /* A sticky head and its words paint the message's one animated ground.
@@ -781,7 +790,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* A short name keeps its whole width even where the shared cap
      (components/surfaces.css) would cut it in a narrowed head; it shortens only once
-     the annotations after the time are gone. */
+     the annotations and the time are gone. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
     flex-shrink: 1;
     max-inline-size: max(40%, 5em);

@@ -274,18 +274,28 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     assert name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
 
 
-def test_a_card_s_head_keeps_the_user_s_name_and_time_beside_news(browser, serve):
-    """A narrow card, with Previous and Next for its target's two threads, holding news
-    while the user writes: the notice takes a notice's room beside the actions, so the
-    head of the user's message keeps "Me" and its time whole. Drawn whole, the notice
-    left the head too little room, and it read "M" against the time."""
+@pytest.mark.parametrize("phone", [False, True])
+def test_a_card_s_head_keeps_the_user_s_name_beside_news(browser, serve, phone):
+    """A card holding news while the user writes: the notice takes only the room the
+    head leaves beside "Me" and its time. On a desktop card, with Previous and Next for
+    its target's two threads, the notice says its first fact and the head keeps "Me"
+    and its time whole. On a phone's card, whose three controls, the notice and the
+    head's Edit each take a finger's width, the notice says one count, "2 new", and the
+    head keeps "Me" whole, its time giving way first. Drawn whole, the notice left the
+    head too little room, and it read "M" against the time."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
     )
-    panel_comment(serve.page_dir, "Make the banner quieter", {"section": "h-how"})
-    page = open_page(browser, url)
-    resized(page, 1200, 900)
+    if phone:
+        context = browser.new_context(
+            viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+        )
+        page = open_page(browser, url, context=context)
+    else:
+        panel_comment(serve.page_dir, "Make the banner quieter", {"section": "h-how"})
+        page = open_page(browser, url)
+        resized(page, 1200, 900)
     page.locator(".lf-margin-marker").first.click()
     preview = page.locator(".lf-margin-preview")
     expect(preview.get_by_text("Keep the logo where it is")).to_be_visible()
@@ -301,14 +311,19 @@ def test_a_card_s_head_keeps_the_user_s_name_and_time_beside_news(browser, serve
     told(page)
     notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
     expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
+    words = notice.locator(":scope > span")
+    if phone:
+        expect(words).to_have_attribute("data-lf-short", "2 new")
+    else:
+        expect(words).not_to_have_attribute("data-lf-short", re.compile("."))
     rendered(page)
-    head = preview.locator(f'.lf-page-thread[data-thread="{root}"] .lf-msg-head').first
+    card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
+    head = card.locator(".lf-msg-head").first
     expect(head.locator("b")).to_have_text("Me")
-    times = preview.locator(f'.lf-page-thread[data-thread="{root}"]').evaluate(
-        TIMES_WHOLE
-    )
-    assert times and all(time["whole"] for time in times), times
     assert head.locator("b").evaluate("node => node.scrollWidth <= node.clientWidth")
+    if not phone:
+        times = card.evaluate(TIMES_WHOLE)
+        assert times and all(time["whole"] for time in times), times
 
 
 @pytest.mark.watch_shifts

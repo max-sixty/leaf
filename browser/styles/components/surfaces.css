@@ -1058,6 +1058,31 @@ button.lf-primary-news {
   text-align: end;
   font-variant-numeric: tabular-nums;
 }
+/* Where even the first fact would be cut, the notice says one count of all that waits,
+   "2 new" or "+2" (held-news.js, `newsNotice`), at the words' start. The facts keep
+   their places, unseen, so the accessible name still says every fact and the notice
+   measures what it measured before. The count stands out of the words' flow, so it
+   takes the face's underline itself. */
+.lf-thread-news > span[data-lf-short] > span {
+  color: transparent;
+}
+.lf-thread-news > span[data-lf-short]::before {
+  content: attr(data-lf-short) / "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  white-space: pre;
+  font-variant-numeric: tabular-nums;
+}
+.lf-thread-news > span[data-lf-short]::after {
+  content: none;
+}
+@media (hover: hover) {
+  .lf-thread-news:hover > span[data-lf-short]::before {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
 .lf-seat-news {
   display: flex;
   align-items: center;

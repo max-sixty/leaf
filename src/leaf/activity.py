@@ -391,7 +391,7 @@ def claimant_turn(
 
     The harness's own record (`Harness.live_turn`) adds the two things no hook
     sees, each only when newer than what it contradicts: an `idle` newer than
-    every renewal ends the open turn at that moment (an interrupt), and a
+    every renewal but a hook ends the open turn at that moment (an interrupt), and a
     `waiting` newer than the stamps is a dialog open now, a step shown whether or
     not the stamps say a turn is open. Its `busy` never says a turn runs, since
     the harness keeps it across turn endings while background work runs; after a
@@ -414,13 +414,17 @@ def claimant_turn(
         return Turn(False, ended=closed, background=background, **step)
     if awaiting or dialog:
         return Turn(True, **step)
-    renewals = [opened, _moment(declared), _moment(present.get("turn_seen"))]
+    renewals = [opened, _moment(declared)]
     if stream and stream.get("session") == present.get("claim_session"):
         renewals.append(_moment(stream.get("ts")))
     renewed = max(moment for moment in renewals if moment and moment >= opened)
     if live.get("state") == "idle" and since and since >= renewed:
         return Turn(False, ended=since)
-    until = renewed + WORKING_GRACE
+    # A hook extends the belief but never outweighs the harness's `idle`: hooks the
+    # session runs after an interrupt, such as a background worker's, are not the
+    # interrupted turn's.
+    seen = _moment(present.get("turn_seen"))
+    until = max(renewed, seen or renewed) + WORKING_GRACE
     return Turn(now < until, until=until)
 
 

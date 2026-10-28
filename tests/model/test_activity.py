@@ -485,6 +485,30 @@ def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
     assert (stranded["kind"], stranded["counts"]["overdue"]) == ("away", 1)
 
 
+def test_a_hook_renews_a_running_turn_but_never_one_its_harness_saw_end():
+    """A hook the harness runs for the session, as Claude Code runs one after every
+    batch of tool calls, keeps the open turn believed past the working grace. One
+    run after the harness says the session went idle, as a background worker's
+    can after an Escape, leaves the interrupted turn ended."""
+    now = datetime.now().astimezone()
+    opened = now - activity_model.WORKING_GRACE - timedelta(minutes=5)
+    present = {
+        "session_alive": True,
+        "live_turn": None,
+        "claim_turn": "turn-1",
+        "turn_opened": opened.isoformat(),
+        "turn_closed": None,
+        "turn_seen": (now - timedelta(seconds=10)).isoformat(),
+    }
+    turn = activity_model.claimant_turn(present, None, None, now)
+    assert turn.running
+
+    idle = now - timedelta(minutes=1)
+    present["live_turn"] = {"state": "idle", "since": idle.isoformat()}
+    turn = activity_model.claimant_turn(present, None, None, now)
+    assert (turn.running, turn.ended) == (False, idle)
+
+
 def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
     """An App Server observer renews its step on every event, and a wait on the
     user sends none until the user answers, so that step stands for as long as

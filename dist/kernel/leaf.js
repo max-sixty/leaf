@@ -6010,21 +6010,23 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               <b>${latest.label}</b>
               <p class="lf-fp-failed-error scroll">${latest.error}</p>
             </div>` : nothing}
-      ${repeat(versions, (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`, (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
-            ${menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing, () => showVersion(entry), {
+      <div class="lf-fp-versions" role="none">
+        ${repeat(versions, (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`, (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
+              ${menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, nothing, () => showVersion(entry), {
 			title: entry.note,
 			current: entry.current
-		})}${entry.comparable ? html`<button
-                    type="button"
-                    role="menuitem"
-                    class="lf-fp-face lf-fp-quiet lf-fp-compare"
-                    aria-pressed=${String(selection.on && selection.base === entry.version)}
-                    aria-label=${`Compare with ${entry.name}`}
-                    @click=${() => putAwayThen(() => versionPicker.compare(entry.version))}
-                  >
-                    Compare
-                  </button>` : nothing}
-          </div>`)}
+		})}${entry.current ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>` : nothing}${entry.comparable ? html`<button
+                      type="button"
+                      role="menuitem"
+                      class="lf-fp-face lf-fp-quiet lf-fp-compare"
+                      aria-pressed=${String(selection.on && selection.base === entry.version)}
+                      aria-label=${`Compare with ${entry.name}`}
+                      @click=${() => putAwayThen(() => versionPicker.compare(entry.version))}
+                    >
+                      Compare
+                    </button>` : nothing}
+            </div>`)}
+      </div>
       ${versions.length ? nothing : html`<p class="lf-fp-empty" role="none">Showing ${picker.token}</p>`}
     `;
 	}
@@ -9516,8 +9518,7 @@ let commandReferenceInvoke = null;
 let commandReferenceCatalog = Object.freeze({
 	total: 0,
 	entries: Object.freeze([]),
-	sections: Object.freeze([]),
-	describedMeta: Object.freeze([])
+	sections: Object.freeze([])
 });
 let commandReferenceState = {
 	query: "",
@@ -9660,8 +9661,7 @@ function captureCommandReferenceCatalog() {
 	return Object.freeze({
 		total: entries.length,
 		entries: Object.freeze(entries),
-		sections: Object.freeze(sections),
-		describedMeta: Object.freeze(entries.filter((entry) => entry.actionable && entry.description).map(selectionMeta))
+		sections: Object.freeze(sections)
 	});
 }
 const selectionMeta = (entry) => [
@@ -9901,14 +9901,11 @@ function commandReferenceTemplate() {
       >
     </label>
     ${commandReferenceSearch}
-    <div class="lf-command-reference-meta-box">
-      ${commandReferenceCatalog.describedMeta.map((text) => html`<span aria-hidden="true">${text}</span>`)}
-      <div
-        class="lf-command-reference-meta"
-        aria-live="polite"
-        .textContent=${commandReferenceView.metadata}
-      ></div>
-    </div>
+    <div
+      class="lf-command-reference-meta"
+      aria-live="polite"
+      .textContent=${commandReferenceView.metadata}
+    ></div>
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"

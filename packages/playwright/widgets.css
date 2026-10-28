@@ -2,6 +2,9 @@
  * flexible viewport holds empty and captured states; short stages grow in flow.
  * Parents own spacing: theme steps separate groups; smaller steps join their parts. */
 lf-trace {
+  /* The steps, selectors and logs it draws wear markup's reading face whatever look
+     the page takes, since they are the widget's own. */
+  --lf-reading-face: 1;
   --lf-trace-control-size: 44px;
   --lf-trace-small-type: max(12px, var(--t-6));
   /* Aim for the reading band; the stage's intrinsic minimum preserves detail. */

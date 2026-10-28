@@ -1188,10 +1188,10 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
         "candidateB": {"density": "comfortable", "wrap": False},
     }
     expect(candidate_a.locator(".code-candidate-title")).to_have_text(
-        "A · comfortable · scroll"
+        "comfortable · scroll"
     )
     expect(candidate_b.locator(".code-candidate-title")).to_have_text(
-        "B · comfortable · scroll"
+        "comfortable · scroll"
     )
     assert playground.evaluate("root => root.values.comparison.candidateA") == {
         "density": "comfortable",
@@ -1205,15 +1205,6 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
         "candidateB": {"density": "compact", "wrap": False},
     }
 
-    playground.get_by_role("button", name="B at 320px").click()
-    expect(
-        playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
-    ).to_have_value("320")
-    expect(playground.get_by_role("radio", name="B", exact=True)).to_be_checked()
-    playground.get_by_role("button", name="A at 420px").click()
-    expect(
-        playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
-    ).to_have_value("420")
     playground.get_by_role("button", name="Reset").click()
     assert playground.evaluate("root => root.values.comparison") == {
         "candidateA": {"density": "compact", "wrap": False},
@@ -1241,7 +1232,7 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
 
     resized(page, 480, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 480
-    expect(page.locator(".code-comparison-grid")).to_have_css(
+    expect(page.locator("#code-treatment > .lf-playground-choices")).to_have_css(
         "grid-template-columns", re.compile(r"\d+(?:\.\d+)?px")
     )
     resized(page, 1100, 320)
@@ -1266,6 +1257,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     playground = page.locator("#notification-playground")
 
     playground.get_by_role("button", name="Needs attention").click()
+    playground.get_by_role("radio", name="Status strip", exact=True).click()
     page.locator('lf-playground-control[name="title"] input').fill(
         "Checkout needs attention"
     )

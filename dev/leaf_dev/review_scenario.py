@@ -43,6 +43,7 @@ COMMENTS = {
     "boundary": ("triage-why", "Is the timezone bug a regression?"),
     "first": ("triage-lede", "Who owns the migration fix?"),
     "ending": ("triage-why", "When could that fix land?"),
+    "compacting": ("triage-lede", "Which risk worries you most for this release?"),
     # Real author intent exercises the rich interface without naming its commands.
     "rich-choice": (
         "triage-lede",

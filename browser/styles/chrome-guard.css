@@ -13,11 +13,17 @@
    rather than past it. The guard stands first in the chrome sheet and outside its
    @scope, so every chrome rule of the same weight wins by order or scope proximity.
    Custom properties are outside `all`, so a token the page sets on :root still reaches
-   the chrome. */
+   the chrome.
+
+   Zoom is restated rather than rolled back: no Leaf rule sets it, so `normal` is the
+   value revert-layer reaches, and Chrome 155 crashed the renderer on load at any page
+   zoom or device scale other than 1 when `zoom` and `view-timeline-inset` both
+   reverted on the floating panel's `::after` (#4536; Chrome 156 doesn't). */
 .lf-chrome,
 .lf-chrome *,
 .lf-chrome *::before,
 .lf-chrome *::after,
 .lf-chrome *::placeholder {
   all: revert-layer;
+  zoom: normal;
 }

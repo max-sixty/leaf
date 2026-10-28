@@ -333,15 +333,19 @@
   /* More room for a long draft (floating-panel.js, `expand`): past three lines the
      mark stands over the leaf, beside the field's first line, or at the end of an open
      view's head, so it takes no room the panel had not already given it. Pressed, the
-     panel widens to 1100px, where the window holds it (`--lf-fp-width`), and the field
-     stands at least six lines tall, so the wider lines don't leave it shorter than the
-     draft that brought the mark, and grows with the words up to three quarters of the
-     window, or half while a view stands above it, whose messages keep the rest. The
-     user asked on 25 October for much more than the 760px it widened to before; the
-     window's whole width ran lines past 200 characters and left a long draft fewer,
-     longer lines in a shorter box. The field first stood half the window tall however
-     little it held, which on 27 October the user found left a thread's message above
-     it too little room.
+     field stands at least six lines tall and grows with the words up to three quarters
+     of the window, or half while a view stands above it, whose messages keep the rest.
+     The panel widens to 61 of the field's ems, where the window holds it
+     (`--lf-fp-width`): a line of about 120 characters beside the leaf and Send, against
+     73 at rest. The measure is in the field's em rather than `ch`, the width of a 0,
+     since the system sans sets a 0 a third wider than its average letter, so 120ch held
+     157 characters; in ems it follows the face, as under a finger, where it grows. The
+     user found 760px, before the field grew tall, barely more room (25 October), then
+     the 1100px that replaced it, 157 characters a line, too wide to write in, and a
+     writing measure's 88 stingy beside the 73 at rest (28 October); the window's whole
+     width ran past 200.
+     The field first stood half the window tall however little it held, which on 27
+     October the user found left a thread's message above it too little room.
      The mark stands in its corner whether or not it shows, and fades in and out on the
      tween of the line that brings or takes it, as the fold's corner mark fades
      (`.lf-fp-minimize`), so the box's motion carries it with the corner it rides
@@ -360,7 +364,7 @@
     transition: opacity var(--lf-motion-box-resize);
   }
   .lf-floating-panel[data-expanded] {
-    --lf-fp-max: 1100px;
+    --lf-fp-max: calc(61 * var(--msg-size));
   }
   .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
     min-height: calc(6lh + var(--lf-line) - 1lh);
@@ -1321,14 +1325,44 @@
   a.lf-fp-page {
     padding-inline-start: 6px;
   }
-  .lf-fp-version {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+  /* The versions share one end column, as wide as Compare or Showing, whichever is
+     wider, so the two words start on one line and every version's press, washed under
+     the pointer, ends at the same edge (floating-panel.js, `versionsList`). */
+  .lf-fp-versions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 4px;
   }
-  .lf-fp-version .lf-fp-item {
-    flex: 1;
-    min-width: 0;
+  .lf-fp-version {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: center;
+  }
+  /* A version's press has no value, key or chevron, so it gives the end column it would
+     keep for them to its words, which stay on one line; its number's digits share one
+     width, so v1's note starts where v2's does. */
+  .lf-fp-version > .lf-fp-item {
+    grid-column: 1;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+  }
+  .lf-fp-version > .lf-fp-item > .lf-fp-end {
+    display: none;
+  }
+  .lf-fp-version > .lf-fp-item > .lf-fp-label {
+    display: block;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .lf-fp-version > :is(.lf-fp-compare, .lf-fp-showing) {
+    grid-column: 2;
+    text-align: start;
+  }
+  .lf-fp-showing {
+    padding-inline: 8px;
+    color: var(--lf-fp-muted);
+    font-size: 12px;
   }
   /* What the check found in the agent's latest save, over the versions. */
   .lf-fp-failed {
@@ -1375,7 +1409,6 @@
     font-weight: 400;
   }
   .lf-fp-compare {
-    flex: none;
     font-size: 12px;
   }
   .lf-fp-compare[aria-pressed="true"] {

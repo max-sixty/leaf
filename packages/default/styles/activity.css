@@ -6,6 +6,9 @@ lf-activity {
   display: block;
   margin: var(--sp-3) 0;
   font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+  /* The feed it draws wears markup's reading face (`reading.css`) whatever theme the
+     page takes, its rows' spacing at working density included. */
+  --lf-reading-face: 1;
 }
 /* The feed's notice ("Show activity · 1 new") is an inline press on the feed's line
    (controls.css), across the feed and the aim floor tall, so its words changing move

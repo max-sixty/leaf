@@ -207,7 +207,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   user-select: none;
   -webkit-user-select: none;
 }
-/* Pressable, said once per layer, and .tag (theme.css) is what it is said against. A
+/* Pressable, said once per layer, and .tag (the reading theme's) is what it is said against. A
  * chip that opens a section and a badge that counts something were the same object at
  * rest — one ground, one ink, one corner, one size — and the only page that said which
  * was which said it in prose. The user had to press one to find out.

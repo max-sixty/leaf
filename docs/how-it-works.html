@@ -337,6 +337,7 @@ flowchart TD
                 <li><a href="#you">Answer updates</a></li>
                 <li><a href="#agent">Change the live page</a></li>
                 <li><a href="#page-ending-flow">Wait for updates or finish</a></li>
+                <li><a href="#agent-guidance">Agent instructions and notices</a></li>
                 <li><a href="#communication-commands">Agent command inventory</a></li>
                 <li><a href="#delivery">Harness connections and receipt</a></li>
               </ul>
@@ -359,6 +360,8 @@ flowchart TD
                 authoring before writing, and its harness contract before handoff. These
                 instructions set goals for the user’s experience and leave wording and
                 presentation to the agent.
+                <a href="#agent-guidance">Agent instructions and notices</a> lists every
+                source of instructions and when the agent reads it.
               </p>
               <p id="handoff-reading">
                 The agent creates a page directory and writes
@@ -396,24 +399,7 @@ leaf server start ./review</code></pre>
                 validation.
               </p>
               <details id="handoff-packages">
-                <summary>Package instructions, evals, and an existing page</summary>
-                <p id="package-instructions">
-                  Each package adds instructions for its elements, written for an
-                  audience such as the page's author.
-                  <code>leaf page instructions ./review</code> prints the packages'
-                  shared instructions as JSON, keyed by audience;
-                  <code
-                    >leaf page instructions ./review --use lf-diagram | jq -er
-                    '.author'</code
-                  >
-                  prints how to author a diagram.
-                </p>
-                <p id="instructions-evals">
-                  The repository scores each change to these instructions with
-                  <a href="https://github.com/max-sixty/leaf/tree/main/evals">evals</a>:
-                  cases a headless agent completes in Claude Code and Codex, run on the
-                  old and the new instructions.
-                </p>
+                <summary>Resume an existing page</summary>
                 <p id="existing-page">
                   To resume an existing page, the agent reads its active HTML and
                   <code>leaf page state ./review</code>, which returns current state as
@@ -758,6 +744,100 @@ flowchart TD
                 </ul>
               </details>
             </section>
+          </section>
+          <section id="agent-guidance">
+            <h2>Agent instructions and notices</h2>
+            <p id="guidance-placement">
+              Leaf puts each instruction where the agent will be when it applies. Goals
+              and workflow that hold for the whole session live in the skill. A rule for
+              one element or one update travels with that element or update, so the
+              agent reads it at the moment it acts, even late in a long session.
+              Problems the agent can't see for itself, such as an update it hasn't
+              answered, arrive from Leaf's hooks.
+            </p>
+            <table id="guidance-channels">
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>What it tells the agent</th>
+                  <th>When the agent reads it</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Leaf skill</th>
+                  <td>
+                    The goals for the user's experience, and a reference for each step:
+                    authoring, handoff, answering updates, revisions.
+                  </td>
+                  <td>
+                    When a request or a delivery matches the skill's description, then
+                    each reference before its step. After a compaction, the
+                    session-start hook asks an agent holding a page to read the skill
+                    again.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Package instructions</th>
+                  <td>
+                    How to use a package's elements and data sources, written for an
+                    audience: the page's author, or one the package names, such as the
+                    monitoring package's coordinator.
+                  </td>
+                  <td>
+                    When the agent runs <code>leaf page instructions</code>, which joins
+                    each package's <code>instructions/</code> files, its registry
+                    entries' <code>x-instructions</code> and its data contracts'
+                    instructions by audience.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Delivery handling</th>
+                  <td>
+                    What each delivered update asks: the answer owed, where to write it,
+                    and the registry's clauses for that kind of update.
+                  </td>
+                  <td>
+                    In every delivery, beside the events it applies to (<a
+                      href="#delivery-example"
+                      >Delivery fields and answer semantics</a
+                    >).
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Hook notices</th>
+                  <td>
+                    An update delivered and not answered, a page with nothing watching
+                    it, or a claim to reconnect.
+                  </td>
+                  <td>
+                    When the agent ends a turn (<a href="#turn-end">Stop hook checks</a
+                    >), or as a session or prompt starts.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Command results</th>
+                  <td>
+                    A refused save, reply or event with the reason and the fix, a failed
+                    check, or current state.
+                  </td>
+                  <td>
+                    In the output of the command the agent ran. The check that owns a
+                    rule reports it.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <pre
+              id="instructions-command"
+            ><code class="language-bash">leaf page instructions ./review --use lf-diagram | jq -er '.author'</code></pre>
+            <p id="instructions-evals">
+              This prints how to author a diagram. The repository scores each change to
+              the skill and the packages' instructions with
+              <a href="https://github.com/max-sixty/leaf/tree/main/evals">evals</a>:
+              cases a headless agent completes in Claude Code and Codex, run on the old
+              and the new instructions.
+            </p>
           </section>
           <section id="communication-commands">
             <h2>Agent command inventory</h2>

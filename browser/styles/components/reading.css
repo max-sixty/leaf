@@ -420,17 +420,16 @@ leaf-text.lf-fab-input,
   font: var(--msg-font);
   color: var(--ink);
 }
-/* A message keeps the column's measure on any page, as a Layout's text does
-     (`--lf-measure`, theme.css), however wide its panel stands: the same characters
-     to a line, set at the message's smaller face, which is a thread card's width
-     (`--thread-card`). It once kept the column's 720px, which at that face ran a
-     message in the floating panel widened for a long draft past a hundred characters
-     to a line (27 October). */
+/* A message runs to the width of the box that holds it, a card, a seat or the
+     floating panel, which sets the limit: a thread is all messages, so its box is
+     already sized for reading them. It once kept the column's measure, which in the
+     panel widened for a long draft stopped messages two thirds of the way across (the
+     user's call, 28 October). */
 .lf-msg-body {
   min-width: 0;
   margin: var(--lf-msg-body-gap) 0 0;
   overflow-wrap: anywhere;
-  --lf-measure: var(--thread-card);
+  --lf-measure: none;
 }
 /* The user's own words and pictures end as far inside the thread's column as they
    start, the room their rewrite's frame stands in (response.css, `.lf-msg-editor`);

@@ -88,7 +88,7 @@ review's 58rem container query, while the case list between them was an
 inline-size container, as the theme makes a pane's body. On 2026-10-25,
 narrowing `visual-review-gallery` from 1200px to 880px reproduced it on every
 crossing; Firefox 155 took the narrow padding. `.lf-vr-case-list` in
-`packages/visual-review/widgets.css` declares `container-type: normal`,
+`packages/visual-review/defaults.css` declares `container-type: normal`,
 since nothing in the list queries it. Recheck by deleting that declaration,
 narrowing the page with `leaf-dev probe` and reading a case button's computed
 padding; `test_page_fixture_renders[visual-review-gallery]` in

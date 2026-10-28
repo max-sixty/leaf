@@ -160,9 +160,9 @@ test("publisher refuses untrusted paths, foreign builds and non-dependency sourc
     "browser/vendor/.hidden.js",
     "browser/theme.css",
     "browser/styles/theme.css",
-    "packages/default/widgets.css",
+    "packages/default/defaults.css",
     "browser/runtime/authored.css",
-    "packages/playground/widgets.css",
+    "packages/playground/defaults.css",
   ]) {
     const { api, calls } = endpoint();
     await assert.rejects(

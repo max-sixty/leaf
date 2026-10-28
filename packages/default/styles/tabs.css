@@ -178,7 +178,7 @@ lf-tabs.lf-rendered > lf-tab {
     }
   }
 }
-/* A tab counts the passages the version diff marks (theme.css, `.lf-change-count`).
+/* A tab counts the passages the version diff marks (chip.css, `.lf-change-count`).
    An empty count takes no room. */
 .lf-tabdiff {
   font-weight: 400;

@@ -1877,7 +1877,7 @@ def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
     runner = CliRunner()
     package = tmp_path / ".leaf"
     package.mkdir()
-    (package / "theme.css").write_text(
+    (package / "overrides.css").write_text(
         ":root { --test-accent: red }\n", encoding="utf-8"
     )
     page = tmp_path / "page"
@@ -2113,16 +2113,21 @@ def test_composed_sheets_preserve_each_sources_eof_boundary(tmp_path, first):
     in one source must not capture the wrapper or any later source's rules.
     """
     roots = [tmp_path / name for name in ("first", "second")]
-    for root, css in zip(roots, (first, ".y { color: red; }"), strict=True):
+    for root, sheet, css in zip(
+        roots,
+        ("theme.css", "overrides.css"),
+        (first, ".y { color: red; }"),
+        strict=True,
+    ):
         root.mkdir()
-        (root / "theme.css").write_text(css)
+        (root / sheet).write_text(css)
 
     composed = layer_model.composed_sheets(roots)["theme.css"].decode()
     rules = tinycss2.parse_stylesheet(
         composed, skip_whitespace=True, skip_comments=True
     )
     assert [rule.lower_at_keyword for rule in rules] == ["layer", "layer", "layer"]
-    assert tinycss2.serialize(rules[-1].prelude).strip() == "lf-theme"
+    assert tinycss2.serialize(rules[-1].prelude).strip() == "lf-overrides"
     later = tinycss2.parse_rule_list(
         rules[-1].content, skip_whitespace=True, skip_comments=True
     )
@@ -2224,14 +2229,14 @@ def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path)
     package = tmp_path / "contributions"
     package.mkdir()
     (package / "registry.json").write_text("{}")
-    (package / "theme.css").write_text("/* theme.css */ p { color: purple; }")
+    (package / "overrides.css").write_text("/* overrides.css */ p { color: purple; }")
     before = layer_model.composed_sheets([schema_model.ASSETS, package])
 
     (package / "registry.json").write_text(
         json.dumps({"lf-contribution": element_declaration("lf-contribution")})
     )
     assert layer_model.composed_sheets([schema_model.ASSETS, package]) == before
-    for name in ("widgets.css", "widget-shadow.css"):
+    for name in ("defaults.css", "widget-shadow.css"):
         (package / name).write_text("lf-contribution { color: green; }")
     staged = tmp_path / "installed"
     staged.mkdir()
@@ -2420,7 +2425,7 @@ def test_init_refuses_case_aliased_layer_scopes(tmp_path, monkeypatch):
     monkeypatch.chdir(project)
     user_layer = alias / ".LEAF" / "leaf"
     user_layer.mkdir(parents=True)
-    theme = user_layer / "theme.css"
+    theme = user_layer / "overrides.css"
     theme.write_text(":root { --accent: teal; }\n")
     before = theme.read_bytes()
     page = tmp_path / "page"
@@ -2461,14 +2466,14 @@ def test_init_reads_the_complete_layer_before_revendoring(tmp_path, monkeypatch)
     (layer / "registry.json").write_text(
         json.dumps({"lf-bad-theme": element_declaration("lf-bad-theme")})
     )
-    (layer / "theme.css").write_bytes(b"\xff")
+    (layer / "overrides.css").write_bytes(b"\xff")
 
     result = runner.invoke(
         cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
 
     assert result.exit_code != 0
-    assert "theme.css must be UTF-8" in result.output
+    assert "overrides.css must be UTF-8" in result.output
     after = {
         path.relative_to(page): path.read_bytes()
         for path in page.rglob("*")
@@ -2484,14 +2489,14 @@ def test_a_rejected_init_leaves_a_precreated_directory_empty(tmp_path, monkeypat
     page.mkdir()
     layer = tmp_path / ".leaf"
     layer.mkdir()
-    (layer / "theme.css").write_text(".bad { color red; }\n")
+    (layer / "overrides.css").write_text(".bad { color red; }\n")
 
     result = CliRunner().invoke(
         cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
 
     assert result.exit_code != 0
-    assert "theme.css syntax error" in result.output
+    assert "overrides.css syntax error" in result.output
     assert list(page.iterdir()) == []
 
 
@@ -2618,7 +2623,7 @@ def test_init_refuses_malformed_layer_css_before_revendoring(tmp_path, monkeypat
         for path in page.rglob("*")
         if path.is_file()
     }
-    theme = tmp_path / ".leaf" / "theme.css"
+    theme = tmp_path / ".leaf" / "overrides.css"
     theme.parent.mkdir(parents=True)
     theme.write_text(".bad { color red; }\n")
 
@@ -2638,7 +2643,7 @@ def test_init_refuses_malformed_layer_css_before_revendoring(tmp_path, monkeypat
 
 @pytest.mark.parametrize(
     ("source_relative", "destination_relative"),
-    [("widgets", "media"), ("theme.css", "index.html")],
+    [("widgets", "media"), ("overrides.css", "index.html")],
 )
 def test_init_refuses_a_layer_source_aliased_to_a_page_destination(
     tmp_path, monkeypatch, source_relative, destination_relative
@@ -2689,7 +2694,7 @@ def test_init_refuses_a_package_nested_in_a_page_owned_directory(
     package_parent = page / destination
     package = package_parent / ".leaf"
     package.mkdir(parents=True)
-    theme = package / "theme.css"
+    theme = package / "overrides.css"
     theme.write_text(":root { --accent: teal; }\n")
     monkeypatch.chdir(package_parent)
 
@@ -2722,7 +2727,7 @@ def test_init_refuses_a_case_aliased_source_at_a_page_destination(
         for path in page.rglob("*")
         if path.is_file()
     }
-    layer_theme = project / ".leaf" / "theme.css"
+    layer_theme = project / ".leaf" / "overrides.css"
     layer_theme.parent.mkdir(parents=True)
     layer_theme.symlink_to(target)
 
@@ -2790,7 +2795,7 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
         declaration = element_declaration("lf-shared")
         declaration["description"] = name
         (package / "registry.json").write_text(json.dumps({"lf-shared": declaration}))
-        (package / "theme.css").write_text(f":root {{ --package-{name}: 1; }}\n")
+        (package / "overrides.css").write_text(f":root {{ --package-{name}: 1; }}\n")
         (package / "widgets" / "shared.js").write_text(f"// {name}\n")
 
     page = tmp_path / "page"
@@ -2898,7 +2903,7 @@ def test_init_refuses_overlapping_package_scopes(tmp_path, monkeypatch):
     config = tmp_path / "config"
     user = config / "leaf"
     user.mkdir(parents=True)
-    (user / "theme.css").write_text(":root { --accent: teal; }\n")
+    (user / "overrides.css").write_text(":root { --accent: teal; }\n")
     project_layer = project / ".leaf"
     project_layer.symlink_to(user, target_is_directory=True)
     monkeypatch.chdir(project)
@@ -3002,8 +3007,8 @@ def test_init_refuses_to_write_inside_a_package(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     ("relative", "directory"),
     [
-        ("theme.css", True),
-        ("widgets.css", True),
+        ("overrides.css", True),
+        ("defaults.css", True),
         ("registry.json", True),
         ("instructions", False),
         ("widgets", False),
@@ -3036,11 +3041,11 @@ def test_package_allows_a_symlink_managed_external_layer(tmp_path, monkeypatch):
     managed = tmp_path / "managed"
     widgets = managed / "widgets"
     widgets.mkdir(parents=True)
-    theme = managed / "theme.css"
+    theme = managed / "overrides.css"
     theme.write_text(":root { --accent: teal; }\n")
     registry = managed / "registry.json"
     registry.write_text("{}\n")
-    (layer / "theme.css").symlink_to(theme)
+    (layer / "overrides.css").symlink_to(theme)
     (layer / "registry.json").symlink_to(registry)
     (layer / "widgets").symlink_to(widgets, target_is_directory=True)
 
@@ -3048,7 +3053,7 @@ def test_package_allows_a_symlink_managed_external_layer(tmp_path, monkeypatch):
     result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code == 0, result.output
-    assert (layer / "theme.css").is_symlink()
+    assert (layer / "overrides.css").is_symlink()
     assert (layer / "registry.json").is_symlink()
     assert (layer / "widgets").is_symlink()
     assert theme.read_text() == ":root { --accent: teal; }\n"
@@ -3135,7 +3140,7 @@ def test_package_check_refuses_malformed_css_without_writing(tmp_path, monkeypat
     monkeypatch.chdir(tmp_path)
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
-    theme = layer / "theme.css"
+    theme = layer / "overrides.css"
     theme.write_text(".bad { color red; }\n")
 
     before = theme.read_bytes()
@@ -3169,7 +3174,7 @@ def test_package_command_accepts_the_root_of_a_standalone_package_repo(
 
     assert result.exit_code == 0, result.output
     assert (package / "registry.json").is_file()
-    assert (package / "theme.css").is_file()
+    assert (package / "overrides.css").is_file()
     assert (package / "instructions").is_dir()
     assert (package / "widgets").is_dir()
     assert (package / "vendor").is_dir()
@@ -3186,7 +3191,7 @@ def test_package_command_can_target_the_user_package(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     package = config / "leaf"
     assert json.loads((package / "registry.json").read_text()) == {}
-    assert (package / "theme.css").is_file()
+    assert (package / "overrides.css").is_file()
     assert not (tmp_path / ".leaf").exists()
 
 
@@ -3200,7 +3205,7 @@ def test_package_init_creates_independently_selectable_packages(tmp_path, monkey
         result = runner.invoke(cli_model.cli, ["package", "init", str(path)])
         assert result.exit_code == 0, result.output
     add_test_widget(tmp_path / callout, "lf-callout", upgrade=True)
-    with (tmp_path / accent / "theme.css").open("a") as theme:
+    with (tmp_path / accent / "overrides.css").open("a") as theme:
         theme.write("\n:root { --accent: teal; }\n")
 
     page = tmp_path / "page"
@@ -3249,13 +3254,13 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
     stored = Path(json.loads(installed.output)["package"])
     assert layer_model.named_package("callout") == stored
     assert sorted(path.name for path in stored.iterdir()) == [
+        "defaults.css",
         "instructions",
+        "overrides.css",
         "registry.json",
         "runtime",
-        "theme.css",
         "vendor",
         "widgets",
-        "widgets.css",
     ]
 
     shutil.rmtree(source)
@@ -3286,13 +3291,13 @@ def test_package_install_refuses_a_source_it_cannot_check_or_name(
     for source in (broken, unnamable):
         created = runner.invoke(cli_model.cli, ["package", "init", str(source)])
         assert created.exit_code == 0, created.output
-    (broken / "theme.css").write_text(".bad { color red; }\n")
+    (broken / "overrides.css").write_text(".bad { color red; }\n")
 
     failed = runner.invoke(cli_model.cli, ["package", "install", str(broken)])
     misnamed = runner.invoke(cli_model.cli, ["package", "install", str(unnamable)])
 
     assert failed.exit_code != 0
-    assert f"{broken / 'theme.css'} syntax error" in failed.output
+    assert f"{broken / 'overrides.css'} syntax error" in failed.output
     assert misnamed.exit_code != 0
     assert "'Callout Package' cannot be selected by name" in misnamed.output
     assert not machine_model.package_store().exists()
@@ -3318,7 +3323,7 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
     runner = CliRunner()
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
-    theme = layer / "theme.css"
+    theme = layer / "overrides.css"
     theme.write_text(":root { --accent: rebeccapurple; }\n")
 
     result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
@@ -3352,7 +3357,7 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     instructions.write_text("Keep this package instructions.\n")
     helper = package / "runtime" / "existing-helper.js"
     helper.write_text("export const existing = true;\n")
-    theme = (package / "theme.css").read_bytes()
+    theme = (package / "overrides.css").read_bytes()
 
     result = runner.invoke(
         cli_model.cli,
@@ -3363,7 +3368,7 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     registry = json.loads((package / "registry.json").read_text())
     assert registry["lf-existing"] == existing
     assert "lf-added-note" in registry
-    assert (package / "theme.css").read_bytes() == theme
+    assert (package / "overrides.css").read_bytes() == theme
     assert instructions.read_text() == "Keep this package instructions.\n"
     assert helper.read_text() == "export const existing = true;\n"
 
@@ -3377,7 +3382,7 @@ def test_package_install_checks_the_bytes_it_publishes(tmp_path, monkeypatch):
     copy_contract = packages_model.copy_package_contract
 
     def changed_during_copy(package, staged):
-        (package / "theme.css").write_text(".bad { color red; }\n")
+        (package / "overrides.css").write_text(".bad { color red; }\n")
         copy_contract(package, staged)
 
     monkeypatch.setattr(packages_model, "copy_package_contract", changed_during_copy)
@@ -3507,7 +3512,7 @@ def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monke
 def test_package_init_validates_every_target_before_writing(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     layer = tmp_path / ".leaf"
-    theme = layer / "theme.css"
+    theme = layer / "overrides.css"
     theme.mkdir(parents=True)
     sentinel = theme / "keep.txt"
     sentinel.write_text("keep")
@@ -3515,7 +3520,7 @@ def test_package_init_validates_every_target_before_writing(tmp_path, monkeypatc
     result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
-    assert "theme.css must be a file" in result.output
+    assert "overrides.css must be a file" in result.output
     assert sentinel.read_text() == "keep"
     assert not (layer / "registry.json").exists()
     assert not (layer / "widgets").exists()
@@ -3541,7 +3546,7 @@ def test_package_init_validates_the_complete_package(
 
     assert result.exit_code != 0
     assert str(malformed) in result.output
-    assert not (layer / "theme.css").exists()
+    assert not (layer / "overrides.css").exists()
     assert not (layer / "registry.json").exists()
     assert not (layer / "widgets").exists()
 
@@ -3576,7 +3581,7 @@ def test_package_recognizes_a_page_without_runtime_status(tmp_path, monkeypatch)
 
     layer = project / ".leaf"
     layer.mkdir(parents=True)
-    (layer / "theme.css").symlink_to(page / "events.jsonl")
+    (layer / "overrides.css").symlink_to(page / "events.jsonl")
 
     result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
 
@@ -3620,7 +3625,7 @@ def test_package_refuses_an_initialized_page_as_a_layer(tmp_path, monkeypatch, u
 @pytest.mark.parametrize(
     ("source_name", "page_name"),
     [
-        ("theme.css", "events.jsonl"),
+        ("overrides.css", "events.jsonl"),
         ("widgets", schema_model.MEDIA_DIR),
         ("vendor", "revisions"),
     ],
@@ -3761,7 +3766,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "registry.json").write_text(
         json.dumps({"lf-solo": element_declaration("lf-solo", upgrade=True)})
     )
-    (widget_package / "widgets.css").write_text("lf-solo { --lf-block-frame: 1; }\n")
+    (widget_package / "defaults.css").write_text("lf-solo { --lf-block-frame: 1; }\n")
     (widget_package / "widgets" / "lf-solo.js").write_text(
         'import { ready } from "./ready.js";\n'
         'customElements.define("lf-solo", class extends HTMLElement {\n'
@@ -3778,7 +3783,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
 
     theme_package = tmp_path / "night"
     theme_package.mkdir()
-    (theme_package / "theme.css").write_text(":root { --solo-night: 1; }\n")
+    (theme_package / "overrides.css").write_text(":root { --solo-night: 1; }\n")
     (theme_package / "instructions").mkdir()
     (theme_package / "instructions" / "author.md").write_text("Use after dusk.\n")
     (theme_package / "instructions" / "reviewer.md").write_text("Check the contrast.\n")

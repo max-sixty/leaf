@@ -25,6 +25,7 @@
  * chosen-option mark is a direct child of lf-option and came out as a chip band
  * at the head of the card. */
 
+@import "./styles/chip.css";
 @import "./styles/shot.css";
 @import "./styles/gloss.css";
 @import "./styles/apparatus.css";

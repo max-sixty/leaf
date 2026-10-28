@@ -459,7 +459,7 @@ export class TabSet extends LeafElement {
               ><span class="lf-tab-answer-words">${answer}</span></span
             >`
           : nothing
-      }<span class="lf-tabdiff tag lf-change-count" aria-hidden="true"
+      }<span class="lf-tabdiff lf-chip lf-change-count" aria-hidden="true"
         >${changed ? `Δ${changed}` : ""}</span
       >${this.#down ? mark : nothing}</span
     >`;

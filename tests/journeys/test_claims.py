@@ -35,7 +35,7 @@ def test_revendor_preserves_pending_input_for_the_current_claim(claimed, capsys)
     generation = layer_record(claimed)["generation"]
     extra = claimed.parent / "extra"
     extra.mkdir()
-    (extra / "theme.css").write_text("/* another selection */\n")
+    (extra / "overrides.css").write_text("/* another selection */\n")
     result = CliRunner().invoke(
         cli_model.cli,
         [

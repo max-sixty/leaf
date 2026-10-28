@@ -755,7 +755,7 @@
   // What this cannot see, said out loud so a green is not read as more than it is. A
   // joined `lf-options` carrying log news — restated, pending, reported — deliberately
   // stands its ring down, because an element takes one outline and the log has claimed it;
-  // the layer's own comment (packages/default/widgets.css) names the carriers that stand in
+  // the layer's own comment (packages/default/defaults.css) names the carriers that stand in
   // its place as the washed cell and the key badges, and neither is an outline nor an
   // accent shadow. That is a fifth way of drawing "here" and this reading has no honest
   // test for it: accepting a background would pass every stop on a tinted page. No corpus

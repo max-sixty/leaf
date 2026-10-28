@@ -112,7 +112,7 @@ lf-ask:has(> :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options):not(
  * under the heading. The context keeps its own height, and the answer keeps at least
  * its own: a list of options takes its content's height below a long premise, and the
  * body scrolls, where a playground, which fits its parts to any height it is given,
- * says it may shrink (playground/widgets.css). Every child hears the height the lf-ask is
+ * says it may shrink (playground/defaults.css). Every child hears the height the lf-ask is
  * told, the context's included, so the context is held at its own height: a playground
  * followed by a note is context, and would otherwise shrink to make room for the note and
  * draw its instruction over it. */

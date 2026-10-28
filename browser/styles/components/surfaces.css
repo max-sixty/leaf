@@ -230,7 +230,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * an operation's press is inked by whether it is live, a pick's mark by whether it is
  * taken. A wash toward the ink leaves both of those readable and reads the same way on
  * the paper-white palette and the dark one — the joined option group's own answer to
- * this question, arrived at there for the same reason (packages/default/widgets.css).
+ * this question, arrived at there for the same reason (packages/default/defaults.css).
  *
  * An inset shadow rather than a background, because it composes instead of competing.
  * `background` is the one property a control's own dress is written in, and every layer

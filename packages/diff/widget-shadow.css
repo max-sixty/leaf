@@ -1,6 +1,6 @@
 @import "./styles/disclosure.css";
 
-/* The diff's rules inside its own shadow tree (x-shadow). A selector in widgets.css stops
+/* The diff's rules inside its own shadow tree (x-shadow). A selector in defaults.css stops
    dead at a shadow boundary, so these go in as a <style> the shadow root owns. They stay
    in the package's
    stylesheets because the package owns the look: a project overriding it overrides these

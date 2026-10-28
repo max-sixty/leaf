@@ -632,8 +632,8 @@ LAYER_TOP_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
 # roles depend on their filenames, not on whether the package declares widgets.
 PACKAGE_STYLES = (
     "widget-shadow.css",
-    "widgets.css",
-    "theme.css",
+    "defaults.css",
+    "overrides.css",
 )
 PACKAGE_FILES = (*PACKAGE_STYLES, "registry.json", "icon.svg")
 # The layer's browser directories, which packages add to.

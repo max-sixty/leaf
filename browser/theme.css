@@ -889,10 +889,14 @@ html[data-lf-interactive] [data-lf-arriving] {
  * its settled upgrade geometry; durable controls still guard mutation until presentation.
  * Ordinary prose, links, scrolling, and layout remain available.
  *
- * The anonymous layer leads lf-base, which only lf-reset precedes, and lf-reset states
- * nothing important, so these important declarations outrank every other layer and
- * unlayered stylesheet declaration without reserving a named layer custom CSS could
- * append to. Only inline importance ranks higher.
+ * Importance reverses layer order, so an important declaration in an earlier layer
+ * wins. This anonymous layer sits early in lf-base, which only lf-reset precedes, so
+ * these declarations outrank every later layer and every unlayered stylesheet
+ * declaration without reserving a named layer custom CSS could append to. What ranks
+ * higher is what comes earlier: lf-reset, which states nothing important; Web
+ * Awesome's sheet (lf-base.lf-vendor, imported at the top of this file), whose one
+ * important rule hides its own page frame's desktop or mobile parts; and inline
+ * importance.
  *
  * The same rank makes `hidden` hide whatever display another rule states for the
  * element, which the UA's own rule loses to, so no rule restores it per selector. A box
@@ -1464,12 +1468,6 @@ lf-old {
 }
 lf-new {
   background: var(--add-tint);
-}
-/* How many passages a version changed, counted on what holds them (a tab, a settled
-   decision): a .tag in the tint the changed words wear. */
-.tag.lf-change-count {
-  background: var(--add-tint);
-  color: var(--ok-ink);
 }
 /* The words that moved, deepened against the slot's own tint: the module's ranges
  * through the highlight registry (lf-suggestion.js #emphasize), so no node is

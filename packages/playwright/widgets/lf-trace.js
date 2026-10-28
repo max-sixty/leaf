@@ -2018,7 +2018,7 @@ customElements.define(
                     }}
                   >
                     <!-- Pause stands drawn beside Play, so the clock turning shows
-                      it at once (widgets.css, .lf-trace-play[data-playing]). -->
+                      it at once (defaults.css, .lf-trace-play[data-playing]). -->
                     ${actionTemplate("pause", "lf-action-icon")}
                   </button>
                   ${transport(

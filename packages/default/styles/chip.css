@@ -1,0 +1,44 @@
+/* The chip, the compact face a small fact rides in (theme.css, `--chip-r`), on the
+ * labels this package's widgets draw (`.lf-chip`) and on the chips an author writes in
+ * an option (`small.tag`, as lf-option's instructions ask). The package states it
+ * itself, so its widgets keep their chips on a page that takes no theme. At a class's
+ * weight, as the reading theme's `.tag` is, so the two agree wherever both apply, and
+ * first in the package, so a widget's own rule for where its chip sits wins a tie. */
+:is(.lf-chip, :where(lf-option) > .tag) {
+  display: inline-block;
+  font-size: var(--t-6);
+  line-height: var(--chip-lh);
+  padding: var(--chip-pad);
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  border-radius: var(--chip-r);
+  background: var(--chip);
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+  align-self: center;
+}
+:is(.lf-chip, :where(lf-option) > .tag).ok {
+  --lf-tone-tint: var(--ok-tint);
+  --lf-tone-ink: var(--ok-ink);
+}
+:is(.lf-chip, :where(lf-option) > .tag).warn {
+  --lf-tone-tint: var(--warn-tint);
+  --lf-tone-ink: var(--warn-ink);
+}
+:is(.lf-chip, :where(lf-option) > .tag).danger {
+  --lf-tone-tint: var(--danger-tint);
+  --lf-tone-ink: var(--danger-ink);
+}
+:is(.lf-chip, :where(lf-option) > .tag):is(.ok, .warn, .danger) {
+  background: var(--lf-tone-tint);
+  color: var(--lf-tone-ink);
+}
+/* How many passages a version changed, counted on what holds them (a tab, a settled
+ * decision): a chip in the tint the changed words wear. */
+.lf-chip.lf-change-count {
+  background: var(--add-tint);
+  color: var(--ok-ink);
+}

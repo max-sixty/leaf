@@ -55,7 +55,7 @@ def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_pat
 
     personal = tmp_path / "personal"
     personal.mkdir()
-    (personal / "theme.css").write_text(":root { --accent: #814b07; }")
+    (personal / "overrides.css").write_text(":root { --accent: #814b07; }")
     cmd_package_install(personal)
     config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
     config.parent.mkdir(parents=True)
@@ -209,7 +209,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     assert "nav.sitenav" in registry
     package = ROOT / "docs" / "package"
     assert (
-        stylesheet(package / "theme.css", package).rstrip()
+        stylesheet(package / "overrides.css", package).rstrip()
         in selected(layer_record(page), page).top_files["theme.css"].decode()
     )
     watched = preview.watch_paths(source, ROOT, [])

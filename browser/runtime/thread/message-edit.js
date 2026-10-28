@@ -45,9 +45,9 @@
    where it stood and broken where it broke, its pictures under them as the message
    draws them (`sentMedia`), each with the removal mark a rewrite adds, and the field's
    frame and padding in the room around them (response.css, `.lf-msg-editor`). Discard
-   and Save stand at the message's head as glyphs, where its own control stood
-   (`.lf-msg-edit-actions`), covering the end of the head's labels while they show, so
-   the head's words stay where they stood. The thread's Resolve leaves its row while the
+   and Save stand among the message's head controls as glyphs, where its Edit stood
+   (`.lf-msg-edit-actions`), and the head's labels give up their room without moving,
+   so the head's words stay where they stood. The thread's Resolve leaves its row while the
    rewrite is open (response.css), and a message of pictures alone gains the line the
    caret needs for words.
    Rejected, by the user on 2026-10-22: the thread's reply box at its own width and

@@ -661,9 +661,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      sticks while that message is read, so the row always names who wrote the words
      beneath it and a scrolled card never labels an agent's words with the user's name.
      Every head uses the shared message row's height and alignment, so the actions
-     neither change the opening message's gap nor cover the next line. A head occupies
-     the shared track before the actions; bodies span both without adding to the
-     card's width. A head sticks at the slot (`--lf-top`) and covers only its own
+     neither change the opening message's gap nor cover the next line. The head beside
+     the actions occupies the shared track before them, and a later one both tracks;
+     bodies span both without adding to the card's width. A head sticks at the slot (`--lf-top`) and covers only its own
      message, so the words under it take the slot past its height as their `--lf-top`,
      and its height as their `scroll-margin` below the landing band (theme.css, at
      `--lf-top`): a reveal lands them below it and the runtime's reading counts what it
@@ -754,10 +754,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
        arriving message tints. */
     box-shadow: 0 calc(-1 * var(--lf-thread-room-cover, 0px)) var(--paper);
   }
-  /* The head row's cell in the actions' track sticks with the head in the message's
-     ground, over the transcript's paper. It comes before the head, whose focused
-     control's ring paints over it. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg::before {
+  /* The first head row's cell in the actions' track sticks with the head in the
+     message's ground, over the transcript's paper; a later head spans that track
+     itself. It comes before the head, whose focused control's ring paints over it. */
+  .lf-margin-thread
+    .lf-thread-transcript
+    > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)::before {
     content: "";
     grid-column: 2;
     grid-row: 1;

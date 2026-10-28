@@ -3880,7 +3880,7 @@ var ReactionStripView = class {
     aria-controls=${this.#paletteId}
     @click=${() => this.#registration.toggle()}
     ${ref((trigger) => {
-		if (trigger) this.#registration ??= this.#commands.registerSurface(this.node, {
+		if (trigger) this.#registration = this.#commands.registerSurface(this.node, {
 			trigger,
 			palette: this.node.querySelector(".lf-react-palette")
 		});

@@ -54,7 +54,8 @@ export class ReactionStripView {
     return this.node;
   }
 
-  // The list's trigger, which registers the strip once it is drawn.
+  // The list's trigger, which registers the strip with each button it draws: a reply
+  // whose reactions go and come back draws a new one.
   trigger = html`<button
     ${offeredAction("symbol", "lf-msg-control lf-react-trigger", undefined, {
       action: "react",
@@ -64,7 +65,7 @@ export class ReactionStripView {
     @click=${() => this.#registration.toggle()}
     ${ref((trigger) => {
       if (trigger)
-        this.#registration ??= this.#commands.registerSurface(this.node, {
+        this.#registration = this.#commands.registerSurface(this.node, {
           trigger,
           palette: this.node.querySelector(".lf-react-palette"),
         });

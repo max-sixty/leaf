@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Request staging access</title>
+    <meta
+      name="description"
+      content="Ask for time-boxed access to the staging cluster, with a reason and a scope."
+    />
+    <style>
+      :root {
+        --ink: #1c1917;
+        --muted: #78716c;
+        --line: #d6d3d1;
+        --accent: #b45309;
+        --field: #fafaf9;
+      }
+      body {
+        margin: 0;
+        font:
+          16px/1.5 Georgia,
+          serif;
+        color: var(--ink);
+        background: #fff;
+      }
+      main {
+        max-width: 34rem;
+        margin: 0 auto;
+        padding: 2.5rem 1.25rem;
+      }
+      h1 {
+        font:
+          700 1.75rem/1.2 system-ui,
+          sans-serif;
+        margin: 0 0 0.25rem;
+      }
+      .hint {
+        color: var(--muted);
+        margin: 0 0 2rem;
+      }
+      form {
+        display: grid;
+        gap: 1.25rem;
+      }
+      label,
+      legend {
+        display: block;
+        font:
+          600 0.875rem/1.4 system-ui,
+          sans-serif;
+        margin-bottom: 0.35rem;
+      }
+      input:not([type="checkbox"], [type="radio"]),
+      select,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        font: inherit;
+        color: inherit;
+        padding: 0.55rem 0.7rem;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--field);
+      }
+      input:focus-visible,
+      select:focus-visible,
+      textarea:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+      textarea {
+        min-height: 6rem;
+        resize: vertical;
+      }
+      fieldset {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 0.75rem 1rem 1rem;
+        margin: 0;
+      }
+      .choice {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font:
+          400 1rem/1.4 Georgia,
+          serif;
+        margin: 0.35rem 0 0;
+      }
+      input[type="checkbox"],
+      input[type="radio"] {
+        accent-color: var(--accent);
+        width: 1rem;
+        height: 1rem;
+        margin: 0;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+      }
+      .actions {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-end;
+      }
+      button {
+        font:
+          600 0.9375rem/1 system-ui,
+          sans-serif;
+        padding: 0.7rem 1.1rem;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--ink);
+        cursor: pointer;
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      dialog {
+        border: 0;
+        border-radius: 10px;
+        padding: 1.5rem;
+        max-width: 26rem;
+        box-shadow: 0 20px 60px rgb(0 0 0 / 0.3);
+      }
+      dialog::backdrop {
+        background: rgb(28 25 23 / 0.45);
+      }
+      dialog h2 {
+        font:
+          700 1.25rem/1.3 system-ui,
+          sans-serif;
+        margin: 0 0 0.5rem;
+      }
+      dialog p {
+        margin: 0 0 1.25rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Request staging access</h1>
+      <p class="hint">
+        Access lasts until the end of the window you pick, then lapses on its own.
+      </p>
+      <form id="request" action="#" method="post">
+        <div>
+          <label for="who">Your email</label>
+          <input
+            id="who"
+            name="who"
+            type="email"
+            autocomplete="email"
+            placeholder="you@example.com"
+            required
+          />
+        </div>
+        <div class="row">
+          <div>
+            <label for="from">From</label>
+            <input id="from" name="from" type="date" value="2026-10-28" />
+          </div>
+          <div>
+            <label for="window">For</label>
+            <select id="window" name="window">
+              <option>2 hours</option>
+              <option selected>1 day</option>
+              <option>1 week</option>
+            </select>
+          </div>
+        </div>
+        <fieldset>
+          <legend>Scope</legend>
+          <label class="choice"
+            ><input type="radio" name="scope" value="read" checked /> Read only</label
+          >
+          <label class="choice"
+            ><input type="radio" name="scope" value="deploy" /> Deploy</label
+          >
+          <label class="choice"
+            ><input type="radio" name="scope" value="admin" /> Admin</label
+          >
+        </fieldset>
+        <div>
+          <label for="reason">Reason</label>
+          <textarea
+            id="reason"
+            name="reason"
+            placeholder="What you need to check, and why staging"
+          ></textarea>
+        </div>
+        <label class="choice"
+          ><input type="checkbox" name="page" checked /> Notify the on-call
+          engineer</label
+        >
+        <div class="actions">
+          <button type="button" id="cancel">Cancel</button>
+          <button type="button" class="primary" id="submit">Send request</button>
+        </div>
+      </form>
+      <dialog id="confirm" aria-labelledby="confirm-title">
+        <h2 id="confirm-title">Send this request?</h2>
+        <p>The on-call engineer will be paged to approve it.</p>
+        <form method="dialog" class="actions">
+          <button value="cancel">Back</button>
+          <button value="send" class="primary">Send</button>
+        </form>
+      </dialog>
+    </main>
+
+    <script type="module">
+      const dialog = document.getElementById("confirm");
+      document
+        .getElementById("submit")
+        .addEventListener("click", () => dialog.showModal());
+      dialog.addEventListener("close", () => {
+        if (dialog.returnValue === "send") document.getElementById("request").reset();
+      });
+    </script>
+  </body>
+</html>

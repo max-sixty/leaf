@@ -434,7 +434,7 @@ export function createFloatingPanel({
           ? actionTemplate(exit.action ?? "close", "lf-action-icon")
           : html`${actionTemplate("on-me", "lf-action-icon")}<span class="lf-fp-num"
                 >${onUser || ""}</span
-              ><span class="lf-fp-news" ?hidden=${!news}></span>`
+              ><span class="lf-fp-news lf-unread-dot" ?hidden=${!news}></span>`
       }
     </button>`;
     const roomLabel = expanded ? "Less room to write" : "More room to write";
@@ -487,18 +487,16 @@ export function createFloatingPanel({
           <div class="lf-fp-row">
             <button
               type="button"
-              class="lf-fp-face lf-fp-expand"
+              ${offeredAction("symbol", "lf-fp-expand", roomLabel, {
+                action: expanded ? "fit" : "expand",
+              })}
               aria-pressed=${String(expanded)}
-              aria-label=${roomLabel}
-              title=${roomLabel}
               @mousedown=${(event) => event.preventDefault()}
               @click=${() => {
                 expanded = !expanded;
                 paint();
               }}
-            >
-              ${actionTemplate(expanded ? "fit" : "expand", "lf-action-icon")}
-            </button>
+            ></button>
             <button
               type="button"
               class="lf-fp-face lf-fp-leaf"
@@ -525,7 +523,7 @@ export function createFloatingPanel({
                 >${onUser || ""}</span
               >
               <span
-                class="lf-fp-news-dot"
+                class="lf-fp-news-dot lf-unread-dot"
                 aria-hidden="true"
                 ?data-shown=${news > 0}
               ></span>
@@ -2563,7 +2561,7 @@ export function createFloatingPanel({
         ?data-yours=${threadAttention(thread, agentName())?.kind === "needs_user"}
         @click=${() => open({ view: "thread", thread: thread.key })}
       >
-        <span class="lf-fp-news-mark"
+        <span class="lf-fp-news-mark lf-unread-dot"
           >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
         >
         <span class="lf-fp-label">${threadHeading(thread)}</span>
@@ -3226,18 +3224,14 @@ export function createFloatingPanel({
     const show = arrivesAt(item)
       ? html`<button
           type="button"
-          class="lf-fp-face lf-fp-icon-btn lf-fp-show"
-          aria-label="Show"
-          title="Show"
+          ${offeredAction("symbol", "lf-fp-show", undefined, { action: "show" })}
           @click=${() => {
             const route = trail.value.at(-1);
             void queueActions.open(queueItemKey(item)).then((arrived) => {
               if (arrived && trail.value.at(-1) === route) close();
             });
           }}
-        >
-          ${actionTemplate("show", "lf-action-icon")}
-        </button>`
+        ></button>`
       : nothing;
     let answers;
     let discussHere = true;
@@ -3261,13 +3255,9 @@ export function createFloatingPanel({
           gesture
             ? html`<button
                 type="button"
-                class="lf-fp-face lf-fp-icon-btn"
-                aria-label="Undo"
-                title="Undo"
+                ${offeredAction("symbol", "", undefined, { action: "undo" })}
                 @click=${() => withdraw(gesture)}
-              >
-                ${actionTemplate("undo", "lf-action-icon")}
-              </button>`
+              ></button>`
             : nothing
         }${
           waiting
@@ -3828,8 +3818,7 @@ export function createFloatingPanel({
       crumb: onTabs("threads"),
       aux: html`<button
         type="button"
-        class="lf-fp-face lf-fp-icon-btn"
-        aria-label="Find a thread or message"
+        ${offeredAction("symbol", "", "Find a thread or message", { action: "find" })}
         aria-pressed=${String(searching)}
         @click=${() => {
           if (!searching) {
@@ -3838,9 +3827,7 @@ export function createFloatingPanel({
           }
           closeThreadSearch();
         }}
-      >
-        ${actionTemplate("find", "lf-action-icon")}
-      </button>`,
+      ></button>`,
     };
   }
   function queueControls() {
@@ -3903,9 +3890,12 @@ export function createFloatingPanel({
         onPageSeat
           ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-icon-btn lf-fp-on-page"
-              aria-label=${inMessage ? "Show in message" : "Show on page"}
-              title=${inMessage ? "Show in message" : "Show on page"}
+              ${offeredAction(
+                "symbol",
+                "lf-fp-on-page",
+                inMessage ? "Show in message" : "Show on page",
+                { action: "show" },
+              )}
               ?disabled=${!thread.anchor}
               ?data-unoffered=${!thread.anchor}
               @click=${() => {
@@ -3928,17 +3918,16 @@ export function createFloatingPanel({
                   threadActions.open(thread.key, { part: null, intent }),
                 );
               }}
-            >
-              ${actionTemplate("show", "lf-action-icon")}
-            </button>`
+            ></button>`
           : nothing
       }<button
         type="button"
-        class="lf-fp-face lf-fp-icon-btn lf-fp-settle ${
-          thread.resolved ? "lf-reopen" : "lf-resolve"
-        }"
-        aria-label=${thread.resolved ? "Reopen" : "Resolve thread"}
-        title=${thread.resolved ? "Reopen" : "Resolve thread"}
+        ${offeredAction(
+          "symbol",
+          `lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}`,
+          thread.resolved ? "Reopen" : "Resolve thread",
+          { action: thread.resolved ? "reopen" : "resolve" },
+        )}
         aria-disabled=${String(
           !(thread.resolved ? thread.offers.reopen : thread.offers.resolve),
         )}
@@ -3953,9 +3942,7 @@ export function createFloatingPanel({
             ...settlement,
           }).catch(() => {});
         }}
-      >
-        ${actionTemplate(thread.resolved ? "reopen" : "resolve", "lf-action-icon")}
-      </button>`;
+      ></button>`;
     return {
       crumb: html`<span class="lf-fp-facts"
         >${keyedBy(thread.key, html`<span class="lf-fp-news-outlet"></span>`)}</span

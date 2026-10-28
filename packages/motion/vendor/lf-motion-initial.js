@@ -54,6 +54,22 @@
     up: '<path d="m4 9.75 4-4 4 4"/>',
     waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>'
   };
+  var SVG = "http://www.w3.org/2000/svg";
+  var iconMarkup = (icon) => {
+    const markup = ICONS[icon];
+    if (!markup) throw new TypeError(`Unknown Leaf icon: ${icon}`);
+    return markup;
+  };
+  function iconElement(icon, className = "lf-margin-entry-icon") {
+    const svg2 = document.createElementNS(SVG, "svg");
+    svg2.setAttribute("viewBox", "0 0 16 16");
+    svg2.setAttribute("focusable", "false");
+    svg2.setAttribute("aria-hidden", "true");
+    svg2.setAttribute("class", className);
+    svg2.dataset.lfIcon = icon;
+    svg2.innerHTML = iconMarkup(icon);
+    return svg2;
+  }
   var ACTIONS = {
     accept: { name: "Accept", icon: "check" },
     add: { name: "Add", icon: "add" },
@@ -104,70 +120,122 @@
     if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
     return named.icon;
   };
+  var SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
+  function actionFace(role, label, action) {
+    if (!SYMBOLIC.has(role)) {
+      if (action !== void 0)
+        throw new TypeError(`A ${role} says its label and shows no action's symbol`);
+      return label;
+    }
+    if (action === void 0) throw new TypeError(`A ${role} names the action it shows`);
+    actionIcon(action);
+    return label ?? ACTIONS[action].name;
+  }
+  function showAction(control, action, className = "lf-action-icon") {
+    const icon = actionIcon(action);
+    const drawn = control.querySelector(":scope > svg[data-lf-icon]");
+    if (drawn?.getAttribute("data-lf-icon") === icon) return;
+    const symbol = iconElement(icon, className);
+    if (drawn) drawn.replaceWith(symbol);
+    else control.prepend(symbol);
+  }
+  var drawAction = (node, role, action) => showAction(node, action, role === "mark" ? "lf-mark-icon" : "lf-action-icon");
+  function actionOffers(base) {
+    const titled = (title) => title === void 0 ? void 0 : { title };
+    return {
+      /**
+       * @param {LeafActionRole} role @param {string} [className] @param {string} [label]
+       * @param {{title?: string, action?: string}} [options]
+       */
+      offerAction(role, className, label, { title, action } = {}) {
+        const node = base.offerAction(
+          role,
+          className,
+          actionFace(role, label, action),
+          titled(title)
+        );
+        if (SYMBOLIC.has(role)) drawAction(node, role, action);
+        return node;
+      },
+      /**
+       * @template {Element} T
+       * @param {T} node @param {LeafActionRole} role @param {string} [className]
+       * @param {string} [label] @param {{title?: string, action?: string}} [options]
+       */
+      offerActionElement(node, role, className, label, { title, action } = {}) {
+        base.offerActionElement(
+          node,
+          role,
+          className,
+          actionFace(role, label, action),
+          titled(title)
+        );
+        if (SYMBOLIC.has(role)) drawAction(node, role, action);
+        return node;
+      }
+    };
+  }
 
   // packages/motion/initial/lf-motion.js
-  document.documentElement.lfInitial.register(
-    "lf-motion",
-    (host, { offerElement, offerActionElement, tabStore, authoredBody }) => {
-      const saved = JSON.parse(
-        tabStore.get(`motion:${host.id}`) || '{"time":0,"rate":1}'
-      );
-      const body = document.createElement("div");
-      body.className = "lf-motion-body";
-      authoredBody(body);
-      const drawing = {};
-      const offered = (key, cls) => (node) => {
-        if (node) drawing[key] = offerElement(node, cls);
-      };
-      const controlsRef = offered("controls", "lf-motion-controls");
-      const playRef = (node) => {
-        if (node) drawing.play = offerActionElement(node, "symbol", "lf-motion-play");
-      };
-      const timeRef = offered("time", "lf-motion-time");
-      const clockRef = offered("clock", "lf-motion-clock");
-      const speedLabelRef = offered("speedLabel", "lf-motion-speed");
-      const speedRef = offered("speed", "");
-      const template = ({
-        time = Math.min(Number(host.getAttribute("duration")), saved.time),
-        rate = saved.rate,
-        label = "Play",
-        playing = false
-      } = {}) => html`
-      <div
-        ${ref(controlsRef)}
-        role="group"
-        aria-label=${host.getAttribute("aria-label")}
-      >
-        <button ${ref(playRef)} aria-label=${label} title=${label}>
-          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-            ${unsafeSVG(ICONS[actionIcon(playing ? "pause" : "play")])}
-          </svg>
-        </button>
-        <input
-          ${ref(timeRef)}
-          type="range"
-          name="time"
-          min="0"
-          max=${host.getAttribute("duration")}
-          step="1"
-          aria-label="Time"
-          aria-valuetext=${`${Math.round(time)} milliseconds`}
-          .value=${live(String(time))}
-        />
-        <span ${ref(clockRef)}>${Math.round(time)} ms</span>
-        <label ${ref(speedLabelRef)}
-          >Speed<select ${ref(speedRef)} name="speed">
-            ${[1, 0.5, 0.25].map(
-        (value) => html`<option value=${value} .selected=${live(rate === value)}>
+  document.documentElement.lfInitial.register("lf-motion", (host, tools) => {
+    const { offerElement, tabStore, authoredBody } = tools;
+    const { offerActionElement } = actionOffers(tools);
+    const saved = JSON.parse(tabStore.get(`motion:${host.id}`) || '{"time":0,"rate":1}');
+    const body = document.createElement("div");
+    body.className = "lf-motion-body";
+    authoredBody(body);
+    const drawing = {};
+    const offered = (key, cls) => (node) => {
+      if (node) drawing[key] = offerElement(node, cls);
+    };
+    const controlsRef = offered("controls", "lf-motion-controls");
+    const playRef = (node) => {
+      if (node)
+        drawing.play = offerActionElement(node, "symbol", "lf-motion-play", void 0, {
+          action: "play"
+        });
+    };
+    const timeRef = offered("time", "lf-motion-time");
+    const clockRef = offered("clock", "lf-motion-clock");
+    const speedLabelRef = offered("speedLabel", "lf-motion-speed");
+    const speedRef = offered("speed", "");
+    const template = ({
+      time = Math.min(Number(host.getAttribute("duration")), saved.time),
+      rate = saved.rate,
+      label = "Play",
+      playing = false
+    } = {}) => html`
+    <div ${ref(controlsRef)} role="group" aria-label=${host.getAttribute("aria-label")}>
+      <button
+        ${ref(playRef)}
+        ${ref((node) => node && showAction(node, playing ? "pause" : "play"))}
+        aria-label=${label}
+        title=${label}
+      ></button>
+      <input
+        ${ref(timeRef)}
+        type="range"
+        name="time"
+        min="0"
+        max=${host.getAttribute("duration")}
+        step="1"
+        aria-label="Time"
+        aria-valuetext=${`${Math.round(time)} milliseconds`}
+        .value=${live(String(time))}
+      />
+      <span ${ref(clockRef)}>${Math.round(time)} ms</span>
+      <label ${ref(speedLabelRef)}
+        >Speed<select ${ref(speedRef)} name="speed">
+          ${[1, 0.5, 0.25].map(
+      (value) => html`<option value=${value} .selected=${live(rate === value)}>
                   ${value}×
                 </option>`
-      )}
-          </select></label
-        >
-      </div>
-      ${body}
-    `;
-      return Object.assign(drawing, { render: template });
-    }
-  );
+    )}
+        </select></label
+      >
+    </div>
+    ${body}
+  `;
+    return Object.assign(drawing, { render: template });
+  });
 })();

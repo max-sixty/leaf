@@ -336,10 +336,14 @@ export function misplacedBoxes() {
   // container that clips without saying so in `overflow` is named for a spill it is
   // drawn nowhere near and left unnamed for the loss it did take, the walk at the foot
   // of this pass having gone straight past the container that cut it.
+  // A fixed box answers for itself wherever it stands, as a badge pinned to the
+  // window's corner across the column's edge does: it hangs off the window, so it can
+  // never scroll the page sideways, and where it sits is the author's call.
+  const pinned = (el) => getComputedStyle(el).position === "fixed";
   const answeredFor = (el) => {
-    if (isMarginContent(el)) return true;
+    if (isMarginContent(el) || pinned(el)) return true;
     for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
-      if (isMarginContent(a)) return true;
+      if (isMarginContent(a) || pinned(a)) return true;
       if (shownBand(a)) return true;
     }
     return false;

@@ -277,11 +277,16 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
         (f.code, f.at, f.widths) for f in clipped
     } - {("clipped-content", *box) for box in cut} == {
         ("page-scrolls", "", (600, 880)),
-        ("scrollbar-clearance", "<div id=strip>", (600, 880)),
     }, reading.failures
-    [strip] = [f for f in reading.failures if f.code == "scrollbar-clearance"]
+    # A strip that leaves no room for an overlay scrollbar is advice: the bar covers its
+    # last line only under the pointer, and the room is the author's to choose.
+    [strip] = reading.advice
+    assert (strip.code, strip.at, strip.widths) == (
+        "scrollbar-clearance",
+        "<div id=strip>",
+        (600, 880),
+    ), reading.advice
     assert strip.values["clear"] == 0, strip
-    assert reading.advice == []
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit

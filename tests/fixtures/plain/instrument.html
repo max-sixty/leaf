@@ -231,7 +231,7 @@
       </section>
     </main>
 
-    <script type="module">
+    <script>
       const DEFAULT = { p: [0.2, 0.8, 0.2, 1], ms: 480 };
       let saved = JSON.parse(localStorage.getItem("easing") || "null");
       let state = structuredClone(saved ?? DEFAULT);

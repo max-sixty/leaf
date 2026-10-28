@@ -43,8 +43,10 @@ syncActions() { this.actions.update(); }
 
 `read()` returns data, never controls: the actions available in the widget's current
 state, built with `contributionEntry`. Call `update()` whenever that state changes, and
-every surface redraws from the new entries. Each entry needs a `key`, a `label`, and
-either a `glyph` (text) or an `icon` (a Leaf icon name). `behavior`, `tone`, `rank` and
+every surface redraws from the new entries. Each entry needs a `key`, a `label`, and one
+of a `glyph` (text), an `action` (one of Leaf's actions, whose symbol it shows;
+`module-reading.md`, "Icons") or an `icon` (a Leaf icon, for an entry that shows what it
+holds rather than what it does). `behavior`, `tone`, `rank` and
 `state` default to an ordinary primary action; `CONTRIBUTION_ENTRY_SCHEMA` lists their
 values.
 

@@ -1,7 +1,7 @@
 import { PAGE_PAINT_ATTRIBUTE, bindQueuedWork, byRenderedOrder, cancelRender, holdRendering, nextFrame, nextRender, observePreparations, observeQueuedWork, pagePresented, pageUpgraded, renderedOrder, renderedUnder, renderingState, scrollGlides, scrolling, shadowHost, sizeObserver, skipped, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
 import { CARET_KEYS, J, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, Z, closeLayer, currentLocationIn, d, declareReading, deepFocus, drawn, focusDestination, focusRevision, focused, handBack, holdFocus, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, q, release, releaseFocus, rove, selectsAll, takesLetters, typesText, x } from "./runtime/bundle-dom-move.js";
 import { COLLAPSE, LitElement, PRESENTATION_DOM, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, agentName, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, closeNativeLayer, decisionFor, dismissPopoversOutside, documentChanged, guard, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keyed, live, marksSheet, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, readPart, ref, registry, render, repeat, runtime, runtimeResource, sameAnchor, shareUrl, showNativeLayer, tagsDeclaring, threadCounts, threadKey, threadNames, tick, watchLayerChanges, whenApplicationPresented } from "./runtime/bundle-layer-stack.js";
-import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
+import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, actionTemplate, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentId, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
 import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep, workflowVoice } from "./runtime/bundle-data.js";
@@ -211,27 +211,21 @@ function mediaTemplate({ drawing, target, media, sent, actions }) {
 	})}
             </button>
             <button
-              ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke")}
+              ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
               @mousedown=${(event) => event.preventDefault()}
               @click=${actions.undoStroke}
-            >
-              ${iconTemplate("undo", "lf-mark-icon")}
-            </button>
+            ></button>
             <button
-              ${offeredAction("mark", "lf-corner-mark", "Remove drawing")}
+              ${offeredAction("mark", "lf-corner-mark", "Remove drawing", { action: "remove" })}
               @mousedown=${(event) => event.preventDefault()}
               @click=${actions.removeDrawing}
-            >
-              ${iconTemplate("cross", "lf-mark-icon")}
-            </button>
+            ></button>
           </span>
         ` : null, media.map(({ index, url }) => {
 		const remove = html`<button
-        ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`)}
+        ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
         @click=${() => actions.removeMedia(index)}
-      >
-        ${iconTemplate("cross", "lf-mark-icon")}
-      </button>`;
+      ></button>`;
 		return sent ? html`<p class="lf-composer-media-item">
             <button
               type="button"
@@ -265,7 +259,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		hintedBox.value = hint?.box ?? null;
 		hintLabel.value = hint?.label ?? "";
 	};
-	function wireInput(ta, { hint, hintParts = null, hintLead = () => "", accessibleName = null, save, send, sendClass = "", sends, icon = "send", altLabel = null, altSend = null, allowsMedia = (() => true), busy = () => false, hasContent = (raw) => Boolean(raw), drawing = null, rows = [], submitIn = null, sentMedia = false }) {
+	function wireInput(ta, { hint, hintParts = null, hintLead = () => "", accessibleName = null, save, send, sendClass = "", sends, action: submitAction = "send", altLabel = null, altSend = null, allowsMedia = (() => true), busy = () => false, hasContent = (raw) => Boolean(raw), drawing = null, rows = [], submitIn = null, sentMedia = false }) {
 		const field = document.createElement("leaf-composition-field");
 		ta.before(field);
 		const focusedHere = J(() => {
@@ -283,7 +277,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		let mic;
 		let composing = false;
 		const Recognition = globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
-		const offersDictation = Boolean(Recognition && icon === "send" && !submitIn);
+		const offersDictation = Boolean(Recognition && submitAction === "send" && !submitIn);
 		let dictation = null;
 		let loadingDictation = false;
 		let dictationGeneration = 0;
@@ -422,7 +416,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
         @mousedown=${keepEditing}
         @click=${() => pressed(send)}
       >
-        ${iconTemplate(icon, "lf-action-icon")}
+        ${actionTemplate(submitAction, "lf-action-icon")}
       </button>`;
 			if (submitIn) render(submitControl, submitIn, { renderBefore: submitEnd });
 			const drawn = drawing?.read() ?? null;
@@ -459,7 +453,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
             title=${live || !status ? micAction : `${micAction} (${status})`}
             @mousedown=${(event) => event.preventDefault()}
           >
-            ${iconTemplate("microphone", "lf-action-icon")}
+            ${actionTemplate("dictate", "lf-action-icon")}
           </button>` : nothing;
 			const content = html`
         ${ta}${sentMedia ? shelf : nothing} ${submitIn ? nothing : submitControl}
@@ -2848,14 +2842,14 @@ const pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
 const pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
-const matchStep = (icon, name) => {
-	const control = offerAction("symbol", "lf-page-search-step", name, { icon });
+const matchStep = (action) => {
+	const control = offerAction("symbol", "lf-page-search-step", void 0, { action });
 	control.tabIndex = -1;
 	control.addEventListener("mousedown", (event) => event.preventDefault());
 	return control;
 };
-const previousMatchControl = matchStep("up", "Previous match");
-const nextMatchControl = matchStep("down", "Next match");
+const previousMatchControl = matchStep("previous-match");
+const nextMatchControl = matchStep("next-match");
 const pageSearchControls = [
 	pageSearchStatus,
 	previousMatchControl,
@@ -3732,7 +3726,7 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 						}
 					}, {
 						key: `reaction:${root.id}:remove`,
-						icon: "undo",
+						action: "undo",
 						label: `Undo ${root.token} reaction`,
 						rank: "secondary",
 						className: "lf-react-remove",
@@ -4637,7 +4631,7 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 			keys: ["x"],
 			title: "done",
 			exit: true,
-			icon: "check",
+			action: "done",
 			when: () => Boolean(doneTodo()),
 			run: () => {
 				const todo = doneTodo();
@@ -4827,7 +4821,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       @mousedown=${exit ? (event) => event.preventDefault() : nothing}
       @click=${exit ? () => exit.press() : pressMark}
     >
-      ${exit ? iconTemplate(exit.icon ?? "cross", "lf-action-icon") : html`${iconTemplate("inbox", "lf-action-icon")}<span class="lf-fp-num"
+      ${exit ? actionTemplate(exit.action ?? "close", "lf-action-icon") : html`${actionTemplate("on-me", "lf-action-icon")}<span class="lf-fp-num"
                 >${onUser || ""}</span
               ><span class="lf-fp-news" ?hidden=${!news}></span>`}
     </button>`;
@@ -4878,7 +4872,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			paint();
 		}}
             >
-              ${iconTemplate(expanded ? "fit" : "expand", "lf-action-icon")}
+              ${actionTemplate(expanded ? "fit" : "expand", "lf-action-icon")}
             </button>
             <button
               type="button"
@@ -4979,12 +4973,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ${peek?.content ?? nothing}
       </div>
       <button
-        ${offeredAction("mark", "lf-corner-mark lf-fp-minimize", "Fold to the leaf")}
+        ${offeredAction("mark", "lf-corner-mark lf-fp-minimize", "Fold to the leaf", { action: "minimize" })}
         tabindex="-1"
         @click=${() => rows().find((entry) => entry.key === `command:${FOLD}`).press(null)}
-      >
-        ${iconTemplate("subtract", "lf-mark-icon")}
-      </button>
+      ></button>
     `;
 	}
 	render(panelTemplate(true), host);
@@ -5282,12 +5274,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		label: "Close search",
 		press: closeThreadSearch,
 		disabled: false,
-		icon: null
+		action: null
 	} : top && !search ? {
 		label: "Close",
 		press: close,
 		disabled: false,
-		icon: null
+		action: null
 	} : rows().find((entry) => entry.exit) ?? null;
 	function retype() {
 		postureMoved = true;
@@ -5889,7 +5881,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		copy.value = entry.copies;
 		copy.disabled = entry.disabled;
-		render(menuItem(`Copy ${entry.label}`, iconTemplate("copy", "lf-fp-copy-icon"), () => {}, {
+		render(menuItem(`Copy ${entry.label}`, actionTemplate("copy", "lf-fp-copy-icon"), () => {}, {
 			disabled: entry.disabled,
 			role: menuOpen.value ? "menuitem" : null,
 			row: entry.key,
@@ -6425,7 +6417,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		});
 	}
 	const chooser = ({ label, values, name, current, choose }) => html`<span class="lf-fp-chooser" title=${`${label}: ${name(current)}`}
-      >${iconTemplate("arrange", "lf-action-icon")}<select
+      >${actionTemplate("arrange", "lf-action-icon")}<select
         aria-label=${label}
         .value=${live(current)}
         @change=${(event) => {
@@ -6601,7 +6593,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			});
 		}}
         >
-          ${iconTemplate("locate", "lf-action-icon")}
+          ${actionTemplate("show", "lf-action-icon")}
         </button>` : nothing;
 		let answers;
 		let discussHere = true;
@@ -6618,7 +6610,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                 title="Undo"
                 @click=${() => withdraw(gesture)}
               >
-                ${iconTemplate("undo", "lf-action-icon")}
+                ${actionTemplate("undo", "lf-action-icon")}
               </button>` : nothing}${waiting ? html`<button
                 type="button"
                 class="lf-fp-face lf-fp-answer"
@@ -6984,7 +6976,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				closeThreadSearch();
 			}}
       >
-        ${iconTemplate("search", "lf-action-icon")}
+        ${actionTemplate("find", "lf-action-icon")}
       </button>`
 		};
 	}
@@ -7042,7 +7034,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}));
 		}}
             >
-              ${iconTemplate("locate", "lf-action-icon")}
+              ${actionTemplate("show", "lf-action-icon")}
             </button>` : nothing}<button
         type="button"
         class="lf-fp-face lf-fp-icon-btn lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
@@ -7060,7 +7052,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}).catch(() => {});
 		}}
       >
-        ${iconTemplate("check", "lf-action-icon")}
+        ${actionTemplate(thread.resolved ? "reopen" : "resolve", "lf-action-icon")}
       </button>`;
 		return {
 			crumb: html`<span class="lf-fp-facts"
@@ -9405,7 +9397,7 @@ function placeStanceExit() {
 		rank: PAGE_CONTROL_RANK.exit,
 		exit: true,
 		label: () => stance?.label ?? "",
-		icon: () => stance?.icon ?? "cross",
+		action: () => stance?.action ?? "close",
 		group: "page",
 		offered: () => Boolean(stance),
 		disabled: () => stance?.disabled ?? true,
@@ -9414,7 +9406,7 @@ function placeStanceExit() {
 		}
 	});
 }
-const sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled && a?.icon === b?.icon;
+const sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled && a?.action === b?.action;
 const same = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled && a?.shortcut.join(" ") === b?.shortcut.join(" ");
 function paintTouchControls() {
 	const shown = new Set(touchPresses().map(place));
@@ -9424,7 +9416,7 @@ function paintTouchControls() {
 	const title = held && titleOf(held.exit);
 	const nextStance = held ? {
 		label: title[0].toUpperCase() + title.slice(1),
-		icon: held.exit.icon ?? "cross",
+		action: held.exit.action ?? "close",
 		disabled: !live$1(held.exit),
 		press: {
 			id: held.exit.id,

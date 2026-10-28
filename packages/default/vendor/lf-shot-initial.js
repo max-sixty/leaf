@@ -51,11 +51,127 @@
     up: '<path d="m4 9.75 4-4 4 4"/>',
     waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>'
   };
+  var SVG = "http://www.w3.org/2000/svg";
   var iconMarkup = (icon) => {
     const markup = ICONS[icon];
     if (!markup) throw new TypeError(`Unknown Leaf icon: ${icon}`);
     return markup;
   };
+  function iconElement(icon, className = "lf-margin-entry-icon") {
+    const svg2 = document.createElementNS(SVG, "svg");
+    svg2.setAttribute("viewBox", "0 0 16 16");
+    svg2.setAttribute("focusable", "false");
+    svg2.setAttribute("aria-hidden", "true");
+    svg2.setAttribute("class", className);
+    svg2.dataset.lfIcon = icon;
+    svg2.innerHTML = iconMarkup(icon);
+    return svg2;
+  }
+  var ACTIONS = {
+    accept: { name: "Accept", icon: "check" },
+    add: { name: "Add", icon: "add" },
+    arrange: { name: "Arrange", icon: "arrange" },
+    cancel: { name: "Cancel", icon: "cross" },
+    close: { name: "Close", icon: "cross" },
+    collapse: { name: "Collapse", icon: "collapse" },
+    comment: { name: "Comment", icon: "comment" },
+    copy: { name: "Copy", icon: "copy" },
+    "copy-link": { name: "Copy link", icon: "link" },
+    dictate: { name: "Dictate", icon: "microphone" },
+    discard: { name: "Discard", icon: "cross" },
+    done: { name: "Done", icon: "check" },
+    edit: { name: "Edit", icon: "edit" },
+    expand: { name: "Expand", icon: "expand" },
+    find: { name: "Find", icon: "search" },
+    "collapse-all": { name: "Collapse all", icon: "fold" },
+    "expand-all": { name: "Expand all", icon: "unfold" },
+    fit: { name: "Fit", icon: "fit" },
+    minimize: { name: "Minimize", icon: "subtract" },
+    more: { name: "More options", icon: "more" },
+    next: { name: "Next", icon: "next" },
+    // A find bar's steps run up and down its matches, as a browser's do.
+    "next-match": { name: "Next match", icon: "down" },
+    "on-me": { name: "On me", icon: "inbox" },
+    pause: { name: "Pause", icon: "pause" },
+    play: { name: "Play", icon: "play" },
+    previous: { name: "Previous", icon: "previous" },
+    "previous-match": { name: "Previous match", icon: "up" },
+    react: { name: "Add reaction", icon: "reaction" },
+    remove: { name: "Remove", icon: "cross" },
+    reject: { name: "Reject", icon: "cross" },
+    reopen: { name: "Reopen", icon: "check" },
+    reset: { name: "Reset", icon: "retry" },
+    resolve: { name: "Resolve", icon: "check" },
+    retry: { name: "Retry", icon: "retry" },
+    save: { name: "Save", icon: "save" },
+    send: { name: "Send", icon: "send" },
+    show: { name: "Show on page", icon: "locate" },
+    start: { name: "Start", icon: "start" },
+    suggest: { name: "Suggest", icon: "edit" },
+    undo: { name: "Undo", icon: "undo" },
+    "zoom-in": { name: "Zoom in", icon: "add" },
+    "zoom-out": { name: "Zoom out", icon: "subtract" }
+  };
+  var actionIcon = (action) => {
+    const named = ACTIONS[action];
+    if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
+    return named.icon;
+  };
+  var SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
+  function actionFace(role, label, action) {
+    if (!SYMBOLIC.has(role)) {
+      if (action !== void 0)
+        throw new TypeError(`A ${role} says its label and shows no action's symbol`);
+      return label;
+    }
+    if (action === void 0) throw new TypeError(`A ${role} names the action it shows`);
+    actionIcon(action);
+    return label ?? ACTIONS[action].name;
+  }
+  function showAction(control, action, className = "lf-action-icon") {
+    const icon = actionIcon(action);
+    const drawn = control.querySelector(":scope > svg[data-lf-icon]");
+    if (drawn?.getAttribute("data-lf-icon") === icon) return;
+    const symbol = iconElement(icon, className);
+    if (drawn) drawn.replaceWith(symbol);
+    else control.prepend(symbol);
+  }
+  var drawAction = (node, role, action) => showAction(node, action, role === "mark" ? "lf-mark-icon" : "lf-action-icon");
+  function actionOffers(base) {
+    const titled = (title) => title === void 0 ? void 0 : { title };
+    return {
+      /**
+       * @param {LeafActionRole} role @param {string} [className] @param {string} [label]
+       * @param {{title?: string, action?: string}} [options]
+       */
+      offerAction(role, className, label, { title, action } = {}) {
+        const node = base.offerAction(
+          role,
+          className,
+          actionFace(role, label, action),
+          titled(title)
+        );
+        if (SYMBOLIC.has(role)) drawAction(node, role, action);
+        return node;
+      },
+      /**
+       * @template {Element} T
+       * @param {T} node @param {LeafActionRole} role @param {string} [className]
+       * @param {string} [label] @param {{title?: string, action?: string}} [options]
+       */
+      offerActionElement(node, role, className, label, { title, action } = {}) {
+        base.offerActionElement(
+          node,
+          role,
+          className,
+          actionFace(role, label, action),
+          titled(title)
+        );
+        if (SYMBOLIC.has(role)) drawAction(node, role, action);
+        return node;
+      }
+    };
+  }
 
   // packages/default/widgets/shot-view.js
   var SHOT_VIEWS = {
@@ -188,7 +304,13 @@
       this.outlineRef = (node) => node && tools.offerActionElement(node, "word", "lf-shot-outline");
       this.scaleRef = (node) => {
         if (node)
-          this.scaleTrigger = tools.offerActionElement(node, "symbol", "lf-shot-scale");
+          this.scaleTrigger = tools.offerActionElement(
+            node,
+            "symbol",
+            "lf-shot-scale",
+            "Image options",
+            { action: "more" }
+          );
       };
       let optionsId;
       do
@@ -297,19 +419,9 @@
             <button
               ${ref(this.scaleRef)}
               type="button"
-              aria-label="Image options"
               popovertarget=${optionsId}
               @click=${this.toggleOptions ?? null}
-            >
-              <svg
-                viewBox="0 0 16 16"
-                focusable="false"
-                aria-hidden="true"
-                class="lf-action-icon"
-                data-lf-icon="more"
-                .innerHTML=${this.tools.iconMarkup("more")}
-              ></svg>
-            </button>
+            ></button>
             <button
               ${ref(this.outlineRef)}
               type="button"
@@ -404,7 +516,7 @@
 
   // packages/default/initial/lf-shot.js
   document.documentElement.lfInitial.register("lf-shot", (host, tools) => {
-    const view = new ShotView(host, { ...tools, iconMarkup });
+    const view = new ShotView(host, { ...tools, ...actionOffers(tools) });
     render(view.render(), host, { host });
     view.fit();
     return view;

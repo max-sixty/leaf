@@ -45,6 +45,7 @@ import {
   strongestWorkflow,
   workflowLabel,
   workflowTitle,
+  workflowVoice,
 } from "./workflow.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
@@ -53,12 +54,13 @@ import { elementById } from "../passages.js";
 import { designName } from "../design-readings.js";
 import { addressableWord, sectionLabel } from "../addressable-names.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
-import { rememberPassageParts } from "../widget-loader.js";
+import { importWidgets, rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { iconTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
+import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
-import { pageClaimed } from "../semantic-state.js";
+import { agentName, pageClaimed } from "../semantic-state.js";
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
@@ -182,6 +184,7 @@ export function prepareAuthoredMessage(message, thread) {
       descriptors,
       nodes,
       root: template.content,
+      preparation: null,
     });
   }
   const prepared = authoredMessages.get(key);
@@ -191,7 +194,16 @@ export function prepareAuthoredMessage(message, thread) {
       descriptor.document.message !== message.id
     )
       throw new TypeError("an authored message changed its frozen document identity");
-  return prepared;
+  // The captured document owns preparation for its entire lifetime. Concurrent
+  // state reads join it, including after its nodes leave the inert fragment for a
+  // drawing. A failed import remains a failed state read; the next read may retry.
+  return (prepared.preparation ??= importWidgets(prepared.root).then(
+    () => prepared,
+    (error) => {
+      prepared.preparation = null;
+      throw error;
+    },
+  ));
 }
 const authoredMessage = (message) => {
   const prepared = authoredMessages.get(message.attempt ?? message.id);
@@ -214,8 +226,8 @@ const authoredMessage = (message) => {
 // would not.
 const authoredDrawings = new Map();
 const authoredHolders = new Map();
-const shown = (view) => view.node.isConnected && view.node.checkVisibility();
-const hidden = (view) => view.node.isConnected && !view.node.checkVisibility();
+const shown = (view) => view.node.isConnected && showsContents(view.node);
+const hidden = (view) => view.node.isConnected && !showsContents(view.node);
 const outranks = (a, b) => a.model.authoredRank > b.model.authoredRank;
 function settleAuthored(key) {
   const drawings = authoredDrawings.get(key) ?? new Set();
@@ -275,7 +287,7 @@ export function messageReading(
     // thread shows as its run's face until an answer folds it (transcript.js).
     progress: Boolean(message.ephemeral),
     // What an answer leaves standing, while it stands: "Waiting on me" for the question the
-    // user owes words to, "To-do open" for work it promised and has not ended
+    // user owes words to, Still to do (`todoLabel`) for work it promised and has not ended
     // (thread-card.js).
     leaves,
     version: message.content_version,
@@ -298,8 +310,9 @@ export function messageReading(
     // content version.
     base: message.content_version,
     workflow,
-    workflowLabel: workflowLabel(workflow),
-    workflowTitle: workflowTitle(workflow),
+    workflowLabel: workflowLabel(workflow, agentName()),
+    workflowTitle: workflowTitle(workflow, agentName()),
+    workflowVoice: workflowVoice(workflow),
     body: Object.freeze({
       kind,
       text: message.text ?? "",
@@ -446,7 +459,10 @@ export class MessageView {
         )
       : nothing;
     const receipt = model.workflowLabel
-      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+      ? html`<span
+          class="lf-msg-sending"
+          title=${model.workflowTitle}
+          data-voice=${model.workflowVoice}
           >${model.workflowLabel}</span
         >`
       : nothing;

@@ -269,10 +269,12 @@ leaf-composition-field {
    reach of its removal, which also keeps one picture's removal off the next. A shelf in
    flow takes that padding back with its margins, so its pictures keep the field's edge;
    a shelf a surface places takes it back with its offsets. A picture lies at
-   --raise-1, whose shadow reaches its drop and blur below it. Every picture
-   stands 120px tall (`--lf-media-h`), enough to tell a pasted screenshot by its
-   content, which 56px was not. A surface whose ground is not the paper sets the
-   ground and ring its pictures meet it with. */
+   --raise-1, whose shadow reaches its drop and blur below it. A picture stands up to
+   120px tall (`--lf-media-h`), enough to tell a pasted screenshot by its content,
+   which 56px was not. Pictures of different heights meet the field's side of the
+   shelf, which is its foot wherever it stands above the field; a surface that hangs
+   its shelf below the field aligns them to its top. A surface whose ground is not
+   the paper sets the ground and ring its pictures meet it with. */
 /* How far a picture's corner marks stand out past it, in a draft's shelf and on a
    rewrite's pictures alike. */
 :is(.lf-composer-media, .lf-msg-media) {
@@ -285,6 +287,7 @@ leaf-composition-field {
   );
   --lf-media-h: 120px;
   display: flex;
+  align-items: flex-end;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));
   gap: var(--lf-media-room);
   min-width: 0;
@@ -325,21 +328,18 @@ button.lf-media-open {
    under a finger, and shown to a pointer over the picture or a key on it. The user
    chose this in the floating panel on 19 October over each image boxed with its
    removal a press the image's height, a frame and a divider for one picture. Every
-   shelf wears it, so a surface states only where its shelf stands. An image stands at
-   the shelf's height in its own proportions, from three quarters as wide as tall, so a
-   tall screenshot is more than a sliver, up to twice as wide. Its button frames
-   the picture (`.lf-media-frame`, reading.css). */
-.lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open {
-  height: var(--lf-media-h);
-  min-height: 0;
-}
+   shelf wears it, so a surface states only where its shelf stands. An image stands
+   whole in its own proportions, at its own size or shrunk to fit within the shelf's
+   height and twice that width, as its sent message draws it at its own size or shrunk
+   to the thread's room (`.lf-message-media`, integration.css), so its frame is the
+   picture's own shape. The user chose this on 27 October over standing every image
+   at the shelf's height and cropping it to between three quarters and twice as wide
+   as tall, which cut both ends off a wide screenshot. Its button frames the picture
+   (`.lf-media-frame`, reading.css). */
 .lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open img {
   display: block;
-  width: auto;
-  height: 100%;
-  min-width: calc(0.75 * var(--lf-media-h));
   max-width: calc(2 * var(--lf-media-h));
-  object-fit: cover;
+  max-height: var(--lf-media-h);
   border-radius: inherit;
 }
 /* Every press in an item besides its picture is a corner mark (controls.css) on a top

@@ -241,9 +241,7 @@ def _module_urls(
     ]
     # Only the actual document runs parser-time producers. Frozen message widgets
     # arrive later, after the ordinary module Lit has initialized its shared global.
-    early_lit = "/vendor/lit-initial.js" in initial_script_paths(
-        artifact.html.decode("utf-8"), registry, artifact.resources
-    )
+    early_lit = bool(initial_script_paths(artifact.html.decode("utf-8"), registry))
     urls = {}
     while pending:
         path = pending.pop()

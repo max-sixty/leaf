@@ -601,7 +601,9 @@
   /* Words the agent can't be saying are set in italic, as a stage direction stands
      apart from the lines spoken: an error, Leaf's own state, or an instruction about
      the agent (the user's choice, 26 October 2026; `saying`). */
-  .lf-fp-field leaf-text[data-voice="leaf"]::part(placeholder) {
+  .lf-fp-field leaf-text[data-voice="leaf"]::part(placeholder),
+  .lf-compose-placeholder-lead [data-voice="leaf"],
+  .lf-fp-value [data-voice="leaf"] {
     font-style: italic;
   }
   /* The panel shows no key hints but the one that enters an open thread's reply, which
@@ -854,15 +856,11 @@
 
   /* ---------- an opened view: its name over it, its controls at its foot ---------- */
   /* Drawn only while a view is open, since it stands over the page while it is
-     (geometry.js, `declareOccluder`). A hairline across the card's full width ends
-     it, so the field below reads apart from the view even while the field draws no
-     contour of its own; painted inside its foot, it takes no room. */
+     (geometry.js, `declareOccluder`). */
   .lf-fp-opened {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) bottom / 100%
-      1px no-repeat;
   }
   .lf-floating-panel:not([data-open]) .lf-fp-opened {
     display: none;
@@ -1060,7 +1058,7 @@
     outline: var(--focus-ring);
     outline-offset: -2px;
   }
-  :is(.lf-fp-quiet, .lf-fp-next-unread)[data-unoffered] {
+  :is(.lf-fp-on-page, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
   }
   /* Resolve is the check, turning the ok ink on hover; Reopen in its place is the
@@ -1491,15 +1489,35 @@
     flex-direction: column;
     padding: 10px 8px 12px;
   }
-  /* What left the list in view, under it: a section of its own, so a rule opens it. */
-  .lf-fp-ended {
-    margin: 0 8px;
-    padding-top: 10px;
-    border-top: 1px solid var(--lf-fp-faint);
+  /* What left a list, folded under its group heading (floating-panel.js,
+     `settledHeading`): the heading is the press, a row the height of the list's rows
+     whose columns are a thread row's, so its disclosure arrow (controls.css) stands in
+     the column the rows' news mark takes, its name starts where their names do, and
+     its count ends where their status does. */
+  .lf-fp-settled-group {
+    padding: 0;
+  }
+  .lf-fp-settled {
+    display: grid;
+    grid-template-columns: 6px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 34px;
+    padding: 5px 8px;
+    border-radius: var(--r);
     font: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--lf-fp-muted);
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: inherit;
+    text-align: start;
+  }
+  .lf-fp-settled > .lf-fp-count {
+    text-align: end;
+  }
+  .lf-fp-settled::before {
+    justify-self: center;
+    margin: 0;
   }
   .lf-fp-on-place,
   .lf-fp-on-title {
@@ -1920,6 +1938,7 @@
     }
     .lf-fp-item,
     .lf-fp-thread,
+    .lf-fp-settled,
     .lf-fp-page {
       min-height: 44px;
     }

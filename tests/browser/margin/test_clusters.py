@@ -299,6 +299,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     page.route("**/api/event", reject)
     accept.click()
     expect(page.locator("#s-replace lf-old")).to_be_visible()
+    consume_browser_errors(page, http_error_console(400))
     expect(accept).to_have_attribute("data-lf-state", "idle")
     page.unroute("**/api/event")
 
@@ -330,7 +331,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     expect(undo_button).to_have_css("opacity", "1")
     action_shadow = undo_button.evaluate("node => getComputedStyle(node).boxShadow")
     assert action_shadow != "none"
-    sent = workflow.get_by_role("status", name=re.compile(r"^Saved for "))
+    sent = workflow.get_by_role("status", name=re.compile(r"^Queued for Claude for "))
     expect(sent).to_be_visible()
     expect(sent).to_have_attribute("data-lf-state", "idle")
     expect(sent).to_have_css("opacity", "1")
@@ -373,8 +374,6 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     expect(
         workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
     ).to_have_count(1)
-
-    consume_browser_errors(page, http_error_console(400))
 
 
 def test_keyboard_arrival_at_a_margin_entry_cluster_replaces_ellipsis_with_all_entries(
@@ -471,7 +470,7 @@ def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serv
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
     expect(options).to_be_visible()
     expect(
-        options.get_by_role("status", name=re.compile(r"^Saved for "))
+        options.get_by_role("status", name=re.compile(r"^Queued for Claude for "))
     ).to_be_visible()
     expect(item.locator(".lf-margin-entry:visible")).to_have_count(2)
     expect(

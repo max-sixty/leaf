@@ -17,7 +17,12 @@ from leaf.layer import checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
 from leaf.render_checks import RENDER_VIEWPORT, rendered, wait_until_ready
 from leaf.render_gate.scheme import arm_interception, served
-from leaf.render_gate.widget_quality import example_pages, own_tags, served_examples
+from leaf.render_gate.widget_quality import (
+    WRAPPERS,
+    example_pages,
+    own_tags,
+    served_examples,
+)
 from leaf.structure import SourceDocument
 
 # What a reader presses: a button, or a control that holds a choice.
@@ -107,8 +112,27 @@ DELIVERED = """() => {
   return !traffic || !JSON.parse(traffic).pending.length;
 }"""
 
+# Controls no worked example shows, by package directory: a `multiple` group's Done.
+STATES = {
+    "default": """<lf-options id="pressed-many" choose multiple>
+  <lf-option id="pressed-first"><strong>Cache the parsed config</strong></lf-option>
+  <lf-option id="pressed-second"><strong>Parse it lazily</strong></lf-option>
+</lf-options>""",
+}
+
+# The packages whose worked examples show no control to press, by directory, so a
+# sweep that finds none anywhere else has lost its controls.
+UNPRESSABLE = {
+    "code-review",
+    "diagram",
+    "file-tree",
+    "monitoring",
+    "motion",
+    "visual-review",
+}
+
 # The widgets whose presses once flickered, which the sweep must reach sending.
-REACHED = {"lf-playground", "lf-option", "lf-suggestion"}
+REACHED = {"lf-playground", "lf-options", "lf-suggestion"}
 
 
 def _example_pages(package):
@@ -119,6 +143,18 @@ def _example_pages(package):
         for layout, html, data in example_pages(composition.registry, tags)
         if layout == "column"
     ]
+    if state := STATES.get(package.name):
+        opening, closing = WRAPPERS["column"]
+        pages.append(
+            (
+                "column",
+                SourceDocument(
+                    "<!doctype html>\n<html lang='en'><head><title>States</title>"
+                    f"</head><body>{opening}{state}{closing}</body></html>"
+                ),
+                {},
+            )
+        )
     return tags, pages
 
 
@@ -182,7 +218,7 @@ def _press_each_control(browser, url, tags):
             page.keyboard.press("Escape")
     finally:
         page.close()
-    return sent, failures
+    return pressed_names, sent, failures
 
 
 @pytest.mark.parametrize("package", PACKAGES, ids=lambda package: package.name)
@@ -195,10 +231,12 @@ def test_a_pressed_control_keeps_its_face_and_takes_the_next_press(browser, pack
     if package == schema_model.ASSETS:
         package = layer_model.ASSETS
     tags, pages = _example_pages(package)
-    failures, reached = [], set()
+    failures, pressed, reached = [], set(), set()
     for _, url, _ in served_examples(package, pages):
-        sent, found = _press_each_control(browser.unwatched, url, tags)
+        names, sent, found = _press_each_control(browser.unwatched, url, tags)
+        pressed |= names
         reached.update(name.split("#")[0] for name in sent)
         failures += found
+    assert bool(pressed) != (package.name in UNPRESSABLE), sorted(pressed)
     assert REACHED & set(tags) <= reached
     assert not failures, "\n".join(failures)

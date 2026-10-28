@@ -234,14 +234,15 @@ def start_throwaway_page(page_dir: Path, package: Path) -> None:
     """Start a page in an empty directory selecting `package` as `page init` would, by
     the name it is installed or bundled under, or else by path, for a reading Leaf
     takes and then deletes, as `package check --render` does with a package's worked
-    examples. The mandatory layer needs no selection."""
+    examples. The mandatory layer needs no selection, and no theme joins it, so the
+    reading is the same on every machine."""
     if any(paths_same(package, root) for root in layer_inputs()):
         selected = ()
     elif (named := named_package(package.name)) and paths_same(named, package):
         selected = (package.name,)
     else:
         selected = (f"./{os.path.relpath(package)}",)
-    _init_page(page_dir, selected)
+    _init_page(page_dir, selected, theme=False)
 
 
 def _refuse_package_target(page_dir: Path, inputs: list[Path]) -> None:

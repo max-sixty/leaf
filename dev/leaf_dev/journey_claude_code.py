@@ -102,7 +102,7 @@ from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
-from leaf.state import session_record
+from leaf.state import session_record, turn_open
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     MODELS,
@@ -380,8 +380,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
     def closed(turn: str) -> bool:
         """Whether the page's claim has closed `turn`, or opened another after it."""
-        claim = page_claim(page)
-        return claim["turn_closed"] is not None or claim["turn"] != turn
+        return not turn_open(page_claim(page), turn)
 
     def escape(turn: str) -> None:
         """Press Escape on `turn` until Claude Code is idle or the claim has moved

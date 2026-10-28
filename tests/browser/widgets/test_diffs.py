@@ -468,7 +468,7 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
     diff = page.locator("#patch")
     search = diff.locator(".lf-diff-search input")
     progress = diff.locator(".lf-diff-progress")
-    rows = diff.locator(".lf-diff-file:not(.lf-diff-filtered)")
+    rows = diff.locator(".lf-diff-file:not([hidden])")
     geometry = """host => Object.fromEntries(
       ['.lf-diff-search', '.lf-diff-progress']
         .map(selector => {
@@ -1345,6 +1345,11 @@ def test_a_diff_conversation_s_reply_rests_as_a_press_that_c_opens(browser, serv
     expect(reply).to_be_focused()
     reached = reply.evaluate(face)
     assert (reached["height"], reached["mic"]) == (opened["height"], opened["mic"])
+    page.keyboard.insert_text("Keep this draft open")
+    page.keyboard.press("Escape")
+    expect(reply).not_to_be_focused()
+    assert reply.evaluate(face)["height"] == opened["height"]
+    expect(reply).to_have_js_property("value", "Keep this draft open")
 
 
 def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(

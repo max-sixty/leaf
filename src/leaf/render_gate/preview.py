@@ -21,7 +21,7 @@ def preview_server(
 
     The server runs this Leaf's runtime and serves its probes beside it
     (`runtime_selection`), so the probes read the runtime they were written for
-    whichever Leaf vendored the page.
+    whichever Leaf initialized the page.
     """
     with TemporaryPageServer(
         page_dir, page_options={"page_snapshot": snapshot}

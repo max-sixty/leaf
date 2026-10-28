@@ -145,11 +145,9 @@ const observations = (label, rows, describe) =>
                     ${
                       destinations.has(row)
                         ? html`<button
-                            ${offeredAction("word")}
+                            ${offeredAction("symbol", "", "Show on page", { action: "show" })}
                             @click=${() => showOnPage(row)}
-                          >
-                            Show on page
-                          </button>`
+                          ></button>`
                         : nothing
                     }
                   </li>`,
@@ -259,9 +257,12 @@ function present() {
             ? html`<p role="status">${sourceError}</p>
                 ${
                   report.basis
-                    ? html`<button ${offeredAction("word")} @click=${loadSource}>
-                        Retry source inspection
-                      </button>`
+                    ? html`<button
+                        ${offeredAction("symbol", "", "Retry source inspection", {
+                          action: "retry",
+                        })}
+                        @click=${loadSource}
+                      ></button>`
                     : nothing
                 }`
             : nothing

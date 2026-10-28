@@ -2,10 +2,10 @@
  * Lit draws the generated strip from panel labels and tracked readings; authored
  * panels stay outside its render root. The upgrade hides
  * inactive panels with hidden="until-found", so browser find-in-page and
- * fragment navigation still reach them — `beforematch` opens the owning tab,
- * and the runtime's reveal() asks the same via the lf-reveal event when it
- * scrolls to a comment anchor. A page can make a panel itself scroll with CSS,
- * so the widget declares each panel as a scroll surface; its CSS still decides
+ * fragment navigation still reach them, and so does Leaf's travel to a comment
+ * anchor, which reveals as they do: `beforematch` opens the owning tab. A page can
+ * make a panel itself scroll with CSS, so the widget declares each panel as a scroll
+ * surface; its CSS still decides
  * whether that panel scrolls. The open tab is view state for this user,
  * remembered per browser tab (`keepView`): switching is reading, not editing, so it
  * never sends an action and no version carries it — this widget doesn't ride the
@@ -77,6 +77,7 @@
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
+  actionTemplate,
   agentName,
   PRESS,
   obligationsIn,
@@ -88,7 +89,6 @@ import {
   capturePlace,
   comparisonChanges,
   claimTraversals,
-  commands,
   compoundReadingRegionId,
   cycledRow,
   elementsDeclaring,
@@ -129,6 +129,7 @@ import {
   render,
   repeat,
   ref,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 const PLACE_KEY = "lf-tabs-place:";
@@ -211,14 +212,8 @@ export class TabSet extends LeafElement {
       panel.setAttribute("role", "tabpanel");
       panel.setAttribute("aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or
-      // the runtime is about to scroll a comment anchor into view: open up.
+      // Leaf is about to scroll a comment anchor into view: open up.
       panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
-      panel.addEventListener("lf-reveal", (event) => {
-        if (this.#active.value && this.#active.value !== panel)
-          event.detail.replacedView();
-        const ready = this.#activate(panel, "reveal");
-        event.detail?.present?.(ready);
-      });
     }
     // Build the strip before opening its panel: activation measures the selected
     // name and the underline in this same task. Later publication uses LeafElement's
@@ -238,53 +233,57 @@ export class TabSet extends LeafElement {
     };
     // Across the row, back is the way the names run from.
     const [back, ahead] = rowArrows(this);
-    commands(strip, "On a tab", [
-      {
-        id: "tab.activate",
-        keys: PRESS,
-        title: "open the tab",
+    strip.lfCommands = {
+      title: "On a tab",
+      rows: [
+        {
+          id: "tab.activate",
+          keys: PRESS,
+          title: "open the tab",
 
-        // The tab already open has nothing for this press to do, so the line does not
-        // name it there; the walk beside it is what moves.
-        when: () => focused() !== this.#buttons.get(this.#active.value),
-        run: () => focused().click(),
-      },
-      {
-        id: "tab.walk",
-        // A list standing beside its panels is read down, so it walks down too.
-        keys: down
-          ? ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
-          : ["ArrowLeft", "ArrowRight"],
-        routes: [
-          ...(down
-            ? [
-                { id: "tab.up", binding: "ArrowUp", title: "Previous tab" },
-                { id: "tab.down", binding: "ArrowDown", title: "Next tab" },
-              ]
-            : []),
-          { id: "tab.previous", binding: back, title: "Previous tab" },
-          { id: "tab.next", binding: ahead, title: "Next tab" },
-        ],
-        title: "walk the tabs",
-        repeat: true,
-        travels: true,
-        run: (binding) => {
-          const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
-          walk(cycledRow(tabs(), focused(), step));
+          // The tab already open has nothing for this press to do, so the line does not
+          // name it there; the walk beside it is what moves.
+          when: () => focused() !== this.#buttons.get(this.#active.value),
+          run: () => focused().click(),
         },
-      },
-      {
-        id: "tab.edge",
-        keys: ["Home", "End"],
-        routes: [
-          { id: "tab.first", binding: "Home", title: "First tab" },
-          { id: "tab.last", binding: "End", title: "Last tab" },
-        ],
-        title: "first / last",
-        travels: true,
-        run: (binding) => walk(binding === "Home" ? tabs()[0] : tabs().at(-1)),
-      },
-    ]);
+        {
+          id: "tab.walk",
+          // A list standing beside its panels is read down, so it walks down too.
+          keys: down
+            ? ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
+            : ["ArrowLeft", "ArrowRight"],
+          routes: [
+            ...(down
+              ? [
+                  { id: "tab.up", binding: "ArrowUp", title: "Previous tab" },
+                  { id: "tab.down", binding: "ArrowDown", title: "Next tab" },
+                ]
+              : []),
+            { id: "tab.previous", binding: back, title: "Previous tab" },
+            { id: "tab.next", binding: ahead, title: "Next tab" },
+          ],
+          title: "walk the tabs",
+          repeat: true,
+          travels: true,
+          run: (binding) => {
+            const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
+            walk(cycledRow(tabs(), focused(), step));
+          },
+        },
+        {
+          id: "tab.edge",
+          keys: ["Home", "End"],
+          routes: [
+            { id: "tab.first", binding: "Home", title: "First tab" },
+            { id: "tab.last", binding: "End", title: "Last tab" },
+          ],
+          title: "first / last",
+          travels: true,
+          run: (binding) => walk(binding === "Home" ? tabs()[0] : tabs().at(-1)),
+        },
+      ],
+    };
+    commandsChanged(strip);
     this.prepend(strip);
     this.#declareHeader();
     this.classList.add("lf-rendered"); // the upgraded marker every widget uses
@@ -460,7 +459,8 @@ export class TabSet extends LeafElement {
               ><span class="lf-tab-answer-words">${answer}</span></span
             >`
           : nothing
-      }<span class="lf-tabdiff" aria-hidden="true">${changed ? `Δ${changed}` : ""}</span
+      }<span class="lf-tabdiff tag lf-change-count" aria-hidden="true"
+        >${changed ? `Δ${changed}` : ""}</span
       >${this.#down ? mark : nothing}</span
     >`;
   }
@@ -471,7 +471,7 @@ export class TabSet extends LeafElement {
     // scrolling the row away.
     if (active === this.#active.value) {
       this.#showTab(this.#buttons.get(active));
-      return Promise.resolve();
+      return;
     }
     const previous = this.#active.value;
     const order = [...this.#buttons.keys()];
@@ -532,13 +532,11 @@ export class TabSet extends LeafElement {
       else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
 
       keepView(this, active);
-      const presentation = [];
       for (const panel of [previous, active].filter(Boolean)) {
         const child = soleSubstantiveElement(panel);
-        if (child) presentation.push(layoutChanged(child));
+        if (child) layoutChanged(child);
       }
-      presentation.push(layoutChanged(this));
-      return Promise.all(presentation);
+      layoutChanged(this);
     };
     return this.#pageFlow && previous ? preserveReadingRegions(this, change) : change();
   }
@@ -630,8 +628,9 @@ export class TabSet extends LeafElement {
             behavior: scrollBehavior(),
           });
         }}
+        >${actionTemplate(to === "start" ? "previous" : "next", "lf-tabstrip-scroll-icon")}</span
       ></span
-    ></span>`;
+    >`;
   }
 
   // A tab the row runs past is scrolled into the strip, and only the strip: a page
@@ -710,9 +709,10 @@ export class TabSet extends LeafElement {
         if (!this.#root) return null;
         const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
         return view && view !== this.#active.value
-          ? () => {
+          ? async () => {
               const placesPage = this.#pageFlow;
-              return this.#activate(view, "history").then(() => placesPage);
+              await this.#activate(view, "history");
+              return placesPage;
             }
           : null;
       },

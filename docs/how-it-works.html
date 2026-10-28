@@ -1191,10 +1191,10 @@ flowchart TD
                   <tr id="ontology-workflow">
                     <td>Workflow</td>
                     <td>
-                      An unsettled update's delivery and work stage: Saved, Up next, Got
-                      it, On it, Replying or Answered. Conditions report interruptions
-                      or failures. The workflow names its thread and owed answer, if
-                      any.
+                      An unsettled update's delivery and work stage: Queued for Claude,
+                      Up next, Got it, On it, Replying or Answered. Conditions report
+                      interruptions or failures. The workflow names its thread and owed
+                      answer, if any.
                     </td>
                     <td>the update's event id</td>
                   </tr>
@@ -1426,9 +1426,9 @@ flowchart TD
               <p id="data-survives-lede">
                 Accepted events and external data survive closing a tab or restarting
                 the server. Browser stores preserve drafts and interface arrangements
-                with the scopes shown below. Updates still marked Saving… or trying
-                again have not yet reached durable storage; keep their tab open until
-                they do.
+                with the scopes shown below. An update the server has not yet accepted
+                has not reached durable storage; while the status says the connection is
+                lost or the update is not through yet, keep its tab open until it is.
               </p>
               <table id="data-survives-table">
                 <thead>
@@ -1699,8 +1699,8 @@ flowchart TD
             <ol id="progress-timeline">
               <li id="progress-sent">
                 <time>0s</time> <small>observation</small>
-                <strong>Saving… → Saved</strong> The comment appears immediately as
-                Saving…. It reads Saved once the server accepts and records it.
+                <strong>Queued for Claude</strong> The comment appears in its thread
+                immediately, reading <em>Queued for Claude</em> until the agent has it.
               </li>
               <li id="progress-picked">
                 <time>1s</time> <small>observation</small> <strong>Got it</strong> The
@@ -1746,14 +1746,14 @@ flowchart TD
                 </tr>
               </thead>
               <tbody>
-                <tr id="stages-sending">
-                  <td>Saving…</td>
-                  <td>The user's browser is still sending the update to the server.</td>
-                </tr>
                 <tr id="stages-sent">
-                  <td>Saved</td>
+                  <td><em>Queued for Claude</em></td>
                   <td>
-                    The server checked the update and added it to the page's event log.
+                    No harness has queued the update or put it into the agent's turn.
+                    The label is the same while the browser is still sending it and once
+                    the server has added it to the page's event log. It names the page's
+                    agent and is set in italic, as Leaf's own words are, since the agent
+                    can't yet be saying anything about the update.
                   </td>
                 </tr>
                 <tr id="stages-queued">
@@ -1819,8 +1819,10 @@ flowchart TD
                   <th colspan="2">Delayed, interrupted, or unanswered</th>
                 </tr>
                 <tr id="stages-pickup-late">
-                  <td>Haven't seen it yet</td>
-                  <td>The update is still Saved two minutes after the user sent it.</td>
+                  <td><em>Still queued for Claude</em></td>
+                  <td>
+                    The update is still queued two minutes after the user sent it.
+                  </td>
                 </tr>
                 <tr id="stages-ended">
                   <td>Stopped</td>
@@ -1946,7 +1948,8 @@ flowchart TD
                 </tr>
                 <tr id="panel-line-selection">
                   <td>
-                    Words selected on the page, which a press on the field comments on
+                    Words selected on the page, which a press on the field or
+                    <kbd>c</kbd> comments on
                   </td>
                   <td><em>“the queue fills”</em></td>
                 </tr>
@@ -1968,10 +1971,10 @@ flowchart TD
               </tbody>
             </table>
             <p id="panel-line-thread">
-              With a thread open, the field is that thread's reply box. It says
-              <em>Reply</em> and whose turn it is, such as <em>Reply · Your turn</em>; a
-              notice takes that place for its four seconds, and a walk's position stands
-              at the line's end.
+              With a thread open, the field is that thread's reply box. It says whose
+              turn it is beside the leaf, such as <em>Your turn</em>, and <em>Reply</em>
+              with the key that enters it at the line's end; a notice takes their place
+              for its four seconds, and a walk's position follows whose turn it is.
             </p>
             <p id="panel-line-grammar">
               A middle dot joins separate facts, as in
@@ -1979,9 +1982,11 @@ flowchart TD
               fact before it. Every line is in the agent's voice, with no name in front
               of it: <em>Got your comment</em>, <em>Your turn</em>. Words the user is
               writing hide the line, while screen readers still hear notices and changes
-              of status. The leaf and the tab's icon keep the status's colour
-              throughout, and the leaf's menu holds the status's full sentence. A folded
-              panel shows notices beside the leaf.
+              of status. A press the line offers, <em>Reply</em> or the selected words,
+              reads in full ink with the key that makes it, and everything else reads
+              dimmer. The leaf and the tab's icon keep the status's colour throughout,
+              and the leaf's menu holds the status's full sentence. A folded panel shows
+              notices beside the leaf.
             </p>
           </section>
           <section id="updates-silence">
@@ -2044,7 +2049,7 @@ flowchart TD
               Leaf shows work as active when a start is still current, when the harness
               reports a step in an active turn, or when that turn has received input
               requiring an answer. The freshness rules above determine when a start or
-              turn stops counting as active. Input is stalled if it remains Saved for
+              turn stops counting as active. Input is stalled if it remains queued for
               two minutes, or if the turn that received it ends without answering. After
               about a minute, the status also shows the working reading's age, for
               example
@@ -2468,9 +2473,9 @@ flowchart TD
                     >Interface initialization and the state request overlap.</span
                   >
                   <span id="loading-comments"
-                    >New comments and drawings appear immediately and remain Saving…
-                    until accepted; choices that change saved state wait for the current
-                    reading.</span
+                    >New comments and drawings appear immediately and go through once
+                    saved comments and choices have loaded; choices that change saved
+                    state wait for the current reading.</span
                   >
                   <span id="loading-state"
                     >Saved threads and choices join the page without losing new comments
@@ -2493,7 +2498,8 @@ flowchart TD
             <p id="browser-updates-drawn">
               A pick, drag or comment enters an ordered pending list. Its result appears
               in the sending task, before the next frame: the option is selected, the
-              card moves, or the comment appears as Saving… (<a href="#stages"
+              card moves, or the comment appears reading Queued for Claude (<a
+                href="#stages"
                 >Stages of an update</a
               >). Sent words leave the input but remain in the draft store until
               accepted.

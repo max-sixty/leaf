@@ -541,8 +541,8 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
 def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
     """A notice the page raises on the rendering turn after the gate's last probe, in
     every attempt, is heard and confirmed by a second whole four-render attempt, and
-    the gate reports it once as recurring. A console warning beside it fails the gate
-    once per scheme however many attempts heard it."""
+    the gate reports it once as recurring. A console warning beside it is advice,
+    reported once per scheme however many attempts heard it."""
     pages = []
 
     def prepare(page):
@@ -553,9 +553,10 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
         )
         pages.append(page)
 
-    failures = render_gate_model.render_version(
+    reading = render_gate_model.render_version(
         primed(browser.unwatched, prepare), serve(LONG_PAGE)
-    ).failures
+    )
+    failures = reading.failures
 
     assert len(pages) == 8
     recurring = [
@@ -567,12 +568,12 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
     assert [failure.scheme for failure in recurring] == ["light"], failures
     assert recurring[0].values["text"].startswith("ResizeObserver loop"), recurring
     warnings = [
-        failure
-        for failure in failures
-        if failure.code == "console-warning"
-        and failure.values["text"] == "authored warning"
+        advice
+        for advice in reading.advice
+        if advice.code == "console-warning"
+        and advice.values["text"] == "authored warning"
     ]
-    assert len(warnings) == 2, failures
+    assert len(warnings) == 2, reading.findings
 
 
 def test_the_gate_passes_what_the_renderer_draws(browser, serve):
@@ -1578,9 +1579,10 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
     it holds, and the side is resolved rather than string-matched, so `inline-start`
     is the same left edge. A float carried off the window's leading edge is drawn
     outside the root scrollport, which never scrolls before that edge, so only the
-    clipping reading sees it. Fixed placement answers for a box wholly outside the
-    column, not one crossing it; only the desktop leaves an outer gutter wider than
-    the 174px the fixed margin content takes.
+    clipping reading sees it. Fixed placement answers for a box wherever it stands,
+    outside the column or across its edge, since it hangs off the window, though one
+    drawn over the prose is still named for the words it covers; only the desktop
+    leaves an outer gutter wider than the 174px the fixed margin content takes.
 
     Words no mark can be shown on: an element with `display: contents` generates no
     box, and the runtime hangs a mark on the boxes it shows through instead. `#veiled`
@@ -1666,8 +1668,8 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
     assert not naming("fixed-margin"), (
         f"the fixed margin content was reported for standing where it was put: {failures}"
     )
-    assert reported("past-column", "<div id=fixed-half>"), (
-        f"a fixed box crossing the column escaped the gate: {failures}"
+    assert not reported("past-column", "<div id=fixed-half>"), (
+        f"a fixed box crossing the column was read as a spill: {failures}"
     )
     assert reported("unmarkable", "<div id=ghost>"), (
         f"the gate said nothing about words no mark can be shown on: {failures}"

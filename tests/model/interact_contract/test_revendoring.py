@@ -35,9 +35,7 @@ from leaf import vendoring as vendoring_model
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import preview as render_gate_model
-from model.interact_contract import (
-    _stateful_page_declaration,
-)
+from model.interact_contract import _stateful_page_declaration, vocabulary
 
 
 def test_init_allows_a_log_the_incoming_layer_no_longer_speaks(page_dir):
@@ -139,7 +137,7 @@ def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
 
 def test_init_allows_retiring_a_logged_widgets_verb(page_dir):
     """A layer can remove one widget's verb while keeping another's same-named verb."""
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     board = registry["lf-board"]["x-example"]
     version = page_dir / "index.html"
     version.write_text(
@@ -223,7 +221,7 @@ def test_init_allows_a_destination_schema_that_rejects_recorded_values(page_dir)
 
 @pytest.mark.parametrize("mutation", ["drop", "words", "child"])
 def test_init_allows_changed_generated_child_semantics(page_dir, mutation):
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     options = (
         '<lf-ask id="route-decision"><h2>Which route?</h2>'
         '<lf-options id="route" choose>'
@@ -300,7 +298,7 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
         == 0
     )
 
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     task = registry["lf-test-task"]
     task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
@@ -342,7 +340,7 @@ def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir):
         },
     )
 
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     diagram = registry["lf-diagram"]
     diagram.pop("x-visual")
     overlay = page_dir.parent / ".leaf"
@@ -364,34 +362,14 @@ def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir):
     assert events_model.read_events(page_dir)
 
 
-def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
-    """Re-vendoring is the remedy for a broken vendored layer, so the selection a bare
-    `page init` repeats is read on its own: a malformed entry or a missing layer
-    generation is replaced rather than refused."""
-    assert files_model.list_revisions(page_dir) == []
-    path = page_dir / "registry.json"
-    registry = json.loads(path.read_text())
-    selection = registry["$layer"]["packages"]
-    registry["lf-corrupt"] = "broken"
-    del registry["$layer"]["generation"]
-    path.write_text(json.dumps(registry))
-
-    vendoring_model.cmd_init(page_dir)
-
-    revendored = json.loads(path.read_text())
-    assert "lf-corrupt" not in revendored
-    assert revendored["$layer"]["packages"] == selection
-    assert registry_storage.layer_metadata(page_dir)["generation"]
-    assert files_model.list_revisions(page_dir) == []
-
-
 @pytest.mark.parametrize("valid_source", [True, False])
 def test_revendoring_activates_current_delivery_handling_only_for_valid_source(
     page_dir, capsys, valid_source
 ):
-    """A re-vendor replaces the captured CLI vocabulary before a wait can deliver
-    again, without an intervening state read or markup edit. The composed package
-    clauses survive; invalid source keeps the last good capture and reports why."""
+    """A re-vendor to another selection replaces the active revision's vocabulary
+    before a wait can deliver again, without an intervening state read or markup
+    edit. The composed package clauses survive; invalid source keeps the last good
+    revision, read under the selection it captured, and reports why."""
     package = page_dir.parent / ".leaf"
     package.mkdir()
     package_handling = "Keep the package's authored comment instructions."
@@ -399,12 +377,20 @@ def test_revendoring_activates_current_delivery_handling_only_for_valid_source(
         json.dumps({"$events": {"handling": {"comment": [{"text": package_handling}]}}})
     )
     vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
-    path = page_dir / "registry.json"
-    registry = json.loads(path.read_text())
-    current = registry["$events"]["answering"]["reply"][0]["text"]
-    older = "Use the older CLI's leaf thread reply --for command."
-    registry["$events"]["answering"]["reply"][0]["text"] = older
-    path.write_text(json.dumps(registry))
+    reply = registry_storage.load_registry(page_dir)["$events"]["answering"]["reply"]
+    older = reply[0]["text"]
+    current = "Answer with the newer package's leaf thread reply command."
+    revised = page_dir.parent / ".revised"
+    revised.mkdir()
+    (revised / "registry.json").write_text(
+        json.dumps(
+            {
+                "$events": {
+                    "answering": {"reply": [{**reply[0], "text": current}, *reply[1:]]}
+                }
+            }
+        )
+    )
     captured = revisioning_model.activate_source(page_dir)
     assert captured.error is None
     source = page_dir / "index.html"
@@ -414,11 +400,19 @@ def test_revendoring_activates_current_delivery_handling_only_for_valid_source(
         )
     unchanged_markup = source.read_bytes()
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*page_packages(), "./.leaf", "./.revised")),
+            str(page_dir),
+        ],
+    )
 
     assert result.exit_code == 0, result.output
     assert source.read_bytes() == unchanged_markup
-    assert ("unready-revendor" in result.output) is not valid_source
+    assert ("unready-reinit" in result.output) is not valid_source
     capsys.readouterr()
     serving(page_dir, 1)
     append_carried_log_record(
@@ -441,12 +435,10 @@ def test_a_preview_keeps_its_contract_while_revendoring_completes(page_dir):
         1,
         url="/",
     )
-    theme = page_dir / "theme.css"
-    theme.write_text(theme.read_text() + "\n/* repair this installed edit */\n")
     with render_gate_model.preview_server(page_dir, snapshot) as url:
         status, captured = fetch(url, token=None)
         assert status == 200
-        vendoring_model.cmd_init(page_dir)
+        vendoring_model.cmd_init(page_dir, page_packages()[:-1])
         assert registry_storage.layer_metadata(page_dir)["generation"] != before
         assert fetch(url, token=None) == (200, captured)
     assert snapshot.context.registry["$layer"]["generation"] == before
@@ -455,7 +447,7 @@ def test_a_preview_keeps_its_contract_while_revendoring_completes(page_dir):
 def test_revendoring_serializes_with_a_browser_action_entering_the_log(
     page_dir, server, monkeypatch
 ):
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
@@ -490,7 +482,7 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
 ):
     _tasks_version(page_dir, "active")
     publish(page_dir)
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     task = registry["lf-test-task"]
     task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
@@ -507,10 +499,7 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
 
     assert refusal is None
     assert events_model.read_events(page_dir)[-1]["kind"] == "report"
-    assert (
-        "x-state"
-        not in json.loads((page_dir / "registry.json").read_text())["lf-test-task"]
-    )
+    assert "x-state" not in registry_storage.load_registry(page_dir)["lf-test-task"]
 
 
 @pytest.mark.parametrize("in_sample", [False, True])
@@ -551,7 +540,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         page_dir, {"parent": "c1", "responds": "c1"}, "Pick one:", markup
     )
 
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     options = registry["lf-options"]
     options["x-state"]["decide"] = {
         "decides": True,

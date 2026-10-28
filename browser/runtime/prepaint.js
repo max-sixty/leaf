@@ -420,8 +420,8 @@
     );
     return node;
   };
-  // Words an upgrade wrote, which the page's authored source lacks: the version diff
-  // looks past them, and they are a passage cell of their own. `says` is whether they
+  // Words an upgrade wrote, which the page's authored source lacks: the `wrote` reading
+  // leaves them out, and they are a passage cell of their own. `says` is whether they
   // are the page speaking (data-lf-said, quotable even inside chrome), a copy of words
   // the page says elsewhere ("echo", data-lf-echo), or neither; widget-elements.js,
   // over `relabel`, says why each answer matters and why none is assumed.
@@ -1358,6 +1358,8 @@
         throw new TypeError(
           `initial renderer for <${host.localName}> must be synchronous`,
         );
+      if (drawing !== null)
+        root.lfInitial.lit.render(drawing.render(), drawing.root ?? host, { host });
       drawings.set(host, drawing);
       return drawing;
     },

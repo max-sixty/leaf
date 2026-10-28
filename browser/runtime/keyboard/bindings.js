@@ -54,8 +54,8 @@
      platform's own on a link, or one another scope's row already runs.
    - `keep` is the step a close request, such as Android's back gesture, takes in
      place of `run`, on a row whose `run` throws away words the user wrote and hasn't
-     sent, such as an editor's Discard: it closes the same way, keeps the words where
-     reopening finds them, and says so (close-requests.js).
+     sent, such as an editor's Discard: it closes the same way without losing them,
+     saving them or keeping them where reopening finds them (close-requests.js).
    - `touch` is the words of the menu row that stands in for a page command's press
      under a finger, or a function when state chooses them, and `false` where a finger
      reaches the result directly (keyboard/AGENTS.md, "Touch routes"). Every page
@@ -174,7 +174,6 @@ export const spell = (binding) => {
 const softKeyboard = () => coarsePointer.matches;
 export const submitBindings = () =>
   softKeyboard() ? ["Mod+Enter"] : ["Enter", "Mod+Enter"];
-export const submitLabel = () => spell(submitBindings()[0]);
 // Whether a surface advertises keys: a key drawn where the user has no keyboard names a
 // press they cannot make, and costs room on the smallest window there is. Every
 // runtime surface that paints a key it was not asked for — a field's send key, the

@@ -132,7 +132,8 @@ import { claimed, revealHeld } from "../thread/surfaces.js";
 
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
-import { seenRect, shownWindow, skipped, watchRoom } from "../geometry.js";
+import { seenRect, shownWindow, watchRoom } from "../geometry.js";
+import { skipped } from "../shown-box.js";
 
 import { hostIn, renderedUnder, under } from "../shadow.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -848,6 +849,8 @@ export function createMarginProjection({
         key: `reading:${choice?.key ?? "none"}`,
         icon: face.icon,
         label: readingLabel(choice),
+        // A lone receipt's label is its workflow's word, said in that workflow's voice.
+        voice: (items.length === 1 && face.voice) || "agent",
         context: readingContext(choice),
         behavior,
         rank: "reading",

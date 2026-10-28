@@ -38,12 +38,19 @@ It also groups the model phases into the model calls the harness made, each with
 its parts, its output tokens where the harness reports them, and the calls it
 issued, which say what a slow reply spent its time on.
 
+`pickup_wait` reads the same records for the wait before the reply's first phase
+that a user sees, from the comment's admission to its opened pickup, and names
+what ended it, so a survey of real sessions can sort the slow ones by cause. The
+journey runs only the causes a harness should produce; the others, such as a watch
+that never woke the session, show only in long real sessions.
+
 The records are the journey's normalized form, each stamped `received_at`:
 `assistant` and `user` records whose content holds `tool_use` and `tool_result`
 parts; a `model_response` where each model response ended, at its last tool call or
 after the calls it started returned, as the harness reports it, with the response's
 `outputTokens` where reported; `turn_start` and `turn_end` where the harness began
-and finished a turn; and, where the harness reports them, a `request` where it sent
+and finished a turn, the start with the `origin` of what began it where the harness
+names one; and, where the harness reports them, a `request` where it sent
 the model a request, a `first_output` where a response's first output arrived, and
 a `leaf_hook` where one of Leaf's hooks ended, with its `ms`. A harness that streams
 its session stamps a record when the journey hears it; Claude Code's transcript
@@ -58,8 +65,20 @@ import shlex
 from datetime import datetime
 from pathlib import Path
 
+from leaf.harness import NUDGE_WORDS
+from leaf_dev import ROOT
+
 # The directory change an agent puts before a command, which says nothing of it.
 CD_PREFIX = re.compile(r"^cd \S+ && ")
+# The summary of the task notification Leaf's watch wakes Claude Code with.
+LEAF_WAKE = next(
+    hook["rewakeSummary"]
+    for group in json.loads((ROOT / "hooks" / "hooks.json").read_text())["hooks"][
+        "Stop"
+    ]
+    for hook in group["hooks"]
+    if "rewakeSummary" in hook
+)
 # How much of each call a reading keeps.
 SHOWN = 200
 
@@ -384,6 +403,63 @@ def reply_breakdown(
     }
 
 
+# What can end a pickup wait (`pickup_wait`), and the ones a turn's origin names
+# where no turn running at the admission took the comment.
+WAIT_CAUSES = ("working", "woken", "nudged", "prompted", "other", "started")
+ORIGIN_CAUSES = {"leaf_wake": "woken", "leaf_nudge": "nudged", "human": "prompted"}
+
+
+def pickup_wait(records: list[dict], admitted: str, picked_up: str) -> dict:
+    """What a comment waited on from its admission to its opened pickup, from the
+    session's `records`, with the wait in milliseconds and the `missedTurns` that
+    ended in it without taking the comment. The `cause` is:
+
+    - `working`: a turn was running at the admission and took the comment at a
+      tool boundary, after the `calls` out in the wait;
+    - `woken`: Leaf's watch woke the idle session;
+    - `nudged`: Leaf's nudge started the turn, or resumed a background job whose
+      worker had retired;
+    - `prompted`: the user's own prompt started the turn, so nothing of Leaf's
+      woke the session first;
+    - `other`: something else started the turn, such as a background task ending;
+    - `started`: the session's records begin after the admission, so a session
+      that took the page later picked it up.
+    """
+    start, end = instant(admitted), instant(picked_up)
+    timed = [(instant(record["received_at"]), record) for record in records]
+    turns = [
+        (at, record)
+        for at, record in timed
+        if record["type"] in ("turn_start", "turn_end")
+    ]
+    missed = sum(
+        record["type"] == "turn_end" for at, record in turns if start < at < end
+    )
+    took = next((record for at, record in reversed(turns) if at <= end), None)
+    running = [record for at, record in turns if at <= start][-1:]
+    wait = {"ms": round((end - start) * 1000), "missedTurns": missed}
+    if not timed or timed[0][0] > start:
+        return {**wait, "cause": "started"}
+    if running and running[0]["type"] == "turn_start" and not missed:
+        # The calls out at any moment of the wait.
+        out: dict[str, str] = {}
+        calls = []
+        for at, record in timed:
+            if at > end or record["type"] not in ("assistant", "user"):
+                continue
+            for part in record["message"]["content"]:
+                if part["type"] == "tool_use":
+                    out[part["id"]] = call_label(part)[:SHOWN]
+                elif part["type"] == "tool_result" and part["tool_use_id"] in out:
+                    label = out.pop(part["tool_use_id"])
+                    if at >= start:
+                        calls.append(label)
+        calls.extend(out.values())
+        return {**wait, "cause": "working", "calls": calls}
+    origin = took["origin"] if took and took["type"] == "turn_start" else None
+    return {**wait, "cause": ORIGIN_CAUSES.get(origin, "other"), "origin": origin}
+
+
 def claude_code_transcript(session: str) -> list[dict] | None:
     """Claude Code's transcript of `session`, from its configuration directory's
     projects, or None where it is not on disk. Leaf's session record keeps no path
@@ -421,7 +497,12 @@ def claude_code_records(native: list[dict]) -> list[dict]:
     compaction's summary copies from the turn before without starting one, and
     `ends_turn` says which records end one. A response's records carry its usage,
     whose output the `model_response` keeps: the response's whole output, thinking
-    included, by its last record."""
+    included, by its last record. A turn's start carries Claude Code's
+    `turnOrigin` as its `origin` (`human` for a prompt, `peer` for another
+    session's message, `task_notification`), with `leaf_wake` for the task
+    notification Leaf's watch wakes the session with and `leaf_nudge` for Leaf's
+    nudge, whether it came through the session's socket or as the prompt of a
+    background job it resumed."""
     records = []
     responses: dict[str, dict] = {}
     for record in native:
@@ -434,7 +515,15 @@ def claude_code_records(native: list[dict]) -> list[dict]:
         if isinstance(content, str):
             content = [{"type": "text", "text": content}]
         if "turnPosition" in record and not record.get("isCompactSummary"):
-            records.append({"type": "turn_start", "received_at": at})
+            start = {"type": "turn_start", "received_at": at}
+            text = "".join(part.get("text", "") for part in content)
+            if f"<summary>{LEAF_WAKE}</summary>" in text:
+                start["origin"] = "leaf_wake"
+            elif NUDGE_WORDS in text:
+                start["origin"] = "leaf_nudge"
+            elif origin := record.get("turnOrigin"):
+                start["origin"] = origin
+            records.append(start)
         records.append(
             {"type": record["type"], "message": {"content": content}, "received_at": at}
         )

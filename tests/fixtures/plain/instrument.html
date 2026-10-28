@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Easing tuner</title>
+    <meta
+      name="description"
+      content="Tune a cubic-bezier easing curve against a live preview and save the CSS value."
+    />
+    <style>
+      :root {
+        --bg: #f3f4f6;
+        --panel: #ffffff;
+        --ink: #111827;
+        --muted: #6b7280;
+        --line: #e5e7eb;
+        --accent: #6d28d9;
+        --accent-soft: #ede9fe;
+        --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        color-scheme: light;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 20% 0%, #e0e7ff 0, transparent 40%), var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.45 system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .instrument {
+        width: min(1080px, 100%);
+        background: var(--panel);
+        border-radius: 22px;
+        box-shadow:
+          0 1px 2px rgb(0 0 0 / 0.05),
+          0 20px 50px -20px rgb(30 27 75 / 0.25);
+        display: grid;
+        grid-template-columns: 1.15fr 1fr;
+        overflow: hidden;
+      }
+      @media (max-width: 760px) {
+        .instrument {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      .stage {
+        background: #0b0b14;
+        color: #e5e7eb;
+        padding: 28px;
+        display: grid;
+        gap: 20px;
+        align-content: start;
+      }
+      .stage h1 {
+        margin: 0;
+        font-size: 13px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #a5b4fc;
+      }
+      canvas {
+        width: 100%;
+        aspect-ratio: 1;
+        display: block;
+        border-radius: 12px;
+        background: #11111f;
+      }
+      .controls {
+        padding: 28px;
+        display: grid;
+        gap: 22px;
+        align-content: start;
+      }
+      .controls h2 {
+        margin: 0;
+        font-size: 22px;
+        letter-spacing: -0.01em;
+      }
+      .controls p.sub {
+        margin: -14px 0 0;
+        color: var(--muted);
+      }
+
+      .segmented {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: 1fr;
+        background: var(--bg);
+        padding: 4px;
+        border-radius: 12px;
+        gap: 4px;
+      }
+      .segmented button {
+        all: unset;
+        text-align: center;
+        padding: 8px 4px;
+        border-radius: 9px;
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .segmented button[aria-checked="true"] {
+        background: var(--panel);
+        color: var(--ink);
+        box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+      }
+
+      .slider {
+        display: grid;
+        grid-template-columns: 2.2rem 1fr 3.4rem;
+        align-items: center;
+        gap: 12px;
+      }
+      .slider label {
+        font: 600 13px var(--mono);
+        color: var(--muted);
+      }
+      .slider output {
+        font: 13px var(--mono);
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      input[type="range"] {
+        width: 100%;
+        margin: 0;
+        accent-color: var(--accent);
+      }
+
+      .readout {
+        font: 14px/1.5 var(--mono);
+        background: var(--accent-soft);
+        color: #4c1d95;
+        padding: 12px 14px;
+        border-radius: 10px;
+      }
+      .readout code {
+        overflow-wrap: anywhere;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        align-items: center;
+      }
+      .actions .status {
+        margin-right: auto;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .btn {
+        font:
+          600 14px system-ui,
+          sans-serif;
+        padding: 10px 18px;
+        border-radius: 10px;
+        cursor: pointer;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--ink);
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="instrument" id="instrument">
+      <section class="stage" aria-label="Preview">
+        <h1>Easing tuner</h1>
+        <canvas id="curve" width="560" height="560" aria-label="Bezier curve"></canvas>
+      </section>
+      <section class="controls" aria-label="Controls">
+        <h2>Card entrance</h2>
+        <p class="sub">Tune how the card settles as it slides in.</p>
+        <div class="segmented" role="radiogroup" aria-label="Preset" id="presets">
+          <button
+            type="button"
+            role="radio"
+            aria-checked="false"
+            data-v="0.25,0.1,0.25,1"
+          >
+            Ease
+          </button>
+          <button type="button" role="radio" aria-checked="true" data-v="0.2,0.8,0.2,1">
+            Snappy
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked="false"
+            data-v="0.34,1.56,0.64,1"
+          >
+            Overshoot
+          </button>
+        </div>
+        <div id="sliders"></div>
+        <div class="slider">
+          <label for="duration">ms</label>
+          <input
+            type="range"
+            id="duration"
+            min="100"
+            max="1200"
+            step="10"
+            value="480"
+          />
+          <output for="duration" id="duration-out">480</output>
+        </div>
+        <div class="readout">
+          <code id="css">cubic-bezier(0.2, 0.8, 0.2, 1) 480ms</code>
+        </div>
+        <div class="actions">
+          <span class="status" id="status" role="status">Unsaved</span>
+          <button type="button" class="btn" id="reset">Reset</button>
+          <button type="button" class="btn primary" id="save">Save</button>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const DEFAULT = { p: [0.2, 0.8, 0.2, 1], ms: 480 };
+      let saved = JSON.parse(localStorage.getItem("easing") || "null");
+      let state = structuredClone(saved ?? DEFAULT);
+      const canvas = document.getElementById("curve");
+      const ctx = canvas.getContext("2d");
+      const names = ["x1", "y1", "x2", "y2"];
+      const sliders = document.getElementById("sliders");
+      sliders.style.display = "grid";
+      sliders.style.gap = "10px";
+      const inputs = names.map((name, i) => {
+        const row = document.createElement("div");
+        row.className = "slider";
+        row.innerHTML = `<label for="${name}">${name}</label><input type="range" id="${name}" step="0.01" min="${i % 2 ? -0.5 : 0}" max="${i % 2 ? 1.6 : 1}"><output id="${name}-out"></output>`;
+        sliders.append(row);
+        const input = row.querySelector("input");
+        input.addEventListener("input", () => {
+          state.p[i] = Number(input.value);
+          draw();
+        });
+        return input;
+      });
+      const duration = document.getElementById("duration");
+      duration.addEventListener("input", () => {
+        state.ms = Number(duration.value);
+        draw();
+      });
+
+      function draw() {
+        inputs.forEach((input, i) => {
+          input.value = state.p[i];
+          document.getElementById(names[i] + "-out").textContent =
+            state.p[i].toFixed(2);
+        });
+        duration.value = state.ms;
+        document.getElementById("duration-out").textContent = state.ms;
+        document.getElementById("css").textContent =
+          `cubic-bezier(${state.p.join(", ")}) ${state.ms}ms`;
+        document.getElementById("status").textContent =
+          JSON.stringify(state) === JSON.stringify(saved) ? "Saved" : "Unsaved";
+
+        const W = canvas.width,
+          pad = 70,
+          S = W - 2 * pad;
+        const X = (x) => pad + x * S,
+          Y = (y) => W - pad - y * S * 0.75 - S * 0.125;
+        ctx.clearRect(0, 0, W, W);
+        ctx.strokeStyle = "#26263d";
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+          ctx.beginPath();
+          ctx.moveTo(X(i / 4), Y(-0.15));
+          ctx.lineTo(X(i / 4), Y(1.15));
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(X(0), Y(i / 4));
+          ctx.lineTo(X(1), Y(i / 4));
+          ctx.stroke();
+        }
+        const [x1, y1, x2, y2] = state.p;
+        ctx.strokeStyle = "#a78bfa";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(X(0), Y(0));
+        ctx.bezierCurveTo(X(x1), Y(y1), X(x2), Y(y2), X(1), Y(1));
+        ctx.stroke();
+      }
+
+      for (const b of document.querySelectorAll("#presets button")) {
+        b.addEventListener("click", () => {
+          for (const other of document.querySelectorAll("#presets button"))
+            other.setAttribute("aria-checked", String(other === b));
+          state.p = b.dataset.v.split(",").map(Number);
+          draw();
+        });
+      }
+      document.getElementById("save").addEventListener("click", () => {
+        saved = structuredClone(state);
+        localStorage.setItem("easing", JSON.stringify(saved));
+        draw();
+      });
+      document.getElementById("reset").addEventListener("click", () => {
+        state = structuredClone(DEFAULT);
+        draw();
+      });
+      draw();
+    </script>
+  </body>
+</html>

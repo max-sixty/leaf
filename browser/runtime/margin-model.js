@@ -35,7 +35,7 @@ import { threadAttention } from "./thread/workflow.js";
 const RESTING_MARGIN_ENTRY_BUDGET = 2;
 // The options toggle's faces: More, or folded, the kind it folds (`clusterProjection`),
 // one each, so a view that painted a face knows it by identity.
-const TOGGLE = Object.freeze({ icon: "more", label: "More options" });
+const TOGGLE = Object.freeze({ action: "more", label: "More options" });
 const FOLDED = Object.freeze(
   Object.fromEntries(
     Object.entries(KINDS).map(([kind, { icon, label }]) => [
@@ -235,8 +235,8 @@ export const unreadIn = (items) =>
 // and its line, the thread's word wherever no such receipt says it, else how many of
 // its messages the user has not read. A receipt under a condition, such as a response
 // that failed, paints no progress (`progressFace`), so the line says its word.
-export function threadMarks(thread) {
-  const attention = threadAttention(thread);
+export function threadMarks(thread, agent) {
+  const attention = threadAttention(thread, agent);
   const onUser = attention?.kind === "needs_user";
   const receipt = attention?.kind === "waiting" ? attention.workflow : null;
   const unread = thread.unread.length;

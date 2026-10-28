@@ -609,7 +609,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
 def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser, serve):
     """Importing capabilities does not start a half-constructed browser application."""
     url = serve(SUGGESTION_PAGE)
-    boot = serving_runtime().resources({})["/leaf.js"].data.decode()
+    boot = serving_runtime().resources({}, {})["/leaf.js"].data.decode()
     context = browser.new_context()
     context.route(
         "**/leaf.js",

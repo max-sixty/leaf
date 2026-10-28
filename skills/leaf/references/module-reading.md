@@ -6,7 +6,8 @@ module owes.
 ## Reading the page
 
 Read an element's words with `says(element)`, which returns them as passages and
-comments read them; `textContent` also returns lines Leaf writes into the page. To name
+comments read them; `textContent` also returns words a widget generated that passages
+leave out. To name
 one of the widget's own parts, use `wrote(element)`, which returns only the words the
 author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims leading
 blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters,
@@ -87,13 +88,16 @@ one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
 `highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
 names a language.
 
-Leaf adds a Copy button to each `pre > code` in the page. For other source text a widget
-draws, such as code in its shadow stage, append the button `copyBlock(block, source,
-noun)` returns once the block is connected; it copies `source()`, and `noun`, such as
-`"code"`, names what it copies. A copy that stands among a widget's own controls rather
-than over a block, such as in a popover's header, is `copyControl(className, {label,
-success, error})`: set its `value` before it copies, and it reports `success` or
-`error` as a code block's does.
+Leaf adds a Copy button to each `pre > code` in the page. A widget block holding other
+source text, such as numbered code lines, declares its own: give the block
+`data-lf-copy`, naming what it holds, such as `"code"`, and an `lfCopy()` method that
+returns the text to copy. Leaf stands the button right after the block while both are in
+the page, and a page without Leaf shows none. Where the button belongs among the
+widget's own controls, as in a draft's toolbar, place the one `copyBlock(block, source,
+noun)` returns once the block is connected; it copies `source()`. A copy that stands
+among a widget's own controls rather than over a block, such as in a popover's header,
+is `copyControl(className, {label, success, error})`: set its `value` before it copies,
+and it reports `success` or `error` as a code block's does.
 
 ### Text alignment
 
@@ -109,9 +113,19 @@ on a generated image or link, so it resolves on published pages too.
 
 ### Icons
 
-`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons.
-A press drawn as an icon is a symbol (`module-authoring.md`, "Generated controls"):
-`offerAction("symbol", className, label, {icon: "comment"})` draws it with its label.
+`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons,
+for what something is or holds, such as a kind or a state. A press shows an action's
+symbol instead, so each action looks the same wherever it is offered. `ACTIONS` in
+`runtime/icon-paths.js` lists Leaf's actions with their symbol and name, and
+`offerAction("symbol", className, label, {action: "comment"})` draws one
+(`module-authoring.md`, "Generated controls"). Where your widget gives the press its
+face itself, `nameAction(control, action, {label, title, className})`, or
+`namedAction(action, {…})` in a template's element part, gives it the action's symbol
+and says the action's name as its tooltip and accessible name, unless `label` or
+`title` says more. Call it again with another action for a press whose action follows
+its state, such as Expand all turning to Collapse all; it swaps only the symbol.
+`actionTemplate(action, className)` draws an action's symbol that isn't a press's whole
+face, such as the second of two symbols a press swaps by CSS.
 
 ## Page readings
 

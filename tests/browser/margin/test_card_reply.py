@@ -177,13 +177,11 @@ def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
     rendered(page)
     assert header.bounding_box() == pytest.approx(original[0], abs=0.5)
     assert row.bounding_box() == pytest.approx(original[1], abs=0.5)
-    # The clip starts above the first message so its focus ring stays whole.
-    top_room = transcript.evaluate(
-        "list => parseFloat(getComputedStyle(list).paddingTop)"
+    # The clip starts a ring's room above the heads' line, so a focus ring stays whole.
+    ring_top = transcript.evaluate(
+        "list => parseFloat(getComputedStyle(list).scrollPaddingTop)"
     )
-    assert header.bounding_box()["y"] == pytest.approx(
-        transcript.bounding_box()["y"] + top_room, abs=0.5
-    )
+    assert header.bounding_box()["y"] - transcript.bounding_box()["y"] >= ring_top - 0.5
     # The scrollport extends under the reply by its bottom padding so a rewrite's
     # outside focus ring stays visible; the scrolling turns stop above the row.
     ring_room = transcript.evaluate(
@@ -258,6 +256,29 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     # reading inset, rather than gaining a second frame.
     assert frame["field"][0] - frame["card"] == 13, frame
     assert frame["inset"] == frame["field"][0] - frame["card"] + 13, frame
+
+
+def test_a_reply_next_on_me_lands_on_rings_its_card(browser, serve):
+    """Next on me lands on the agent's long question in its card, and the card wears
+    the ring, whole, as for the thread itself: the card is the thread's one frame. The
+    message wore its own outline, a frame in the frame whose top its sticky head
+    painted over."""
+    question = {**LONG_THREAD[1], "obligation": True}
+    page = open_page(
+        browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, question])
+    )
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    page.keyboard.press("m")
+    message = page.locator(f'.lf-margin-preview .lf-msg[data-event="{question["id"]}"]')
+    expect(message).to_be_focused()
+    rendered(page)
+    drawn = rings_drawn(page)
+    worn = [seen["who"].split(" ")[0] for seen in drawn if seen["here"]]
+    assert worn == ["div.lf-margin-preview-card"], drawn
+    assert not (faults := ring_faults(drawn, "on the reply Next on me reached")), (
+        "\n".join(faults)
+    )
 
 
 # Whether a message stands wholly between the transcript's top and the reply row pinned

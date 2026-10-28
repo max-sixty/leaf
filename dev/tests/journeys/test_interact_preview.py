@@ -39,13 +39,13 @@ from interact_support import (
     wait_for,
 )
 from leaf_dev.commands import preview
-from leaf_dev.commands.distribution import cache_root
 from leaf_dev.page_fixtures import read_fixture, record_run_context
 
 from leaf import cli as cli_model
 from leaf import codex_adapter, hosting, leases, server, service, state
 from leaf.harness import claim_harness
 from leaf.interaction_log import read_interactions
+from leaf.registry.storage import layer_record
 
 from ..model.test_interact_preview import _ScriptedChanges
 
@@ -115,9 +115,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         record_run_context(page, purpose="test", run=tmp_path, test=request.node.nodeid)
         acquired = service.page_claim(page)["acquisition"]
         before = state.session_record(sid)
-        delivery_runtime = Path(before["launcher"]).parent.parent
-        assert delivery_runtime.is_relative_to(cache_root())
-        assert (delivery_runtime / "leaf-distribution.json").is_file()
+        assert Path(before["launcher"]) == ROOT / "bin/leaf"
         old = time.time() - timedelta(hours=12).total_seconds()
         claim_path = service.claim_path(page)
         claim = json.loads(claim_path.read_text())
@@ -560,7 +558,7 @@ def test_preview_tracks_committed_layer_across_refused_source_edits(
 
     def changes(_watched):
         def layer():
-            return json.loads((page / "registry.json").read_text())["$layer"]
+            return layer_record(page)
 
         before = layer()
         theme.write_bytes(theme.read_bytes())
@@ -639,8 +637,8 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
             yield {str(manifest), str(source)}
             pytest.fail("Committed package did not rebuild the watch subscription")
         else:
-            installed = json.loads((page / "registry.json").read_text())["$layer"]
-            assert installed["packages"] == [selection]
+            installed = layer_record(page)
+            assert installed["packages"] == ["./packages/package"]
             assert (page / "index.html").read_text() == original
             assert str(theme) in watched.paths
             assert any(
@@ -648,9 +646,11 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
             )
             theme.write_text(":root { --package-proof: 2; }")
             yield {str(theme)}
-            after = json.loads((page / "registry.json").read_text())["$layer"]
-            assert after["generation"] != installed["generation"]
-            assert "--package-proof: 2" in (page / "theme.css").read_text()
+            # The page's copy of the package takes the edit.
+            assert (
+                "--package-proof: 2"
+                in (page / "packages" / "package" / "theme.css").read_text()
+            )
 
     monkeypatch.setattr(
         preview,

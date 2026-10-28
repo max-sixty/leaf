@@ -1,10 +1,10 @@
 @import "./styles/vendor/webawesome-theme.css" layer(lf-vendor);
 
-/* Leaf default theme, vendored into each page directory by `page init` and served
+/* Leaf default theme, composed into each page's layer and served
  * at /theme.css. Four tiers, cheapest first: tokens, element styles for plain
  * semantic HTML, class idioms (one rule + one catalog line each), and
  * element-widgets (lf-* tags rendered entirely by CSS). Customization follows
- * the same cascade: override a token, then a widget's rule. `page init` composes
+ * the same cascade: override a token, then a widget's rule. Composition places
  * the selected packages' explicit stylesheet contributions after these defaults.
  *
  * Every surface rides a color token, so the dark palette is exactly one more
@@ -875,23 +875,9 @@ html {
     --page-pad-end: 24px;
   }
 }
-/* What delivery writes into an upgraded widget for its first paint (`x-prepaint`,
- * revision_delivery.py): the structure its module will draw, so the browser sizes the
- * widget as it will size the drawing. It holds that room and shows none of its
- * placeholder words, which the drawing replaces with the log's. A reading with no
- * runtime gets no drawing, so the room goes with it. */
-[data-lf-prepaint] {
-  visibility: hidden;
-}
 /* Declared Markdown is the readable first paint, with its exact authored pre
    retained for semantic capture until the formatter adopts these same nodes. */
-.lf-markdown-body[data-lf-prepaint] {
-  visibility: visible;
-}
 :has(> .lf-markdown-body[data-lf-prepaint]) > pre {
-  display: none;
-}
-html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
   display: none;
 }
 /* A widget drawn before first paint stays out of the page until its whole source
@@ -909,8 +895,7 @@ html[data-lf-interactive] [data-lf-arriving] {
  * The anonymous layer leads lf-base, which only lf-reset precedes, and lf-reset states
  * nothing important, so these important declarations outrank every other layer and
  * unlayered stylesheet declaration without reserving a named layer custom CSS could
- * append to. Inline importance ranks higher still, so the
- * version gate refuses it for the display and visibility properties this boundary owns.
+ * append to. Only inline importance ranks higher.
  *
  * The same rank makes `hidden` hide whatever display another rule states for the
  * element, which the UA's own rule loses to, so no rule restores it per selector. A box
@@ -1976,6 +1961,12 @@ lf-old {
 lf-new {
   background: var(--add-tint);
 }
+/* How many passages a version changed, counted on what holds them (a tab, a settled
+   decision): a .tag in the tint the changed words wear. */
+.tag.lf-change-count {
+  background: var(--add-tint);
+  color: var(--ok-ink);
+}
 /* The words that moved, deepened against the slot's own tint: the module's ranges
  * through the highlight registry (lf-suggestion.js #emphasize), so no node is
  * wrapped. Layout-free
@@ -2364,6 +2355,11 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Leaf's word for an update the agent doesn't have yet stands apart from the agent's
+   own, as the panel's italic does (`workflowVoice`). */
+.lf-margin-entry-label-word[data-voice="leaf"] {
+  font-style: italic;
 }
 .lf-margin-entry-context,
 .lf-margin-entry-more {

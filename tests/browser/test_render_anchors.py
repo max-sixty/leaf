@@ -297,7 +297,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
     stamp_page(serve.page_dir, source, "Refresh the document")
     wait_for_revision(page, 2)
     expect(page.locator('#gate-milestone [data-lf-said="label"]')).to_have_count(1)
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry = registry_storage.read_page_registry(serve.page_dir).registry
     cases = [
         ("#gate-milestone strong", "Build feeders", "gate-milestone"),
         ("#gate-milestone", "Two classic models.", "gate-milestone"),
@@ -451,7 +451,7 @@ def test_browser_and_file_captures_agree_on_a_sidebar_tracks_blocks(browser, ser
     page = open_page(browser, live_url(serve(SIDEBAR_TRACK_PAGE)))
     resized(page, 1440, 900)
     expect(page.locator("#track > [data-lf-track-body] > #owners")).to_have_count(1)
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry = registry_storage.read_page_registry(serve.page_dir).registry
     cases = [
         ("#owners p", "payments on-call", "owners", "#owners p", "payments on-call"),
         ("#verdict p", "two follow-ups.", "track", "#owners h2", "Owners"),
@@ -521,7 +521,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, 
     url = live_url(serve(markup))
     page = open_page(browser, url)
     quote = "Release context. Which plan should lead?"
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry = registry_storage.read_page_registry(serve.page_dir).registry
     expected = anchor_capture_model.capture_anchor(
         structure_model.SourceDocument(markup), registry, quote, "review"
     )
@@ -2221,8 +2221,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         path: path.textContent,
         statGenerated: stat.dataset.lfGen === '1',
         // A flex row draws no native marker, so it wears Leaf's, turned its own way.
-        disclosure: getComputedStyle(d.querySelector('summary'), '::before').content
-          .includes(d.open ? 'disclosure-open' : 'disclosure-closed'),
+        disclosure: (marker => marker.maskImage.includes('svg')
+          && marker.rotate === (d.open ? '90deg' : 'none'))(
+          getComputedStyle(d.querySelector('summary'), '::before')),
         summaryAligned: Math.abs(path.getBoundingClientRect().top
           - stat.getBoundingClientRect().top) < 1,
         lines: [...d.querySelectorAll('[data-line]')].map(l => ({
@@ -3465,7 +3466,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     expect(quote).to_have_attribute("title", re.compile("no longer"))
     # With nowhere on the page to go, the view offers no way there.
     expect(
-        page.locator(".lf-fp-aux button:enabled", has_text="Show on page")
+        page.locator(".lf-fp-aux button:enabled[aria-label='Show on page']")
     ).to_have_count(0)
 
 

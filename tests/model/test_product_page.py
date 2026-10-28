@@ -16,6 +16,7 @@ from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
+from leaf.registry.storage import load_registry
 from leaf.state import kernel_registry
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
@@ -119,7 +120,7 @@ def test_package_catalog_routes_every_optional_package_to_inspectable_content():
 def test_package_tutorial_registry_entry_is_valid(page_dir):
     tree = SourceDocument((DOCS / "extending.html").read_text()).tree
     entry = json.loads(tree.select_one("#callout-registry").text)
-    registry = json.loads((page_dir / "registry.json").read_text()) | entry
+    registry = load_registry(page_dir) | entry
 
     registry_validation.validate_registry(registry, "package tutorial")
     validation_model.validate_registry_examples(registry, "package tutorial")

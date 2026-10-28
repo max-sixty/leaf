@@ -26,6 +26,7 @@ from render_harness import (
     open_threads,
     panel_field,
     panel_settled,
+    press_visible,
     resized,
     sending,
     stamp_page,
@@ -608,6 +609,33 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(preview.locator("leaf-text")).to_have_js_property(
         "value", "Keep this draft visible."
     )
+    for activation in ("keyboard", "pointer"):
+        write(reply, "Keep this draft visible.")
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "resolve",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": preview.locator(".lf-page-thread").get_attribute(
+                    "data-thread"
+                ),
+            },
+        )
+        told(page)
+        # Editing keeps the reply drawn, so only the control changes, with no
+        # changed room to hold behind a news notice. Both routes return to the draft.
+        # The check drawn done names who resolved it before Reopen.
+        reopen = preview.get_by_role("button", name=re.compile(r"· Reopen$"))
+        if activation == "keyboard":
+            reopen.focus()
+        with sending(page, "reopen the thread beside its kept draft"):
+            if activation == "keyboard":
+                page.keyboard.press("Enter")
+            else:
+                reopen.click()
+        expect(reply).to_be_focused()
+        expect(reply).to_have_js_property("value", "Keep this draft visible.")
     write(preview.locator("leaf-text"), "")
     page.locator(".lf-margin-preview-close").click()
     page.keyboard.press("Enter")
@@ -872,7 +900,7 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
     assert preview_box["x"] + preview_box["width"] <= width, preview_box
     # The send leaves the user on its card.
     expect(thread).to_be_focused()
-    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    press_visible(page, thread.get_by_role("textbox", name="Reply", exact=True))
     expect(thread.locator("leaf-text")).to_be_focused()
     page.keyboard.type("the next thought")
     expect(thread.locator("leaf-text")).to_have_js_property("value", "the next thought")

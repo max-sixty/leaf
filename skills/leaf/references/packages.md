@@ -15,7 +15,7 @@ widgets, and external data.
 
 Leaf's bundled `default` package is on every page; any other package is on only the
 pages that select it. Presentation or behavior used by one page stays in that page's
-`<style>`, inline modules or `page/`. Anything reused belongs in a package:
+`<style>`, its scripts or `page/`. Anything reused belongs in a package:
 
 ```bash
 leaf package init packages/callout --widget lf-callout
@@ -27,13 +27,17 @@ leaf package run NAME SCRIPT [ARGS]...
 
 `--package` takes a bare name, which selects an installed or bundled package, or a
 path relative to the project or starting with `~`, such as `./.leaf` or
-`'~/.config/leaf'`. Absolute paths are refused, since the vendored registry is public.
+`'~/.config/leaf'`. Absolute paths are refused, since the page's registry is public.
+`page init` copies a package selected by path into the page's `packages/`, so the
+page reads the same wherever it is served; run `page init --package` again to take
+in edits to the package.
 
 `leaf package install SOURCE` checks the directory and copies it into
 `~/.local/state/leaf/packages/`, so `--package NAME` selects it from any project on this
 machine. The copy holds only the files in the package layout below, so a README and
 tests stay behind. An installed package overrides a bundled one of the same name. A page records
-the bare name, so re-vendoring it on another machine needs the package installed there
+the bare name, and every Leaf that reads the page composes the package it finds by
+that name, so serving the page on another machine needs the package installed there
 too.
 
 The optional bundled packages are:
@@ -49,6 +53,7 @@ The optional bundled packages are:
 | `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback decision.                                                             |
 | `motion`        | `lf-motion`, shared playback and scrubbing for authored animations and video comparisons.                                                                   |
 | `deck`          | `lf-deck`, a pile of decisions the user works through one card at a time.                                                                                   |
+| `detail`        | `lf-dial`, which turns a page from each section's `.gist` to every closed detail, keeping the reader's place.                                               |
 | `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                                                                                |
 | `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                                                                          |
 | `timeline`      | `lf-timeline`, an authored sequence of events in lanes that the reader steps through, with a playhead and a step list.                                      |
@@ -145,12 +150,14 @@ documents any further inputs it supports. No type or colour override may shrink 
 control below its touch target or focus clearance.
 
 A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path.
-Import Leaf only through `/runtime/widget-api.js`, and `runtime/` modules can add paths
-but not replace the kernel's. The Leaf serving a page supplies its runtime,
-`widget-api.js` and the kernel's `vendor/` modules included, so a vendored package runs
-against whichever Leaf serves its page, and a package's `vendor/` file at one of those
-paths replaces it there. Leaf keeps `widget-api.js`'s names and what they return across
-updates at one page protocol (`../../../src/leaf/layer-registry.md`, "Page protocol").
+Import Leaf only through `/runtime/widget-api.js`, or its portable part
+`/runtime/portable-api.js` (module-authoring.md, "A widget that also runs off Leaf"),
+and `runtime/` modules can add paths but not replace the kernel's. The Leaf serving a page supplies its runtime,
+`widget-api.js` and the kernel's `vendor/` modules included, and composes the page's
+packages from its own catalogue, so a package runs against the runtime of whichever
+Leaf serves its page, and a package's `vendor/` file at one of those paths replaces it
+there. `widget-api.js` can change in any update; `leaf package check --render` and
+`leaf page check --render` report a module it breaks.
 
 Registries merge in order: kernel, `default`, then the selected packages in command
 order, and a later package wins a collision. A later package replaces an element or
@@ -177,7 +184,7 @@ leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
 returns the packages' shared instructions. Each `--use ENTRY` adds that entry's
 `x-instructions` to `author`, along with the entries its `x-example` uses and its
 `x-data` contracts, whose instructions join their own audiences. It reads the layer
-just vendored and any `page/registry.json`, so it works before the page has markup.
+the page selects and any `page/registry.json`, so it works before the page has markup.
 `page-authoring.md`, "Read the registry", says when an author reads each part.
 
 A replacement `icon.svg` must contain an element with `class="lf-tone"`, which Leaf
@@ -255,10 +262,11 @@ The presentation checks:
   keyboard routes"). The check reads only the commands in the example's state, so a
   command such as a multiple-choice decision's Done needs an example in that state.
 
-After `leaf page init` re-vendors a page with the package (`serving-pages.md`,
-"Re-vendoring"), run `leaf page check <page> --render`, which reports a module's
-mistakes on the page, such as an upgrade that defines no element or a widget with no
-size, and note the re-vendor in the next stamped version's changelog.
+After `leaf page init --package` adds the package to a page, run `leaf page check
+<page> --render`, which reports a module's mistakes on the page, such as an upgrade
+that defines no element or a widget with no size, and note the change in the next
+stamped version's changelog. A served page takes later edits to an installed package
+when its server next starts.
 
 Then put the widget on the page. A widget is reviewed in place: the version that
 answers the user's comment uses it where they asked, and they comment on it there.

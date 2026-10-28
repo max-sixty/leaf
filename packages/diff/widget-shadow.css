@@ -66,6 +66,11 @@
   flex: none;
   font-size: var(--t-5);
 }
+/* The file's head is a flex row whose gap parts the arrow from the path. */
+:host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary::before {
+  align-self: center;
+  margin: 0;
+}
 /* Source paths may change with new evidence; their region gives way while the
    statistics and adjacent actions keep their trailing columns. */
 .lf-diff-path {
@@ -390,8 +395,10 @@
 .lf-diff-line-comment[data-lf-focus]::before {
   opacity: 1;
 }
-.lf-diff-filtered {
-  display: none;
+/* A file the filter leaves out keeps the box until-found gives it, which spends no room
+   once it shares no hairline. */
+.lf-diff-file[hidden="until-found"] {
+  margin: 0;
 }
 /* The filter field is not listed here. It is a vendored text field, whose Tab stop and
    ringed box are both inside its own shadow root, so a rule on this host would reach
@@ -629,23 +636,23 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   .lf-thread-reply:not(
     :focus-within,
     :has(
-      > .lf-composer-media:not([hidden]),
-      > .lf-compose-field[data-words],
+      > leaf-composition-field > .lf-composer-media:not([hidden]),
+      > leaf-composition-field > .lf-compose-field[data-words],
       .lf-compose-dictate[aria-pressed="true"],
       .lf-compose-error:not([hidden])
     )
   ) {
   margin-top: var(--sp-1);
-  > .lf-compose-field {
+  > leaf-composition-field > .lf-compose-field {
     border-color: transparent;
     background: transparent;
   }
-  > .lf-compose-field > leaf-text {
+  > leaf-composition-field > .lf-compose-field > leaf-text {
     min-height: var(--aim-floor);
     padding-block: 0;
     cursor: pointer;
   }
-  > .lf-compose-field > .lf-compose-dictate {
+  > leaf-composition-field > .lf-compose-field > .lf-compose-dictate {
     display: none;
   }
 }
@@ -685,8 +692,9 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   .lf-diff-head wbr {
     display: inline;
   }
-  .lf-diff-filtered {
-    display: block;
+  .lf-diff-file[hidden="until-found"] {
+    content-visibility: visible;
+    margin-top: -1px;
   }
   [data-line] {
     white-space: pre-wrap;

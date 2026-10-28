@@ -33,7 +33,7 @@
   min-block-size: max(1lh, var(--aim-floor) - 2 * var(--lf-file-editor-head-pad));
   white-space: nowrap;
 }
-/* A status control is a word in the slot's line, so it takes no block aim floor of its
+/* A status control stands in the slot's line, so it takes no block aim floor of its
  * own, which would grow the header as a failure or a conflict arrived. Its press
  * spans the header's whole height instead, through the header's padding, without
  * reaching past it into the editor; the inline floor still holds. */
@@ -71,8 +71,7 @@
   color: var(--accent);
 }
 :host(lf-file-editor) .lf-file-editor-retry:not([aria-disabled="true"]):hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  background: var(--accent-tint);
 }
 /* The conflict is a state before it is a press, so it wears the warning tone rather
  * than the accent a link would, and a fill under the pointer rather than a rule. */
@@ -86,14 +85,9 @@
   .lf-file-editor-conflict {
   background: var(--warn-tint);
 }
-:host(lf-file-editor) .lf-file-editor-chevron {
+:host(lf-file-editor) .lf-file-editor-icon {
   inline-size: 1em;
   block-size: 1em;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 /* The conflict's choices hang from the control that names them, inward from its edge,
  * and flip above it where the window has no room below. The other two sides are taken

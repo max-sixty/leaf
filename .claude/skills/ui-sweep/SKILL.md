@@ -62,7 +62,10 @@ gallery or package scenarios to show them and sizing the review to what changed.
 Map the affected color roles, type scale, spacing, radius, elevation, and control
 sizes to their canonical tokens and component styles, and keep related controls
 aligned when dimensions change. Distinguish a design brief's choices from anything
-inferred, such as a dark scheme.
+inferred, such as a dark scheme. `uv run leaf-dev stills --faces --state NAME...`
+groups every press the states show by its rendered face, at rest and under the
+pointer, and names each face HEAD adds or drops and each press it moves to another
+face, so a second face for one kind of press shows up whatever rule draws it.
 
 Show text on the surfaces it actually uses, labeled with the tokens, resolved colors,
 and contrast measured from the rendered foreground and background in the affected

@@ -1,7 +1,7 @@
 """Screenshot a fixed catalogue of UI states on BASE_REF's runtime and HEAD's, and
 show which ones changed.
 
-    uv run leaf-dev stills [BASE_REF] [--state NAME]... [--authored]
+    uv run leaf-dev stills [BASE_REF] [--state NAME]... [--authored] [--faces]
 
 BASE_REF defaults to the merge base of HEAD and `main`; each arm is the payload at its
 commit (`leaf_dev.arms.build_pair`), so commit what you want compared. Each page is
@@ -33,11 +33,21 @@ whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
 `diff.png` outlining the head's own regions, a change in red and a move in blue. The
 crops cover both stills' regions.
 
+With `--faces`, each capture then reads every press on screen at rest and under the
+pointer in the same tab (`leaf_dev.faces`, whose header says what a face is and what
+the reading can't see), and the run ends with the faces HEAD draws and those it adds,
+drops or moves a press between, over the states both arms captured, written to the
+run directory too (`faces.txt`, and every reading in `faces.json`). The pointer visits
+each press, about a frame apiece, so pick the states with `--state`.
+`--fail-on-new-face` exits non-zero when HEAD draws a face the base doesn't, for a
+reviewer gating a design-system change; otherwise the report never fails the run.
+
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
 """
 
+import json
 import re
 import tempfile
 import traceback
@@ -71,6 +81,8 @@ from leaf_dev.browser import (
     settle,
     tab,
 )
+from leaf_dev.faces import read_faces
+from leaf_dev.faces import report as faces_report
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -1011,6 +1023,12 @@ def into_the_body(page: Page) -> None:
     """Two windows down the page, where a sidebar page's track stands beside the body
     it scrolls past."""
     page.evaluate("() => scrollTo(0, 2 * innerHeight)")
+
+
+def heading_by_pointer(page: Page) -> None:
+    """A heading under the pointer, which shows its Copy link beside it."""
+    page.get_by_role("heading", name="What needs to change").hover()
+    expect(page.locator(".lf-heading-link-shown")).to_be_visible()
 
 
 def plan_caveat(page: Page) -> None:
@@ -2257,6 +2275,7 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
+    State("plan-heading-hover", "review-a-plan", heading_by_pointer),
     State("plan-execution", "review-a-plan", plan_execution, region="#plan-execute"),
     State("plan-caveat", "review-a-plan", plan_caveat, region="#plan-network"),
     State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
@@ -2824,10 +2843,13 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
 }
 
 
-def capture(browser, address: str, state: State, path: Path) -> dict | None:
+def capture(
+    browser, address: str, state: State, path: Path, faces: bool = False
+) -> tuple[dict | None, dict | None]:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
     density of the displays its pairs are read on, so a crop shows text and hairlines
-    as the reader's screen draws them."""
+    as the reader's screen draws them. Return the state's region in the still's pixels,
+    and with `faces` its presses' faces, read once the still is taken."""
     scale = 2
     with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
         load(page, address)
@@ -2851,7 +2873,8 @@ def capture(browser, address: str, state: State, path: Path) -> dict | None:
                 - y,
             }
         page.screenshot(path=path)
-        return {key: value * scale for key, value in clip.items()} if clip else None
+        region = {key: value * scale for key, value in clip.items()} if clip else None
+        return region, read_faces(page, hover=not state.touch) if faces else None
 
 
 @contextmanager
@@ -2945,13 +2968,32 @@ def crop(
     is_flag=True,
     help="Compare each commit’s authored examples as well as its runtime.",
 )
-def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None:
+@click.option(
+    "--faces",
+    is_flag=True,
+    help="Also read every press's face at rest and under the pointer, and report the "
+    "faces HEAD adds, drops or moves a press between.",
+)
+@click.option(
+    "--fail-on-new-face",
+    is_flag=True,
+    help="Exit non-zero when HEAD draws a press face the base doesn't; implies --faces.",
+)
+def stills(
+    base_ref: str | None,
+    names: tuple[str, ...],
+    authored: bool,
+    faces: bool,
+    fail_on_new_face: bool,
+) -> None:
     """Screenshot a catalogue of UI states on BASE_REF's runtime and HEAD's, and crop
     each state that changed into a before/after pair under .tmp/stills/."""
+    faces |= fail_on_new_face
     states = [state for state in STATES if not names or state.name in names]
     out = run_directory(OUT)
     failed: dict[str, list[str]] = {}
     read: dict[str, dict] = {}
+    census: dict[str, dict[str, dict]] = {"base": {}, "head": {}}
 
     def failure(state: State, phase: str, error: Exception) -> None:
         message = (
@@ -2992,11 +3034,13 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                             source_roots[arm] / "examples" / f"{state.source}.html",
                             scratch / f"{arm}-{state.name}",
                         ) as address:
-                            region = capture(
-                                browser, address, state, folder / f"{arm}.png"
+                            region, presses = capture(
+                                browser, address, state, folder / f"{arm}.png", faces
                             )
                             if region:
                                 crop_regions.append(region)
+                            if presses is not None:
+                                census[arm][state.name] = presses
                     except Exception as error:  # noqa: BLE001 - isolate each capture
                         failure(state, arm, error)
                 if state.name in failed:
@@ -3023,4 +3067,20 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
         else:
             unchanged += 1
     click.echo(f"{unchanged} of {len(states)} states unchanged")
+    added = 0
+    if faces:
+        (out / "faces.json").write_text(json.dumps({**census, "commits": commits}))
+        text, added = faces_report(
+            census["base"],
+            census["head"],
+            {
+                state.name: ({"dark"} if state.scheme == "dark" else set())
+                | ({"touch"} if state.touch else set())
+                for state in states
+            },
+        )
+        (out / "faces.txt").write_text(text + "\n")
+        click.echo(f"\n{text}\n")
     click.echo(f"files in {out}")
+    if fail_on_new_face and added:
+        raise click.ClickException(f"HEAD draws {added} press faces the base doesn't")

@@ -271,6 +271,38 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
             assert live["config"]["judge"]["id"].endswith("/arrangement_eval.py")
 
 
+def test_widget_format_matrix_uses_one_model_and_separate_checks(tmp_path):
+    config = module.prepare(
+        ["widget-formats/choice"],
+        {"candidate": tmp_path / "arm"},
+        tmp_path / "scratch",
+        ("codex",),
+        ("leaf", "json", "adaptive"),
+        tmp_path / "samples",
+        model="gpt-6-luna",
+    )
+    assert [test["metadata"]["condition"] for test in config["tests"]] == [
+        "leaf",
+        "json",
+        "adaptive",
+    ]
+    assert {provider["config"]["model"] for provider in config["providers"]} == {
+        "gpt-6-luna"
+    }
+    assert all(
+        "Use the Leaf skill" in test["vars"]["prompt"] for test in config["tests"][:2]
+    )
+    assert "Use the Leaf skill" not in config["tests"][2]["vars"]["prompt"]
+    assert [
+        [assertion["metric"] for assertion in test["assert"]]
+        for test in config["tests"]
+    ] == [
+        ["completed", "page-valid", "interaction-proven", "task-fit"],
+        ["completed", "format-valid", "page-valid", "interaction-proven", "task-fit"],
+        ["completed", "format-valid", "page-valid", "interaction-proven", "task-fit"],
+    ]
+
+
 def test_eval_command_delegates_configuration_and_status_to_promptfoo(
     tmp_path, monkeypatch
 ):

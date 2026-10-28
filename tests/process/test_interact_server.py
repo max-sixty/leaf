@@ -307,8 +307,9 @@ def test_a_staged_write_does_not_move_the_page_reading(page_dir):
     assert served_reading.page_reading(page_dir) == reading
 
 
+@pytest.mark.parametrize("generated", [False, True])
 def test_samples_use_captured_resources_and_independent_event_logs(
-    server, page_dir, monkeypatch
+    server, page_dir, monkeypatch, generated
 ):
     template = '<template id="practice" data-sample><h1>Practice</h1><p id="child-copy">Child text.</p><img src="/page/pixel.png" alt="A pixel"><script type="module" src="/page/sample.js"></script></template>'
     (page_dir / "page").mkdir(exist_ok=True)
@@ -332,7 +333,15 @@ def test_samples_use_captured_resources_and_independent_event_logs(
     (page_dir / "page/sample.js").write_text('throw Error("mutable code");')
     status, raw = fetch(
         f"{server}/api/samples",
-        data=json.dumps({"template": "practice"}).encode(),
+        data=json.dumps(
+            {
+                "source": '<!doctype html><html lang="en"><head><title>Generated practice</title></head>'
+                '<body><main><h1>Practice</h1><p id="child-copy">Child text.</p>'
+                '<script type="module" src="/page/sample.js"></script></main></body></html>'
+            }
+            if generated
+            else {"template": "practice"}
+        ).encode(),
         layer=generation,
         headers={"Leaf-View-Revision": "1"},
     )
@@ -388,6 +397,20 @@ def test_samples_use_captured_resources_and_independent_event_logs(
     _, raw = fetch(child + "/api/state")
     assert len(json.loads(raw)["events"]) == 1
     assert event_model.read_events(page_dir) == parent_before
+    if generated:
+        # Invalid new output cannot replace an already working child, and receives
+        # the ordinary authored-source validation result.
+        status, answer = fetch(
+            f"{server}/api/samples",
+            layer=generation,
+            headers={"Leaf-View-Revision": "1"},
+            data=json.dumps(
+                {"source": '<main><lf-unknown id="bad"></lf-unknown></main>'}
+            ).encode(),
+        )
+        assert status == 400, answer
+        assert "invalid sample" in json.loads(answer)["error"]
+        assert fetch(child + "/api/state")[0] == 200
 
     status, answer = fetch(
         child + "/api/event",
@@ -439,10 +462,10 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
     release = threading.Event()
     original = samples_model.Samples.create
 
-    def held_allocation(self, *args):
+    def held_allocation(self, *args, **kwargs):
         allocating.wait(timeout=STATED_TIMEOUT)
         assert release.wait(STATED_TIMEOUT)
-        return original(self, *args)
+        return original(self, *args, **kwargs)
 
     monkeypatch.setattr(samples_model.Samples, "create", held_allocation)
     with ThreadPoolExecutor(max_workers=2) as executor:

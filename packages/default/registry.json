@@ -140,8 +140,8 @@
     "x-example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
-    "description": "A text file from page data with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
-    "x-instructions": "Bind `source` to the page's data source and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. The listing, or with a preview each tab, scrolls inside a box `--lf-bound` tall, 28rem by default, however long the text. To start it collapsed, put it inside `details`.",
+    "description": "Text from page data or a widget output, with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
+    "x-instructions": "Bind `source` to the page's data source, or `for` to a widget publishing a `document` output and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. The listing, or with a preview each tab, scrolls inside a box `--lf-bound` tall, 28rem by default, however long the text. To start it collapsed, put it inside `details`.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -163,22 +163,39 @@
       },
       "language": {
         "type": "string"
+      },
+      "for": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": ["id", "source"],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-data": {
       "document": {
         "contract": "text-document",
         "source": "source",
+        "reference": "for",
+        "output": "document",
         "property": "value"
       }
     },
     "x-language": "language",
     "x-bound": "start",
     "x-upgrade": true,
-    "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>"
+    "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>",
+    "oneOf": [
+      {
+        "required": ["source"]
+      },
+      {
+        "required": ["for"]
+      }
+    ],
+    "x-refers": {
+      "for": {}
+    }
   },
   "lf-toc": {
     "description": "An outline of the document\u2019s h2\u2013h6 headings for navigating its sections and showing the reader\u2019s position.",

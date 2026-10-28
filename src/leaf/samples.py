@@ -1,4 +1,4 @@
-"""Disposable pages built from an authored template and its revision's layer.
+"""Disposable pages built from authored or generated source and its revision's layer.
 
 A sample owns an ordinary source, revision, data store, and event log. Its parent
 supplies immutable resources and optional selected thread history, never a live
@@ -70,42 +70,24 @@ class Samples:
         document: SourceDocument,
         events: list,
         data: dict,
-        template_id: str,
+        template_id: str | None,
         message: str | None,
         asset_root: str | None,
+        *,
+        source: str | None = None,
     ) -> str:
-        """Allocate a child from `template_id` as declared in `document`, or in the
-        frozen markup of `message`, a message in `events`."""
-        holder = (
-            document
-            if message is None
-            else thread_structure(events).fragments.get(message)
-        )
-        if holder is None:
-            raise ValueError(f"no message {message!r} carries markup")
-        template = next(
-            (
-                sample
-                for sample in holder.samples
-                if sample["attrs"].get("id") == template_id
-            ),
-            None,
-        )
-        if template is None:
-            raise ValueError(
-                f"unknown sample template {template_id!r}"
-                + (f" in message {message!r}" if message is not None else "")
+        """Allocate from a declared template or a complete generated document.
+
+        Both use the layer the parent revision selects and ordinary source validation.
+        Generated source starts with an empty log; it cannot import the parent's
+        conversation history.
+        """
+        if source is None:
+            document_content, seeded = self._template_source(
+                parent, artifact, document, events, data, template_id, message
             )
-        seeded = initial_sample_events(
-            parent,
-            document,
-            events,
-            holder,
-            template,
-            artifact.registry,
-            {name: reading["contract"] for name, reading in data["sources"].items()},
-        )
-        source = template["document"].data
+        else:
+            document_content, seeded = source.encode("utf-8"), []
         temporary = TemporaryDirectory(prefix="leaf-sample-")
         child = Path(temporary.name)
         memory = memory_of(child)
@@ -148,7 +130,7 @@ class Samples:
                     if "value" in reading
                 },
             )
-            (child / "index.html").write_bytes(source)
+            (child / "index.html").write_bytes(document_content)
             start_log(child, seeded)
             activation = activate_source(child)
             if activation.error:
@@ -166,6 +148,41 @@ class Samples:
                 memory_of(parent),
             )
         return identity
+
+    @staticmethod
+    def _template_source(
+        parent, artifact, document, events, data, template_id, message
+    ):
+        holder = (
+            document
+            if message is None
+            else thread_structure(events).fragments.get(message)
+        )
+        if holder is None:
+            raise ValueError(f"no message {message!r} carries markup")
+        template = next(
+            (
+                sample
+                for sample in holder.samples
+                if sample["attrs"].get("id") == template_id
+            ),
+            None,
+        )
+        if template is None:
+            raise ValueError(
+                f"unknown sample template {template_id!r}"
+                + (f" in message {message!r}" if message is not None else "")
+            )
+        seeded = initial_sample_events(
+            parent,
+            document,
+            events,
+            holder,
+            template,
+            artifact.registry,
+            {name: reading["contract"] for name, reading in data["sources"].items()},
+        )
+        return template["document"].data, seeded
 
     def get(self, identity: str) -> Sample | None:
         with self.lock:

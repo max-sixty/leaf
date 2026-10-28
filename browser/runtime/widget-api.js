@@ -223,7 +223,8 @@ export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./ke
 // the page has presented.
 export { leafEditorView } from "./editor-view.js";
 
-// Optional child runtimes are loaded only by packages that mount a sample.
+// Render a declared template or a generated document as an isolated live Leaf page.
+// The returned host owns readiness, Reset and disposal (live-samples.md).
 export async function mountSample(frame, options) {
   const owner = await import("./sample.js");
   return owner.mountSample(frame, options);

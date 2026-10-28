@@ -27,5 +27,21 @@
     "x-upgrade": true,
     "x-example": "<lf-margin-entry-gallery id=\"margin-entry-gallery\"></lf-margin-entry-gallery>",
     "x-initial": "/page/margin-entry-gallery-initial.js"
+  },
+  "lf-document-gallery": {
+    "description": "A gallery producer whose changing Markdown is read by a text document.",
+    "x-exhibit": true,
+    "type": "object",
+    "properties": { "id": { "type": "string" } },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-upgrade": true,
+    "x-output": {
+      "document": {
+        "contract": "text-document"
+      }
+    },
+    "x-example": "<lf-document-gallery id=\"document-producer\"></lf-document-gallery>"
   }
 }

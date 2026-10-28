@@ -36,6 +36,11 @@ pnpm run eval:view
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks whose
   `metadata.conditions` declare one; `both` runs it beside Leaf. The control gets
   the same request, revisions and judge with no Leaf skill, runtime or widgets.
+- **Widget formats.** `--condition formats` runs direct Leaf HTML, a JSON tree
+  compiled to Leaf HTML, and the Adaptive Cards SDK for the retained
+  [widget format cases](widget-formats/README.md). `--condition json` and
+  `--condition adaptive` select either JSON arm alone. `--model MODEL` selects
+  one Codex author model for every selected condition in that run.
 - **Promptfoo options.** Anything after the cases goes to `promptfoo eval`, such as
   `--repeat 3`, `-j 4` or `--filter-pattern`.
 

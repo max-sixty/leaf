@@ -35,13 +35,16 @@ crops cover both stills' regions.
 
 Beside each pair, the command reads the cascade a screenshot only shows in part: the
 computed `STYLED` properties of every element in the document and its open shadow
-trees, hidden ones included, so the corpus states read every page it composes.
+trees, hidden ones included, so the corpus states read every page it composes (a
+rule that depends on a page's own Layout, such as a sidebar page's panels, reads only
+on that page's states).
 Elements are keyed by their path of tags, ids and first two classes. A state with a
 differing property, or a subtree only one arm has, also counts as changed, and its
 `styles.txt` lists them (`style_changes`). The properties are the cascade's own, not
 the geometry it produces, which the stills show; width, height and offsets stay out
-because they move with every reflow. A chart in a corpus tab the page opens shut may
-draw in either arm, so rerun a state before reading its chart's subtree as a change.
+because they move with every reflow. A widget inside a tab or disclosure the page
+opens shut, such as a chart, may or may not have drawn by the reading, in either arm,
+so rerun a state before taking a difference confined to one as a change.
 
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the
@@ -3144,7 +3147,12 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                 source_roots[arm] = scratch / f"{arm}-source"
                 source_roots[arm].mkdir()
                 copy_committed(
-                    ("examples", "tests/fixtures/pages", "leaf-assets.json"),
+                    (
+                        "examples",
+                        "tests/fixtures/pages",
+                        "docs/examples.html",
+                        "leaf-assets.json",
+                    ),
                     source_roots[arm],
                     commit,
                 )

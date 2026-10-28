@@ -487,8 +487,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     align-content: start;
   }
   /* The action track crosses the transcript and its retained message groups.
-     Bodies keep both tracks; each sticky head stops at the actions without copying
-     their measured width into every message. */
+     Bodies keep both tracks; the head beside the actions stops at them without
+     copying their measured width into every message. */
   .lf-margin-thread .lf-thread-transcript > *,
   .lf-margin-thread :is(.lf-thread-checkpoint, .lf-summary-checkpoint) > * {
     grid-column: 1 / -1;
@@ -502,6 +502,21 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      actions, which would otherwise cover its disclosure on a narrow card. */
   .lf-margin-thread :is(.lf-msg-head, .lf-summary-header) {
     grid-column: 1;
+  }
+  /* A later message's head shares the actions' line only once it sticks there, so it
+     takes both tracks, and its controls stand at the card's edge rather than mid-card
+     at the first track's end. On the actions' line, where its name and time stand
+     short of them, its controls stand aside (`data-lf-beside-actions`,
+     thread-preview.js). */
+  .lf-margin-thread
+    .lf-thread-transcript
+    > .lf-msg:not(:nth-child(1 of .lf-msg, .lf-thread-checkpoint)) {
+    & > .lf-msg-head {
+      grid-column: 1 / -1;
+    }
+    &[data-lf-beside-actions] > .lf-msg-head > .lf-msg-controls {
+      visibility: hidden;
+    }
   }
   .lf-margin-thread .lf-msg-body {
     grid-column: 1 / -1;

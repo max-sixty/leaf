@@ -827,6 +827,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     flex-shrink: 1;
     max-inline-size: max(40%, 5em);
   }
+  /* A name left less than an em beside a notice of news shows none of itself
+     (thread-card.js, `#fitMarginNews`). */
+  .lf-margin-thread .lf-thread-transcript .lf-msg-head > b[data-lf-nameless] {
+    flex-basis: 0;
+    min-inline-size: 0;
+    max-inline-size: 0;
+  }
   /* Only the writer's name and the time stick. The head's annotations (a progress
      disclosure, a delivery receipt, a failure, a suggestion or edited label) belong
      to the message's opening, so they scroll out with its first line while the name
@@ -856,10 +863,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       z-index: 1;
       background-color: var(--lf-msg-ground);
     }
-    /* The name's ground spans the gap to the time, which a rising one would show. */
-    .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
-      padding-inline-end: var(--sp-2);
-      margin-inline-end: calc(-1 * var(--sp-2));
+    /* The time's ground spans the gap before it, which a rising annotation would
+       show. The gap is the time's, not the name's: a name cut to nothing leaves no box,
+       where a gap the name held showed a sliver of its first letter against the time,
+       reading "M51d ago". */
+    .lf-margin-thread .lf-thread-transcript .lf-msg-head > .lf-msg-meta {
+      padding-inline-start: var(--sp-2);
+      margin-inline-start: calc(-1 * var(--sp-2));
     }
     :is(
       .lf-margin-thread .lf-thread-transcript .lf-msg-head > :not(b, .lf-msg-meta),

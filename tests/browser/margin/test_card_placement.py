@@ -281,7 +281,7 @@ NEWS_BESIDE_HEAD = """([notice, head]) => {
   return {
     notice: box(notice).left,
     head: box(head).right,
-    edit: box(head.parentElement.querySelector('.lf-msg-control svg'))?.left ?? null,
+    edit: box(head.parentElement.querySelector(':scope > .lf-msg-edit svg'))?.left ?? null,
     time: box(head.querySelector('time')).right,
   };
 }"""
@@ -292,11 +292,11 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     """A card holding news while the user writes: the notice takes only the room the
     head of the user's message leaves beside its name and time, and stands clear of
     it. On a desktop card, with Previous and Next for its target's two threads, the
-    notice says its first fact and the head keeps "Me" and its time whole. On a
-    phone's card, whose three controls, the notice and the head's Edit each take a
-    finger's width, the notice says one count, "2 new", and the head keeps its time
-    whole and cuts its name, as any narrow head does. Drawn whole, the notice stood
-    over the head."""
+    head keeps "Me" and its time whole. On a phone's card, whose three controls, the
+    notice and the head's Edit each take a finger's width, the notice says one count,
+    "2 new", and the head keeps its time whole and gives up its name, as any narrow
+    head does, to no box at all, so no sliver of it stands against the time. Drawn
+    whole, the notice stood over the head."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
@@ -325,11 +325,10 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     told(page)
     notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
     expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
-    words = notice.locator(":scope > span")
     if phone:
-        expect(words).to_have_attribute("data-lf-short", "2 new")
-    else:
-        expect(words).not_to_have_attribute("data-lf-short", re.compile("."))
+        expect(notice.locator(":scope > span")).to_have_attribute(
+            "data-lf-short", "2 new"
+        )
     rendered(page)
     card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
     head = card.locator(".lf-msg-head").first
@@ -343,10 +342,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     name = head.locator("b")
     expect(name).to_have_text("Me")
     if phone:
-        assert name.evaluate("node => node.scrollWidth > node.clientWidth")
-        assert (
-            name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
-        )
+        assert name.evaluate("node => node.getBoundingClientRect().width") < 0.5
     else:
         assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
 

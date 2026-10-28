@@ -28,6 +28,7 @@ from leaf_dev.reply_phases import (
 from leaf_dev.review_scenario import SLEEP
 
 from leaf import harness
+from leaf.harness import NUDGE_WORDS
 from leaf.hook_transport import INLINE_OPENING
 from leaf.interaction_log import read_interactions
 
@@ -604,8 +605,8 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
 def test_a_pickup_wait_names_what_ended_it():
     """A comment that arrives in a running turn waits on that turn's calls; one that
     arrives between turns waits on whatever starts the next, read from Claude Code's
-    own turn origins: Leaf's wake, or the user's prompt where nothing of Leaf's woke
-    the session, past any turn that ended without taking the comment. A session
+    own turn origins: Leaf's wake, Leaf's nudge, or the user's prompt where nothing
+    of Leaf's woke the session, past any turn that ended without taking the comment. A session
     whose transcript begins after the comment took the page later."""
 
     def native(seconds: float, origin: str, text: str) -> dict:
@@ -647,6 +648,9 @@ def test_a_pickup_wait_names_what_ended_it():
             native(20, "task_notification", "<summary>Agent done</summary>"),
             ended(22),
             native(30, "human", "check the leaf"),
+            ended(32),
+            # A background job Leaf resumed, its nudge as the prompt.
+            native(40, "human", f"leaf: /page {NUDGE_WORDS}"),
         ]
     )
     working = pickup_wait(records, at(2), at(9.2))
@@ -660,6 +664,7 @@ def test_a_pickup_wait_names_what_ended_it():
     prompted = pickup_wait(records, at(15), at(30.5))
     assert (prompted["cause"], prompted["missedTurns"]) == ("prompted", 1)
     assert pickup_wait(records[2:], at(0.5), at(12.3))["cause"] == "started"
+    assert pickup_wait(records, at(33), at(40.4))["cause"] == "nudged"
 
 
 def test_a_reply_is_attributed_to_leaf_the_harness_and_the_models_wait_and_output():

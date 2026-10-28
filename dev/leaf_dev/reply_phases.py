@@ -65,6 +65,7 @@ import shlex
 from datetime import datetime
 from pathlib import Path
 
+from leaf.harness import NUDGE_WORDS
 from leaf_dev import ROOT
 
 # The directory change an agent puts before a command, which says nothing of it.
@@ -405,7 +406,7 @@ def reply_breakdown(
 # What can end a pickup wait (`pickup_wait`), and the ones a turn's origin names
 # where no turn running at the admission took the comment.
 WAIT_CAUSES = ("working", "woken", "nudged", "prompted", "other", "started")
-ORIGIN_CAUSES = {"leaf_wake": "woken", "peer": "nudged", "human": "prompted"}
+ORIGIN_CAUSES = {"leaf_wake": "woken", "leaf_nudge": "nudged", "human": "prompted"}
 
 
 def pickup_wait(records: list[dict], admitted: str, picked_up: str) -> dict:
@@ -416,7 +417,8 @@ def pickup_wait(records: list[dict], admitted: str, picked_up: str) -> dict:
     - `working`: a turn was running at the admission and took the comment at a
       tool boundary, after the `calls` out in the wait;
     - `woken`: Leaf's watch woke the idle session;
-    - `nudged`: Leaf's nudge, another session's message, started the turn;
+    - `nudged`: Leaf's nudge started the turn, or resumed a background job whose
+      worker had retired;
     - `prompted`: the user's own prompt started the turn, so nothing of Leaf's
       woke the session first;
     - `other`: something else started the turn, such as a background task ending;
@@ -497,8 +499,10 @@ def claude_code_records(native: list[dict]) -> list[dict]:
     whose output the `model_response` keeps: the response's whole output, thinking
     included, by its last record. A turn's start carries Claude Code's
     `turnOrigin` as its `origin` (`human` for a prompt, `peer` for another
-    session's message, as Leaf's nudge is, `task_notification`), with
-    `leaf_wake` for the task notification Leaf's watch wakes the session with."""
+    session's message, `task_notification`), with `leaf_wake` for the task
+    notification Leaf's watch wakes the session with and `leaf_nudge` for Leaf's
+    nudge, whether it came through the session's socket or as the prompt of a
+    background job it resumed."""
     records = []
     responses: dict[str, dict] = {}
     for record in native:
@@ -512,12 +516,13 @@ def claude_code_records(native: list[dict]) -> list[dict]:
             content = [{"type": "text", "text": content}]
         if "turnPosition" in record and not record.get("isCompactSummary"):
             start = {"type": "turn_start", "received_at": at}
-            if origin := record.get("turnOrigin"):
-                woke = any(
-                    f"<summary>{LEAF_WAKE}</summary>" in part.get("text", "")
-                    for part in content
-                )
-                start["origin"] = "leaf_wake" if woke else origin
+            text = "".join(part.get("text", "") for part in content)
+            if f"<summary>{LEAF_WAKE}</summary>" in text:
+                start["origin"] = "leaf_wake"
+            elif NUDGE_WORDS in text:
+                start["origin"] = "leaf_nudge"
+            elif origin := record.get("turnOrigin"):
+                start["origin"] = origin
             records.append(start)
         records.append(
             {"type": record["type"], "message": {"content": content}, "received_at": at}

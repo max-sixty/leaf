@@ -246,7 +246,9 @@ on screen.
 refused, and the Leaf panel shows it until they have dealt with it. Its handle's
 `clear()` takes the error down once it no longer holds. Use it for failures only.
 
-`quietWord(element, word)` gives an element words screen readers say after its leading
-`<strong>` title but the screen doesn't show; pass the whole quiet word each time, or an
-empty one to remove it. Leaf writes quiet words for elements it marks as rewritten,
-changed or reported, so write them only on parts the module builds.
+A `data-lf-quiet` attribute gives an element words screen readers say after its leading
+`<strong>` title but the screen doesn't show: Leaf writes them there while the attribute
+stands, and takes them away with it. Set the whole quiet word each time. Leaf writes
+quiet words for elements it marks as rewritten, changed or reported, so declare them only
+on parts the module builds or owns, such as a code line or a suggestion's slot. A page
+without Leaf, whose theme would leave them on screen, writes none.

@@ -483,7 +483,9 @@ export class MessageView {
               : nothing
           }${
             model.unread
-              ? html`<span class="lf-msg-new"><span class="lf-quiet">New</span></span>`
+              ? html`<span class="lf-msg-new lf-unread-dot"
+                  ><span class="lf-quiet">New</span></span
+                >`
               : nothing
           }
           ${receipt}

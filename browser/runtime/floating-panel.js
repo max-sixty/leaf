@@ -439,7 +439,7 @@ export function createFloatingPanel({
         exit
           ? nothing
           : html`<span class="lf-fp-num">${onUser || ""}</span
-              ><span class="lf-fp-news" ?hidden=${!news}></span>`
+              ><span class="lf-fp-news lf-unread-dot" ?hidden=${!news}></span>`
       }
     </button>`;
     const roomLabel = expanded ? "Less room to write" : "More room to write";
@@ -492,9 +492,10 @@ export function createFloatingPanel({
           <div class="lf-fp-row">
             <button
               type="button"
-              class="lf-fp-face lf-fp-expand"
+              ${offeredAction("symbol", "lf-fp-expand", roomLabel, {
+                action: expanded ? "fit" : "expand",
+              })}
               aria-pressed=${String(expanded)}
-              ${namedAction(expanded ? "fit" : "expand", { label: roomLabel })}
               @mousedown=${(event) => event.preventDefault()}
               @click=${() => {
                 expanded = !expanded;
@@ -527,7 +528,7 @@ export function createFloatingPanel({
                 >${onUser || ""}</span
               >
               <span
-                class="lf-fp-news-dot"
+                class="lf-fp-news-dot lf-unread-dot"
                 aria-hidden="true"
                 ?data-shown=${news > 0}
               ></span>
@@ -2554,7 +2555,7 @@ export function createFloatingPanel({
         ?data-yours=${threadAttention(thread, agentName())?.kind === "needs_user"}
         @click=${() => open({ view: "thread", thread: thread.key })}
       >
-        <span class="lf-fp-news-mark"
+        <span class="lf-fp-news-mark lf-unread-dot"
           >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
         >
         <span class="lf-fp-label">${threadHeading(thread)}</span>
@@ -3216,8 +3217,7 @@ export function createFloatingPanel({
     const show = arrivesAt(item)
       ? html`<button
           type="button"
-          class="lf-fp-face lf-fp-icon-btn lf-fp-show"
-          ${namedAction("show")}
+          ${offeredAction("symbol", "lf-fp-show", undefined, { action: "show" })}
           @click=${() => {
             const route = trail.value.at(-1);
             void queueActions.open(queueItemKey(item)).then((arrived) => {
@@ -3248,8 +3248,7 @@ export function createFloatingPanel({
           gesture
             ? html`<button
                 type="button"
-                class="lf-fp-face lf-fp-icon-btn"
-                ${namedAction("undo")}
+                ${offeredAction("symbol", "", undefined, { action: "undo" })}
                 @click=${() => withdraw(gesture)}
               ></button>`
             : nothing
@@ -3302,7 +3301,7 @@ export function createFloatingPanel({
     else if (item.offers?.done)
       answers = html`<button
         type="button"
-        class="lf-fp-face lf-fp-answer lf-fp-icon-btn"
+        class="lf-fp-face lf-fp-answer"
         ${namedAction("done")}
         @click=${() => queueActions.done(queueItemKey(item))}
       ></button>`;
@@ -3454,14 +3453,15 @@ export function createFloatingPanel({
   // run, from what stands before it. One keyed list of rules, headings and items, so an
   // item that moves to another group, as one whose place leaves the page does, keeps
   // its node, and the focus and drawing in it. `line` draws an item, given the group it
-  // stands in.
+  // stands in. A rule belongs to its group, so replacing the group's first item
+  // does not replace the rule and make the keyed renderer move surviving cards.
   function groupedItems(groups, line) {
     const rows = [];
     let running = false;
     for (const group of groups) {
       const headed = group.headed !== false;
       if (rows.length && (headed || !running))
-        rows.push({ key: `rule:${queueItemKey(group.items[0])}`, rule: true });
+        rows.push({ key: `rule:${group.key}`, rule: true });
       running = !headed;
       if (headed) rows.push({ key: group.key, group });
       for (const item of group.items)
@@ -3809,8 +3809,7 @@ export function createFloatingPanel({
       crumb: onTabs("threads"),
       aux: html`<button
         type="button"
-        class="lf-fp-face lf-fp-icon-btn"
-        ${namedAction("find", { label: "Find a thread or message" })}
+        ${offeredAction("symbol", "", "Find a thread or message", { action: "find" })}
         aria-pressed=${String(searching)}
         @click=${() => {
           if (!searching) {
@@ -3882,10 +3881,12 @@ export function createFloatingPanel({
         onPageSeat
           ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-icon-btn lf-fp-on-page"
-              ${namedAction("show", {
-                label: inMessage ? "Show in message" : "Show on page",
-              })}
+              ${offeredAction(
+                "symbol",
+                "lf-fp-on-page",
+                inMessage ? "Show in message" : "Show on page",
+                { action: "show" },
+              )}
               ?disabled=${!thread.anchor}
               ?data-unoffered=${!thread.anchor}
               @click=${() => {
@@ -3912,12 +3913,12 @@ export function createFloatingPanel({
           : nothing
       }<button
         type="button"
-        class="lf-fp-face lf-fp-icon-btn lf-fp-settle ${
-          thread.resolved ? "lf-reopen" : "lf-resolve"
-        }"
-        ${namedAction(thread.resolved ? "reopen" : "resolve", {
-          label: thread.resolved ? undefined : "Resolve thread",
-        })}
+        ${offeredAction(
+          "symbol",
+          `lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}`,
+          thread.resolved ? "Reopen" : "Resolve thread",
+          { action: thread.resolved ? "reopen" : "resolve" },
+        )}
         aria-disabled=${String(
           !(thread.resolved ? thread.offers.reopen : thread.offers.resolve),
         )}

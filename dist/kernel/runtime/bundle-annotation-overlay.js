@@ -1,11 +1,11 @@
-import { PAGE_PAINT_ATTRIBUTE, afterScript, cancelAnimation, cancelRender, nativeLayerHolding, nextAnimation, nextRender, renderedOrder, renderedUnder, sizeObserver, skipped, under } from "./bundle-portable.js";
+import { LAYOUT, afterScript, cancelAnimation, cancelRender, nativeLayerHolding, nextAnimation, nextFrame, nextRender, renderedOrder, renderedUnder, sizeObserver, skipped, tabStore, under } from "./bundle-portable.js";
 import { TEXT_FIELD, Z, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, onCurrentLocation, onPressAway, onUserInput, pressLed, ringBox, roomPx, rove, tabStops, visibleFocus } from "./bundle-dom-move.js";
 import { bareReaction, hostIn, html, render, sameAnchor, turns } from "./bundle-layer-stack.js";
-import { LAYOUT, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, passageGeometry, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
+import { PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
+import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
-import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, setChildLists, setChildren, showReturnTurn, tabStore, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
-import { clamp, rightCover, seenRect, shownBox, shownWindow, showsContents, slotTop, union, watchRoom } from "./bundle-geometry.js";
+import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, setChildLists, setChildren, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
+import { clamp, rightCover, seenRect, shownBox, shownParts, shownWindow, showsContents, slotTop, union, watchRoom } from "./bundle-geometry.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
 import { retainUserIntent } from "./bundle-copy-control.js";
 import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-disclosure.js";
@@ -57,7 +57,9 @@ function surfaceGrip({ surface, bounds, dropped }) {
 			x: (spot.x - placed.x) / scale.x,
 			y: (spot.y - placed.y) / scale.y
 		};
-		const translate = `${layoutPx(offset.x)} ${layoutPx(offset.y)}`;
+		const xShift = layoutPx(offset.x);
+		const yShift = layoutPx(offset.y);
+		const translate = xShift === "0px" && yShift === "0px" ? "" : `${xShift} ${yShift}`;
 		if (surface.style.translate !== translate) surface.style.translate = translate;
 	}
 	const frame = () => {
@@ -2144,7 +2146,7 @@ const PENDING = "lf-pending";
 const REACT = "lf-react";
 const HOVER = "lf-mark-hover";
 const HERE = "lf-mark-here";
-function createAnchorPaint({ targetPaint, pointer, currentLocationThreadId, rowThread, threadRow, marginThread }) {
+function createAnchorPaint({ targetPaint, pointer, currentLocationThreadId, currentLocationObligation, rowThread, threadRow, marginThread }) {
 	const marked = /* @__PURE__ */ new Map();
 	const visualTargets = /* @__PURE__ */ new Map();
 	let pendingMarks = [];
@@ -2176,7 +2178,9 @@ function createAnchorPaint({ targetPaint, pointer, currentLocationThreadId, rowT
 			here
 		].flatMap((states) => [...states]).filter((element) => element instanceof Element));
 		const active = visibleFocus();
-		const ownsRing = active && ringBox(active) === active && !active.hasAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
+		const obligation = currentLocationObligation();
+		const obligationRing = obligation && (active === obligation || shownParts(obligation).includes(active));
+		const ownsRing = active && ringBox(active) === active && !obligationRing;
 		if (ownsRing && active.getRootNode() === document && pageWords(active)) elements.add(active);
 		const focus = new Set(ownsRing && elements.has(active) ? [active] : []);
 		const sources = [
@@ -2785,6 +2789,25 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		returning?.();
 	}
 	function mount() {
+		let beforeInputScroll = null;
+		let inputEpoch = 0;
+		fabInput.addEventListener("lf-before-edit", () => {
+			beforeInputScroll = response.open && response.floating ? pageScroller.scrollTop : null;
+			const epoch = ++inputEpoch;
+			nextFrame(() => {
+				if (inputEpoch === epoch) beforeInputScroll = null;
+			});
+		});
+		fabInput.addEventListener("input", () => {
+			if (beforeInputScroll === null) return;
+			if (pageScroller.scrollTop !== beforeInputScroll) {
+				pageScroller.scrollTo({
+					top: beforeInputScroll,
+					behavior: "instant"
+				});
+				placeKept(pageScroller);
+			}
+		});
 		document.addEventListener(LAYOUT, (event) => {
 			const geometry = anchorGeometry(response.anchor);
 			const target = response.target ?? geometry?.contextNode;

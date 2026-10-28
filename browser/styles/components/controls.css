@@ -404,8 +404,16 @@ svg[data-lf-icon] {
 .lf-msg-meta > time {
   flex: none;
 }
-/* An unread reply wears the unread dot the thread list, margin entry and On me mark
-   wear, beside its time, and says New only to a screen reader, which reads it with the
+/* The unread dot: news's one mark, wherever it is marked, a reply, a row of Threads,
+   the On me mark and the folded leaf. A margin entry draws the same dot on its corner
+   (theme.css, `[data-lf-unread]`), where it can wear no class. */
+.lf-unread-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+/* An unread reply wears the unread dot beside its time, and says New only to a screen reader, which reads it with the
    head. It stands with the time rather than among the head's annotations, so where a
    sticky head carries a long reply it stays in view until the reply has shown whole
    (thread/read.js); a margin card, whose gutter has room, hangs it before the name
@@ -416,10 +424,6 @@ svg[data-lf-icon] {
 .lf-msg-new {
   flex: none;
   align-self: center;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
 }
 /* Scroll surfaces contain out-of-flow descendants and opt into keyboard reach and
  * continuation cues. Their owner declares overflow, including at breakpoints. */
@@ -596,9 +600,11 @@ summary,
  * `mark`. A widget builds a control by its role (`offerAction`), and
  * prepaint.js (`ACTION_FACES`) is the one place a role's classes are spelled and says
  * what each role is for. Each face holds across document and shadow trees; a package
- * places a control and may set its density, but restates none of its face. Margin
- * entries, reaction chips, the response bar and the floating panel keep their own
- * families, each drawn by its one owner.
+ * places a control and may set its density (`--lf-icon-action-face`), but restates
+ * none of its face, so a surface's own symbols, the floating panel's included, stand
+ * beside its neighbours' alike. Margin entries, reaction chips, the response bar and
+ * the floating panel's rows, answers and row end keep their own families, each drawn
+ * by its one owner.
  *
  * The word face: words in the muted ink with no frame, until a hovering pointer or
  * visible focus lays the chip under them and inks them. A press leaves focus on the
@@ -731,6 +737,26 @@ summary,
     color: var(--ink);
     box-shadow: none;
   }
+}
+/* A symbol on a vendor control, Copy, wears the face on its host, which holds no line
+   of words of its own; the button inside fills the face and takes the press. The host
+   stretches the vendor's unparted wrapper, which would otherwise shrink to the icon
+   and take the button with it. */
+wa-copy-button.lf-icon-action {
+  place-items: stretch;
+  font-size: 0;
+  line-height: 0;
+}
+.lf-icon-action.lf-ui::part(button) {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
 }
 /* The committing action carries the accent as ink on the card ground, under a
    softened accent hairline, with the tint rising on hover: the one framed word on a

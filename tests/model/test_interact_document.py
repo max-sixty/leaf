@@ -3795,6 +3795,38 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
     ]
 
 
+def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
+    """A page's On me holds only what the page asks. A decision in an interactive
+    sample takes the reader's pick into the page's log, as a demonstration: it asks
+    for nothing, and the pick wakes no agent."""
+    markup = (
+        '<lf-sample id="practice" interactive>'
+        '<lf-ask id="practice-ask"><h3>Which queue policy?</h3>'
+        '<lf-options id="practice-policy" choose>'
+        '<lf-option id="practice-a">A</lf-option>'
+        '<lf-option id="practice-b">B</lf-option></lf-options></lf-ask>'
+        "</lf-sample>"
+    )
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</section>", markup + "</section>")
+    )
+    publish(page_dir)
+    assert state_json(page_dir)["obligations"] == []
+    pick = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "practice-policy",
+            "action": "choose",
+            "detail": {"value": ["practice-a"]},
+        },
+    )
+    assert not pick["attention"]
+    assert state_json(page_dir)["obligations"] == []
+
+
 def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
     """A draft uses the ordinary x-awaits fold: its edit discharges the decision,
     and an honoring version can clear the authored condition without reviving it."""

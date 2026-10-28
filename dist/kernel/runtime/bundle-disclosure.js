@@ -1864,7 +1864,8 @@ var LeafText = class extends HTMLElement {
 		const left = rtl ? box.left : box.right - size * scaleX;
 		const right = rtl ? box.left + size * scaleX : box.right;
 		const top = box.bottom - size * scaleY;
-		const reaches = (rect, leading) => rect.left < right && rect.right > left && rect.top - leading < box.bottom && rect.bottom + leading > top;
+		const middle = box.bottom - size * scaleY / 2;
+		const reaches = (rect, leading) => rect.left < right && rect.right > left && rect.top - leading <= middle && rect.bottom + leading > middle;
 		for (const line of view.contentDOM.children) {
 			const block = line.getBoundingClientRect();
 			if (block.bottom <= top || block.top >= box.bottom) continue;

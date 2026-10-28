@@ -434,8 +434,11 @@ class LeafText extends HTMLElement {
   }
 
   // Whether words in view, or the caret, reach the square `--lf-field-corner` wide at
-  // the host's trailing foot, where a box stands its action over the words. A row
-  // counts at its line height, so its leading under the action counts as the row.
+  // the host's trailing foot, where a box stands its action over the words. The action
+  // stands beside one row, the one across the square's middle, counted at its line
+  // height. Rejected: every row whose line box touches the square, since the action
+  // is taller than a row, so a row above that ran to the edge hid it beside a short
+  // last row, and a new empty line brought it back.
   #cornerTaken(view, style) {
     const size = Number.parseFloat(style.getPropertyValue("--lf-field-corner"));
     if (!(size > 0)) return false;
@@ -445,11 +448,12 @@ class LeafText extends HTMLElement {
     const left = rtl ? box.left : box.right - size * scaleX;
     const right = rtl ? box.left + size * scaleX : box.right;
     const top = box.bottom - size * scaleY;
+    const middle = box.bottom - (size * scaleY) / 2;
     const reaches = (rect, leading) =>
       rect.left < right &&
       rect.right > left &&
-      rect.top - leading < box.bottom &&
-      rect.bottom + leading > top;
+      rect.top - leading <= middle &&
+      rect.bottom + leading > middle;
     for (const line of view.contentDOM.children) {
       const block = line.getBoundingClientRect();
       if (block.bottom <= top || block.top >= box.bottom) continue;

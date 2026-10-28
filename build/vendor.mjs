@@ -356,7 +356,7 @@ const bundles = {
     out: `${assets}/vendor/codemirror.esm.js`,
     entry:
       `/*! CodeMirror ${version("@codemirror/view")} — MIT — https://codemirror.net */\n` +
-      'export { EditorView, keymap, Decoration, ViewPlugin } from "@codemirror/view";\n' +
+      'export { EditorView, keymap, Decoration, ViewPlugin, BlockWrapper } from "@codemirror/view";\n' +
       'export { EditorState, StateEffect, Compartment } from "@codemirror/state";\n' +
       "export { history, standardKeymap, historyKeymap, isolateHistory, invertedEffects }" +
       ' from "@codemirror/commands";\n' +

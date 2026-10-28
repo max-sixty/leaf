@@ -93,7 +93,7 @@ export function readFaces(field, display) {
     `.lf-face-fence-open { line-height: ${pre.padStart}px }`,
     `.lf-face-fence-close { line-height: ${pre.padEnd}px }`,
     `.lf-face-code { padding-inline: ${pre.inset} }`,
-    `.lf-face-quote { margin-inline-start: ${quote.indent}; padding-inline-start: ${quote.inset}; --lf-marker-inset: ${quote.inset} }`,
+    `.lf-face-quote { margin-inline-start: ${quote.indent}; --quote-inset: ${quote.inset} }`,
     `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`,
     `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`,
     `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`,
@@ -104,16 +104,28 @@ export function readFaces(field, display) {
   return rules.join("\n");
 }
 
+// Where a code block's lines end. A fence no closing line ends, outside any container,
+// runs to the end of the draft, so the draft's empty last line, where the next line of
+// code will be typed, is one of its lines, though the parser's reading stops short of it.
+const codeEnd = (state, { token, to, markers }) =>
+  token.type === "fence" &&
+  token.level === 0 &&
+  markers.length < 2 &&
+  to === state.doc.length
+    ? to + 1
+    : to;
+
 // Each outermost block's lines name its face, and the lines between two blocks the gap
 // the display leaves there: the blank lines that part them in the source, or the
 // second's first line where none do. A field that edits in place has rules for the
-// names (`readFaces`); elsewhere only a fence's do. A code fence's lines stand for its
-// block's padding while the caret is away, and an item after the first in a list stands
-// its gap above it. The display trims the outer margins of its first and last blocks,
-// so the field leaves none there, but a list's first and last items keep theirs.
+// names (`readFaces`); elsewhere only a fence's do. A quote's and an item's insets are
+// their boxes' (`decorate`). A code fence's lines stand for its block's padding while
+// the caret is away, and an item after the first in a list stands its gap above it.
+// The display trims the outer margins of its first and last blocks, so the field
+// leaves none there, but a list's first and last items keep theirs.
 const blockTag = (token) =>
   token.type === "fence" || token.type === "code_block" ? "pre" : token.tag;
-function standBlocks(state, placed, out, line) {
+function standBlocks(state, blocks, out, line) {
   const lines = (from, to, each) => {
     for (let at = from; at < to;) {
       const current = state.doc.lineAt(at);
@@ -138,7 +150,8 @@ function standBlocks(state, placed, out, line) {
   const open = [];
   let item = null;
   const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
-  for (const { token, from, to, markers, contentLines } of placed) {
+  for (const placed of blocks) {
+    const { token, from, to, markers, contentLines } = placed;
     if (!token.block) continue;
     const tag = blockTag(token);
     // A heading and a fence wear their faces wherever they stand.
@@ -148,7 +161,7 @@ function standBlocks(state, placed, out, line) {
         for (const [at] of markers)
           if (!lineTouched(at)) named(state.doc.lineAt(at).from, "lf-face-rule");
     } else if (token.type === "fence" || token.type === "code_block") {
-      lines(from, to, (each) => named(each.from, "lf-face-code"));
+      lines(from, codeEnd(state, placed), (each) => named(each.from, "lf-face-code"));
       const opener = state.doc.lineAt(from).number;
       for (const [at] of token.type === "fence" ? markers : []) {
         const fence = state.doc.lineAt(at);
@@ -189,7 +202,6 @@ function standBlocks(state, placed, out, line) {
     if (token.type === "paragraph_open" && level === 0)
       lines(from, to, (each) => named(each.from, "lf-face-p"));
     else if (token.type === "blockquote_open" && level === 0) {
-      lines(from, end, (each) => named(each.from, "lf-face-quote"));
       named(from, "lf-face-quote-first");
       named(state.doc.lineAt(Math.max(from, end - 1)).from, "lf-face-quote-last");
     }
@@ -219,6 +231,7 @@ function fieldEditor(
     Compartment,
     WidgetType,
     Decoration,
+    BlockWrapper,
     LanguageSupport,
     ViewPlugin,
     keymap,
@@ -245,23 +258,41 @@ function fieldEditor(
     class: "lf-md-unseen",
     attributes: { "aria-hidden": "true" },
   });
-  const marker = Decoration.mark({
-    class: "lf-md-marker lf-md-unseen",
-    attributes: { "aria-hidden": "true" },
-  });
-  const shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
+  // A container's marker in its source, a quote's `>` or an item's bullet or number,
+  // unseen or shown, and the run of them that opens a line (`decorate`).
+  const markerFaces = Object.fromEntries(
+    ["quote", "item"].map((kind) => [
+      kind,
+      [
+        Decoration.mark({
+          class: `lf-md-marker lf-md-${kind}-marker lf-md-unseen`,
+          attributes: { "aria-hidden": "true" },
+        }),
+        Decoration.mark({ class: `lf-md-marker lf-md-${kind}-marker lf-md-mark` }),
+      ],
+    ]),
+  );
+  const markerRun = Decoration.mark({ class: "lf-md-markers" });
   const line = (cls) => Decoration.line({ class: cls });
-  // A list item's line at its depth, wearing the marker a message's list draws there: the
-  // bullet the platform's style sheet nests, or the item's number in its list. An item's
-  // later line, and one whose source marker shows, wear none.
+  // A quote and a list item are each a box around their lines, as the message's
+  // blockquote and li are, so a nested one stands inside its container with the
+  // container's rule and inset beside it, and so does a code block in either. An item
+  // wears the marker a message's list draws there: the bullet the platform's style sheet
+  // nests, or the item's number in its list; one whose source marker shows wears none.
+  // A box takes the lines that start in its range, including one starting at its end,
+  // so it ends on its last line's break. CodeMirror carries a box on into a later one
+  // that equals it, so each names its level, and a container is ranked outside its
+  // contents. Rejected: a class on each line (until October 2026), which CodeMirror
+  // merges, so every level of a nested quote drew one rule at one inset and a code
+  // block's frame replaced its quote's; and boxes for quotes alone, which put a quote's
+  // rule outside the item holding it, and the item's bullet inside the quote.
   const BULLETS = ["lf-md-disc", "lf-md-circle", "lf-md-square"];
-  const itemLine = (depth, kind, number) =>
-    Decoration.line({
-      class: kind ? `lf-md-item lf-md-listed ${kind}` : "lf-md-item",
-      attributes: {
-        style: `--lf-list-depth: ${depth}${kind === "lf-md-number" ? `; counter-set: list-item ${number}` : ""}`,
-      },
-    });
+  const box = (from, to, level, attributes) =>
+    BlockWrapper.create({
+      tagName: "div",
+      attributes: { ...attributes, "data-level": String(level) },
+      rank: 100 - level,
+    }).range(from, Math.max(from, to - 1));
 
   // The inline constructs the preview draws, by the renderer's token type: each as the
   // element the renderer sends it as.
@@ -309,13 +340,19 @@ function fieldEditor(
   const opensElsewhere = (href) =>
     document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
 
+  // The draft's decorations, and the boxes its quotes and list items stand in.
   function decorate(state, placed) {
     const out = [];
-    // The ends of the lists open at the token being read, each list line's item, and the
-    // code blocks, whose lines their own reading indents.
+    const runs = [];
+    const boxes = [];
+    // The ends of the lists open at the token being read, an item's later lines, the
+    // code blocks, whose lines their own reading indents, the containers' markers, and
+    // where each line's quote markers end.
     const lists = [];
-    const items = new Map();
+    const continued = new Set();
     const code = [];
+    const opening = [];
+    const prefix = new Map();
     const add = (from, to, deco) => {
       if (from >= to) return;
       // A hidden range may not hold a line break; such syntax stays drawn.
@@ -382,22 +419,30 @@ function fieldEditor(
           add(a, b, token.markup.startsWith("#") ? syntax : shown);
         }
       } else if (token.type === "fence" || token.type === "code_block") {
-        code.push([from, to]);
+        const end = codeEnd(state, { token, to, markers });
+        code.push([from, end]);
         // Each line of code keeps the indent the parser's reading of it keeps; the rest,
-        // a list item's or an indented block's own four spaces, the message drops.
+        // a list item's or an indented block's own four spaces after any quote's
+        // markers, the message drops. An end no fence line stands for (`standBlocks`)
+        // takes the padding on the code's own line.
         const body = token.content.split("\n");
-        const opened = state.doc.lineAt(from).number + (token.type === "fence" ? 1 : 0);
-        lines(from, to, (each) => {
+        const fenced = token.type === "fence";
+        const opened = state.doc.lineAt(from).number + (fenced ? 1 : 0);
+        lines(from, end, (each) => {
+          const first = each.from <= from;
+          const last = each.to + 1 >= end;
           const ends = [
-            each.from <= from ? " lf-md-code-first" : "",
-            each.to + 1 >= to ? " lf-md-code-last" : "",
-            token.type === "code_block" ? " lf-md-code-bare" : "",
+            first ? " lf-md-code-first" : "",
+            last ? " lf-md-code-last" : "",
+            first && !fenced ? " lf-md-code-pad-start" : "",
+            last && !(fenced && markers.length > 1) ? " lf-md-code-pad-end" : "",
           ].join("");
           out.push(line(`lf-md-code-block${ends}`).range(each.from));
           const kept = body[each.number - opened];
           if (kept === undefined || each.number - opened >= body.length - 1) return;
-          const lead = each.text.match(/^[ \t]*/)[0].length;
-          add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
+          const start = prefix.get(each.from) ?? each.from;
+          const lead = state.doc.sliceString(start, each.to).match(/^[ \t]*/)[0].length;
+          add(start, start + lead - kept.match(/^[ \t]*/)[0].length, hide);
         });
         // A fence's lines stand for the message's code padding (`standBlocks`), and each
         // shows its marks, at a line's height, while the caret is on it.
@@ -406,11 +451,11 @@ function fieldEditor(
           add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
         }
       } else if (token.type === "blockquote_open") {
-        lines(from, to, (each) => {
-          out.push(line("lf-md-quote").range(each.from));
-        });
-        for (const [a, b] of markers)
-          add(a, b, touches(state, a, b) ? shownMarker : marker);
+        boxes.push(box(from, to, token.level, { class: "lf-md-quote lf-face-quote" }));
+        for (const [a, b] of markers) {
+          opening.push({ from: a, to: b, kind: "quote" });
+          prefix.set(state.doc.lineAt(a).from, b);
+        }
       } else if (
         token.type === "bullet_list_open" ||
         token.type === "ordered_list_open"
@@ -428,17 +473,18 @@ function fieldEditor(
         // (above). A nested item, read after its parent, takes its own lines.
         const head = state.doc.lineAt(from);
         const [at, end] = markers[0];
-        // The marker's own indent stands in the inset with it. A quote's line keeps the
-        // quote's rule and prefix at its start, where the platform's marker can't stand,
-        // so an item there keeps its source marker, drawn as the prefix is.
+        // The marker's own indent stands in the inset with it. An item whose marker
+        // follows a quote's prefix, or another item's marker, on its line keeps its
+        // source marker, drawn as the prefix is.
         const start =
           at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length;
         if (head.text.slice(0, start - head.from).trim()) {
           add(start, end, dim);
           continue;
         }
+        continued.delete(head.from);
         lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
-          items.set(each.from, { depth, continued: true });
+          continued.add(each.from);
         });
         const kind =
           list.next === null
@@ -447,18 +493,49 @@ function fieldEditor(
         const shown = state.selection.ranges.some(
           (range) => range.from < end && range.to >= start,
         );
-        items.set(head.from, { depth, kind: shown ? null : kind, number: list.next });
+        boxes.push(
+          box(
+            head.from,
+            to,
+            token.level,
+            shown
+              ? { class: "lf-md-item" }
+              : {
+                  class: `lf-md-item lf-md-listed ${kind}`,
+                  ...(list.next !== null && {
+                    style: `counter-set: list-item ${list.next}`,
+                  }),
+                },
+          ),
+        );
         if (list.next !== null) list.next++;
-        add(start, end, shown ? shownMarker : marker);
+        opening.push({ from: start, to: end, kind: "item", shown });
       }
     }
-    for (const [from, { depth, kind, number, continued }] of items) {
-      out.push(itemLine(depth, kind, number).range(from));
-      if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
+    for (const from of continued) {
+      if (code.some(([a, b]) => from >= a && from < b)) continue;
       add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
     }
+    // The markers that open a line stand, in order, in the insets of the containers they
+    // open, right to left from the line's words, unseen while the caret is away, so
+    // revealing one moves no word.
+    opening.sort((a, b) => a.from - b.from);
+    for (let i = 0; i < opening.length;) {
+      let j = i + 1;
+      while (j < opening.length && opening[j].from === opening[j - 1].to) j++;
+      runs.push(markerRun.range(opening[i].from, opening[j - 1].to));
+      for (const { from, to, kind, shown } of opening.slice(i, j))
+        out.push(
+          markerFaces[kind][+(shown ?? touches(state, from, to))].range(from, to),
+        );
+      i = j;
+    }
     standBlocks(state, placed, out, line);
-    return Decoration.set(out, true);
+    return {
+      decorations: Decoration.set(out, true),
+      runs: Decoration.set(runs),
+      boxes: BlockWrapper.set(boxes, true),
+    };
   }
 
   // The draft is read by the renderer that will send it, so the preview styles exactly what
@@ -470,7 +547,7 @@ function fieldEditor(
       constructor(view) {
         this.live = true;
         this.placed = read(view.state);
-        this.decorations = decorate(view.state, this.placed);
+        this.drawn = decorate(view.state, this.placed);
         this.judged = markdownReady();
         if (!this.judged)
           loadMarkdown().then(
@@ -487,10 +564,21 @@ function fieldEditor(
           this.judged = judged;
           this.placed = read(update.state);
         } else if (!update.selectionSet) return;
-        this.decorations = decorate(update.state, this.placed);
+        this.drawn = decorate(update.state, this.placed);
       }
     },
-    { decorations: (plugin) => plugin.decorations },
+    {
+      decorations: (plugin) => plugin.drawn.decorations,
+      // A run of markers holds its markers, even one with the same range.
+      provide: (plugin) => [
+        EditorView.outerDecorations.of(
+          (view) => view.plugin(plugin)?.drawn.runs ?? Decoration.none,
+        ),
+        EditorView.blockWrappers.of(
+          (view) => view.plugin(plugin)?.drawn.boxes ?? BlockWrapper.set([]),
+        ),
+      ],
+    },
   );
 
   const editable = new Compartment();

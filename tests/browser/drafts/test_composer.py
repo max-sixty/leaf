@@ -676,7 +676,7 @@ def test_markdown_decoration_keeps_source_editable(browser, serve):
                 text: line.textContent, heading: line.classList.contains('lf-md-heading'),
                 syntax: [...line.querySelectorAll('.lf-md-mark, .lf-md-unseen')].map(mark => mark.textContent),
                 strong: line.querySelector('strong')?.textContent,
-                listed: getComputedStyle(line).display === 'list-item',
+                listed: getComputedStyle(line.closest('.lf-md-item') ?? line).display === 'list-item',
                 shownMarkers: [...line.querySelectorAll('.lf-md-marker:not(.lf-md-unseen)')].map(mark => mark.textContent),
               }));
             }""",

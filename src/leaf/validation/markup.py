@@ -14,7 +14,6 @@ from leaf.structure import (
     allocation_valid,
     links_with_rel,
 )
-from leaf.styles import authored_sheets, dropped_css
 
 
 def found_at(code: str, rec: dict, id: str = "", **values) -> Finding:
@@ -198,19 +197,6 @@ def fragment_style_errors(parser: SourceDocument) -> list[Finding]:
     if links_with_rel(parser.authoring.links, "stylesheet"):
         errors.append(Finding("message-stylesheet", "<link>"))
     return errors + authored_allocation_errors(parser)
-
-
-def dropped_styles(parser: SourceDocument) -> list[Finding]:
-    """Each declaration or rule a browser drops from the CSS a document writes, each
-    <style> and each style attribute (`styles.dropped_css`): Chrome drops it without
-    a word, so the author hears of it here or not at all. What delivery's reader
-    can't read at all is the capture's to refuse, or for a message the gate's
-    (`revision_artifact.uncaptured_errors`)."""
-    return [
-        error
-        for css, sheet, block in authored_sheets(parser.authoring)
-        for error in dropped_css(css, sheet, block=block)
-    ]
 
 
 def text_media_errors(text: str, page_dir: Path) -> list[Finding]:

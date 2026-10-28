@@ -12,7 +12,7 @@ from leaf.passages import SourceReading
 from leaf.piped_input import NO_BODY
 from leaf.registry.kernel import kinds_declaring
 from leaf.registry.storage import require_registry
-from leaf.revision_artifact import read_revision, uncaptured_errors
+from leaf.revision_artifact import document_drops, read_revision, uncaptured_errors
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_ids, thread_names, thread_structure
 
@@ -245,6 +245,7 @@ def message_markup_errors(
         for error in [
             *sample_errors(page_dir, page, events, frag, registry, contracts),
             *uncaptured_sample_errors(page_dir, frag),
+            *document_drops(frag),
         ]
         if error.severity == "error"
     ]

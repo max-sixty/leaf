@@ -68,10 +68,11 @@ from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
     annotation_mode,
+    delivered_sheets,
     links_with_rel,
     script_kind,
 )
-from leaf.styles import authored_sheets, dropped_css
+from leaf.styles import dropped_css
 from leaf.validation.markup import unanswered_media
 
 PUBLIC_MODULES = (
@@ -544,18 +545,40 @@ def css_dependencies(
     return tuple(value for value, _, _ in reading.references)
 
 
+def css_drops(
+    source: str, sheet: str, declarations: bool = False
+) -> tuple[Finding, ...]:
+    """What a browser drops from a sheet delivery's reader reads whole
+    (`styles.dropped_css`), and nothing from one it refuses, whose syntax error
+    `css_dependencies` reports and whose later rules a reparse would only misread.
+    `sheet` names it as `css_dependencies` does."""
+    if _read_css(source, declarations).invalid:
+        return ()
+    return dropped_css(source, sheet, block=declarations)
+
+
+def document_drops(document: SourceDocument) -> list[Finding]:
+    """`css_drops` for every sheet delivery rewrites in `document`
+    (`structure.delivered_sheets`)."""
+    return [
+        finding
+        for css, sheet, declarations in delivered_sheets(document)
+        for finding in css_drops(css, sheet, declarations)
+    ]
+
+
 def css_syntax_errors(
     source: str, sheet: str, declarations: bool = False
 ) -> list[Finding]:
     """Every syntax error in a stylesheet: what delivery's reader can't read
-    (`css-syntax`), then what it reads but a browser drops (`styles.dropped_css`).
+    (`css-syntax`), or else what it reads but a browser drops (`css_drops`).
     `sheet` names it as `css_dependencies` does."""
     return [
         *(
             finding.but(values={"sheet": sheet})
             for finding in _read_css(source, declarations).invalid
         ),
-        *dropped_css(source, sheet, block=declarations),
+        *css_drops(source, sheet, declarations),
     ]
 
 
@@ -564,10 +587,13 @@ def uncaptured_errors(document: SourceDocument, page_dir: Path) -> list[Finding]
     which is frozen in the log once admitted: what delivery's reader can't read in
     the stylesheets it writes (`css_dependencies`), and each `/media/` file it names
     that the page won't answer (`unanswered_media`), in an attribute or a
-    stylesheet. A page's own markup the capture reads (`_capture_artifact`)."""
+    stylesheet. Its stylesheets are every one delivery rewrites
+    (`structure.delivered_sheets`), its samples' included; a sample child's
+    attributes its own reading names (`validation.source.uncaptured_sample_errors`).
+    A page's own markup the capture reads (`_capture_artifact`)."""
     refused = []
     media = set(document.authoring.media_refs)
-    for css, sheet, declarations in authored_sheets(document.authoring):
+    for css, sheet, declarations in delivered_sheets(document):
         for specifier in css_dependencies(css, sheet, declarations, refused=refused):
             path = _collect(refused, resolve_dependency, specifier, "/index.html")
             if path is not None and path.startswith("/media/"):
@@ -931,15 +957,15 @@ def _capture_artifact(
                 refused.append(_capture_finding("stylesheet-type", path))
                 continue
             entries.append(path)
-        for css, sheet, declarations in authored_sheets(authored.authoring):
-            for specifier in css_dependencies(
-                css, sheet, declarations, refused=refused
-            ):
-                entries.append(admit(resolve_dependency, specifier, "/index.html"))
         for specifier in authored.authoring.resource_refs:
             reference = admit(dependency_reference, specifier, "/index.html")
             if reference is None or reference[0] in resources:
                 continue
+            entries.append(admit(resolve_dependency, specifier, "/index.html"))
+    # Every sheet delivery rewrites, which a template's or a shadow root's contents
+    # hold as well as the document, so a sample's are among its page's.
+    for css, sheet, declarations in delivered_sheets(document):
+        for specifier in css_dependencies(css, sheet, declarations, refused=refused):
             entries.append(admit(resolve_dependency, specifier, "/index.html"))
     entries = [entry for entry in entries if entry is not None]
     for entry in entries:

@@ -662,6 +662,9 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     status = page.locator(".lf-page-search-status")
     expect(status).to_be_empty()
     search_field = page.locator(".lf-page-search-box")
+    # Focus arrives before the panel presents its Close control. Measure the
+    # completed search row before comparing query and feedback changes.
+    rendered(page)
     search_box = search_field.bounding_box()
     search.fill("words absent from this page")
     expect(status).to_have_attribute("aria-label", "No matches")

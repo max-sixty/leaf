@@ -31,13 +31,14 @@ from .revision_artifact import (
     RevisionArtifact,
     capture_artifact,
     css_dependencies,
+    css_syntax_errors,
     read_artifact,
     read_revision,
     resolve_dependency,
     resource_dependencies,
 )
 from .structure import SourceDocument, links_with_rel, script_kind
-from .styles import css_block, css_stylesheet, css_syntax_errors
+from .styles import css_block, css_stylesheet
 from .user_views import read_user_views
 
 
@@ -83,7 +84,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
                 "syntax_errors": [
                     finding.json()
                     for finding in css_syntax_errors(
-                        css, f"{path}:{line}", block=kind == "inline"
+                        css, f"{path}:{line}", kind == "inline"
                     )
                 ],
             }

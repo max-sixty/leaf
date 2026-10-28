@@ -627,7 +627,9 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         ("main { color: red; } }", "css-syntax", sheet),
         # A file's sheet answers to the rule a page's <style> does: a declaration
         # the browser drops without a word is refused.
-        ("main { color: red; broken; }", "css-syntax", sheet),
+        ("main { color: red; broken; }", "css-dropped", sheet),
+        # An unterminated string in url() is one syntax error, not a refused URL.
+        ('main { background: url("x.svg }', "css-syntax", sheet),
         (
             'main { background: url("../../private.svg"); }',
             "dependency-outside-page",

@@ -428,23 +428,60 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_di
     ]
 
 
-def test_a_message_style_attribute_answers_to_the_same_syntax_check(page_dir):
-    """A message's style attribute is CSS the page delivers as well, which delivery
-    can't re-address while it holds a syntax error, and whose malformed rule Chrome
-    drops without a word, so the message door asks what the page door does."""
-    published(page_dir)
-    findings = command_findings(
-        "thread",
-        "create",
-        page_dir,
-        "--text",
-        "Look:",
-        "--markup",
-        '<p style="color: red; } }">Shown</p>',
-    )
-    assert [(f.code, f.values["sheet"]) for f in findings] == [
-        ("css-syntax", "<p style> (line 1)")
+@pytest.mark.parametrize("style", ["color: red; } }", "& { color: red; }"])
+@pytest.mark.parametrize("door", ["page", "message"])
+def test_what_delivery_cannot_read_is_refused_at_each_door(page_dir, style, door):
+    """What a sheet must not hold is what delivery's reader can't read, so each door
+    asks that reader and refuses with its words. A nested rule in a style attribute
+    parses as a block's contents but not as the declaration list delivery reads,
+    and once passed every check only for delivery to refuse it with no reason."""
+    from leaf.revision_artifact import ArtifactError, rewrite_css
+
+    markup = f'<p style="{style}">Shown</p>'
+    if door == "page":
+        (page_dir / "index.html").write_text(styled("", markup))
+        _, findings = check_findings(page_dir)
+    else:
+        published(page_dir)
+        findings = command_findings(
+            "thread", "create", page_dir, "--text", "Look:", "--markup", markup
+        )
+    [refused] = findings if door == "message" else found(findings, "css-syntax")
+    assert refused.code == "css-syntax"
+    assert refused.values["sheet"].startswith("<p style>")
+    assert refused.values["message"]
+    with pytest.raises(ArtifactError) as delivered:
+        rewrite_css(style, lambda url: url, declarations=True)
+    assert [f.values["message"] for f in delivered.value.findings] == [
+        refused.values["message"]
     ]
+
+
+@pytest.mark.parametrize("severity", ["error", "advice"])
+def test_a_dropped_declaration_takes_its_severity_from_one_place(
+    page_dir, monkeypatch, severity
+):
+    """A declaration a browser drops is one the reader delivers, so whether it
+    refuses the page is a choice, made in `styles.DROPPED_SEVERITY` alone: at
+    advice it is reported beside a passing check and a message carrying it is
+    admitted."""
+    from leaf import styles
+
+    monkeypatch.setattr(styles, "DROPPED_SEVERITY", severity)
+    (page_dir / "index.html").write_text(styled("p { color: red; broken; }"))
+    status, findings = check_findings(page_dir)
+    [dropped] = found(findings, "css-dropped")
+    assert (status, dropped.severity) == (int(severity == "error"), severity)
+    published_markup = (
+        '<template id="practice" data-sample><style>p { broken; }</style>'
+        "<h1>Child</h1></template>"
+    )
+    (page_dir / "index.html").write_text(PAGE)
+    published(page_dir)
+    refused = command_findings(
+        "thread", "create", page_dir, "--text", "Try:", "--markup", published_markup
+    )
+    assert [f.code for f in refused] == (["css-dropped"] if severity == "error" else [])
 
 
 def test_a_sampled_thread_starts_as_its_source_log_leaves_it():

@@ -1320,7 +1320,7 @@ def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serv
           document.documentElement.lfInitial.paint(
             quotedOutput.querySelector('lf-playground'));
           const initial = document.documentElement.lfInitial.paint(host);
-          initial.renderValues({...initial.values, tone: 'bold'});
+          initial.render({values: {...initial.values, tone: 'bold'}});
           return {
             controls: initial.controls.map(control => control.getAttribute('name')),
             values: initial.values,

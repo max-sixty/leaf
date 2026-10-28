@@ -221,6 +221,26 @@ executions, such as a short case and a longer workflow.
       }
     ]
   },
+  "implementation": {
+    "summary": [
+      "What the retained code changes, its size and interfaces, and how it was validated."
+    ],
+    "human_review": {
+      "summary": "Why these changes merit the human's attention.",
+      "changes": [
+        {
+          "id": "grading-contract",
+          "title": "What the keyboard judgment establishes",
+          "before": "The criterion prescribed one keyboard gesture for every control.",
+          "after": "The judgment follows each control's actual keyboard semantics.",
+          "reason": "This changes how the reader should interpret the recorded judgments.",
+          "evidence": ["/absolute/path/to/grading-contract.diff"]
+        }
+      ]
+    },
+    "weaknesses": "Material limitations and where the assessment is least certain.",
+    "remaining": "What merging would leave undone within the stated scope."
+  },
   "journey": [
     {
       "id": "journey-navigation",
@@ -287,6 +307,81 @@ title; a comparison's optional `summary` gives a short assessment beside its ima
 with the full `finding` visible below. Use empty comparison/evidence arrays where
 no such evidence exists, and say why in the assessment. Screenshot evidence
 renders inline; other files are linked.
+
+For a hill-climb report that changes code or instructions, supply
+`implementation`, including its `human_review` assessment even when the selection
+is empty. An eval-only report can omit it. This field supplies **What the current
+code changes** in Introduction: summary paragraphs, weaknesses, remaining work
+and an authored **For your review** selection. Select changes whose intent or consequences the
+human should examine personally, such as material changes to goals, agent
+instructions, defaults, guarantees, permissions or data handling. Leave routine
+visual polish in the implementation summary and evidence. This selection is agent
+judgment; file names, diff size and scores do not settle it. Existing authorization
+and landing rules still govern actions.
+
+For each selected change, explain the before/after implications, why it deserves
+attention, and link reviewable source or a scoped exact diff in `evidence`.
+Exact `.diff` evidence appears inline in `lf-diff`, with every file initially
+collapsed, alongside its raw source link. Other evidence remains linked. The
+report selects the `diff` package, preserving any packages already on the page.
+When inserting a summary into an existing report outside `eval-report`, select
+that package with `leaf page init` before checking, stamping and exporting it.
+
+Use optional `links` with `label` and `target` to connect a selected code change
+to its corresponding **Changes tested** experiment (`#experiment-<id>`), or a
+specific comparison (`#experiment-<id>-comparison-<number>`). Select these links
+from the actual relationship; evaluation-contract and report changes may have no
+corresponding product experiment. Keep the original grades when explaining
+changes to an evaluation contract. Use stable `id` values for the subsection's anchors. Supply
+`human_review.changes: []` when the assessment finds none, with its reasoning in
+`human_review.summary`; the report explicitly states that no material changes
+were selected. Omitting `implementation` means no implementation assessment was
+supplied, rather than an assessed-empty selection.
+
+The **Judge preferences** view reads each retained native pair judgment and shows
+both presentation orders separately. Its five overall preference categories are
+ordinal, not numerical quality scores or independent author replications. Only
+pairs identified by their saved output metadata as one Leaf and one Plain HTML
+output appear on the format axis; other pairs remain in the exact-outcome table.
+Without checkpoint metadata, comparisons are unordered.
+
+Supply optional `preference_summary` to explain which runtime changes these
+comparisons cover, which remain untested, and any author changes that limit the
+interpretation. To label an explicit progression, add optional
+`preference_checkpoints`:
+
+```json
+{
+  "preference_summary": "Only configuration was compared again; a new author limits causal attribution.",
+  "preference_checkpoints": [
+    {
+      "label": "Original payload",
+      "pairs": [
+        { "run": "/absolute/path/to/pair-producer", "subject": "dashboard", "pair": 1 }
+      ]
+    }
+  ],
+  "repair_comparisons": [
+    {
+      "id": "navigation",
+      "title": "Same-source navigation",
+      "before": "The selected file and visible diff disagree.",
+      "after": "The visible diff follows the keyboard selection.",
+      "evidence": ["/absolute/path/to/matched-observation.json"]
+    }
+  ]
+}
+```
+
+Each pair reference selects exactly one `subject`/`pair` record from that run's
+`pairs.json`, which must also be present among the report's loaded native pairs.
+Supply labels and checkpoint order, never copies of winners, margins or scores.
+The table identifies reused HTML controls and tasks not compared at a checkpoint.
+A fresh author at a later checkpoint does not isolate the effect of a repair.
+The optional `repair_comparisons` instead supplies cited, authored before/after
+behavioral observations in a separate table; it does not turn pass/fail findings
+or recommendations into preference scores.
+
 The optional `journey` is authored interpretation, not a chronology inferred from
 scores or file timestamps. Its lane and step IDs are stable page anchors; link
 targets are report fragments such as an experiment or a saved sample revision.

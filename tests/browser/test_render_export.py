@@ -20,6 +20,7 @@ from render_harness import (
     leaf_page,
     open_page,
     round_trip,
+    scroll_settled,
     sending,
     write,
 )
@@ -30,7 +31,7 @@ from leaf import data as data_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import media as media_model
-from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
+from leaf.render_checks import HANDOVER_DEADLINE_MS, rendered, wait_until_ready
 from leaf.structure import UTF8_BOM
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -108,6 +109,54 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     expect(field).to_have_attribute("placeholder", "Add another option ⏎")
     write(field, "Portrait sketch")
     expect(add).not_to_have_attribute("data-lf-empty", "")
+
+
+def test_exported_workspace_tabs_open_new_evidence_below_the_pinned_strip(
+    browser, serve, tmp_path
+):
+    """Exports register the Layout's scrollport, so nested navigation lands in it."""
+    paragraphs = "".join(f"<p>Evidence paragraph {i}.</p>" for i in range(24))
+    source = leaf_page(
+        "Evidence review",
+        f"""<header><h1>Evidence review</h1></header>
+<lf-tabs id="views">
+  <lf-tab id="intro" label="Introduction"><p>Open the review.</p></lf-tab>
+  <lf-tab id="review" label="Review"><lf-tabs id="evidence">
+    <lf-tab id="first" label="First"><h2>First evidence</h2>{paragraphs}</lf-tab>
+    <lf-tab id="second" label="Second"><h2>Second evidence</h2>{paragraphs}</lf-tab>
+  </lf-tabs></lf-tab>
+</lf-tabs>""",
+        head="<style>#views > lf-tab {padding-block-start:0}</style>",
+        layout="workspace",
+    )
+    serve(source)
+    out = tmp_path / "evidence-review.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    page = browser.new_page(viewport={"width": 900, "height": 600})
+    page.goto(out.as_uri(), wait_until="load")
+    wait_until_ready(page)
+    page.get_by_role("tab", name="Review", exact=True).click()
+    page.locator("#first p").nth(3).hover()
+    page.mouse.wheel(0, 150)
+    page.wait_for_function("document.querySelector('#views').scrollTop > 100")
+    scroll_settled(page, "#views")
+    # A sticky tab's visible box is the input target, rather than its flow position.
+    button = page.get_by_role("tab", name="Second", exact=True).bounding_box()
+    page.mouse.click(
+        button["x"] + button["width"] / 2, button["y"] + button["height"] / 2
+    )
+    rendered(page)
+    heading = page.locator("#second h2").bounding_box()
+    strip = page.locator("#evidence > .lf-tabstrip").bounding_box()
+    assert heading["y"] >= strip["y"] + strip["height"] - 1
+    assert heading["y"] + heading["height"] < 600
+    # Leaving and reopening the outer view keeps the nested selection readable too.
+    page.get_by_role("tab", name="Introduction", exact=True).click()
+    page.get_by_role("tab", name="Review", exact=True).click()
+    expect(page.get_by_role("tab", name="Second", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    expect(page.locator("#second h2")).to_be_in_viewport()
 
 
 def test_interactive_export_runs_captured_local_behavior_without_a_host(

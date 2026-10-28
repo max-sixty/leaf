@@ -135,8 +135,8 @@ export function registerReadingRegion({
 // scrolls. Its id is the authored id of the box or, for an only child, of the child of
 // `main` holding it, as a sidebar page's `aside` names that box, so a neighbour's
 // arrival or removal never renames it; an unnamed one takes its place among the unnamed
-// ones, in a namespace of its own. Chrome layout asks on every pass, since a revision can
-// replace `main`'s children and a resize can change which of them the stylesheet marks.
+// ones, in a namespace of its own. Document composition asks on every pass, since a
+// revision can replace `main`'s children and a resize can change which of them the stylesheet marks.
 const layoutRegions = new Map();
 const marked = (box) =>
   box.checkVisibility() &&

@@ -66,7 +66,7 @@ const layoutWindow = (doc = document) => ({
 	right: doc.documentElement.clientWidth,
 	bottom: doc.documentElement.clientHeight
 });
-function shownWindow({ within = null, gap = 0, viewport = "visual", item = null } = {}) {
+function shownWindow({ within = null, gap = 0, viewport = "visual", item = null, across = null } = {}) {
 	const layout = layoutWindow();
 	const { offsetLeft, offsetTop, width, height } = viewport === "visual" ? window.visualViewport : {
 		offsetLeft: 0,
@@ -80,7 +80,7 @@ function shownWindow({ within = null, gap = 0, viewport = "visual", item = null 
 	let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
 	const middle = offsetTop + height / 2;
 	for (const box of windowChromeBoxes(item)) {
-		if (!overlapsAcross(box, {
+		if (!overlapsAcross(box, across ?? {
 			left,
 			right
 		})) continue;

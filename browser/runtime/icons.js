@@ -6,7 +6,7 @@ import { html } from "/runtime/framework.js";
 
 import { actionIcon, iconMarkup } from "./icon-paths.js";
 
-export { actionElement, iconElement, showAction } from "./icon-paths.js";
+export { actionElement, iconElement } from "./icon-paths.js";
 
 /** A Lit icon template; a parent refresh keeps its SVG and rewrites only a changed icon. */
 export function iconTemplate(icon, className = "lf-margin-entry-icon") {
@@ -20,7 +20,9 @@ export function iconTemplate(icon, className = "lf-margin-entry-icon") {
   ></svg>`;
 }
 
-/** The template of `action`'s symbol (icon-paths.js, `ACTIONS`), for a press whose
-    face no role draws, such as the floating panel's. */
+/** The template of `action`'s symbol (icon-paths.js, `ACTIONS`) where it is not a
+    press's whole face, such as a menu row's icon or the second of two symbols a press
+    swaps by CSS. A press that shows one symbol takes it and its name together, from a
+    role or `namedAction` (widget-elements.js). */
 export const actionTemplate = (action, className) =>
   iconTemplate(actionIcon(action), className);

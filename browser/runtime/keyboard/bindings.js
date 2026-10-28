@@ -174,7 +174,6 @@ export const spell = (binding) => {
 const softKeyboard = () => coarsePointer.matches;
 export const submitBindings = () =>
   softKeyboard() ? ["Mod+Enter"] : ["Enter", "Mod+Enter"];
-export const submitLabel = () => spell(submitBindings()[0]);
 // Whether a surface advertises keys: a key drawn where the user has no keyboard names a
 // press they cannot make, and costs room on the smallest window there is. Every
 // runtime surface that paints a key it was not asked for — a field's send key, the

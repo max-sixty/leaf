@@ -23,6 +23,7 @@ import functools
 import hashlib
 import json
 import os
+import re
 import secrets
 import stat
 import sys
@@ -34,6 +35,22 @@ from pathlib import Path
 # Installation paths start at the plugin, independent of its instruction skills.
 # Keep this locator dependency-free for standalone SessionEnd and cold hooks.
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
+
+
+def plugin_cache_copy(root: Path) -> bool:
+    """Whether `root` is a copy Claude Code installed from a marketplace into its
+    plugin cache, `<config>/plugins/cache/<marketplace>/leaf/<version>`, rather
+    than a checkout. Leaf leaves its manifest version unset, so the version
+    component is the source commit's SHA."""
+    parents = root.parents
+    return (
+        len(parents) >= 4
+        and root.parent.name == "leaf"
+        and parents[2].name == "cache"
+        and parents[3].name == "plugins"
+        and re.fullmatch(r"[0-9a-f]{7,40}", root.name) is not None
+    )
+
 
 EVENTS_FILE = "events.jsonl"
 

@@ -22,15 +22,16 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Pass only if the snippet uses the public commands/commandScope API imported
-      from /runtime/widget-api.js and declares one command per existing action.
+      Pass only if the snippet declares the classifier's commands through the public
+      API, its `lfCommands` with `commandsChanged` or a `commandScope` value imported
+      from /runtime/widget-api.js, and declares one command per existing action.
       Pass and Keep have stable dotted ids, concise titles, ordinary ArrowLeft and
       ArrowRight keys, explicit contextKeys 1 and 2, decision: true, their real
       controls, requested bindingBadge seats or explicit null, canClassify availability,
       and direct invocation of classify("pass") / classify("keep") from run. The command
       declaration owns native button clicks and disabled state, so the response removes
       the separate click listeners and disabled painters instead of calling click(). It attaches the
-      declaration to the classifier and calls paintKeys when availability changes.
+      declaration to the classifier and calls commandsChanged when availability changes.
       It does not attach the complete local-arrow scope to the `lf-ask`, assign numbers
       from live actions, duplicate callbacks into a second `lf-ask` row list, install
       keydown listeners, or calculate focus/hint visibility itself. It leaves native

@@ -15,7 +15,8 @@ function copyableText(label, value) {
 		const copy = copyControl("", {
 			label: `Copy ${label}`,
 			success: `${label[0].toUpperCase()}${label.slice(1)} copied`,
-			error: `${label[0].toUpperCase()}${label.slice(1)} not copied · select the text to copy`
+			error: `${label[0].toUpperCase()}${label.slice(1)} not copied · select the text to copy`,
+			role: "symbol"
 		});
 		copy.value = value;
 		return copy;
@@ -113,7 +114,7 @@ const observations = (label, rows, describe) => html` <dt>${label}</dt>
               ${rows.map((row) => html` <li>
                     <code>${row.at}</code>: ${describe(row)}
                     ${destinations.has(row) ? html`<button
-                            ${offeredAction("symbol", "", void 0, { action: "show" })}
+                            ${offeredAction("symbol", "", "Show on page", { action: "show" })}
                             @click=${() => showOnPage(row)}
                           ></button>` : nothing}
                   </li>`)}

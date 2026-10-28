@@ -323,11 +323,10 @@ leaf-composition-field {
   margin-inline-start: auto;
   color: var(--ink);
 }
-.lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover {
-  color: var(--ok-ink);
-}
+/* Resolve and Reopen are one toggle: only Reopen, its on state, wears the ok tint, so
+   a hovered Resolve never looks already done. */
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
-  background: var(--ok-tint);
+  background: var(--chip);
 }
 :is(.lf-resolve, .lf-reopen).lf-icon-action .lf-action-icon {
   inline-size: 15px;

@@ -310,16 +310,6 @@ def _unservable_layer(v: dict, why: str, action: str) -> str:
     )
 
 
-def _unservable_revision(v: dict, why: str) -> str:
-    """Why this Leaf can neither serve one revision nor admit input made on it."""
-    return (
-        f"Revision {v['revision']} {why}, so it cannot serve that revision or accept"
-        " input made against it. Revisions saved since the page was re-vendored still"
-        " open, and serving the page saves one from its source; where that fails,"
-        " `leaf page check` names why."
-    )
-
-
 def _invalid_record(v: dict) -> str:
     """How the refusal of a record one widget's verb writes begins."""
     return f"<{v['tag']}> {v['kind']} {v['verb']!r} is invalid: "
@@ -338,15 +328,12 @@ def _size(box: dict) -> str:
 
 def _declared(words, sep: str = ": "):
     """A registry finding's words: the file it read (`registry`), the element
-    declaration `at` names, then `words`; and, for a fault in a vendored layer, how to
-    replace it (`revendor`, the page to re-vendor)."""
+    declaration `at` names, then `words`."""
 
     def said(at: str, v: dict) -> str:
         text = f"{at} {words(v)}" if at else words(v)
         if "registry" in v:
             text = f"{v['registry']}{sep}{text}"
-        if "revendor" in v:
-            text += f"; run `leaf page init {v['revendor']}` to re-vendor it"
         return text
 
     return said
@@ -755,10 +742,6 @@ _TEXT = {
         lambda v: "; ".join(str(Finding.loads(found)) for found in v["findings"])
     ),
     "fixture-refused": _fixture(lambda v: v["error"]),
-    "missing-vendored": lambda at, v: (
-        f"{v['file']} missing from the page directory; run `leaf page init` to vendor"
-        " the layer"
-    ),
     "head-count": lambda at, v: (
         "the page must have one explicit <head> directly under <html>; found"
         f" {v['tags']} head tags, {v['parsed']} parsed heads, and {v['direct']} direct"
@@ -787,15 +770,6 @@ _TEXT = {
     ),
     "unnamed-sample": lambda at, v: (
         f"<template data-sample> at line {v['line']}: needs a stable id"
-    ),
-    "async-script": lambda at, v: (
-        f"<script async> (line {v['line']}) runs whenever it arrives, which can be"
-        " before Leaf reads the page; leave async off"
-    ),
-    "parser-blocking-script": lambda at, v: (
-        f"{_line(at, v)} runs while the page is still parsing, before Leaf reads it;"
-        ' write inline JavaScript as <script type="module">, and load a classic script'
-        " file with <script defer src>"
     ),
     "document-declaration": lambda at, v: (
         f"{_line(at, v)} declares something about the whole document, which delivery"
@@ -846,7 +820,7 @@ _TEXT = {
     ),
     # Widgets, against the registry that declares them.
     "unknown-widget": lambda at, v: (
-        f"{_line(at, v)}: unknown widget — not in the vendored registry.json"
+        f"{_line(at, v)}: unknown widget — not in the page's registry"
     ),
     "attribute-schema": lambda at, v: f"{_line(at, v)}: {v['reason']}",
     "member-record-slot": lambda at, v: (
@@ -995,7 +969,7 @@ _TEXT = {
     ),
     "message-stylesheet": lambda at, v: (
         "<link rel=stylesheet> in message markup dresses the whole document it is put"
-        " into; the page serves the one vendored theme it was reviewed with"
+        " into; the page serves the one theme its layer composes"
     ),
     "sample-loop": lambda at, v: (
         f"sample {_json(v['samples'])} selects thread {v['thread']!r}, which"
@@ -1046,11 +1020,12 @@ _TEXT = {
         lambda v: "the incoming layer has no registry.json"
     ),
     "page-layer": _declared(lambda v: "$layer belongs to the selected layer"),
-    "layer-packages": _declared(
-        lambda v: "$layer.packages must be a unique list of non-empty strings"
+    "layer-unavailable": lambda at, v: (
+        f"this Leaf cannot compose the page's layer: {v['error']}; choose its"
+        " packages again with `leaf page init --package`"
     ),
-    "layer-identity": _declared(
-        lambda v: "vendored registry lacks its $layer identity; run `leaf page init`"
+    "no-layer": lambda at, v: (
+        f"{v['page']} has no layer.json; run `leaf page init` first"
     ),
     # Its shared layer facts.
     "layer-facts": _declared(lambda v: f"{_json_path(v['path'])}: {v['reason']}"),
@@ -1587,9 +1562,6 @@ _TEXT = {
     "layer-import-missing": _captured(lambda v: "captured layer import is missing"),
     # The package check's refusal.
     "package": lambda at, v: v["text"],
-    "leaf-version": lambda at, v: (
-        f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}."
-    ),
     # The widget quality report, for a widget's author.
     "unreadable-examples": lambda at, v: (
         f"widget examples could not be drawn: {v['error']}"
@@ -1619,34 +1591,17 @@ _TEXT = {
     ),
     "foreign-layer": lambda at, v: _unservable_layer(
         v,
-        f"was vendored by a Leaf at page protocol {v['vendored']}, and this Leaf"
+        f"was initialized by a Leaf at page protocol {v['recorded']}, and this Leaf"
         f" ({v['leaf']}) speaks protocol {v['protocol']}",
         "Update the page's Leaf runtime",
     ),
     "newer-layer": lambda at, v: (
-        f"{v['page']} was vendored at page protocol {v['vendored']} by a newer Leaf"
-        f" ({v['vendored_by']}), and this Leaf ({v['leaf']}) speaks protocol"
-        f" {v['protocol']}, so it can neither serve nor re-vendor the page. Use a"
-        f" Leaf at protocol {v['vendored']} or later; in Claude Code,"
-        " `/reload-plugins` loads an installed update."
+        f"{v['page']} was initialized at page protocol {v['recorded']} by a newer"
+        f" Leaf, and this Leaf ({v['leaf']}) speaks protocol {v['protocol']}, so it"
+        f" can neither serve nor write the page. Use a Leaf at protocol"
+        f" {v['recorded']} or later."
     ),
-    "retired-layer": lambda at, v: _unservable_layer(
-        v,
-        f"was vendored by a Leaf that declares {', '.join(v['retired'])}, which this"
-        f" Leaf ({v['leaf']}) no longer admits",
-        "Re-vendor it",
-    ),
-    "foreign-revision": lambda at, v: _unservable_revision(
-        v,
-        f"was saved at page protocol {v['saved']}, and this Leaf speaks protocol"
-        f" {v['protocol']}",
-    ),
-    "retired-revision": lambda at, v: _unservable_revision(
-        v,
-        f"was saved by a Leaf that declares {', '.join(v['retired'])}, which this"
-        " Leaf no longer admits",
-    ),
-    "no-registry": lambda at, v: "the page has no registry.json",
+    "no-registry": lambda at, v: "the page has no layer.json",
     "unknown-kind": lambda at, v: f"kind must be one of {_json(v['kinds'])}",
     "invalid-event": lambda at, v: f"{v['kind']} event is invalid: {v['error']}",
     "unknown-revision": lambda at, v: (
@@ -1896,14 +1851,16 @@ _TEXT = {
             else "None of its updates still owes an answer."
         )
     ),
-    # A re-vendor a command naming the page made (`vendoring.renew_layer`), and the
-    # service it held down (`hosting.restarting_server`).
-    "unready-revendor": lambda at, v: (
-        f"re-vendored {v['page']}, but index.html will not activate until"
+    # A `page init`, or the renewal a command naming the page made
+    # (`vendoring.renew_layer`), and the service it held down
+    # (`hosting.restarting_server`).
+    "unready-reinit": lambda at, v: (
+        f"re-initialized {v['page']}, but index.html will not activate until"
         " `leaf page check` passes:\n" + "\n".join(f"  - {e}" for e in v["errors"])
     ),
-    "revendor-refused": lambda at, v: (
-        f"{v['page']} needs a re-vendor this Leaf could not make: {v['error']}"
+    "renewal-refused": lambda at, v: (
+        f"{v['page']} is at an older page protocol, and this Leaf could not take it"
+        f" to its own: {v['error']}"
     ),
     "server-stays-stopped": lambda at, v: (
         f"{v['page']}'s server stays stopped; `leaf server start {v['page']}` serves"
@@ -1913,9 +1870,9 @@ _TEXT = {
         f"{v['page']}'s server has no live session owner, so it stays stopped;"
         f" `leaf server start {v['page']}` serves it for this one."
     ),
-    "stopped-while-revendored": lambda at, v: (
-        f"{v['page']}'s server was stopped while it was re-vendored, so it stays"
-        " stopped."
+    "stopped-during-init": lambda at, v: (
+        f"{v['page']}'s server was stopped while `page init` held it down, so it"
+        " stays stopped."
     ),
     # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (

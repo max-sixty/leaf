@@ -90,7 +90,9 @@ def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
 
     record_claim(page_dir, id="released")
     leases_model.mark_hooks("released")
-    held = leases_model.take_lease(leases_model.waiter_lease_path(None, "released"))
+    held = leases_model.take_wait_lease(
+        leases_model.waiter_lease_path(None, "released")
+    )
     record_claim(page_dir, id="holder")
     leases_model.mark_hooks("holder")
     cleanup_model.end_harness_instance("released")

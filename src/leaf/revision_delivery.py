@@ -54,9 +54,9 @@ from .revision_artifact import (
 )
 from .schema import (
     BROWSER_DIRS,
+    LAYER_TOP_FILES,
     MEDIA_DIR,
     RENDER_CHECKS_DIR,
-    VENDORED_FILES,
 )
 from .structure import (
     UTF8_BOM,
@@ -80,7 +80,7 @@ _PAGE_PATH = re.compile(
     "/(?:"
     + "|".join(
         [f"(?:page|{MEDIA_DIR}|{'|'.join(BROWSER_DIRS)})/.+"]
-        + [re.escape(name) for name in VENDORED_FILES]
+        + [re.escape(name) for name in LAYER_TOP_FILES]
     )
     + ")"
 )
@@ -293,6 +293,14 @@ def rebase_document(
                             else "",
                         )
                     )
+            # Delivery's own scripts (`runtime_element`) run where they stand.
+            authored = "data-lf-runtime" not in attrs
+            if (
+                authored
+                and tag == "script"
+                and script_kind(attrs) in {"module", "classic"}
+            ):
+                edits.extend(_deferred(source, span, location, attrs))
             if tag in {"script", "style"} and location.end_tag is not None:
                 start = index(location.start_tag.end_line, location.start_tag.end_col)
                 end = index(location.end_tag.start_line, location.end_tag.start_col)
@@ -305,12 +313,46 @@ def rebase_document(
                     delivered = rebase_module(
                         body.encode("utf-8"), "/index.html", address
                     ).decode("utf-8")
+                    if authored and script_kind(attrs) == "classic":
+                        # An inline classic script runs from a deferred `data:` file,
+                        # which keeps its global scope and sloppy mode. Its lines are
+                        # padded to where it stands, and `sourceURL` names the
+                        # document, so an error it throws names its line in index.html.
+                        line = location.start_tag.end_line
+                        text = "\n" * (line - 1) + delivered
+                        text += "\n//# sourceURL=index.html"
+                        url = "data:text/javascript;charset=utf-8," + quote(
+                            text, safe=""
+                        )
+                        _, tag_end = span(location.start_tag)
+                        edits.append((tag_end - 1, tag_end - 1, f' src="{url}"'))
+                        delivered = ""
                 else:
                     continue
                 if delivered != body:
                     edits.append((start, end, delivered))
 
     return _spliced(source, edits)
+
+
+def _deferred(source: str, span, location, attrs: dict) -> list[tuple[int, int, str]]:
+    """Edits that hold a page's script until the runtime has read the page.
+
+    The runtime's module runs once the document has parsed, and so does every deferred
+    script after it, in document order. A classic script the parser would run where it
+    stands, or one marked `async`, could run first, changing what the runtime reads
+    as authored and throwing before anything listens. So delivery defers it: `async`
+    goes, and a classic script gains `defer`, an inline one by moving its text to a
+    `data:` file (`rebase_document`). What it gives up is running mid-parse, which
+    leaves `document.write` ignored."""
+    edits = []
+    if "async" in attrs:
+        edits.append((*span(location.attrs["async"]), ""))
+    if script_kind(attrs) == "classic" and "defer" not in attrs:
+        _, end = span(location.start_tag)
+        at = end - (2 if source[end - 2 : end] == "/>" else 1)
+        edits.append((at, at, " defer"))
+    return edits
 
 
 def _spliced(source: str, edits: list[tuple[int, int, str]]) -> str:
@@ -611,20 +653,13 @@ def delivered_resource(
     return deliver_resource(resource, source, address)
 
 
-def delivery_identity(
-    revision: int, version: int | None, executable: str, widgets: dict
-) -> str:
+def delivery_identity(revision: int, version: int | None, executable: str) -> str:
     """State which revision a delivered document is, and what it is made of.
 
-    A later revision reaches an open document as a state reading, and two questions
-    decide what the user gets. The executable digest says whether this document can
-    take that revision on at all: a running document evaluates a module graph once and
-    defines an element once, so new bytes behind either need a fresh one. The widget
-    digests then say which widgets the user keeps, one per declared widget — by id,
-    or by tag and place among the unnamed of that tag — over the markup its author
-    wrote. Both travel in the head, where a document knows its own
-    answer without asking, and where the revision document a patch already fetches
-    carries the other one for free.
+    A later revision reaches an open document as a state reading. The executable
+    digest says whether this document can take that revision on at all: a running
+    document evaluates a module graph once and
+    defines an element once, so new bytes behind either need a fresh one.
 
     Every delivered document carries this (`compose_document`). A document that says
     part of it is a document the next reader of the contract has to guess about.
@@ -632,7 +667,6 @@ def delivery_identity(
     named = {
         "lf-revision": str(revision),
         "lf-executable": executable,
-        "lf-widgets": json.dumps(widgets, separators=(",", ":")),
         **({"lf-version": str(version)} if version is not None else {}),
     }
     return "".join(
@@ -690,7 +724,6 @@ def delivery_prelude(
     revision: int,
     version: int | None,
     executable: str,
-    widgets: dict,
 ) -> str:
     """Declare encoding, a device-width viewport, and immutable Leaf identity.
 
@@ -708,7 +741,7 @@ def delivery_prelude(
     )
     return (
         runtime_element("meta", {"charset": "utf-8"})
-        + delivery_identity(revision, version, executable, widgets)
+        + delivery_identity(revision, version, executable)
         + viewport
     )
 
@@ -746,7 +779,6 @@ def compose_document(
     version: int | None,
     *,
     executable: str,
-    widgets: dict,
     resources: Mapping[str, Resource],
     registry: Mapping,
     delivery: Delivery,
@@ -835,7 +867,7 @@ def compose_document(
             + theme
         )
     head = (
-        delivery_prelude(document, revision, version, executable, widgets)
+        delivery_prelude(document, revision, version, executable)
         + (
             runtime_element("script", {"type": "importmap"}, json_script(import_map))
             if import_map is not None

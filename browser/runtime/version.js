@@ -22,9 +22,8 @@
  * Executable identity selects the install. An unchanged registry, module graph, and
  * inline module bodies permit an in-place patch; changed executable inputs require a
  * fresh document. Prose, styles, and media can change without reloading. Served identity
- * is captured before upgrade, including per-widget authored digests: upgraded DOM cannot
- * supply those baselines. The patch retains unchanged widgets and recaptures replaced
- * widgets against the arriving source. A widget declaring `x-patch: members` is
+ * is captured before upgrade: upgraded DOM cannot supply those baselines. The patch
+ * retains unchanged widgets and recaptures replaced widgets against the arriving source. A widget declaring `x-patch: members` is
  * patched inside its members instead, while the revision keeps its shell.
  *
  * Composition defers a reload or a patch that would discard an active native editor
@@ -71,11 +70,7 @@ import {
 } from "./rendering.js";
 import { frameFor } from "./arrivals.js";
 import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
-import {
-  documentWidgetDigests,
-  servedExecutable,
-  servedWidgets,
-} from "./document-identity.js";
+import { servedExecutable } from "./document-identity.js";
 
 import { captureCarry, restoreCarry } from "./carry.js";
 import {
@@ -143,7 +138,8 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { PAGE_SCOPE, tabStore } from "./storage.js";
+import { PAGE_SCOPE } from "./storage.js";
+import { tabStore } from "./tab-store.js";
 import {
   authoredBody,
   initialOrigin,
@@ -151,7 +147,8 @@ import {
   unmarkedCopy,
 } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
-import { el, layoutChanged, reveal } from "./widget-elements.js";
+import { el, reveal } from "./widget-elements.js";
+import { layoutChanged } from "./widget-upgrade.js";
 import { settleMarginContentLayout } from "./content-layout.js";
 import { keeps } from "./keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
@@ -1179,9 +1176,7 @@ export function createVersionController({
   const sourcePairs = initialDocument.pairs;
   initialDocument = null;
   versionSource = () => ({ source: authoredSource, pairs: sourcePairs });
-  // What this document's widgets were written as, and the source each live node stands
-  // for. Both are replaced by every revision this document takes on.
-  let authoredWidgets = servedWidgets;
+  // The delivery root removed when comparing this revision with the next.
   let authoredRoot = layerRoot(document);
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
@@ -1303,29 +1298,7 @@ export function createVersionController({
 
   const upgraded = (element) => Boolean(registry[element.localName]?.["x-upgrade"]);
 
-  // Every declared widget in one revision's authored page, named the way its capture
-  // named it: by id where the author gave one, and otherwise by tag and place among the
-  // others of that tag. An unnamed widget is as much the user's as a named one, and
-  // without a key of its own it could never answer that its markup was unchanged, so
-  // every revision rebuilt it — taking with it whatever the user had open in it.
-  function widgetKeys(source) {
-    const keys = new Map();
-    const counts = new Map();
-    for (const element of elementsWithin(source)) {
-      if (!upgraded(element)) continue;
-      if (element.id) keys.set(element, element.id);
-      else {
-        const seen = counts.get(element.localName) ?? 0;
-        counts.set(element.localName, seen + 1);
-        keys.set(element, `${element.localName}#${seen}`);
-      }
-    }
-    return keys;
-  }
-
-  // Every element under a root in document order, a template's content included: the
-  // capture walks the parsed tree the same way, and a widget written inside a template
-  // counts among the others of its tag on both sides or on neither.
+  // Every element under a root in document order, including inert template contents.
   function* elementsWithin(root) {
     const inner = root.localName === "template" ? root.content : root;
     for (const child of inner.children) {
@@ -1337,27 +1310,36 @@ export function createVersionController({
   // Two source elements spelled the same way once the address each revision was
   // delivered at is read out of them. Delivery writes the revision's own root into every
   // page and media reference, so the same `<img>` differs between two revisions that
-  // never touched it; a widget's capture digested the markup before that, and this is
-  // the same reading for an element no capture digested.
-  const RESOURCE_ATTRIBUTES = ["src", "href", "srcset", "poster", "data", "style"];
-  const unrooted = (value, root) =>
-    root && value.includes(root) ? value.split(root).join("/") : value;
+  // never touched it. Any attribute may name media; comparison removes only the
+  // exact delivery root rather than keeping a second list of resource attributes.
+  // Script and style bodies use that same rule without reclassifying their content.
+  const deferredScript = "data:text/javascript;charset=utf-8,";
+  const unrooted = (value, root) => {
+    if (value.startsWith(deferredScript)) {
+      // revision_delivery defers inline classics as URL-encoded source, padded to
+      // their document line. That diagnostic padding is not the script's identity.
+      value =
+        deferredScript + value.slice(deferredScript.length).replace(/^(?:%0A)+/, "");
+      if (root) value = value.split(encodeURIComponent(root)).join("%2F");
+    }
+    return root && value.includes(root) ? value.split(root).join("/") : value;
+  };
   // One attribute, read the same way: an address that differs only by the revision it
   // was delivered under is the same address, and the page keeps the one it has, which
   // is still served because revisions are immutable.
-  const sameValue = (name, held, value, arrivingRoot) =>
-    RESOURCE_ATTRIBUTES.includes(name)
-      ? unrooted(held, authoredRoot) === unrooted(value, arrivingRoot)
-      : held === value;
+  const sameValue = (held, value, arrivingRoot) =>
+    unrooted(held, authoredRoot) === unrooted(value, arrivingRoot);
   function sameAuthoredMarkup(before, after, arrivingRoot) {
+    if (before.isEqualNode(after)) return true;
     const strip = (element, root) => {
       const copy = element.cloneNode(true);
       if (!root) return copy;
-      for (const node of [copy, ...elementsWithin(copy)])
-        for (const name of RESOURCE_ATTRIBUTES) {
-          const value = node.getAttribute(name);
-          if (value?.includes(root)) node.setAttribute(name, unrooted(value, root));
-        }
+      for (const node of [copy, ...elementsWithin(copy)]) {
+        if (node.matches("style, script"))
+          node.textContent = unrooted(node.textContent, root);
+        for (const attribute of node.attributes)
+          attribute.value = unrooted(attribute.value, root);
+      }
       return copy;
     };
     return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
@@ -1386,25 +1368,17 @@ export function createVersionController({
 
   // Preparation and installation use the same matching, widget ownership, and resource
   // equality. A retained subject is proved through every containing owner, not by an
-  // id or a matching digest alone.
+  // id or matching markup alone.
   function patchRules(doc) {
-    const source = pageDocument(doc);
-    const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = layerRoot(doc);
-    const heldKeys = widgetKeys(authoredSource);
-    const arrivingKeys = widgetKeys(source);
     return {
       pairs: sourcePairs,
       contains: under,
       declared: upgraded,
       body: authoredBody,
       reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
-      unchanged: (before, after) => {
-        const digest = authoredWidgets[heldKeys.get(before)];
-        return Boolean(digest) && arrivingWidgets[arrivingKeys.get(after)] === digest;
-      },
       same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
-      sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
+      sameValue: (held, value) => sameValue(held, value, arrivingRoot),
     };
   }
 
@@ -1478,7 +1452,6 @@ export function createVersionController({
     // Capture before replacing nodes, using the outgoing source as the baseline.
     const carry = captureCarry(live, authoredSource);
     const source = pageDocument(doc);
-    const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = layerRoot(doc);
     const rules = patchRules(doc);
     revisionDocuments.delete(target.revision);
@@ -1586,7 +1559,6 @@ export function createVersionController({
           .map((element) => element.id),
       };
     });
-    authoredWidgets = arrivingWidgets;
     authoredSource = source;
     authoredRoot = arrivingRoot;
     const nextAuthored = new Map(
@@ -1657,7 +1629,7 @@ export function createVersionController({
   // The move a state asks of the live root, prepared ahead of the commit that makes it.
   // Null where there is nothing to follow — no newer revision, or a document that failed
   // to load, which is reported; the commit's own render then lights the chip as the way
-  // to try again. A re-vendored layer arrives here as a revision whose executable
+  // to try again. A new layer generation arrives here as a revision whose executable
   // changed, since the server answers this tab in its revision's layer (http.py,
   // `_named_layer`); only one this Leaf can no longer admit input against is refused
   // instead, and the refusal's probe of the document source reloads it at once

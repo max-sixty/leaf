@@ -1107,6 +1107,12 @@ def test_a_dropped_surface_keeps_its_box_until_placement_commits(
     grip = holder.locator(":scope > .lf-surface-grip")
     box = grip.bounding_box()
     x, y = box["x"] + 25, box["y"] + (6 if surface == "card" else 2)
+    # A press without travel leaves placement alone, including its inline style.
+    # The write watch catches a zero translation added and removed within the click.
+    resting = holder.bounding_box()
+    page.mouse.click(x, y)
+    rendered(page)
+    assert holder.bounding_box() == resting
     page.mouse.move(x, y)
     page.mouse.down()
     expect(holder).to_have_attribute("data-lf-carried", "")

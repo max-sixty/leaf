@@ -2,7 +2,8 @@
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
-import { el, LAYOUT, offerAction, searchField } from "../widget-elements.js";
+import { el, offerAction, searchField } from "../widget-elements.js";
+import { LAYOUT } from "../widget-upgrade.js";
 import { coarsePointer } from "../pointer.js";
 import { html, nothing, render, signal } from "/runtime/framework.js";
 

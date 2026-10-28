@@ -484,11 +484,11 @@ packages/callout/
               package. The tutorial below stays with the smaller CSS-only form so each
               contract remains visible. A behavior module imports Leaf's package API
               from
-              <code>/runtime/widget-api.js</code>; it registers each interactive
-              capability once with <code>commands()</code>. The same live command rows
-              feed keyboard dispatch, help, accessibility shortcuts, and—when
-              <code>decision</code> names the action—the controls shown inline for an
-              obligation.
+              <code>/runtime/widget-api.js</code>; it declares each interactive
+              capability once, as the <code>lfCommands</code> of the element it applies
+              in. The same live command rows feed keyboard dispatch, help, accessibility
+              shortcuts, and—when <code>decision</code> names the action—the controls
+              shown inline for an obligation.
             </p>
           </section>
           <section id="theme">
@@ -567,12 +567,12 @@ packages/callout/
               id="package-check-command"
             ><code class="language-bash">$ leaf package check packages/callout
 $ leaf page init --package packages/callout PAGE
-$ jq '.["lf-callout"], .["$keys"]' PAGE/registry.json
+$ leaf page vocabulary PAGE | jq '.["lf-callout"], .["$keys"]'
 $ leaf page check PAGE --render</code></pre>
             <p>
-              Re-running <code>page init</code> is the explicit update for an existing
-              page. Pages that are not re-initialized keep their vendored layer
-              unchanged.
+              A page keeps its own copy of a package it selects by path, so re-running
+              <code>page init --package</code> is the explicit update for an existing
+              page.
             </p>
             <p>
               <code>leaf package install packages/callout</code> copies the checked

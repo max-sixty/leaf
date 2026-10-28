@@ -97,7 +97,7 @@ Commands:
   close         Finish a page and stop watching for feedback.
   events        Print the event log as JSON lines.
   export        Export a stamped version to one HTML file.
-  init          Create or re-vendor a page directory.
+  init          Create a page directory or change its packages.
   inspect       Read page source metrics and browser observations.
   instructions  Read selected vocabulary instructions by audience as JSON.
   interactions  Read browser interactions and request diagnostics.
@@ -108,6 +108,7 @@ Commands:
   report        Report a state change onto a page widget, as a worker.
   stamp         Stamp the current source as the next version.
   state         Print where the page, a thread, or a widget stands.
+  vocabulary    Print the vocabulary the page is written in as JSON.
 
 ## server
 Usage: leaf server [OPTIONS] COMMAND [ARGS]...

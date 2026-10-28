@@ -812,9 +812,7 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     write(thread.locator("leaf-text"), "Start with the mounts.")
     rendered(page)
 
-    thread_model.post_reply(
-        serve.page_dir, {"parent": root}, "The mounts come first."
-    )
+    thread_model.post_reply(serve.page_dir, {"parent": root}, "The mounts come first.")
     told(page)
     notice = thread.get_by_role("button", name="1 new reply", exact=True)
     expect(notice).to_be_visible()

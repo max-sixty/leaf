@@ -618,7 +618,13 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         ('@import "ftp://outside.example/style.css";', "dependency-not-local", sheet),
         ('@import "./data.json";', "css-import", sheet),
         ('@import url("./data.json");', "css-import", sheet),
+        # A refused import loads nothing, so what it names is neither read nor
+        # refused again.
+        ('@import url("./missing.json");', "css-import", sheet),
+        ("@import url(a b);", "css-invalid", sheet),
         ("main { background: url(a b); }", "css-invalid", sheet),
+        # A parse tinycss2 can't serialize is refused, not a crash of the check.
+        ("main { color: red; } }", "css-invalid", sheet),
         (
             'main { background: url("../../private.svg"); }',
             "dependency-outside-page",

@@ -80,7 +80,7 @@ export const isPagePaint = (name) =>
 // has only the parts it builds — a suggestion's two slots, a code line. Two writers on
 // one element would each remove the other's word on every state application, which the
 // user would hear as the element re-reading itself.
-export function quietWord(el, word) {
+function quietWord(el, word) {
   const title = el.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el.firstChild;
   const existing = el.querySelector(":scope > .lf-quiet");

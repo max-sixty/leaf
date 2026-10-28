@@ -28,16 +28,6 @@ export const isReaction = (message) => Boolean(message.token);
 /** @param {Pick<Message, "addressable">} message */
 const isAddressable = (message) => message.addressable !== false;
 
-// A known thread can be opened and answered before the saved inventory arrives.
-// Its own settlement, rather than the collection's completeness, owns these offers.
-/** @param {Thread} thread */
-const threadOffers = (thread) => ({
-  open: true,
-  reply: !thread.settling,
-  resolve: !thread.resolved && !thread.settling,
-  reopen: Boolean(thread.resolved) && !thread.settling,
-});
-
 // The publisher supplies the vocabulary; controls and commands read these same
 // choices, including the exact reaction in force an explicit removal withdraws.
 /** @template {Pick<Message, "id" | "author" | "parent" | "token" | "addressable" | "agent"> & {key: string}} T
@@ -280,13 +270,6 @@ export function foldThreads(threads, gestures) {
       if (!thread) continue;
       thread.resolved =
         gesture.kind === "resolve" ? { author: "user", pending: true } : null;
-      // Which way the thread is being settled, as well as where it lands. `resolved`
-      // alone cannot say: a reopen leaves it null, exactly as an open thread the user
-      // has not touched does. Views read this to draw the gesture as unfinished, so it
-      // has to be a fact of the published fold — the ledger empties after the answer
-      // lands without changing anything else, and a view reading the ledger would keep
-      // the state it drew before that.
-      thread.settling = gesture.kind;
     }
   }
   for (const thread of opened)
@@ -447,7 +430,6 @@ export function readThreadRecords(
       detached_from: thread.detached_from,
       rewritten_from: thread.rewritten_from,
       resolved: thread.resolved,
-      settling: thread.settling ?? null,
       attention: thread.attention,
       // The obligations that stand in it: those widgets in its messages make, such as an
       // `lf-ask` the user owes words to there, and those its updates publish.
@@ -469,7 +451,6 @@ export function readThreadRecords(
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,
       summaries: thread.summaries,
-      offers: threadOffers(thread),
     };
   });
 }

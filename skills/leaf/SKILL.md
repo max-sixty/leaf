@@ -123,8 +123,13 @@ sent words stay in the log.
 
 ## Keep the user current
 
-Follow `references/authoring-revisions.md`, "Keep the current page current", when
-work lands, a decision is made, or your understanding changes.
+Whenever the user returns, the page should be the one you would write today from
+what you now know. When work lands, a decision is acted on or your understanding
+changes, reread the whole page and bring all of it up to date in that revision,
+rather than amending the sentences that mention the change: open work and open
+questions fill the column, decisions you have acted on become settled records,
+finished work shrinks to its outcome out of the way, and superseded material goes
+(`references/authoring-revisions.md`, "Keep the current page current").
 
 ## Follow the user's preferences
 

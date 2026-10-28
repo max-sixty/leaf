@@ -63,10 +63,13 @@ ignores:
   "Notices and spoken words"). Leaf finds these in the page and in the shadow stages
   it builds (`shadowStage`), not in a shadow root a page script attaches itself, where
   the widget shows neither.
+- Comment targets: `registerVisualParts` (`module-annotations.md`, "Visual parts"),
+  which only Leaf reads.
 - Working state in `tabStore`, which keeps nothing on a plain page: a read there
   answers null.
 
-`lf-chart` and `lf-code` in the default package are the worked examples.
+`lf-chart` and `lf-code` in the default package and `lf-diagram` in the diagram package
+are the worked examples.
 
 ## What a behavior module owes
 
@@ -409,6 +412,10 @@ The roles are:
 - `"commit"`, the one press on a surface that commits the user's work.
 - `"mark"`, a small symbol seated on the thing it acts on, at its corner, which names
   its `action` as a symbol does.
+- `"inline"`, a press read as part of the line of words it stands in, such as a feed's
+  "Show activity" or a quote's "Full quote"; `label` is its words, drawn in the accent
+  at the line's size. Give one that announces news waiting `data-lf-news`, which draws
+  it in the danger ink.
 
 `className` places the control; don't restyle its face. Use a symbol where a standard
 symbol for the action exists, one readers know from other software, and words where

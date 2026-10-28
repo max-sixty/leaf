@@ -1,8 +1,8 @@
-import { LAYOUT, afterScript, cancelAnimation, cancelRender, nativeLayerHolding, nextAnimation, nextRender, renderedOrder, renderedUnder, sizeObserver, skipped, tabStore, under } from "./bundle-portable.js";
+import { LAYOUT, afterScript, cancelAnimation, cancelRender, nativeLayerHolding, nextAnimation, nextFrame, nextRender, renderedOrder, renderedUnder, sizeObserver, skipped, tabStore, under } from "./bundle-portable.js";
 import { TEXT_FIELD, Z, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, onCurrentLocation, onPressAway, onUserInput, pressLed, ringBox, roomPx, rove, tabStops, visibleFocus } from "./bundle-dom-move.js";
 import { bareReaction, hostIn, html, render, sameAnchor, turns } from "./bundle-layer-stack.js";
 import { PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, passageGeometry, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
+import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, setChildLists, setChildren, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
 import { clamp, rightCover, seenRect, shownBox, shownParts, shownWindow, showsContents, slotTop, union, watchRoom } from "./bundle-geometry.js";
@@ -57,7 +57,9 @@ function surfaceGrip({ surface, bounds, dropped }) {
 			x: (spot.x - placed.x) / scale.x,
 			y: (spot.y - placed.y) / scale.y
 		};
-		const translate = `${layoutPx(offset.x)} ${layoutPx(offset.y)}`;
+		const xShift = layoutPx(offset.x);
+		const yShift = layoutPx(offset.y);
+		const translate = xShift === "0px" && yShift === "0px" ? "" : `${xShift} ${yShift}`;
 		if (surface.style.translate !== translate) surface.style.translate = translate;
 	}
 	const frame = () => {
@@ -2785,6 +2787,25 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		returning?.();
 	}
 	function mount() {
+		let beforeInputScroll = null;
+		let inputEpoch = 0;
+		fabInput.addEventListener("lf-before-edit", () => {
+			beforeInputScroll = response.open && response.floating ? pageScroller.scrollTop : null;
+			const epoch = ++inputEpoch;
+			nextFrame(() => {
+				if (inputEpoch === epoch) beforeInputScroll = null;
+			});
+		});
+		fabInput.addEventListener("input", () => {
+			if (beforeInputScroll === null) return;
+			if (pageScroller.scrollTop !== beforeInputScroll) {
+				pageScroller.scrollTo({
+					top: beforeInputScroll,
+					behavior: "instant"
+				});
+				placeKept(pageScroller);
+			}
+		});
 		document.addEventListener(LAYOUT, (event) => {
 			const geometry = anchorGeometry(response.anchor);
 			const target = response.target ?? geometry?.contextNode;

@@ -470,15 +470,21 @@
   //   accent.
   // - `mark`: a small symbol seated on the thing it acts on, at a corner or on a
   //   block's border toolbar, where a larger face would cover the thing.
+  // - `inline`: a press read as part of the line of words it stands in, such as a
+  //   thread's held news or a quote's Full quote, drawn as words in the accent at the
+  //   line's size with no frame. One that announces news waiting says so with
+  //   `data-lf-news`, which draws it in the danger ink.
   //
   // A difference that was only a past choice is not a role: a symbol once came bordered
-  // in some widgets and quiet in others, and a word framed in some, quiet in others and
-  // a list's row in a third, before each merged.
+  // in some widgets and quiet in others, a word framed in some, quiet in others and a
+  // list's row in a third, and four presses among words drew four faces of their own,
+  // before each merged.
   const ACTION_FACES = {
     symbol: "lf-icon-action",
     word: "lf-btn",
     commit: "lf-btn primary",
     mark: "lf-mark-action",
+    inline: "lf-inline-action",
   };
   // `label` names the press. A worded role shows it, and `offerAction` writes it as the
   // words; the element writer leaves the words to whoever owns the element's content,

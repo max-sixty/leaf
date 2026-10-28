@@ -8,7 +8,7 @@
 // weight and baseline stable across systems.
 const SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
 
-export const ICONS = {
+const ICONS = {
   activity: '<circle cx="8" cy="8" r="3" fill="currentColor" stroke="none"/>',
   add: '<path d="M8 3v10M3 8h10"/>',
   change:

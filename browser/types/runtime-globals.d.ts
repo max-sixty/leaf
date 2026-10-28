@@ -29,7 +29,7 @@ interface LeafReading {
 }
 
 /** The closed set of control roles, each with one face (`prepaint.js`, `ACTION_FACES`). */
-type LeafActionRole = "symbol" | "word" | "commit" | "mark";
+type LeafActionRole = "symbol" | "word" | "commit" | "mark" | "inline";
 
 /** A package's retained template and optional rendering root. Node references and
  * mechanical inputs remain package-owned; the same render is used after upgrade. */

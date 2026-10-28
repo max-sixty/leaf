@@ -102,10 +102,20 @@
   border-color: transparent;
   background: transparent;
 }
-.lf-react:not(.lf-margin-entry):is([aria-pressed="true"], :hover, [data-lf-focus]) {
+.lf-react:not(.lf-margin-entry):is(:hover, [data-lf-focus]) {
   color: var(--ink-2);
   border-color: var(--border-2);
   background: var(--chip);
+}
+/* A reaction the user added wears the accent, so it reads as theirs even alone in the
+   closed strip, and its tint deepens under the pointer as a neighbour's chip rises. */
+.lf-react:not(.lf-margin-entry)[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+.lf-react:not(.lf-margin-entry)[aria-pressed="true"]:is(:hover, [data-lf-focus]) {
+  background: color-mix(in srgb, var(--accent) 24%, var(--card));
 }
 .lf-react.lf-response-action:where(:not([aria-pressed="true"])) {
   background: var(--card);
@@ -518,15 +528,15 @@ summary,
     transition: rotate var(--lf-motion-disclosure) ease-out;
   }
 }
-/* The faces of Leaf's control roles, one face each: `symbol`, `word`, `commit` and
- * `mark`. A widget builds a control by its role (`offerAction`), and
- * prepaint.js (`ACTION_FACES`) is the one place a role's classes are spelled and says
- * what each role is for. Each face holds across document and shadow trees; a package
- * places a control and may set its density (`--lf-icon-action-face`), but restates
- * none of its face, so a surface's own symbols, the floating panel's included, stand
- * beside its neighbours' alike. The presses that keep a face of their own, each family
- * drawn by its one owner, are listed with the reason no role serves them in
- * `PRESS_FAMILIES` (tests/model/test_interact_layer.py).
+/* The faces of Leaf's control roles, one face each. A widget builds a control by its
+ * role (`offerAction`), and prepaint.js (`ACTION_FACES`) lists the roles, is the one
+ * place a role's classes are spelled and says what each role is for. Each face holds
+ * across document and shadow trees; a package places a control and may set its
+ * density (`--lf-icon-action-face`), but restates none of its face, so a surface's
+ * own symbols, the floating panel's included, stand beside its neighbours' alike. The
+ * presses that keep a face of their own, each family drawn by its one owner, are
+ * listed with the reason no role serves them in `PRESS_FAMILIES`
+ * (tests/model/test_interact_layer.py).
  *
  * The word face: words in the muted ink with no frame, until a hovering pointer or
  * visible focus lays the chip under them and inks them. A press leaves focus on the
@@ -791,4 +801,46 @@ wa-copy-button.lf-icon-action {
   .lf-corner-mark {
     border: 1px solid ButtonText;
   }
+}
+/* The inline face, for a press read as part of the line of words it stands in, such
+   as a thread's held news, the activity feed's notice, the floating panel's Next
+   unread or a quote's Full quote. Its words take the accent ink at weight 600 and the
+   line's own size, with no chip, fill or border, and an underline under a hovering
+   pointer. One announcing news waiting (`data-lf-news`) takes the danger ink, as do
+   the words a seat's Resolved summary says its threads hold (thread/inline.js). The
+   four drew four faces (held news bold at 10px, the feed's notice underlined at rest,
+   Next unread at the body's weight and Full quote muted, those two washed under the
+   pointer) until the user chose this one on 28 October. A generated control in the
+   document takes the chrome's size (surfaces.css, `.lf-ui-face`), so the face
+   inherits its line's; a press whose box stands beside its line rather than in it
+   states the line's size where it is placed. */
+:where(button).lf-inline-action {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+:is(.lf-inline-action, .lf-resolved-summary *)[data-lf-news] {
+  color: var(--danger);
+}
+.lf-resolved-summary [data-lf-news] {
+  font-weight: 600;
+}
+/* It declines the wash every generated press takes under the pointer (surfaces.css),
+   which a finger's tap leaves behind too. */
+:where(button).lf-inline-action:hover {
+  box-shadow: none;
+}
+@media (hover: hover) {
+  :where(button).lf-inline-action:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+:where(button).lf-inline-action[data-lf-focus-visible] {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
 }

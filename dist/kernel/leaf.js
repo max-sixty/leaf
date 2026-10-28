@@ -6296,7 +6296,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`<header class="lf-fp-quote-head">
       ${quote.localReading ? html`<button
               type="button"
-              class="lf-fp-face lf-thread-disclosure lf-quote-expand lf-disclosure-marker"
+              ${offeredAction("inline", "lf-thread-disclosure lf-quote-expand lf-disclosure-marker")}
               aria-label="Full quote"
               hidden
               aria-expanded=${String(quoteExpanded)}
@@ -6736,7 +6736,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		for (const group of groups) {
 			const headed = group.headed !== false;
 			if (rows.length && (headed || !running)) rows.push({
-				key: `rule:${queueItemKey(group.items[0])}`,
+				key: `rule:${group.key}`,
 				rule: true
 			});
 			running = !headed;
@@ -6992,7 +6992,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		onPageSeat ||= Boolean(thread.anchor) && (inMessage || !atLastResort(thread.key));
 		const aux = html`${unreadSeat ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-next-unread"
+              ${offeredAction("inline", "lf-fp-next-unread")}
               ?disabled=${!thread.unread.length}
               ?data-unoffered=${!thread.unread.length}
               @click=${() => void firstUnread(thread.key)}
@@ -7020,7 +7020,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             ></button>` : nothing}<button
         type="button"
         ${offeredAction("symbol", `lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}`, thread.resolved ? "Reopen" : "Resolve thread", { action: thread.resolved ? "reopen" : "resolve" })}
-        aria-disabled=${String(!(thread.resolved ? thread.offers.reopen : thread.offers.resolve))}
         @click=${() => {
 			if (!thread.resolved) dismissReply(thread.key);
 			settleThread({
@@ -7793,6 +7792,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		const restoreFocus = holdFocus(dialog);
 		place$1.around(() => presentSheet());
 		restoreFocus?.(dialogSearch);
+		paintKeysWithin(dialog);
 	}
 	function presentSheet() {
 		const query = dialogSearch.value.trim().toLocaleLowerCase();

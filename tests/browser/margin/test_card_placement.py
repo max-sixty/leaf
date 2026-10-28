@@ -35,6 +35,7 @@ from browser.margin import (
     leave_card_by_its_target,
     resized_shell,
 )
+from browser.threads import append_user_reply
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
 
@@ -271,6 +272,83 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     name = card.locator(".lf-msg-head b").first
     assert name.evaluate("node => node.scrollWidth > node.clientWidth")
     assert name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
+
+
+# Where a card's notice stands against the user's head beside it: the notice's start,
+# and the head's end, its Edit's symbol and its time's end.
+NEWS_BESIDE_HEAD = """([notice, head]) => {
+  const box = (node) => node?.getBoundingClientRect();
+  return {
+    notice: box(notice).left,
+    head: box(head).right,
+    edit: box(head.parentElement.querySelector('.lf-msg-control svg'))?.left ?? null,
+    time: box(head.querySelector('time')).right,
+  };
+}"""
+
+
+@pytest.mark.parametrize("phone", [False, True])
+def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
+    """A card holding news while the user writes: the notice takes only the room the
+    head of the user's message leaves beside its name and time, and stands clear of
+    it. On a desktop card, with Previous and Next for its target's two threads, the
+    notice says its first fact and the head keeps "Me" and its time whole. On a
+    phone's card, whose three controls, the notice and the head's Edit each take a
+    finger's width, the notice says one count, "2 new", and the head keeps its time
+    whole and cuts its name, as any narrow head does. Drawn whole, the notice stood
+    over the head."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
+    )
+    if phone:
+        context = browser.new_context(
+            viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+        )
+        page = open_page(browser, url, context=context)
+    else:
+        panel_comment(serve.page_dir, "Make the banner quieter", {"section": "h-how"})
+        page = open_page(browser, url)
+        resized(page, 1200, 900)
+    page.locator(".lf-margin-marker").first.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview.get_by_text("Keep the logo where it is")).to_be_visible()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.type("Also check the dark scheme")
+    rendered(page)
+    thread_model.post_reply(
+        serve.page_dir,
+        {"parent": root, "responds": root},
+        "The status line can drop one weight.",
+    )
+    append_user_reply(serve.page_dir, root, "Sent from my other tab.")
+    told(page)
+    notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
+    expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
+    words = notice.locator(":scope > span")
+    if phone:
+        expect(words).to_have_attribute("data-lf-short", "2 new")
+    else:
+        expect(words).not_to_have_attribute("data-lf-short", re.compile("."))
+    rendered(page)
+    card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
+    head = card.locator(".lf-msg-head").first
+    stands = page.evaluate(
+        NEWS_BESIDE_HEAD, [notice.element_handle(), head.element_handle()]
+    )
+    assert stands["notice"] >= stands["head"] - 0.5, stands
+    assert stands["edit"] is None or stands["time"] <= stands["edit"] + 0.5, stands
+    times = card.evaluate(TIMES_WHOLE)
+    assert times and all(time["whole"] for time in times), times
+    name = head.locator("b")
+    expect(name).to_have_text("Me")
+    if phone:
+        assert name.evaluate("node => node.scrollWidth > node.clientWidth")
+        assert (
+            name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
+        )
+    else:
+        assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
 
 
 @pytest.mark.watch_shifts

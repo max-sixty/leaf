@@ -443,7 +443,8 @@ customElements.define(
           owed = true;
           return;
         }
-        busy = true;
+        // An offline read refuses immediately; no file operation is in flight.
+        busy = api.writable;
         owed = false;
         const seenGeneration = generation;
         try {

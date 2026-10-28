@@ -582,7 +582,8 @@
   --mark-contour-w: 1.5px;
   --mark-contour-ink: color-mix(in srgb, var(--accent) 72%, var(--paper));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
-     hairline, and this tint is the disc or ground that rises under it on hover. */
+     hairline, and this tint is the disc or ground that rises under it on hover, or that
+     a reaction the user added rests on. */
   --accent-tint: color-mix(in srgb, var(--accent) 12%, var(--card));
   /* Status marker, text and ground are independent theme inputs. In particular,
      a warning dot's color need not provide readable small text on its ground. */

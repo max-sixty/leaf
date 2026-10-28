@@ -781,6 +781,88 @@ function measure(el, take) {
 }
 
 //#endregion
+//#region runtime/visual-parts.js
+const registrations = /* @__PURE__ */ new WeakMap();
+const words = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
+function registerVisualParts(source, read, { reveal = null, label = null } = {}) {
+	if (registrations.has(source)) throw new TypeError("A visual source may register its parts only once");
+	registrations.set(source, {
+		read,
+		reveal,
+		label
+	});
+	return { update: () => layoutChanged(source) };
+}
+function visualPartAdmission(visual, declaration) {
+	if (!declaration || typeof declaration !== "object") return null;
+	const { prefixes } = declaration;
+	if (prefixes) return (id) => prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
+	return visual.hasAttribute(declaration.parts) ? () => true : null;
+}
+const revealsVisualParts = (source) => Boolean(registrations.get(source)?.reveal);
+function revealRegisteredVisualPart(source, id) {
+	const reveal = registrations.get(source)?.reveal;
+	if (reveal) reveal(id);
+	return registeredVisualPart(source, id);
+}
+function visualPartProblems(source, declaration) {
+	if (!declaration || typeof declaration !== "object") return [];
+	if (!registrations.has(source)) return [{ kind: "unregistered" }];
+	const parts = registeredVisualParts(source);
+	const admission = visualPartAdmission(source, declaration);
+	const outside = declaration.prefixes ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
+	return outside.length ? [{
+		kind: "unadmitted-parts",
+		parts: outside
+	}] : [];
+}
+function registeredVisualParts(source) {
+	const read = registrations.get(source)?.read;
+	if (!read) return [];
+	const seenIds = /* @__PURE__ */ new Set();
+	const seenElements = /* @__PURE__ */ new Set();
+	const seenSurfaces = /* @__PURE__ */ new Set();
+	return [...read()].map((part, index) => {
+		const number = index + 1;
+		const id = part.id;
+		const element = part.element;
+		const label = words(part.label);
+		const surface = part.surface ?? element;
+		if (typeof id !== "string" || !id || /\s/.test(id)) throw new TypeError(`Visual part ${number} has no single-token id`);
+		if (!(element instanceof Element) || element === source || !under(element, source)) throw new TypeError(`Visual part ${id} has no descendant Element`);
+		if (!label) throw new TypeError(`Visual part ${id} has no label`);
+		if (!(surface instanceof Element) || !under(surface, element)) throw new TypeError(`Visual part ${id} has no descendant Element surface`);
+		if (seenIds.has(id)) throw new TypeError(`A visual source registered part ${id} twice`);
+		if (seenElements.has(element)) throw new TypeError("A visual source registered one element as two parts");
+		if (seenSurfaces.has(surface)) throw new TypeError("A visual source registered one surface for two parts");
+		seenIds.add(id);
+		seenElements.add(element);
+		seenSurfaces.add(surface);
+		return {
+			id,
+			element,
+			label,
+			surface
+		};
+	});
+}
+const registeredVisualPart = (source, id) => registeredVisualParts(source).find((part) => part.id === id) ?? null;
+const registeredVisualPartLabel = (source, id) => {
+	const current = registeredVisualPart(source, id)?.label;
+	if (current) return current;
+	const label = registrations.get(source)?.label?.(id);
+	return words(label) || null;
+};
+function registeredVisualPartAt(source, target, admits = () => true) {
+	const byElement = new Map(registeredVisualParts(source).filter(admits).map((part) => [part.element, part]));
+	for (let current = target; current && current !== source; current = upFrom(current)) {
+		const part = byElement.get(current);
+		if (part) return part;
+	}
+	return null;
+}
+
+//#endregion
 //#region runtime/syntax-languages.js
 const syntaxLanguages = {
 	"bash": () => import("/vendor/syntax/bash.js"),
@@ -894,4 +976,4 @@ const tabStore = document.documentElement.lfStorage?.tabStore ?? {
 };
 
 //#endregion
-export { COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, afterScript, afterSettling, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, elementBox, ensureSyntaxLanguage, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, frameFor, frameVisibility, holdRendering, inBaseLayer, isNativeLayer, isStage, layoutChanged, liveStages, measure, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, onFrameVisibility, once, pagePresented, pageUpgraded, placesFailure, readSampleVisibility, refuseCommands, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, scrollGlides, scrolling, shadowHost, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, tokenLines, under, upFrom, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };
+export { COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, afterScript, afterSettling, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, elementBox, ensureSyntaxLanguage, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, frameFor, frameVisibility, holdRendering, inBaseLayer, isNativeLayer, isStage, layoutChanged, liveStages, measure, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, onFrameVisibility, once, pagePresented, pageUpgraded, placesFailure, readSampleVisibility, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, revealRegisteredVisualPart, revealsVisualParts, scrollGlides, scrolling, shadowHost, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };

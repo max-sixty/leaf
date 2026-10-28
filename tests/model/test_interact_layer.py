@@ -1615,7 +1615,6 @@ PRESS_FAMILIES = {
             "lf-fp-back",
             "lf-fp-plan-head",
             "lf-fp-plan-tag",
-            "lf-fp-next-unread",
             "lf-fp-new-reply",
         },
         "words at the panel's density on its own face (`lf-fp-face`), some with a bar",
@@ -1647,10 +1646,6 @@ PRESS_FAMILIES = {
     "line numbers": (
         {"lf-diff-line-comment"},
         "a diff line's number, which takes a comment on its line from the gutter",
-    ),
-    "news notices": (
-        {"lf-thread-notice"},
-        "a thread's news in its accent or danger ink, underlined under a pointer",
     ),
     "links": (
         {"lf-activity-target"},

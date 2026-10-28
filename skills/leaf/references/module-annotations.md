@@ -92,10 +92,10 @@ Thread's turns, and `threadSummary(thread)` its `topic`, its name in words, and 
 Address a Thread by its `key`, which stays the same after the server admits it; its `id`
 is the name obligations and workflows use. `root` is its opening message, `anchor` names
 the `section` and `datum` it is attached to, and `attention.kind` is `"needs_user"` when
-it waits on the user and `"waiting"` when it is with the agent. `offers: {open, reply,
-resolve, reopen}` says which actions are available now. A message's `reactions` lists
-the reactions it takes and those in force, and is `null` on a message that takes none.
-An agent's message carries `agent`, the name it shows under.
+it waits on the user and `"waiting"` when it is with the agent. `resolved` is set while
+it stands resolved. A message's `reactions` lists the reactions it takes and those in
+force, and is `null` on a message that takes none. An agent's message carries `agent`,
+the name it shows under.
 
 `agentName()` returns the page's current agent name, or "the agent" when none is
 supplied. Use it when a package attributes agent activity.

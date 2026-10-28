@@ -7051,7 +7051,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         class="lf-fp-face lf-fp-icon-btn lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
         aria-label=${thread.resolved ? "Reopen" : "Resolve thread"}
         title=${thread.resolved ? "Reopen" : "Resolve thread"}
-        aria-disabled=${String(!(thread.resolved ? thread.offers.reopen : thread.offers.resolve))}
         @click=${() => {
 			if (!thread.resolved) dismissReply(thread.key);
 			settleThread({

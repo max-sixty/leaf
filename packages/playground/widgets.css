@@ -10,7 +10,7 @@
  *
  * Each region is drawn once. The playground itself is no card: the stage is the
  * preview's own well, and each rail pane is a panel as a sidebar page draws its regions
- * (theme.css, section.panel), so a candidate the page draws on the stage is the only
+ * (the reading theme's section.panel), so a candidate the page draws on the stage is the only
  * surface inside the well rather than a card in a well in a card. */
 lf-playground {
   --lf-block-frame: 1;

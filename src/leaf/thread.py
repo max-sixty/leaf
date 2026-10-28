@@ -23,7 +23,7 @@ from leaf.files import (
 from leaf.findings import Finding, Rejected, note
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
-from leaf.obligations import local_obligation_entry, quoted_in
+from leaf.obligations import local_obligation_entry, shown_in
 from leaf.passages import SourceReading
 from leaf.projection import (
     generated_children,
@@ -781,7 +781,7 @@ def _compose_and_append(
                     rec["attrs"],
                     publication.registry[rec["tag"]]["x-awaits"].get("when"),
                 )
-                and not quoted_in(rec, publication.registry)
+                and not shown_in(rec, publication.registry)
                 for rec in fragment.lf_elements
             )
         )

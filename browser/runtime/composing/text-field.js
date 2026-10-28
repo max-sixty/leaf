@@ -54,6 +54,7 @@
  * history, so undo never walks back into a draft the runtime swapped out.
  * `edit(text)` replaces the words as external text input, such as dictation: it keeps
  * undo history and emits the same before-edit/input bracket as native typing.
+ * That bracket bubbles across enclosing shadow stages, as a textarea's input does.
  * `lf-caret-move` says the user moved the caret or selection without editing, as an
  * arrow key does; a write to the selection triple fires nothing.
  * A box owner that takes pasted pictures intercepts paste in capture; otherwise the field pastes
@@ -490,7 +491,7 @@ class LeafText extends HTMLElement {
     else if (this.#composing || /** @type {InputEvent} */ (event).isComposing) return;
     this.#readRest();
     this.#paintEmpty();
-    this.dispatchEvent(new Event("input", { bubbles: true }));
+    this.#emit("input");
     if (event.type === "compositionend" && editor) this.#build();
   }
 
@@ -713,7 +714,7 @@ class LeafText extends HTMLElement {
         module.runOwnerSteps(transactions);
         this.#paintEmpty();
         this.#measureOverflow();
-        if (edited) this.dispatchEvent(new Event("input", { bubbles: true }));
+        if (edited) this.#emit("input");
         else if (transactions.some((tr) => tr.isUserEvent("select")))
           this.dispatchEvent(new Event("lf-caret-move", { bubbles: true }));
       },
@@ -740,8 +741,12 @@ class LeafText extends HTMLElement {
     this.#measureOverflow();
   }
 
+  #emit(type) {
+    this.dispatchEvent(new Event(type, { bubbles: true, composed: true }));
+  }
+
   #beforeEdit() {
-    this.dispatchEvent(new Event("lf-before-edit", { bubbles: true }));
+    this.#emit("lf-before-edit");
   }
 
   // A move between parents reconnects within the task and keeps its editor.
@@ -861,7 +866,7 @@ class LeafText extends HTMLElement {
         if (!this.isConnected) return;
         this.#paintRest();
         this.#paintEmpty();
-        this.dispatchEvent(new Event("input", { bubbles: true }));
+        this.#emit("input");
       },
     );
   }

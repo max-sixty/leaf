@@ -2,8 +2,9 @@
 
 Use `<lf-sample interactive>` to show working widgets inline, with a sample label
 and gutter. Its contents belong to the surrounding page: choices and edits use that
-page's event log, Undo and On me, and comments reach the same agent. Give every widget
-its own page-wide id. This mode has no inner page, panel, Reset or Full view controls:
+page's event log and Undo, and comments reach the same agent. Its widgets demonstrate
+rather than ask, so none of them goes on On me. Give every widget its own page-wide
+id. This mode has no inner page, panel, Reset or Full view controls:
 
 ```html
 <lf-sample id="delivery-sample" interactive label="Delivery choices">

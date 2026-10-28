@@ -1,12 +1,14 @@
-import { TEXT_FIELD, Z, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, ringBox, roomPx, rove, sizeObserver, tabStops, under, visibleFocus } from "./bundle-dom-move.js";
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { bareReaction, clamp, hostIn, html, render, rightCover, sameAnchor, seenRect, shownBox, shownWindow, skipped, slotTop, turns, union, watchRoom } from "./bundle-geometry.js";
+import { PAGE_PAINT_ATTRIBUTE, afterScript, cancelAnimation, cancelRender, nativeLayerHolding, nextAnimation, nextRender, renderedOrder, renderedUnder, sizeObserver, skipped, under } from "./bundle-portable.js";
+import { TEXT_FIELD, Z, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, onCurrentLocation, onPressAway, onUserInput, pressLed, ringBox, roomPx, rove, tabStops, visibleFocus } from "./bundle-dom-move.js";
+import { bareReaction, hostIn, html, render, sameAnchor, turns } from "./bundle-layer-stack.js";
+import { LAYOUT, PRESS, closeControl, coarsePointer, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, passageGeometry, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, setChildLists, setChildren, showReturnTurn, tabStore, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
+import { clamp, rightCover, seenRect, shownBox, shownWindow, showsContents, slotTop, union, watchRoom } from "./bundle-geometry.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
 import { retainUserIntent } from "./bundle-copy-control.js";
-import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
+import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-disclosure.js";
 import { SVG_NS, boxMotion, dropStand, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-box-motion.js";
 import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 
@@ -624,7 +626,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		const latest = turns(sourceItem(selected).thread).at(-1);
 		const messageSelector = ":scope > .lf-margin-thread > .lf-margin-thread-body > .lf-page-thread > .lf-thread-transcript > .lf-msg";
 		const replySelector = ":scope > .lf-margin-thread > .lf-margin-thread-body > .lf-page-thread > .lf-thread-reply";
-		const lastBox = [...previewList.querySelectorAll(messageSelector)].findLast((node) => node.checkVisibility())?.getBoundingClientRect();
+		const lastBox = [...previewList.querySelectorAll(messageSelector)].findLast((node) => showsContents(node))?.getBoundingClientRect();
 		const listBox = session.transcript?.getBoundingClientRect();
 		const replyBox = previewList.querySelector(replySelector)?.getBoundingClientRect();
 		const follow = !arriving && session.latest && latest?.author === "agent" && (latest.id !== session.latest.id || latest.text !== session.latest.text) && lastBox && listBox && lastBox.bottom >= listBox.top && lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 && atScrollEnd(session.transcript);
@@ -1489,6 +1491,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			key: `reading:${choice?.key ?? "none"}`,
 			icon: face.icon,
 			label: readingLabel(choice),
+			voice: items.length === 1 && face.voice || "agent",
 			context: readingContext(choice),
 			behavior,
 			rank: "reading",

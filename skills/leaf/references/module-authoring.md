@@ -24,7 +24,8 @@ long it lives across revisions. A widget's declarations are in
 
 ## The helper surface
 
-Import Leaf's helpers only from `/runtime/widget-api.js`. Don't import the runtime's
+Import Leaf's helpers only from `/runtime/widget-api.js`, or its portable part ("A
+widget that also runs off Leaf"). Don't import the runtime's
 other modules, query Leaf's own chrome, or copy a runtime helper. Each helper is
 described in the section for the task it serves, and its full contract is in the header
 of the module `widget-api.js` re-exports it from. Every export is public for independent
@@ -38,7 +39,29 @@ From Lit, `widget-api.js` exports `render`, `html`, `nothing`, `repeat`, `keyed`
 Preact Signals it exports `signal`, for private state a command's `when` reads
 (`module-input.md`, "Command rows").
 
+### A widget that also runs off Leaf
+
+A widget that must also run on a page without Leaf's runtime, such as a chart another
+app shows, imports only from `/runtime/portable-api.js`, the part of the helper
+surface any document can load; `widget-api.js` re-exports all of it. The host maps
+`/runtime/` and `/vendor/` to a Leaf install with an import map of its own, as a Leaf
+page does, and runs none of Leaf's runtime. Such a widget extends `HTMLElement`, and
+Leaf hears from it only through standard events it dispatches on itself, which a plain
+page may ignore:
+
+- Drawing under way: `this.dispatchEvent(new PendingTaskEvent(promise))`, the Web
+  Components Community Group's `pending-task` protocol. Leaf holds the page's
+  presentation until `promise` settles, as it does for `present(promise)`
+  (`module-state.md`, "The widget controller").
+- A failure: `failSoft` and `reportFailure` dispatch an `error` event ("Upgrade"),
+  which Leaf reports to the author as the page's error.
+
+`lf-chart` in the default package is the worked example.
+
 ## What a behavior module owes
+
+This is what a widget owes; a page script owes only what `page-behavior.md`, "A page
+script", lists.
 
 - Build once, in a widget's `setup()` or behind `once()` in any other element, and
   hold each connection's listeners, observers and registrations in `whileConnected`
@@ -47,9 +70,8 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 - Read the page's words with `says()` or `wrote()`, never `textContent`
   (`module-reading.md`, "Reading the page").
 - Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
-  that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, label
-  them with `relabel()`, and mark other words the widget writes with
-  `generatedElement()` or `generated` ("Generated controls").
+  that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, and
+  label them with `relabel()` ("Generated controls").
 - Keep the box the widget has at first paint ("First paint").
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
   values through `keeps` ("Scheduling paints", "Writes that change nothing").
@@ -77,10 +99,14 @@ anything else that sends input back. Its presentation and view state still work.
 
 When an upgrade or one part of it fails, `failSoft(element, error, source)` replaces
 the widget or part with an error box naming it, with `source` beneath when given, and
-reports a page error, which fails `page check`. The widget's next draw removes the box.
+dispatches an `error` `ErrorEvent` on the element, bubbling and composed, or on the
+window while the element is out of the document. Leaf reports it as a page error
+naming the widget, which fails `page check`. The widget's next draw removes the box,
+a template render into the element included.
 A native renderer that retains its nodes can register `placesFailure(element, place)`
 to place the box beside them: `place(box)` returns true when it handles the box, and
-the renderer removes it when the failed content recovers. Where the widget shows a
+the renderer removes it when the failed content recovers. An element has one placer,
+which registering again replaces. Where the widget shows a
 failed part its own way, as `lf-diff` does for a patch it cannot draw,
 `reportFailure(element, error)` only reports.
 
@@ -375,15 +401,15 @@ where the label is the page speaking, as a pick mark reading "chosen" does, `fal
 action word, and `"echo"` for a copy of words the page shows elsewhere, such as a
 worker's name.
 
-Mark every other element whose words the widget writes, and every box it fills, with
-`generatedElement(node, {says})`, which takes the same answers; in a template, write
-`<h2 ${generated({ says: true })}>`. The version diff then looks past those words
-rather than reading them as a change nobody wrote. Don't write the `data-lf-gen`,
-`data-lf-said` or `data-lf-echo` attributes yourself.
-
-A widget can upgrade inside a shut panel where every box measures zero, so take
-measurements inside `measure(element, take)`, which runs `take` once the element has a
-box.
+Words a module writes into the page need no marking: setting an element's
+`textContent`, appending a paragraph or rendering a template leaves them the page's
+words, which the user can comment on. A version comparison reads each version's source
+rather than the page, so they never read as a change. To set apart words the widget
+writes beside the author's, such as a count after an authored sentence, mark their
+element with `generatedElement(node, {says})`, which takes the same answers; in a
+template, write `<h2 ${generated({ says: true })}>`. `wrote()` then leaves them out,
+and a comment's quote doesn't run across them into the author's words. Don't write the
+`data-lf-gen`, `data-lf-said` or `data-lf-echo` attributes yourself.
 
 For changing text, use `page-layout.md`, "Space for changing text";
 the same `data-room` layout applies to authored and generated controls.

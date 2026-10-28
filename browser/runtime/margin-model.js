@@ -235,8 +235,8 @@ export const unreadIn = (items) =>
 // and its line, the thread's word wherever no such receipt says it, else how many of
 // its messages the user has not read. A receipt under a condition, such as a response
 // that failed, paints no progress (`progressFace`), so the line says its word.
-export function threadMarks(thread) {
-  const attention = threadAttention(thread);
+export function threadMarks(thread, agent) {
+  const attention = threadAttention(thread, agent);
   const onUser = attention?.kind === "needs_user";
   const receipt = attention?.kind === "waiting" ? attention.workflow : null;
   const unread = thread.unread.length;

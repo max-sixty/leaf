@@ -40,7 +40,7 @@ import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
-import { slotTop } from "../geometry.js";
+import { showsContents, slotTop } from "../geometry.js";
 import {
   focusDestination,
   holdFocus,
@@ -295,8 +295,8 @@ export function createThreadPreview({
           // A head sticks only while its own message is under it. Follow its real
           // lower edge as the next message pushes it away; between messages the
           // transcript's edge is the cut. A declared head height cannot say this.
-          // Once anything is scrolled away, the heads and the actions cover what passes
-          // beneath them (`data-lf-scrolled`, annotation-chrome.css).
+          // Once anything is scrolled away, the head rows cover the room above them
+          // (`data-lf-scrolled`, annotation-chrome.css).
           let edge = 0;
           let height = above ? 12 : 0;
           const room = slotTop(transcript);
@@ -722,7 +722,7 @@ export function createThreadPreview({
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
       ".lf-page-thread > .lf-thread-reply";
     const lastShown = [...previewList.querySelectorAll(messageSelector)].findLast(
-      (node) => node.checkVisibility(),
+      (node) => showsContents(node),
     );
     const lastBox = lastShown?.getBoundingClientRect();
     const listBox = session.transcript?.getBoundingClientRect();

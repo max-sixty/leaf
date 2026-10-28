@@ -1018,8 +1018,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     panel_status = panel_thread.locator(".lf-msg").first.locator(
         ":scope > .lf-msg-head .lf-msg-sending"
     )
-    expect(inline_status).to_have_text("Saved")
-    expect(panel_status).to_have_text("Saved")
+    expect(inline_status).to_have_text(re.compile(r"^Queued for "))
+    expect(panel_status).to_have_text(re.compile(r"^Queued for "))
     inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
     panel_status.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
     record_claim(serve.page_dir)
@@ -1124,7 +1124,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
         ).to_have_text("On it")
         expect(
             view.locator(f'.lf-msg[data-event="{followup["id"]}"]').locator(line)
-        ).to_have_text("Saved")
+        ).to_have_text(re.compile(r"^Queued for "))
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 

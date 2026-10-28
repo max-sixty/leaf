@@ -46,16 +46,17 @@ Record browser API and rendering support gaps in
 [`notes/browser-support.md`](../../../notes/browser-support.md), as its "Recording and
 assessing a gap" section says.
 
-The user judges a UI change by using it, so review it that way before handing it
-over. Whoever reviews it, you or an independent reviewer, first uses the live
-candidate cold for the user's task, before reading its code or the author's account:
-reach each result by every route Leaf gives to it, look at each state those routes
-leave, and judge each control against its neighbours and against Leaf's controls for
-the same role. A reviewer's brief gives the task and the candidate, asks for that pass
-before any code review, and keeps how the change looks in scope. For a theme or
-shared-control change, also run `/ui-sweep` (`../ui-sweep/SKILL.md`), whose "Review a
-design system" section covers it and whose "External review" section says when to use
-the skills below.
+The user judges a UI change by using it and by looking at it, so review both before
+handing it over. Whoever reviews it, you or an independent reviewer, first uses the
+live candidate cold for the user's task, before reading its code or the author's
+account, reaching each result by every route Leaf gives to it and capturing each state
+those routes leave. A reviewer's brief gives the task and the candidate and asks for
+that pass before any code review. An agent that has driven, measured or read the
+change sees the screen through that work and misses flaws a first look catches; a
+fresh agent given only the captures and the user's request, and asked what looks
+wrong, is one way to get that look. For a theme or shared-control change, also run
+`/ui-sweep` (`../ui-sweep/SKILL.md`), whose "Review a design system" section covers it
+and whose "External review" section says when to use the skills below.
 
 ### External UI skills
 

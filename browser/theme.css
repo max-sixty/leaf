@@ -895,8 +895,7 @@ html[data-lf-interactive] [data-lf-arriving] {
  * The anonymous layer leads lf-base, which only lf-reset precedes, and lf-reset states
  * nothing important, so these important declarations outrank every other layer and
  * unlayered stylesheet declaration without reserving a named layer custom CSS could
- * append to. Inline importance ranks higher still, so the
- * version gate refuses it for the display and visibility properties this boundary owns.
+ * append to. Only inline importance ranks higher.
  *
  * The same rank makes `hidden` hide whatever display another rule states for the
  * element, which the UA's own rule loses to, so no rule restores it per selector. A box
@@ -2355,6 +2354,11 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Leaf's word for an update the agent doesn't have yet stands apart from the agent's
+   own, as the panel's italic does (`workflowVoice`). */
+.lf-margin-entry-label-word[data-voice="leaf"] {
+  font-style: italic;
 }
 .lf-margin-entry-context,
 .lf-margin-entry-more {

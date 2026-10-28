@@ -7,12 +7,14 @@
    asynchronous preparation region (`present`), which removal pauses and reconnection
    restores. Registered preparation also holds full rendering readiness until
    completion or removal. Local editing holds the widget's drawing (`defer`) until the
-   gesture releases it. */
+   gesture releases it. A widget that draws itself without Leaf's helpers says it has
+   drawing under way with a `pending-task` event instead (`PendingTaskEvent`,
+   widget-upgrade.js), which reaches the same preparation region here. */
 import { untracked } from "/runtime/framework.js";
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
-import { failSoftUnreported } from "./widget-upgrade.js";
+import { PENDING_TASK, failSoftUnreported } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { holdRendering } from "./rendering.js";
 
@@ -216,3 +218,12 @@ export function widgetController(owner) {
   }
   return controller;
 }
+
+// Drawing a widget announced from outside Leaf's helpers: the nearest widget the event
+// passed through on its way out holds its presentation on it, as `present` does.
+document.addEventListener(PENDING_TASK, (event) => {
+  const owner = event
+    .composedPath()
+    .find((node) => node instanceof Element && widgetDescriptor(node));
+  if (owner) widgetController(owner).present(event.complete);
+});

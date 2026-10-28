@@ -75,6 +75,7 @@ it("bundles each document's static graph without fetching optional modules or ch
         "runtime/media.js": "export const media = 1;",
         "runtime/layer-client.js": "export const client = 1;",
         "runtime/widget-api.js": "export const api = 1;",
+        "runtime/portable-api.js": "export const portable = 1;",
         "runtime/check-api.js": "export const checks = 1;",
         "widgets/lf-used.js":
           'import "../runtime/bundle-common.js"; import "/vendor/widget.js"; export const optional = () => import("../runtime/optional.js");',

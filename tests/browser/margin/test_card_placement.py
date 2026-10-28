@@ -274,15 +274,29 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     assert name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
 
 
+# Where a card's notice stands against the user's head beside it: the notice's start,
+# and the head's end, its Edit's symbol and its time's end.
+NEWS_BESIDE_HEAD = """([notice, head]) => {
+  const box = (node) => node?.getBoundingClientRect();
+  return {
+    notice: box(notice).left,
+    head: box(head).right,
+    edit: box(head.parentElement.querySelector('.lf-msg-control svg'))?.left ?? null,
+    time: box(head.querySelector('time')).right,
+  };
+}"""
+
+
 @pytest.mark.parametrize("phone", [False, True])
-def test_a_card_s_head_keeps_the_user_s_name_beside_news(browser, serve, phone):
+def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     """A card holding news while the user writes: the notice takes only the room the
-    head leaves beside "Me" and its time. On a desktop card, with Previous and Next for
-    its target's two threads, the notice says its first fact and the head keeps "Me"
-    and its time whole. On a phone's card, whose three controls, the notice and the
-    head's Edit each take a finger's width, the notice says one count, "2 new", and the
-    head keeps "Me" whole, its time giving way first. Drawn whole, the notice left the
-    head too little room, and it read "M" against the time."""
+    head of the user's message leaves beside its name and time, and stands clear of
+    it. On a desktop card, with Previous and Next for its target's two threads, the
+    notice says its first fact and the head keeps "Me" and its time whole. On a
+    phone's card, whose three controls, the notice and the head's Edit each take a
+    finger's width, the notice says one count, "2 new", and the head keeps its time
+    whole and cuts its name, as any narrow head does. Drawn whole, the notice stood
+    over the head."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
@@ -319,11 +333,22 @@ def test_a_card_s_head_keeps_the_user_s_name_beside_news(browser, serve, phone):
     rendered(page)
     card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
     head = card.locator(".lf-msg-head").first
-    expect(head.locator("b")).to_have_text("Me")
-    assert head.locator("b").evaluate("node => node.scrollWidth <= node.clientWidth")
-    if not phone:
-        times = card.evaluate(TIMES_WHOLE)
-        assert times and all(time["whole"] for time in times), times
+    stands = page.evaluate(
+        NEWS_BESIDE_HEAD, [notice.element_handle(), head.element_handle()]
+    )
+    assert stands["notice"] >= stands["head"] - 0.5, stands
+    assert stands["edit"] is None or stands["time"] <= stands["edit"] + 0.5, stands
+    times = card.evaluate(TIMES_WHOLE)
+    assert times and all(time["whole"] for time in times), times
+    name = head.locator("b")
+    expect(name).to_have_text("Me")
+    if phone:
+        assert name.evaluate("node => node.scrollWidth > node.clientWidth")
+        assert (
+            name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
+        )
+    else:
+        assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
 
 
 @pytest.mark.watch_shifts

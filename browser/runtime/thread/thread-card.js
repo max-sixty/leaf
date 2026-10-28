@@ -326,7 +326,7 @@ export class ThreadView {
   #headerSlot = null;
   #observedHeader = null;
   #sizes = sizeObserver(() => this.#retainHeaderSlot());
-  #marginNews = sizeObserver(() => this.#fitMarginNews());
+  #marginNews = sizeObserver(() => nextRender(() => this.#fitMarginNews()));
 
   constructor(commands) {
     this.#commands = commands;
@@ -666,15 +666,17 @@ export class ThreadView {
       );
   }
 
-  // Each head's name and time, and the notice, can change size while news waits, as a
-  // time ticks on from "just now".
+  // A render fits it again, and a head's time, which is never cut, changes size while
+  // news waits as it ticks on from "just now". The notice and a name change size
+  // because of the fit itself, so watching them would deliver the fit its own change,
+  // and a time's change fits it in the next frame, since the fit resizes boxes the
+  // observer's delivery has already passed.
   #watchMarginNews() {
     this.#marginNews.disconnect();
-    this.#marginNews.observe(this.#news.node);
-    for (const words of this.node.querySelectorAll(
-      ".lf-thread-transcript .lf-msg-head > :is(b, .lf-msg-meta > time)",
+    for (const time of this.node.querySelectorAll(
+      ".lf-thread-transcript .lf-msg-head > .lf-msg-meta > time",
     ))
-      this.#marginNews.observe(words);
+      this.#marginNews.observe(time);
     this.#fitMarginNews();
   }
 

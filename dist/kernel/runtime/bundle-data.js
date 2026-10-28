@@ -6666,7 +6666,7 @@ var ThreadView = class {
 	#headerSlot = null;
 	#observedHeader = null;
 	#sizes = sizeObserver(() => this.#retainHeaderSlot());
-	#marginNews = sizeObserver(() => this.#fitMarginNews());
+	#marginNews = sizeObserver(() => nextRender(() => this.#fitMarginNews()));
 	constructor(commands) {
 		this.#commands = commands;
 		this.#rewrites = threadRewrites({
@@ -6844,8 +6844,7 @@ var ThreadView = class {
 	}
 	#watchMarginNews() {
 		this.#marginNews.disconnect();
-		this.#marginNews.observe(this.#news.node);
-		for (const words of this.node.querySelectorAll(".lf-thread-transcript .lf-msg-head > :is(b, .lf-msg-meta > time)")) this.#marginNews.observe(words);
+		for (const time of this.node.querySelectorAll(".lf-thread-transcript .lf-msg-head > .lf-msg-meta > time")) this.#marginNews.observe(time);
 		this.#fitMarginNews();
 	}
 	#releaseMarginNews() {

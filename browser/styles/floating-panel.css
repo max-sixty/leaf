@@ -905,22 +905,22 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* The way back is a row (controls.css, `.lf-row`), as the menu's is: its chevron and
+     the name of where it leads, in the ink, washed under the pointer. It reaches out
+     past its words by its padding and the row's stripe room, so the words stand where
+     the view's other words start. */
   .lf-fp-back {
     flex: none;
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    min-height: 0;
-    padding: 0;
-    color: var(--lf-fp-muted);
+    min-height: var(--lf-fp-press);
+    margin-inline-start: -6px;
+    padding: 0 8px 0 4px;
   }
   .lf-fp-back .lf-fp-chevron {
     scale: -1 1;
     margin: 0;
-  }
-  .lf-fp-back:hover {
-    background: none;
-    color: var(--ink);
   }
   /* The thread's facts after the way back, the news it holds, take the room the crumb
      leaves, so news arriving moves nothing else. They stand further from the controls
@@ -1152,9 +1152,8 @@
     gap: 12px;
     width: 100%;
     min-height: 30px;
-    padding: 5px 8px;
-    border-radius: var(--r);
-    text-align: start;
+    /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
+    padding: 5px 8px 5px 6px;
   }
   .lf-fp-thread {
     grid-template-columns: 6px minmax(0, 1fr) auto;
@@ -1312,8 +1311,8 @@
     margin: 0;
     color: var(--lf-fp-muted);
   }
-  a.lf-fp-page:hover {
-    background: var(--lf-fp-hover);
+  a.lf-fp-page {
+    padding-inline-start: 6px;
   }
   .lf-fp-version {
     display: flex;
@@ -1323,9 +1322,6 @@
   .lf-fp-version .lf-fp-item {
     flex: 1;
     min-width: 0;
-  }
-  .lf-fp-version[data-current] .lf-fp-label {
-    font-weight: 600;
   }
   /* What the check found in the agent's latest save, over the versions. */
   .lf-fp-failed {

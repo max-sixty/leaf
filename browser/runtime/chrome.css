@@ -864,8 +864,8 @@ html[data-lf-region-capture] main * {
     align-items: center;
     column-gap: 10px;
     margin-inline: -6px;
-    padding-inline: 6px;
-    border-radius: var(--r);
+    /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
+    padding-inline: 4px 6px;
   }
   .lf-command-reference-row > * {
     min-width: 0;
@@ -957,11 +957,6 @@ html[data-lf-region-capture] main * {
     inset: 0;
     border-radius: inherit;
   }
-  .lf-command-reference-row:has(
-    .lf-command-reference-command:is(:hover, [data-lf-focus], [data-lf-selected="true"])
-  ) {
-    background: var(--chip);
-  }
   .lf-command-reference-command[data-lf-focus-visible] {
     outline: none;
   }
@@ -986,24 +981,22 @@ html[data-lf-region-capture] main * {
     grid-template-columns: auto minmax(0, 1fr);
     gap: 8px;
     align-items: baseline;
+    /* A press here is a row (controls.css, `.lf-row`), and a status beside it keeps
+       the row's stripe room too, so their words share one edge. The user's turn
+       paints the row's ground as it paints its margin entry, in one rule set in
+       theme.css, and the row's wash under the pointer lies over it. */
     border: 0;
+    border-inline-start: 2px solid transparent;
     border-radius: var(--r);
-    background: var(--lf-entry-tint, transparent);
+    background-color: var(--lf-entry-tint, transparent);
     color: inherit;
-    padding: 7px 8px;
+    padding: 7px 8px 7px 6px;
     font: inherit;
     text-align: left;
     cursor: default;
   }
   .lf-page-map-action:is(button, [role="button"]):not([aria-disabled="true"]) {
     cursor: pointer;
-  }
-  /* The user's turn paints this row as it paints its margin entry, in one rule set
-     in theme.css; the row's ground and hover read the wash it sets. */
-  .lf-page-map-action:is(button, [role="button"]):is(:hover, [data-lf-focus]):not(
-      [aria-disabled="true"]
-    ) {
-    background: color-mix(in srgb, var(--lf-entry-tint, var(--chip)) 92%, var(--ink));
   }
   .lf-page-map-action .lf-margin-kind {
     align-self: center;

@@ -83,7 +83,7 @@ import {
   currentLocationIn,
   deepFocus,
 } from "../focus.js";
-import { closeControl, searchField } from "../widget-elements.js";
+import { closeControl, offeredAction, searchField } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { renderedOrder } from "../shadow.js";
 import { ELEMENTS, pageCommand, pageScope, pageScopes } from "./register.js";
@@ -664,7 +664,10 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     <div
       id=${entry.rowId}
       role="row"
-      class=${`lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`}
+      ${offeredAction(
+        "row",
+        `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`,
+      )}
       data-lf-command=${entry.id}
       aria-selected=${entry.actionable ? String(selected) : nothing}
       ?hidden=${!shown}

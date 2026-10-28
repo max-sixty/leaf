@@ -35,6 +35,7 @@ from browser.margin import (
     leave_card_by_its_target,
     resized_shell,
 )
+from browser.threads import append_user_reply
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
 
@@ -271,6 +272,43 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     name = card.locator(".lf-msg-head b").first
     assert name.evaluate("node => node.scrollWidth > node.clientWidth")
     assert name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
+
+
+def test_a_card_s_head_keeps_the_user_s_name_and_time_beside_news(browser, serve):
+    """A narrow card, with Previous and Next for its target's two threads, holding news
+    while the user writes: the notice takes a notice's room beside the actions, so the
+    head of the user's message keeps "Me" and its time whole. Drawn whole, the notice
+    left the head too little room, and it read "M" against the time."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
+    )
+    panel_comment(serve.page_dir, "Make the banner quieter", {"section": "h-how"})
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.locator(".lf-margin-marker").first.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview.get_by_text("Keep the logo where it is")).to_be_visible()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.type("Also check the dark scheme")
+    rendered(page)
+    thread_model.post_reply(
+        serve.page_dir,
+        {"parent": root, "responds": root},
+        "The status line can drop one weight.",
+    )
+    append_user_reply(serve.page_dir, root, "Sent from my other tab.")
+    told(page)
+    notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
+    expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
+    rendered(page)
+    head = preview.locator(f'.lf-page-thread[data-thread="{root}"] .lf-msg-head').first
+    expect(head.locator("b")).to_have_text("Me")
+    times = preview.locator(f'.lf-page-thread[data-thread="{root}"]').evaluate(
+        TIMES_WHOLE
+    )
+    assert times and all(time["whole"] for time in times), times
+    assert head.locator("b").evaluate("node => node.scrollWidth <= node.clientWidth")
 
 
 @pytest.mark.watch_shifts

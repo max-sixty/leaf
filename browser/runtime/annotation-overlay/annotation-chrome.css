@@ -707,7 +707,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      line (above), with the ground of the message whose head holds it, tinted while
      it arrives. Their padding keeps the head's own controls short of them, so a
      focused control's ring stays whole. A notice of held news stands first in the
-     row, whole (thread-card.js); the card keeps its width while it holds news
+     row (thread-card.js); the card keeps its width while it holds news
      (thread-preview.js), so the notice takes its room from the heads' track, and the
      actions after it keep their places. */
   /* The row is a message head's line, so Reopen taking Resolve's place is as tall as
@@ -723,6 +723,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     gap: 4px;
     min-height: var(--lf-msg-head-height);
     padding-inline-start: var(--sp-2);
+  }
+  /* The notice takes at most a notice's room beside a head's words (`--lf-news-width`,
+     surfaces.css), dropping whole the facts past it and counting them in the room it
+     keeps at its end, so the heads' track keeps an author and a time whole beside the
+     actions. Drawn whole, "1 new reply · 1 new message" left the heads 41px, and the
+     head of the user's message read "M51d ago", its name cut against the time.
+     Rejected: the time giving way while news waits, which frees a time's 43px, too
+     little for a name beside a whole notice; and the notice wrapping beneath the
+     actions, which would stand over the first message's words in the actions'
+     track. */
+  .lf-margin-thread .lf-margin-thread-controls .lf-thread-news {
+    max-inline-size: var(--lf-news-width);
+    padding-inline-end: var(--lf-news-count-room);
   }
   /* A sticky head and its words paint the message's one animated ground.
      Shared message rules own wrapping, including progress disclosures below the

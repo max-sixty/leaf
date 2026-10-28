@@ -950,9 +950,9 @@
   .lf-fp-news-outlet {
     display: contents;
   }
-  /* The news qualifies the thread as its place does, so it takes that size, in the
-     ink of what the user may act on. It stands on the crumb's baseline at the height of
-     its words, so its arrival grows no line: the room a pointer aims at reaches above
+  /* The news qualifies the thread as its place does, so it takes the size of the
+     crumb's words. It stands on the crumb's baseline at the height of its words, a line
+     an em tall, so its arrival grows no line: the room a pointer aims at reaches above
      and below them, as tall as a control's. */
   .lf-fp-news-outlet > .lf-thread-news {
     --lf-fp-news-reach: calc((max(var(--lf-fp-press), var(--aim-floor)) - 1lh) / 2);
@@ -960,7 +960,8 @@
     min-height: 0;
     padding-block: var(--lf-fp-news-reach);
     margin-block: calc(-1 * var(--lf-fp-news-reach));
-    font-size: 12px;
+    font-size: inherit;
+    line-height: 1;
   }
   .lf-fp-aux {
     flex: 0 1 auto;
@@ -1050,12 +1051,15 @@
   :is(.lf-fp-on-page, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
   }
-  /* Next unread is news's way in, so it wears the accent an unread reply's New does. */
+  /* Next unread is an inline press (controls.css) after its symbol, standing in the
+     row at a panel press's height and padding. */
   .lf-fp-next-unread {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    color: var(--accent);
+    min-height: var(--lf-fp-press);
+    padding: 0 8px;
+    white-space: nowrap;
   }
   .lf-fp-next-unread .lf-action-icon {
     width: 14px;
@@ -1273,14 +1277,13 @@
     display: block;
     overflow: visible;
   }
-  /* Its reach (surfaces.css) lies inside the thread's view, which clips what passes its
-     8px top padding, so under a finger it stands low enough for the reach above it. */
+  /* Full quote, an inline press (controls.css) at the quote's size. Its reach
+     (surfaces.css) lies inside the thread's view, which clips what passes its 8px top
+     padding, so under a finger it stands low enough for the reach above it. */
   .lf-fp-quote-head > .lf-quote-expand {
     margin-block-start: max(0px, (var(--aim-floor) - 1lh) / 2 - 8px);
     min-height: 0;
     padding: 0;
-    color: var(--lf-fp-muted);
-    font-size: 12px;
   }
   /* A page in All pages: its leaf in its agent's tone, its title, and what its agent is
      doing, which gives way to the title and is cut where the row ends; then the mark

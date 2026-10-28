@@ -1,7 +1,7 @@
 import { PAGE_PAINT_ATTRIBUTE, afterScript, bindQueuedWork, cancelRender, dataBody, frameFor, layoutChanged, measure, nextAnimation, nextFrame, nextRender, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, under, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
 import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, selectsAll, takesLetters, typesText, x } from "./bundle-dom-move.js";
 import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, html, inUi, isElementName, isReaction, keyed, lastMovedAt, layerRoot, live, loadShadowRules, marks, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, share, stateSpecs, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-layer-stack.js";
-import { LayerRefused, PRESS, PRESSABLE, actionTemplate, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, keys, labelOf, live as live$1, nameAction, namedAction, notice, offer, offered, offeredAction, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
+import { LayerRefused, PRESS, PRESSABLE, actionTemplate, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, keys, labelOf, live as live$1, nameAction, namedAction, notice, offer, offerAction, offered, offeredAction, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { clippedContents, clippedPlace, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
@@ -5552,13 +5552,18 @@ const said = (news) => {
 	};
 };
 function newsNotice(header = false) {
-	const node = offer("button", header ? "lf-thread-notice lf-thread-notice-news lf-thread-header-action lf-thread-news" : "lf-thread-notice lf-thread-notice-news lf-thread-news");
+	const node = offerAction("inline", header ? "lf-thread-header-action lf-thread-news" : "lf-thread-news");
+	keeps(node, "data-lf-news", "");
 	const words = document.createElement("span");
 	node.append(words);
 	const dropped = sizeObserver(() => {
-		const [first, ...later] = [...words.children];
-		const count = later.filter((fact) => fact.offsetTop !== first.offsetTop).length;
+		const facts = [...words.children];
+		const shown = facts.filter((fact) => fact.offsetTop === facts[0].offsetTop);
+		const count = facts.length - shown.length;
 		keeps(words, "data-lf-more", count ? `+${count}` : null);
+		const last = shown.at(-1);
+		if (!count) words.style.removeProperty("--lf-news-shown");
+		else words.style.setProperty("--lf-news-shown", layoutPx(getComputedStyle(words).direction === "rtl" ? words.clientWidth - last.offsetLeft : last.offsetLeft + last.offsetWidth));
 	});
 	let open = () => null;
 	const show = () => {
@@ -6375,7 +6380,7 @@ var Transcript = class {
 		const label = `${expanded ? "Hide" : "Show"} ${subject}`;
 		return html`<button
       type="button"
-      class="lf-thread-disclosure lf-disclosure-marker lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
+      ${offeredAction("inline", `lf-thread-disclosure lf-disclosure-marker lf-summary-expand${progress ? " lf-progress-expand" : ""}`)}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ranges.flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id)).filter(Boolean).join(" ")}
@@ -6971,7 +6976,7 @@ var ResolvedThreads = class {
 		const notice = held.length > 1 ? `${held.length} ${held.every(({ reopened }) => reopened) ? "reopened" : "changed"}` : held[0]?.label ?? null;
 		render$1(html`Resolved ·
       ${threads.length}${notice ? html` ·
-              <span class="lf-thread-notice lf-thread-notice-news">${notice}</span>` : ""}`, this.summary);
+              <span data-lf-news>${notice}</span>` : ""}`, this.summary);
 		setChildren(this.node, [this.summary, ...nodes]);
 	}
 };

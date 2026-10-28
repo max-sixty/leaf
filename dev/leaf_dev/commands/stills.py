@@ -340,6 +340,21 @@ def floating_thread(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
 
 
+def floating_thread_unread(page: Page) -> None:
+    """The same thread holding a reply too long for its view to show whole, which stays
+    unread, so Next unread stands among the view's controls."""
+    as_agent(
+        "thread",
+        "reply",
+        "7b3e0a41",
+        "--text",
+        "The resend recovers every one of them. "
+        + "The queue holds each edit until the server confirms it. " * 40,
+    )
+    floating_thread(page)
+    expect(page.locator(".lf-fp-controls .lf-fp-next-unread")).to_be_visible()
+
+
 def floating_thread_retitled(page: Page) -> None:
     """The same thread once its opening message is rewritten short, so its title is far
     narrower than the view it names."""
@@ -480,7 +495,7 @@ def held_news(page: Page, thread: Locator) -> None:
     root = thread.get_attribute("data-thread")
     assert root
     as_agent("thread", "reply", root, "--text", "That one goes first.")
-    notice = thread.locator(".lf-thread-notice-news")
+    notice = thread.locator(".lf-thread-news")
     expect(notice).to_have_attribute("title", "1 new reply")
     client = PageClient(served_page.get().address)
     client.post(
@@ -1736,6 +1751,19 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
+    State(
+        "floating-thread-unread",
+        "ship-review",
+        floating_thread_unread,
+        region=".lf-fp-opened",
+    ),
+    State(
+        "floating-thread-unread-dark",
+        "ship-review",
+        floating_thread_unread,
+        scheme="dark",
+        region=".lf-fp-opened",
+    ),
     State("ship-threads", "ship-review", go_to_threads, region=".lf-fp-opened"),
     State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
     State(

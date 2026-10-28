@@ -6296,7 +6296,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`<header class="lf-fp-quote-head">
       ${quote.localReading ? html`<button
               type="button"
-              class="lf-fp-face lf-thread-disclosure lf-quote-expand lf-disclosure-marker"
+              ${offeredAction("inline", "lf-thread-disclosure lf-quote-expand lf-disclosure-marker")}
               aria-label="Full quote"
               hidden
               aria-expanded=${String(quoteExpanded)}
@@ -6992,7 +6992,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		onPageSeat ||= Boolean(thread.anchor) && (inMessage || !atLastResort(thread.key));
 		const aux = html`${unreadSeat ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-next-unread"
+              ${offeredAction("inline", "lf-fp-next-unread")}
               ?disabled=${!thread.unread.length}
               ?data-unoffered=${!thread.unread.length}
               @click=${() => void firstUnread(thread.key)}

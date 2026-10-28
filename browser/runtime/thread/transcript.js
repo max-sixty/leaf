@@ -47,6 +47,7 @@
 import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing, repeat } from "/runtime/framework.js";
 import { MessageView } from "./messages.js";
+import { offeredAction } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, withPendingProgress, workingPlace } from "./summary-ranges.js";
@@ -586,9 +587,12 @@ export class Transcript {
     const label = `${expanded ? "Hide" : "Show"} ${subject}`;
     return html`<button
       type="button"
-      class="lf-thread-disclosure lf-disclosure-marker lf-summary-expand ${
-        progress ? "lf-progress-expand" : ""
-      }"
+      ${offeredAction(
+        "inline",
+        `lf-thread-disclosure lf-disclosure-marker lf-summary-expand${
+          progress ? " lf-progress-expand" : ""
+        }`,
+      )}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ranges

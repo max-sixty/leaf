@@ -142,7 +142,7 @@
    it is scrolled, so nothing tells the reader a row is cut off. */
 import { html, render } from "/runtime/framework.js";
 import { growthAfterIsSeen, growthIsSeen, whenNone } from "../geometry.js";
-import { offer } from "../widget-elements.js";
+import { offer, offerAction } from "../widget-elements.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { sizeObserver } from "../rendering.js";
 import { keys } from "../keyboard/scopes.js";
@@ -423,8 +423,9 @@ const said = (news) => {
 
 /** The control that says what a row holds and shows it. `set(news)` gives it the
  *  reading's `news` ({parts, label, reopened, open}); `open` returns the thread to land a
- *  keyboard on, since the notice goes with what it held. A held reopening's notice stands
- *  where Reopen did, with the same compact face as other news, and is the thread's
+ *  keyboard on, since the notice goes with what it held. It is an inline press that
+ *  announces news waiting (`data-lf-news`, controls.css). A held reopening's notice
+ *  stands where Reopen did, in the same face as other news, and is the thread's
  *  reopen control (`lf-reopen`), so the thread's Enter and `r` keep their meaning and
  *  press it to show the thread reopened. A `header` notice stands in a resolved panel
  *  card's title as a node of its own, since the notice in the card's rows may have
@@ -439,19 +440,32 @@ const said = (news) => {
  *  count reads the layout, so a size observer recounts whenever the words or a fact
  *  change size, a fact's first observation included. */
 export function newsNotice(header = false) {
-  const node = offer(
-    "button",
-    header
-      ? "lf-thread-notice lf-thread-notice-news lf-thread-header-action lf-thread-news"
-      : "lf-thread-notice lf-thread-notice-news lf-thread-news",
+  const node = offerAction(
+    "inline",
+    header ? "lf-thread-header-action lf-thread-news" : "lf-thread-news",
   );
+  keeps(node, "data-lf-news", "");
   const words = document.createElement("span");
   node.append(words);
-  // A dropped fact wraps onto a line below the first (components/surfaces.css).
+  // A dropped fact wraps onto a line below the first (components/surfaces.css). The
+  // count stands just past the last fact shown, which a notice bounded wider than the
+  // facts it shows leaves short of the words' end (`--lf-news-shown`).
   const dropped = sizeObserver(() => {
-    const [first, ...later] = /** @type {HTMLElement[]} */ ([...words.children]);
-    const count = later.filter((fact) => fact.offsetTop !== first.offsetTop).length;
+    const facts = /** @type {HTMLElement[]} */ ([...words.children]);
+    const shown = facts.filter((fact) => fact.offsetTop === facts[0].offsetTop);
+    const count = facts.length - shown.length;
     keeps(words, "data-lf-more", count ? `+${count}` : null);
+    const last = shown.at(-1);
+    if (!count) words.style.removeProperty("--lf-news-shown");
+    else
+      words.style.setProperty(
+        "--lf-news-shown",
+        layoutPx(
+          getComputedStyle(words).direction === "rtl"
+            ? words.clientWidth - last.offsetLeft
+            : last.offsetLeft + last.offsetWidth,
+        ),
+      );
   });
   let open = () => null;
   const show = () => {

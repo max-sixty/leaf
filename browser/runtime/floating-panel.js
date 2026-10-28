@@ -2772,7 +2772,10 @@ export function createFloatingPanel({
         quote.localReading
           ? html`<button
               type="button"
-              class="lf-fp-face lf-thread-disclosure lf-quote-expand lf-disclosure-marker"
+              ${offeredAction(
+                "inline",
+                "lf-thread-disclosure lf-quote-expand lf-disclosure-marker",
+              )}
               aria-label="Full quote"
               hidden
               aria-expanded=${String(quoteExpanded)}
@@ -3868,7 +3871,7 @@ export function createFloatingPanel({
         unreadSeat
           ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-next-unread"
+              ${offeredAction("inline", "lf-fp-next-unread")}
               ?disabled=${!thread.unread.length}
               ?data-unoffered=${!thread.unread.length}
               @click=${() => void firstUnread(thread.key)}

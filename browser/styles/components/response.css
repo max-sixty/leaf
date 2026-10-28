@@ -127,24 +127,38 @@ leaf-composition-field {
 /* Under a mouse, where Return sends, the words run the whole line and Send shows in
    its corner while no words reach it (`:state(corner-taken)`, text-field.js). Once
    words reach it, Send waits unseen in the corner, letting presses through to the
-   words, and shows over them on an opaque disc when focus comes to it or the pointer
-   has rested on it (`data-send-pointed`, input.js), with its hover tint and pointing
-   hand at once: a browser may not read a still pointer as over the newly shown Send
-   until it moves, so the words under it would keep the pointer an I-beam. Rejected: showing it on hovering
-   the whole box, since the pointer rests there while typing and Send would cover the
-   words at the corner most of the time; and showing it as soon as the pointer
-   arrives, which put it under a press meant to place the caret at the words' end. */
+   words. It shows over them as soon as the pointer comes to it (`data-send-pointed`,
+   input.js), with its tint and pointing hand at once, since a browser may not read a
+   still pointer as over the newly shown Send until it moves; and it takes presses
+   only once the pointer has rested there (`data-send-armed`), so a press aimed at
+   the words' end still places the caret. Focus shows it too. Over the words its disc
+   is one row tall (`--lf-field-row`), clear of the row above. Rejected: showing it
+   on hovering the whole box, since the pointer rests there while typing and Send
+   would cover the words at the corner most of the time; and taking presses as soon
+   as it shows, which sent a press meant to place the caret. */
+@property --lf-field-row {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
 @media (hover: hover) and (pointer: fine) {
   .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
     --lf-field-end-room: 0px;
     --lf-field-corner: calc(var(--lf-icon-action-hit) + var(--lf-compose-action-inset));
   }
+  .lf-compose-field:has(> leaf-text:state(corner-taken)) {
+    --lf-field-row: 1lh;
+  }
   .lf-compose-field:has(> leaf-text:state(corner-taken)):not([data-send-pointed])
     > .lf-compose-submit:not([data-lf-focus-visible]) {
     opacity: 0;
+  }
+  .lf-compose-field:has(> leaf-text:state(corner-taken)):not([data-send-armed])
+    > .lf-compose-submit:not([data-lf-focus-visible]) {
     pointer-events: none;
   }
   .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit::before {
+    block-size: min(var(--lf-icon-action-face), var(--lf-field-row));
     background: var(--card);
   }
   .lf-compose-field[data-send-pointed]:has(> leaf-text:state(corner-taken))

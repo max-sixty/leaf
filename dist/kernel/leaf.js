@@ -370,15 +370,18 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			clearTimeout(dwell);
 			dwell = 0;
 			ta.parentElement?.removeAttribute("data-send-pointed");
+			ta.parentElement?.removeAttribute("data-send-armed");
 		};
 		const point = (event) => {
 			if (event.pointerType === "touch") return;
 			const box = event.currentTarget;
 			const send = sendBtn?.getBoundingClientRect();
-			if (!(send && event.clientX >= send.left && event.clientX < send.right && event.clientY >= send.top && event.clientY < send.bottom)) unpoint();
-			else if (!dwell && !box.hasAttribute("data-send-pointed")) dwell = setTimeout(() => {
+			if (!(send && event.clientX >= send.left && event.clientX < send.right && event.clientY >= send.top && event.clientY < send.bottom)) return unpoint();
+			if (box.hasAttribute("data-send-pointed")) return;
+			box.setAttribute("data-send-pointed", "");
+			dwell = setTimeout(() => {
 				dwell = 0;
-				box.setAttribute("data-send-pointed", "");
+				box.setAttribute("data-send-armed", "");
 			}, SEND_DWELL);
 		};
 		let sending = false;

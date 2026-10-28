@@ -75,8 +75,8 @@ import { coarsePointer } from "../pointer.js";
 import { offered, offeredAction } from "../widget-elements.js";
 
 const INPUT_DRAFT = Symbol("composition draft");
-// How long the pointer rests on Send's corner, once words reach it, before Send shows
-// there and takes presses: longer than a press aimed at the words' end takes to land.
+// How long the pointer rests on Send's corner, once words reach it, before Send takes
+// presses there: longer than a press aimed at the words' end takes to land.
 const SEND_DWELL = 150;
 
 /** @typedef {CompositionField} CompositionFieldElement For its tag. */
@@ -404,18 +404,20 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const word = sendWord();
       return word.charAt(0).toUpperCase() + word.slice(1);
     };
-    // Once words reach Send's corner, Send shows there only after the pointer has rested
-    // on it (response.css), so a quick press at the words' end places the caret. Typing,
-    // or a press on the words, puts Send away until the pointer next moves, so a second
-    // press of a double-click selects rather than sends. Where the pointer is decides,
-    // read from each move and leave alike: the user's Firefox follows nearly every move
-    // with a `pointerleave` out to the document at the same point, and a leave taken as
-    // the pointer going put Send away on every move.
+    // Once words reach Send's corner, Send shows there as the pointer comes to it, and
+    // takes presses only once the pointer has rested on it (response.css), so a quick
+    // press at the words' end places the caret. Typing, or a press on the words, puts
+    // Send away until the pointer next moves, so a second press of a double-click
+    // selects rather than sends. Where the pointer is decides, read from each move and
+    // leave alike: the user's Firefox follows nearly every move with a `pointerleave`
+    // out to the document at the same point, and a leave taken as the pointer going put
+    // Send away on every move.
     let dwell = 0;
     const unpoint = () => {
       clearTimeout(dwell);
       dwell = 0;
       ta.parentElement?.removeAttribute("data-send-pointed");
+      ta.parentElement?.removeAttribute("data-send-armed");
     };
     const point = (event) => {
       if (event.pointerType === "touch") return;
@@ -427,12 +429,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         event.clientX < send.right &&
         event.clientY >= send.top &&
         event.clientY < send.bottom;
-      if (!on) unpoint();
-      else if (!dwell && !box.hasAttribute("data-send-pointed"))
-        dwell = setTimeout(() => {
-          dwell = 0;
-          box.setAttribute("data-send-pointed", "");
-        }, SEND_DWELL);
+      if (!on) return unpoint();
+      if (box.hasAttribute("data-send-pointed")) return;
+      box.setAttribute("data-send-pointed", "");
+      dwell = setTimeout(() => {
+        dwell = 0;
+        box.setAttribute("data-send-armed", "");
+      }, SEND_DWELL);
     };
     let sending = false;
     let uploading = false;

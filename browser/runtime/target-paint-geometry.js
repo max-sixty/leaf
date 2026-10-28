@@ -172,9 +172,6 @@ export function paintStand(box = null) {
   root.className = "lf-ui lf-target-paint lf-paint-stand";
   root.setAttribute("aria-hidden", "true");
   root.style.position = "fixed";
-  // A contour spends its stroke outside the target. Let that stroke survive when
-  // the target meets a scrollport edge; drawings and chips use stands without a box.
-  if (box) root.style.setProperty("--lf-paint-outset", "var(--focus-region-room)");
   const carrier = document.createElement("div");
   carrier.className = "lf-paint-carrier";
   if (box) carrier.append(box);
@@ -267,14 +264,58 @@ export function standOver(stand, placed, borderRadius) {
   const stood = standIn(stand, placed, Boolean(anchor));
   standBox(stand.box, placed.rect, stood, anchor, at);
   Object.assign(stand.box.style, { display: "block", borderRadius });
-  // A control's marks stand at its own ring's gap, a region's at the region's
-  // (theme.css, "Where it stands").
-  keeps(
-    stand.box,
-    "data-lf-mark-on",
-    placed.surface.matches(PRESSES) ? "control" : null,
+  const control = placed.surface.matches(PRESSES);
+  const outside = markRoom(control);
+  const inset = cramped(placed, outside);
+  keeps(stand.box, "data-lf-mark-on", inset ? "inset" : control ? "control" : null);
+  // The frames let the band survive outside the target where it stands outside, and
+  // cut it exactly on an edge they already cut the target at, where it would otherwise
+  // stand over what the scroller has scrolled past (css-anchors.js, `cutPath`).
+  const room = inset ? 0 : outside;
+  for (const side of ["top", "right", "bottom", "left"])
+    stand.root.style.setProperty(
+      `--lf-paint-outset-${side}`,
+      layoutPx(cutsAt(placed, side) ? 0 : room),
+    );
+  return { ...stood, anchor, at, room };
+}
+
+// How far a mark's band reaches outside its target: the band and the gap its box stands
+// at, a control's ring's or a region's (theme.css, "Where it stands").
+function markRoom(control) {
+  const root = getComputedStyle(document.documentElement);
+  const gap = control ? "--focus-ring-gap" : "--focus-region-gap";
+  return ["--focus-ring-w", gap]
+    .map((token) => Number.parseFloat(root.getPropertyValue(token)))
+    .reduce((sum, px) => sum + px, 0);
+}
+
+// Whether a frame cuts the target on `side`, as on a target scrolled partly out of its
+// scroller.
+function cutsAt({ rect, levels }, side) {
+  const axis = side === "top" || side === "bottom" ? "y" : "x";
+  const low = side === "top" || side === "left";
+  return levels.some(
+    ({ band, axes }) =>
+      axes[axis] && (low ? rect[side] < band[side] : rect[side] > band[side]),
   );
-  return { ...stood, anchor, at };
+}
+
+// Where a box that clips the target, as a joined lf-options frame clips its cells,
+// shows the target's edge but not `room` beyond it, the mark stands just inside the
+// edge instead, as a control packed into a list insets its own ring (theme.css).
+// Outside, the clip cut away its sides and left stubs across the neighbours. An edge
+// the clip already cuts asks for no room.
+function cramped({ rect, levels }, room) {
+  const short = (band, low, high) =>
+    (rect[low] >= band[low] && rect[low] - room < band[low]) ||
+    (rect[high] <= band[high] && rect[high] + room > band[high]);
+  return levels.some(
+    ({ holder, band, axes }) =>
+      holder &&
+      ((axes.x && short(band, "left", "right")) ||
+        (axes.y && short(band, "top", "bottom"))),
+  );
 }
 
 // A set of paint boxes, each over a target and standing in the frames that cut it

@@ -401,12 +401,13 @@ html[data-lf-region-capture] main * {
           calc(-1 * var(--lf-mark-room)) calc(100% + var(--lf-mark-room) - 8px)
       );
     }
-    /* A clip that leaves no room outside the target (visual-mark-paint.js) takes the
-       perimeter just inside its edge, as a control packed into a list does (theme.css). */
+    /* A control's marks stand at its ring's gap. A clip that leaves no room outside
+       the target (target-paint-geometry.js, `standOver`) puts them just inside its
+       edge, as a control packed into a list insets its own ring (theme.css). */
     &[data-lf-mark-on="control"] {
       --lf-mark-offset: var(--focus-ring-gap);
     }
-    &.lf-visual-mark-inset {
+    &[data-lf-mark-on="inset"] {
       --lf-mark-offset: calc(-1 * var(--focus-ring-w));
     }
     &.lf-visual-mark-focus::after {

@@ -3160,13 +3160,11 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     surface.click(position={"x": 20, "y": 20})
     expect(mark).to_be_visible()
     host_box = host.bounding_box()
-    # Contours retain one stroke beyond a clip; the wider shadow
-    # surface must still be cut at that boundary, for both references and aim.
-    stroke = mark.evaluate(
-        "node => parseFloat(getComputedStyle(node).getPropertyValue('--focus-ring-w'))"
-    )
-    right = host_box["x"] + host_box["width"] + stroke
-    assert surface.bounding_box()["width"] > host_box["width"] + stroke
+    # The host cuts the wider shadow surface, so its marks stop exactly at that
+    # boundary, for both references and aim: a band on an edge the clip already cuts
+    # would stand over whatever lies past it.
+    right = host_box["x"] + host_box["width"]
+    assert surface.bounding_box()["width"] > host_box["width"] + 10
     shown = page.evaluate(SHOWN_PAINT, ".lf-visual-mark")
     assert shown["left"] >= host_box["x"]
     assert shown["right"] == pytest.approx(right)
@@ -3604,7 +3602,9 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
             assert reading["rect"][edge] == pytest.approx(
                 reading["source"][edge], abs=0.5
             ), reading
-            outside = -reach if edge in ("left", "top") else reach
+            # An edge the scrollport cuts keeps no band past the cut.
+            cut = abs(reading["shown"][edge] - reading["source"][edge]) > 0.5
+            outside = 0 if cut else -reach if edge in ("left", "top") else reach
             assert reading["painted"][edge] == pytest.approx(
                 reading["shown"][edge] + outside, abs=0.5
             ), reading

@@ -11,7 +11,6 @@ import { cancelRender, nextRender } from "../rendering.js";
 import { el } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { inChrome } from "../passages.js";
-import { PRESSES } from "../control-selectors.js";
 import {
   SVG_NS,
   dropStand,
@@ -30,36 +29,6 @@ const STATE_CLASSES = {
   focus: "lf-visual-mark-focus",
   here: "lf-visual-mark-here",
 };
-const INSET = "lf-visual-mark-inset";
-
-// What the contour takes outside `element`: the band and the gap its box stands at
-// (theme.css, "Where it stands").
-function ringRoom(element) {
-  const root = getComputedStyle(document.documentElement);
-  const gap = element.matches(PRESSES) ? "--focus-ring-gap" : "--focus-region-gap";
-  return ["--focus-ring-w", gap]
-    .map((token) => parseFloat(root.getPropertyValue(token)))
-    .reduce((sum, px) => sum + px, 0);
-}
-
-// The contour's brackets stand flush outside their target (chrome.css). Where a box that
-// clips the target, as a joined lf-options frame clips its cells, shows the target's edge
-// but not the band beyond it, they stand just inside the edge instead, as a control
-// packed into a list insets its own ring (theme.css). Outside, the clip cut away their
-// sides and left stubs across the neighbours. An edge the clip already cuts, as on a
-// target scrolled partly out of its scroller, asks for no room.
-function cramped({ rect, levels }, room) {
-  const short = (band, low, high) =>
-    (rect[low] >= band[low] && rect[low] - room < band[low]) ||
-    (rect[high] <= band[high] && rect[high] + room > band[high]);
-  return levels.some(
-    ({ holder, band, axes }) =>
-      holder &&
-      ((axes.x && short(band, "left", "right")) ||
-        (axes.y && short(band, "top", "bottom"))),
-  );
-}
-
 export function createVisualMarkPaint() {
   const layer = el("div", "lf-ui lf-visual-marks");
   layer.setAttribute("aria-hidden", "true");
@@ -114,10 +83,6 @@ export function createVisualMarkPaint() {
       element.classList.toggle(PROJECTED, true);
       keeps(overlay, "data-for", element.id || null);
       overlay.classList.toggle("lf-shaped", Boolean(geometry));
-      overlay.classList.toggle(
-        INSET,
-        !geometry && cramped(placed, ringRoom(target.surface)),
-      );
       if (
         rebuildGeometry ||
         record.geometry !== geometry ||

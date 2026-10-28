@@ -401,9 +401,19 @@ def test_export_selects_one_lit_implementation_from_the_initial_document(
     assert '"leaf:/vendor/lit.js"' in widget
 
 
+# A name the page serves under media/ (`schema.MEDIA_DIGEST`), so either prefix
+# captures it; the last reference spells its first letter as an escape.
+IMAGE = "abcdef0123456789.svg"
+
+
 @pytest.mark.parametrize("prefix", ["page", "media"])
 @pytest.mark.parametrize(
-    "reference", [" {prefix}/image.svg ", r"{prefix}\image.svg", "{prefix}/im%61ge.svg"]
+    "reference",
+    [
+        " {prefix}/abcdef0123456789.svg ",
+        r"{prefix}\abcdef0123456789.svg",
+        "{prefix}/%61bcdef0123456789.svg",
+    ],
 )
 def test_document_resources_capture_the_paths_delivery_rewrites(
     tmp_path, prefix, reference
@@ -414,18 +424,16 @@ def test_document_resources_capture_the_paths_delivery_rewrites(
 
     (tmp_path / "leaf.js").write_text("export {};")
     (tmp_path / prefix).mkdir()
-    (tmp_path / prefix / "image.svg").write_text(
-        '<svg xmlns="http://www.w3.org/2000/svg"/>'
-    )
+    (tmp_path / prefix / IMAGE).write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
     source = f'<img src="{reference.format(prefix=prefix)}">'
     document = SourceDocument(source)
     artifact = capture_artifact(tmp_path, document, {})
-    assert f"/{prefix}/image.svg" in artifact.resources
+    assert f"/{prefix}/{IMAGE}" in artifact.resources
     if prefix == "media":
-        assert document.authoring.media_refs == {"/media/image.svg"}
+        assert document.authoring.media_refs == {f"/media/{IMAGE}"}
     delivered = rebase_document(source, DeliveryAddress("/root", "/revision"))
     expected = (
-        "/root/media/image.svg" if prefix == "media" else "/revision/page/image.svg"
+        f"/root/media/{IMAGE}" if prefix == "media" else f"/revision/page/{IMAGE}"
     )
     assert expected in delivered
 

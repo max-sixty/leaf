@@ -513,96 +513,94 @@ _CLAUSES = {
         "additionalProperties": False,
     },
 }
-# The shape of the shared layer facts a complete vocabulary carries, each read
-# directly by its consumers: a string `$tones.names` would answer the tone check's
-# membership test by substring, and a token without a `glyph` paints nothing. What
-# names another fact, or needs more than a shape (a clause's `when` and a contract's
-# `schema` are JSON Schemas, `resources` are JMESPath), `registry.layer` checks.
-LAYER_FACTS_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "$events": {
-            "type": "object",
-            "properties": {
-                "kinds": {"type": "object"},
-                "handling": {"type": "object", "additionalProperties": _CLAUSES},
-                "answering": {"type": "object", "additionalProperties": _CLAUSES},
-            },
-            "required": ["kinds", "handling", "answering"],
+# The shape of each shared layer fact a complete vocabulary carries, every one
+# required and each held to its schema on its own (`registry.layer.check_layer_facts`).
+# Its consumers read each directly: a string `$tones.names` would answer the tone
+# check's membership test by substring, and a token without a `glyph` paints nothing.
+# What names another fact, or needs more than a shape (a clause's `when` and a
+# contract's `schema` are JSON Schemas, `resources` are JMESPath), `registry.layer`
+# checks.
+LAYER_FACTS = {
+    "$events": {
+        "type": "object",
+        "properties": {
+            "kinds": {"type": "object"},
+            "handling": {"type": "object", "additionalProperties": _CLAUSES},
+            "answering": {"type": "object", "additionalProperties": _CLAUSES},
         },
-        "$languages": {
-            "type": "object",
-            "properties": {
-                "names": _UNIQUE_NAMES,
-                "paths": {"type": "object", "additionalProperties": {"type": "string"}},
-            },
-            "required": ["names", "paths"],
+        "required": ["kinds", "handling", "answering"],
+    },
+    "$languages": {
+        "type": "object",
+        "properties": {
+            "names": _UNIQUE_NAMES,
+            "paths": {"type": "object", "additionalProperties": {"type": "string"}},
         },
-        "$tones": {
-            "type": "object",
-            "properties": {"names": _UNIQUE_NAMES},
-            "required": ["names"],
-        },
-        "$data": {
-            "type": "object",
-            "properties": {
-                "description": _NONEMPTY,
-                "contracts": {
+        "required": ["names", "paths"],
+    },
+    "$tones": {
+        "type": "object",
+        "properties": {"names": _UNIQUE_NAMES},
+        "required": ["names"],
+    },
+    "$data": {
+        "type": "object",
+        "properties": {
+            "description": _NONEMPTY,
+            "contracts": {
+                "type": "object",
+                "propertyNames": {"pattern": f"^(?:{DATA_CONTRACT_NAME})$"},
+                "additionalProperties": {
                     "type": "object",
-                    "propertyNames": {"pattern": f"^(?:{DATA_CONTRACT_NAME})$"},
-                    "additionalProperties": {
-                        "type": "object",
-                        "properties": {
-                            "description": _NONEMPTY,
-                            "schema": {"type": "object"},
-                            "instructions": INSTRUCTIONS_SCHEMA,
-                            # Null reads as absent (`data.deferred_records`).
-                            "records": {
-                                "type": ["object", "null"],
-                                "properties": {
-                                    "items": _NONEMPTY,
-                                    "key": _NONEMPTY,
-                                    "deferred": _NONEMPTY,
-                                },
-                                "required": ["items", "key"],
-                                "additionalProperties": False,
+                    "properties": {
+                        "description": _NONEMPTY,
+                        "schema": {"type": "object"},
+                        "instructions": INSTRUCTIONS_SCHEMA,
+                        # Null reads as absent (`data.deferred_records`).
+                        "records": {
+                            "type": ["object", "null"],
+                            "properties": {
+                                "items": _NONEMPTY,
+                                "key": _NONEMPTY,
+                                "deferred": _NONEMPTY,
                             },
-                            "resources": {"type": "array", "items": _NONEMPTY},
+                            "required": ["items", "key"],
+                            "additionalProperties": False,
                         },
-                        "required": ["description", "schema"],
-                        "additionalProperties": False,
+                        "resources": {"type": "array", "items": _NONEMPTY},
                     },
+                    "required": ["description", "schema"],
+                    "additionalProperties": False,
                 },
             },
-            "required": ["description", "contracts"],
-            "additionalProperties": False,
         },
-        "$reactions": {
-            "type": "object",
-            "properties": {
-                "tokens": {
-                    "type": "object",
-                    "propertyNames": {"pattern": f"^(?:{HTML_NAME})$"},
-                    "additionalProperties": {
-                        "type": "object",
-                        # A glyph is a mark: at most four code points.
-                        "properties": {
-                            "glyph": {
-                                "type": "string",
-                                "pattern": r"\S",
-                                "maxLength": 4,
-                            },
-                            "settles": {"type": "boolean"},
-                        },
-                        "required": ["glyph"],
-                        "additionalProperties": False,
-                    },
-                }
-            },
-            "required": ["tokens"],
-        },
+        "required": ["description", "contracts"],
+        "additionalProperties": False,
     },
-    "required": ["$events", "$languages", "$tones", "$data", "$reactions"],
+    "$reactions": {
+        "type": "object",
+        "properties": {
+            "tokens": {
+                "type": "object",
+                "propertyNames": {"pattern": f"^(?:{HTML_NAME})$"},
+                "additionalProperties": {
+                    "type": "object",
+                    # A glyph is a mark: at most four code points.
+                    "properties": {
+                        "glyph": {
+                            "type": "string",
+                            "pattern": r"\S",
+                            "maxLength": 4,
+                        },
+                        "settles": {"type": "boolean"},
+                    },
+                    "required": ["glyph"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["tokens"],
+    },
 }
 # The keys whose value names attributes of the widget's own schema, in whichever shape
 # each carries the names: a list, a mapping keyed by them, or one name. One rule for all

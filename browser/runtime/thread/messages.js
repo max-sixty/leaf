@@ -14,7 +14,7 @@
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
 import { html, keyed, render, nothing } from "/runtime/framework.js";
-import { generatedElement, offered } from "../widget-elements.js";
+import { generatedElement, offeredAction } from "../widget-elements.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -56,7 +56,6 @@ import { addressableWord, sectionLabel } from "../addressable-names.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { importWidgets, rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
-import { actionTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
 import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
@@ -529,14 +528,12 @@ export class MessageView {
     const rewrite =
       model.editable && !editing
         ? html`<button
-            ${offered("lf-msg-control lf-msg-edit")}
+            ${offeredAction("symbol", "lf-msg-control lf-msg-edit", "Edit message", {
+              action: "edit",
+            })}
             tabindex="-1"
-            aria-label="Edit message"
-            title="Edit message"
             @click=${() => this.openEdit()}
-          >
-            ${actionTemplate("edit", "lf-msg-control-icon")}
-          </button>`
+          ></button>`
         : nothing;
     render(
       html`
@@ -630,6 +627,7 @@ export class MessageView {
   #copyControl(markdown) {
     if (!this.#copy) {
       this.#copy = copyControl("lf-msg-control lf-msg-copy", {
+        role: "symbol",
         label: "Copy as Markdown",
         success: "Message copied as Markdown",
         error: "Message not copied · select its words to copy",

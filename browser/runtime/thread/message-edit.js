@@ -97,7 +97,6 @@ import {
 import { TEXT_FIELD } from "../control-selectors.js";
 import { caretAtKey, focusDestination } from "../focus.js";
 import { seenRect } from "../geometry.js";
-import { actionElement } from "../icons.js";
 import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
@@ -105,7 +104,7 @@ import { announce, notice } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
-import { offer } from "../widget-elements.js";
+import { offer, offerAction } from "../widget-elements.js";
 import { raiseError } from "../errors.js";
 import { signal } from "/runtime/framework.js";
 
@@ -358,11 +357,15 @@ export class MessageEditor {
     this.input = offer(TEXT_FIELD);
     this.input.name = "edit";
     const actions = offer("span", "lf-msg-edit-actions");
-    const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
+    const cancel = offerAction(
+      "symbol",
+      "lf-msg-control lf-msg-edit-cancel",
+      undefined,
+      {
+        action: "discard",
+      },
+    );
     cancel.type = "button";
-    cancel.setAttribute("aria-label", "Discard");
-    cancel.title = "Discard";
-    cancel.append(actionElement("discard", "lf-msg-control-icon"));
     actions.append(cancel);
     // The box's last line, where the caret stands on opening: the field's own lines are
     // in a closed tree, so a mark of no size after it is what a reveal can aim at.

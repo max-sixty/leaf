@@ -579,12 +579,12 @@ summary {
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;
-  /* A message's control: the head keeps its room (controls.css), and so does the
-     thread's own controls' row beside a first message (below). An open rewrite's
-     Discard and Save stand in that room, covering the head's labels beyond it
-     (response.css), but never a notice of news, a press of its own, which the head
-     keeps clear of the pair's whole width. */
-  --lf-msg-control-size: 26px;
+  /* A message's control, a symbol as tall as the thread's own: the head keeps its
+     room (controls.css), and so does the thread's own controls' row beside a first
+     message (below). An open rewrite's Discard and Save stand in that room, covering
+     the head's labels beyond it (response.css), but never a notice of news, a press of
+     its own, which the head keeps clear of the pair's whole width. */
+  --lf-msg-control-size: var(--lf-icon-action-face);
   --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
   --lf-msg-edit-gap: 4px;
   /* A message's Copy beside its own control. */

@@ -285,7 +285,7 @@ const { offerAction, offerActionElement } = actionOffers({
   offerActionElement: (...args) =>
     document.documentElement.lfInitial.offerActionElement(...args),
 });
-export { offerAction };
+export { offerAction, offerActionElement };
 export const offeredAction = elementDirective("offeredAction", offerActionElement);
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a

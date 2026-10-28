@@ -38,6 +38,7 @@
    door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
    opens it from where the user was before pressing it, and Escape returns to the row's
    door. */
+import { setScroll } from "../arrivals.js";
 import {
   showNativeLayer,
   closeNativeLayer,
@@ -903,7 +904,7 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
     // Native editing and scrolling values begin fresh and remain untouched by local Lit
     // renders.
     search.value = "";
-    results.scrollTo({ top: 0, behavior: "instant" });
+    setScroll(results, { top: 0, behavior: "instant" });
     stopReferenceReading = registerReadingRegion({
       id: "lf-region:command-reference",
       host: commandReferenceDialog,

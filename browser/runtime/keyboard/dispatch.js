@@ -102,7 +102,7 @@ import {
 } from "./register.js";
 import { EVERYTHING, nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import { takesLetters, focused, recoveredLabelFocus } from "../focus.js";
-import { scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
+import { runLanding, scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
 import { composedParentNode, renderedUnder, excludedByInert } from "../shadow.js";
 
@@ -268,9 +268,10 @@ export function stack(binding = null) {
 }
 // The ownership of every scope nearer the user than this one, accumulated as either
 // walk steps outward. An element scope owns both its broad native claims and every exact
-// binding for which it implements a Leaf invocation. Presentation-only rows have no `run`:
-// they name a native press or reword an outer core handler, so they do not shadow that
-// handler. Add ownership after examining the scope itself: declarations in one scope may
+// binding for which it implements a Leaf invocation: a `run`, a routed command, or a
+// `control` it or one of its routes names, which Leaf presses with `click()`.
+// Presentation-only rows have neither a `run` nor a control: they name a native press or
+// reword an outer core handler, so they do not shadow that handler. Add ownership after examining the scope itself: declarations in one scope may
 // be mutually exclusive, while every implemented ordinary binding keeps the same outer
 // meaning from appearing or firing when its local command is temporarily unavailable.
 // Escape is the semantic unwind, so a dead declaration cannot reserve it and strand the
@@ -290,7 +291,9 @@ export function stack(binding = null) {
 // binding that activation took owns nothing further out: a link's Follow still names the
 // press under a container's Enter.
 const ownsLeafInvocation = (row) =>
-  Boolean(row.run) || commandRoutes(row).some((route) => routedCommand(route));
+  Boolean(row.run) ||
+  [row, ...commandRoutes(row)].some((part) => part.control != null) ||
+  commandRoutes(row).some((route) => routedCommand(route));
 const runsElsewhere = (row, scope, control) => {
   if (!scope.contextual && scopeRoot(scope) === control) return false;
   const controls = [row, ...commandRoutes(row)].map((part) => word(part.control));
@@ -330,6 +333,9 @@ const shadow = (quick = quickShortcuts()) => {
 // scope liveness, row liveness, and dynamic routes have the same meaning as they do for
 // an intrinsic key press. The source scope need not be where focus stands: that is the
 // point of an ancestor projection such as an obligation.
+// The press comes from where the user stands as the invocation runs.
+const landing = (row, run) => () => runLanding(row, run, focused());
+
 function referencedInvocation(reference) {
   if (!reference) return null;
   const current = referencedCommandEntry(reference);
@@ -347,7 +353,7 @@ function referencedInvocation(reference) {
         row: reference.row,
         entry: current,
         binding: reference.binding ?? undefined,
-        run,
+        run: landing(reference.row, run),
         native: false,
       }
     : null;
@@ -371,7 +377,7 @@ function invocationFor(row, binding, command, recovered = null) {
         row,
         entry: current,
         binding,
-        run,
+        run: landing(row, run),
         native: Boolean(row.native),
       }
     : null;

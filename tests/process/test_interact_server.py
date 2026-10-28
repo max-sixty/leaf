@@ -307,8 +307,9 @@ def test_a_staged_write_does_not_move_the_page_reading(page_dir):
     assert served_reading.page_reading(page_dir) == reading
 
 
+@pytest.mark.parametrize("generated", [False, True])
 def test_samples_use_captured_resources_and_independent_event_logs(
-    server, page_dir, monkeypatch
+    server, page_dir, monkeypatch, generated
 ):
     template = '<template id="practice" data-sample><h1>Practice</h1><p id="child-copy">Child text.</p><img src="/page/pixel.png" alt="A pixel"><script type="module" src="/page/sample.js"></script></template>'
     (page_dir / "page").mkdir(exist_ok=True)
@@ -332,7 +333,15 @@ def test_samples_use_captured_resources_and_independent_event_logs(
     (page_dir / "page/sample.js").write_text('throw Error("mutable code");')
     status, raw = fetch(
         f"{server}/api/samples",
-        data=json.dumps({"template": "practice"}).encode(),
+        data=json.dumps(
+            {
+                "source": '<!doctype html><html lang="en"><head><title>Generated practice</title></head>'
+                '<body><main><h1>Practice</h1><p id="child-copy">Child text.</p>'
+                '<script type="module" src="/page/sample.js"></script></main></body></html>'
+            }
+            if generated
+            else {"template": "practice"}
+        ).encode(),
         layer=generation,
         headers={"Leaf-View-Revision": "1"},
     )
@@ -388,6 +397,20 @@ def test_samples_use_captured_resources_and_independent_event_logs(
     _, raw = fetch(child + "/api/state")
     assert len(json.loads(raw)["events"]) == 1
     assert event_model.read_events(page_dir) == parent_before
+    if generated:
+        # Invalid new output cannot replace an already working child, and receives
+        # the ordinary authored-source validation result.
+        status, answer = fetch(
+            f"{server}/api/samples",
+            layer=generation,
+            headers={"Leaf-View-Revision": "1"},
+            data=json.dumps(
+                {"source": '<main><lf-unknown id="bad"></lf-unknown></main>'}
+            ).encode(),
+        )
+        assert status == 400, answer
+        assert "invalid sample" in json.loads(answer)["error"]
+        assert fetch(child + "/api/state")[0] == 200
 
     status, answer = fetch(
         child + "/api/event",
@@ -439,10 +462,10 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
     release = threading.Event()
     original = samples_model.Samples.create
 
-    def held_allocation(self, *args):
+    def held_allocation(self, *args, **kwargs):
         allocating.wait(timeout=STATED_TIMEOUT)
         assert release.wait(STATED_TIMEOUT)
-        return original(self, *args)
+        return original(self, *args, **kwargs)
 
     monkeypatch.setattr(samples_model.Samples, "create", held_allocation)
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -1612,7 +1635,7 @@ def test_state_validation_follows_css_edits_and_recovers_cached_readings(
     assert json.loads(body)["state"]["events"][-1]["text"] == comment["text"]
     assert len(parsed) == parsed_count, "a new event reparsed unchanged CSS"
 
-    path.write_text(source.replace("--probe-width: 700px", "--probe-width  700px"))
+    path.write_text(source.replace("--probe-width: 700px", "--probe-width: 700px ]"))
     assert (
         "page <style> (line 5) syntax error"
         in json.loads(fetch(f"{server}/api/state")[1])["source_error"]
@@ -3889,6 +3912,57 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     ] == []
 
 
+def test_page_check_releases_the_page_while_its_frozen_browser_runs(
+    page_dir, monkeypatch
+):
+    """A slow read-only check neither blocks writers nor incorporates their changes."""
+    from leaf import thread as thread_model
+    from leaf.render_gate import command as browser_command
+    from leaf.render_gate.version import RenderReading
+    from leaf.validation.command import cmd_check
+
+    started, release = threading.Event(), threading.Event()
+
+    def held_browser(browser, url, **kwargs):
+        state_url = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
+        status, before = fetch(state_url, token=None)
+        assert status == 200
+        started.set()
+        assert release.wait(COMPOSITE_TIMEOUT)
+        assert fetch(state_url, token=None) == (200, before)
+        return RenderReading([], [], [])
+
+    monkeypatch.setattr(
+        browser_command, "run_in_browser", lambda read: (read(None), "held browser")
+    )
+    monkeypatch.setattr(browser_command, "run_page_code", lambda *args: [])
+    monkeypatch.setattr(browser_command, "render_version", held_browser)
+    monkeypatch.setattr(browser_command, "save_screens", lambda *args: None)
+    with ThreadPoolExecutor(2) as pool:
+        checking = pool.submit(cmd_check, page_dir, render=True)
+        try:
+            wait_for(
+                lambda: started.is_set() or checking.done(),
+                bool,
+                failure="Check did not reach browser",
+            )
+            assert started.is_set(), checking.result()
+            updating = pool.submit(
+                thread_model.cmd_comment,
+                page_dir,
+                "",
+                "",
+                "",
+                "Arrived during the check",
+                "",
+            )
+            updating.result(STATED_TIMEOUT)
+            assert not checking.done()
+        finally:
+            release.set()
+        assert checking.result()["status"] == 0
+
+
 def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     """A browser check cannot combine state written after its candidate was frozen."""
     now = datetime.now().astimezone().replace(microsecond=0)
@@ -4259,6 +4333,71 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     )
     assert set(revised.data_resources) == {urls[0]}
     assert revised.data_resources[urls[0]].data == first.read_bytes()
+
+
+def test_a_frozen_preview_keeps_package_bytes_and_addresses_after_reinit(tmp_path):
+    package = tmp_path / "custom"
+    package.mkdir()
+    sheet = package / "widgets.css"
+    sheet.write_text("p { color: red; }")
+    page = tmp_path / "page"
+    page.mkdir()
+    vendoring_model.start_throwaway_page(page, package)
+    document = structure_model.SourceDocument(
+        "<!doctype html><html><head><title>Frozen</title></head>"
+        '<body><main><p>Frozen</p><template id="practice" data-sample>'
+        "<h1>Frozen child</h1><p>Words</p></template></main></body></html>"
+    )
+    original = artifact_model.capture_artifact(
+        page, document, registry_storage.load_registry(page)
+    )
+    snapshot = page_snapshot_model.capture_page_snapshot(
+        page, document, 1, url="/", artifact=original, process=False
+    )
+    identity = execution_identity(original)
+    frozen_sheet = executing(original).resources["/theme.css"].data
+
+    # Replace the copied package before the preview's first request. Its live
+    # reader moves on; the frozen check still loads exactly what it captured.
+    sheet.write_text("p { color: blue; }")
+    vendoring_model.start_throwaway_page(page, package)
+    assert execution_identity(original) != identity
+    assert executing(original).resources["/theme.css"].data != frozen_sheet
+    with hosting_model.TemporaryPageServer(
+        page, token=TOKEN, page_options={"page_snapshot": snapshot}
+    ) as preview:
+        root = (
+            "/revisions/"
+            + snapshot.revision_names[1].removesuffix(".html")
+            + f"/{identity}"
+        )
+        status, document = fetch(preview.origin + "/")
+        assert status == 200
+        assert (root + "/theme.css").encode() in document
+        assert fetch(preview.origin + root + "/theme.css") == (200, frozen_sheet)
+        status, registry = fetch(preview.origin + root + "/registry.json")
+        assert status == 200
+        assert json.loads(registry) == snapshot.context.registry
+
+        status, raw = fetch(
+            preview.origin + "/api/samples",
+            data=b'{"template":"practice"}',
+            layer=snapshot.context.layer["generation"],
+        )
+        assert status == 200, raw
+        child = preview.origin + json.loads(raw)["url"]
+        status, body = fetch(child)
+        assert status == 200
+        tree = structure_model.SourceDocument(body.decode()).tree
+        assets = (
+            tree.find("script", attrs={"data-lf-entry": True})
+            .attrs["data-lf-entry"]
+            .removesuffix("leaf.js")
+        )
+        assert fetch(preview.origin + assets + "theme.css", token=None) == (
+            200,
+            frozen_sheet,
+        )
 
 
 def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):

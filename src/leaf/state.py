@@ -29,7 +29,7 @@ import stat
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 # Installation paths start at the plugin, independent of its instruction skills.
@@ -91,8 +91,27 @@ def hold_mode(path: Path, mode: int) -> None:
 HOOKS_SUFFIX = "hooks"
 # The tool calls its hooks last ran before (`leases.first_hook_for_tool`).
 TOOLS_SUFFIX = "tools"
+# When its tool boundaries last checked its pages' status lines
+# (`hook_transport.status_reminders`), by the file's mtime.
+STATUS_CHECKED_SUFFIX = "status-checked"
+# How long the status line may stand unrenewed while the agent works before a tool
+# boundary reminds it, and how often a tool boundary checks.
+STATUS_RENEWAL = timedelta(minutes=2)
 # Its lifecycle outlives its instance while a claim reads it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
+
+
+def status_check_due(session_id: str) -> bool:
+    """Whether a tool boundary of the session checks its pages' status lines now
+    (`hook_transport.status_reminders`): at most once each `STATUS_RENEWAL`, by the
+    `status-checked` mark, so a tool hook that runs after every call reads the pages
+    only that often. Here rather than beside the check, so a hook with nothing due
+    imports no page model."""
+    try:
+        checked = session_file(session_id, STATUS_CHECKED_SUFFIX).stat().st_mtime
+    except FileNotFoundError:
+        return True
+    return time.time() - checked >= STATUS_RENEWAL.total_seconds()
 
 
 def sessions_home() -> Path:
@@ -845,6 +864,16 @@ def drop_locator(session_id: str, name: str) -> None:
         partition.rmdir()
 
 
+def worker_tool_batch(harness: str, payload: dict) -> bool:
+    """A Claude Code worker's batch names its parent's session but receives none
+    of that session's input. Both the standalone gate and the full hook skip it."""
+    return (
+        harness == "claude-code"
+        and payload.get("hook_event_name") == "PostToolBatch"
+        and bool(payload.get("agent_id"))
+    )
+
+
 def main() -> None:
     payload = json.load(sys.stdin)
     if payload.get("hook_event_name") == "SessionEnd":
@@ -856,7 +885,9 @@ if __name__ == "__main__":
     # with -S, so no site packages load. A hook it skips takes about 25 ms in
     # place of about 70 for starting the package (measured on macOS). Only status
     # 3 skips the hook; any failure runs it whole.
-    if sys.argv[1:] == ["hook-gate"]:
+    if len(sys.argv) == 3 and sys.argv[1] == "hook-gate":
         payload = json.load(sys.stdin)
+        if worker_tool_batch(sys.argv[2], payload):
+            sys.exit(3)
         sys.exit(0 if held_claims(payload.get("session_id") or "") else 3)
     main()

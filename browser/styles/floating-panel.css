@@ -333,15 +333,19 @@
   /* More room for a long draft (floating-panel.js, `expand`): past three lines the
      mark stands over the leaf, beside the field's first line, or at the end of an open
      view's head, so it takes no room the panel had not already given it. Pressed, the
-     panel widens to 1100px, where the window holds it (`--lf-fp-width`), and the field
-     stands at least six lines tall, so the wider lines don't leave it shorter than the
-     draft that brought the mark, and grows with the words up to three quarters of the
-     window, or half while a view stands above it, whose messages keep the rest. The
-     user asked on 25 October for much more than the 760px it widened to before; the
-     window's whole width ran lines past 200 characters and left a long draft fewer,
-     longer lines in a shorter box. The field first stood half the window tall however
-     little it held, which on 27 October the user found left a thread's message above
-     it too little room.
+     field stands at least six lines tall and grows with the words up to three quarters
+     of the window, or half while a view stands above it, whose messages keep the rest.
+     The panel widens to 61 of the field's ems, where the window holds it
+     (`--lf-fp-width`): a line of about 120 characters beside the leaf and Send, against
+     73 at rest. The measure is in the field's em rather than `ch`, the width of a 0,
+     since the system sans sets a 0 a third wider than its average letter, so 120ch held
+     157 characters; in ems it follows the face, as under a finger, where it grows. The
+     user found 760px, before the field grew tall, barely more room (25 October), then
+     the 1100px that replaced it, 157 characters a line, too wide to write in, and a
+     writing measure's 88 stingy beside the 73 at rest (28 October); the window's whole
+     width ran past 200.
+     The field first stood half the window tall however little it held, which on 27
+     October the user found left a thread's message above it too little room.
      The mark stands in its corner whether or not it shows, and fades in and out on the
      tween of the line that brings or takes it, as the fold's corner mark fades
      (`.lf-fp-minimize`), so the box's motion carries it with the corner it rides
@@ -360,7 +364,7 @@
     transition: opacity var(--lf-motion-box-resize);
   }
   .lf-floating-panel[data-expanded] {
-    --lf-fp-max: 1100px;
+    --lf-fp-max: calc(61 * var(--msg-size));
   }
   .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
     min-height: calc(6lh + var(--lf-line) - 1lh);

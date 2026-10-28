@@ -7,7 +7,7 @@
    No renderer folds events or owns a second target inventory. The Thread coordinator
    refreshes after current widget claims and required conversation commits. Mechanical
    paints and immediate contribution updates refresh this same directory. */
-import { replyAvailable } from "./thread/replies.js";
+import { replyIsEditing } from "./thread/replies.js";
 import { KINDS } from "./contribution-model.js";
 import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
@@ -254,9 +254,11 @@ export function createAnnotationInventory({
   let entries = Object.freeze([]);
   const watchers = new Set();
 
-  // Saved words and an editing session are distinct: only an active session keeps a
-  // settled reply open. A widget-held conversation retains its existing notice.
-  const threadHasDiscussion = (thread) => replyAvailable(thread) || heldOut(thread.id);
+  // A resolved thread leaves the margin, unless a reply is being written in it: saved
+  // words and an editing session are distinct, and only an active session keeps it. A
+  // widget-held conversation retains its existing notice.
+  const threadHasDiscussion = (thread) =>
+    !thread.resolved || replyIsEditing(threadKey(thread)) || heldOut(thread.id);
 
   // A command's subject does not depend on whether an overlay or exact widget seat
   // has realized its discussion. Attachment place and pointed row share the same

@@ -19,9 +19,10 @@
  *   answering a gesture show immediately.
  * - **The row**: the leaf, the comment field, and at its end one seat: the On me mark,
  *   counting what waits on the user, with a dot while a thread holds a reply they have
- *   not read; or, while a view or a stance stands, the ✕ that closes it, so the press
- *   that opened a view closes it from the same place and the seat never stands empty.
- *   The user chose this on 25 October over a Threads mark beside On me and a seat kept
+ *   not read; or, while a stance or a view with no controls stands, the ✕ that closes
+ *   it, so the press that opened it closes it from the same place and the seat never
+ *   stands empty. A view with controls ends them with its ✕ instead (**Opened**).
+ *   The user chose the one seat on 25 October over a Threads mark beside On me and a seat kept
  *   empty for the ✕, which left a gap at the row's end; Threads became the On view's
  *   tab, since On me already lists a thread message that waits on the user. Rejected:
  *   the ✕ standing before both marks, which kept them still but stood it between the
@@ -68,8 +69,12 @@
  * - **Opened**: a view above the same row (On, whose tabs are On me, On <agent>,
  *   Threads and the plan; a thread; or All pages), what the user reads there, with its
  *   name over it and its controls at its foot, on the row: the way back, its tabs or a
- *   thread's own presses. Close stands in the row's seat; a view with no actions needs
- *   no footer. The panel stands
+ *   thread's own presses, and last its Close, beside Resolve in a thread, so the field
+ *   below runs to the panel's edge and Close stays beside the controls when the field
+ *   widens for a long draft. The user chose this on 28 October over Close in the row's seat under
+ *   the controls, which kept the field 52px narrower at rest and moved Close up
+ *   beside them whenever the field widened. A view with no actions needs no footer,
+ *   and its Close stands in the row's seat. The panel stands
  *   on the window's foot, so a view grows and shrinks from its top edge, and only its
  *   name and what it holds move as it does, while every control at its foot stays
  *   where the user aims at it. So a list fits what each tab, filter or search the user
@@ -397,11 +402,9 @@ export function createFloatingPanel({
       );
     const viewControls = top ? controlsTemplate(top) : nothing;
     const exit = initial ? null : fieldExit(search, top);
-    // A view's Close stands at its controls' end while the field is widened for a long
-    // draft (`expanded`), so the field takes the row's whole width rather than leave the
-    // seat's column empty down its height. The press re-wraps every line anyway, so
-    // the seat moving with it moves nothing the user didn't ask to move.
-    const closeAbove = expanded && exit?.press === close && viewControls !== nothing;
+    // A view's Close ends its controls, so the field takes the row's whole width, at
+    // rest and widened alike, and widening the field leaves Close beside the controls.
+    const closeAbove = exit?.press === close && viewControls !== nothing;
     const quickHidden =
       initial || closeAbove || (search ? !exit : drafted && !seatHeld);
     const notice = initial || search ? null : olderVersion();
@@ -1049,9 +1052,9 @@ export function createFloatingPanel({
   // The panel says what the empty box reads, and a send keeps the user in the field for
   // the next turn, landing the view at its end. A resolved thread keeps its reply box,
   // whose empty field says Resolved before Reply, and a reply reopens the thread, as
-  // the user expected on 27 October. The field once took no words there and said only
-  // Resolved, so writing in a resolved thread took Reopen first; the card's reply
-  // admission (thread/replies.js, `replyAvailable`) still works that way.
+  // the user expected on 27 October and as every thread card does since 28 October.
+  // The field once took no words there and said only Resolved, so writing in a
+  // resolved thread took Reopen first.
   const replyOutlet = el("div", "lf-fp-reply");
   const replyInput = () => replyOutlet.querySelector(`.lf-thread-reply ${TEXT_FIELD}`);
   const replyOptions = new Map();

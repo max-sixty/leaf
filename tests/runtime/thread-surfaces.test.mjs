@@ -12,6 +12,16 @@ import {
 import { readThreadRecords } from "/runtime/thread/model.js";
 import { servedThread } from "../served.mjs";
 
+// Every card draws its reply box; this stands in for the box's input wiring, which
+// composing-input.test.mjs covers.
+const wireInput = () =>
+  Object.assign(() => {}, {
+    value: () => "",
+    button: null,
+    load() {},
+    cancelDictation() {},
+  });
+
 test("a surface widget whose constructor threw is not waited for", async () => {
   // A failed upgrade leaves the element undefined while its definition stands, so a
   // watch that waited for the definition would re-offer the element on every
@@ -62,14 +72,8 @@ test("a paint reading which threads a seat claims follows the commit that change
     seq: 1,
     ts: "2026-03-01T12:00:00Z",
   };
-  // Resolved, so the seat draws no reply box, whose wiring is the panel's business.
   const [thread] = readThreadRecords(
-    [
-      servedThread([root], {
-        anchor: { section: "target" },
-        resolved: { author: "agent", ts: root.ts },
-      }),
-    ],
+    [servedThread([root], { anchor: { section: "target" } })],
     { registry: {}, descriptors: new Map(), messageBodies: new Map() },
     new Map(),
     [],
@@ -92,7 +96,7 @@ test("a paint reading which threads a seat claims follows the commit that change
   const commands = {
     composition,
     read,
-    reply: {},
+    reply: { wireInput },
     reaction: {},
     invalidate() {},
     reveal() {},

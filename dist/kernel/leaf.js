@@ -728,7 +728,7 @@ function createEngagement({ hasPending, fabAnchorAt, targetPickerOpen }) {
 
 //#endregion
 //#region runtime/composing/surface.js
-function createResponseSurface({ rememberSelection, landIn, threadHere, threadAtCurrentLocation, replyThreadAtCurrentLocation, threadTarget, currentTarget, markAt, scrollToElement, scrollToRange, visualActionAnchor, designModeActive, designTarget, openOnDesign, isReactArmed, reactionContextContains, reactionTokens, setReact, openPageThread, drawModeActive, captureActive, refreshThread, dismissThreadView, pageComment, responseHome, revealResponseHome = null, createComment, landSent, wireInput, drawingEdits, createPlacement = null }) {
+function createResponseSurface({ rememberSelection, landIn, threadHere, threadAtCurrentLocation, threadTarget, currentTarget, markAt, scrollToElement, scrollToRange, visualActionAnchor, designModeActive, designTarget, openOnDesign, isReactArmed, reactionContextContains, reactionTokens, setReact, openPageThread, drawModeActive, captureActive, refreshThread, dismissThreadView, pageComment, responseHome, revealResponseHome = null, createComment, landSent, wireInput, drawingEdits, createPlacement = null }) {
 	const hasOtherResponses = (anchor) => reactionTokens().length > 0 || Boolean(anchor?.quote && !designModeActive());
 	const fabAnchor = Z(null);
 	let fabPoint = null;
@@ -1333,7 +1333,6 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		const anchor = fabAnchorAt();
 		const inline = threadHere();
 		const threadId = threadAtCurrentLocation();
-		const replyId = replyThreadAtCurrentLocation();
 		const target = threadId && threadTarget(threadId);
 		const inlineBox = inline && threadInput(inline);
 		const said = currentLocationThread() ?? (inlineBox ? {
@@ -1341,7 +1340,6 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 			box: inlineBox
 		} : null);
 		const subject = threadId && (!here || target && under$1(target, heldObligation() ?? here.element));
-		const replySubject = subject && replyId;
 		if (anchor && (pageSelection() || fabHoldsCapturedPassage() || !said && !subject && (!here || here.element === fabTargetAt()))) return {
 			...commenting(anchor.quote ? "selection" : addressableWord(elementById(anchor.section)) || "element"),
 			box: fabInput,
@@ -1355,7 +1353,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 				landIn(said);
 			}
 		};
-		if (replySubject) return {
+		if (subject) return {
 			...commenting("thread"),
 			box: null,
 			go: async () => {
@@ -4805,7 +4803,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const unseen = !initial && errorsReading().some((error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error));
 		const viewControls = top ? controlsTemplate(top) : nothing;
 		const exit = initial ? null : fieldExit(search, top);
-		const closeAbove = expanded && exit?.press === close && viewControls !== nothing;
+		const closeAbove = exit?.press === close && viewControls !== nothing;
 		const quickHidden = initial || closeAbove || (search ? !exit : drafted && !seatHeld);
 		const notice = initial || search ? null : olderVersion();
 		const peek = initial ? null : peekPresentation();
@@ -10626,7 +10624,6 @@ async function boot() {
 		landIn: landing.landIn,
 		threadHere: () => app.threadDestinations.threadHere(),
 		threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
-		replyThreadAtCurrentLocation: () => app.threadDestinations.replyThreadAtCurrentLocation(),
 		threadTarget: (id) => app.threadDestinations.threadTarget(id),
 		currentTarget,
 		markAt: anchorPaint?.markAt,

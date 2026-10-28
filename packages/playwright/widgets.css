@@ -536,6 +536,9 @@ lf-trace[hidden="until-found"] {
 .lf-trace-bookmark-list {
   max-inline-size: 44rem;
 }
+/* A saved moment is a row (controls.css, `.lf-row`), the moment shown its current
+ * row. The row keeps 2px at its start for the stripe where the word face it wore kept
+ * 1px all round, so the padding gives the difference back and the words stay put. */
 .lf-trace-bookmark {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) auto;
@@ -543,13 +546,7 @@ lf-trace[hidden="until-found"] {
   gap: var(--sp-2);
   inline-size: 100%;
   min-block-size: var(--lf-trace-control-size);
-  padding: var(--sp-2);
-  text-align: start;
-  font: inherit;
-}
-.lf-trace-bookmark[aria-current] {
-  color: var(--accent);
-  background: var(--accent-tint);
+  padding: var(--sp-2) calc(var(--sp-2) + 1px) var(--sp-2) calc(var(--sp-2) - 1px);
 }
 .lf-trace-clock,
 .lf-trace-readout,

@@ -827,6 +827,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     flex-shrink: 1;
     max-inline-size: max(40%, 5em);
   }
+  /* A name left less than an em beside a notice of news shows none of itself
+     (thread-card.js, `#fitMarginNews`): its letters would otherwise run on into the
+     gap its ground spans (below) and stand as a sliver against the time, reading
+     "M51d ago". */
+  .lf-margin-thread .lf-thread-transcript .lf-msg-head > b[data-lf-nameless] {
+    flex-basis: 0;
+    min-inline-size: 0;
+    max-inline-size: 0;
+    color: transparent;
+  }
   /* Only the writer's name and the time stick. The head's annotations (a progress
      disclosure, a delivery receipt, a failure, a suggestion or edited label) belong
      to the message's opening, so they scroll out with its first line while the name

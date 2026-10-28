@@ -351,7 +351,7 @@ function pageReading({ bodies }) {
 }
 const pageReadingBlock = () => pageReading({ bodies: false });
 function landingPlace(from = null) {
-	if (from && !inChrome(from)) {
+	if (from && from !== document.body && !inChrome(from)) {
 		const blocks = textBlocks(from);
 		const own = blocks.length ? blocks : [blockAt(from)].filter(Boolean);
 		const shown = blocksOnScreen(readingRegionFor(from), own).next().value?.[0];
@@ -6601,6 +6601,12 @@ function threadReading(thread, surface, commands) {
 		reread: (held) => threadReading(held, surface, commands)
 	});
 }
+function wordsWidth(node) {
+	if (!node) return 0;
+	const range = document.createRange();
+	range.selectNodeContents(node);
+	return range.getBoundingClientRect().width;
+}
 var ThreadView = class {
 	#commands;
 	#messageCommands;
@@ -6788,17 +6794,32 @@ var ThreadView = class {
 	}
 	#fitMarginNews() {
 		const notice = this.#news.node;
-		let spare = Infinity;
+		const heads = [];
 		for (const head of this.node.querySelectorAll(".lf-thread-transcript .lf-msg-head")) {
 			if (!head.checkVisibility()) continue;
 			const style = getComputedStyle(head);
 			const name = head.querySelector(":scope > b");
 			const time = head.querySelector(":scope > .lf-msg-meta > time");
-			const need = parseFloat(style.paddingInlineStart) + parseFloat(style.paddingInlineEnd) + (name?.scrollWidth ?? 0) + (name && time ? parseFloat(style.columnGap) : 0) + (time?.scrollWidth ?? 0);
-			spare = Math.min(spare, head.getBoundingClientRect().width - need);
+			const need = parseFloat(style.paddingInlineStart) + parseFloat(style.paddingInlineEnd) + wordsWidth(name) + (name && time ? parseFloat(style.columnGap) : 0) + wordsWidth(time);
+			heads.push({
+				name,
+				need,
+				spare: head.getBoundingClientRect().width - need
+			});
 		}
-		if (spare === Infinity || !notice.isConnected) notice.style.removeProperty("--lf-news-room");
-		else notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, notice.getBoundingClientRect().width + spare)));
+		if (!heads.length || !notice.isConnected) {
+			notice.style.removeProperty("--lf-news-room");
+			return;
+		}
+		const width = notice.getBoundingClientRect().width;
+		const spare = Math.min(...heads.map((head) => head.spare));
+		notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, width + spare)));
+		const taken = notice.getBoundingClientRect().width - width;
+		for (const { name, spare } of heads) {
+			if (!name) continue;
+			const shown = wordsWidth(name) + Math.min(0, spare - taken);
+			keeps(name, "data-lf-nameless", shown < parseFloat(getComputedStyle(name).fontSize) ? "" : null);
+		}
 	}
 	#watchMarginNews() {
 		this.#marginNews.disconnect();

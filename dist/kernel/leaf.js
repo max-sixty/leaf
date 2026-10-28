@@ -1,7 +1,7 @@
 import { LAYOUT, PAGE_PAINT_ATTRIBUTE, bindQueuedWork, byRenderedOrder, cancelRender, fragmentId, holdRendering, motionEasing, motionPlays, motionTime, nextFrame, nextRender, observePreparations, observeQueuedWork, pagePresented, pageUpgraded, playMotion, reducedMotion, renderedOrder, renderedUnder, renderingState, scrollBehavior, scrollGlides, scrolling, setScroll, shadowHost, sizeObserver, skipped, tabStore, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
 import { CARET_KEYS, COLLAPSE, J, LitElement, MODIFIER_KEYS, PRESENTATION_DOM, PRESSES, SHARE_ROOT, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, WEBSITE_DELIVERY, WORKS, Z, agentName, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, closeLayer, closeNativeLayer, currentLocationIn, d, decisionFor, declareReading, deepFocus, dismissPopoversOutside, documentChanged, drawn, focusDestination, focusRevision, focused, guard, handBack, holdFocus, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keeps, keepsHidden, keepsText, keyed, layerLanding, layoutPx, letGo, live, marksSheet, move, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, q, readPart, ref, registry, release, releaseFocus, render, repeat, rove, runtime, runtimeResource, sameAnchor, selectsAll, shareUrl, showNativeLayer, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, typesText, watchLayerChanges, whenApplicationPresented, x } from "./runtime/bundle-layer-stack.js";
 import { EVERYTHING, LINK, PRESS, PRESSABLE, actionTemplate, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, namedAction, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
-import { ADDRESSABLE, JUST_NOW, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
+import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
 import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep, workflowVoice } from "./runtime/bundle-data.js";
 import { clamp, clippedContents, coveredShare, declareOccluder, declareWindowChrome, intersect, landingBand, layoutWindow, overlaps, overlapsAcross, placeHolder, presented, seenRect, shownBox, shownParts, shownRect, showsContents, stackLevel, startsAt, underOccluder, union, windowChromeBoxes } from "./runtime/bundle-geometry.js";
@@ -4003,7 +4003,7 @@ const appendWords = (parts, words, step = false) => {
 	const head = textOf(parts);
 	parts.push({ text: after(head, words, step).slice(head.length) });
 };
-function statusWords({ age, dated, detail, detailSource, handling, invite, kind, overdue, saved, waits, work }) {
+function statusWords({ dated, detail, detailSource, handling, invite, kind, overdue, saved, waits, work }) {
 	if (kind === "closed") return [
 		"Done with this page",
 		"Done with this page.",
@@ -4025,7 +4025,7 @@ function statusWords({ age, dated, detail, detailSource, handling, invite, kind,
 		}] : [];
 		const said = waits ? [work, ...detail ? [" — ", ...sentence] : []] : detail ? sentence : [delivered ? `Got ${delivered}` : work];
 		return [
-			[...age && age !== "just now" ? [`${age} · `] : [], ...said],
+			said,
 			said,
 			""
 		];
@@ -4114,7 +4114,6 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	const ended = `Stopped${facts.silentSince ? " " + facts.silentSince : ""}`;
 	const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
 	const [summaryWords, explanationWords, beyond, asked = false, voice = "agent"] = statusWords({
-		age,
 		dated: facts.left ? ended : checkedIn,
 		detail,
 		detailSource: activity.detail_source,
@@ -5845,12 +5844,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			pointedInPanel = event.type === "pointerdown" && inPanel;
 		}
 	});
-	const menuItem = (label, end, press, { urgent = false, disabled = false, role = "menuitem", row = null, opens = false, title = null } = {}) => html`<button
+	const menuItem = (label, end, press, { urgent = false, disabled = false, role = "menuitem", row = null, opens = false, title = null, current = false } = {}) => html`<button
       type="button"
       role=${role ?? nothing}
       data-row=${row ?? nothing}
       title=${title ?? nothing}
-      class="lf-fp-face lf-fp-item"
+      ${offeredAction("row", "lf-fp-face lf-fp-item")}
+      aria-current=${current ? "true" : nothing}
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
       ?data-opens=${opens}
@@ -5913,11 +5913,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       <button
         type="button"
         role="menuitem"
-        class="lf-fp-face lf-fp-item lf-fp-menu-back"
+        ${offeredAction("row", "lf-fp-face lf-fp-menu-back")}
         aria-label=${`Back to the page menu from ${titleOf(menuAt.value)}`}
         @click=${() => showMenuAt(null)}
       >
-        <span class="lf-fp-label">${iconTemplate("next", "lf-fp-chevron")}Menu</span>
+        ${iconTemplate("next", "lf-fp-chevron")}Menu
       </button>
     </div>`;
 	}
@@ -6011,7 +6011,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               <p class="lf-fp-failed-error scroll">${latest.error}</p>
             </div>` : nothing}
       ${repeat(versions, (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`, (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
-            ${menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing, () => showVersion(entry), { title: entry.note })}${entry.comparable ? html`<button
+            ${menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing, () => showVersion(entry), {
+			title: entry.note,
+			current: entry.current
+		})}${entry.comparable ? html`<button
                     type="button"
                     role="menuitem"
                     class="lf-fp-face lf-fp-quiet lf-fp-compare"
@@ -6182,7 +6185,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const resolved = rows.filter(({ section }) => section === "resolved").map(({ thread }) => thread);
 		const row = (thread) => html`<button
         type="button"
-        class="lf-fp-face lf-fp-thread"
+        ${offeredAction("row", "lf-fp-face lf-fp-thread")}
         data-key=${thread.key}
         ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
@@ -6707,7 +6710,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
     >
       <button
         type="button"
-        class="lf-fp-face lf-fp-item lf-fp-on-line"
+        ${offeredAction("row", "lf-fp-face lf-fp-item lf-fp-on-line")}
         aria-expanded=${String(opened)}
         ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
         @click=${() => toggleItem(key)}
@@ -6867,7 +6870,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             ><span class="lf-fp-label">${row.title}</span
             ><span class="lf-fp-value">${row.self ? "This page" : row.line}</span>`;
 			return row.self ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>` : html`<a
-                class="lf-fp-face lf-fp-page"
+                ${offeredAction("row", "lf-fp-face lf-fp-page")}
                 data-key=${row.key}
                 href=${row.href}
                 target="_blank"
@@ -6918,7 +6921,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`<div class="lf-fp-crumb">
         ${parent ? html`<button
                 type="button"
-                class="lf-fp-face lf-fp-back"
+                ${offeredAction("row", "lf-fp-face lf-fp-back")}
                 aria-label=${`Back to ${titleOf(parent)}`}
                 @click=${back}
               >
@@ -7736,7 +7739,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 	const sheetItemTemplate = (action) => html`
     <button
       type="button"
-      class="lf-page-map-action"
+      ${offeredAction("row", "lf-page-map-action")}
       data-lf-map-key=${action.key}
       data-lf-map-item=${action.item.id}
       aria-label=${[action.label, action.context].filter(Boolean).join(", ")}
@@ -7765,7 +7768,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		return html`<button
       id=${action.id}
       type="button"
-      class="lf-page-map-action"
+      ${offeredAction("row", "lf-page-map-action")}
       data-lf-map-key=${action.key}
       data-lf-map-margin-entry=${action.key}
       ${sheetHost(action, actions)}
@@ -9788,7 +9791,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     <div
       id=${entry.rowId}
       role="row"
-      class=${`lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`}
+      ${offeredAction("row", `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`)}
       data-lf-command=${entry.id}
       aria-selected=${entry.actionable ? String(selected) : nothing}
       ?hidden=${!shown}

@@ -1070,11 +1070,10 @@ button.lf-primary-news {
 }
 /* Where even the first fact would be cut, the notice says one count of all that waits,
    "2 new" or "+2" (held-news.js, `newsNotice`), at the words' start. The facts keep
-   their places, unseen, so the accessible name still says every fact and the notice
-   measures what it measured before. The count stands out of the words' flow, so it
-   takes the face's underline itself. */
+   their places, unseen, so the notice measures what it measured before; the title,
+   which says every fact, names the press while they are hidden. */
 .lf-thread-news > span[data-lf-short] > span {
-  color: transparent;
+  visibility: hidden;
 }
 .lf-thread-news > span[data-lf-short]::before {
   content: attr(data-lf-short) / "";
@@ -1087,11 +1086,13 @@ button.lf-primary-news {
 .lf-thread-news > span[data-lf-short]::after {
   content: none;
 }
-@media (hover: hover) {
-  .lf-thread-news:hover > span[data-lf-short]::before {
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
+/* The counts are part of the press, but they stand out of the words' flow, where the
+   face's underline under the pointer (controls.css) doesn't reach, so they inherit
+   it, through the words. */
+.lf-thread-news > span,
+.lf-thread-news > span::before,
+.lf-thread-news > span::after {
+  text-decoration: inherit;
 }
 .lf-seat-news {
   display: flex;

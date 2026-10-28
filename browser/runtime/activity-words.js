@@ -4,7 +4,7 @@
    share changes in one place. Nothing here reads or writes the document; page-status.js
    and live-leaves.js read what these return, the floating panel draws it, and
    `tests/runtime/activity-words.test.mjs` holds each sentence. */
-import { JUST_NOW, ago } from "./presence.js";
+import { ago } from "./presence.js";
 import { itemNoun } from "./queues.js";
 
 /** @type {Record<import("../types/contract.js").ServedActivity["kind"], string>} */
@@ -135,7 +135,6 @@ const appendWords = (parts, words, step = false) => {
 // instruction about the agent such as nudging its terminal (`pageStatus`, `voice`);
 // every other wording is the agent's.
 function statusWords({
-  age,
   dated,
   detail,
   detailSource,
@@ -157,10 +156,12 @@ function statusWords({
     ];
   }
   // While it works, its own sentence is the reason to look at the row, so the row keeps
-  // it and the ellipsis fits it to the room the controls leave. A sentence just renewed
-  // needs no date; an older one is dated ahead of the sentence, because the sentence is
-  // what the ellipsis eats first and a stale sentence with its date cut off is the one
-  // reading this row must not give.
+  // it and the ellipsis fits it to the room the controls leave. The row carries no date:
+  // the agent keeps the sentence current, reminded by its hooks when it goes unrenewed
+  // (`hook_transport.status_reminders`), and a sentence the server stops believing
+  // becomes a stall, which dates itself. The disclosure says how long ago it was
+  // written. A row dated by the sentence's age, rejected on 27 October 2026, read
+  // "3m ago" for most of every turn, while the session was visibly moving.
   //
   // Until the agent writes that sentence, what Leaf knows is which of the user's
   // updates were delivered into its open turn, so the agent acknowledges them ("Got your
@@ -175,7 +176,7 @@ function statusWords({
       : detail
         ? sentence
         : [delivered ? `Got ${delivered}` : work];
-    return [[...(age && age !== JUST_NOW ? [`${age} · `] : []), ...said], said, ""];
+    return [said, said, ""];
   }
   // The stock words say where a comment starts; they report and ask nothing. An
   // update still on its way says so on its own label and in the explanation's count,
@@ -299,7 +300,6 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
   const [summaryWords, explanationWords, beyond, asked = false, voice = "agent"] =
     statusWords({
-      age,
       dated: facts.left ? ended : checkedIn,
       detail,
       detailSource: activity.detail_source,

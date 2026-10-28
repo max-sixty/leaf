@@ -300,6 +300,16 @@ export function threadReading(thread, surface, commands) {
   });
 }
 
+// The width `node`'s words take, at the fraction of a pixel they are laid out at,
+// whether or not its box cuts them: a cut name's scrollWidth counts its ellipsis, and a
+// whole one's rounds.
+function wordsWidth(node) {
+  if (!node) return 0;
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  return range.getBoundingClientRect().width;
+}
+
 export class ThreadView {
   #commands;
   #messageCommands;
@@ -638,10 +648,14 @@ export class ThreadView {
   // included, and where that room is short of its first fact it says one count
   // instead (held-news.js, `newsNotice`). The room is the notice's width and the
   // narrowest head's spare width together, which the two tracks trade one for one, so
-  // drawing the notice at it changes nothing it was read from.
+  // drawing the notice at it changes nothing it was read from. A notice at a finger's
+  // floor can still leave a head short, and the head then gives up its name
+  // (annotation-chrome.css): where less than an em of it would show, none does
+  // (`data-lf-nameless`), so no sliver of a letter or an ellipsis stands against the
+  // time.
   #fitMarginNews() {
     const notice = this.#news.node;
-    let spare = Infinity;
+    const heads = [];
     for (const head of this.node.querySelectorAll(
       ".lf-thread-transcript .lf-msg-head",
     )) {
@@ -652,18 +666,28 @@ export class ThreadView {
       const need =
         parseFloat(style.paddingInlineStart) +
         parseFloat(style.paddingInlineEnd) +
-        (name?.scrollWidth ?? 0) +
+        wordsWidth(name) +
         (name && time ? parseFloat(style.columnGap) : 0) +
-        (time?.scrollWidth ?? 0);
-      spare = Math.min(spare, head.getBoundingClientRect().width - need);
+        wordsWidth(time);
+      heads.push({ name, need, spare: head.getBoundingClientRect().width - need });
     }
-    if (spare === Infinity || !notice.isConnected)
+    if (!heads.length || !notice.isConnected) {
       notice.style.removeProperty("--lf-news-room");
-    else
-      notice.style.setProperty(
-        "--lf-news-room",
-        roomPx(Math.max(0, notice.getBoundingClientRect().width + spare)),
+      return;
+    }
+    const width = notice.getBoundingClientRect().width;
+    const spare = Math.min(...heads.map((head) => head.spare));
+    notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, width + spare)));
+    const taken = notice.getBoundingClientRect().width - width;
+    for (const { name, spare } of heads) {
+      if (!name) continue;
+      const shown = wordsWidth(name) + Math.min(0, spare - taken);
+      keeps(
+        name,
+        "data-lf-nameless",
+        shown < parseFloat(getComputedStyle(name).fontSize) ? "" : null,
       );
+    }
   }
 
   // A render fits it again, and a head's time, which is never cut, changes size while

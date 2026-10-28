@@ -19,7 +19,7 @@ from .activity import (
 )
 from .files import file_stamp
 from .harness import claim_harness
-from .leases import hooks_ran_at, lock_is_held, wait_is_live, waiter_lease_path
+from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .page_memory import memo
 from .schema import SERVER_LOCK, UNNAMED_AGENT
 from .server import running_server
@@ -345,12 +345,6 @@ def presence_with_activity(
         # When that turn opened, and whether an open turn of this session's takes
         # new input before it ends (`Harness.turn_takes_input`).
         "turn_opened": claim["turn_opened"] if claim else None,
-        # When the claimant's harness last ran a Leaf hook for the session, which an
-        # open turn's tool steps keep moving (`activity.claimant_turn`). Not a live
-        # fact the freshness token carries: it changes no reading until the turn's
-        # renewal grace would lapse, and the activity's next transition asks again
-        # then.
-        "turn_seen": hooks_ran_at(active["id"]) if active else None,
         "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
         # Where the claimant is working (claim_page), for All pages' hover: what
         # tells one leaf from another is the work behind it, and neither the title

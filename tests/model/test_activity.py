@@ -122,14 +122,8 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     proven its hooks run, since the tool hook then offers the pointer between
     steps; before that, with no adapter lease, it is nobody listening. A Claude Code turn
     no Stop closed, as an interrupted one, stops counting once nothing in it has
-    renewed it for the working grace: its opening, a status written during it, or a
-    hook its harness ran since."""
+    renewed it for the working grace: its opening, or a status written during it."""
     now = datetime.now().astimezone()
-
-    def hooks_last_ran(moment):
-        mark = cleanup_model.session_file("s1", cleanup_model.HOOKS_SUFFIX)
-        os.utime(mark, (moment.timestamp(), moment.timestamp()))
-
     for page in (claimed, codex_claimed_page):
         declare(page, ts=now.isoformat())
     codex = page_state(codex_claimed_page)
@@ -153,7 +147,6 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     # showing Listening past the point the turn can plausibly still be running.
     opened = (now - timedelta(minutes=1)).replace(microsecond=0)
     record_claim(claimed, **{**claim, "turn_opened": opened.isoformat()})
-    hooks_last_ran(opened)
     declare(claimed, ts="2020-01-01T00:00:00+00:00")
     listening = activity_reading(claimed)
     assert listening["kind"] == "listening"
@@ -177,7 +170,6 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     record_claim(
         claimed, **{**claim, "turn_opened": opened.isoformat(timespec="seconds")}
     )
-    hooks_last_ran(opened)
     declare(claimed, ts=opened.isoformat())
     stale = page_state(claimed)
     assert (stale["turn_takes_input"], stale["turn_closed"]) == (True, None)
@@ -185,11 +177,6 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
 
     # A status the turn writes renews it: the agent is there to have written it.
     declare(claimed, ts=now.isoformat())
-    assert activity_reading(claimed)["kind"] == "listening"
-    # So does a hook its harness runs, as after each batch of the turn's tool calls.
-    declare(claimed, ts=opened.isoformat())
-    assert activity_reading(claimed)["kind"] == "away"
-    hooks_last_ran(now)
     assert activity_reading(claimed)["kind"] == "listening"
 
     # A claim an older Leaf wrote, with no `turn_opened`, owes no belief either.
@@ -483,30 +470,6 @@ def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
     turn_ends()
     stranded = _activity_at(claimed)
     assert (stranded["kind"], stranded["counts"]["overdue"]) == ("away", 1)
-
-
-def test_a_hook_renews_a_running_turn_but_never_one_its_harness_saw_end():
-    """A hook the harness runs for the session, as Claude Code runs one after every
-    batch of tool calls, keeps the open turn believed past the working grace. One
-    run after the harness says the session went idle, as a background worker's
-    can after an Escape, leaves the interrupted turn ended."""
-    now = datetime.now().astimezone()
-    opened = now - activity_model.WORKING_GRACE - timedelta(minutes=5)
-    present = {
-        "session_alive": True,
-        "live_turn": None,
-        "claim_turn": "turn-1",
-        "turn_opened": opened.isoformat(),
-        "turn_closed": None,
-        "turn_seen": (now - timedelta(seconds=10)).isoformat(),
-    }
-    turn = activity_model.claimant_turn(present, None, None, now)
-    assert turn.running
-
-    idle = now - timedelta(minutes=1)
-    present["live_turn"] = {"state": "idle", "since": idle.isoformat()}
-    turn = activity_model.claimant_turn(present, None, None, now)
-    assert (turn.running, turn.ended) == (False, idle)
 
 
 def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():

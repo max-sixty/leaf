@@ -42,7 +42,6 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
@@ -1017,43 +1016,41 @@ def test_a_step_opens_a_claude_code_turn_no_prompt_hook_named(claimed, capsys):
     assert cleanup_model.session_record("s1")["turn_closed"] is not None
 
 
-def test_a_long_step_keeps_its_line_while_its_turn_runs_tools(claimed, capsys):
-    """A start stands for as long as its turn is seen working, however long the step
-    it names takes, so the status keeps the agent's line through a long stretch of
-    tool calls rather than stalling once the line is a quarter of an hour old. The
-    hook after each batch of tool calls shows the turn still working, and the turn,
-    not the start's age, says whether the work goes on."""
+def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
+    claimed, capsys
+):
+    """While the agent works, a tool boundary tells it how long its status line has
+    stood once that reaches the renewal interval, naming the command that restates
+    it, and says so again only an interval after its last reminder."""
 
-    def hook(event: str) -> None:
+    def hook(event: str) -> str:
         hooks_model.cmd_hook(
             "claude-code",
             {"hook_event_name": event, "session_id": "s1", "prompt_id": "p1"},
         )
-        capsys.readouterr()
+        return capsys.readouterr().out
 
     hook("UserPromptSubmit")
-    long_ago = (
-        datetime.now().astimezone()
-        - activity_model.WORKING_GRACE
-        - timedelta(minutes=1)
-    )
-    cleanup_model.write_session(
-        {**cleanup_model.session_record("s1"), "turn_opened": long_ago.isoformat()}
-    )
-    mark = cleanup_model.session_file("s1", cleanup_model.HOOKS_SUFFIX)
-    os.utime(mark, (long_ago.timestamp(), long_ago.timestamp()))
-    long_ago = long_ago.isoformat(timespec="seconds")
-    declare_work(
-        claimed, "running the browser suite", ts=long_ago, session="s1", turn="p1"
-    )
-    assert activity_reading(claimed)["kind"] != "working"
+    start = declare_work(claimed, "reading the traces", session="s1")
+    assert hook("PostToolBatch") == ""
 
-    hook("PostToolBatch")
-    activity = activity_reading(claimed)
-    assert (activity["kind"], activity["detail"]) == (
-        "working",
-        "running the browser suite",
+    stood = datetime.now().astimezone() - timedelta(minutes=3)
+    declare_work(
+        claimed,
+        "reading the traces",
+        ts=stood.isoformat(timespec="seconds"),
+        session="s1",
     )
+    context = json.loads(hook("PostToolBatch"))["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert '"reading the traces" for 3 min' in context
+    assert f"leaf task start {claimed} {start['item']}" in context
+    assert hook("PostToolBatch") == ""
+
+    mark = cleanup_model.session_file("s1", cleanup_model.REMINDED_SUFFIX)
+    os.utime(mark, (stood.timestamp(), stood.timestamp()))
+    assert "reading the traces" in hook("PostToolBatch")
 
 
 def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(

@@ -384,14 +384,12 @@ def claimant_turn(
     hook or an App Server client closes it. Not every harness runs a hook on interruption, so an open stamp is believed
     only while something in that turn renewed it within the working grace: its
     last opening, the agent's newest declaration (`declared`: a status or a start
-    written during it), the claimant's streamed activity, or a hook its harness
-    ran for the session since (`turn_seen`), as Claude Code runs one after every
-    batch of tool calls. Past that nothing says whether it runs, which reads as not
+    written during it), or the claimant's streamed activity. Past that nothing says whether it runs, which reads as not
     running without calling it ended.
 
     The harness's own record (`Harness.live_turn`) adds the two things no hook
     sees, each only when newer than what it contradicts: an `idle` newer than
-    every renewal but a hook ends the open turn at that moment (an interrupt), and a
+    every renewal ends the open turn at that moment (an interrupt), and a
     `waiting` newer than the stamps is a dialog open now, a step shown whether or
     not the stamps say a turn is open. Its `busy` never says a turn runs, since
     the harness keeps it across turn endings while background work runs; after a
@@ -420,11 +418,7 @@ def claimant_turn(
     renewed = max(moment for moment in renewals if moment and moment >= opened)
     if live.get("state") == "idle" and since and since >= renewed:
         return Turn(False, ended=since)
-    # A hook extends the belief but never outweighs the harness's `idle`: hooks the
-    # session runs after an interrupt, such as a background worker's, are not the
-    # interrupted turn's.
-    seen = _moment(present.get("turn_seen"))
-    until = max(renewed, seen or renewed) + WORKING_GRACE
+    until = renewed + WORKING_GRACE
     return Turn(now < until, until=until)
 
 
@@ -494,17 +488,10 @@ def _start_age(
 ) -> tuple[bool, bool]:
     """How quiet a start is, and whether dropped: a start the claimant's ended turn
     wrote, unrenewed past the renewal grace, or any start unheard for the working
-    grace, except one whose own turn is still seen running.
-
-    That turn's renewals, not the start's age, say whether its work goes on: a step
-    may take far longer than the grace while the session renews its turn at every
-    tool boundary, and the line it started still describes it until the agent starts
-    another."""
+    grace."""
     same_session = bool(
         start.get("session") and start["session"] == present.get("claim_session")
     )
-    if same_session and turn.running and start.get("turn") == present.get("claim_turn"):
-        return False, False
     dropped = same_session and _dropped(start["ts"], turn.ended, now)
     return _quiet(start["ts"], now, WORKING_GRACE) or dropped, dropped
 
@@ -523,7 +510,7 @@ def _canonical_workflows(
         stage = item["stage"]
         if stage == "working":
             if held:
-                quiet, dropped = _start_age(start, present, now, turn)
+                quiet, dropped = _start_age(item, present, now, turn)
                 if quiet:
                     item["condition"] = {"kind": "stale", "operation": "work"}
                 aging[item["id"]] = (start, quiet, dropped)

@@ -84,6 +84,14 @@ index.html now fails. A page this Leaf cannot write, because its renewal failed
 or a newer Leaf initialized it, offers no input (`delivery.deliverable`), so the hook
 names the refusal and records no pickup there.
 
+While the agent works, the page's status shows the line it last started. A tool
+boundary reminds the agent once that line has stood `STATUS_RENEWAL` without renewal,
+and again each `STATUS_RENEWAL` after, so the agent restates it as its work moves on
+or carries on where it still holds (`status_reminders`). Whether the work has moved
+on is the agent's judgement; the hook only says how long the line has stood. This
+was the user's choice (28 October 2026) over Leaf reading the turn's liveness, or
+its current step, from the hooks itself.
+
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
 inside its timeout, and prints afterwards. It never waits for a lock past that
@@ -94,6 +102,7 @@ interrupted just after they start leave their updates Delivered.
 import json
 import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from .activity import acknowledged_obligations, turn_obligations, unanswered
@@ -120,6 +129,7 @@ from .service import (
     page_claim,
 )
 from .state import (
+    REMINDED_SUFFIX,
     STRING,
     Record,
     described,
@@ -129,6 +139,49 @@ from .state import (
     session_lock_path,
     session_record,
 )
+
+# How long the status line may stand unrenewed while the agent works before a tool
+# boundary reminds it, and how long between reminders.
+STATUS_RENEWAL = timedelta(minutes=2)
+
+
+def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
+    """A line for each page whose working status has stood `STATUS_RENEWAL` since
+    the newer of its own writing and the session's last reminder, which these lines
+    then renew (the `reminded` mark's mtime)."""
+    now = datetime.now().astimezone()
+    mark = session_file(session_id, REMINDED_SUFFIX)
+    try:
+        reminded = datetime.fromtimestamp(mark.stat().st_mtime).astimezone()
+    except FileNotFoundError:
+        reminded = None
+    lines = []
+    for plan in plans:
+        activity = plan.state["activity"]
+        if activity["kind"] != "working" or not activity["ts"]:
+            continue
+        written = datetime.fromisoformat(activity["ts"])
+        if now - max(written, reminded or written) < STATUS_RENEWAL:
+            continue
+        minutes = int((now - written) / timedelta(minutes=1))
+        source = activity["detail_source"]
+        if source:
+            lines.append(
+                f"Leaf: your status on {plan.page} has read "
+                f'"{activity["detail"]}" for {minutes} min. If your work has moved '
+                f"on, restate it with `leaf task start {plan.page} {source['item']} "
+                '--text "<what you are doing now>"`; if it still holds, carry on.'
+            )
+        else:
+            lines.append(
+                f"Leaf: {plan.page} has shown no status line from you for {minutes} "
+                f"min while you work on its updates. Say what you are doing with "
+                f'`leaf task start {plan.page} <update id> --text "<what you are '
+                'doing>"`.'
+            )
+    if lines:
+        mark.touch()
+    return lines
 
 
 def restart(obligations: list[dict]) -> str:
@@ -504,7 +557,8 @@ def carry_turn(
         if carries
         else []
     )
-    if event == "PostToolBatch" and not batches:
+    renewals = status_reminders(sid, plans) if event == "PostToolBatch" else []
+    if event == "PostToolBatch" and not batches and not renewals:
         return
     if event == "UserPromptSubmit":
         pick_up_acknowledged(sid, plans)
@@ -515,8 +569,9 @@ def carry_turn(
         reminds=harness.watches_between_turns(),
     ):
         return True
-    # A tool boundary carries only new input; response-debt and housekeeping
-    # reminders belong to prompt and Stop. It neither reopens nor ends a turn.
+    # A tool boundary carries only new input and a status line gone unrenewed;
+    # response-debt and housekeeping reminders belong to prompt and Stop. It
+    # neither reopens nor ends a turn.
     reminding = [] if event == "PostToolBatch" else plans
     reasons = remedies(reminding, batches)
     # The message avoids "unattended": a page can be watched and still be owed
@@ -556,7 +611,7 @@ def carry_turn(
     context = notices(reconnect_harness, sid, expected)
     if context is None:
         return
-    attention = [*context, *attention]
+    attention = [*context, *attention, *renewals]
     if delivery is None:
         message = "\n".join(attention)
     else:

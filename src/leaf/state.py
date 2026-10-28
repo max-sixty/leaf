@@ -91,6 +91,9 @@ def hold_mode(path: Path, mode: int) -> None:
 HOOKS_SUFFIX = "hooks"
 # The tool calls its hooks last ran before (`leases.first_hook_for_tool`).
 TOOLS_SUFFIX = "tools"
+# When its tool boundaries last reminded it of a status line it hadn't renewed
+# (`hook_transport.status_reminders`), by the file's mtime.
+REMINDED_SUFFIX = "reminded"
 # Its lifecycle outlives its instance while a claim reads it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
 

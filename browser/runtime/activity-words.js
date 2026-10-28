@@ -157,9 +157,9 @@ function statusWords({
   }
   // While it works, its own sentence is the reason to look at the row, so the row keeps
   // it and the ellipsis fits it to the room the controls leave. The row carries no date:
-  // a working reading is one the server still believes, since the claimant's start
-  // stands while its turn is seen running and lapses soon after (`activity._start_age`),
-  // and a sentence that stops standing becomes a stall, which dates itself. The disclosure says how long ago it was
+  // the agent keeps the sentence current, reminded by its hooks when it goes unrenewed
+  // (`hook_transport.status_reminders`), and a sentence the server stops believing
+  // becomes a stall, which dates itself. The disclosure says how long ago it was
   // written. A row dated by the sentence's age, rejected on 27 October 2026, read
   // "3m ago" for most of every turn, while the session was visibly moving.
   //

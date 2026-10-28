@@ -61,7 +61,6 @@ UNCLAIMED = {
     "claim_turn": None,
     "turn_closed": None,
     "turn_opened": None,
-    "turn_seen": None,
     "turn_takes_input": False,
     "input_wakes": False,
     "session_cwd": None,

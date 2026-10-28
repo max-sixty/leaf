@@ -89,6 +89,19 @@ pages working. Admission validates a kernel record against the running Leaf's ow
 older one vendored. The promise runs one way: an older Leaf may refuse a field it
 does not know.
 
+"Any Leaf at the page's number" is per process, and one session can run two. A harness
+session runs its hooks, its watch between turns and its bare `leaf` from the plugin
+copy it loaded: Claude Code keeps that copy after its marketplace sweep installs an
+update, until `/reload-plugins` or a restart, so a session can run an older Leaf for
+hours. A command from a newer Leaf naming a page the session holds (a worktree's
+`bin/leaf`, or the session's own first command after loading an update elsewhere)
+re-vendors the page as the holder, and the session's older hooks and watch then
+refuse it as `newer-layer`. Such a watch holds the protocol it speaks in its lease,
+so the newer Leaf reads it as no watch and admission nudges the session
+(`leases.wait_is_live`); the input still reaches the turn only once the session loads
+a Leaf at the page's number. A user preview instead makes a checkout the session's
+launcher for its hooks (`session_runtime.py`).
+
 Bump the number when a page an older Leaf vendored at it would break under this one:
 
 - this Leaf refuses something a vendored module sends;

@@ -123,7 +123,8 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     serve (`event_contracts.write_refusal`), for the session `harness` names, and say
     what still holds the page back, for its agent to act on.
 
-    A plugin update that bumps the page protocol reaches a running session, and its
+    A plugin update that bumps the page protocol reaches a session once it loads the
+    update (`layer-registry.md`, "Page protocol", says when), and its
     Leaf then refuses every page the session holds until the agent runs the
     `leaf page init` the refusal names. That re-vendor keeps the page's log, and so
     its threads and decisions, and its source, so it asks nothing of the agent's

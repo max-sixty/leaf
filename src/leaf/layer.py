@@ -504,7 +504,8 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     no longer admits (`schema.EXTENSION_SCHEMA`).
 
     A Leaf serves and writes any page vendored at its own number, whichever Leaf
-    vendored it, so a plugin update leaves open pages working. A page vendored before
+    vendored it, so a plugin update that keeps the number leaves open pages working.
+    A page vendored before
     the number was declared names none, and is refused too. A page vendored at a
     higher number is refused as `newer-layer`, naming the Leaf that vendored it,
     since its repair is a newer Leaf: this one does not re-vendor it down

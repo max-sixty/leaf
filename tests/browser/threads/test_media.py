@@ -18,6 +18,7 @@ from render_harness import (
     open_page,
     page_comment,
     panel_field,
+    press_visible,
     resized,
     sending,
     stamp_page,
@@ -533,8 +534,10 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
                 });
             }, {capture: true});
     }""")
-    page.get_by_role("button", name="Remove attached image 1", exact=True).tap(
-        force=True
+    press_visible(
+        page,
+        page.get_by_role("button", name="Remove attached image 1", exact=True),
+        touch=True,
     )
     # Removal is synchronous in the click, so the shelf is empty as the tap returns,
     # with the drag's timers still held. An image here with the click on the ✕ says

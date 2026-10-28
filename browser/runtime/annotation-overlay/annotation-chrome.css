@@ -766,6 +766,44 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     > .lf-msg-head {
     padding-inline-end: 0;
   }
+  /* A later message's controls, its Edit and Copy and an open rewrite's Discard and
+     Save, stand at the card's edge on its head line, in the track the actions keep
+     beside the first message's head, rather than where the head ends, a track short
+     of the edge, which stood them mid-card. So the head keeps no room for them. They
+     follow the message rather than its sticking head, and stand over its head row's
+     cell in that track (below). While the head line shares the actions' line, Edit
+     and Copy stand aside (`data-lf-beside-actions`, thread-preview.js): no ground
+     under the actions hides what passes beneath them, since the cells give the
+     message's own. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg {
+    anchor-name: --lf-msg-box;
+    anchor-scope: --lf-msg-head, --lf-msg-box;
+  }
+  .lf-margin-thread
+    .lf-thread-transcript
+    .lf-msg:not(:nth-child(1 of .lf-msg, .lf-thread-checkpoint)) {
+    & > .lf-msg-head {
+      padding-inline-end: 0;
+    }
+    & > :is(.lf-msg-copy, .lf-msg-edit),
+    & .lf-msg-edit-actions {
+      z-index: 1;
+      position-anchor: --lf-msg-box;
+      inset-block-start: calc(anchor(top) + var(--lf-msg-head-height) / 2);
+      inset-inline-end: anchor(right);
+    }
+    &[data-lf-beside-actions] > :is(.lf-msg-copy, .lf-msg-edit) {
+      visibility: hidden;
+    }
+    /* Under a finger Copy is left out (controls.css), so Edit takes the edge. */
+    @media (hover: hover) and (pointer: fine) {
+      &:has(> .lf-msg-copy) > .lf-msg-edit {
+        inset-inline-end: calc(
+          anchor(right) + var(--lf-msg-control-width) + var(--lf-msg-edit-gap)
+        );
+      }
+    }
+  }
   /* A short name keeps its whole width even where the shared cap
      (components/surfaces.css) would cut it in a narrowed head; it shortens only once
      the annotations after the time are gone. */

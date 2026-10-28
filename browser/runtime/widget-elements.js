@@ -277,7 +277,7 @@ const { offerAction, offerActionElement } = actionOffers({
   offerActionElement: (...args) =>
     document.documentElement.lfInitial.offerActionElement(...args),
 });
-export { offerAction };
+export { offerAction, offerActionElement };
 export const offeredAction = elementDirective("offeredAction", offerActionElement);
 
 // A press whose face its surface draws rather than a role, such as the floating

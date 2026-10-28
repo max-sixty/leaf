@@ -3797,7 +3797,9 @@ motion.pause();motion.currentTime=150;
     assert names_move(errors, "button#control") == bool(fault), errors
     if fault == "child":
         finding = next(
-            error for error in errors if is_problem(error, moved_within("button#control"))
+            error
+            for error in errors
+            if is_problem(error, moved_within("button#control"))
         )
         comparisons = shift_evidence(finding)["comparisons"]
         motions = [

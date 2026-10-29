@@ -54,7 +54,7 @@ from leaf.event_log import read_events
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
-from leaf.state import session_record, turn_open
+from leaf.state import session_live, session_record, turn_open
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, environment, now, pi_home
 from leaf_dev.commands.journey import (
@@ -346,7 +346,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     except subprocess.TimeoutExpired:
         raise click.ClickException("Pi did not exit when its stdin closed") from None
     require(
-        session_record(pi.session)["ended"] is not None,
+        not session_live(session_record(pi.session)),
         "Pi's session ended without Leaf's SessionEnd",
     )
     require(

@@ -102,7 +102,7 @@ from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
-from leaf.state import session_record, turn_open
+from leaf.state import session_live, session_record, turn_open
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     MODELS,
@@ -623,7 +623,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     cc.say("/exit")
     cc.until(cc.exited.exists, "quit: Claude Code did not exit", 60)
     require(
-        session_record(cc.session)["ended"] is not None,
+        not session_live(session_record(cc.session)),
         "quit: the session ended without Leaf's SessionEnd",
     )
     require(

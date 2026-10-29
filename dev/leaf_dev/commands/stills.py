@@ -989,6 +989,17 @@ def composer_long(page: Page) -> None:
     page.keyboard.insert_text(LONG_DRAFT)
 
 
+def composer_scrolling(page: Page) -> None:
+    """A floating draft that fills its available height and scrolls its words."""
+    composer_empty(page)
+    page.keyboard.insert_text((LONG_DRAFT + "\n\n") * 8)
+    page.wait_for_function("""() => {
+      const field = document.querySelector('.lf-fab-input');
+      return field.scrollHeight > field.clientHeight;
+    }""")
+    page.locator(".lf-fab-input").hover()
+
+
 def composer_sent(page: Page) -> None:
     """That comment just sent: its card shares the draft's text column and wrapping."""
     composer_long(page)
@@ -2673,6 +2684,19 @@ STATES = (
         region=".lf-fab-bar",
     ),
     State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),
+    State(
+        "triage-composer-scrolling",
+        "triage-board",
+        composer_scrolling,
+        region=".lf-fab-bar",
+    ),
+    State(
+        "triage-composer-scrolling-dark",
+        "triage-board",
+        composer_scrolling,
+        scheme="dark",
+        region=".lf-fab-bar",
+    ),
     State("triage-composer-long", "triage-board", composer_long),
     State("triage-composer-long-dark", "triage-board", composer_long, scheme="dark"),
     State(
@@ -3211,7 +3235,11 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                     source_roots[arm],
                     commit,
                 )
-        with headless_shell() as browser, differences(browser, out) as compare:
+        # Capture the scrollbars readers see, including the room a classic bar takes.
+        with (
+            headless_shell(ignore_default_args=["--hide-scrollbars"]) as browser,
+            differences(browser, out) as compare,
+        ):
             for state in states:
                 folder = out / state.name
                 folder.mkdir()

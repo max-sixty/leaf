@@ -179,7 +179,7 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     # activates the source itself.
     extra = page_dir.parent / "extra"
     extra.mkdir()
-    (extra / "theme.css").write_text("/* another selection */\n")
+    (extra / "overrides.css").write_text("/* another selection */\n")
     vendoring_model.cmd_init(page_dir, (*page_packages(), "./extra"))
     revision_2 = files_model.latest_revision(page_dir)
     assert revision_2 is not None

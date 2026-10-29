@@ -69,7 +69,7 @@
  * own and declares the frame, which drops those margins where they abut the marking:
  * what separates a sample from the prose around it is its own 18px, stated once.
  *
- * The trim that declaration buys is the layer's (theme.css), and the reach is the direct
+ * The trim that declaration buys is the layer's (base.css), and the reach is the direct
  * children, which is what a selector has. Nothing about the note is stated here, though
  * it is a child on a live page (`x-says` writes it `before`) and a pseudo-element on one
  * carrying no script: the trim asks for the first child the page itself put there, so
@@ -77,7 +77,7 @@
  *
  * A child that generates no box hands its own margins to the flow and the trim lands on
  * nothing. The one such widget shipped is the suggestion, and it is why the block slot
- * asks for its room above rather than around itself (theme.css) — which leaves one edge
+ * asks for its room above rather than around itself (base.css) — which leaves one edge
  * rather than two, measured: a suggestion leading a sample still holds its 10px. Which
  * edge is left follows from the room having to sit on one side, and the other side was
  * worse — stated between siblings, it could not cross the boxless wrapper at all, and two
@@ -106,7 +106,7 @@ lf-sample {
   --lf-block-frame: 1;
 }
 /* Containment does not apply to a table, so the sample cannot be the size container
- * a framed box is (theme.css, at the pane's body). Its width is fixed, so it states the
+ * a framed box is (base.css, at the pane's body). Its width is fixed, so it states the
  * cap for what it holds as a percentage instead, which resolves against its cell. */
 lf-sample > * {
   --lf-box-cap: 100%;

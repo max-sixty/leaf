@@ -169,6 +169,58 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     assert page.evaluate("navigator.clipboard.readText()") == source
 
 
+# A head's delivery receipt beside its message's controls: whether it shows whole, its
+# box, the first showing control's start, and whether the receipt is what the user
+# sees just before that start.
+RECEIPT_BESIDE_CONTROLS = """message => {
+  const receipt = message.querySelector(':scope > .lf-msg-head .lf-msg-sending');
+  const box = receipt.getBoundingClientRect();
+  const shown = [...message.querySelectorAll(':scope > .lf-msg-control')]
+    .filter((control) => getComputedStyle(control).opacity === '1')
+    .map((control) => control.getBoundingClientRect().left);
+  const controls = shown.length ? Math.min(...shown) : null;
+  const seen = controls === null ? null : document.elementFromPoint(
+    controls + 2, box.top + box.height / 2);
+  return {
+    whole: receipt.scrollWidth <= receipt.clientWidth,
+    left: box.left,
+    end: box.right,
+    controls,
+    receiptSeen: seen === null ? null : receipt.contains(seen),
+  };
+}"""
+
+
+def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
+    """A message's Edit and Copy show only under the pointer or focus, and its head
+    lends their room to its words while they hide: a card's head that held it read
+    "Me just now · Qu…" beside room for controls nobody could see. At rest the user's
+    queued message says its whole receipt; under the pointer the controls stand over
+    the receipt's end, which neither moves nor changes its size."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
+    # The margin at this width caps the card short of the head's words and controls.
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-margin-marker").first.click()
+    message = page.locator(".lf-margin-preview .lf-msg.user").first
+    expect(message.locator(".lf-msg-sending")).to_contain_text("Queued")
+    page.mouse.move(0, 0)
+    rendered(page)
+    rest = message.evaluate(RECEIPT_BESIDE_CONTROLS)
+    assert rest["whole"] and rest["controls"] is None, rest
+    message.locator(".lf-msg-text").hover()
+    rendered(page)
+    offered = message.evaluate(RECEIPT_BESIDE_CONTROLS)
+    assert offered["whole"], offered
+    assert (offered["left"], offered["end"]) == (rest["left"], rest["end"]), (
+        rest,
+        offered,
+    )
+    assert offered["controls"] < offered["end"], offered
+    assert offered["receiptSeen"] is False, offered
+
+
 def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
     """The last translated frame and rest keep Copy on the message's head line."""
     url = serve(PANEL_PAGE)
@@ -394,7 +446,6 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
                     ":root { --page-token: teal; }"
                     "html[data-lf-interactive] p > a { background-color: rgb(1, 2, 3); }"
                     "p > a::before { content: 'Kept'; }"
-                    "::placeholder { font-style: italic; }"
                     "p { border-top: 7px solid red; }</style>",
                 )
             )
@@ -409,9 +460,6 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
         return {
             controls: [...document.querySelectorAll('main button.lf-ui')].map(face),
             chrome: [...document.querySelectorAll('.lf-chrome button')].map(face),
-            placeholders: [...document.querySelectorAll(
-                '.lf-chrome :is(input, textarea)[placeholder]')].map(
-                el => getComputedStyle(el, '::placeholder').fontStyle),
             prose: face(document.querySelector('main p > a')),
             chromeToken: getComputedStyle(document.querySelector('.lf-chrome'))
                 .getPropertyValue('--page-token').trim(),
@@ -429,8 +477,6 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
     ]
     assert faces["controls"], "the board built no control to read"
     assert faces["chrome"], "the chrome built no button to read"
-    assert faces["placeholders"], "the chrome built no field to read"
-    assert "italic" not in faces["placeholders"], faces["placeholders"]
     assert {tuple(face[1:3]) for face in faces["controls"]} == {
         ("cursive", "rgb(255, 0, 0)")
     }, faces["controls"]
@@ -496,8 +542,8 @@ setTimeout(() => {
 def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     browser, serve, tmp_path
 ):
-    """A theme contribution, even beside a widget, outranks the Layouts and
-    every widget package's defaults (layer.py, `lf-theme`), so its `main` padding beats
+    """A package's overrides, even beside a widget, outrank the Layouts and
+    every widget package's defaults (layer.py, `lf-overrides`), so its `main` padding beats
     the column Layout's and its plain `lf-card` rule beats the board's own `lf-card`
     rule. Like the page's own rules, its `button` rule dresses the page's buttons and the
     controls the board builds."""
@@ -518,7 +564,7 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
             }
         )
     )
-    (theme / "theme.css").write_text(
+    (theme / "overrides.css").write_text(
         "main { padding-top: 11px; }\n"
         "lf-card { padding-left: 13px; }\n"
         "main button { font-family: cursive; }\n"

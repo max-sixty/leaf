@@ -22,7 +22,7 @@ def catalogue(tmp_path, *, default="editorial"):
     for name, color in (("editorial", "#814b07"), ("dense", "#553399")):
         source = tmp_path / name
         source.mkdir()
-        (source / "theme.css").write_text(f":root {{ --accent: {color}; }}")
+        (source / "overrides.css").write_text(f":root {{ --accent: {color}; }}")
         (source / "instructions").mkdir()
         (source / "instructions/author.md").write_text(
             f"Use {name} for its distinctive presentation."
@@ -48,7 +48,7 @@ def test_an_installed_theme_keeps_the_files_its_sheet_imports(tmp_path):
     source = tmp_path / "split"
     (source / "styles").mkdir(parents=True)
     (source / "widgets").mkdir()
-    (source / "theme.css").write_text(
+    (source / "overrides.css").write_text(
         '@import "./styles/accent.css";\n@import "./widgets/paper.css";\n'
     )
     (source / "styles/accent.css").write_text(":root { --accent: #123456; }\n")
@@ -136,7 +136,7 @@ def test_a_project_package_restates_a_theme_s_idiom(tmp_path, monkeypatch):
         "x-example": '<aside class="callout">…</aside>',
     }
     (project / "registry.json").write_text(json.dumps({".callout": callout}))
-    (project / "widgets.css").write_text(".callout { background: teal; }\n")
+    (project / "defaults.css").write_text(".callout { background: teal; }\n")
     monkeypatch.chdir(project.parent)
     page = tmp_path / "page"
     cmd_init(page, ("./.leaf",))

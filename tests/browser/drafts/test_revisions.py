@@ -360,7 +360,7 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
         # runs.
         newer = page_dir.parent / "newer-layer"
         newer.mkdir()
-        (newer / "theme.css").write_text("/* a newer layer */\n")
+        (newer / "overrides.css").write_text("/* a newer layer */\n")
         held = tuple(
             "./" + os.path.relpath(page_dir / value)
             if value.startswith("./")

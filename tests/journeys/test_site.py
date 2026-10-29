@@ -343,7 +343,7 @@ def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeyp
     """A website example uses the authored example's layout layer."""
     monkeypatch.chdir(ROOT)  # resolve project-relative package selections
     package = DOCS / "package"
-    context_theme = layer_model.stylesheet(package / "theme.css", package).rstrip()
+    context_theme = layer_model.stylesheet(package / "overrides.css", package).rstrip()
     for source in site_build.published_page_sources():
         record = layer_record(site / "examples" / source.stem)
         assert record is not None

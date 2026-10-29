@@ -131,7 +131,7 @@ lf-sample {
   --lf-sample-word: "quoted";
   --lf-sample-prefix: "quoted · ";
 }
-lf-sample:is([interactive], [data-lf-sample-live]) {
+lf-sample:is([interactive], :has(> template[data-sample])) {
   --lf-sample-word: none;
   --lf-sample-prefix: "";
 }
@@ -169,7 +169,7 @@ lf-sample > [data-lf-said="label"]::before {
 lf-sample:has(> .lf-sample-view:modal) {
   height: var(--lf-sample-height);
 }
-lf-sample[data-lf-sample-live] {
+lf-sample:has(> template[data-sample]) {
   padding-left: 0;
   border-left: 0;
 }

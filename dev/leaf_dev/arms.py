@@ -63,6 +63,7 @@ from leaf_dev.page_fixtures import (
     read_event_lines,
     read_fixture,
     record_run_context,
+    refresh_composition,
 )
 
 # The uv project names this package's `pyproject.toml` as a workspace member, so uv
@@ -232,7 +233,9 @@ def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
     launcher under the state home `state`. Callers make the arm's kernel current
     before building (`current_kernel`), then serve or check the page from that arm.
+    A generated source, such as the corpus, is generated first (`refresh_composition`).
     """
+    refresh_composition(source)
     prepare_page(
         page,
         read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),

@@ -32,7 +32,7 @@ from .service import (
     read_stream,
     unacknowledged,
 )
-from .state import now_iso, state_home
+from .state import now_iso, state_home, turn_closed
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -484,7 +484,7 @@ def nudge_interrupted(page_dir: Path) -> None:
         claim = page.active_claim
         if (
             claim is not None
-            and claim["turn_closed"] is None
+            and not turn_closed(claim)
             and wake_inputs(page, deliverable(page))
         ):
             nudge_unwatched(page)

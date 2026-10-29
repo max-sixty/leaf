@@ -56,6 +56,7 @@ from leaf.state import (
     page_stands,
     remove_claim,
     session_claims,
+    session_live,
     session_lock_path,
     session_record,
     standing_claims,
@@ -182,11 +183,7 @@ def claim_is_active(claim: dict | None) -> bool:
     if not claim:
         return False
     record = session_record(claim["id"])
-    if (
-        not record
-        or record["generation"] != claim["generation"]
-        or record["ended"] is not None
-    ):
+    if not session_live(record) or record["generation"] != claim["generation"]:
         return False
     return lifetime_is_live(claim, record)
 
@@ -236,8 +233,7 @@ def claim_names_session(claim: dict | None, session_id: str) -> bool:
     to record; only another session's claim takes the page from it."""
     if not claim or claim["id"] != session_id:
         return False
-    record = session_record(session_id)
-    return record is not None and record["ended"] is None
+    return session_live(session_record(session_id))
 
 
 def may_receive(claim: dict | None, session_id: str | None) -> bool:

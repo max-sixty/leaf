@@ -317,7 +317,7 @@ ELEVATION_SHADOWS = """() => {
     }
     return layers;
   };
-  // A height is written from its drop and blur tokens (theme.css), so those read as
+  // A height is written from its drop and blur tokens (base.css), so those read as
   // the lengths they hold, and a rule spelling a lift from them is still a lift.
   const theme = getComputedStyle(document.documentElement);
   const parts = (value) => value.replace(/var\\((--raise-\\d-(?:drop|blur))\\)/g,
@@ -399,7 +399,7 @@ def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
 
     Twenty-nine lifts once wrote fourteen geometries between them, so two menus beside
     each other stood at different heights for no reason anyone chose, and nothing kept
-    the next one from writing a fifteenth. The `--raise-*` tokens (theme.css, beside
+    the next one from writing a fifteenth. The `--raise-*` tokens (base.css, beside
     --shade) are now the only declarations that write a blur; every other rule, a
     filter's drop-shadow() included, names one, with a hairline or ring beside it where
     its edge needs one.

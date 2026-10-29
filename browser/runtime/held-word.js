@@ -7,7 +7,7 @@
    and a press held on it reads the word. The control under the pointer wears
    `data-lf-held-word` for as long as the press is held, and its surface paints the word
    for that state as it does while the keyboard stands on the control (shadow.css for a
-   reaction, theme.css for a margin entry's label, the diff package's shadow.css for a
+   reaction, base.css for a margin entry's label, the diff package's shadow.css for a
    file's path, only while the row cuts it short; a row showing its whole path paints
    nothing and keeps the gesture). Sliding onto a neighbouring control of the same parent
    reads that one instead, and the release presses the control it ends on, or none when

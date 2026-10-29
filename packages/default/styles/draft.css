@@ -2,7 +2,7 @@
    the box's edge at its right, so the box is its prose at rest and its editor while
    editing, and neither grows nor narrows for its controls. The frame holds focus, and
    print retains saved prose. On screen it keeps the reading measure as its prose does
-   (theme.css), its outer width the measure. */
+   (base.css), its outer width the measure. */
 lf-draft {
   display: block;
   --lf-draft-inset: 14px;

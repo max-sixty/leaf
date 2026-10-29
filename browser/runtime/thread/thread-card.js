@@ -43,7 +43,7 @@ import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
 import { generatedElement, offeredAction } from "../widget-elements.js";
 import { measure } from "../shown-box.js";
-import { keeps, layoutPx } from "../keeps.js";
+import { keeps, layoutPx, roomPx } from "../keeps.js";
 import { commandsOn } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import {
@@ -300,6 +300,16 @@ export function threadReading(thread, surface, commands) {
   });
 }
 
+// The width `node`'s words take, at the fraction of a pixel they are laid out at,
+// whether or not its box cuts them: a cut name's scrollWidth counts its ellipsis, and a
+// whole one's rounds.
+function wordsWidth(node) {
+  if (!node) return 0;
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  return range.getBoundingClientRect().width;
+}
+
 export class ThreadView {
   #commands;
   #messageCommands;
@@ -326,6 +336,7 @@ export class ThreadView {
   #headerSlot = null;
   #observedHeader = null;
   #sizes = sizeObserver(() => this.#retainHeaderSlot());
+  #marginNews = sizeObserver(() => nextRender(() => this.#fitMarginNews()));
 
   constructor(commands) {
     this.#commands = commands;
@@ -547,10 +558,11 @@ export class ThreadView {
     if (marginControls && prior)
       marginControls.anchor.presented(threadChange(prior, model)?.joined);
     // Where the settlement stands:
-    // - on a margin card, its own controls row, which also stands the notice, whole,
-    //   before Previous and Next: its own place with the thread's facts, as the
-    //   floating panel's head holds it (the user's choice, 16 October), rather than
-    //   over the end of the message head beside it.
+    // - on a margin card, its own controls row, which also stands the notice before
+    //   Previous and Next: its own place with the thread's facts, as the floating
+    //   panel's head holds it (the user's choice, 16 October), rather than over the end
+    //   of the message head beside it. The notice takes the room the heads leave it
+    //   (`#fitMarginNews`).
     // - elsewhere, the head's controls row, which reserves the room of one icon control
     //   (shadow.css, `--lf-thread-action-room`) beside the first message's own
     //   controls. A foot row of its own drew resolved threads unlike open ones.
@@ -613,6 +625,8 @@ export class ThreadView {
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
+    if (marginControls && model.news) measure(this.node, () => this.#watchMarginNews());
+    else this.#releaseMarginNews();
     this.#continuity?.after(bodyPlace);
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
@@ -626,6 +640,83 @@ export class ThreadView {
             this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node),
     );
     return this.node;
+  }
+
+  // A margin card's notice stands in its actions row, whose track takes its width from
+  // the heads' track (annotation-chrome.css), so the notice takes only the room the
+  // heads leave beside each one's name and time, its padding and the Edit beside them
+  // included, and where that room is short of its first fact it says one count
+  // instead (held-news.js, `newsNotice`). The room is the notice's width and the
+  // narrowest head's spare width together, which the two tracks trade one for one, so
+  // drawing the notice at it changes nothing it was read from. A notice at a finger's
+  // floor can still leave a head short, and the head then gives up its name
+  // (annotation-chrome.css): where less than an em of it would show, none does
+  // (`data-lf-nameless`), so no sliver of a letter or an ellipsis stands against the
+  // time.
+  #fitMarginNews() {
+    const notice = this.#news.node;
+    const heads = [];
+    for (const head of this.node.querySelectorAll(
+      ".lf-thread-transcript .lf-msg-head",
+    )) {
+      if (!head.checkVisibility()) continue;
+      const style = getComputedStyle(head);
+      const name = head.querySelector(":scope > b");
+      const time = head.querySelector(":scope > .lf-msg-meta > time");
+      const need =
+        parseFloat(style.paddingInlineStart) +
+        parseFloat(style.paddingInlineEnd) +
+        wordsWidth(name) +
+        (name && time ? parseFloat(style.columnGap) : 0) +
+        wordsWidth(time);
+      heads.push({ name, need, spare: head.getBoundingClientRect().width - need });
+    }
+    if (!heads.length || !notice.isConnected) {
+      this.#clearMarginNews();
+      return;
+    }
+    const width = notice.getBoundingClientRect().width;
+    const spare = Math.min(...heads.map((head) => head.spare));
+    notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, width + spare)));
+    const taken = notice.getBoundingClientRect().width - width;
+    for (const { name, spare } of heads) {
+      if (!name) continue;
+      const shown = wordsWidth(name) + Math.min(0, spare - taken);
+      keeps(
+        name,
+        "data-lf-nameless",
+        shown < parseFloat(getComputedStyle(name).fontSize) ? "" : null,
+      );
+    }
+  }
+
+  // A render fits it again, and a head's time, which is never cut, changes size while
+  // news waits as it ticks on from "just now". The notice and a name change size
+  // because of the fit itself, so watching them would deliver the fit its own change,
+  // and a time's change fits it in the next frame, since the fit resizes boxes the
+  // observer's delivery has already passed.
+  #watchMarginNews() {
+    this.#marginNews.disconnect();
+    for (const time of this.node.querySelectorAll(
+      ".lf-thread-transcript .lf-msg-head > .lf-msg-meta > time",
+    ))
+      this.#marginNews.observe(time);
+    this.#fitMarginNews();
+  }
+
+  #releaseMarginNews() {
+    this.#marginNews.disconnect();
+    this.#clearMarginNews();
+  }
+
+  // The fit writes the notice's room and each name it hides, and a message's head
+  // outlives the notice (each MessageView keeps its own, messages.js), so both go together.
+  #clearMarginNews() {
+    this.#news.node.style.removeProperty("--lf-news-room");
+    for (const name of this.node.querySelectorAll(
+      ".lf-thread-transcript .lf-msg-head > b[data-lf-nameless]",
+    ))
+      keeps(name, "data-lf-nameless", null);
   }
 
   #releaseHeaderSlot() {
@@ -890,6 +981,7 @@ export class ThreadView {
   dispose() {
     this.#sizes.disconnect();
     this.#releaseHeaderSlot();
+    this.#marginNews.disconnect();
     this.#continuity?.release();
     this.retire();
     this.#reply?.dispose();

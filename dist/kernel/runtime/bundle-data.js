@@ -6804,7 +6804,8 @@ var ThreadView = class {
 			heads.push({
 				name,
 				need,
-				spare: head.getBoundingClientRect().width - need
+				spare: head.getBoundingClientRect().width - need,
+				yields: parseFloat(style.getPropertyValue("--lf-msg-control")) + wordsWidth(time)
 			});
 		}
 		if (!heads.length || !notice.isConnected) {
@@ -6815,9 +6816,9 @@ var ThreadView = class {
 		const spare = Math.min(...heads.map((head) => head.spare));
 		notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, width + spare)));
 		const taken = notice.getBoundingClientRect().width - width;
-		for (const { name, spare } of heads) {
+		for (const { name, spare, yields } of heads) {
 			if (!name) continue;
-			const shown = wordsWidth(name) + Math.min(0, spare - taken);
+			const shown = wordsWidth(name) + Math.min(0, spare - taken + yields);
 			keeps(name, "data-lf-nameless", shown < parseFloat(getComputedStyle(name).fontSize) ? "" : null);
 		}
 	}

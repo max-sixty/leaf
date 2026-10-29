@@ -663,22 +663,25 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* A head row narrower than its words, as when the actions row holds a notice of
      news (thread-card.js), gives up room in one order: first the annotations after the
-     time, each cut with an ellipsis, then the author's name, with an ellipsis; the time
-     is never cut. The metadata's grid keeps the time's whole width as its least
-     (`min-width: min-content`, where an annotation's track contributes nothing), and
-     its shrink weight, a million to the name's one, spends its room before any of the
-     name's while it has room to give, so the name keeps its whole width whenever the
-     annotations alone can make the room. The heads' track narrows while the actions
-     row holds a notice of news, the card keeping its width (thread-preview.js). */
+     time, then the time, each cut with an ellipsis, then the author's name, with an
+     ellipsis, so a short name stands whole while any time is left to give (the user's
+     choice, 28 October 2026; #3104 had cut the name and never the time). The
+     metadata's shrink weight, a million to the name's one, spends its room before any
+     of the name's, and inside it each annotation's, a million to the time's one, before
+     the time's. The heads' track narrows while the actions row holds a notice of news,
+     the card keeping its width (thread-preview.js). */
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta {
-    display: grid;
-    grid-auto-flow: column;
-    grid-template-columns: max-content;
-    grid-auto-columns: minmax(0, max-content);
+    display: flex;
     gap: 0;
     flex-shrink: 1000000;
-    min-width: min-content;
+    min-width: 0;
     overflow: hidden;
+  }
+  .lf-margin-thread .lf-thread-transcript .lf-msg-meta > time {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   /* An unread reply's dot hangs before the name, in the transcript's gutter, so the
      name stays over the words and nothing moves when the reply reads. The head clips
@@ -699,6 +702,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   /* Each annotation carries its own gap, so one cut to nothing takes its gap too. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new) {
     padding-inline-start: var(--sp-2);
+    flex-shrink: 1000000;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -822,7 +826,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* A short name keeps its whole width even where the shared cap
      (components/surfaces.css) would cut it in a narrowed head; it shortens only once
-     the annotations after the time are gone. */
+     the annotations and the time are gone. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
     flex-shrink: 1;
     max-inline-size: max(40%, 5em);

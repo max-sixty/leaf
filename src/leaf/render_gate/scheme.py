@@ -16,6 +16,7 @@ from leaf.render_checks import (
     HANDOVER_DEADLINE_MS,
     SERVED_TIMEOUT_MS,
     PageNotReady,
+    close_render_page,
     evaluate_probe,
     install_window_errors,
     is_runtime_entry,
@@ -343,7 +344,7 @@ def _render_scheme(
         (resize_notices if problem.code == "resize-loop" else errors).append(problem)
 
     def ended(found, notices=(), complete=False):
-        page.close()
+        close_render_page(page)
         return (
             [finding.but(scheme=scheme) for finding in found],
             [notice.but(scheme=scheme) for notice in notices],

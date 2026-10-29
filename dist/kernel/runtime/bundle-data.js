@@ -6803,9 +6803,7 @@ var ThreadView = class {
 			const need = parseFloat(style.paddingInlineStart) + parseFloat(style.getPropertyValue("--lf-msg-control")) + wordsWidth(name) + (name && time ? parseFloat(style.columnGap) : 0) + wordsWidth(time);
 			heads.push({
 				name,
-				need,
-				spare: head.getBoundingClientRect().width - need,
-				yields: parseFloat(style.getPropertyValue("--lf-msg-control")) - parseFloat(getComputedStyle(head, "::after").minInlineSize) + wordsWidth(time)
+				spare: head.getBoundingClientRect().width - need
 			});
 		}
 		if (!heads.length || !notice.isConnected) {
@@ -6815,12 +6813,10 @@ var ThreadView = class {
 		const width = notice.getBoundingClientRect().width;
 		const spare = Math.min(...heads.map((head) => head.spare));
 		notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, width + spare)));
-		const taken = notice.getBoundingClientRect().width - width;
-		for (const { name, spare, yields } of heads) {
-			if (!name) continue;
-			const shown = wordsWidth(name) + Math.min(0, spare - taken + yields);
-			keeps(name, "data-lf-nameless", shown < parseFloat(getComputedStyle(name).fontSize) ? "" : null);
-		}
+		const nameless = heads.map(({ name }) => !!name && name.scrollWidth > name.clientWidth && name.clientWidth < parseFloat(getComputedStyle(name).fontSize));
+		heads.forEach(({ name }, at) => {
+			if (name) keeps(name, "data-lf-nameless", nameless[at] ? "" : null);
+		});
 	}
 	#watchMarginNews() {
 		this.#marginNews.disconnect();

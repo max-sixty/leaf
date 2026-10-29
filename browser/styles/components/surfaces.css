@@ -650,8 +650,7 @@ summary {
   margin-top: 0;
 }
 /* Every message header holds the same control-height row, including sticky margin
-   heads. Thread actions and reactions must not change its metadata-to-body gap.
-   An author may ellipsize while time and receipt use their own intrinsic room. */
+   heads. Thread actions and reactions must not change its metadata-to-body gap. */
 :is(.lf-msg-head, .lf-thread-working-head) {
   display: flex;
   align-items: center;
@@ -664,9 +663,38 @@ summary {
   font-size: var(--t-6);
   --lf-msg-name-size: 13px;
 }
-:is(.lf-msg-head, .lf-thread-working-head) .lf-msg-meta {
-  flex: 0 1 auto;
+/* A head too narrow for its words gives up its parts in the order of the rules below,
+   first to last: its controls' room while they hide (controls.css), the annotations
+   after its time, such as a receipt, then its time, then its author's name. Each part
+   with words is cut with an ellipsis, so a short name stays whole until everything
+   before it is gone (the user's choice, 28 October 2026). Flex takes room from each
+   part in proportion to its shrink weight times its width. Each weight here is a
+   million times the next one's, so a part gives up all its room before the next gives
+   up any visible width. The metadata shrinks as one part at its time's weight, which
+   keeps its annotations and time together in the order. A long name is cut at its cap
+   (below) however much room is left. */
+:is(.lf-msg-head, .lf-thread-working-head) {
+  &::after {
+    flex-shrink: 1e18;
+  }
+  & > .lf-msg-meta > :not(time, .lf-msg-new) {
+    flex-shrink: 1e12;
+  }
+  & > .lf-msg-meta,
+  & > .lf-msg-meta > time {
+    flex-shrink: 1e6;
+  }
+  & > b {
+    flex-shrink: 1;
+  }
+}
+:is(.lf-msg-head, .lf-thread-working-head) > .lf-msg-meta {
   overflow: hidden;
+  & > * {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 /* A primary reader's first message part, or the first message of its transcript part,
    holds its thread's news notice at the head's end, beside the message's own control
@@ -697,15 +725,10 @@ summary {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.lf-msg-head .lf-msg-sending {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* Keep short authors intact while long names leave room for delivery metadata. */
+/* A long name is cut at 40% of its head, which leaves its time and receipt room, and a
+   short one stands whole in a narrow head up to 5em. */
 :is(.lf-msg-head, .lf-thread-working-head) b {
-  flex: 0 0 auto;
-  max-inline-size: 40%;
+  max-inline-size: max(40%, 5em);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

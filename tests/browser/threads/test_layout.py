@@ -221,6 +221,49 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
     assert offered["receiptSeen"] is False, offered
 
 
+# A head's parts, in the order their shrink weights give, and each one's width as the
+# head narrows from far wider than its words to nothing.
+SQUEEZED_HEAD = """head => {
+  const meta = head.querySelector(':scope > .lf-msg-meta');
+  const parts = [{ name: 'room', node: head, pseudo: '::after' }];
+  for (const node of [...head.children, ...meta.children])
+    if (node !== meta && getComputedStyle(node).position !== 'absolute')
+      parts.push({ name: node.className || node.localName, node });
+  const style = (part) => getComputedStyle(part.node, part.pseudo);
+  parts.sort((a, b) => style(b).flexShrink - style(a).flexShrink);
+  const steps = [];
+  for (let width = 2000; width >= 0; width -= width > 400 ? 1600 : 1) {
+    head.style.inlineSize = `${width}px`;
+    steps.push(parts.map((part) => parseFloat(style(part).width)));
+  }
+  return { parts: parts.map((part) => part.name), steps };
+}"""
+
+
+def test_a_squeezed_head_gives_up_one_part_at_a_time(browser, serve):
+    """A head too narrow for its words gives up its parts one at a time, in the order
+    their shrink weights declare (surfaces.css): no part is cut while one before it
+    still has room to give, so a squeezed head never reads "Me ju… · Que…". The user's
+    queued message holds each part: its controls' room, its receipt, its time and
+    its name."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-margin-marker").first.click()
+    head = page.locator(".lf-margin-preview .lf-msg.user > .lf-msg-head").first
+    expect(head.locator(".lf-msg-sending")).to_contain_text("Queued")
+    squeeze = head.evaluate(SQUEEZED_HEAD)
+    parts, steps = squeeze["parts"], squeeze["steps"]
+    assert sorted(parts) == ["b", "lf-msg-sending", "room", "time"], parts
+    whole, least = steps[0], steps[-1]
+    for widths in steps:
+        for at in range(len(parts)):
+            if widths[at] < whole[at] - 0.05:
+                given = [widths[part] <= least[part] + 0.05 for part in range(at)]
+                assert all(given), (parts, widths)
+
+
 def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
     """The last translated frame and rest keep Copy on the message's head line."""
     url = serve(PANEL_PAGE)

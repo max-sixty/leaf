@@ -661,28 +661,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-thread .lf-thread-transcript .lf-msg-body * {
     scroll-margin-top: calc(var(--lf-msg-head-height) + var(--focus-ring-landing));
   }
-  /* A head row narrower than its words, as when the actions row holds a notice of
-     news (thread-card.js), gives up room in one order: first the annotations after the
-     time, then the time, each cut with an ellipsis, then the author's name, with an
-     ellipsis, so a short name stands whole while any time is left to give (the user's
-     choice, 28 October 2026; #3104 had cut the name and never the time). The
-     metadata's shrink weight, a million to the name's one, spends its room before any
-     of the name's, and inside it each annotation's, a million to the time's one, before
-     the time's. The heads' track narrows while the actions row holds a notice of news,
-     the card keeping its width (thread-preview.js). */
-  .lf-margin-thread .lf-thread-transcript .lf-msg-meta {
-    display: flex;
-    gap: 0;
-    flex-shrink: 1000000;
-    min-width: 0;
-    overflow: hidden;
-  }
-  .lf-margin-thread .lf-thread-transcript .lf-msg-meta > time {
-    flex-shrink: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   /* An unread reply's dot hangs before the name, in the transcript's gutter, so the
      name stays over the words and nothing moves when the reply reads. The head clips
      sideways and sticks, so it reaches into the gutter by the dot and the head's own
@@ -698,14 +676,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     position: absolute;
     inset-inline-start: 0;
     inset-block-start: calc(50% - 3px);
-  }
-  /* Each annotation carries its own gap, so one cut to nothing takes its gap too. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new) {
-    padding-inline-start: var(--sp-2);
-    flex-shrink: 1000000;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   /* The actions draw no ground: the transcript covers their track on the heads'
      line (above), with the ground of the message whose head holds it, tinted while
@@ -824,19 +794,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       }
     }
   }
-  /* A short name keeps its whole width even where the shared cap
-     (components/surfaces.css) would cut it in a narrowed head; it shortens only once
-     the annotations and the time are gone. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
-    flex-shrink: 1;
-    max-inline-size: max(40%, 5em);
-  }
-  /* A name left less than an em beside a notice of news shows none of itself
-     (thread-card.js, `#fitMarginNews`), rather than a sliver of its first letter. */
+  /* A name cut to less than an em beside a notice of news shows none of itself
+     (thread-card.js, `#fitMarginNews`), rather than a sliver of its first letter. It
+     keeps its box, so hiding it changes nothing the fit measures, and its words stay
+     for a screen reader. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-head > b[data-lf-nameless] {
-    flex-basis: 0;
-    min-inline-size: 0;
-    max-inline-size: 0;
+    clip-path: inset(50%);
   }
   /* Only the writer's name and the time stick. The head's annotations (a progress
      disclosure, a delivery receipt, a failure, a suggestion or edited label) belong

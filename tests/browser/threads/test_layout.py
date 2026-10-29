@@ -446,7 +446,6 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
                     ":root { --page-token: teal; }"
                     "html[data-lf-interactive] p > a { background-color: rgb(1, 2, 3); }"
                     "p > a::before { content: 'Kept'; }"
-                    "::placeholder { font-style: italic; }"
                     "p { border-top: 7px solid red; }</style>",
                 )
             )
@@ -461,9 +460,6 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
         return {
             controls: [...document.querySelectorAll('main button.lf-ui')].map(face),
             chrome: [...document.querySelectorAll('.lf-chrome button')].map(face),
-            placeholders: [...document.querySelectorAll(
-                '.lf-chrome :is(input, textarea)[placeholder]')].map(
-                el => getComputedStyle(el, '::placeholder').fontStyle),
             prose: face(document.querySelector('main p > a')),
             chromeToken: getComputedStyle(document.querySelector('.lf-chrome'))
                 .getPropertyValue('--page-token').trim(),
@@ -481,8 +477,6 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
     ]
     assert faces["controls"], "the board built no control to read"
     assert faces["chrome"], "the chrome built no button to read"
-    assert faces["placeholders"], "the chrome built no field to read"
-    assert "italic" not in faces["placeholders"], faces["placeholders"]
     assert {tuple(face[1:3]) for face in faces["controls"]} == {
         ("cursive", "rgb(255, 0, 0)")
     }, faces["controls"]

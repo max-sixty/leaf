@@ -1377,7 +1377,7 @@ details::details-content {
  * The secondary interface ink and not the document's muted, because a row's ground is
  * one of the surfaces the layer itself paints: a chosen row wears --ok-tint, and
  * --muted reads 4.43:1 on it, under AA. --muted-2 is the ink the palette holds to
- * 4.5:1 against the surfaces it lands on (theme.css), which is the promise this
+ * 4.5:1 against the surfaces it lands on (base.css), which is the promise this
  * reference needs and the document's own muted does not make. */
 .lf-ref {
   font-size: var(--t-6);
@@ -1713,7 +1713,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
    never reaches this rule, because inert status takes an interactive accent from
    neither pointer nor keyboard.
 
-   The ink was stated in theme.css, on `.lf-margin-marker` and `.lf-margin-more`, and
+   The ink was stated in base.css, on `.lf-margin-marker` and `.lf-margin-more`, and
    reached the first and not the second: the marker's selector carried one class more
    than the resting rule here, and the `…` carried exactly as many, so it lost on this
    sheet being adopted. One home for the state, and both say the same thing. */

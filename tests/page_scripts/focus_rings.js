@@ -29,7 +29,7 @@
   // the anchored response bar, which writes `outline: none` so its states keep one
   // silhouette, and the target hint the keyboard is browsing, a chip in a layer nothing can
   // focus — and to a user they are the same band as every other ring (--focus-shadow,
-  // theme.css).
+  // base.css).
   //
   // What makes it that band rather than the layer's other shadows: no offsets, no blur, and
   // the ring's own width as its spread. The elevation shadows are the third length away —
@@ -243,7 +243,7 @@
       // leaving — and this once read every ring that way, because the theme's
       // reduced-motion guard shortened transitions rather than removing them and
       // `transition-property` is `all`, so a ring arriving was a ring in transit for two
-      // frames on every page. That is fixed where it was made (theme.css). A layer that
+      // frames on every page. That is fixed where it was made (base.css). A layer that
       // deliberately animates a ring owes this reading a wait on `getAnimations()`; one
       // written here now would wait on nothing, in front of the reading it is meant to
       // protect.

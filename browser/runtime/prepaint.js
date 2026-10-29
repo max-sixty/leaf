@@ -1255,7 +1255,7 @@
   // The header a Layout sticks over its body, as a workspace does where the window is
   // too small to be its screen (layouts.css, "Workspace"): what the body stands under is
   // the header's height, which no CSS can read, so it is written here for the body's
-  // sticky-header slot (`--lf-top`, theme.css) to add. Which header sticks is the
+  // sticky-header slot (`--lf-top`, base.css) to add. Which header sticks is the
   // stylesheet's to say; this reads its computed position.
   const HEAD = "--lf-layout-head-h";
   const head = () => {

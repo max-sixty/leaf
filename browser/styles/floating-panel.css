@@ -1,5 +1,5 @@
 /* The floating panel (runtime/floating-panel.js): Leaf's chrome, one box over the foot
-   of the page. The theme keeps its row's room at the page's foot (theme.css,
+   of the page. The theme keeps its row's room at the page's foot (base.css,
    `--lf-foot-room`).
 
    The panel stands on the page's own ground, set off by a hairline and the faintest
@@ -64,7 +64,7 @@
      which the user singled out as the panel's best motion (15 October). A view the
      user opened, or put away, is what they asked to see, so it arrives almost at once,
      as the menu does: its outline in a disclosure's time (`--lf-motion-disclosure`,
-     theme.css), since the user found the full tween slow there (15 October), and its
+     base.css), since the user found the full tween slow there (15 October), and its
      words faded in at once after the leaving view's, which is gone before the arriving
      one shows, so the two never read through each other. The row gathers into its
      leaf on a curve of its own before that one object finishes travelling; its layout

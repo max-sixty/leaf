@@ -404,7 +404,7 @@ customElements.define(
           title: "In a Playwright recording",
           rows: [
             // Back along the time scale is the arrow toward its start. The scale
-            // runs left to right in every text direction (theme.css), so its arrows
+            // runs left to right in every text direction (base.css), so its arrows
             // are fixed rather than read from the computed direction, which would
             // force a style recalculation each time the page's keys are reflected.
             {

@@ -62,7 +62,7 @@ lf-options {
   container-type: inline-size;
 }
 /* Options are read as lines of text, so the group keeps the reading measure as its
- * words do (theme.css), its outer width the measure whatever one option holds. */
+ * words do (base.css), its outer width the measure whatever one option holds. */
 @media screen {
   lf-options {
     box-sizing: border-box;
@@ -109,7 +109,7 @@ lf-options:has(> lf-option > strong) > .lf-another {
     border: 1px solid transparent;
   }
 }
-/* A title heads its card, or, at working density (`--lf-density`, theme.css) in a card
+/* A title heads its card, or, at working density (`--lf-density`, base.css) in a card
  * at least 30rem wide, runs into its consequence on one row with the chips at its end.
  * A narrower card keeps the heading, since a row there broke the title around the
  * floated chips. The card is the container, so both conditions read the same box. */
@@ -486,7 +486,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     & > lf-options-done {
       min-height: var(--lf-done-cell-height);
     }
-    /* The joined group draws a frame (--lf-block-frame, theme.css), and says its cells
+    /* The joined group draws a frame (--lf-block-frame, base.css), and says its cells
      * are joined for the rules that dress an option standing alone. */
     --lf-block-frame: 1;
     --lf-joined: 1;
@@ -495,7 +495,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     & > :not(lf-option) {
       grid-column: 1 / -1;
     }
-    /* The group clips to its frame, so a control's ring is drawn inset (theme.css,
+    /* The group clips to its frame, so a control's ring is drawn inset (base.css,
      * --focus-ring) or the clip cuts it. */
     & .lf-btn[data-lf-focus-visible] {
       outline-offset: calc(-1 * var(--focus-ring-w));

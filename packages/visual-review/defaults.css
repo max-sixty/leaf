@@ -69,7 +69,7 @@ lf-visual-review {
   border-radius: 0;
   min-inline-size: 0;
 }
-/* The queue's body is no container, as a pane's body otherwise is (theme.css): the
+/* The queue's body is no container, as a pane's body otherwise is (base.css): the
    case buttons follow the review's own width (`visual-review`), and Chromium left
    them in the wide layout's padding the first time that width crossed a query
    after the review upgraded, while a container stood between them and it. Nothing

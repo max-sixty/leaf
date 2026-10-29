@@ -26,6 +26,7 @@ from .schema import (
     INSTRUCTIONS_FILE,
     JAVASCRIPT_SUFFIXES,
     KERNEL,
+    KERNEL_FILES,
     LAYER_TOP_FILES,
     PACKAGE_DIRS,
     PACKAGE_FILES,
@@ -106,7 +107,7 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
             continue
         if not root.is_dir():
             raise Refused(f"{root} must be a directory")
-        for name in LAYER_TOP_FILES if root == ASSETS else PACKAGE_FILES:
+        for name in KERNEL_FILES if root == ASSETS else PACKAGE_FILES:
             path = root / name
             if (path.exists() or path.is_symlink()) and not path.is_file():
                 raise Refused(f"{path} must be a file")
@@ -139,7 +140,7 @@ def input_paths(inputs: list[Path]) -> list[Path]:
         paths.append(root.resolve())
         paths.extend(
             path.resolve()
-            for name in (LAYER_TOP_FILES if root == ASSETS else PACKAGE_FILES)
+            for name in (KERNEL_FILES if root == ASSETS else PACKAGE_FILES)
             if ((path := root / name).exists() or path.is_symlink())
         )
         paths.extend(
@@ -334,8 +335,8 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     state retain their own tiers. Page CSS remains unlayered.
     """
     kernel, *packages = inputs
-    if not (kernel / "theme.css").is_file():
-        raise Refused("the incoming layer has no theme.css")
+    if not (kernel / "base.css").is_file():
+        raise Refused("the incoming layer has no base.css")
     order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
     theme = [order]
     shadow = [order]
@@ -347,7 +348,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
 
     place(theme, "lf-base", kernel, "shadow.css")
     place(shadow, "lf-shadow", kernel, "shadow.css")
-    place(theme, "lf-base", kernel, "theme.css")
+    place(theme, "lf-base", kernel, "base.css")
     for root in packages:
         place(theme, "lf-base", root, "widget-shadow.css")
         place(shadow, "lf-shadow", root, "widget-shadow.css")

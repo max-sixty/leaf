@@ -310,7 +310,7 @@ lf-tabs.lf-rendered > lf-tab {
   }
 
   /* A boxed set's panel is a bounded box, so it is the container what it holds
-     * measures itself against (theme.css in the kernel says why a framed box is one). */
+     * measures itself against (base.css in the kernel says why a framed box is one). */
   lf-tabs.lf-rendered[data-lf-views-flow="box"] > lf-tab {
     container-type: inline-size;
   }

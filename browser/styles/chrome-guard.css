@@ -1,7 +1,7 @@
 /* The page's own rules stop at the chrome. The page's sheet is unlayered, as this one
    is, so a page rule for `button`, `summary` or `p` would otherwise dress every chrome
    element of that type. Here every chrome element rolls each property back to the
-   layered cascade (Leaf's faces in shadow.css and theme.css), and the chrome's own
+   layered cascade (Leaf's faces in shadow.css and base.css), and the chrome's own
    rules after this one restate the rest. The guard weighs one class and is adopted
    after the page's sheets, so a page selector of up to one class, attribute or
    pseudo-class (`button`, `.card`, `[type=button]`) loses to it. What still reaches the

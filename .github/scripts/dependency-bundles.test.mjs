@@ -158,7 +158,7 @@ test("publisher refuses untrusted paths, foreign builds and non-dependency sourc
     ".github/workflows/ci.yaml",
     "browser/vendor/../runtime/evil.js",
     "browser/vendor/.hidden.js",
-    "browser/theme.css",
+    "browser/base.css",
     "browser/styles/theme.css",
     "packages/default/defaults.css",
     "browser/runtime/authored.css",

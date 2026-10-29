@@ -921,7 +921,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
 def test_page_authoring_names_the_theme_s_largest_spacing_step():
     """Authors read the spacing scale's ends in page-authoring.md rather than the
     theme, so a step the theme adds is one they can find."""
-    theme = (PLUGIN_ROOT / "browser/theme.css").read_text()
+    theme = (PLUGIN_ROOT / "browser/base.css").read_text()
     largest = max(int(step) for step in re.findall(r"--sp-(\d+):", theme))
     prose = (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text()
     assert f"`--sp-1` to `--sp-{largest}`" in " ".join(prose.split())
@@ -1334,7 +1334,7 @@ def _stated_faces(sheet, *, only_top_level):
 
 
 _PAGE_SIDE_SHEETS = [
-    schema_model.ASSETS / "theme.css",
+    schema_model.ASSETS / "base.css",
     schema_model.ASSETS / "shadow.css",
     *(
         path
@@ -1359,7 +1359,7 @@ def _declared_rules(sheet, *, scoped):
 
 def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
     """A rule inside chrome.css's `@scope` reaches the chrome root; the same rule in
-    theme.css or shadow.css reaches the page, the widget trees, and the chrome root too.
+    base.css or shadow.css reaches the page, the widget trees, and the chrome root too.
     Written in both, the shape has two statements to keep in step and the chrome's is the
     one anybody reading the page's sheet cannot see — which is how the whole reaction
     vocabulary came to be written twice, identically, in nineteen rules.
@@ -1464,7 +1464,7 @@ def test_layout_style_and_widgets_never_read_each_other():
     A Layout class is one layouts.css styles; a style class is one the kernel theme
     gives its own type or spacing tokens (`--t-*`, `--sp-*`)."""
     layouts = schema_model.ASSETS / "layouts.css"
-    theme = schema_model.ASSETS / "theme.css"
+    theme = schema_model.ASSETS / "base.css"
     owned = {
         layouts: {
             name
@@ -1680,15 +1680,15 @@ def test_every_token_a_sheet_reads_is_set_somewhere():
 
 
 def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
-    """chrome.css is adopted, so it cascades after theme.css and after every package
+    """chrome.css is adopted, so it cascades after base.css and after every package
     theme concatenated onto it. One selector dressed for the same property in both
     sheets therefore has one copy that never applies — the adopted one wins whatever the
     other says — and nothing catches it, because no test and no browser gate can read a
     rule that never applied.
 
     The chip and the thread mark's note were written that way on purpose, restated in
-    theme.css for the shadow roots the adopted sheet cannot reach, and the two copies
-    had drifted: theme.css's chip cleared the platform's button face and chrome.css's
+    base.css for the shadow roots the adopted sheet cannot reach, and the two copies
+    had drifted: base.css's chip cleared the platform's button face and chrome.css's
     did not, so in the light DOM that reset had never once run.
 
     Only chrome.css's top level is asked here. A rule inside its `@layer` loses to any
@@ -1727,7 +1727,7 @@ _LAYER_SHEET_ORDER = [
     for sheet in (
         root / name
         for name in (
-            ("shadow.css", "theme.css")
+            ("shadow.css", "base.css")
             if root == schema_model.ASSETS
             else schema_model.PACKAGE_STYLES
         )
@@ -1744,7 +1744,7 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
     where lf-diff marks its line numbers `lf-ui`, so the selector reaches only elements
     under the document's root.
 
-    Each of the three has broken once: stated in theme.css after shadow.css, Send drew
+    Each of the three has broken once: stated in base.css after shadow.css, Send drew
     near-black instead of the accent; at the head of shadow.css as a plain `.lf-ui`, the
     diff's line numbers took the control's size and ink; as `:where(.lf-ui)`, a page's
     `button, a` rule took the family of half corpus.html's widget controls. The browser
@@ -1784,7 +1784,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
     page_paint = schema_model.ASSETS / "runtime" / "page-paint.js"
     read = json.loads(js_facts("literals", [page_paint]))
     assets = schema_model.ASSETS
-    sheet = (assets / "theme.css").read_text() + (
+    sheet = (assets / "base.css").read_text() + (
         assets / "runtime/chrome.css"
     ).read_text()
 
@@ -1804,7 +1804,7 @@ def test_prepaint_marks_the_state_the_stylesheet_reads():
         assets / "runtime" / f"{name}.js" for name in ("bootstrap", "prepaint")
     )
     read = json.loads(js_facts("literals", [bootstrap, prepaint]))
-    theme = (assets / "theme.css").read_text()
+    theme = (assets / "base.css").read_text()
 
     assert ["data-lf-live", True] in read[str(bootstrap)]["calls"]["toggleAttribute"]
     assert "html[data-lf-live]" in theme
@@ -2123,7 +2123,7 @@ def test_composed_sheets_preserve_each_sources_eof_boundary(tmp_path, first):
     roots = [tmp_path / name for name in ("first", "second")]
     for root, sheet, css in zip(
         roots,
-        ("theme.css", "overrides.css"),
+        ("base.css", "overrides.css"),
         (first, ".y { color: red; }"),
         strict=True,
     ):
@@ -2149,7 +2149,7 @@ def test_a_sheet_composes_the_files_it_imports_in_place(tmp_path):
     keeps its own EOF recovery. So an edit to any of them reaches the next composition,
     and the page asks for no import."""
     (tmp_path / "parts").mkdir()
-    (tmp_path / "theme.css").write_text(
+    (tmp_path / "base.css").write_text(
         '@import "./parts/open.css";\n'
         "@import url(parts/layered.css) layer(extra);\n"
         ".after { color: blue; }\n"
@@ -2193,7 +2193,7 @@ def test_a_sheet_imports_only_its_own_files_whole(tmp_path, imported):
     package.mkdir()
     (tmp_path / "outside.css").write_text(".outside {}")
     (package / "a.css").write_text(".a {}")
-    (package / "theme.css").write_text(f"@import {imported};\n")
+    (package / "base.css").write_text(f"@import {imported};\n")
     with pytest.raises(Refused, match="import"):
         layer_model.composed_sheets([package])
 
@@ -2201,7 +2201,7 @@ def test_a_sheet_imports_only_its_own_files_whole(tmp_path, imported):
 def test_sheets_that_import_each_other_are_refused_by_name(tmp_path):
     """A cycle of imports is refused naming its files, and a reader that follows the
     layer's inputs, as vendoring and a live preview do, still finishes and lists them."""
-    (tmp_path / "theme.css").write_text('@import "a.css";\n')
+    (tmp_path / "base.css").write_text('@import "a.css";\n')
     (tmp_path / "a.css").write_text('@import "b.css";\n.a {}\n')
     (tmp_path / "b.css").write_text('@import "a.css";\n.b {}\n')
     with pytest.raises(Refused, match=r"a\.css -> .*b\.css -> .*a\.css"):
@@ -2225,7 +2225,7 @@ def test_composed_sheets_replace_surrogate_escapes_as_the_browser_does(tmp_path,
     tinycss2 instead emits lone surrogates; serialization must preserve browser
     meaning rather than crash UTF-8 encoding while composing the layer.
     """
-    (tmp_path / "theme.css").write_text(':root { --kept: "é🍂"; }\n' + css)
+    (tmp_path / "base.css").write_text(':root { --kept: "é🍂"; }\n' + css)
     sheet = layer_model.composed_sheets([tmp_path])["theme.css"].decode()
     assert "\ufffd" in sheet
     assert "é🍂" in sheet

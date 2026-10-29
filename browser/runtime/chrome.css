@@ -18,7 +18,7 @@
    each surface.
 
    Every rule that draws a focus ring draws it with `--focus-ring` or `--focus-shadow`
-   (theme.css) and names nothing; the suite asks the browser which rule drew it. The ring is drawn outside its box, so every scroll region a ringed box can land in
+   (base.css) and names nothing; the suite asks the browser which rule drew it. The ring is drawn outside its box, so every scroll region a ringed box can land in
    reserves `--focus-ring-room` with `scroll-padding`, and a sticky row keeps that room as
    its own padding; a box whose edge touches something that paints draws its ring inset.
    A large composite region paints a quiet ground inside its box instead.
@@ -32,7 +32,7 @@
    absolute chrome with the passage it stands beside. */
 /* Shared vocabulary. This sheet is adopted after the theme and every package, so a
    shared face stated here would outrank each component's own rule. The vocabulary's
-   faces are therefore stated page-side (the margin entries in theme.css; .lf-key-badge,
+   faces are therefore stated page-side (the margin entries in base.css; .lf-key-badge,
    .lf-ui, .lf-btn and the aim floor in shadow.css, which also reaches
    widget trees). What stays here is paint the runtime lays over the page, which has to
    beat page and widget alike, and the `box-sizing` reset. test_interact_layer.py holds
@@ -194,7 +194,7 @@ html[data-lf-region-capture] main * {
    It is an outline, so it moves nothing. A widget carrying the location itself stands
    it down with `--lf-obligation-ring: none` on the decision. */
 /* The ring stands outside the decision, so a landing keeps its room at the scroller's
-   edge, as a margin entry's does (theme.css): an obligation landed at the top of a scrolling
+   edge, as a margin entry's does (base.css): an obligation landed at the top of a scrolling
    pane stood flush with it, the top of its ring cut off under the pane's header rule. */
 [data-lf-obligation] {
   outline: var(--lf-obligation-ring, var(--focus-ring));
@@ -391,7 +391,7 @@ html[data-lf-region-capture] main * {
       );
     }
     /* A clip that leaves no room outside the target (visual-mark-paint.js) takes the
-       perimeter just inside its edge, as a control packed into a list does (theme.css). */
+       perimeter just inside its edge, as a control packed into a list does (base.css). */
     &.lf-visual-mark-inset::before,
     &.lf-visual-mark-inset::after {
       outline-offset: calc(-1 * var(--focus-ring-w));
@@ -995,7 +995,7 @@ html[data-lf-region-capture] main * {
     cursor: pointer;
   }
   /* The user's turn paints this row as it paints its margin entry, in one rule set
-     in theme.css; the row's ground and hover read the wash it sets. */
+     in base.css; the row's ground and hover read the wash it sets. */
   .lf-page-map-action:is(button, [role="button"]):is(:hover, [data-lf-focus]):not(
       [aria-disabled="true"]
     ) {
@@ -1330,7 +1330,7 @@ html[data-lf-region-capture] main * {
      the product palette with forced-color-adjust. The pressed border is important, so
      it holds over the more specific face of every control that can be pressed. The
      focus ring needs nothing here: --focus-ring is Highlight in a forced palette
-     (theme.css). */
+     (base.css). */
   @media (forced-colors: active) {
     .lf-dot {
       background: CanvasText;

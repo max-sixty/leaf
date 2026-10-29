@@ -1,7 +1,7 @@
-/* Leaf's default package: broadly useful content rules concatenated after the kernel
- * theme by `page init`. These widgets reach a page through the same package route as
+/* Leaf's default package: broadly useful content rules concatenated after the kernel's
+ * base.css by `page init`. These widgets reach a page through the same package route as
  * selected, user, and project contributions. Tokens and the suggestion family are the
- * kernel theme's, and elements and idioms the page's theme's (packages/reading by
+ * kernel's, and elements and idioms the page's theme's (packages/reading by
  * default), which a widget's own face never leans on; the default package's widgets
  * wear the rules imported here, each widget's from its own file. The import order is the
  * cascade order. */

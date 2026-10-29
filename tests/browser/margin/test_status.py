@@ -1236,7 +1236,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expect(mapped).to_have_count(1)
     expect(mapped.locator(".lf-margin-kind")).to_have_attribute("data-lf-icon", "edit")
     # The row is the carrier drawn again, so pickup inks its glyph as it inks the
-    # carrier's: one rule set in theme.css paints both.
+    # carrier's: one rule set in base.css paints both.
     ink = "el => getComputedStyle(el).color"
     assert (
         mapped.locator(".lf-margin-kind").evaluate(ink)

@@ -535,7 +535,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     scrollbar-color: color-mix(in srgb, var(--ink) 12%, var(--paper)) transparent;
     scroll-padding-block: var(--focus-ring-room);
     /* The room above the heads is where their slot starts (`--lf-top-start`,
-       theme.css), held open by a row before the first message, not padding: Firefox
+       base.css), held open by a row before the first message, not padding: Firefox
        (155 and 158, 2026-10-25) sticks a box in a subgrid scroller at the scroller's
        edge, ignoring its padding, which stood the stuck head that room above the
        actions' line. */
@@ -650,7 +650,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      the shared track before the actions; bodies span both without adding to the
      card's width. A head sticks at the slot (`--lf-top`) and covers only its own
      message, so the words under it take the slot past its height as their `--lf-top`,
-     and its height as their `scroll-margin` below the landing band (theme.css, at
+     and its height as their `scroll-margin` below the landing band (base.css, at
      `--lf-top`): a reveal lands them below it and the runtime's reading counts what it
      covers as hidden, while a whole message lands flush with its own head. The card
      draws no reactions, so a head keeps a control's room only where it draws one, the

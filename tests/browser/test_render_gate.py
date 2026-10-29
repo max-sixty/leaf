@@ -2926,7 +2926,7 @@ DISCLOSURES = """() => [...document.querySelectorAll('details')]
 
 
 def adopted_sheet_findings(page):
-    """The runtime's sheets are adopted, so they cascade after theme.css and after every
+    """The runtime's sheets are adopted, so they cascade after base.css and after every
     package theme concatenated onto it. That position is an accident of how they are
     delivered, and a rule that wins by it beats the page's own rule at equal specificity
     — a default outranking the thing it is a default for. Nothing catches that, because
@@ -2945,7 +2945,7 @@ def adopted_sheet_findings(page):
     Layer order is the one other thing the move could reverse. A module sheet adopted
     first names `lf-base` before chrome.css names `lf-reset`, so the copy opens with the
     statement the page's first sheet makes (`@layer lf-reset, lf-base, lf-layouts`). An
-    anonymous layer theme.css opens meets nothing here: every rule in it asks for a body
+    anonymous layer base.css opens meets nothing here: every rule in it asks for a body
     without `data-lf-presented` or `data-lf-upgraded`, and open_page has waited for both.
 
     A tie shows only where both rules meet one element, so this reads the corpus."""

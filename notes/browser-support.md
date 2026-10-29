@@ -242,7 +242,7 @@ with caching enabled when changing the policy or sample lifetime.
 
 ### Frame margin trimming
 
-The frame-edge rules in `browser/theme.css` traverse bare wrappers,
+The frame-edge rules in `browser/base.css` traverse bare wrappers,
 skip generated apparatus and stop at declared rows. Native `margin-trim`
 cannot replace that behavior across the checked engines: on 2026-10-08,
 Chrome 155 trimmed block-flow margins but left flex and grid item margins;

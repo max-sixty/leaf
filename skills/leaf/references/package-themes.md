@@ -142,7 +142,7 @@ Startup behavior and transition protection follow
 ## Theme colors
 
 Use independent inputs where the foreground and background need a deliberate contrast
-choice. The default palette is declared in `browser/theme.css`:
+choice. The default palette is declared in `browser/base.css`:
 
 | Surface                  | Inputs                                                                                                                                                                                |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

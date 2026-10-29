@@ -968,3 +968,69 @@ wa-copy-button.lf-icon-action {
   background-color: var(--accent-tint);
   color: var(--ink);
 }
+/* A row's layout, beside its face: what marks it (`.lf-row-lead`: a dot, a symbol, a
+   number or a time), what it names (`.lf-row-main`) and what it says or offers at its
+   end (`.lf-row-end`: a status, a time, a key, an arrow). The lead is muted and centred
+   on the name's first line, its numbers ending together; the end is muted, a step
+   smaller, on the first line's baseline. Every row has the same padding, at least 30px
+   tall, and reaches the aim floor under a finger. A row takes this layout by naming its
+   main part, so a way back or a command in the reference keeps its own; one that offers
+   nothing, such as a Page Map status, lays out as a row with `.lf-row-plain`.
+
+   The rows of a list (`.lf-rows`) share its columns through subgrid, wrappers included,
+   so names start and are cut on one edge, and rows meet edge to edge. The gaps are the
+   parts' margins, so a list without a lead or an end keeps no room for one. Seven lists
+   drew seven layouts until they shared this one. */
+:is(.lf-row, .lf-row-plain):where(:has(> .lf-row-main)) {
+  display: grid;
+  grid-template-columns: [lead] auto [main] minmax(0, 1fr) [end] auto;
+  align-items: baseline;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: max(30px, var(--aim-floor));
+  padding: 5px 8px 5px 6px;
+  line-height: 1.45;
+}
+.lf-row-plain {
+  border-inline-start: 2px solid transparent;
+}
+.lf-rows {
+  display: grid;
+  grid-template-columns: [lead] auto [main] minmax(0, 1fr) [end] auto;
+}
+.lf-rows > * {
+  grid-column: 1 / -1;
+}
+.lf-rows > :where(.lf-row, .lf-row-plain, :has(> :is(.lf-row, .lf-row-plain))),
+.lf-rows > * > :where(.lf-row, .lf-row-plain) {
+  display: grid;
+  grid-template-columns: subgrid;
+  margin-block: 0;
+}
+.lf-rows > * > :where(.lf-row, .lf-row-plain) {
+  grid-column: 1 / -1;
+}
+.lf-row-lead {
+  grid-column: lead;
+  align-self: start;
+  display: grid;
+  place-items: center end;
+  min-height: 1lh;
+  margin-inline-end: 8px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.lf-row-main {
+  grid-column: main;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lf-row-end {
+  grid-column: end;
+  justify-self: end;
+  margin-inline-start: 12px;
+  color: var(--muted);
+  font-size: calc(1em - 1px);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

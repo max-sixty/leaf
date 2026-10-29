@@ -119,8 +119,8 @@ class BrowserCheck:
     code that fails ends the check before the render reading, so `render` is None
     there as well as where it was not asked for, and `ran` names only the gates that
     read the page. `screens` is the directory and each
-    saved screen with what it shows, for a page the render gate passed. `desktop` is
-    the window the render check reads the desktop at, where it was asked for."""
+    saved screen with what it shows, including when the render gate found failures.
+    `desktop` is the window the render check reads the desktop at, where it was asked for."""
 
     gates: list[str]
     browser: str | None = None
@@ -179,7 +179,7 @@ def browser_check(
     """Serve the candidate source once and, in one browser, run the page's own code
     (`page_code` says which run and which errors fail it), then the render invariants
     at the desktop window `desktop_viewport` chooses and a phone's, saving the screens
-    the pre-handover review reads for a page they pass. Page code that fails ends the
+    the author reads, including when there are findings. Page code that fails ends the
     check before the render reading."""
     artifact = snapshot.artifact(snapshot.active_revision())
     gates = [
@@ -201,8 +201,6 @@ def browser_check(
             implementations=artifact.implementations,
             declaration_sources=artifact.declaration_sources,
         )
-        if reading.failures:
-            return errors, reading, None
         screens = save_screens(browser, url, reading, page_dir, desktop.viewport)
         return errors, reading, screens
 

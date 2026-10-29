@@ -460,6 +460,13 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     # which runs to the card's edge, shows only its name and time there until its
     # message is offered.
     def expect_headers_clear_actions():
+        # Read where the card comes to rest, once its entrance and any landing settle.
+        preview.evaluate(
+            """card => Promise.all(card.getAnimations({subtree: true})
+              .filter(motion => motion.timeline === document.timeline &&
+                motion.effect.getComputedTiming().endTime !== Infinity)
+              .map(motion => motion.finished))"""
+        )
         geometry = card.evaluate("""card => {
           const actions = card.querySelector('.lf-margin-thread-controls');
           const line = [...actions.querySelectorAll('.lf-icon-action')]

@@ -4608,6 +4608,10 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
     expect(
         page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     ).to_be_focused()
+    # Card focus precedes the smooth scroll; observe arrival before settling it.
+    expect(
+        page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    ).to_be_in_viewport()
     scroll_settled(page)
     assert page.evaluate("document.scrollingElement.scrollTop") < reading - 1000
     assert page.evaluate("history.length") == entries + 1

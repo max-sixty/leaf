@@ -2230,15 +2230,21 @@ function createAim({ marginTargetAt, refreshAim, commentOnTarget, drawModeActive
 
 //#endregion
 //#region runtime/keyboard/key-sequence.js
-const rowSteps = (row, route = null) => {
-	if (route) return [spell(route.binding)];
-	const label = labelOf(row);
-	return word(row.sequenceSteps) ?? (label ? [label] : []);
+const rowKeySteps = (row, route = null) => {
+	if (route) return [[spell(route.binding)]];
+	const steps = word(row.sequenceSteps);
+	if (steps) return steps.map((step) => [step]);
+	const label = word(row.label);
+	if (label !== void 0 && label !== null) return label ? [[label]] : [];
+	const keys = bindings(row).map(spell);
+	return keys.length ? [keys] : [];
 };
-const completeRowSteps = (row, route = null) => {
-	if (route) return rowSteps(row, route);
-	return word(row.completeSequenceSteps) ?? rowSteps(row);
+const completeRowKeySteps = (row, route = null) => {
+	const steps = route ? null : word(row.completeSequenceSteps);
+	return steps ? steps.map((step) => [step]) : rowKeySteps(row, route);
 };
+const stepText = (keys) => keys.join(" / ");
+const completeRowSteps = (row, route = null) => completeRowKeySteps(row, route).map(stepText);
 const neutralStates = (steps) => steps.map(() => "neutral");
 const progressStates = (steps, pressed) => {
 	let matching = true;
@@ -2247,13 +2253,15 @@ const progressStates = (steps, pressed) => {
 		return matching ? "pressed" : "neutral";
 	});
 };
-function keySequenceModel(steps, states = neutralStates(steps), spokenSteps = steps) {
-	if (!steps.length || states.length !== steps.length || spokenSteps.length !== steps.length) throw new Error("leaf: a key sequence needs one state and spoken label per step");
+function keySequenceModel(steps, states = neutralStates(steps), spokenSteps = steps, keySteps = steps.map((text) => [text])) {
+	if (!steps.length || states.length !== steps.length || spokenSteps.length !== steps.length || keySteps.length !== steps.length) throw new Error("leaf: a key sequence needs one state, spoken label and set of keys per step");
 	const reading = steps.map((text, index) => {
 		const state = states[index];
 		const spoken = spokenSteps[index];
+		const keys = Object.freeze([...keySteps[index]]);
 		return Object.freeze({
 			text,
+			keys,
 			spoken,
 			state
 		});
@@ -2269,12 +2277,13 @@ function keySequenceTemplate(model, { id = null, label = false } = {}) {
     class=${`lf-binding-sequence${label ? " lf-key-label" : ""}`}
     role="group"
     aria-label=${model.label}
-    >${repeat(model.steps, (_step, index) => index, (step) => html`<kbd
-          class="lf-key-badge"
-          data-lf-sequence-step-state=${step.state}
-          aria-hidden="true"
-          >${step.text}</kbd
-        >`)}</span
+    >${repeat(model.steps, (_step, index) => index, (step) => step.keys.map((key, index) => html`<kbd
+              class="lf-key-badge"
+              data-lf-sequence-step-state=${step.state}
+              ?data-lf-key-or=${index > 0}
+              aria-hidden="true"
+              >${key}</kbd
+            >`))}</span
   >`;
 }
 
@@ -5786,8 +5795,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       ?data-opens=${opens}
       @click=${press}
     >
-      <span class="lf-fp-label">${label}</span
-      ><span class="lf-fp-end"
+      <span class="lf-fp-label lf-row-main">${label}</span
+      ><span class="lf-fp-end lf-row-end"
         >${end}${opens ? iconTemplate("next", "lf-fp-chevron") : nothing}</span
       >
     </button>`;
@@ -5940,7 +5949,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               <b>${latest.label}</b>
               <p class="lf-fp-failed-error scroll">${latest.error}</p>
             </div>` : nothing}
-      <div class="lf-fp-versions" role="none">
+      <div class="lf-fp-versions lf-rows" role="none">
         ${repeat(versions, (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`, (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
               ${menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, nothing, () => showVersion(entry), {
 			title: entry.note,
@@ -6097,7 +6106,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`<h3 class="lf-label lf-fp-on-group lf-fp-settled-group">
       <button
         type="button"
-        class="lf-fp-face lf-fp-settled lf-disclosure-marker"
+        ${offeredAction("row", "lf-fp-face lf-fp-settled lf-disclosure-marker")}
         aria-expanded=${open ? "true" : "false"}
         @click=${() => {
 			if (open) unfolded.delete(key);
@@ -6106,8 +6115,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			paint();
 		}}
       >
-        <span class="lf-fp-label">${title}</span
-        ><span class="lf-fp-count">${count}</span>
+        <span class="lf-fp-label lf-row-main">${title}</span
+        ><span class="lf-fp-count lf-row-end">${count}</span>
       </button>
     </h3>`;
 	}
@@ -6127,14 +6136,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			thread: thread.key
 		})}
       >
-        <span class="lf-fp-news-mark lf-unread-dot"
-          >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
+        <span class="lf-row-lead"
+          ><span class="lf-fp-news-mark lf-unread-dot"
+            >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
+          ></span
         >
-        <span class="lf-fp-label">${threadHeading(thread)}</span>
-        <span class="lf-fp-value">${threadStatus(thread)}</span>
+        <span class="lf-fp-label lf-row-main">${threadHeading(thread)}</span>
+        <span class="lf-row-end">${threadStatus(thread)}</span>
       </button>`;
 		const rowsOf = (threads) => repeat(threads, (thread) => thread.key, row);
-		return html`<div class="lf-fp-list">
+		return html`<div class="lf-fp-list lf-rows">
       ${listed.length ? rowsOf(listed) : inventoried() ? html`<p class="lf-fp-empty">
                 ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
               </p>` : nothing}
@@ -6643,8 +6654,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
         @click=${() => toggleItem(key)}
       >
-        <span class="lf-fp-value lf-fp-on-noun">${kind}</span
-        ><span class="lf-fp-on-says"
+        <span class="lf-fp-value lf-fp-on-noun lf-row-lead">${kind}</span
+        ><span class="lf-fp-on-says lf-row-main"
           ><span class="lf-fp-label">${name}</span>${end}</span
         >
       </button>
@@ -6680,7 +6691,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				group
 			});
 		}
-		return html`<div class="lf-fp-on-list">
+		return html`<div class="lf-fp-on-list lf-rows">
       ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-label lf-fp-on-group">
                   <span class="lf-fp-label">${row.group.title}</span
                   ><span class="lf-fp-count"
@@ -7628,11 +7639,11 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		const thread = item && inventory.sourceItem(item)?.thread;
 		return thread ? threadHeading(thread) : visibleLabel;
 	};
-	const sheetFace = ({ icon, glyph, item, visibleLabel, context }) => html`${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}<span class="lf-page-map-action-label"
-        ><span class="lf-page-map-action-label-word"
-          >${sheetName(item, visibleLabel)}</span
-        >${context ? html`<span class="lf-page-map-action-context">${context}</span>` : nothing}</span
-      >`;
+	const sheetFace = ({ icon, glyph, item, visibleLabel, context }) => html`<span class="lf-row-lead"
+        >${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}</span
+      ><span class="lf-page-map-action-label-word lf-row-main"
+        >${sheetName(item, visibleLabel)}</span
+      >${context ? html`<span class="lf-page-map-action-context lf-row-end">${context}</span>` : nothing}`;
 	function activateSheetControl(event, action) {
 		const { offered, record } = action;
 		if (record.behavior === "status" || record.disabled) return;
@@ -7686,7 +7697,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		const body = sheetFace(action);
 		if (action.record.behavior === "status") return html`<span
         id=${action.id}
-        class="lf-page-map-action"
+        class="lf-page-map-action lf-row-plain"
         data-lf-map-key=${action.key}
         data-lf-map-margin-entry=${action.key}
         ${sheetHost(action, actions)}
@@ -7713,7 +7724,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
       ?hidden=${Boolean(query) && !group.search.includes(query)}
     >
       <h3>${group.entry.title}</h3>
-      <div class="lf-page-map-actions">
+      <div class="lf-page-map-actions lf-rows">
         ${repeat(group.actions, ({ key }) => key, (action) => action.kind === "item" ? sheetItemTemplate(action) : sheetControlTemplate(action, group.actions))}
       </div>
     </section>
@@ -9545,7 +9556,8 @@ function captureCommandReferenceCatalog() {
 			const title = listedTitle(route ? titleOf(route) : rowInfo.baseTitle);
 			const description = route?.description !== void 0 ? descriptionOf(route) : rowInfo.baseDescription;
 			const alternatives = (route ? [route.binding] : rowInfo.declared).filter(bindingEnabled);
-			const steps = alternatives.length ? [...rowInfo.sequence, ...completeRowSteps(rowInfo.referenceRow, route)] : [];
+			const keySteps = alternatives.length ? [...rowInfo.sequence.map((step) => [step]), ...completeRowKeySteps(rowInfo.referenceRow, route)] : [];
+			const steps = keySteps.map(stepText);
 			const isAvailable = executable.has(id);
 			const spokenSteps = spokenReferenceSteps(rowInfo.row, route, steps, rowInfo.declared);
 			const entry = Object.freeze({
@@ -9559,7 +9571,7 @@ function captureCommandReferenceCatalog() {
 				sequenceControl: Boolean(rowInfo.row.sequenceControl),
 				keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
 				steps: Object.freeze(steps),
-				keySequence: steps.length ? keySequenceModel(steps, neutralStates(steps), spokenSteps) : null,
+				keySequence: steps.length ? keySequenceModel(steps, neutralStates(steps), spokenSteps, keySteps) : null,
 				title,
 				description,
 				actionable: actionable(rowInfo.row, route),

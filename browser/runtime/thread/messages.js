@@ -536,7 +536,9 @@ export class MessageView {
               : nothing
           }
         </span>
-        ${headerControls}<span class="lf-msg-controls">${rewrite}${react}${copy}</span>
+        ${headerControls}<span class="lf-msg-control-room"
+          ><span class="lf-msg-controls">${rewrite}${react}${copy}</span></span
+        >
       </div>
     `;
     render(

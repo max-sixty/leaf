@@ -26,6 +26,7 @@ from .schema import (
     INSTRUCTIONS_FILE,
     JAVASCRIPT_SUFFIXES,
     KERNEL,
+    KERNEL_FILES,
     LAYER_TOP_FILES,
     PACKAGE_DIRS,
     PACKAGE_FILES,
@@ -106,7 +107,7 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
             continue
         if not root.is_dir():
             raise Refused(f"{root} must be a directory")
-        for name in LAYER_TOP_FILES if root == ASSETS else PACKAGE_FILES:
+        for name in KERNEL_FILES if root == ASSETS else PACKAGE_FILES:
             path = root / name
             if (path.exists() or path.is_symlink()) and not path.is_file():
                 raise Refused(f"{path} must be a file")
@@ -139,7 +140,7 @@ def input_paths(inputs: list[Path]) -> list[Path]:
         paths.append(root.resolve())
         paths.extend(
             path.resolve()
-            for name in (LAYER_TOP_FILES if root == ASSETS else PACKAGE_FILES)
+            for name in (KERNEL_FILES if root == ASSETS else PACKAGE_FILES)
             if ((path := root / name).exists() or path.is_symlink())
         )
         paths.extend(
@@ -190,21 +191,21 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
 # kernel, every widget package, and each widget module's adopted sheet
 # (runtime/base-layer.js) share one layer, so specificity, then order, rank their
-# rules. The kernel's Layouts sit above it. Theme contributions
-# sit above those defaults and the Layouts (`lf-theme`), so a package
+# rules. The kernel's Layouts sit above it. Package overrides
+# sit above those defaults and the Layouts (`lf-overrides`), so a package
 # styles every page the way the page's own sheet styles one.
 # Semantic state follows: retirement must outrank a theme's or package's default box
 # and a Layout's arrangement. The page's own sheet stays unlayered above these tiers,
 # and inline widget motion outranks them too. Chrome and apparatus marks stay
 # unlayered to beat page and widget alike; runtime/stylesheets.js owns their
 # precedence and defaults. `lf-shadow` holds shared shadow rules and is read only in
-# shadow trees, where it sits above adopted widget sheets and below theme contributions.
+# shadow trees, where it sits above adopted widget sheets and below package overrides.
 CASCADE_LAYERS = (
     "lf-reset",
     "lf-base",
     "lf-layouts",
     "lf-shadow",
-    "lf-theme",
+    "lf-overrides",
     "lf-state",
 )
 
@@ -319,21 +320,23 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     """The layer's two stylesheets: each contribution in its role's cascade tier,
     in input order. Leaf places sheets and rewrites none of their rules.
 
-    A sheet's filename sets its role. widgets.css holds a package's defaults in
+    A sheet's filename sets its role. defaults.css holds a package's defaults in
     lf-base, below Layouts: a widget's own, and a theme's element rules and idioms,
     such as the bundled `reading` look. widget-shadow.css holds rules for both trees, in lf-base in the
     document and lf-shadow in every declared shadow tree. Leaf adds no scope around
     either, so each names the widgets it styles: by tag in the document, and by
     `:host(tag)` in a shadow tree, where a rule reaches everything the tree holds,
-    including core views placed there, such as a diff's threads. theme.css is
-    lf-theme. A theme reaches shadow trees through the custom properties they inherit. Each sheet is
-    read with its relative imports (`stylesheet`).
+    including core views placed there, such as a diff's threads. overrides.css
+    holds rules meant to win over every package's defaults and the Layouts, in
+    lf-overrides. A theme reaches shadow trees through the custom properties they
+    inherit. Each sheet is read with its relative imports (`stylesheet`).
 
     The kernel supplies the base and shared shadow defaults. Its Layouts and semantic
     state retain their own tiers. Page CSS remains unlayered.
     """
-    if not any((root / "theme.css").is_file() for root in inputs):
-        raise Refused("the incoming layer has no theme.css")
+    kernel, *packages = inputs
+    if not (kernel / "base.css").is_file():
+        raise Refused("the incoming layer has no base.css")
     order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
     theme = [order]
     shadow = [order]
@@ -343,15 +346,14 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
         if source.is_file():
             sheets.append(f"@layer {tier} {{\n{stylesheet(source, root)}}}\n")
 
-    kernel, *packages = inputs
     place(theme, "lf-base", kernel, "shadow.css")
     place(shadow, "lf-shadow", kernel, "shadow.css")
-    place(theme, "lf-base", kernel, "theme.css")
+    place(theme, "lf-base", kernel, "base.css")
     for root in packages:
         place(theme, "lf-base", root, "widget-shadow.css")
         place(shadow, "lf-shadow", root, "widget-shadow.css")
-        place(theme, "lf-base", root, "widgets.css")
-        place(theme, "lf-theme", root, "theme.css")
+        place(theme, "lf-base", root, "defaults.css")
+        place(theme, "lf-overrides", root, "overrides.css")
     for name in ("layouts.css", "state.css"):
         if (source := kernel / name).is_file():
             sheet = stylesheet(source, kernel)

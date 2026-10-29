@@ -2112,7 +2112,7 @@ def test_a_frame_off_screen_judges_existing_records_without_awaiting_paint(
 
 def test_a_frame_on_screen_awaits_paint_with_its_root_scrolled_away(browser):
     """A live page's root is one viewport tall and scrolls with its content
-    (theme.css), so once read past its first screen the root's box has left the
+    (base.css), so once read past its first screen the root's box has left the
     frame's viewport while the frame itself is on screen. Its judgement still awaits
     the frame's paint."""
     child = (

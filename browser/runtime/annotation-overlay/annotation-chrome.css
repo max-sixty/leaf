@@ -517,7 +517,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     }
     &[data-lf-beside-actions] > .lf-msg-head {
       grid-column: 1;
-      & > .lf-msg-controls {
+      & > .lf-msg-control-room {
         visibility: hidden;
       }
     }
@@ -554,7 +554,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     scrollbar-color: color-mix(in srgb, var(--ink) 12%, var(--paper)) transparent;
     scroll-padding-block: var(--focus-ring-room);
     /* The room above the heads is where their slot starts (`--lf-top-start`,
-       theme.css), held open by a row before the first message, not padding: Firefox
+       base.css), held open by a row before the first message, not padding: Firefox
        (155 and 158, 2026-10-25) sticks a box in a subgrid scroller at the scroller's
        edge, ignoring its padding, which stood the stuck head that room above the
        actions' line. */
@@ -669,7 +669,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      the actions occupies the shared track before them, and a later one both tracks;
      bodies span both without adding to the card's width. A head sticks at the slot (`--lf-top`) and covers only its own
      message, so the words under it take the slot past its height as their `--lf-top`,
-     and its height as their `scroll-margin` below the landing band (theme.css, at
+     and its height as their `scroll-margin` below the landing band (base.css, at
      `--lf-top`): a reveal lands them below it and the runtime's reading counts what it
      covers as hidden, while a whole message lands flush with its own head. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-body {
@@ -680,22 +680,25 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* A head row narrower than its words, as when the actions row holds a notice of
      news (thread-card.js), gives up room in one order: first the annotations after the
-     time, each cut with an ellipsis, then the author's name, with an ellipsis; the time
-     is never cut. The metadata's grid keeps the time's whole width as its least
-     (`min-width: min-content`, where an annotation's track contributes nothing), and
-     its shrink weight, a million to the name's one, spends its room before any of the
-     name's while it has room to give, so the name keeps its whole width whenever the
-     annotations alone can make the room. The heads' track narrows while the actions
-     row holds a notice of news, the card keeping its width (thread-preview.js). */
+     time, then the time, each cut with an ellipsis, then the author's name, with an
+     ellipsis, so a short name stands whole while any time is left to give (the user's
+     choice, 28 October 2026; #3104 had cut the name and never the time). The
+     metadata's shrink weight, a million to the name's one, spends its room before any
+     of the name's, and inside it each annotation's, a million to the time's one, before
+     the time's. The heads' track narrows while the actions row holds a notice of news,
+     the card keeping its width (thread-preview.js). */
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta {
-    display: grid;
-    grid-auto-flow: column;
-    grid-template-columns: max-content;
-    grid-auto-columns: minmax(0, max-content);
+    display: flex;
     gap: 0;
     flex-shrink: 1000000;
-    min-width: min-content;
+    min-width: 0;
     overflow: hidden;
+  }
+  .lf-margin-thread .lf-thread-transcript .lf-msg-meta > time {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   /* An unread reply's dot hangs before the name, in the transcript's gutter, so the
      name stays over the words and nothing moves when the reply reads. The head clips
@@ -716,6 +719,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   /* Each annotation carries its own gap, so one cut to nothing takes its gap too. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new) {
     padding-inline-start: var(--sp-2);
+    flex-shrink: 1000000;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -803,7 +807,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* A short name keeps its whole width even where the shared cap
      (components/surfaces.css) would cut it in a narrowed head; it shortens only once
-     the annotations after the time are gone. */
+     the annotations and the time are gone. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
     flex-shrink: 1;
     max-inline-size: max(40%, 5em);
@@ -859,7 +863,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       .lf-margin-thread
         .lf-thread-transcript
         .lf-msg-head
-        > :not(b, .lf-msg-meta, .lf-msg-controls),
+        > :not(b, .lf-msg-meta, .lf-msg-control-room),
       .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new)
     ):not([data-lf-focus]) {
       animation: lf-msg-annotation-exit linear both;

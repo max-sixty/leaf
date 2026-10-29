@@ -233,7 +233,9 @@ def test_the_band_follows_the_pages_the_session_holds(
     read_result = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))
     assert read_result is not None
     published = read_result["row"]
-    url, title = server_model.running_server(page_dir)["url"], published["title"]
+    server = server_model.running_server(page_dir)
+    assert server is not None
+    url, title = server["url"], published["title"]
     band([(f"Leaf {title}", url)])
     # A /clear ends the session and starts none; the next turn follows again.
     claude_code.emit(
@@ -295,7 +297,9 @@ def test_the_band_opens_a_page_from_the_keyboard(
         lambda drawn: band_lines(drawn, "terminal"),
         failure="the module drew no band",
     )
-    url = server_model.running_server(page_dir)["url"]
+    server = server_model.running_server(page_dir)
+    assert server is not None
+    url = server["url"]
     read_result_2 = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))
     assert read_result_2 is not None
     title = read_result_2["row"]["title"]

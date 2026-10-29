@@ -468,7 +468,7 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
           const top = Math.min(...line.map(box => box.top));
           const bottom = Math.max(...line.map(box => box.bottom));
           const shown = head => Math.max(...[...head.querySelectorAll(
-            ':scope > :not(.lf-msg-controls), :scope > .lf-msg-controls > *')]
+            ':scope > :not(.lf-msg-control-room), :scope .lf-msg-controls > *')]
             .filter(item => item.checkVisibility(
               {visibilityProperty: true, opacityProperty: true}))
             .map(item => item.getBoundingClientRect().right));

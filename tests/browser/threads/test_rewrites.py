@@ -953,7 +953,7 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     # The head's words go clear; hiding the head would hide the pair standing in it.
     head.evaluate(
         "head => head.querySelectorAll("
-        "':scope > :not(.lf-msg-controls), :scope > :not(.lf-msg-controls) *')"
+        "':scope > :not(.lf-msg-control-room), :scope > :not(.lf-msg-control-room) *')"
         ".forEach((e) => e.style.setProperty('color', 'transparent', 'important'))"
     )
     one_frame(page)

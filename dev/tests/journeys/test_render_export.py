@@ -602,7 +602,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     source = tmp_path / "detached.html"
     source.write_text(REPLAYED_PAGE)
     runtime = install_payload(tmp_path / "detached-runtime")
-    theme = runtime / "browser" / "theme.css"
+    theme = runtime / "browser" / "base.css"
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
     # The Codex task runs the preview as its own long-running command.
@@ -767,7 +767,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             source.read_text().replace("Rollout", "A watched revision", 1)
         )
     else:
-        theme = runtime / "browser" / "theme.css"
+        theme = runtime / "browser" / "base.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
     wait_for(
@@ -802,7 +802,9 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
     enabled and down in just this way. Only a stop, or the claim leaving this
     session, ends the preview."""
     _, _, directory, process, url, log = served_preview
-    port = server_model.running_server(directory)["port"]
+    original = server_model.running_server(directory)
+    assert original is not None
+    port = original["port"]
     claim = service_model.page_claim(directory)
     events = (directory / "events.jsonl").read_bytes()
     # Hold the watcher while taking the stopped server's port. Revival waits for
@@ -831,13 +833,13 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
         assert server_model.running_server(directory) is None
         assert files_model.read_json(directory / "service.json")["enabled"]
 
-    wait_for(
+    restored = wait_for(
         lambda: server_model.running_server(directory),
         bool,
         failure="the preview did not bring its server back",
     )
     assert process.poll() is None, log.read_text()
-    assert server_model.running_server(directory)["port"] == port
+    assert restored["port"] == port
     wait_for(
         lambda: _reachable(url),
         bool,

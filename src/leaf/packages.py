@@ -388,9 +388,9 @@ def init_starter_widget(
         (package / name).mkdir(exist_ok=True)
     creates = [(module_path, files[f"widgets/{module_name}"])]
     if not (
-        (package / "widgets.css").exists() or (package / "widgets.css").is_symlink()
+        (package / "defaults.css").exists() or (package / "defaults.css").is_symlink()
     ):
-        creates.append((package / "widgets.css", b""))
+        creates.append((package / "defaults.css", b""))
     created = create_package_files(package, creates)
     try:
         replace_files([(registry_path, files["registry.json"], True)])
@@ -413,7 +413,7 @@ def cmd_package_init(package: Path, widget: str | None = None) -> dict:
 
         files = {
             "registry.json": b"{}\n",
-            "theme.css": b"",
+            "overrides.css": b"",
         }
         package.mkdir(parents=True, exist_ok=True)
         for name in PACKAGE_DIRS:

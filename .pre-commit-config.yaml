@@ -38,6 +38,12 @@ repos:
         args: [--max-warnings=0, --no-warn-ignored]
   - repo: local
     hooks:
+      - id: record-types
+        name: generated Python record types
+        language: system
+        entry: uv run leaf-dev record-types --check
+        pass_filenames: false
+        files: '^(src/leaf/|dev/leaf_dev/commands/record_types\.py$|pyproject\.toml$|uv\.lock$)'
       - id: ty
         name: ty
         language: system

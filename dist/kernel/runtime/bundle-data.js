@@ -4181,7 +4181,9 @@ var MessageView = class {
                   >unsaved edit</span
                 >` : nothing}
         </span>
-        ${headerControls}<span class="lf-msg-controls">${rewrite}${react}${copy}</span>
+        ${headerControls}<span class="lf-msg-control-room"
+          ><span class="lf-msg-controls">${rewrite}${react}${copy}</span></span
+        >
       </div>
     `;
 		render$1(html`
@@ -6477,7 +6479,7 @@ const STOPPED = /* @__PURE__ */ new Set([
 	"stale",
 	"interrupted"
 ]);
-const words = (header) => [...header.querySelectorAll(":scope > :not(.lf-msg-controls)")];
+const words = (header) => [...header.querySelectorAll(":scope > :not(.lf-msg-control-room)")];
 function workingMessage(thread, attention, messages) {
 	if (thread.resolved || messages.at(-1)?.provisional) return null;
 	const covered = new Set(thread.summaries.flatMap(({ covers }) => covers));
@@ -6802,13 +6804,15 @@ var ThreadView = class {
 			const style = getComputedStyle(head);
 			const name = head.querySelector(":scope > b");
 			const time = head.querySelector(":scope > .lf-msg-meta > time");
-			const controls = head.querySelector(":scope > .lf-msg-controls");
-			const controlsStyle = controls && getComputedStyle(controls);
-			const need = parseFloat(style.paddingInlineStart) + parseFloat(style.paddingInlineEnd) + wordsWidth(name) + (name && time ? parseFloat(style.columnGap) : 0) + wordsWidth(time) + (controlsStyle && controlsStyle.display !== "none" ? parseFloat(style.columnGap) + parseFloat(controlsStyle.marginInlineStart) + controls.getBoundingClientRect().width + parseFloat(controlsStyle.marginInlineEnd) : 0);
+			const room = head.querySelector(":scope > .lf-msg-control-room");
+			const controls = room?.querySelector(":scope > .lf-msg-controls")?.getBoundingClientRect().width ?? 0;
+			const held = room && getComputedStyle(room).minInlineSize !== "0px" ? controls : 0;
+			const need = parseFloat(style.paddingInlineStart) + parseFloat(style.paddingInlineEnd) + controls + wordsWidth(name) + (name && time ? parseFloat(style.columnGap) : 0) + wordsWidth(time);
 			heads.push({
 				name,
 				need,
-				spare: head.getBoundingClientRect().width - need
+				spare: head.getBoundingClientRect().width - need,
+				yields: controls - held + wordsWidth(time)
 			});
 		}
 		if (!heads.length || !notice.isConnected) {
@@ -6819,9 +6823,9 @@ var ThreadView = class {
 		const spare = Math.min(...heads.map((head) => head.spare));
 		notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, width + spare)));
 		const taken = notice.getBoundingClientRect().width - width;
-		for (const { name, spare } of heads) {
+		for (const { name, spare, yields } of heads) {
 			if (!name) continue;
-			const shown = wordsWidth(name) + Math.min(0, spare - taken);
+			const shown = wordsWidth(name) + Math.min(0, spare - taken + yields);
 			keeps(name, "data-lf-nameless", shown < parseFloat(getComputedStyle(name).fontSize) ? "" : null);
 		}
 	}

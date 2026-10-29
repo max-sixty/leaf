@@ -74,6 +74,8 @@ from .state import (
     prompt_turn,
     session_lock_path,
     session_record,
+    turn_closed,
+    worker_tool_batch,
 )
 
 
@@ -81,14 +83,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
     """Answer one hook of `harness`, the name its registration passes."""
     started = time.monotonic()
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
-    if (
-        harness == "claude-code"
-        and event == "PostToolBatch"
-        and payload.get("agent_id")
-    ):
-        # Claude Code's tool hooks name the parent session even inside a worker;
-        # agent_id is its native subagent/teammate identity. Only the parent
-        # receives the input its session claimed.
+    if worker_tool_batch(harness, payload):
         return
     if sid:
         # Capability evidence for hook transport and open-turn activity. An
@@ -144,11 +139,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         # harness whose steps can start a turn opens it first (`reconcile_turn`).
         with flocked(session_lock_path(sid)):
             record = session_record(sid)
-            if (
-                not record
-                or record["ended"] is not None
-                or record["turn_closed"] is not None
-            ):
+            if record is None or turn_closed(record):
                 return
             if record["turn"] != turn_id:
                 if record["provider"] or event != "PostToolUse":

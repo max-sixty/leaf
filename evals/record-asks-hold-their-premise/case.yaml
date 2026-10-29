@@ -53,11 +53,11 @@ assert:
 variants:
   # From session 498a60e2, whose decision on plan context put its two captures in a
   # table above the options, so nothing tied each capture to its option. The user
-  # asked "why aren't the images within the options?" At 11930a381 base put both
-  # captures in their options 2/3 and widened the group 0/3; the change did both 6/6.
+  # asked "why aren't the images within the options?" This source-only case checks
+  # that association; rendered picture comparisons cover readability.
   option-captures:
     metadata:
-      purpose: "Choices: each option's capture stands inside that option, today's in the option that keeps it, at a width it can be read."
+      purpose: "Choices: each option's capture stands inside that option, today's in the option that keeps it."
     vars:
       prompt: |
         Write the decision section of a Leaf page about drawing an agent's plan in
@@ -83,13 +83,6 @@ variants:
           and today's capture inside the option that leaves On me as it is. Fail if
           either capture stands outside the `lf-options`, such as in a table or
           figure before or after it, even when an option also refers to it.
-      - type: llm-rubric
-        metric: captures-readable
-        value: |
-          Pass only if the `lf-options` element holding the captures carries
-          `data-width="wide"` or `data-width="available"`. Width on a figure, image
-          or table inside an option does not widen the option, so it fails, as does
-          a group with no `data-width`.
   compact-values:
     metadata:
       purpose: "Choices: a value that names the whole outcome stays a compact label."

@@ -12,6 +12,7 @@ import socket
 import subprocess
 import sys
 import threading
+from datetime import datetime, timedelta
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -33,6 +34,7 @@ from interact_support import (
     available_loopback_port,
     codex_records,
     declare_idle,
+    declare_work,
     declared,
     delivered,
     delivered_ref,
@@ -179,7 +181,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
 
     prompt = codex_model.prepare_codex_delivery(page_dir, harness)
     assert codex_model.prepare_codex_delivery(page_dir, harness) == prompt
-    cleanup_model.open_session_turn("hosted-thread", "app-turn")
+    cleanup_model.prompt_turn("hosted-thread", "app-turn")
     [accepted] = codex_model.accept_codex_delivery(
         "hosted-thread", prompt.payload["id"], "app-turn"
     )
@@ -253,7 +255,7 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
         {"kind": "comment", "author": "user", "text": "make this editable"},
     )
     prepared = codex_model.prepare_codex_delivery(page_dir, harness)
-    cleanup_model.open_session_turn("hosted-thread", "app-turn")
+    cleanup_model.prompt_turn("hosted-thread", "app-turn")
     codex_model.accept_codex_delivery(
         "hosted-thread", prepared.payload["id"], "app-turn"
     )
@@ -1363,7 +1365,6 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     """
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "user-turn")
-    cleanup_model.open_session_turn("codex-thread", "user-turn")
     hooks_model.cmd_hook(
         "codex",
         {
@@ -1757,10 +1758,14 @@ def test_codex_tool_hook_reads_a_quiet_page_without_the_page_model(
     """Codex runs its tool hook after every tool call, so where the task's page holds
     no new input the hook reads the claim, the log and the delivery records without
     importing the page model and its validators, which cost about 70 ms of CPU a
-    call (measured on macOS). Input to deliver may import them."""
+    call (measured on macOS). Input to deliver may import them, as may the status
+    check each renewal interval (`hook_transport.status_check_due`), which this
+    session made a moment ago."""
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "user-turn")
-    cleanup_model.open_session_turn("codex-thread", "user-turn")
+    cleanup_model.session_file(
+        "codex-thread", cleanup_model.STATUS_CHECKED_SUFFIX
+    ).touch()
     program = """
 import json, sys
 from leaf.hooks import cmd_hook
@@ -1792,6 +1797,37 @@ print(json.dumps(sorted(name for name in heavy if name in sys.modules)))
     )
     [offer], _ = hook()
     assert json.loads(offer)["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
+
+
+def test_codex_tool_hook_reminds_the_task_of_a_status_line_left_standing(
+    page_dir, codex_loop, capsys
+):
+    """Codex's tool hook carries the same reminder Claude Code's tool batches do
+    (`hook_transport.status_reminders`) when the task's working line has stood a
+    renewal interval."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    stood = datetime.now().astimezone() - timedelta(minutes=3)
+    declare_work(
+        page_dir,
+        "reading the traces",
+        ts=stood.isoformat(timespec="seconds"),
+        session="codex-thread",
+        turn="user-turn",
+    )
+    hooks_model.cmd_hook(
+        "codex",
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "codex-thread",
+            "turn_id": "user-turn",
+        },
+    )
+    output = json.loads(capsys.readouterr().out)
+    assert (
+        '"reading the traces" for 3 min'
+        in (output["hookSpecificOutput"]["additionalContext"])
+    )
 
 
 def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
@@ -2230,11 +2266,10 @@ def test_a_late_codex_tool_hook_cannot_replace_a_newer_turn(page_dir, codex_loop
     """An old async callback neither captures input nor reopens its ended turn."""
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "old-turn")
-    old = cleanup_model.open_session_turn("codex-thread", "old-turn")
+    old = cleanup_model.session_record("codex-thread")
     cleanup_model.close_session_turn("codex-thread", "old-turn")
     cleanup_model.close_session_turn("codex-thread", "old-turn")
     cleanup_model.prompt_turn("codex-thread", "new-turn")
-    cleanup_model.open_session_turn("codex-thread", "new-turn")
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "For the new turn"}
     )
@@ -2255,7 +2290,6 @@ def test_a_codex_tool_step_wins_a_queue_offer_based_on_stale_activity(
     """
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "user-turn")
-    cleanup_model.open_session_turn("codex-thread", "user-turn")
     leases_model.mark_hooks("codex-thread")
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Before you finish"}
@@ -2299,7 +2333,6 @@ def test_a_codex_hook_read_survives_page_loss_after_offer(
     codex_loop(page_dir)
     codex_loop(sibling)
     cleanup_model.prompt_turn("codex-thread", "user-turn")
-    cleanup_model.open_session_turn("codex-thread", "user-turn")
     leases_model.mark_hooks("codex-thread")
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Retain this input"}
@@ -2349,7 +2382,6 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
     """A hook finishing too late never loses input or falsely records pickup."""
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "user-turn")
-    cleanup_model.open_session_turn("codex-thread", "user-turn")
     leases_model.mark_hooks("codex-thread")
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "One more question"}
@@ -2417,7 +2449,6 @@ def test_desktop_wake_follows_queue_acceptance_without_resending(
 ):
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "user-turn")
-    cleanup_model.open_session_turn("codex-thread", "user-turn")
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Wake the chat"}
     )
@@ -2502,7 +2533,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     # A parallel step hook leaves the in-flight queue offer to its owner and
     # cannot capture its still-unacknowledged events into a second record.
     leases_model.mark_hooks("codex-thread")
-    cleanup_model.open_session_turn("codex-thread", "user-turn")
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
     cleanup_model.prompt_turn("codex-thread", "user-turn")
     prompt, _ = codex_model.offer_hook_delivery(
         "codex-thread", cleanup_model.session_record("codex-thread")
@@ -2554,7 +2585,6 @@ def _queued_with_lost_acceptance(page_dir, monkeypatch) -> tuple[Path, dict, lis
     that fails in that gap leaves it; with the delivery's record and the pointers
     queued so far."""
     cleanup_model.prompt_turn("codex-thread", "user-turn")
-    cleanup_model.open_session_turn("codex-thread", "user-turn")
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Name the release"}
     )
@@ -2584,7 +2614,6 @@ def _ack_in(turn: str, delivery_id: str, capsys) -> list[dict]:
     """Acknowledge a delivery in a turn of its own, as a queued turn opening on its
     pointer does, and return the notes the ack printed."""
     cleanup_model.prompt_turn("codex-thread", turn)
-    cleanup_model.open_session_turn("codex-thread", turn)
     capsys.readouterr()
     delivery_model.cmd_delivery_ack(delivery_id)
     notes = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
@@ -2648,7 +2677,6 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
     """Every transport commits acceptance before page IO, and recovery receipts it once."""
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "user-turn")
-    cleanup_model.open_session_turn("codex-thread", "user-turn")
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Do not lose this"}
     )
@@ -2730,7 +2758,7 @@ def test_embedded_codex_acceptance_retries_its_unfinished_receipt(
         page_dir,
         harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
-    cleanup_model.open_session_turn("hosted-thread", "provider-turn")
+    cleanup_model.prompt_turn("hosted-thread", "provider-turn")
 
     def failed_pickup(*args, **kwargs):
         raise OSError("receipt storage unavailable")

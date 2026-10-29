@@ -56,6 +56,7 @@ from leaf.findings import Finding, Rejected
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
+from leaf.themes import DEFAULT_THEME
 from leaf.thread_context import thread_digest
 from leaf.validation import composition as validation_model
 from leaf.validation.admission import (
@@ -308,6 +309,16 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
         f"{second}</lf-sample></lf-ask>"
     )
     assert fragment_errors(with_evidence, registry) == []
+    # A sample's widget asks nothing, quoted or interactive, so it can't fill a
+    # question around the sample.
+    for mode in ("", " interactive"):
+        only_shown = (
+            '<lf-ask id="decision-shown"><h2>Choose</h2>'
+            f'<lf-sample id="shown-only" label="another question"{mode}>{second}'
+            "</lf-sample></lf-ask>"
+        )
+        codes = [error.code for error in fragment_errors(only_shown, registry)]
+        assert codes == ["empty-question"], mode
 
     # The obligation's title is what the shared name rule reads, so a heading in an
     # hgroup after its eyebrow, a subheading, or context before the heading all
@@ -368,16 +379,6 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
         fragment_errors(settled_obligation, unretired),
         "empty-question",
         widgets=lacking({"settled": [False]}),
-    )
-    # A quoted obligation is a mention, and its widgets ask nothing by design.
-    assert (
-        fragment_errors(
-            '<lf-sample id="quoted-ask" label="an obligation">'
-            f'<lf-ask id="decision-quoted"><h2>Choose</h2>{second}</lf-ask>'
-            "</lf-sample>",
-            registry,
-        )
-        == []
     )
     assert (
         fragment_errors(
@@ -1940,7 +1941,9 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     assert sorted(packages) == sorted(
         entry.name
         for entry in schema_model.BUNDLED_PACKAGES.iterdir()
-        if entry.is_dir() and entry != schema_model.DEFAULT_PACKAGE
+        if entry.is_dir()
+        and entry != schema_model.DEFAULT_PACKAGE
+        and entry.name != DEFAULT_THEME
     )
     resolved = layer_model.resolve_packages(tuple(packages), Path.cwd())
     assert resolved == [schema_model.BUNDLED_PACKAGES / name for name in packages]

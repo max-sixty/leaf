@@ -107,8 +107,10 @@ async function litTypes() {
  * Build the classic Lit implementation, adapting the locked published modules in memory.
  *
  * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
- * keyed and child-part insertions through `runtime/dom-move.js`, which keeps the
- * user's place and native state across the move.
+ * keyed and child-part insertions through the mover a Leaf page installs on its root
+ * (`lfInitial.move`: prepaint's plain insertion, then `runtime/dom-move.js`, which keeps
+ * the user's place and native state across the move). A document Leaf did not compose
+ * has no mover, and Lit inserts as it always does, so this Lit loads in any document.
  *
  * `package.json` holds `lit-html` at 3.3.0 for that leak: from 3.3.1 `repeat` leaves a
  * comment behind for each item it removes, so a list the chrome redraws grows for as
@@ -118,7 +120,7 @@ async function litTypes() {
 async function litModule() {
   const contents = await litNamespace();
   const move =
-    "const leafMove = (parent, node, before) => document.documentElement.lfInitial.move(parent, node, before);\n";
+    "const leafMove = (parent, node, before) => { const move = document.documentElement.lfInitial?.move; return move ? move(parent, node, before) : parent.insertBefore(node, before); };\n";
   return [
     {
       name: "leaf-lit",
@@ -326,7 +328,6 @@ export async function buildOutputs() {
         },
       },
     ],
-    external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",
     target: "es2022",
@@ -339,11 +340,7 @@ export async function buildOutputs() {
   });
   for (const file of result.outputFiles) {
     const name = path.relative(root, file.path).split(path.sep).join("/");
-    if (
-      result.metafile.outputs[name].imports.some(
-        ({ path }) => path !== "/runtime/dom-move.js",
-      )
-    )
+    if (result.metafile.outputs[name].imports.length)
       throw new Error(`${name} imports another module`);
     checkModule(file.text, name);
     outputs.set(name, Buffer.from(file.contents));
@@ -373,13 +370,14 @@ export async function buildOutputs() {
   const moduleLit = await build({
     absWorkingDir: root,
     stdin: {
-      contents: `import "/runtime/dom-move.js"; import * as lit from "leaf:lit"; ${litGlobal} = lit; export * from "leaf:lit";`,
+      // A Leaf page's later initial producers bind to this instance; a document Leaf
+      // did not compose has no root coordinator to hold it.
+      contents: `import * as lit from "leaf:lit"; if (document.documentElement.lfInitial) ${litGlobal} = lit; export * from "leaf:lit";`,
       resolveDir: root,
       sourcefile: "leaf-module-lit.js",
     },
     outfile: `${assets}/${litPath}`,
     plugins: await litModule(),
-    external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",
     target: "es2022",

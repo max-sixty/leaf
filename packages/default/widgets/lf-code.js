@@ -36,6 +36,7 @@
  * `lfCommands`, the Copy control from the block's `data-lf-copy`, and the word a
  * listener hears on a highlighted line from its `data-lf-quiet`. */
 import {
+  setScroll,
   PendingTaskEvent,
   bodyText,
   commandsChanged,
@@ -199,7 +200,7 @@ customElements.define(
           if (!wrapped) horizontal = pre.scrollLeft;
           paintWrap(!wrapped);
           tabStore.set(key, String(wrapped));
-          if (!wrapped) pre.scrollTo({ left: horizontal, behavior: "instant" });
+          if (!wrapped) setScroll(pre, { left: horizontal, behavior: "instant" });
           layoutChanged(this);
         };
         this.lfCommands = {

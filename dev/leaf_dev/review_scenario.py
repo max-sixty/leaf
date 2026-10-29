@@ -16,6 +16,7 @@ import click
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.service import page_claim
+from leaf.state import turn_closed
 from leaf.thread import successful_replies
 from leaf_dev import ROOT
 from leaf_dev.arms import PageClient, run_leaf
@@ -43,6 +44,7 @@ COMMENTS = {
     "boundary": ("triage-why", "Is the timezone bug a regression?"),
     "first": ("triage-lede", "Who owns the migration fix?"),
     "ending": ("triage-why", "When could that fix land?"),
+    "compacting": ("triage-lede", "Which risk worries you most for this release?"),
     # Real author intent exercises the rich interface without naming its commands.
     "rich-choice": (
         "triage-lede",
@@ -143,7 +145,7 @@ def settled(page: Path, session: str, sent: dict[str, str]) -> dict:
         f"the page is claimed by {claim['id']}, not the task {session}",
     )
     require(
-        claim["turn_closed"] is not None,
+        turn_closed(claim),
         f"turn {claim['turn']} has ended, but the claim holds it open",
     )
     return claim

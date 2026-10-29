@@ -46,6 +46,7 @@ from .state import (
     session_record,
     state_home,
     still_named,
+    turn_closed,
 )
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
@@ -656,8 +657,7 @@ def left_owed(page: PageTransaction) -> list[dict]:
     from .delivery import reminded
     from .served_state.context import read_page
 
-    claim = page.active_claim
-    if claim is None or claim["turn_closed"] is None:
+    if not turn_closed(page.active_claim):
         return []
     work = read_page(page.page_dir, page.events).work
     by_id = {event["id"]: event for event in page.events}
@@ -715,7 +715,7 @@ def watch_between_turns(
         with no Stop hook, leaving its record open, and the harness's own `idle`
         is the reading that moves then; a harness that gives none keeps the
         immediate wake, except for a prompt's watch."""
-        if claim["turn_closed"] is not None:
+        if turn_closed(claim):
             closed = later_closed.setdefault(claim["turn"], time.monotonic())
             return time.monotonic() > closed + HOOK_TIMEOUT_S
         live = harness.live_turn()
@@ -752,7 +752,7 @@ def watch_between_turns(
         if claim is not None and claim["turn"] != followed:
             return later_turn_wakes(claim)
         return (
-            (claim is not None and claim["turn_closed"] is not None)
+            turn_closed(claim)
             or any(
                 datetime.fromisoformat(event["ts"]).timestamp() >= began
                 for event in pending

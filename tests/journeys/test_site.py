@@ -67,7 +67,7 @@ from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import schema as schema_model
-from leaf.event_log import _parse_events, read_events
+from leaf.event_log import read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
 from leaf.registry.storage import layer_packages, layer_record, selected
@@ -1516,10 +1516,10 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     The anchor is the half that rots quietly: the quote is captured against the file, and
     a rewritten sentence leaves it resolving to nothing and the thread left detached,
     with no error anywhere."""
-    _, url = served_example("ship-review")
+    page_dir, url = served_example("ship-review")
     page = open_page(browser, url)
     source = EXAMPLES / "ship-review.html"
-    events = _parse_events(source.with_suffix(".jsonl").read_bytes())
+    events = read_events(page_dir)
     threads = [
         thread
         for thread in build_threads(

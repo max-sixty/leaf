@@ -6,7 +6,7 @@ import { html } from "/runtime/framework.js";
 
 import { actionIcon, iconMarkup } from "./icon-paths.js";
 
-export { actionElement, iconElement, showAction } from "./icon-paths.js";
+export { actionElement, iconElement } from "./icon-paths.js";
 
 /** A Lit icon template; a parent refresh keeps its SVG and rewrites only a changed icon. */
 export function iconTemplate(icon, className = "lf-margin-entry-icon") {

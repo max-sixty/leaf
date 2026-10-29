@@ -54,6 +54,11 @@ The steps, in order:
   handed a comment at a tool boundary and ends on its answer with the comment
   unanswered, and no Stop hook continues it over the comment. The watch wakes a
   turn of its own whose prompt names the owed answer, and that turn answers it;
+- `compacting`: a comment sent while `/compact` runs at the idle prompt wakes the
+  session once the compaction ends, and a turn of its own answers it. Compaction
+  runs no prompt or Stop hook, so the watch the last turn's Stop started keeps
+  running through it, and Claude Code holds that watch's wake until the
+  compaction is done;
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
@@ -97,7 +102,7 @@ from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
-from leaf.state import session_record
+from leaf.state import session_live, session_record, turn_open
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     MODELS,
@@ -375,8 +380,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
     def closed(turn: str) -> bool:
         """Whether the page's claim has closed `turn`, or opened another after it."""
-        claim = page_claim(page)
-        return claim["turn_closed"] is not None or claim["turn"] != turn
+        return not turn_open(page_claim(page), turn)
 
     def escape(turn: str) -> None:
         """Press Escape on `turn` until Claude Code is idle or the claim has moved
@@ -604,11 +608,22 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     )
     step("deferred", started, "deferred")
 
+    def compacting() -> bool:
+        return "Compacting conversation" in cc.screen()
+
+    started = time.monotonic()
+    cc.say("/compact")
+    cc.until(compacting, "compacting: the compaction did not start", 30)
+    user.comment("compacting")
+    require(compacting(), "compacting: the compaction ended before the comment")
+    cc.until(answered("compacting"), "compacting: the comment was not answered")
+    step("compacting", started, "compacting")
+
     started = time.monotonic()
     cc.say("/exit")
     cc.until(cc.exited.exists, "quit: Claude Code did not exit", 60)
     require(
-        session_record(cc.session)["ended"] is not None,
+        not session_live(session_record(cc.session)),
         "quit: the session ended without Leaf's SessionEnd",
     )
     require(

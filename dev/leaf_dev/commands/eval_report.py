@@ -5,6 +5,9 @@ attempts. Execution checks, authoring grades, pairwise preferences and explorato
 observations retain their distinct meanings. An optional authored review names the
 latest run group and experiment decisions; scores never infer either. Requests,
 viewports and phases come from retained results, never today's catalog.
+The assessment also supplies the current implementation summary and changes selected
+for personal review. Native preferences remain per-order ordinal judgments; explicit
+checkpoints label their sequence, while authored repair observations stay separate.
 An optional journey explains why one attempt led to the next in authored order
 within each lane; parallel lanes do not imply a single global timeline.
 
@@ -22,11 +25,13 @@ import tempfile
 from collections import defaultdict
 from html import escape
 from pathlib import Path
+from string import Template
 from urllib.parse import quote
 
 import click
 from PIL import Image
 
+from leaf.registry.storage import layer_packages
 from leaf.schema import MEDIA_TYPES
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.arms import observed_sum
@@ -197,9 +202,15 @@ def task_anchor(subject: str) -> str:
 
 
 def task_title(columns: dict) -> str:
-    """Use the saved case's human-facing description; ids still own grouping."""
+    """Name the saved case and its run scope; ids still own grouping."""
     title = next(iter(columns.values()))[0]["title"]
-    return title[:1].upper() + title[1:]
+    title = title[:1].upper() + title[1:]
+    groups = {
+        sample.get("run_group") for members in columns.values() for sample in members
+    }
+    if len(groups) == 1 and (group := next(iter(groups))):
+        return f"{group} · {title}"
+    return title
 
 
 def measures(sample: dict) -> dict:
@@ -556,6 +567,23 @@ def sample_anchor(sample: dict) -> str:
     )
 
 
+def phase_label(sample: dict, phase: str) -> str:
+    """A scheduled final turn is not a final output when the author never finished."""
+    saved = sample["diagnostics"].get("phases", {}).get(phase)
+    if saved is None:
+        return "Output unavailable"
+    if saved.get("trace", {}).get("completed") is False:
+        return "Saved output · author turn incomplete"
+    roles = sample["diagnostics"]["comparison"]["phases"]
+    if phase == "1":
+        return "Initial output"
+    if phase == roles.get("_before_decision"):
+        return "Before decision"
+    if phase == roles.get(""):
+        return "Final output"
+    return f"Revision {phase}"
+
+
 def linked_file(page: Path, path: Path, output_url: str | None, label: str) -> str:
     """Copy exact evidence into the explicitly served report bundle."""
     if not path.is_file():
@@ -824,7 +852,6 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
     sources = []
     final_view = ""
     final = str(comparison["phases"][""])
-    before_decision = comparison["phases"].get("_before_decision")
     for phase, saved in sorted(
         diagnostics["phases"].items(), key=lambda item: int(item[0])
     ):
@@ -869,21 +896,18 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
             screens_view += "</div>"
         content = f'<p class="sample-links">{exported}</p>{screens_view}'
         if phase == final:
-            role = "Initial output" if phase == "1" else "Final output"
+            role = phase_label(sample, phase)
             final_view = (
                 f'<section id="{anchor}-p{phase}"><h3>{role} · revision {phase}</h3>'
                 f"{content}</section>"
             )
         else:
-            role = (
-                " · before decisions"
-                if phase == before_decision
-                else " · initial output"
-                if phase == "1"
-                else ""
-            )
+            role = phase_label(sample, phase)
+            title = f"Revision {phase}"
+            if role != title:
+                title += f" · {role.lower()}"
             history.append(
-                f'<details id="{anchor}-p{phase}"><summary>Revision {phase}{role}</summary>'
+                f'<details id="{anchor}-p{phase}"><summary>{escape(title)}</summary>'
                 f"{content}</details>"
             )
     traces = [
@@ -1200,7 +1224,7 @@ def journey_outputs(page: Path, step: dict, samples: dict) -> str:
             f'<section id="{anchor}"><h5>{escape(reference["label"])}</h5>'
             '<p class="sample-links">'
             + sample.get("exports", {}).get(phase, "Saved output unavailable")
-            + f'<a href="#{sample_anchor(sample)}-p{phase}">Revision {escape(phase)} and details</a></p>'
+            + f'<a href="#{sample_anchor(sample)}-p{phase}">{escape(phase_label(sample, phase))} and details</a></p>'
             + ("".join(views) or "<p>No screenshots recorded.</p>")
             + "</section>"
         )
@@ -1247,7 +1271,283 @@ def journey_view(page: Path, lanes: list[dict], samples: dict) -> str:
     )
 
 
-def report_introduction(found: dict, *, story: bool, discovery: bool) -> str:
+def pair_records(runs: tuple[Path, ...]) -> list[tuple[Path, dict]]:
+    """Read native judgments once, retaining a source for each distinct record."""
+    records = {}
+    for run in runs:
+        source = run / "pairs.json"
+        if source.exists():
+            for pair in json.loads(source.read_text()):
+                records.setdefault(json.dumps(pair, sort_keys=True), (source, pair))
+    return list(records.values())
+
+
+def judge_preferences(
+    page: Path,
+    records: list[tuple[Path, dict]],
+    found: dict,
+    review: dict | None,
+    output_url: str | None,
+) -> str:
+    """Show native per-order format preferences and separately authored repair outcomes."""
+    categories = ["HTML clear", "HTML slight", "Tie", "Leaf slight", "Leaf clear"]
+    checkpoints = (review or {}).get("preference_checkpoints", [])
+    groups = []
+    selected = []
+    for checkpoint in checkpoints:
+        members = []
+        for reference in checkpoint["pairs"]:
+            source = Path(reference["run"]) / "pairs.json"
+            matches = [
+                pair
+                for pair in json.loads(source.read_text())
+                if pair["subject"] == reference["subject"]
+                and pair["pair"] == reference["pair"]
+            ]
+            if len(matches) != 1 or not any(matches[0] == pair for _, pair in records):
+                raise click.ClickException(
+                    f"Pair reference must identify one loaded native judgment: {reference}"
+                )
+            members.append((source, matches[0]))
+            selected.append(matches[0])
+        groups.append((checkpoint["label"], members))
+    unassigned = [(source, pair) for source, pair in records if pair not in selected]
+    if unassigned:
+        groups.append(
+            (
+                "No checkpoint assigned" if checkpoints else "Unordered comparisons",
+                unassigned,
+            )
+        )
+    subjects = sorted({pair["subject"] for _, pair in records})
+    labels = [label for label, _ in groups]
+    symbols = ["circle", "diamond", "square", "triangle", "cross", "star", "wye"]
+    glyphs = ["●", "◆", "■", "▲", "+", "★", "Y"]
+    points, rows = [], []
+    html_uses = defaultdict(set)
+
+    def participants(pair):
+        result = {}
+        for provider, identifier in pair["samples"].items():
+            matches = [
+                sample
+                for sample in found.get(pair["subject"], {}).get(provider, [])
+                if sample["sample"] == identifier
+            ]
+            conditions = {sample["diagnostics"].get("condition") for sample in matches}
+            condition = next(iter(conditions)) if len(conditions) == 1 else None
+            result[provider] = (condition, matches[0] if matches else None)
+        return result
+
+    for _, pair in records:
+        for provider, (condition, sample) in participants(pair).items():
+            if condition == "html" and sample:
+                html_uses[sample["work"].resolve()].add(
+                    json.dumps(pair["samples"], sort_keys=True)
+                )
+    for subject in subjects:
+        for label, members in groups:
+            matches = [
+                (source, pair) for source, pair in members if pair["subject"] == subject
+            ]
+            if not matches and checkpoints:
+                rows.append(
+                    f'<tr><th scope="row">{escape(subject)}</th><td>{escape(label)}</td><td>—</td><td colspan="2">Not compared at this checkpoint</td><td>—</td></tr>'
+                )
+            for source, pair in matches:
+                members_by_column = participants(pair)
+                conditions = [condition for condition, _ in members_by_column.values()]
+                format_pair = len(conditions) == 2 and sorted(
+                    str(c) for c in conditions
+                ) == ["html", "leaf"]
+                samples_text = []
+                for provider, identifier in pair["samples"].items():
+                    condition, sample = members_by_column[provider]
+                    name = {"html": "Plain HTML", "leaf": "Leaf"}.get(
+                        condition, provider
+                    )
+                    target = (
+                        f'<a href="#{sample_anchor(sample)}"><code>{escape(identifier)}</code></a>'
+                        if sample
+                        else f"<code>{escape(identifier)}</code>"
+                    )
+                    reused = (
+                        condition == "html"
+                        and sample
+                        and len(html_uses[sample["work"].resolve()]) > 1
+                    )
+                    samples_text.append(
+                        f"{escape(name)}: {target}"
+                        + (" (reused control)" if reused else "")
+                    )
+                outcomes = []
+                for number, order in enumerate(pair["orders"], 1):
+                    if not order or order["status"] != "complete":
+                        outcomes.append(
+                            escape(
+                                order["status"].replace("_", " ")
+                                if order
+                                else "No verdict"
+                            )
+                        )
+                        continue
+                    preferred = order["overall"]
+                    category = (
+                        "Tie"
+                        if preferred == "tie"
+                        else (
+                            {"leaf": "Leaf", "html": "HTML"}[
+                                members_by_column[preferred][0]
+                            ]
+                            + " "
+                            + order["margin"]
+                            if format_pair
+                            else preferred + " · " + order["margin"]
+                        )
+                    )
+                    outcomes.append(escape(category))
+                    if format_pair:
+                        points.append(
+                            {
+                                "task": subject,
+                                "checkpoint": label,
+                                "category": category,
+                                "order": number,
+                            }
+                        )
+                rows.append(
+                    f'<tr><th scope="row">{escape(subject)}</th><td>{escape(label)}</td><td>{"<br>".join(samples_text)}</td>'
+                    + "".join(f"<td>{outcome}</td>" for outcome in outcomes)
+                    + f"<td>{linked_file(page, source, output_url, 'Native pair ' + str(pair['pair']))}</td></tr>"
+                )
+    chart = "<p>No completed Plain HTML/Leaf pair judgments are available to plot.</p>"
+    if points:
+        options = r"""({
+          ariaLabel: "Overall Plain HTML versus Leaf preferences for both presentation orders, on five ordinal categories. Exact outcomes and sources follow in the table.",
+          marginLeft: width < 650 ? 110 : 155, marginRight: 25,
+          marginBottom: width < 650 ? 65 : 40,
+          x: {type: "point", domain: $CATEGORIES, label: null,
+            tickFormat: d => width < 650 ? d.replace(" ", "\n") : d},
+          y: {type: "point", domain: $TASKS, label: null,
+            tickFormat: d => d.replaceAll("-", width < 650 ? "\n" : " ")},
+          color: {domain: $LABELS, range: $COLORS},
+          symbol: {domain: $LABELS, range: $SYMBOLS},
+          marks: [
+            Plot.ruleX(["Tie"], {stroke: "var(--rule)"}),
+            Plot.dot($POINTS.filter(d => d.order === 1), {x: "category", y: "task", symbol: "checkpoint", fill: "checkpoint", r: 5, dy: -5}),
+            Plot.dot($POINTS.filter(d => d.order === 2), {x: "category", y: "task", symbol: "checkpoint", fill: "checkpoint", r: 5, dy: 5})
+          ]
+        })"""
+        values = {
+            "CATEGORIES": categories,
+            "TASKS": subjects,
+            "LABELS": labels,
+            "COLORS": [f"var(--series-{i % 5 + 1})" for i in range(len(labels))],
+            "SYMBOLS": [symbols[i % len(symbols)] for i in range(len(labels))],
+            "POINTS": points,
+        }
+        options = Template(options).substitute(
+            {key: json.dumps(value) for key, value in values.items()}
+        )
+        legend = " · ".join(
+            f"{glyphs[i % len(glyphs)]} {escape(label)}"
+            for i, label in enumerate(labels)
+        )
+        chart = f'<p>{legend}</p><lf-chart id="format-preferences" data-height="{max(300, len(subjects) * 44 + 100)}"><pre>{escape(options)}</pre></lf-chart>'
+    repairs = (review or {}).get("repair_comparisons", [])
+    repair_table = ""
+    if repairs:
+        repair_rows = "".join(
+            f'<tr id="repair-{escape(item["id"])}"><th scope="row">{escape(item["title"])}</th><td>{escape(item["before"])}</td><td>{escape(item["after"])}</td><td>'
+            + " · ".join(
+                linked_file(page, Path(path), output_url, f"Evidence {i}")
+                for i, path in enumerate(item["evidence"], 1)
+            )
+            + "</td></tr>"
+            for item in repairs
+        )
+        repair_table = (
+            '<section id="repair-outcomes"><h3>Same-source repair outcomes</h3><p>These authored observations compare behavior around repairs. They are separate from format preferences and carry no numeric score.</p><table><thead><tr><th scope="col">Change</th><th scope="col">Before</th><th scope="col">After</th><th scope="col">Evidence</th></tr></thead><tbody>'
+            + repair_rows
+            + "</tbody></table></section>"
+        )
+    return (
+        '<lf-tab id="judge-preferences" label="Judge preferences" group="Overview"><section id="preference-overview"><h2>Leaf and Plain HTML: judge preferences</h2>'
+        '<p>The five categories are ordinal judgments, not continuous quality scores. Each dot is one completed presentation-order judgment; two orders are not two author replications. Only Plain HTML/Leaf pairs appear on this axis. Absolute quality grades remain in the <a href="#scores">output index</a>.</p>'
+        + (
+            f"<p>{escape(review['preference_summary'])}</p>"
+            if (review or {}).get("preference_summary")
+            else ""
+        )
+        + (
+            "<p>Checkpoint labels and their order come from the assessment. Missing comparisons are explicit below. Different author samples and reused controls do not establish a causal before/after repair effect.</p>"
+            if checkpoints
+            else "<p>No checkpoints were supplied. These are unordered retained comparisons.</p>"
+        )
+        + chart
+        + '<details open><summary>Exact native outcomes and sources</summary><table id="preference-outcomes"><thead><tr><th scope="col">Task</th><th scope="col">Checkpoint</th><th scope="col">Saved samples</th><th scope="col">Order 1</th><th scope="col">Order 2</th><th scope="col">Source</th></tr></thead><tbody>'
+        + "".join(rows)
+        + "</tbody></table></details></section>"
+        + repair_table
+        + "</lf-tab>"
+    )
+
+
+def implementation_summary(
+    page: Path, implementation: dict | None, output_url: str | None
+) -> str:
+    """Present the author's implementation assessment and personal-review selection."""
+    if implementation is None:
+        return ""
+    review = implementation["human_review"]
+    changes = []
+    for change in review["changes"]:
+        evidence = []
+        for number, name in enumerate(change["evidence"], 1):
+            path = Path(name)
+            evidence.append(linked_file(page, path, output_url, path.name))
+            if path.suffix == ".diff" and path.is_file():
+                # The inline widget owns parsing and per-file disclosure. Preserve
+                # every patch character, including space-only context lines.
+                patch = escape(path.read_text()).replace("\n ", "\n&#32;")
+                evidence.append(
+                    f'<lf-diff id="human-review-{escape(change["id"])}-diff-{number}" collapsed><pre>{patch}</pre></lf-diff>'
+                )
+        links = " · ".join(
+            f'<a href="{escape(link["target"])}">{escape(link["label"])}</a>'
+            for link in change.get("links", [])
+        )
+        changes.append(
+            f'<section id="human-review-{escape(change["id"])}">'
+            f"<h4>{escape(change['title'])}</h4>"
+            f"<p><strong>Before.</strong> {escape(change['before'])}</p>"
+            f"<p><strong>After.</strong> {escape(change['after'])}</p>"
+            f"<p><strong>Why review it.</strong> {escape(change['reason'])}</p>"
+            + (f'<p class="sample-links">{links}</p>' if links else "")
+            + "".join(evidence)
+            + "</section>"
+        )
+    return (
+        '<section id="implementation-summary"><h2>What the current code changes</h2>'
+        + "".join(f"<p>{escape(text)}</p>" for text in implementation["summary"])
+        + '<section id="human-review"><h3>For your review</h3>'
+        + (
+            "<p>No material changes selected for personal review.</p>"
+            if not changes
+            else ""
+        )
+        + f"<p>{escape(review['summary'])}</p>"
+        + "".join(changes)
+        + "</section>"
+        + f"<h3>Weaknesses</h3><p>{escape(implementation['weaknesses'])}</p>"
+        + f"<h3>What merging would leave undone</h3><p>{escape(implementation['remaining'])}</p>"
+        + "</section>"
+    )
+
+
+def report_introduction(
+    found: dict, latest: str, *, story: bool, discovery: bool, implementation: str = ""
+) -> str:
     """Explain the visible navigation and distinguish interventions from evidence."""
     outputs_label = "Hill-climbing journey" if story else "Outputs"
     navigation = (
@@ -1258,6 +1558,7 @@ def report_introduction(found: dict, *, story: bool, discovery: bool) -> str:
         if story
         else ['<a href="#scores">Overview</a>']
     )
+    navigation.insert(0, '<a href="#judge-preferences">Judge preferences</a>')
     navigation.extend(
         f'<a href="#{task_anchor(subject)}-view">{escape(task_title(columns))}</a>'
         for subject, columns in found.items()
@@ -1266,7 +1567,8 @@ def report_introduction(found: dict, *, story: bool, discovery: bool) -> str:
         navigation.append('<a href="#observations">Exploration</a>')
     return (
         '<lf-tab id="report-introduction" label="Introduction">'
-        '<section id="report-map"><h2>How this report is organized</h2>'
+        + latest
+        + '<section id="report-map"><h2>How this report is organized</h2>'
         "<p>We are testing changes to Leaf and its authoring instructions, and improving "
         "the hill-climb process used to evaluate them.</p>"
         '<table id="report-destinations"><thead><tr><th>View</th><th>What it shows</th></tr></thead><tbody>'
@@ -1299,7 +1601,9 @@ def report_introduction(found: dict, *, story: bool, discovery: bool) -> str:
             if story
             else "<strong>Overview</strong> lists the results; the task tabs open their saved outputs."
         )
-        + "</p></section></lf-tab>"
+        + "</p></section>"
+        + implementation
+        + "</lf-tab>"
     )
 
 
@@ -1390,22 +1694,9 @@ def review_sections(
             phases = []
             labels = []
             for side, sample in (("before", before), ("after", after)):
-                roles = (sample["diagnostics"].get("comparison") or {}).get(
-                    "phases", {}
-                )
                 phase = reference_phase(sample, comparison[side])
                 phases.append(phase)
-                role = (
-                    "Initial page"
-                    if phase == "1"
-                    else "Before decision"
-                    if phase == roles.get("_before_decision")
-                    else "Final output"
-                    if phase == roles.get("")
-                    else f"Revision {phase}"
-                    if phase
-                    else "Output unavailable"
-                )
+                role = phase_label(sample, phase)
                 condition = {"html": "Plain HTML", "leaf": "Leaf"}.get(
                     sample["diagnostics"].get("condition")
                 )
@@ -1496,7 +1787,7 @@ def review_sections(
 @click.option(
     "--review",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help="JSON review naming the latest run group, tested changes and recommendations.",
+    help="JSON assessment of run groups, tested changes, current implementation and personal-review guidance.",
 )
 def eval_report(
     page: Path, runs: tuple[Path, ...], output_url: str | None, review: Path | None
@@ -1509,8 +1800,18 @@ def eval_report(
     Serve PAGE/evidence with a static server and pass its URL as --output-url
     to open saved pages and raw evidence from the report. Without that URL the
     report names the exported files but does not claim they are reachable."""
-    if not (page / "events.jsonl").exists():
-        leaf("page", "init", str(page))
+    packages = list(layer_packages(page)) if (page / "events.jsonl").exists() else []
+    if "diff" not in packages:
+        leaf(
+            "page",
+            "init",
+            str(page),
+            *[
+                argument
+                for name in [*packages, "diff"]
+                for argument in ("--package", name)
+            ],
+        )
     found = report_samples(runs)
     assessment = json.loads(review.read_text()) if review else None
     # The story owns the reader's sequence; input-file order carries no task meaning.
@@ -1560,18 +1861,12 @@ def eval_report(
                         sample["run"].resolve(), sample["sample"]
                     ]
                     sample["run_group"] = (
-                        "This journey"
+                        "Latest run"
                         if sample["run"].resolve() in latest_runs
                         else "Reference output"
                     )
-    pairs = list(
-        {
-            json.dumps(pair, sort_keys=True): pair
-            for run in runs
-            if (run / "pairs.json").exists()
-            for pair in json.loads((run / "pairs.json").read_text())
-        }.values()
-    )
+    records = pair_records(runs)
+    pairs = [pair for _, pair in records]
     discovery = discovery_section(page, runs, output_url, found)
     runs_text = (
         "<ul>"
@@ -1612,9 +1907,9 @@ def eval_report(
     index_label = "Output index" if story else "Overview"
     body = (
         '<lf-tabs id="report-views" data-width="available">'
+        + judge_preferences(page, records, found, assessment, output_url)
         + story
         + f'<lf-tab id="scores" label="{index_label}" group="Overview">'
-        + introduction
         + overview(found)
         + f"<details><summary>Runs and score definitions</summary>{runs_text}"
         "<p>Checks are execution assertions. Quality shows recorded live, visual or text rubric "
@@ -1635,7 +1930,15 @@ def eval_report(
         outputs_label = "Hill-climbing journey" if story else "Outputs"
         body = (
             '<lf-tabs id="review-views" data-width="available">'
-            + report_introduction(found, story=bool(story), discovery=bool(discovery))
+            + report_introduction(
+                found,
+                introduction,
+                story=bool(story),
+                discovery=bool(discovery),
+                implementation=implementation_summary(
+                    page, assessment.get("implementation"), output_url
+                ),
+            )
             + f'<lf-tab id="all-results" label="{outputs_label}">{body}</lf-tab>'
             + changes
             + "</lf-tabs>"

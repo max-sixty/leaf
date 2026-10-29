@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "grading": "Read every answer against its supplied evidence (screenshots or source text) and actual tool trace. Grade without model identity. Do not use keyword matching or reward always finding a problem.",
   "metrics": {
     "target_detection": "Defective cases only: 2 = identifies the target failure with correct evidence and its consequence; 1 = identifies the specific target concern but cannot substantiate it; 0 = misses it, merely names generic aesthetics, or asserts a different mechanism.",
@@ -21,6 +21,27 @@
       "reject": "Check only button positions or selected frame identity; report only different image content without recognizing viewer layout movement.",
       "control": "The image precedes variable metadata, keeping its origin fixed across the same transitions.",
       "limit": "This fixture reconstructs the historical DOM-order mechanism; a small fresh review does not reproduce the long authoring context."
+    },
+    "message-copy-placement": {
+      "failure": "A later message's Edit and Copy stand at the end of its head line, one control track short of the card's edge, so they float mid-card instead of at the edge where the thread's actions and the first message's controls align.",
+      "accept": "Identify that a later message's Copy (or Edit and Copy) sits away from the card's right edge, out of the column the other controls use, and connect it to the control reading as misplaced or detached from the message's edge. Measured or eyeballed offsets both count when the evidence shows the hovered later message.",
+      "reject": "Only general remarks about subtlety, icon choice, size, contrast or discoverability, without identifying the mid-card placement.",
+      "control": "A later message's controls stand at the card's edge in the thread actions' column. The first message's controls still stand before Expand, Resolve and Close; criticism of that is not a target false alarm.",
+      "limit": "Reconstruction of the margin card's head geometry, not the full Leaf runtime."
+    },
+    "later-message-controls": {
+      "failure": "Hovering any message but the first shows no Edit or Copy: the controls are present and opaque but a card-coloured cell in the actions' column of each head row paints over them, so a later message cannot be copied by pointer.",
+      "accept": "Identify that the per-message Copy (and Edit on the user's later reply) does not appear, or cannot be reached, when the pointer is on a later message, while the first message shows its controls, and connect it to the request for a copy button on each message.",
+      "reject": "Only noting that controls are hidden at rest, or that they are subtle, without observing that hovering a later message fails to show them.",
+      "control": "Hovering a later message shows its controls at the card's edge, above the head row's cell.",
+      "limit": "An accessibility tree still lists the covered buttons; an answer may not claim from it alone that they are visible."
+    },
+    "controls-after-a-press": {
+      "failure": "After pressing a message's Copy, that message keeps showing its Edit and Copy when the pointer moves to another message, because the controls follow any focus inside the message and a press leaves focus on the button. Two messages then show controls at once.",
+      "accept": "Identify that the first message's controls stay visible after the pointer has moved onto another message following a press, so controls show on a message the pointer has left or on two messages at once, and connect it to ambiguity about which message a control acts on or to visual noise.",
+      "reject": "Only commenting on the check mark's duration, the copied status text, or that hovered controls appear, without identifying controls persisting on the message the pointer left.",
+      "control": "Once the pointer leaves the first message, its controls hide; only the hovered message shows controls. Keyboard focus still reveals them.",
+      "limit": "Reconstruction of the focus-within reveal rule, not the full Leaf runtime."
     }
   },
   "qualification": "Freeze task and scoring before Sol runs. A ceiling, consistent miss, false-alarm pattern and insufficient evidence are distinct outcomes. Do not tune packets just to manufacture Sol failures. Inspect all outputs before spending on other models.",

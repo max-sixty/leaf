@@ -35,14 +35,14 @@ const said = (activity) => {
 
 test.beforeEach((t) => t.mock.timers.enable({ apis: ["Date"], now: NOW }));
 
-test("working says the agent's own sentence, dated on the row once it is old", () => {
+test("working says the agent's own sentence, dated only in the disclosure", () => {
   const work = { kind: "working", detail: "revising the plan", ts: minutesAgo(0) };
   assert.deepEqual(said({ ...work, counts: { pending: 1 } }), [
     "revising the plan",
     "revising the plan (just now). 1 response owed on updates awaiting delivery.",
   ]);
   assert.deepEqual(said({ ...work, ts: minutesAgo(5) }), [
-    "5m ago · revising the plan",
+    "revising the plan",
     "revising the plan (5m ago)",
   ]);
 });

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Layout shifts left in Leaf</title>
+    <style>
+      .reply-positions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px;
+      }
+      .reply-positions figure {
+        margin: 0;
+      }
+      .reply-positions svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .thread-outline {
+        fill: none;
+        stroke: currentColor;
+      }
+      .screen-outline {
+        fill: none;
+        stroke: currentColor;
+        stroke-dasharray: 4 3;
+      }
+      .reply-marker {
+        fill: currentColor;
+      }
+      .reply-positions text {
+        fill: currentColor;
+        font: 12px sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="layout-column" id="layout-shifts">
+      <h1>Layout shifts left in Leaf</h1>
+      <p>Each item records a remaining case and asks which behavior to use.</p>
+      <section id="shift-6">
+        <h2>#6 — A reply arrives in a thread seated in the page</h2>
+        <p>
+          The same thread can receive a reply above the screen, on screen or below it.
+          These schematic positions illustrate the cases; they are not measurements.
+        </p>
+        <div class="reply-positions" id="page-reply-positions">
+          <figure id="reply-above-screen">
+            <svg
+              viewBox="0 0 220 240"
+              role="img"
+              aria-label="A page thread with the incoming reply above the visible screen"
+            >
+              <rect
+                class="thread-outline"
+                x="20"
+                y="8"
+                width="180"
+                height="220"
+                rx="4"
+              />
+              <text x="30" y="28">Page thread</text>
+              <rect class="reply-marker" x="30" y="42" width="8" height="18" />
+              <text x="46" y="55">Incoming reply</text>
+              <rect class="screen-outline" x="6" y="80" width="208" height="92" />
+              <text x="30" y="102">Visible screen</text>
+              <text x="30" y="130">Existing replies</text>
+              <text x="30" y="212">Reply box</text>
+            </svg>
+            <figcaption>Reply lands above the screen.</figcaption>
+          </figure>
+          <figure id="reply-on-screen">
+            <svg
+              viewBox="0 0 220 240"
+              role="img"
+              aria-label="A page thread with the incoming reply inside the visible screen"
+            >
+              <rect
+                class="thread-outline"
+                x="20"
+                y="8"
+                width="180"
+                height="220"
+                rx="4"
+              />
+              <text x="30" y="28">Page thread</text>
+              <text x="30" y="55">Existing replies</text>
+              <rect class="screen-outline" x="6" y="80" width="208" height="92" />
+              <text x="30" y="102">Visible screen</text>
+              <rect class="reply-marker" x="30" y="118" width="8" height="18" />
+              <text x="46" y="131">Incoming reply</text>
+              <text x="30" y="212">Reply box</text>
+            </svg>
+            <figcaption>Reply lands on screen, where the user is reading.</figcaption>
+          </figure>
+          <figure id="reply-below-screen">
+            <svg
+              viewBox="0 0 220 240"
+              role="img"
+              aria-label="A page thread with the incoming reply below the visible screen"
+            >
+              <rect
+                class="thread-outline"
+                x="20"
+                y="8"
+                width="180"
+                height="220"
+                rx="4"
+              />
+              <text x="30" y="28">Page thread</text>
+              <rect class="screen-outline" x="6" y="80" width="208" height="92" />
+              <text x="30" y="102">Visible screen</text>
+              <text x="30" y="130">Existing replies</text>
+              <rect class="reply-marker" x="30" y="182" width="8" height="18" />
+              <text x="46" y="195">Incoming reply</text>
+              <text x="30" y="218">Reply box</text>
+            </svg>
+            <figcaption>Reply lands below the screen.</figcaption>
+          </figure>
+        </div>
+        <lf-ask id="page-reply-policy">
+          <h3>Should an on-screen reply wait behind a fixed-size “1 new reply” row?</h3>
+          <lf-options id="page-reply-policy-options" choose>
+            <lf-option id="page-reply-immediate"
+              ><strong>Show it immediately</strong> Let the new reply occupy its space
+              in the thread.</lf-option
+            >
+            <lf-option id="page-reply-hold"
+              ><strong>Hold until revealed</strong> Keep the incoming reply behind a
+              fixed-size “1 new reply” row.</lf-option
+            >
+          </lf-options>
+        </lf-ask>
+      </section>
+      <section id="shift-10">
+        <h2>#10 — The reply box in an open panel card</h2>
+        <p>
+          The reply box follows the messages today. An alternative pins it at the
+          panel’s foot, keeping the writing position still as replies arrive.
+        </p>
+        <lf-ask id="panel-reply-position">
+          <h3>Should an open panel card’s reply box be pinned at the panel’s foot?</h3>
+          <lf-options id="panel-reply-position-options" choose>
+            <lf-option id="panel-reply-after"
+              ><strong>Keep it after the messages</strong> The reply box follows the end
+              of the card’s messages.</lf-option
+            >
+            <lf-option id="panel-reply-pinned"
+              ><strong>Pin it at the panel’s foot</strong> Keep the reply box in place
+              while messages grow above it.</lf-option
+            >
+          </lf-options>
+        </lf-ask>
+      </section>
+    </main>
+  </body>
+</html>

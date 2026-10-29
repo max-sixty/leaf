@@ -109,6 +109,11 @@ control's ring shows. `fitsWhole(target)` says whether the target and those marg
 fit, so a widget can bring in a heading or label with an item where there is room, and
 the item alone where there is not.
 
+To set a box's scroll position, use `setScroll(box, {top, left, behavior})`, also
+available from `portable-api.js`. It defaults to `instant` and updates Leaf's scroll
+readers before that position paints, including writes during resize delivery. Smooth
+scrolling reports its positions through the browser's scroll events.
+
 `scrollLimit(box)` is how far a box scrolls down, and `atScrollEnd(box)` whether it is
 there. `landingInsets(scroller)` reads a scroller's `scroll-padding`.
 `shownWindow({within, gap, across})` is the window's visible rectangle clear of Leaf's
@@ -240,7 +245,8 @@ readers, such as a view the widget switched to. A recorded gesture is acknowledg
 the `says` its dispatch gives (`module-state.md`, "The widget controller"). News not
 caused by the user passes `{background: true}` and waits behind what the user just did;
 `{announce: false}` only shows it. `announce(message)` only announces, for words already
-on screen.
+on screen: it dispatches an `lf-announce` event on the window carrying `message` as its
+`detail`, which Leaf says in its live region and a page without Leaf leaves unsaid.
 
 `raiseError(message)` tells the user a gesture failed, such as a value the server
 refused, and the Leaf panel shows it until they have dealt with it. Its handle's

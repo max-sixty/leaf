@@ -182,7 +182,6 @@ import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
 import { isNews, threadCounts } from "./thread/model.js";
 import { LeafElement } from "./leaf-element.js";
-import { claimReleaseClick } from "./pointer.js";
 import {
   threadAttention,
   todoLabel,
@@ -243,6 +242,7 @@ import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
 import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.js";
 import {
+  claimReleaseClick,
   focusDestination,
   focused,
   holdFocus,
@@ -250,6 +250,8 @@ import {
   onCurrentLocation,
   onPressAway,
   onUserInput,
+  pressHolds,
+  pressRecords,
   rove,
   currentLocationIn,
 } from "./focus.js";
@@ -1117,7 +1119,9 @@ export function createFloatingPanel({
   // the click other engines deliver after it, which would land on the comment box the
   // release opened under the pointer, as on its Other responses. A Tab
   // through the row, or the runtime putting the caret there, writes on the page.
-  let pressedWords = null;
+  // The words are kept against the press (focus.js, `pressing`), so a press that never
+  // completes, cancelled or let go elsewhere, leaves none behind for a later release.
+  const pressedWords = pressRecords();
   const quotedWords = () =>
     general &&
     fieldInput() === general.input &&
@@ -1127,23 +1131,19 @@ export function createFloatingPanel({
   field.addEventListener(
     "pointerdown",
     (event) => {
-      pressedWords =
-        event.isPrimary && event.composedPath().includes(general?.input)
-          ? quotedWords()
-          : null;
-      if (pressedWords) event.preventDefault();
+      if (!event.isPrimary || !event.composedPath().includes(general?.input)) return;
+      const words = quotedWords();
+      if (!words) return;
+      pressedWords.keep(event, words);
+      event.preventDefault();
     },
     true,
   );
   field.addEventListener("pointerup", (event) => {
-    const words = pressedWords;
-    pressedWords = null;
+    const words = pressHolds(event) && pressedWords.kept();
     if (!words || !event.composedPath().includes(general?.input)) return;
     claimReleaseClick();
     words.comment();
-  });
-  field.addEventListener("pointercancel", () => {
-    pressedWords = null;
   });
   // The user's first edit in the field passes every error it could say to the menu's
   // list, read before the edit changes what it could say. The user chose this on 17
@@ -2026,6 +2026,7 @@ export function createFloatingPanel({
       row = null,
       opens = false,
       title = null,
+      current = false,
     } = {},
   ) =>
     html`<button
@@ -2034,6 +2035,7 @@ export function createFloatingPanel({
       data-row=${row ?? nothing}
       title=${title ?? nothing}
       class="lf-fp-face lf-fp-item"
+      aria-current=${current ? "true" : nothing}
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
       ?data-opens=${opens}
@@ -2255,9 +2257,11 @@ export function createFloatingPanel({
   }
   // Where the agent's latest save failed its check, first what the check found, which
   // its error points here to read (version.js, `holdFailedSave`); then the versions
-  // the picker lists, the one shown marked, each a press that travels there and says
-  // the note its stamp gave it after its name, cut to the row and whole on hover; with
-  // Compare where the picker offers it.
+  // the picker lists, each a press that travels there and says the note its stamp gave
+  // it after its name, cut to the row and whole on hover. A column at the rows' end
+  // holds Compare where the picker offers it and Showing for the version shown, so
+  // the two words line up. Showing stands outside the press, as Compare does, over
+  // the row's end; the press carries it as `aria-current`.
   const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
@@ -2270,39 +2274,46 @@ export function createFloatingPanel({
             </div>`
           : nothing
       }
-      ${repeat(
-        versions,
-        (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
-        (entry) =>
-          html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
-            ${menuItem(
-              html`${entry.name}${
-                entry.note
-                  ? html`<span class="lf-fp-note">${entry.note}</span>`
+      <div class="lf-fp-versions" role="none">
+        ${repeat(
+          versions,
+          (entry) =>
+            `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
+          (entry) =>
+            html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
+              ${menuItem(
+                html`${entry.name}${
+                  entry.note
+                    ? html`<span class="lf-fp-note">${entry.note}</span>`
+                    : nothing
+                }`,
+                nothing,
+                () => showVersion(entry),
+                { title: entry.note, current: entry.current },
+              )}${
+                entry.current
+                  ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>`
                   : nothing
-              }`,
-              entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing,
-              () => showVersion(entry),
-              { title: entry.note },
-            )}${
-              entry.comparable
-                ? html`<button
-                    type="button"
-                    role="menuitem"
-                    class="lf-fp-face lf-fp-quiet lf-fp-compare"
-                    aria-pressed=${String(
-                      selection.on && selection.base === entry.version,
-                    )}
-                    aria-label=${`Compare with ${entry.name}`}
-                    @click=${() =>
-                      putAwayThen(() => versionPicker.compare(entry.version))}
-                  >
-                    Compare
-                  </button>`
-                : nothing
-            }
-          </div>`,
-      )}
+              }${
+                entry.comparable
+                  ? html`<button
+                      type="button"
+                      role="menuitem"
+                      class="lf-fp-face lf-fp-quiet lf-fp-compare"
+                      aria-pressed=${String(
+                        selection.on && selection.base === entry.version,
+                      )}
+                      aria-label=${`Compare with ${entry.name}`}
+                      @click=${() =>
+                        putAwayThen(() => versionPicker.compare(entry.version))}
+                    >
+                      Compare
+                    </button>`
+                  : nothing
+              }
+            </div>`,
+        )}
+      </div>
       ${
         versions.length
           ? nothing
@@ -3453,14 +3464,15 @@ export function createFloatingPanel({
   // run, from what stands before it. One keyed list of rules, headings and items, so an
   // item that moves to another group, as one whose place leaves the page does, keeps
   // its node, and the focus and drawing in it. `line` draws an item, given the group it
-  // stands in.
+  // stands in. A rule belongs to its group, so replacing the group's first item
+  // does not replace the rule and make the keyed renderer move surviving cards.
   function groupedItems(groups, line) {
     const rows = [];
     let running = false;
     for (const group of groups) {
       const headed = group.headed !== false;
       if (rows.length && (headed || !running))
-        rows.push({ key: `rule:${queueItemKey(group.items[0])}`, rule: true });
+        rows.push({ key: `rule:${group.key}`, rule: true });
       running = !headed;
       if (headed) rows.push({ key: group.key, group });
       for (const item of group.items)
@@ -3849,9 +3861,8 @@ export function createFloatingPanel({
     if (!thread) return {};
     // Resolve is the check a thread card's head draws, and Reopen in its place is the
     // same check drawn done, so the agent settling the thread moves nothing beside it.
-    // Resolve says it is unavailable while a settling is pending rather than leaving
-    // the tab order, so the user who pressed it, or `r` on it, stays on it;
-    // the action itself refuses a press meanwhile (thread/actions.js, `settle`).
+    // A press while one is in flight sends the opposite settlement after it, as a
+    // card's does (thread/thread-card.js, `threadReading`).
     // Resolving leaves the reply's editing place, as a card's Resolve does, keeping
     // its draft (thread/replies.js), so the thread shows its way back instead.
     // A thread about an element an agent sent in a message stands in that message
@@ -3917,9 +3928,6 @@ export function createFloatingPanel({
           `lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}`,
           thread.resolved ? "Reopen" : "Resolve thread",
           { action: thread.resolved ? "reopen" : "resolve" },
-        )}
-        aria-disabled=${String(
-          !(thread.resolved ? thread.offers.reopen : thread.offers.resolve),
         )}
         @click=${() => {
           if (!thread.resolved) dismissReply(thread.key);
@@ -4432,15 +4440,16 @@ export function createFloatingPanel({
   let heldCurrentLocation = null;
   // It is still where they are on the page while they stand in the panel.
   holdPagePlace(() => (currentLocationIn(host) ? heldCurrentLocation : null));
-  // A press reads it before the press moves focus, which may put away what held it.
-  let pressedIn = false;
+  // A press reads it before the press moves focus, which may put away what held it, and
+  // the focus that press moves, a finger's included, which lands only after its release,
+  // keeps it (focus.js, `pressing`).
+  const fromThePage = pressRecords();
   host.addEventListener(
     "pointerdown",
-    () => {
+    (event) => {
       if (currentLocationIn(host)) return;
       heldCurrentLocation = readPlace();
-      pressedIn = true;
-      setTimeout(() => (pressedIn = false));
+      fromThePage.keep(event, true);
     },
     true,
   );
@@ -4455,7 +4464,7 @@ export function createFloatingPanel({
     // Stepping in from the page holds where the user was, and from nowhere holds no
     // place. A row the panel just took away, as a pressed menu row hands the user to the
     // leaf, is no longer under the panel but came from it, and holds nothing.
-    if (inside && !left && !pressedIn) heldCurrentLocation = null;
+    if (inside && !left && !fromThePage.kept()) heldCurrentLocation = null;
     else if (inside && left?.isConnected && !renderedUnder(left, host))
       heldCurrentLocation = readPlace(left);
     const next = inside ? writing || node.localName === "leaf-text" : false;

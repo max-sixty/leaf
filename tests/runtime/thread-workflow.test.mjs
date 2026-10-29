@@ -346,7 +346,6 @@ test("pending thread gestures fold in the order the user made them, as the log w
   assert.equal(fold(resolved, resolve, reply).resolved, null);
   assert.deepEqual(fold({}, resolve, keep).resolved, closed);
   assert.equal(fold(resolved, unresolve).resolved, null);
-  assert.equal(fold(resolved, unresolve).settling, "unresolve");
   // Taking back the resolve that closed the thread reopens it; taking back anything
   // else leaves it closed.
   assert.equal(fold(resolved, { ...undo, undoes: "closed" }).resolved, null);

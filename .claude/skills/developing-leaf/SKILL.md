@@ -173,8 +173,11 @@ fixed overlays in the wrong place.
 
 Derive the required visual relationships from the reader's task, not from the checks
 that pass. For each ordinary input, state which content and controls the reader needs
-to keep in view or reach next, then check their computed geometry before and after the
-input in the delivered page, embedded views included. Make those relationships hold as content
+to keep in view or reach next, then check before and after the input, in the delivered
+page, embedded views included, that each stands where the task needs it and that the
+user can see and reach it. A control's box and opacity can be right while something
+paints over it, so reach it as the user does, with a Playwright hover or click, whose
+actionability check refuses a covered control. Make those relationships hold as content
 and sizes change, through layout constraints or positions derived from one shared
 dimension, and check the constraints in the source too, since a screenshot can hide a
 small misalignment. A server keeps the runtime and layer it started with, so judge a
@@ -195,9 +198,12 @@ task with a Playwright expectation: disclosure and focus prove only themselves, 
 returning from the input doesn't prove an asynchronous update finished.
 
 `uv run leaf-dev stills` crops each changed catalogue state into a before/after pair
-(its module header covers committing first and `--authored`). Cover states reached by
-interaction, including focus states where layout can cover a focus ring, and add a
-missing state to `STATES` rather than driving it by hand.
+and lists the computed styles that differ in it, shadow trees included (its module
+header covers committing first and `--authored`). For a change to where a rule sits,
+such as its sheet, layer or selector, read those lists, with the corpus states
+covering every composed page, rather than writing a computed-style sweep. Cover states
+reached by interaction, including focus states where layout can cover a focus ring,
+and add a missing state to `STATES` rather than driving it by hand.
 
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the
 crops and a sentence saying what changed, and link the page in the reply; a live

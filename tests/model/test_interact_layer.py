@@ -62,6 +62,7 @@ from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
 from leaf.page import page_instructions
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
@@ -1892,7 +1893,10 @@ def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
     with pytest.raises(Refused):
         layer_model.resolve_packages(("./.leaf",), Path.cwd())
 
-    with preview_server(page, structure_model.SourceDocument(PLAIN_PAGE), 1) as url:
+    snapshot = capture_page_snapshot(
+        page, structure_model.SourceDocument(PLAIN_PAGE), 1, url="/"
+    )
+    with preview_server(page, snapshot) as url:
         assert url.startswith("http://127.0.0.1:")
 
 
@@ -2318,15 +2322,15 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
         "description": "A tinted aside for operational hazards.",
         "x-example": '<aside class="hazard">Deploys freeze Friday.</aside>',
     }
-    callout = {
-        "description": "project callout",
-        "x-example": '<aside class="callout">…</aside>',
+    sidenote = {
+        "description": "project sidenote",
+        "x-example": '<aside class="sidenote">…</aside>',
     }
     (layer / "registry.json").write_text(
         json.dumps(
             {
                 ".hazard": hazard,
-                ".callout": callout,
+                "aside.sidenote": sidenote,
                 # Adding one extension preserves the other keys of this fact map.
                 "$languages": {"paths": {"svelte": "javascript"}},
             }
@@ -2341,7 +2345,7 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
     registry = registry_storage.load_registry(page)
     shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())
     assert registry[".hazard"] == hazard
-    assert registry[".callout"] == callout
+    assert registry["aside.sidenote"] == sidenote
     assert set(shipped) <= set(registry)
     assert registry["$languages"]["paths"]["svelte"] == "javascript"
     assert set(shipped["$languages"]["paths"]) <= set(registry["$languages"]["paths"])
@@ -4603,7 +4607,7 @@ def test_widget_instructions_are_nonempty_text_and_reject_the_old_shape():
         malformed = {**entry, key: value}
         refused = registry_refusal(
             lambda malformed=malformed: registry_widgets.validate_widget_schemas(
-                {"lf-instruction-test": malformed}, {"contracts": {}}, "registry.json"
+                {"lf-instruction-test": malformed}, "registry.json"
             )
         )
         assert (refused.code, refused.at) == (
@@ -4612,7 +4616,6 @@ def test_widget_instructions_are_nonempty_text_and_reject_the_old_shape():
         )
     registry_widgets.validate_widget_schemas(
         {"lf-instruction-test": {**entry, "x-instructions": "Use this."}},
-        {"contracts": {}},
         "registry.json",
     )
 

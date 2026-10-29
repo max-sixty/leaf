@@ -33,6 +33,7 @@ import base64
 import io
 import json
 import re
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -864,6 +865,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             / f"wheel-return-{region}-{route}"
         )
         evidence.mkdir(parents=True, exist_ok=True)
+        (evidence / "compositor.json").write_text(json.dumps({"traceEvents": events}))
         for index, event in enumerate(frames):
             (evidence / f"frame-{index:03}.jpg").write_bytes(
                 base64.b64decode(event["args"]["snapshot"])
@@ -894,7 +896,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
                 indent=2,
             )
         )
-        error.add_note(f"Original compositor frames and raw history: {evidence}")
+        error.add_note(f"Original compositor trace, frames and raw history: {evidence}")
         raise
 
     expect(field).to_have_js_property("value", words)
@@ -1184,6 +1186,82 @@ def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
         assert all(a >= b - 0.5 for a, b in zip(insets(clip), cut)), (clip, rest)
 
 
+# The words of `node`, or of the editor `node` hosts, grouped into the lines they stand on.
+WORD_LINES = """node => {
+  const root = window.editorRoots.get(node)?.querySelector('.cm-content') ?? node;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const lines = [];
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    for (const word of text.data.matchAll(/\\S+/g)) {
+      const range = document.createRange();
+      range.setStart(text, word.index);
+      range.setEnd(text, word.index + word[0].length);
+      const top = range.getClientRects()[0].top;
+      const line = lines.find(line => Math.abs(line.top - top) < 4);
+      if (line) line.words.push(word[0]);
+      else lines.push({top, words: [word[0]]});
+    }
+  }
+  return lines.map(line => line.words.join(' '));
+}"""
+
+
+@pytest.mark.parametrize("touch", [False, True], ids=["mouse", "touch"])
+def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
+    browser, serve, touch
+):
+    """The card's reply box is the comment box the card grew from, and ends its words,
+    on every line, where the card's messages end theirs, so a reply breaks each line
+    where it did as it was typed."""
+    context = browser.new_context(has_touch=touch, is_mobile=touch)
+    page = open_page(
+        browser,
+        serve(PAGE),
+        context=context,
+        init_script="""
+      window.editorRoots = new WeakMap();
+      const attach = Element.prototype.attachShadow;
+      Element.prototype.attachShadow = function(options) {
+        const root = attach.call(this, options);
+        if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+        return root;
+      };
+    """,
+    )
+    STEP.open(page, touch)
+    page.keyboard.insert_text(COMMENT)
+    if touch:
+        page.locator(".lf-fab-bar").get_by_role(
+            "button", name="Comment", exact=True
+        ).tap()
+    else:
+        page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
+    reply = card.locator(".lf-thread-reply leaf-text")
+    if touch:
+        reply.tap()
+    else:
+        reply.click()
+    page.keyboard.insert_text(
+        "Name the runner in the step itself, since the manifest the supervisor reads "
+        "is written later and a reviewer reading this list cannot see it yet. Say "
+        "whether a failed run keeps its workspace for inspection, and who removes it "
+        "once the inspection is over, so the next job never starts on its leftovers."
+    )
+    rendered(page)
+    typed = reply.evaluate(WORD_LINES)
+    messages = card.locator(".lf-msg.user")
+    with sending(page, "reply"):
+        if touch:
+            card.locator(".lf-thread-reply .lf-compose-submit").tap()
+        else:
+            page.keyboard.press("Enter")
+    expect(messages).to_have_count(2)
+    rendered(page)
+    assert messages.last.locator(".lf-msg-text").evaluate(WORD_LINES) == typed
+
+
 @pytest.mark.parametrize(
     "size,at,long,touch,again,options,engine",
     [
@@ -1383,29 +1461,25 @@ def test_send_grows_thread_around_the_words(
     if not long and not touch and not again:
         card.locator('leaf-text[name="reply"]').click()
         page.keyboard.insert_text("The same placement works for a reply.")
-        painted_growth = size == (900, 600) and not options
-        if painted_growth:
+        check_reply_growth = size == (900, 600) and not options
+        if check_reply_growth:
             rendered(page)
-            # Layout Instability compares painted frames; a RAF measurement can
-            # catch an intermediate height the browser never actually displayed. The
-            # card grows up from its foot here, so its painted top rises. Its source
-            # rect is the card's visual rect, which takes in the ink below its box, so
-            # that rect's height need not change while the card's does.
+            # Read the card's border box, not Layout Instability's attribution:
+            # the moving surface may be attributed to its shadow-bearing ground,
+            # whose visual-overflow rectangle need not move with the card's edge.
             card.evaluate("""card => {
-              const growth = [];
-              const record = entries => {
-                for (const entry of entries) for (const source of entry.sources) {
-                  if (source.node !== card || !source.previousRect.height) continue;
-                  const before = source.previousRect.top, after = source.currentRect.top;
-                  if (Math.abs(after - before) > 0.75) growth.push({before, after});
-                }
+              const frames = [];
+              const sample = () => {
+                const {top, bottom} = card.getBoundingClientRect();
+                frames.push({top, bottom});
+                window.__replyFrame = requestAnimationFrame(sample);
               };
-              const observer = new PerformanceObserver(list => record(list.getEntries()));
-              observer.observe({type: 'layout-shift'});
+              sample();
               window.__replyGrowth = () => {
-                record(observer.takeRecords());
-                observer.disconnect();
-                return growth;
+                cancelAnimationFrame(window.__replyFrame);
+                const {top, bottom} = card.getBoundingClientRect();
+                frames.push({top, bottom});
+                return frames;
               };
             }""")
         with sending(page, "reply"):
@@ -1414,9 +1488,18 @@ def test_send_grows_thread_around_the_words(
         expect(
             card.get_by_text("The same placement works for a reply.")
         ).to_be_visible()
-        if painted_growth:
-            growth = page.evaluate("window.__replyGrowth()")
-            assert len(growth) == 1 and growth[0]["after"] < growth[0]["before"], growth
+        if check_reply_growth:
+            frames = page.evaluate("window.__replyGrowth()")
+            assert frames[-1]["top"] < frames[0]["top"] - 0.75, frames
+            assert [frame["bottom"] for frame in frames] == pytest.approx(
+                [frames[0]["bottom"]] * len(frames), abs=0.75
+            ), frames
+            changes = [
+                after["top"] - before["top"]
+                for before, after in pairwise(frames)
+                if abs(after["top"] - before["top"]) > 0.75
+            ]
+            assert len(changes) == 1 and changes[0] < 0, frames
 
         # The first sent message, subsequent turns, metadata and the empty reply
         # share one reading edge, both during the handoff and after reopening.

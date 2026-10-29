@@ -15,6 +15,7 @@ reports its check errors. A page with no active revision stays unactivated.
 
 from __future__ import annotations
 
+import os
 import re
 import secrets
 import shutil
@@ -31,9 +32,10 @@ from .layer import (
     compose_layer,
     input_paths,
     layer_inputs,
+    named_package,
 )
 from .leases import lock_is_held, page_locked
-from .locations import first_overlap, located, path_is_within
+from .locations import first_overlap, located, path_is_within, paths_same
 from .refusals import Refused
 from .registry.kernel import kernel_protocol
 from .registry.storage import LAYER, layer_record
@@ -228,12 +230,19 @@ def _unready(page_dir: Path, errors: list[Finding]) -> Finding | None:
     )
 
 
-def start_throwaway_page(page_dir: Path, packages: tuple[str, ...]) -> None:
-    """Start a page in an empty directory selecting `packages`, for a reading Leaf
-    takes and then deletes, as `package check --render` does with a package's
-    worked examples."""
-    LAYER.write(page_dir / LAYER_FILE, _record(packages, None, None))
-    start_log(page_dir)
+def start_throwaway_page(page_dir: Path, package: Path) -> None:
+    """Start a page in an empty directory selecting `package` as `page init` would, by
+    the name it is installed or bundled under, or else by path, for a reading Leaf
+    takes and then deletes, as `package check --render` does with a package's worked
+    examples. The mandatory layer needs no selection, and no theme joins it, so the
+    reading is the same on every machine."""
+    if any(paths_same(package, root) for root in layer_inputs()):
+        selected = ()
+    elif (named := named_package(package.name)) and paths_same(named, package):
+        selected = (package.name,)
+    else:
+        selected = (f"./{os.path.relpath(package)}",)
+    _init_page(page_dir, selected, theme=False)
 
 
 def _refuse_package_target(page_dir: Path, inputs: list[Path]) -> None:
@@ -349,7 +358,7 @@ def _plan_page(
     )
     copied = {root.name: root for root in copies.values()}
     if record == previous and any(
-        _package_files(root) != _package_files(page_dir / PACKAGES_DIR / name)
+        package_files(root) != package_files(page_dir / PACKAGES_DIR / name)
         for name, root in copied.items()
     ):
         # A copy's new bytes change what an open document runs under.
@@ -377,7 +386,7 @@ def _copies(selected: tuple[str, ...]) -> dict[str, Path]:
     return copies
 
 
-def _package_files(root: Path) -> dict[str, bytes]:
+def package_files(root: Path) -> dict[str, bytes]:
     """The files of package `root` a layer composes (`layer.checked_inputs`)."""
     files = {}
     for name in PACKAGE_FILES:
@@ -420,7 +429,7 @@ def _write_record(page_dir: Path, plan: _PagePlan) -> None:
         staged = held / f"{name}.staged"
         shutil.rmtree(staged, ignore_errors=True)
         staged.mkdir(parents=True)
-        for path, data in _package_files(root).items():
+        for path, data in package_files(root).items():
             (staged / path).parent.mkdir(parents=True, exist_ok=True)
             (staged / path).write_bytes(data)
         shutil.rmtree(target, ignore_errors=True)

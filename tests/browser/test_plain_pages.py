@@ -3,8 +3,11 @@
 
 The corpus is `tests/fixtures/plain/`: standalone pages, each written as an author
 writes for the open web and showing a pattern the others don't, whose one
-Leaf-specific edit is that the body's content sits in one `main`. A new ordinary
-pattern gets a page of its own, as small as shows it. They stay out of the example
+Leaf-specific edit is that the body's content sits in one `main`. Each brings its own
+design, so each takes no theme, as `page-authoring.md`, "Style the page", tells such
+a page to: what the comparison holds is Leaf's core sheet and runtime, never the
+reading look a page takes by default. A new ordinary pattern gets a page of its own,
+as small as shows it. They stay out of the example
 corpus (`examples/AGENTS.md`), whose sweeps also hold Leaf's own pages to the suite's
 rules, such as writing nothing that changes nothing (`write_watch.js`), which an
 author's script owes nobody.
@@ -51,6 +54,7 @@ from interact_support import running_http_server
 from render_harness import ROOT
 
 from leaf.event_log import read_events
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.page_code import needs_browser, run_page_code
 from leaf.render_gate.preview import preview_server
@@ -61,114 +65,28 @@ SOURCES = sorted((ROOT / "tests" / "fixtures" / "plain").glob("*.html"))
 # The obstacles a decision has yet to lift, and below, each page's findings they
 # explain, by pin (`differences`, `checked`).
 OBSTACLES = {
-    "inherited": (
-        "Leaf's theme sets type and colour on body, on semantic elements (headings'"
-        " line-height, table cells, code and pre, blockquote, figcaption) and on class"
-        " idioms whose names pages also use (.lede, .facts dt), and a rule on an"
-        " element outranks whatever the author set on an ancestor, so type and colour"
-        " a page sets on :root or body lose on each element the theme names"
-    ),
-    "color-scheme": (
-        "theme.css declares color-scheme: light dark on :root, so a page that never"
-        " opted into dark gets the browser's dark controls, dialogs and system colours"
-        " in a dark medium"
+    "scroll-clearance": (
+        "Leaf makes a table or pre scroll inside itself rather than widen the page"
+        " (reading.css), and keeps 8px under its last row for an overlay scrollbar,"
+        " so a grid row holding a table is that much taller"
     ),
     "canvas": (
-        "body is a size container (theme.css, container: lf-shell), which keeps its"
-        " background off the canvas, and html paints Leaf's --paper there, so a page"
-        " shorter than the window ends in Leaf's paper below the body the author"
-        " coloured"
+        "body is a size container (theme.css, container: lf-shell), the shell a Layout"
+        " and a widget's 100cqi ask, and containment keeps its background off the"
+        " canvas, so a page shorter than the window ends in the browser's canvas below"
+        " the body the author coloured"
     ),
 }
 KNOWN = {
-    "article": {
-        "inherited": {
-            "dark inherited color on body and 46 more #dfba8c06",
-            "dark inherited font-family on body and 43 more #38373dea",
-            "dark inherited font-size on body and 23 more #ab5e1941",
-            "dark inherited font-style on main > blockquote:0 and 2 more #854bcf57",
-            "dark inherited font-variant-numeric on main > table:0 and 18 more #d0599126",
-            "dark inherited line-height on body and 40 more #6a23811c",
-            "light inherited color on body and 46 more #dfba8c06",
-            "light inherited font-family on body and 43 more #38373dea",
-            "light inherited font-size on body and 23 more #ab5e1941",
-            "light inherited font-style on main > blockquote:0 and 2 more #854bcf57",
-            "light inherited font-variant-numeric on main > table:0 and 18 more #d0599126",
-            "light inherited line-height on body and 40 more #6a23811c",
-        },
-    },
     "dashboard": {
-        "inherited": {
-            "dark inherited font-family on main > div:0 > section:5 > table:0 and 89 more #a7a90862",
-            "dark inherited font-variant-numeric on main > div:0 > section:5 > table:0 and 109 more #64d52e9b",
-            "dark inherited line-height on main > header:0 > h1:0 and 117 more #66a50cd8",
-            "light inherited font-family on main > div:0 > section:5 > table:0 and 89 more #a7a90862",
-            "light inherited font-variant-numeric on main > div:0 > section:5 > table:0 and 109 more #64d52e9b",
-            "light inherited line-height on main > header:0 > h1:0 and 117 more #66a50cd8",
+        "scroll-clearance": {
+            "dark overridden grid-template-rows on main #0d6e4079",
+            "light overridden grid-template-rows on main #0d6e4079",
         },
     },
-    "editorial": {
-        "color-scheme": {
-            "color-scheme on the root",
-        },
-        "inherited": {
-            "dark inherited color on main > figure:0 > figcaption:0 and 2 more #8aec8976",
-            "dark inherited font-variant-numeric on main > dl:0 > div:0 > dt:0 and 2 more #17f31538",
-            "light inherited color on main > figure:0 > figcaption:0 and 2 more #8aec8976",
-            "light inherited font-variant-numeric on main > dl:0 > div:0 > dt:0 and 2 more #17f31538",
-        },
-    },
-    "form": {
-        "canvas": {
-            "canvas around body",
-        },
-        "color-scheme": {
-            "color-scheme on the root",
-        },
-    },
-    "instrument": {
-        "inherited": {
-            "dark inherited font-size on main > section:1 > div:3 > code:0 #63f91bb0",
-            "dark inherited line-height on main > section:0 > h1:0 and 2 more #8e05b5be",
-            "light inherited font-size on main > section:1 > div:3 > code:0 #63f91bb0",
-            "light inherited line-height on main > section:0 > h1:0 and 2 more #8e05b5be",
-        },
-    },
-    "module": {
-        "canvas": {
-            "canvas around body",
-        },
-        "color-scheme": {
-            "color-scheme on the root",
-        },
-        "inherited": {
-            "dark inherited line-height on main > header:0 > h1:0 and 3 more #66fbabf9",
-            "light inherited line-height on main > header:0 > h1:0 and 3 more #66fbabf9",
-        },
-    },
-    "motion": {
-        "canvas": {
-            "canvas around body",
-        },
-        "color-scheme": {
-            "color-scheme on the root",
-        },
-        "inherited": {
-            "dark inherited font-size on main > p:0 #5fa0b4aa",
-            "dark inherited line-height on main > h1:0 and 5 more #1be9666f",
-            "light inherited font-size on main > p:0 #5fa0b4aa",
-            "light inherited line-height on main > h1:0 and 5 more #1be9666f",
-        },
-    },
-    "script": {
-        "color-scheme": {
-            "color-scheme on the root",
-        },
-        "inherited": {
-            "dark inherited line-height on main > h1:0 #0199a976",
-            "light inherited line-height on main > h1:0 #0199a976",
-        },
-    },
+    "form": {"canvas": {"canvas around body"}},
+    "module": {"canvas": {"canvas around body"}},
+    "motion": {"canvas": {"canvas around body"}},
 }
 
 # A page that builds content after it loads says it has finished as a page does to
@@ -653,13 +571,14 @@ def checked(browser, page_dir: Path):
     if result.errors:
         yield [(e.code, f"{e.code} {e.at}", str(e)) for e in result.errors], None
         return
-    with preview_server(
+    snapshot = capture_page_snapshot(
         page_dir,
         result.document,
         result.revision.candidate,
-        transition_held=True,
+        url="/",
         artifact=result.artifact,
-    ) as url:
+    )
+    with preview_server(page_dir, snapshot) as url:
         found = (
             run_page_code(browser, url)
             if needs_browser(result.document, result.artifact)
@@ -684,7 +603,7 @@ def test_an_ordinary_page_is_drawn_as_written(
     plain.wait_for_function(f"document.fonts.status === 'loaded' && {LOADED}")
     alone = Arm(plain, standalone=True)
 
-    page_dir = site_of(source, initialized_page(tmp_path / "page", ()))
+    page_dir = site_of(source, initialized_page(tmp_path / "page", (), theme=False))
     with checked(browser.unwatched, page_dir) as (found, url):
         if url is not None:
             page = browser.unwatched.new_page(viewport=VIEWPORT, color_scheme="light")

@@ -505,17 +505,21 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* A later message's head shares the actions' line only once it sticks there, so it
      takes both tracks, and its controls stand at the card's edge rather than mid-card
-     at the first track's end. On the actions' line, where its name and time stand
-     short of them, its controls stand aside (`data-lf-beside-actions`,
-     thread-preview.js). */
+     at the first track's end. On the actions' line it keeps to the first track, as the
+     first message's head does, cutting there what it can't fit, and its controls
+     stand aside (`data-lf-beside-actions`, thread-preview.js): a narrow card's actions
+     leave too little room for even its name and time. */
   .lf-margin-thread
     .lf-thread-transcript
     > .lf-msg:not(:nth-child(1 of .lf-msg, .lf-thread-checkpoint)) {
     & > .lf-msg-head {
       grid-column: 1 / -1;
     }
-    &[data-lf-beside-actions] > .lf-msg-head > .lf-msg-controls {
-      visibility: hidden;
+    &[data-lf-beside-actions] > .lf-msg-head {
+      grid-column: 1;
+      & > .lf-msg-controls {
+        visibility: hidden;
+      }
     }
   }
   .lf-margin-thread .lf-msg-body {
@@ -720,7 +724,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      line (above), with the ground of the message whose head holds it, tinted while
      it arrives. Their padding keeps the head's own controls short of them, so a
      focused control's ring stays whole. A notice of held news stands first in the
-     row, whole (thread-card.js); the card keeps its width while it holds news
+     row (thread-card.js); the card keeps its width while it holds news
      (thread-preview.js), so the notice takes its room from the heads' track, and the
      actions after it keep their places. */
   /* The row is a message head's line, so Reopen taking Resolve's place is as tall as
@@ -736,6 +740,24 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     gap: 4px;
     min-height: var(--lf-msg-head-height);
     padding-inline-start: var(--sp-2);
+  }
+  /* The notice takes at most a notice's room beside a head's words (`--lf-news-width`,
+     surfaces.css), and no more than the heads leave beside each one's name and time
+     (`--lf-news-room`, thread-card.js, `#fitMarginNews`). It drops whole the facts
+     past it and counts them in the room it keeps at its end, and where even its first
+     fact doesn't fit it says one count of all that waits (held-news.js, `newsNotice`).
+     A desktop card's heads keep their names and times whole beside it. On a phone's
+     card, whose three controls, notice and Edit each take a finger's width, a head
+     still lacks room for both, and gives up its name first (above). Drawn whole, the
+     notice stood over the head of the user's message, which read "M51d ago".
+     Rejected: the notice wrapping beneath the actions, which would stand over the
+     first message's words in the actions' track. */
+  .lf-margin-thread .lf-margin-thread-controls .lf-thread-news {
+    max-inline-size: min(
+      var(--lf-news-width),
+      var(--lf-news-room, var(--lf-news-width))
+    );
+    padding-inline-end: var(--lf-news-count-room);
   }
   /* A sticky head and its words paint the message's one animated ground.
      Shared message rules own wrapping, including progress disclosures below the
@@ -754,12 +776,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
        arriving message tints. */
     box-shadow: 0 calc(-1 * var(--lf-thread-room-cover, 0px)) var(--paper);
   }
-  /* The first head row's cell in the actions' track sticks with the head in the
-     message's ground, over the transcript's paper; a later head spans that track
-     itself. It comes before the head, whose focused control's ring paints over it. */
+  /* The head row's cell in the actions' track, beside a head that keeps to the first
+     track (the first message's, and a later one on the actions' line), sticks with
+     the head in the message's ground, over the transcript's paper; elsewhere a later
+     head spans that track itself. It comes before the head, whose focused control's
+     ring paints over it. */
   .lf-margin-thread
     .lf-thread-transcript
-    > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)::before {
+    > .lf-msg:is(
+      :nth-child(1 of .lf-msg, .lf-thread-checkpoint),
+      [data-lf-beside-actions]
+    )::before {
     content: "";
     grid-column: 2;
     grid-row: 1;
@@ -780,6 +807,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
     flex-shrink: 1;
     max-inline-size: max(40%, 5em);
+  }
+  /* A name left less than an em beside a notice of news shows none of itself
+     (thread-card.js, `#fitMarginNews`), rather than a sliver of its first letter. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg-head > b[data-lf-nameless] {
+    flex-basis: 0;
+    min-inline-size: 0;
+    max-inline-size: 0;
   }
   /* Only the writer's name and the time stick. The head's annotations (a progress
      disclosure, a delivery receipt, a failure, a suggestion or edited label) belong
@@ -812,9 +846,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       z-index: 1;
       background-color: var(--lf-msg-ground);
     }
-    /* The name's ground spans the gap to the time, which a rising one would show. */
+    /* The name's ground spans the gap to the time, which a rising one would show. It
+       spans it as a transparent border, which the name's clip stops short of, so a
+       cut name's words never reach the time: the browser keeps a cut name's first
+       letter and draws the ellipsis after it, past the words' room, and with the gap
+       as padding that ellipsis stood flush against the time, "M…just now". */
     .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
-      padding-inline-end: var(--sp-2);
+      border-inline-end: var(--sp-2) solid transparent;
       margin-inline-end: calc(-1 * var(--sp-2));
     }
     :is(

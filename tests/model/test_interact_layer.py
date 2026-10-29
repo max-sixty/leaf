@@ -1578,8 +1578,9 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     or a stripe on a square box. Leaf's own sheets and pages are read, a page's from its
     `<style>` and the sheets shipped beside it, the corpus's merged copy aside, and a
     stripe is a side's border of 2px or more or an inset shadow offset
-    along one axis only. The reading is per rule, so a radius another rule gives the
-    same box passes it."""
+    along one axis only. A transparent side draws no edge: it keeps a stripe's room,
+    as every row does for the current row's stripe (controls.css, `.lf-row`). The
+    reading is per rule, so a radius another rule gives the same box passes it."""
     sides = re.compile(
         r"border-(?:left|right|top|bottom|inline-start|inline-end|block-start|"
         r"block-end)(?:-width)?"
@@ -1587,7 +1588,9 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     inset = re.compile(r"(?:^|,)\s*inset\s+(-?[\d.]+)(?:px)?\s+(-?[\d.]+)(?:px)?\s+0")
 
     def thick(value):
-        return any(float(px) >= 2 for px in re.findall(r"([\d.]+)px", value))
+        return "transparent" not in value and any(
+            float(px) >= 2 for px in re.findall(r"([\d.]+)px", value)
+        )
 
     def edged(declarations):
         return any(

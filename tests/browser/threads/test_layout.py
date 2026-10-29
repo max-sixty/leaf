@@ -141,7 +141,7 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     first.hover()
     first.locator(".lf-msg-copy").click()
     shown = """message => { const controls = message.querySelector('.lf-msg-controls');
-      return [getComputedStyle(controls, '::after').opacity,
+      return [getComputedStyle(controls.parentElement, '::after').opacity,
         ...[...controls.children].map((c) => getComputedStyle(c).opacity)]; }"""
     assert first.evaluate(shown) == ["1", "1", "1"]
     reply.locator(".lf-msg-text p").first.hover()

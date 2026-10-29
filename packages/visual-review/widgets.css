@@ -94,6 +94,11 @@ lf-visual-review {
 .lf-vr-case-button {
   cursor: pointer;
 }
+/* Each case sizes its own columns, since the list is a strip of tabs at a narrow width,
+   so its number keeps two digits' room and every title starts on one edge. */
+.lf-vr-case-number {
+  min-width: 2ch;
+}
 .lf-vr-case-status {
   color: var(--ok-ink);
 }

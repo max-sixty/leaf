@@ -1120,8 +1120,7 @@ html[data-lf-region-capture] main * {
     line-height: 1.35;
   }
   .lf-page-map-actions {
-    display: grid;
-    gap: 2px;
+    row-gap: 2px;
   }
 
   @media (forced-colors: active) {

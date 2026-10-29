@@ -942,22 +942,21 @@ wa-copy-button.lf-icon-action {
   background-color: var(--accent-tint);
   color: var(--ink);
 }
-/* A row's layout, shared as its face is, in four parts: what marks it (`.lf-row-lead`:
+/* A row's layout, shared as its face is, in three parts: what marks it (`.lf-row-lead`:
    a news dot, a kind's symbol, a numeral or a time), what it names (`.lf-row-main`),
-   what it says under its name (`.lf-row-note`), and what it says of its state or offers
-   at its end (`.lf-row-end`: a status, a time, a key, an arrow). Each list keeps its
-   rows' words and this lays them out. The lead stands before the name in the muted ink,
-   centred on the name's first line whatever its height, so a dot or a symbol marks the
-   line it starts rather than the middle of two, and its numbers end together, so 9 and
-   10 line up; the end stands against the row's end, a step smaller in the muted ink, on
-   the first line's baseline. A row holds the stripe's room and 6px more before its
-   words, as the panel's inset does, 8px after them and 5px over and under them, at
-   least 30px in all, so a heading among the rows in a smaller voice stands as tall as
-   they do; under a finger every row reaches the aim floor. A row that wears another
-   face or none, such as the Resolved heading in Threads or a status in the Page Map,
-   lays out as one with `.lf-row-plain`, keeping the stripe's room. A row takes this
-   layout by naming its main part; one that names none, such as a way back or a command
-   in the reference, keeps its own.
+   and what it says of its state or offers at its end (`.lf-row-end`: a status, a time,
+   a key, an arrow). Each list keeps its rows' words and this lays them out. The lead
+   stands before the name in the muted ink, centred on the name's first line whatever
+   its height, so a dot or a symbol marks the line it starts rather than the middle of
+   two, and its numbers end together, so 9 and 10 line up; the end stands against the
+   row's end, a step smaller in the muted ink, on the first line's baseline. A row holds
+   the stripe's room and 6px more before its words, as the panel's inset does, 8px after
+   them and 5px over and under them, at least 30px in all, so a heading among the rows
+   in a smaller voice stands as tall as they do; under a finger every row reaches the
+   aim floor. A row that wears another face or none, such as the Resolved heading in
+   Threads or a status in the Page Map, lays out as one with `.lf-row-plain`, keeping
+   the stripe's room. A row takes this layout by naming its main part; one that names
+   none, such as a way back or a command in the reference, keeps its own.
 
    The rows of a list (`.lf-rows`) share its columns, so every lead takes the widest
    lead's room, every name starts on one edge, and the end column is as wide as its
@@ -1006,15 +1005,10 @@ wa-copy-button.lf-icon-action {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.lf-row-main,
-.lf-row-note {
+.lf-row-main {
   grid-column: main;
   min-width: 0;
   overflow-wrap: anywhere;
-}
-.lf-row-note {
-  color: var(--muted);
-  font-size: calc(1em - 1px);
 }
 .lf-row-end {
   grid-column: end;

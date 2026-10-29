@@ -294,7 +294,7 @@ customElements.define(
                   const approved = this.#approved(record.id);
                   return html`<button
                     type="button"
-                    ${offered("lf-vr-case-button")}
+                    ${offeredAction("row", "lf-vr-case-button")}
                     aria-current=${record.id === this.#selected ? "true" : nothing}
                     aria-controls=${`${this.id}-${record.id}`}
                     @click=${() => this.#select(record.id)}

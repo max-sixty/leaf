@@ -605,7 +605,10 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
         )
         return provenance
 
-    git = ["git", "--no-optional-locks", "-C", str(root)]
+    # Reading provenance must leave the payload untouched. Optional locks suppress
+    # index writes; disabling fsmonitor also prevents Git from starting a daemon
+    # whose socket would make Codex refuse the installed plugin's hook fingerprint.
+    git = ["git", "--no-optional-locks", "-c", "core.fsmonitor=false", "-C", str(root)]
     try:
         identity = subprocess.run(
             [*git, "rev-parse", "--show-toplevel", "--short=12", "HEAD"],

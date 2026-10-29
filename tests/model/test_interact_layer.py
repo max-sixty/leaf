@@ -1578,8 +1578,9 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     or a stripe on a square box. Leaf's own sheets and pages are read, a page's from its
     `<style>` and the sheets shipped beside it, the corpus's merged copy aside, and a
     stripe is a side's border of 2px or more or an inset shadow offset
-    along one axis only. The reading is per rule, so a radius another rule gives the
-    same box passes it."""
+    along one axis only. A transparent side draws no edge: it keeps a stripe's room,
+    as every row does for the current row's stripe (controls.css, `.lf-row`). The
+    reading is per rule, so a radius another rule gives the same box passes it."""
     sides = re.compile(
         r"border-(?:left|right|top|bottom|inline-start|inline-end|block-start|"
         r"block-end)(?:-width)?"
@@ -1587,7 +1588,9 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     inset = re.compile(r"(?:^|,)\s*inset\s+(-?[\d.]+)(?:px)?\s+(-?[\d.]+)(?:px)?\s+0")
 
     def thick(value):
-        return any(float(px) >= 2 for px in re.findall(r"([\d.]+)px", value))
+        return "transparent" not in value and any(
+            float(px) >= 2 for px in re.findall(r"([\d.]+)px", value)
+        )
 
     def edged(declarations):
         return any(
@@ -1908,7 +1911,7 @@ def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
         assert url.startswith("http://127.0.0.1:")
 
 
-def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index(
+def test_payload_provenance_belongs_to_the_plugin_repo_without_changing_git_state(
     tmp_path, monkeypatch
 ):
     """An enclosing repo is not the payload, and reading the payload leaves Git alone."""
@@ -1957,6 +1960,10 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
     (plugin / ".codex-marketplace-install.json").write_text("{}\n")
     index = plugin / ".git" / "index"
     before = index.stat().st_mtime_ns
+    monitor = tmp_path / "fsmonitor"
+    monitor.write_text('#!/bin/sh\n: > "$0.invoked"\nprintf "token\\0"\n')
+    monitor.chmod(0o755)
+    git(plugin, "config", "core.fsmonitor", str(monitor))
 
     committed = git(plugin, "show", "--no-patch", "--format=%cI", "HEAD").stdout.strip()
     clean = layer_model.payload_provenance(include_path=True)
@@ -1978,6 +1985,7 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
         "dirty": True,
     }
     assert index.stat().st_mtime_ns == before
+    assert not monitor.with_suffix(".invoked").exists()
 
 
 def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(

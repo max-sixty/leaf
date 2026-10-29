@@ -167,6 +167,16 @@ FIRST_PAINT_PAGE = leaf_page(
     + '<lf-diff id="folded" collapsed><pre>'
     + _patch_file("src/app.py", 1, ["x = 1"])
     + _patch_file("src/util.py", 1, ["z = 3"])
+    + "</pre></lf-diff>"
+    # A selected-file reader opens only its first file, even when authored collapsed.
+    # A later metadata-only file contributes no height to that first reading.
+    + '<lf-diff id="file-view" view="file" collapsed><pre>'
+    + _patch_file("docs/first.md", 1, ["The first file remains readable. " * 12])
+    + "diff --git a/later.txt b/later.txt\nold mode 100644\nnew mode 100755\n"
+    + '</pre></lf-diff><lf-diff id="relative-font" style="--code-size:1em" overflow="wrap"><pre>'
+    + _patch_file(
+        "docs/font.md", 1, ["A wrapped row uses its inherited code font. " * 12]
+    )
     + "</pre></lf-diff><p id='after'>After the diffs.</p>",
 )
 

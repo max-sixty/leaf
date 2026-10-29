@@ -526,21 +526,20 @@ def mark_declared(
     return _spliced(source, [(offset, offset, text) for offset, text in edits])
 
 
-def initial_script_paths(source: str, registry: Mapping) -> list[str]:
-    """Shared Lit followed by the used classic producers, before parsing their hosts.
+def initial_renderers(source: str, registry: Mapping) -> dict[str, Mapping]:
+    """The declarations whose initial producers run while this document parses.
 
     Every producer can return a Lit view, including a page-owned classic script with
     no build step. Delivery owns that prerequisite; producer imports are irrelevant.
     A producer inside a template does not run during parsing.
     """
     tree = turbohtml.parse(source, scripting=True)
-    used = dict.fromkeys(
-        path
+    return {
+        element.tag: registry[element.tag]
         for element in tree.find_all(True)
         if element.closest("template") is None
-        and (path := registry.get(element.tag, {}).get("x-initial"))
-    )
-    return ["/vendor/lit-initial.js", *used] if used else []
+        and registry.get(element.tag, {}).get("x-initial")
+    }
 
 
 def initial_scripts(paths: list[str], resources: Mapping[str, Resource]) -> str:
@@ -743,6 +742,8 @@ class Delivery:
     """
 
     address: Address
+    # Initial external values, without authority over events or delivery time.
+    data: dict | None = None
     # Embeds stylesheets in place of linking them: a stylesheet's CSS by its path.
     inline_stylesheet: Callable[[str], str] | None = None
     import_map: dict | None = None
@@ -791,8 +792,16 @@ def compose_document(
     import map precedes every script, since a browser reads no map once a module has
     begun to load.
     """
+    renderers = (
+        initial_renderers(source, registry) if delivery.runtime is not None else {}
+    )
     initial = (
-        initial_script_paths(source, registry) if delivery.runtime is not None else []
+        [
+            "/vendor/lit-initial.js",
+            *dict.fromkeys(entry["x-initial"] for entry in renderers.values()),
+        ]
+        if renderers
+        else []
     )
     import_map = delivery.import_map
     if initial and import_map is not None:
@@ -864,6 +873,24 @@ def compose_document(
                 "link", {"rel": "canonical", "href": f"{delivery.page_root}/"}
             )
             if delivery.page_root is not None
+            else ""
+        )
+        + (
+            runtime_element(
+                "script",
+                {"type": "application/json", "data-lf-input-data": True},
+                json_script(
+                    {
+                        "data": delivery.data,
+                        "inputs": {
+                            tag: entry["x-data"]
+                            for tag, entry in renderers.items()
+                            if "x-data" in entry
+                        },
+                    }
+                ),
+            )
+            if delivery.data is not None
             else ""
         )
         + (

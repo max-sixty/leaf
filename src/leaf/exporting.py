@@ -42,7 +42,7 @@ from leaf.revision_artifact import (
 from leaf.revision_delivery import (
     Delivery,
     compose_document,
-    initial_script_paths,
+    initial_renderers,
     json_script,
     rebase_css,
     runtime_settings,
@@ -242,7 +242,7 @@ def _module_urls(
     ]
     # Only the actual document runs parser-time producers. Frozen message widgets
     # arrive later, after the ordinary module Lit has initialized its shared global.
-    early_lit = bool(initial_script_paths(artifact.html.decode("utf-8"), registry))
+    early_lit = bool(initial_renderers(artifact.html.decode("utf-8"), registry))
     urls = {}
     while pending:
         path = pending.pop()
@@ -316,7 +316,11 @@ def export_document(
     embedded_resources["/shadow.css"] = inliner.address("/shadow.css")
     embedded_resources["/registry.json"] = inliner.address("/registry.json")
     payload = json_script(
-        {"state": state, "data": data, "resources": embedded_resources}
+        {
+            "state": {**state, "data": {"version": state["data"]["version"]}},
+            "data": data,
+            "resources": embedded_resources,
+        }
     )
 
     # An authored module is addressed at the same embedded URL the import map gives
@@ -334,6 +338,7 @@ def export_document(
         registry=artifact.registry,
         delivery=Delivery(
             address=address,
+            data=state["data"],
             inline_stylesheet=inliner.stylesheet,
             import_map={
                 "imports": {

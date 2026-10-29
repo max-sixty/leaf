@@ -1351,7 +1351,7 @@ const actedAt = (at, arriving) => {
 	if (region) {
 		recentRegionId = region.id;
 		if (under(region.host, pageDocument())) pageRegionId = region.id;
-	} else if ((at === document.body || under(at, pageDocument())) && !(arriving && at === document.body && pressing())) recentRegionId = pageRegionId = null;
+	} else if ((at === document.body || under(at, pageDocument())) && !(arriving && at === document.body && pressing()?.released === false)) recentRegionId = pageRegionId = null;
 };
 for (const type of [
 	"pointerdown",

@@ -22,8 +22,11 @@ const {
   holdFocus,
   layerLanding,
   onCurrentLocation,
+  onPress,
   openLayer,
   openerOf,
+  pressing,
+  pressRecords,
   rove,
   takesLetters,
   typesText,
@@ -496,4 +499,39 @@ test("a failed focus arrival publishes the departure to the document", async () 
   await settled();
   assert.equal(focused(), document.body);
   assert.deepEqual(heard, [[null, "move"]]);
+});
+
+test("what an owner keeps of a press lasts until the press is over, and no longer", async () => {
+  const { box, other } = scene();
+  const kept = pressRecords();
+  const overs = [];
+  const stop = onPress(() => () => () => overs.push("over"));
+  const down = (target) => {
+    pointer("pointerdown", target);
+    kept.keep({ pointerId: 1 }, target.localName);
+  };
+  // A release leaves the press owed its click, so what was kept still reads.
+  down(box);
+  pointer("pointerup", box);
+  await settled();
+  assert.equal(pressing()?.released, true);
+  assert.equal(kept.kept(), "section");
+  // The next press is over the one before before it begins, owed click or not.
+  down(other);
+  assert.deepEqual(overs, ["over"]);
+  assert.equal(kept.kept(), "button");
+  // A cancel owes no click: the press is over at the task after it.
+  pointer("pointercancel", other);
+  assert.equal(kept.kept(), "button");
+  await settled();
+  assert.equal(pressing(), null);
+  assert.equal(kept.kept(), null);
+  // A newer input follows every event a release owes: a key ends the stage it leaves.
+  down(box);
+  pointer("pointerup", box);
+  key(box);
+  await settled();
+  assert.equal(pressing(), null);
+  assert.deepEqual(overs, ["over", "over", "over"]);
+  stop();
 });

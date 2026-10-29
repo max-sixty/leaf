@@ -817,7 +817,7 @@ def test_page_fixture_opens_without_firefox_console_warnings(
     response blocked as opaque. Every page of the corpus, each live sample loaded,
     leaves the console as `firefox_browser` requires: empty."""
     page = open_page(firefox_browser, serve(source))
-    for sample in page.locator("lf-sample[data-lf-sample-live]").all():
+    for sample in page.locator("lf-sample:has(> template[data-sample])").all():
         sample.scroll_into_view_if_needed()
         sample.evaluate(
             """sample => Promise.race([sample.ready, new Promise((_, reject) =>

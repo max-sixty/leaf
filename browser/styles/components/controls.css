@@ -986,30 +986,19 @@ wa-copy-button.lf-icon-action {
   background-color: var(--accent-tint);
   color: var(--ink);
 }
-/* A row's layout, shared as its face is, in three parts: what marks it (`.lf-row-lead`:
-   a news dot, a kind's symbol, a numeral or a time), what it names (`.lf-row-main`),
-   and what it says of its state or offers at its end (`.lf-row-end`: a status, a time,
-   a key, an arrow). Each list keeps its rows' words and this lays them out. The lead
-   stands before the name in the muted ink, centred on the name's first line whatever
-   its height, so a dot or a symbol marks the line it starts rather than the middle of
-   two, and its numbers end together, so 9 and 10 line up; the end stands against the
-   row's end, a step smaller in the muted ink, on the first line's baseline. A row holds
-   the stripe's room and 6px more before its words, as the panel's inset does, 8px after
-   them and 5px over and under them, at least 30px in all, so a heading among the rows
-   in a smaller voice stands as tall as they do; under a finger every row reaches the
-   aim floor. A row that offers nothing, such as a status in the Page Map, lays out as
-   one with `.lf-row-plain`, keeping the stripe's room. A row takes this layout by
-   naming its main part; one that names none, such as a way back or a command in the
-   reference, keeps its own.
+/* A row's layout, beside its face: what marks it (`.lf-row-lead`: a dot, a symbol, a
+   number or a time), what it names (`.lf-row-main`) and what it says or offers at its
+   end (`.lf-row-end`: a status, a time, a key, an arrow). The lead is muted and centred
+   on the name's first line, its numbers ending together; the end is muted, a step
+   smaller, on the first line's baseline. Every row has the same padding, at least 30px
+   tall, and reaches the aim floor under a finger. A row takes this layout by naming its
+   main part, so a way back or a command in the reference keeps its own; one that offers
+   nothing, such as a Page Map status, lays out as a row with `.lf-row-plain`.
 
-   The rows of a list (`.lf-rows`) share its columns, so every lead takes the widest
-   lead's room, every name starts on one edge, and the end column is as wide as its
-   widest end, cutting every name at one edge. A row held in a wrapper, such as a
-   version beside its Compare or a step in its list item, takes the columns through it,
-   and rows meet edge to edge, a list item's margin dropped. The gaps are the parts'
-   margins rather than the grid's, so a list with no lead or no end keeps no room for
-   one. The lists drew seven layouts, each its own grid with its own gaps, paddings and
-   room for a mark, until they shared this one. */
+   The rows of a list (`.lf-rows`) share its columns through subgrid, wrappers included,
+   so names start and are cut on one edge, and rows meet edge to edge. The gaps are the
+   parts' margins, so a list without a lead or an end keeps no room for one. Seven lists
+   drew seven layouts until they shared this one. */
 :is(.lf-row, .lf-row-plain):where(:has(> .lf-row-main)) {
   display: grid;
   grid-template-columns: [lead] auto [main] minmax(0, 1fr) [end] auto;

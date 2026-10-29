@@ -6808,7 +6808,7 @@ var ThreadView = class {
 			});
 		}
 		if (!heads.length || !notice.isConnected) {
-			notice.style.removeProperty("--lf-news-room");
+			this.#clearMarginNews();
 			return;
 		}
 		const width = notice.getBoundingClientRect().width;
@@ -6828,7 +6828,11 @@ var ThreadView = class {
 	}
 	#releaseMarginNews() {
 		this.#marginNews.disconnect();
+		this.#clearMarginNews();
+	}
+	#clearMarginNews() {
 		this.#news.node.style.removeProperty("--lf-news-room");
+		for (const name of this.node.querySelectorAll(".lf-thread-transcript .lf-msg-head > b[data-lf-nameless]")) keeps(name, "data-lf-nameless", null);
 	}
 	#releaseHeaderSlot() {
 		if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);

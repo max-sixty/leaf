@@ -672,7 +672,7 @@ export class ThreadView {
       heads.push({ name, need, spare: head.getBoundingClientRect().width - need });
     }
     if (!heads.length || !notice.isConnected) {
-      notice.style.removeProperty("--lf-news-room");
+      this.#clearMarginNews();
       return;
     }
     const width = notice.getBoundingClientRect().width;
@@ -706,7 +706,17 @@ export class ThreadView {
 
   #releaseMarginNews() {
     this.#marginNews.disconnect();
+    this.#clearMarginNews();
+  }
+
+  // The fit writes the notice's room and each name it hides, and a message's head
+  // outlives the notice (each MessageView keeps its own, messages.js), so both go together.
+  #clearMarginNews() {
     this.#news.node.style.removeProperty("--lf-news-room");
+    for (const name of this.node.querySelectorAll(
+      ".lf-thread-transcript .lf-msg-head > b[data-lf-nameless]",
+    ))
+      keeps(name, "data-lf-nameless", null);
   }
 
   #releaseHeaderSlot() {

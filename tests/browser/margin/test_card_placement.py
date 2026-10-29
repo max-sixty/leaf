@@ -341,8 +341,9 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     head keeps "Me" and its time whole. On a phone's card, whose three controls, the
     notice and the head's Edit each take a finger's width, the notice says one count,
     "2 new", and the head keeps its time whole and gives up its name, as any narrow
-    head does, showing none of it, so no sliver of it stands against the time. Drawn
-    whole, the notice stood over the head."""
+    head does, showing none of it, so no sliver of it stands against the time, and
+    shows it again once the news is shown. Drawn whole, the notice stood over the
+    head."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
@@ -391,6 +392,13 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
         assert name.evaluate(
             "node => [node.hasAttribute('data-lf-nameless'), node.clientWidth]"
         ) == [True, 0]
+        # Shown, the news takes its notice away, and the head its name gave room to
+        # shows the name again.
+        notice.tap()
+        expect(preview.get_by_text("Sent from my other tab.")).to_be_visible()
+        rendered(page)
+        assert not name.evaluate("node => node.hasAttribute('data-lf-nameless')")
+        assert name.evaluate("node => node.clientWidth") > 0
     else:
         assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
 

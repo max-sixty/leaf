@@ -574,7 +574,9 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     def at_publication(staged, destination):
         if Path(staged).name == "selection":
             observations.append(layer_model.named_package(name))
-            assert (held / "overrides.css").read_text() == "lf-installed { color: teal; }\n"
+            assert (
+                held / "overrides.css"
+            ).read_text() == "lf-installed { color: teal; }\n"
         replace(staged, destination)
         if Path(staged).name == "selection":
             observations.append(layer_model.named_package(name))
@@ -594,7 +596,9 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
         ]
         == "Replacement snapshot."
     )
-    assert (current / "overrides.css").read_text() == "lf-installed { color: purple; }\n"
+    assert (
+        current / "overrides.css"
+    ).read_text() == "lf-installed { color: purple; }\n"
 
     page = tmp_path / "page"
     vendored = runner.invoke(
@@ -610,7 +614,9 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     refused = runner.invoke(cli_model.cli, ["package", "install", str(source)])
     assert refused.exit_code != 0 and "syntax error" in refused.output
     assert layer_model.named_package(name) == current
-    assert (current / "overrides.css").read_text() == "lf-installed { color: purple; }\n"
+    assert (
+        current / "overrides.css"
+    ).read_text() == "lf-installed { color: purple; }\n"
 
 
 def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):

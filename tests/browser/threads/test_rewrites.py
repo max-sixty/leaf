@@ -103,6 +103,11 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     rendered(page)
     before = message.bounding_box(), words.bounding_box()
     first_line = words.evaluate(FIRST_LINE)
+    # The card's growth from the comment box cuts what stands past its edge until it
+    # ends, so the ring is read once it has.
+    card.locator(".lf-margin-preview-list").evaluate(
+        "list => Promise.all(list.getAnimations().map(motion => motion.finished))"
+    )
     message.locator(".lf-msg-edit").focus()
     one_frame(page)
     assert _ring_gaps(page, message.locator(".lf-msg-edit")) == []

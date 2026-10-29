@@ -662,9 +662,10 @@ summary {
 /* A primary reader's first message part, or the first message of its transcript part,
    holds its thread's news notice at the head's end, before the message's own controls
    (controls.css), unless its presentation stands the notice elsewhere
-   (thread/primary-reader.js). */
+   (thread/primary-reader.js). It stays positioned, at no offset, so its reach
+   (`::after`) covers the notice rather than the whole message. */
 .lf-msg-head > .lf-primary-news {
-  position: static;
+  position: relative;
   flex: 0 1 auto;
 }
 .lf-primary-part {

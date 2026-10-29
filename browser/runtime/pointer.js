@@ -49,33 +49,6 @@ export const plainPress = (event) =>
   !event.metaKey &&
   !event.shiftKey;
 
-// A press that commits at its release, as a held word does or the panel's field handing
-// selected words to the comment box, leaves the browser's own click after it to land
-// on whatever the release put under the pointer. The release claims that click, the
-// next pointer click wherever it lands, unless another press begins first, since
-// WebKit may deliver none after a cancelled touch press.
-let releaseClaimed = false;
-export const claimReleaseClick = () => {
-  releaseClaimed = true;
-};
-document.addEventListener(
-  "pointerdown",
-  () => {
-    releaseClaimed = false;
-  },
-  { capture: true },
-);
-document.addEventListener(
-  "click",
-  (event) => {
-    if (!releaseClaimed || !event.isTrusted || pressIsKeyboardActivation(event)) return;
-    releaseClaimed = false;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  },
-  { capture: true },
-);
-
 // An automatic revision activation replaces the document, not the user's pointer.
 // New input wins over a handoff captured by the departing document.
 export function restorePointer(point) {

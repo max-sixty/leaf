@@ -13,6 +13,7 @@ const runtimePrimitives = [
   "control-selectors.js",
   "shadow-tree.js",
   "keeps.js",
+  "pointer.js",
   "rendering.js",
   "frame-visibility.js",
   "queued-work.js",

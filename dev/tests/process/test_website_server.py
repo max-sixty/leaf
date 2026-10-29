@@ -11,8 +11,8 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
-import leaf_website as website_server
 import pytest
 from click.testing import CliRunner
 from interact_support import (
@@ -24,9 +24,7 @@ from interact_support import (
 from interact_support import (
     append_carried_log_record as append_event,
 )
-from leaf_dev import ROOT, startup
-from leaf_dev.commands import journey, journey_chart, refresh_previews, verify_site
-from leaf_dev.reply_phases import turn_phases
+from playwright.sync_api import BrowserContext, Page
 from process.website_server import (  # noqa: F401
     _no_harness_outlives_its_test_fixture,
     accept_in_turn,
@@ -34,9 +32,13 @@ from process.website_server import (  # noqa: F401
     write_manifest,
 )
 
+import leaf_website as website_server
 from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.state import session_record
+from leaf_dev import ROOT, startup
+from leaf_dev.commands import journey, journey_chart, refresh_previews, verify_site
+from leaf_dev.reply_phases import turn_phases
 
 
 class _Read:
@@ -302,6 +304,7 @@ class _DeployedPage:
         if script == "window.__leafVerifier.revision":
             return str(self.revision)
         if script == "window.__leafVerifier.revisionAtLeast":
+            assert arg is not None
             return self.revision >= arg and not self.presentation_pending
         if script == "window.__leafVerifier.status":
             return self.status
@@ -750,6 +753,7 @@ def test_local_verification_settles_host_network(monkeypatch):
     attempts = []
 
     def verify(origin, release, *, settle_after_activation=None, worker=None):
+        assert worker is not None
         assert worker.origin == origin
         attempts.append(settle_after_activation)
         raise RuntimeError("page did not present: net::ERR_NETWORK_CHANGED")
@@ -888,6 +892,7 @@ def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
     reply = harness.failure_receipt(page_dir, comment["id"], failure)
     state = page_state(page_dir)
     replies = [event for event in state["events"] if event["kind"] == "reply"]
+    assert reply is not None
     assert [event["id"] for event in replies] == [reply["id"]]
     contract = load_registry(page_dir)["$events"]["kinds"]["reply"]
     assert event_record_error(contract, replies[0]) is None
@@ -902,8 +907,8 @@ def test_the_deploy_gate_stops_on_the_first_failure(failure):
     """Failure receipts are evidence; the verifier sends no second model task."""
     context = _FailedTurn(failure)
     session = journey.Session(
-        context,
-        context,
+        cast(BrowserContext, context),
+        cast(Page, context),
         [],
         "https://leaf.page/examples/triage-board/",
         "https://leaf.page/examples/triage-board/api/state",
@@ -1022,8 +1027,8 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
     context = _StateReads([working])
     profile = journey.AgentProfile()
     session = journey.Session(
-        context,
-        None,
+        cast(BrowserContext, context),
+        cast(Page, None),
         [],
         "https://leaf.page/examples/triage-board/",
         "https://leaf.page/examples/triage-board/api/state",
@@ -1055,11 +1060,10 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
     after the reply that ended the turn's wait; the journey reads on for it rather
     than reporting the title as never written. The state it reads is the one a page
     server serves, since the journey reads titles from it."""
-    from leaf_dev.arms import PageClient, serving
-    from leaf_dev.review_scenario import prepare
-
     from leaf.event_log import append_event
     from leaf.thread import title_event
+    from leaf_dev.arms import PageClient, serving
+    from leaf_dev.review_scenario import prepare
 
     state, page_dir = tmp_path / "state", tmp_path / "page"
     prepare(ROOT, state, page_dir)
@@ -1097,7 +1101,15 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
             request = SimpleNamespace(get=lambda *args, **kwargs: _Read(client.state()))
 
         session = journey.Session(
-            Context(), None, [], url, url, untitled, {}, None, pause=pause
+            cast(BrowserContext, Context()),
+            cast(Page, None),
+            [],
+            url,
+            url,
+            untitled,
+            {},
+            None,
+            pause=pause,
         )
         events = journey.await_title(
             journey.BrowserEnd(session), comment["id"], untitled
@@ -1295,12 +1307,12 @@ def test_the_agent_pass_retries_a_reset_activation_on_a_fresh_session(monkeypatc
     page = _DeployedPage("", revision=1, presented_at=900.0)
 
     class Resetting(_RollingOutContainer):
-        def get(self, url: str, **kwargs):
+        def get(self, url: str, headers: dict | None = None, **kwargs):
             if "api/view" in url:
                 raise verify_site.PlaywrightError(
                     "APIRequestContext.get: read ECONNRESET"
                 )
-            return super().get(url, **kwargs)
+            return super().get(url, headers=headers, **kwargs)
 
     resetting = Resetting(release, page)
     ready = _DeployedContainer(release, page)

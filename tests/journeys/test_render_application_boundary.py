@@ -7,7 +7,6 @@ from browser.test_render_application_boundary import (
     package_workspace,
 )
 from interact_support import append_carried_log_record
-from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_V1,
@@ -28,6 +27,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf_dev.browser import slow_cpu
 
 
 def test_a_settled_delivery_activates_one_fresh_document_with_continuity(

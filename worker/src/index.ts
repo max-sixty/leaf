@@ -178,6 +178,31 @@ export class LeafWebsiteSession extends Container<Env> {
     this.pages.publish(commit, manifest);
   }
 
+  private async forward(request: Request): Promise<Response> {
+    const response = await super.fetch(request);
+    if (response.status >= 500) {
+      // The Containers SDK converts connection loss into an ordinary 500 without
+      // logging an exception. Python stamps its own answers and logs page_fault;
+      // retain the missing proxy evidence, never the body or private request URL.
+      const adapter = response.headers.has("Leaf-Release");
+      const body = adapter
+        ? null
+        : await readBoundedText(response.clone(), 1024).catch(() => null);
+      console.error({
+        component: "leaf-container",
+        event: "http_error",
+        method: request.method,
+        status: response.status,
+        source: adapter
+          ? "adapter"
+          : body === "Container suddenly disconnected, try again"
+            ? "disconnected"
+            : "unclassified",
+      });
+    }
+    return response;
+  }
+
   override async fetch(request: Request): Promise<Response> {
     if (!this.ctx.container?.running) {
       const url = new URL(request.url);
@@ -190,7 +215,7 @@ export class LeafWebsiteSession extends Container<Env> {
           return new Response(null, { status: 204 });
         }
         if (request.method !== "GET" && request.method !== "HEAD") {
-          return super.fetch(request);
+          return this.forward(request);
         }
         let path = route.inside;
         if (path === "api/state") {
@@ -213,7 +238,7 @@ export class LeafWebsiteSession extends Container<Env> {
         if (response !== null) return response;
       }
     }
-    return super.fetch(request);
+    return this.forward(request);
   }
 }
 
@@ -274,7 +299,7 @@ function containerId(sessionId: string, release: string): string {
 // The body as text, or null once it passes maxBytes, whether the client declared that
 // length or streamed it without one. A request with no body reads as "".
 async function readBoundedText(
-  request: Request,
+  request: Request | Response,
   maxBytes: number,
 ): Promise<string | null> {
   if (Number(request.headers.get("Content-Length")) > maxBytes) return null;
@@ -288,7 +313,9 @@ async function readBoundedText(
     if (done) break;
     bytes += value.byteLength;
     if (bytes > maxBytes) {
-      await reader.cancel();
+      // A cloned response shares its source: cancellation completes only when
+      // the caller consumes the other branch. Release this reader without waiting.
+      void reader.cancel().catch(() => {});
       return null;
     }
     raw += decoder.decode(value, { stream: true });

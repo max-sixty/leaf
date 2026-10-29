@@ -483,6 +483,7 @@ def prepare(
                 if isinstance(value, str) and value.endswith(
                     "/authoring_assertion.mjs"
                 ):
+                    assert isinstance(assertion["config"], dict)
                     assertion["config"]["judge"] = {
                         "id": f"python:{ROOT / 'dev/leaf_dev/arrangement_eval.py'}",
                         "config": {
@@ -640,7 +641,7 @@ def eval(
     click.echo(f"evidence: {out}")
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as temporary:
         scratch = Path(temporary)
-        refs = {"base": base} if base else {}
+        refs: dict[str, str | None] = {"base": base} if base else {}
         refs["candidate"] = None
         # Live regrading and pair comparisons must serve the original runtime
         # after this invocation's private configuration directory is retired.

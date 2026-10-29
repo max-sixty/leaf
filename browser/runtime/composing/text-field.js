@@ -170,7 +170,7 @@ sheet.replaceSync(`
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
   /* An owner moving the field's edges can carry the words from where they were with
      them, by the host's --lf-field-carry, and cut them to the box it draws growing, by
-     --lf-field-cut (theme.css): a transform and a cut that move neither the field nor
+     --lf-field-cut (base.css): a transform and a cut that move neither the field nor
      its layout. The field's content box cuts off what the field doesn't hold yet,
      such as a new line and its caret, and keeps the travel from widening the host's
      scrolling. A cut naming none is invalid, which leaves the words uncut. The clip
@@ -244,7 +244,7 @@ sheet.replaceSync(`
     border-end-start-radius: var(--r); border-end-end-radius: var(--r);
     padding-block-end: 8px; }
   /* A picture fits the field as media fits its container on the page, centred on its
-     line (theme.css), and the mark after a link that leaves the page is the page's
+     line (base.css), and the mark after a link that leaves the page is the page's
      own (surfaces.css). */
   .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
   .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;

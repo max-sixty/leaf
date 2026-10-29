@@ -260,6 +260,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         break
                 if claim is None or claim["id"] != session_id:
                     continue
+                assert lifecycle is not None
                 pending = deliverable(page, work.obligations)
                 watched = harness.watcher_live(listening=state["listening"])
                 # An owed update this owner holds no usable reference for, as when
@@ -340,7 +341,7 @@ def stop_continues(
 
 
 def remedies(
-    plans: list[PagePlan], handing: list[dict] = ()
+    plans: list[PagePlan], handing: list[dict] | tuple[dict, ...] = ()
 ) -> list[tuple[str, str | None]]:
     """Format remedies from already-read facts, with harness wording at the edge."""
     handed = {
@@ -616,6 +617,7 @@ def carry_turn(
     if delivery is None:
         message = "\n".join(attention)
     else:
+        assert expected is not None
 
         def inline(batches: list[dict]) -> str:
             return "\n".join(
@@ -647,4 +649,5 @@ def carry_turn(
                 note_pointer(sid, expected, delivery, deadline=deadline)
             message = "\n".join([delivery_pointer_prompt(delivery["id"]), *attention])
     if message:
+        assert event is not None
         print(json.dumps(harness.hook_context(event, message)), flush=True)

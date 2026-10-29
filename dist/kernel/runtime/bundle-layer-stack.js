@@ -56,7 +56,7 @@ var l = 0;
 var _ = 0;
 var m = 0;
 var p = void 0;
-var y = 0;
+var y$1 = 0;
 function g(t) {
 	if (r !== void 0) {
 		var i = t.n;
@@ -99,7 +99,7 @@ f.prototype.U = function(t) {
 };
 f.prototype.subscribe = function(t) {
 	var i = this;
-	return x(function() {
+	return x$1(function() {
 		var o = i.value;
 		d(function() {
 			return t(o);
@@ -136,7 +136,7 @@ Object.defineProperty(f.prototype, "value", {
 					i: o.i,
 					o: p
 				});
-			})(this), this.v = t, this.i++, y++, h++;
+			})(this), this.v = t, this.i++, y$1++, h++;
 			try {
 				for (var i = this.t; i !== void 0; i = i.x) i.t.N();
 			} finally {
@@ -169,13 +169,13 @@ function O(t) {
 	t.s = o;
 }
 function v(t, i) {
-	f.call(this, void 0, i), this.x = t, this.s = void 0, this.g = y - 1, this.f = 4;
+	f.call(this, void 0, i), this.x = t, this.s = void 0, this.g = y$1 - 1, this.f = 4;
 }
 v.prototype = new f();
 v.prototype.h = function() {
 	if (this.f &= -3, 1 & this.f) return !1;
-	if ((36 & this.f) == 32 || (this.f &= -5, this.g === y)) return !0;
-	if (this.g = y, this.f |= 1, this.i > 0 && !U(this)) return this.f &= -2, !0;
+	if ((36 & this.f) == 32 || (this.f &= -5, this.g === y$1)) return !0;
+	if (this.g = y$1, this.f |= 1, this.i > 0 && !U(this)) return this.f &= -2, !0;
 	var t = r;
 	try {
 		C(this), r = this;
@@ -265,7 +265,7 @@ a.prototype.d = function() {
 a.prototype.dispose = function() {
 	this.d();
 };
-function x(t, i) {
+function x$1(t, i) {
 	var o = new a(t, i);
 	try {
 		o.c();
@@ -282,7 +282,7 @@ function q(t) {
 			if (this.isUpdatePending === !1) return;
 			(i = this._$Oo) === null || i === void 0 || i.call(this);
 			let o = !0;
-			this._$Oo = x((() => {
+			this._$Oo = x$1((() => {
 				o ? (o = !1, super.performUpdate()) : this.requestUpdate();
 			}));
 		}
@@ -381,6 +381,30 @@ const REGION_SELECTORS = [
 ];
 const PRESSES = PRESS_SELECTORS.join(",");
 const WORKS = [...PRESS_SELECTORS, ...REGION_SELECTORS].join(",");
+
+//#endregion
+//#region runtime/pointer.js
+let x = -1;
+let y = -1;
+const remember = (ev) => {
+	x = ev.clientX;
+	y = ev.clientY;
+};
+document.addEventListener("pointermove", remember, { capture: true });
+document.addEventListener("pointerdown", remember, { capture: true });
+const pointerAt = () => ({
+	x,
+	y
+});
+const coarsePointer = matchMedia("(pointer: coarse)");
+const hoveringPointer = matchMedia("(hover: hover)");
+const pressIsKeyboardActivation = (event) => event.type === "click" && !event.detail;
+const plainPress = (event) => event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+function restorePointer(point) {
+	if (x !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return;
+	x = point.x;
+	y = point.y;
+}
 
 //#endregion
 //#region runtime/focus.js
@@ -772,22 +796,65 @@ const onPress = (read) => {
 	pressReaders.add(read);
 	return () => pressReaders.delete(read);
 };
+function pressRecords() {
+	const records = /* @__PURE__ */ new WeakMap();
+	return {
+		keep(event, value) {
+			if (press?.pointerId === event.pointerId && !press.released) records.set(press, value);
+			return value;
+		},
+		kept: () => (press && records.get(press)) ?? null
+	};
+}
+const pressHolds = (event) => press?.pointerId === event.pointerId && (event.type !== "pointermove" || !press.released);
+function overPress(ended) {
+	if (press !== ended) return;
+	press = null;
+	for (const over of ended.overs) over();
+}
+const overSoon = (ended) => setTimeout(() => overPress(ended));
+const claimReleaseClick = () => {
+	if (press) press.clickClaimed = true;
+};
+document.addEventListener("click", (event) => {
+	if (!press?.clickClaimed || !event.isTrusted || pressIsKeyboardActivation(event)) return;
+	press.clickClaimed = false;
+	event.preventDefault();
+	event.stopImmediatePropagation();
+}, { capture: true });
+for (const type of ["click", "auxclick"]) addEventListener(type, (event) => {
+	if (press?.released && event.isTrusted && !pressIsKeyboardActivation(event)) overSoon(press);
+}, {
+	capture: true,
+	passive: true
+});
+onUserInput((event) => {
+	if (press?.released && event.type !== "pointerdown") overSoon(press);
+});
 const onPressAway = (away, dismiss) => onPress((start, from) => start.button === 0 && away(from) ? (end, completed) => {
 	const path = end.composedPath();
 	if (completed && away(path)) dismiss(path, from);
 } : null);
 addEventListener("pointerdown", (event) => {
 	if (!event.isPrimary) return;
+	if (press) {
+		const before = press;
+		endPress(event, false);
+		overPress(before);
+	}
 	const path = event.composedPath();
-	const ends = [];
-	press = {
+	const begun = {
 		pointerId: event.pointerId,
 		path,
-		ends
+		ends: [],
+		overs: [],
+		released: false,
+		clickClaimed: false
 	};
+	press = begun;
 	for (const read of pressReaders) {
 		const end = read(event, path);
-		if (end) ends.push(end);
+		if (end) begun.ends.push(end);
 	}
 	if (event.button !== 0 || labelPress) return;
 	const label = path.find((node) => node?.localName === "label" && node.control);
@@ -804,9 +871,15 @@ addEventListener("pointerdown", (event) => {
 });
 function endPress(event, completed) {
 	if (!press) return;
-	const { ends } = press;
-	press = null;
-	for (const end of ends) end(event, completed);
+	const ended = press;
+	if (!ended.released) {
+		ended.released = true;
+		for (const end of ended.ends) {
+			const over = end(event, completed);
+			if (over) ended.overs.push(over);
+		}
+	}
+	if (!completed) overSoon(ended);
 }
 for (const type of ["pointerup", "pointercancel"]) addEventListener(type, (event) => {
 	if (event.pointerId === labelPress?.pointerId && (type === "pointercancel" || !event.composedPath().includes(labelPress.label))) landLabelPress();
@@ -3179,7 +3252,7 @@ const applicationPresenter = ({ region, after, reading, paint, failSoft }) => {
 			const stretch = (run) => {
 				let first = true;
 				let outcome;
-				const stop = x(() => {
+				const stop = x$1(() => {
 					if (!first) {
 						if (!owed && current()) d(() => {
 							const next = selected.value;
@@ -3217,7 +3290,7 @@ const applicationPresenter = ({ region, after, reading, paint, failSoft }) => {
 	}));
 	documentPresenters.push(present);
 	let first = true;
-	x(() => {
+	x$1(() => {
 		const value = selected.value;
 		if (first || value === null) {
 			first = false;
@@ -3705,4 +3778,4 @@ function dismissPopoversOutside(root) {
 }
 
 //#endregion
-export { AsyncDirective, CARET_KEYS, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, J, LENT_REACH_STOP, LIVE_ROOT, LitElement, MODIFIER_KEYS, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, PartType, SAID, SHADOW_LEADING_CSS, SHARE_ROOT, TAB_STOP, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WEBSITE_DELIVERY, WORKS, Z, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, atLayoutPrecision, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, canPlaceFocus, caretAtKey, carriedFrom, carriesObligation, chromeSharedClasses, chromeSheet, closeLayer, closeNativeLayer, controlNavigationKeys, createPresentationSchedule, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, declareReading, declareRelease, declaredRoot, deepFocus, describeFailure, directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, drawn, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focusRevision, focused, foldWidgetStates, guard, handBack, holdCurrentLocation, holdFocus, hostIn, html, inUi, inputCount, inputInFrame, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keeps, keepsHidden, keepsText, keyed, lastMovedAt, layerFact, layerLanding, layerRoot, layoutPx, letGo, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, move, moved, nativeLayers, nativeModalAdmits, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, onCurrentLocation, onFocusVisibility, onLetGo, onPress, onPressAway, onUserInput, openLayer, openerOf, overIn, pageClaimed, pageShadowRoots, pageUrl, presentDocument, pressLed, pressing, projectView, projectionOrigins, projectionRegionsPresented, q, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, recoveredLabelFocus, ref, refuseShadowRoot, registry, release, releaseFocus, render$1 as render, renderedChildren, repeat, revisionLabel, ringBox, roomPx, rove, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, selectsAll, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateCoordinate, stateSpecs, tabStops, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, typesText, uiInside, visibleFocus, watchCurrentLocationIn, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, wearsLentStop, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, x };
+export { AsyncDirective, CARET_KEYS, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, J, LENT_REACH_STOP, LIVE_ROOT, LitElement, MODIFIER_KEYS, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, PartType, SAID, SHADOW_LEADING_CSS, SHARE_ROOT, TAB_STOP, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WEBSITE_DELIVERY, WORKS, Z, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, atLayoutPrecision, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, canPlaceFocus, caretAtKey, carriedFrom, carriesObligation, chromeSharedClasses, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, controlNavigationKeys, createPresentationSchedule, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, declareReading, declareRelease, declaredRoot, deepFocus, describeFailure, directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, drawn, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focusRevision, focused, foldWidgetStates, guard, handBack, holdCurrentLocation, holdFocus, hostIn, hoveringPointer, html, inUi, inputCount, inputInFrame, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keeps, keepsHidden, keepsText, keyed, lastMovedAt, layerFact, layerLanding, layerRoot, layoutPx, letGo, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, move, moved, nativeLayers, nativeModalAdmits, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, onCurrentLocation, onFocusVisibility, onLetGo, onPress, onPressAway, onUserInput, openLayer, openerOf, overIn, pageClaimed, pageShadowRoots, pageUrl, plainPress, pointerAt, presentDocument, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, projectView, projectionOrigins, projectionRegionsPresented, q, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, recoveredLabelFocus, ref, refuseShadowRoot, registry, release, releaseFocus, render$1 as render, renderedChildren, repeat, restorePointer, revisionLabel, ringBox, roomPx, rove, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, selectsAll, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateCoordinate, stateSpecs, tabStops, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, typesText, uiInside, visibleFocus, watchCurrentLocationIn, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, wearsLentStop, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, x$1 as x };

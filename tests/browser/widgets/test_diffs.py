@@ -5,7 +5,6 @@ import json
 import re
 
 import pytest
-from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_cases_widgets import (
@@ -44,6 +43,7 @@ from browser.widgets import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1423,7 +1423,7 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     )
     # The pane's body is a Tab stop because it scrolls, and it fills its pane, so its
     # band stays inside the pane: the pane draws it inset over the body's cell
-    # (theme.css), where outset on the body the workspace body clipped its right and
+    # (base.css), where outset on the body the workspace body clipped its right and
     # lower runs.
     # The selected row retargets document focus to this host. Leave it first so
     # focusing the host itself publishes a new location and its pane band.

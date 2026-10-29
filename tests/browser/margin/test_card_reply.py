@@ -23,6 +23,7 @@ from render_harness import (
     open_page,
     pane_scroll_behavior,
     resized,
+    rgb_pixel,
     round_trip,
     scroll_settled,
     sending,
@@ -561,7 +562,7 @@ def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
         """The share of the field's width along row `y`, in the clip's CSS pixels,
         drawn in the ring's colour."""
         row = [
-            pixels.getpixel((round(x * scale), round(y * scale)))
+            rgb_pixel(pixels, (round(x * scale), round(y * scale)))
             for x in range(24, round(stood["width"]) - 16)
         ]
         return sum(
@@ -1173,14 +1174,14 @@ def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, se
         },
     )
     told(page)
-    expect(preview.locator(".lf-thread-notice-news")).to_have_text("1 new reply")
+    expect(preview.locator(".lf-thread-news")).to_have_text("1 new reply")
     expect(preview).not_to_contain_text(
         "An agent answer arriving while the user types."
     )
     rendered(page)
     expect(editor).to_be_focused()
     assert preview.evaluate(DRAFTING_CARD) == before
-    preview.locator(".lf-thread-notice-news").click()
+    preview.locator(".lf-thread-news").click()
     expect(preview).to_contain_text("An agent answer arriving while the user types.")
     rendered(page)
     assert preview.evaluate(DRAFTING_CARD) == before
@@ -1338,7 +1339,7 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     )
     told(page)
     if accepted["side"] == "above":
-        notice = preview.locator(".lf-thread-notice-news")
+        notice = preview.locator(".lf-thread-news")
         expect(notice).to_have_text("1 new reply")
         finish(accepted, "top", "foot", "editorTop", "editorFoot")
         begin()
@@ -1526,7 +1527,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     )
     stream_reply(serve.page_dir, root, waiting)
     told(page)
-    expect(card.locator(".lf-thread-notice-news")).to_have_text("1 new reply")
+    expect(card.locator(".lf-thread-news")).to_have_text("1 new reply")
     expect(streamed).to_have_text("The answer has started.")
     expect(card.locator("leaf-text")).to_be_focused()
     rendered(page)
@@ -1546,7 +1547,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     expect(sent).to_be_visible()
     expect(sent).to_have_attribute("aria-busy", "true")
     expect(streamed).to_have_text(waiting.strip())
-    expect(card.locator(".lf-thread-notice-news")).to_have_count(0)
+    expect(card.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
     assert positions()["reply"] == pytest.approx(before_send["reply"], abs=0.5)
     if not pending:
@@ -1565,7 +1566,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
         told(page)
         expect(streamed).to_have_text(text.strip())
         rendered(page)
-        expect(card.locator(".lf-thread-notice-news")).to_have_count(0)
+        expect(card.locator(".lf-thread-news")).to_have_count(0)
 
     def append_tokens(repetitions):
         before = positions()

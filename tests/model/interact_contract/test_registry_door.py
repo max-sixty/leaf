@@ -62,7 +62,9 @@ def test_a_custom_units_identity_rule_keeps_the_details_reference_base():
     }
     schema = registry_contract.detail_schema({}, spec)
     assert registry_schema.schema_error(schema, {"item": "a", "also": "b"}) is None
-    assert "non-empty" in registry_schema.schema_error(schema, {"item": ""})
+    value_2 = registry_schema.schema_error(schema, {"item": ""})
+    assert value_2 is not None
+    assert "non-empty" in value_2
     assert spec["detail"]["properties"]["item"] == {"type": "string"}
 
 

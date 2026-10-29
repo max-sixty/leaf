@@ -182,7 +182,6 @@ import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
 import { isNews, threadCounts } from "./thread/model.js";
 import { LeafElement } from "./leaf-element.js";
-import { claimReleaseClick } from "./pointer.js";
 import {
   threadAttention,
   todoLabel,
@@ -243,6 +242,7 @@ import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
 import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.js";
 import {
+  claimReleaseClick,
   focusDestination,
   focused,
   holdFocus,
@@ -250,6 +250,8 @@ import {
   onCurrentLocation,
   onPressAway,
   onUserInput,
+  pressHolds,
+  pressRecords,
   rove,
   currentLocationIn,
 } from "./focus.js";
@@ -1117,7 +1119,9 @@ export function createFloatingPanel({
   // the click other engines deliver after it, which would land on the comment box the
   // release opened under the pointer, as on its Other responses. A Tab
   // through the row, or the runtime putting the caret there, writes on the page.
-  let pressedWords = null;
+  // The words are kept against the press (focus.js, `pressing`), so a press that never
+  // completes, cancelled or let go elsewhere, leaves none behind for a later release.
+  const pressedWords = pressRecords();
   const quotedWords = () =>
     general &&
     fieldInput() === general.input &&
@@ -1127,23 +1131,19 @@ export function createFloatingPanel({
   field.addEventListener(
     "pointerdown",
     (event) => {
-      pressedWords =
-        event.isPrimary && event.composedPath().includes(general?.input)
-          ? quotedWords()
-          : null;
-      if (pressedWords) event.preventDefault();
+      if (!event.isPrimary || !event.composedPath().includes(general?.input)) return;
+      const words = quotedWords();
+      if (!words) return;
+      pressedWords.keep(event, words);
+      event.preventDefault();
     },
     true,
   );
   field.addEventListener("pointerup", (event) => {
-    const words = pressedWords;
-    pressedWords = null;
+    const words = pressHolds(event) && pressedWords.kept();
     if (!words || !event.composedPath().includes(general?.input)) return;
     claimReleaseClick();
     words.comment();
-  });
-  field.addEventListener("pointercancel", () => {
-    pressedWords = null;
   });
   // The user's first edit in the field passes every error it could say to the menu's
   // list, read before the edit changes what it could say. The user chose this on 17
@@ -1510,7 +1510,7 @@ export function createFloatingPanel({
   }
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
-    // `scroll-padding-bottom` keeps every landing clear of (theme.css), so `m`, `t`, a
+    // `scroll-padding-bottom` keeps every landing clear of (base.css), so `m`, `t`, a
     // Go-to or an On me row's Show lands what it reaches above an open view rather than
     // under it. The browser's own reveals read the same padding. CSS can't size the
     // root's padding from a fixed box in the chrome's shadow tree, so the box states it.
@@ -2034,7 +2034,7 @@ export function createFloatingPanel({
       role=${role ?? nothing}
       data-row=${row ?? nothing}
       title=${title ?? nothing}
-      class="lf-fp-face lf-fp-item"
+      ${offeredAction("row", "lf-fp-face lf-fp-item")}
       aria-current=${current ? "true" : nothing}
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
@@ -2128,11 +2128,11 @@ export function createFloatingPanel({
       <button
         type="button"
         role="menuitem"
-        class="lf-fp-face lf-fp-item lf-fp-menu-back"
+        ${offeredAction("row", "lf-fp-face lf-fp-menu-back")}
         aria-label=${`Back to the page menu from ${titleOf(menuAt.value)}`}
         @click=${() => showMenuAt(null)}
       >
-        <span class="lf-fp-label">${iconTemplate("next", "lf-fp-chevron")}Menu</span>
+        ${iconTemplate("next", "lf-fp-chevron")}Menu
       </button>
     </div>`;
   }
@@ -2260,9 +2260,8 @@ export function createFloatingPanel({
   // the picker lists, each a press that travels there and says the note its stamp gave
   // it after its name, cut to the row and whole on hover. A column at the rows' end
   // holds Compare where the picker offers it and Showing for the version shown, so
-  // the two words line up and every version's press ends at the same edge. Showing
-  // stands beside the press rather than in it, as Compare does; the press carries it
-  // as `aria-current`.
+  // the two words line up. Showing stands outside the press, as Compare does, over
+  // the row's end; the press carries it as `aria-current`.
   const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
@@ -2560,7 +2559,7 @@ export function createFloatingPanel({
     const row = (thread) =>
       html`<button
         type="button"
-        class="lf-fp-face lf-fp-thread"
+        ${offeredAction("row", "lf-fp-face lf-fp-thread")}
         data-key=${thread.key}
         ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
@@ -2784,7 +2783,10 @@ export function createFloatingPanel({
         quote.localReading
           ? html`<button
               type="button"
-              class="lf-fp-face lf-thread-disclosure lf-quote-expand lf-disclosure-marker"
+              ${offeredAction(
+                "inline",
+                "lf-thread-disclosure lf-quote-expand lf-disclosure-marker",
+              )}
               aria-label="Full quote"
               hidden
               aria-expanded=${String(quoteExpanded)}
@@ -3427,7 +3429,7 @@ export function createFloatingPanel({
     >
       <button
         type="button"
-        class="lf-fp-face lf-fp-item lf-fp-on-line"
+        ${offeredAction("row", "lf-fp-face lf-fp-item lf-fp-on-line")}
         aria-expanded=${String(opened)}
         ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
         @click=${() => toggleItem(key)}
@@ -3703,7 +3705,7 @@ export function createFloatingPanel({
           return row.self
             ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
             : html`<a
-                class="lf-fp-face lf-fp-page"
+                ${offeredAction("row", "lf-fp-face lf-fp-page")}
                 data-key=${row.key}
                 href=${row.href}
                 target="_blank"
@@ -3776,7 +3778,7 @@ export function createFloatingPanel({
           parent
             ? html`<button
                 type="button"
-                class="lf-fp-face lf-fp-back"
+                ${offeredAction("row", "lf-fp-face lf-fp-back")}
                 aria-label=${`Back to ${titleOf(parent)}`}
                 @click=${back}
               >
@@ -3880,7 +3882,7 @@ export function createFloatingPanel({
         unreadSeat
           ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-next-unread"
+              ${offeredAction("inline", "lf-fp-next-unread")}
               ?disabled=${!thread.unread.length}
               ?data-unoffered=${!thread.unread.length}
               @click=${() => void firstUnread(thread.key)}
@@ -4441,15 +4443,16 @@ export function createFloatingPanel({
   let heldCurrentLocation = null;
   // It is still where they are on the page while they stand in the panel.
   holdPagePlace(() => (currentLocationIn(host) ? heldCurrentLocation : null));
-  // A press reads it before the press moves focus, which may put away what held it.
-  let pressedIn = false;
+  // A press reads it before the press moves focus, which may put away what held it, and
+  // the focus that press moves, a finger's included, which lands only after its release,
+  // keeps it (focus.js, `pressing`).
+  const fromThePage = pressRecords();
   host.addEventListener(
     "pointerdown",
-    () => {
+    (event) => {
       if (currentLocationIn(host)) return;
       heldCurrentLocation = readPlace();
-      pressedIn = true;
-      setTimeout(() => (pressedIn = false));
+      fromThePage.keep(event, true);
     },
     true,
   );
@@ -4464,7 +4467,7 @@ export function createFloatingPanel({
     // Stepping in from the page holds where the user was, and from nowhere holds no
     // place. A row the panel just took away, as a pressed menu row hands the user to the
     // leaf, is no longer under the panel but came from it, and holds nothing.
-    if (inside && !left && !pressedIn) heldCurrentLocation = null;
+    if (inside && !left && !fromThePage.kept()) heldCurrentLocation = null;
     else if (inside && left?.isConnected && !renderedUnder(left, host))
       heldCurrentLocation = readPlace(left);
     const next = inside ? writing || node.localName === "leaf-text" : false;

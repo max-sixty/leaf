@@ -92,7 +92,7 @@ lf-diagram.lf-rendered {
 /* A rendered diagram keeps its natural size rather than scaling a wide flowchart's
  * labels below legibility, so a wide one
  * scrolls in its own box, the same answer a wide table gets, instead of painting over
- * the margin. max-width: none escapes the page-wide svg rule in the kernel theme, which
+ * the margin. max-width: none escapes the page-wide svg rule in the kernel's base.css, which
  * would scale it right back down. Paper cannot scroll, so print restores the fit: width
  * and viewBox stay in the markup, and max-width alone scales the drawing whole. */
 lf-diagram svg {

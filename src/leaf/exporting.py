@@ -176,6 +176,7 @@ class AssetInliner:
             active.remove(frame.base)
             if not stack:
                 return rewritten
+            assert frame.parent_reference is not None
             stack[-1].addresses[frame.parent_reference] = _fragment(
                 self.embed(Resource(rewritten.encode("utf-8"), "text/css")),
                 frame.parent_reference,
@@ -292,7 +293,7 @@ def export_document(
             ),
         ],
     )
-    resources = artifact.resources | data_resources
+    resources = {**artifact.resources, **data_resources}
     inliner = AssetInliner(resources.__getitem__)
     # Replacement markers belong to delivery, never to authored prose, state, data or
     # CSS strings. Reserve a fresh namespace absent from every text it will rewrite.

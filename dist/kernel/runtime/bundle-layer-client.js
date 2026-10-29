@@ -1,5 +1,5 @@
 import { ANNOUNCE, COMMANDS, PAGE_PAINT_ATTRIBUTE, actionIcon, actionName, actionOffers, commandsChangedOn, failureContext, failureOf, iconMarkup, isNativeLayer, nextRender, refuseCommands, renderedParent, showAction, under } from "./bundle-portable.js";
-import { AsyncDirective, CARET_KEYS, DELIVERY, Directive, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, controlNavigationKeys, describeFailure, directive, focusDestination, focusRevision, focused, html, keeps, keepsText, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, pageUrl, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, x as x$1 } from "./bundle-layer-stack.js";
+import { AsyncDirective, CARET_KEYS, DELIVERY, Directive, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, coarsePointer, controlNavigationKeys, describeFailure, directive, focusDestination, focusRevision, focused, html, keeps, keepsText, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, pageUrl, pressIsKeyboardActivation, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, x } from "./bundle-layer-stack.js";
 
 //#region runtime/root-state.js
 const setRuntimeRootAttribute = (...args) => document.documentElement.lfInitial.setRuntimeRootAttribute(...args);
@@ -390,43 +390,6 @@ if (enabled) {
 			post(body).catch(() => {});
 		}
 	}, true);
-}
-
-//#endregion
-//#region runtime/pointer.js
-let x = -1;
-let y = -1;
-const remember = (ev) => {
-	x = ev.clientX;
-	y = ev.clientY;
-};
-document.addEventListener("pointermove", remember, { capture: true });
-document.addEventListener("pointerdown", remember, { capture: true });
-const pointerAt = () => ({
-	x,
-	y
-});
-const coarsePointer = matchMedia("(pointer: coarse)");
-const hoveringPointer = matchMedia("(hover: hover)");
-const pressIsKeyboardActivation = (event) => event.type === "click" && !event.detail;
-const plainPress = (event) => event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
-let releaseClaimed = false;
-const claimReleaseClick = () => {
-	releaseClaimed = true;
-};
-document.addEventListener("pointerdown", () => {
-	releaseClaimed = false;
-}, { capture: true });
-document.addEventListener("click", (event) => {
-	if (!releaseClaimed || !event.isTrusted || pressIsKeyboardActivation(event)) return;
-	releaseClaimed = false;
-	event.preventDefault();
-	event.stopImmediatePropagation();
-}, { capture: true });
-function restorePointer(point) {
-	if (x !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return;
-	x = point.x;
-	y = point.y;
 }
 
 //#endregion
@@ -921,7 +884,7 @@ function reflectButton(control, candidates) {
 	const ref = new WeakRef(control);
 	let reading = candidates;
 	let failure = null;
-	const dispose = x$1(() => {
+	const dispose = x(() => {
 		if (reading) {
 			const read = reading;
 			reading = null;
@@ -1314,7 +1277,7 @@ function reflectAvailabilityReaders() {
 	availabilityTracking?.();
 	let first = true;
 	let failure = null;
-	availabilityTracking = x$1(() => {
+	availabilityTracking = x(() => {
 		if (first) {
 			first = false;
 			try {
@@ -1363,7 +1326,7 @@ function reflectTracked(element) {
 	const ref = new WeakRef(element);
 	let first = true;
 	let failure = null;
-	const dispose = x$1(() => {
+	const dispose = x(() => {
 		if (first) {
 			first = false;
 			try {
@@ -1562,8 +1525,8 @@ function nameAction(control, action, { label, title, className } = {}) {
 	showAction(control, action, className);
 }
 const namedAction = elementDirective("namedAction", nameAction);
-const selectableOfferElement = (node, role, cls) => document.documentElement.lfInitial.selectableOfferElement(node, role, cls);
-const selectableOffer = (role, cls, label) => document.documentElement.lfInitial.selectableOffer(role, cls, label);
+const selectableOfferElement = (node, role, cls, face) => document.documentElement.lfInitial.selectableOfferElement(node, role, cls, face);
+const selectableOffer = (role, cls, label, face) => document.documentElement.lfInitial.selectableOffer(role, cls, label, face);
 const selectableOffered = elementDirective("selectableOffered", selectableOfferElement);
 const PRESSABLE = "[data-lf-offer]:not([data-lf-offer=\"\"])";
 function reachedForWords(el) {
@@ -2025,4 +1988,4 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 //#endregion
-export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offerActionElement, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runLanding, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };
+export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offerActionElement, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, postEvent, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, reveal, revealLayer, routedCommand, rowArrows, runLanding, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };

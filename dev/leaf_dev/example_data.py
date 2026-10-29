@@ -87,12 +87,14 @@ def catalog_sources(root: Path = ROOT) -> list[Path]:
     document = SourceDocument(
         (root / "docs" / "examples.html").read_text(encoding="utf-8")
     )
-    return [
-        root
-        / "examples"
-        / f"{link.attrs['href'].removeprefix('/examples/').strip('/')}.html"
-        for link in document.tree.select("a.example-link")
-    ]
+    sources = []
+    for link in document.tree.select("a.example-link"):
+        href = link.attrs["href"]
+        assert isinstance(href, str)
+        sources.append(
+            root / "examples" / f"{href.removeprefix('/examples/').strip('/')}.html"
+        )
+    return sources
 
 
 def document_metadata(source: Path) -> tuple[str, str]:
@@ -145,13 +147,16 @@ def example_versions(source: Path) -> list[Path]:
     order, so the page a user opens carries the version picker, the changes-since
     marks, and a thread opened against the document before the revision.
     """
-    priors = sorted(
-        prior_version_files(source),
-        key=lambda path: int(PRIOR_VERSION.search(path.stem).group(1)),
-    )
+
+    def number(path: Path) -> int:
+        matched = PRIOR_VERSION.search(path.stem)
+        assert matched is not None
+        return int(matched.group(1))
+
+    priors = sorted(prior_version_files(source), key=number)
     # The published number is the position in this list, so a gap in the file names
     # would renumber every later version without a word; refuse it instead.
-    numbers = [int(PRIOR_VERSION.search(path.stem).group(1)) for path in priors]
+    numbers = [number(path) for path in priors]
     if numbers != list(range(1, len(numbers) + 1)):
         raise ValueError(
             f"{source.name}: prior versions must run v1 to v{len(numbers)} without "
@@ -214,7 +219,7 @@ def data_companion(source: Path) -> dict:
     if not companion.exists():
         return {}
     document = json.loads(companion.read_text(encoding="utf-8"))
-    if error := next(_DATA_COMPANION.iter_errors(document), None):
+    if error := next(iter(_DATA_COMPANION.iter_errors(document)), None):
         raise ValueError(f"{companion}: {error.json_path}: {error.message}")
     return document
 
@@ -225,7 +230,9 @@ def capture_file(source: Path, spec: dict) -> Path:
     (`leaf_dev.leaf_assets`), for evidence too large for the tree, such as an imported
     Playwright trace."""
     if "asset" in spec:
-        return pinned_copy(source.parent / spec["asset"])
+        path = pinned_copy(source.parent / spec["asset"])
+        assert path is not None
+        return path
     return source.parent / spec["file"]
 
 

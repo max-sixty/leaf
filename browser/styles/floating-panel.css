@@ -1,5 +1,5 @@
 /* The floating panel (runtime/floating-panel.js): Leaf's chrome, one box over the foot
-   of the page. The theme keeps its row's room at the page's foot (theme.css,
+   of the page. The theme keeps its row's room at the page's foot (base.css,
    `--lf-foot-room`).
 
    The panel stands on the page's own ground, set off by a hairline and the faintest
@@ -64,7 +64,7 @@
      which the user singled out as the panel's best motion (15 October). A view the
      user opened, or put away, is what they asked to see, so it arrives almost at once,
      as the menu does: its outline in a disclosure's time (`--lf-motion-disclosure`,
-     theme.css), since the user found the full tween slow there (15 October), and its
+     base.css), since the user found the full tween slow there (15 October), and its
      words faded in at once after the leaving view's, which is gone before the arriving
      one shows, so the two never read through each other. The row gathers into its
      leaf on a curve of its own before that one object finishes travelling; its layout
@@ -909,22 +909,30 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .lf-fp-back {
+  /* The two ways back, a view's to the list it came from and the menu's to the page
+     menu, are one press: a row (controls.css, `.lf-row`) holding the chevron and the
+     name of where it leads, in the ink, washed under the pointer. It is as wide as its
+     words, since a view's way back shares its line with the thread's facts and
+     presses, where no row could run the panel's width, and in the menu that width says
+     it leaves the list rather than standing in it. Its chevron stands 8px into its
+     wash, as a menu row's words do, so the menu's way back starts on its rows' edge;
+     a view's reaches out by those 8px, so its chevron starts on the view's words. */
+  :is(.lf-fp-back, .lf-fp-menu-back) {
     flex: none;
+    align-self: flex-start;
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    min-height: 0;
-    padding: 0;
-    color: var(--lf-fp-muted);
+    min-height: var(--lf-fp-press);
+    padding: 0 8px 0 6px;
   }
-  .lf-fp-back .lf-fp-chevron {
+  :is(.lf-fp-back, .lf-fp-menu-back) .lf-fp-chevron {
+    flex: none;
     scale: -1 1;
     margin: 0;
   }
-  .lf-fp-back:hover {
-    background: none;
-    color: var(--ink);
+  .lf-fp-crumb > .lf-fp-back {
+    margin-inline-start: -8px;
   }
   /* The thread's facts after the way back, the news it holds, take the room the crumb
      leaves, so news arriving moves nothing else. They stand further from the controls
@@ -954,9 +962,9 @@
   .lf-fp-news-outlet {
     display: contents;
   }
-  /* The news qualifies the thread as its place does, so it takes that size, in the
-     ink of what the user may act on. It stands on the crumb's baseline at the height of
-     its words, so its arrival grows no line: the room a pointer aims at reaches above
+  /* The news qualifies the thread as its place does, so it takes the size of the
+     crumb's words. It stands on the crumb's baseline at the height of its words, a line
+     an em tall, so its arrival grows no line: the room a pointer aims at reaches above
      and below them, as tall as a control's. */
   .lf-fp-news-outlet > .lf-thread-news {
     --lf-fp-news-reach: calc((max(var(--lf-fp-press), var(--aim-floor)) - 1lh) / 2);
@@ -964,7 +972,8 @@
     min-height: 0;
     padding-block: var(--lf-fp-news-reach);
     margin-block: calc(-1 * var(--lf-fp-news-reach));
-    font-size: 12px;
+    font-size: inherit;
+    line-height: 1;
   }
   .lf-fp-aux {
     flex: 0 1 auto;
@@ -1054,12 +1063,15 @@
   :is(.lf-fp-on-page, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
   }
-  /* Next unread is news's way in, so it wears the accent an unread reply's New does. */
+  /* Next unread is an inline press (controls.css) after its symbol, standing in the
+     row at a panel press's height and padding. */
   .lf-fp-next-unread {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    color: var(--accent);
+    min-height: var(--lf-fp-press);
+    padding: 0 8px;
+    white-space: nowrap;
   }
   .lf-fp-next-unread .lf-action-icon {
     width: 14px;
@@ -1152,9 +1164,8 @@
     gap: 12px;
     width: 100%;
     min-height: 30px;
-    padding: 5px 8px;
-    border-radius: var(--r);
-    text-align: start;
+    /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
+    padding: 5px 8px 5px 6px;
   }
   .lf-fp-thread {
     grid-template-columns: 6px minmax(0, 1fr) auto;
@@ -1277,14 +1288,13 @@
     display: block;
     overflow: visible;
   }
-  /* Its reach (surfaces.css) lies inside the thread's view, which clips what passes its
-     8px top padding, so under a finger it stands low enough for the reach above it. */
+  /* Full quote, an inline press (controls.css) at the quote's size. Its reach
+     (surfaces.css) lies inside the thread's view, which clips what passes its 8px top
+     padding, so under a finger it stands low enough for the reach above it. */
   .lf-fp-quote-head > .lf-quote-expand {
     margin-block-start: max(0px, (var(--aim-floor) - 1lh) / 2 - 8px);
     min-height: 0;
     padding: 0;
-    color: var(--lf-fp-muted);
-    font-size: 12px;
   }
   /* A page in All pages: its leaf in its agent's tone, its title, and what its agent is
      doing, which gives way to the title and is cut where the row ends; then the mark
@@ -1297,7 +1307,6 @@
     gap: 8px;
     min-height: 34px;
     padding: 5px 8px;
-    border-radius: var(--r);
     color: inherit;
     text-decoration: none;
   }
@@ -1313,12 +1322,14 @@
     margin: 0;
     color: var(--lf-fp-muted);
   }
-  a.lf-fp-page:hover {
-    background: var(--lf-fp-hover);
+  a.lf-fp-page {
+    padding-inline-start: 6px;
   }
   /* The versions share one end column, as wide as Compare or Showing, whichever is
-     wider, so the two words start on one line and every version's press, washed under
-     the pointer, ends at the same edge (floating-panel.js, `versionsList`). */
+     wider, each word set against the row's end (floating-panel.js, `versionsList`).
+     A version's press spans the row, so its wash and the shown version's mark run
+     across it; Compare stands over the press's end as a press of its own, and Showing
+     lets a press on it through to the version's. */
   .lf-fp-versions {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -1330,12 +1341,12 @@
     grid-template-columns: subgrid;
     align-items: center;
   }
-  /* A version's press has no value, key or chevron, so it gives the end column it would
-     keep for them to its words, which stay on one line; its number's digits share one
-     width, so v1's note starts where v2's does. */
+  /* The press has no value, key or chevron, so its words take the first column alone,
+     on one line; its number's digits share one width, so v1's note starts where v2's
+     does. The name reads over its note in weight and ink. */
   .lf-fp-version > .lf-fp-item {
-    grid-column: 1;
-    grid-template-columns: minmax(0, 1fr);
+    grid-area: 1 / 1 / 2 / -1;
+    grid-template-columns: subgrid;
     align-items: center;
   }
   .lf-fp-version > .lf-fp-item > .lf-fp-end {
@@ -1344,19 +1355,21 @@
   .lf-fp-version > .lf-fp-item > .lf-fp-label {
     display: block;
     white-space: nowrap;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
   }
   .lf-fp-version > :is(.lf-fp-compare, .lf-fp-showing) {
-    grid-column: 2;
-    text-align: start;
+    grid-area: 1 / 2;
+    justify-self: end;
+    position: relative;
   }
+  /* Showing says which version the page shows, in the accent the shown version wears;
+     Compare stays a quiet press. */
   .lf-fp-showing {
     padding-inline: 8px;
-    color: var(--lf-fp-muted);
+    color: var(--accent);
     font-size: 12px;
-  }
-  .lf-fp-version[data-current] .lf-fp-label {
-    font-weight: 600;
+    pointer-events: none;
   }
   /* What the check found in the agent's latest save, over the versions. */
   .lf-fp-failed {
@@ -1853,16 +1866,6 @@
     margin: auto 8px 3px;
     padding-top: 3px;
     background: var(--lf-fp-faint) content-box;
-  }
-  .lf-fp-menu-back .lf-fp-label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .lf-fp-menu-back .lf-fp-chevron {
-    flex: none;
-    margin: 0;
-    scale: -1 1;
   }
   .lf-fp-state {
     display: grid;

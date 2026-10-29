@@ -33,7 +33,6 @@ from interact_support import (
     stamp,
     trial_version,
 )
-from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import _value_verb
 
 from leaf import cli as cli_model
@@ -45,6 +44,7 @@ from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import storage as registry_storage
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_revendoring_serializes_with_thread_markup_entering_the_log(
@@ -403,7 +403,9 @@ def test_sample_data_bindings_use_copied_data_but_not_parent_history(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     registry = registry_storage.require_registry(page_dir)
-    value = data_model.read_source(page_dir, "shared", registry)["value"]
+    source_record = data_model.read_source(page_dir, "shared", registry)
+    assert source_record is not None
+    value = source_record["value"]
     assert data_contracts_model.payload_error("shared", "child", value, registry)
     assert data_model.read_contracts(page_dir)["shared"] == "parent"
 

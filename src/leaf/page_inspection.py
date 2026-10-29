@@ -71,7 +71,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
     """Read static source facts for the exact artifact a caller names."""
     document = SourceDocument(artifact.html.decode("utf-8"))
     sources = []
-    scripts = []
+    scripts: list[dict] = []
     references = {}
     # The layer the revision selects is the serving Leaf's, not captured, but its
     # files are what the page runs beside its own.

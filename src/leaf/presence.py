@@ -32,7 +32,7 @@ from .service import (
     read_stream,
     unacknowledged,
 )
-from .state import now_iso, state_home
+from .state import now_iso, state_home, turn_closed
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -402,7 +402,8 @@ def presence_reading(page_dir: Path, files: str) -> str:
     # stamp of its own: `live_facts` checks it on every refresh, while its stamp
     # here invalidates the token when the lease is first created or removed. An
     # unclaimed page's lease is in the page directory, so `files` covers it.
-    lease = file_stamp(waiter_lease_path(None, claim["id"])) if claim else None
+    lease_path = waiter_lease_path(None, claim["id"]) if claim else None
+    lease = file_stamp(lease_path) if lease_path is not None else None
     neighbors = neighbor_reading(page_dir)
     stamp = (files, lease, neighbors)
     now = time.monotonic()
@@ -484,7 +485,7 @@ def nudge_interrupted(page_dir: Path) -> None:
         claim = page.active_claim
         if (
             claim is not None
-            and claim["turn_closed"] is None
+            and not turn_closed(claim)
             and wake_inputs(page, deliverable(page))
         ):
             nudge_unwatched(page)

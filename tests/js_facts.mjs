@@ -593,8 +593,8 @@ function dressing(node, parents, depth) {
 //   `ref`, whose binding calls one, directly or through a function it calls.
 // - "made": a "button" made by `offer`, `el` or `createElement`, with the `className`
 //   later given to the variable it is bound to; "role as it is made" when it is made
-//   as the element of `offerActionElement` or `offerContentElement`, or that variable
-//   is later handed to one.
+//   as the element of `offerActionElement` or `offerContentElement`, or the variable
+//   that holds it, and only it, is later handed to one.
 // - "copy control": a `copyControl(…)`, "role in its options" when they name a role,
 //   "trigger in its options" when they hand it a trigger, a press read on its own.
 // - "scripted role": an element a module makes, bound in scope, and gives the role
@@ -608,6 +608,7 @@ function presses() {
     const parents = new Map();
     const assigned = [];
     const dressed = [];
+    const rebinding = [];
     walk(program, (node, _loops, parent) => {
       parents.set(node, parent);
       if (
@@ -619,7 +620,15 @@ function presses() {
         assigned.push(node);
       if (ROLE_BUILDERS.has(callee(node)) && node.arguments[0]?.type === "Identifier")
         dressed.push(node);
+      if (node.type === "AssignmentExpression" && node.left.type === "Identifier")
+        rebinding.push(node);
     });
+    // A binding holds one element only when it is never given another: a `const`, or
+    // a `let` or `var` no assignment names. Dressing through any other could dress an
+    // element the name held before or after the one being read.
+    const holdsOne = (binding) =>
+      parents.get(binding)?.kind === "const" ||
+      !rebinding.some((a) => declaration(a.left.name, a, parents) === binding);
     const found = [];
     const press = (start, end, kind, built, values) =>
       found.push({
@@ -639,7 +648,7 @@ function presses() {
             .flatMap((a) => words(a.right, parents));
     // The role builders' calls handed the variable a made element is bound to.
     const dressedLater = (binding) =>
-      !binding
+      !binding || !holdsOne(binding)
         ? []
         : dressed.filter(
             (call) => declaration(call.arguments[0].name, call, parents) === binding,

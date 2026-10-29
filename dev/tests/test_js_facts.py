@@ -49,7 +49,9 @@ def test_dynamic_import_with_rejection_handler(tmp_path, handlers):
 # `className` on a parameter given to an unrelated `button`, a family name joined to
 # more text, an escaped quote read raw, and Lit's `classMap` unread; and a method
 # named after `copyControl` taken for it. Then a copy control around a trigger, a
-# made button dressed by role through the name it is bound to, and one never dressed.
+# made button dressed by role through the name it is bound to, one never dressed, and
+# a name dressed and then given another button, over two lines of one block, whose
+# buttons neither reads as dressed.
 PRESSES = """\
 { html`<button class="own-face" title="lf-react">`; }
 { offer("button", "own-face", "lf-react"); }
@@ -73,6 +75,8 @@ PRESSES = """\
 { copyControl("lf-x", { trigger: true }); }
 { const button = document.createElement("button"); offerActionElement(button, "word", "lf-x"); }
 { const button = document.createElement("button"); button.className = "lf-x"; }
+{ let button = document.createElement("button"); offerActionElement(button, "word", "lf-old");
+  button = document.createElement("button"); }
 """
 # Each line's press: the kind it is read as, how a role dresses it, and its classes.
 READ = [
@@ -98,6 +102,8 @@ READ = [
     ("copy control", "trigger in its options", ["lf-x"]),
     ("made", "role as it is made", ["lf-x"]),
     ("made", None, ["lf-x"]),
+    ("made", None, []),
+    ("made", None, []),
 ]
 
 

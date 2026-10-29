@@ -3102,9 +3102,7 @@
       .filter(
         (animation) =>
           ancestors.has(animation.effect?.target) ||
-          effectProperties(animation).some((property) =>
-            SIZE_GEOMETRY.has(property),
-          ),
+          effectProperties(animation).some((property) => SIZE_GEOMETRY.has(property)),
       )
       .map((animation) => {
         const samples = animated.get(animation) ?? [];

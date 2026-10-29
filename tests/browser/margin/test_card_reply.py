@@ -841,6 +841,10 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(browser, serve
     preview = page.locator(".lf-margin-preview")
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
     expect(reply).to_be_visible()
+    # Playwright reveals its target before hover and click. Measure after that
+    # setup scroll, so the comparison isolates entering the field.
+    reply.scroll_into_view_if_needed()
+    rendered(page)
     resting_box = reply.bounding_box()
     field = preview.locator(".lf-thread-reply .lf-compose-field")
     resting_field_box = field.bounding_box()
@@ -864,6 +868,7 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(browser, serve
     )
 
     reply.hover()
+    assert reply.bounding_box() == pytest.approx(resting_box, abs=0.5)
     expect(field).to_have_css("background-color", resting_face[0])
     reply.click()
     expect(reply).to_be_focused()

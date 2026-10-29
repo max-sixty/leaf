@@ -1510,7 +1510,7 @@ export function createFloatingPanel({
   }
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
-    // `scroll-padding-bottom` keeps every landing clear of (theme.css), so `m`, `t`, a
+    // `scroll-padding-bottom` keeps every landing clear of (base.css), so `m`, `t`, a
     // Go-to or an On me row's Show lands what it reaches above an open view rather than
     // under it. The browser's own reveals read the same padding. CSS can't size the
     // root's padding from a fixed box in the chrome's shadow tree, so the box states it.

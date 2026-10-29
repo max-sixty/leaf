@@ -18,6 +18,7 @@ from render_harness import (
     LONG_PAGE,
     leaf_page,
     panel_settled,
+    rgb_pixel,
 )
 
 from leaf import render_checks as render_checks_model
@@ -1146,8 +1147,10 @@ def mark_edges(page, ident, ink):
     def quarters(size):
         return (size // 4, size // 2, 3 * size // 4)
 
-    columns = [[image.getpixel((x, y)) for y in range(height)] for x in quarters(width)]
-    rows = [[image.getpixel((x, y)) for x in range(width)] for y in quarters(height)]
+    columns = [
+        [rgb_pixel(image, (x, y)) for y in range(height)] for x in quarters(width)
+    ]
+    rows = [[rgb_pixel(image, (x, y)) for x in range(width)] for y in quarters(height)]
     return {
         "top": {stroke(c, edge["top"]) for c in columns},
         "bottom": {stroke(c[::-1], edge["bottom"]) for c in columns},
@@ -1657,11 +1660,12 @@ def _read_ring_pixels(page, answers):
                 sum(
                     abs(a - b)
                     for a, b in zip(
-                        image.getpixel(
+                        rgb_pixel(
+                            image,
                             (
                                 min(int((x - left) * scale), image.width - 1),
                                 min(int((y - top) * scale), image.height - 1),
-                            )
+                            ),
                         ),
                         ink,
                         strict=True,

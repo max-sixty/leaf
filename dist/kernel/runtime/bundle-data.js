@@ -6800,24 +6800,25 @@ var ThreadView = class {
 			const style = getComputedStyle(head);
 			const name = head.querySelector(":scope > b");
 			const time = head.querySelector(":scope > .lf-msg-meta > time");
-			const need = parseFloat(style.paddingInlineStart) + parseFloat(style.paddingInlineEnd) + wordsWidth(name) + (name && time ? parseFloat(style.columnGap) : 0) + wordsWidth(time);
+			const need = parseFloat(style.paddingInlineStart) + parseFloat(style.getPropertyValue("--lf-msg-control")) + wordsWidth(name) + (name && time ? parseFloat(style.columnGap) : 0) + wordsWidth(time);
 			heads.push({
 				name,
 				need,
-				spare: head.getBoundingClientRect().width - need
+				spare: head.getBoundingClientRect().width - need,
+				yields: parseFloat(style.getPropertyValue("--lf-msg-control")) - parseFloat(getComputedStyle(head, "::after").minInlineSize) + wordsWidth(time)
 			});
 		}
 		if (!heads.length || !notice.isConnected) {
-			notice.style.removeProperty("--lf-news-room");
+			this.#clearMarginNews();
 			return;
 		}
 		const width = notice.getBoundingClientRect().width;
 		const spare = Math.min(...heads.map((head) => head.spare));
 		notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, width + spare)));
 		const taken = notice.getBoundingClientRect().width - width;
-		for (const { name, spare } of heads) {
+		for (const { name, spare, yields } of heads) {
 			if (!name) continue;
-			const shown = wordsWidth(name) + Math.min(0, spare - taken);
+			const shown = wordsWidth(name) + Math.min(0, spare - taken + yields);
 			keeps(name, "data-lf-nameless", shown < parseFloat(getComputedStyle(name).fontSize) ? "" : null);
 		}
 	}
@@ -6828,7 +6829,11 @@ var ThreadView = class {
 	}
 	#releaseMarginNews() {
 		this.#marginNews.disconnect();
+		this.#clearMarginNews();
+	}
+	#clearMarginNews() {
 		this.#news.node.style.removeProperty("--lf-news-room");
+		for (const name of this.node.querySelectorAll(".lf-thread-transcript .lf-msg-head > b[data-lf-nameless]")) keeps(name, "data-lf-nameless", null);
 	}
 	#releaseHeaderSlot() {
 		if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);

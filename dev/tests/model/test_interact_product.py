@@ -2,10 +2,9 @@
 
 import json
 
+from leaf.structure import SourceDocument
 from leaf_dev.commands import corpus
 from leaf_dev.example_data import data_file, named_source, page_files, seed_log
-
-from leaf.structure import SourceDocument
 
 
 def test_corpus_is_generated_from_the_examples():

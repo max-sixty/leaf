@@ -6,11 +6,12 @@ import pytest
 from interact_support import (
     running_http_server,
 )
-from leaf_dev import startup
-from leaf_dev.commands import journey, verify_site
 from render_harness import (
     consume_browser_errors,
 )
+
+from leaf_dev import startup
+from leaf_dev.commands import journey, verify_site
 
 
 def shown_by(page, id):
@@ -159,7 +160,7 @@ def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(browser)
     page.goto(url)
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
     session = journey.Session(
-        None, page, [], url, url, {}, {}, None,
+        page.context, page, [], url, url, {}, {}, None,
         pause=lambda seconds: page.wait_for_timeout(seconds * 1000),
     )  # fmt: skip
     answer = {"parent": "comment", "id": "answer", "ts": "2026-10-08T09:00:00Z"}
@@ -191,7 +192,7 @@ def test_startup_resources_outlive_the_browser_timing_buffer(browser):
             self.end_headers()
             self.wfile.write(body)
 
-        def log_message(self, *_arguments):
+        def log_message(self, format, *_arguments):
             pass
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), Resources)

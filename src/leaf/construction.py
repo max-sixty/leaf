@@ -100,7 +100,7 @@ def constructed_content(
     document source; source and vocabulary paths are not repeated per element.
     """
     roots = deepcopy(parser.authoring.content)
-    by_id = {}
+    by_id: dict[str, dict] = {}
     # The id of each identified node's nearest identified ancestor.
     parents = {}
 

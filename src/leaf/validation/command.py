@@ -46,6 +46,7 @@ def cmd_check(page_dir: Path, render: bool = False) -> dict:
             return reported(1, found)
         from leaf.render_gate.page_code import needs_browser
 
+        assert result.artifact is not None
         runs_code = needs_browser(result.document, result.artifact)
         if not (runs_code or render):
             return reported(0, found)

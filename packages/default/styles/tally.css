@@ -1,9 +1,9 @@
-/* lf-tally: a region's obligations still to answer, a .tag as a header's chips are,
+/* lf-tally: a region's obligations still to answer, in a chip (chip.css) as a header's are,
  * with its Next on me beside it. The count's room stacks the widest labels the count
  * can take in one cell with the words, giving the chip its width, so a changing count
  * moves neither the control nor what follows. Until the page's first reading is in,
  * the tally keeps its room and shows nothing; once every obligation is answered the chip takes
- * the ok tone (`.tag.ok`). */
+ * the ok tone (`.lf-chip.ok`). */
 lf-tally {
   display: inline-block;
   max-width: 100%;

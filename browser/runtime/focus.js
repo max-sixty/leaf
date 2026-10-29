@@ -1090,7 +1090,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
     { capture: true, passive: true },
   );
 // The box that wears the focus ring for `node`. A rule that rings a control's face
-// rather than the control declares it there, `--lf-wears-ring: 1` (theme.css), as a
+// rather than the control declares it there, `--lf-wears-ring: 1` (base.css), as a
 // playground's choice rings its radio and words together; the nearest such box around
 // the control is the one. Anything else wears its own. Those rules ring the face of the
 // control the focus paint marks, so only that control has one. A landing in the

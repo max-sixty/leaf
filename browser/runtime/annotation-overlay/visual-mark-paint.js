@@ -41,7 +41,7 @@ function ringRoom() {
 // The contour's brackets stand flush outside their target (chrome.css). Where a box that
 // clips the target, as a joined lf-options frame clips its cells, shows the target's edge
 // but not the band beyond it, they stand just inside the edge instead, as a control
-// packed into a list insets its own ring (theme.css). Outside, the clip cut away their
+// packed into a list insets its own ring (base.css). Outside, the clip cut away their
 // sides and left stubs across the neighbours. An edge the clip already cuts, as on a
 // target scrolled partly out of its scroller, asks for no room.
 function cramped({ rect, levels }, room) {

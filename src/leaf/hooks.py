@@ -91,6 +91,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         mark_hooks(sid)
     if not sid:
         return
+    assert isinstance(event, str)
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
     ):

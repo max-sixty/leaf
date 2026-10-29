@@ -665,6 +665,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     position = panel_field(page)
     expect(position).to_have_attribute("placeholder", re.compile(r"^Marker 1 of \d+"))
     said = re.search(r"Marker 1 of (\d+)", position.get_attribute("placeholder"))
+    assert said is not None
     total = int(said.group(1))
     assert total > 1, said.group(0)
     first = page.locator(":focus").get_attribute("aria-label")

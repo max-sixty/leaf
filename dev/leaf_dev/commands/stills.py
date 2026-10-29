@@ -553,6 +553,7 @@ def card_aging(page: Page) -> None:
     """An open card follows the clock while its reply is being drafted."""
     card_reply(page)
     timestamp = page.locator(".lf-margin-preview time").first.get_attribute("datetime")
+    assert timestamp is not None
     now = datetime.fromisoformat(timestamp) + timedelta(seconds=30)
 
     def aged_state(route):
@@ -586,6 +587,14 @@ def card_reply_resolved(page: Page) -> None:
     page.locator(".lf-margin-preview").get_by_role(
         "button", name="Resolve thread", exact=True
     ).click()
+
+
+def card_reply_resolved_elsewhere(page: Page) -> None:
+    """An agent resolves the thread while the user keeps writing in its margin card."""
+    card_reply(page)
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    as_agent("thread", "resolve", card.get_attribute("data-thread"))
+    expect(card.locator(".lf-reopen")).to_be_visible()
 
 
 def as_agent(command: str, verb: str, *args: str) -> None:
@@ -890,9 +899,12 @@ def panel_by_keyboard(page: Page) -> None:
 def composer_resting(page: Page) -> None:
     """An empty anchored comment opened by selecting a passage, without focus."""
     box = page.locator("#triage-lede").bounding_box()
+    assert box is not None
     y = box["y"] + 10
+    assert box is not None
     page.mouse.move(box["x"] + 2, y)
     page.mouse.down()
+    assert box is not None
     page.mouse.move(box["x"] + 200, y, steps=8)
     page.mouse.up()
     # Under a finger a selection is offered in the floating panel's field, which quotes
@@ -1401,6 +1413,7 @@ def aim_cut_by_pane(page: Page) -> None:
         }"""
     )
     box = page.locator("#sort-source").bounding_box()
+    assert box is not None
     page.mouse.move(box["x"] + 120, box["y"] + 20)
     page.keyboard.down("Alt")
     page.wait_for_function(
@@ -1517,6 +1530,7 @@ def capture_small_drag(page: Page) -> None:
     capture_menu(page)
     page.locator(".lf-region-selection").wait_for(state="visible")
     target = page.locator("#plan-current").bounding_box()
+    assert target is not None
     left, top = round(target["x"]) + 45, round(target["y"]) + 8
     page.mouse.move(left, top)
     page.mouse.down()
@@ -2601,6 +2615,19 @@ STATES = (
         region=".lf-margin-preview .lf-thread-reply",
     ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
+    State(
+        "plan-card-reply-resolved-elsewhere",
+        "review-a-plan",
+        card_reply_resolved_elsewhere,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "plan-card-reply-resolved-elsewhere-dark",
+        "review-a-plan",
+        card_reply_resolved_elsewhere,
+        scheme="dark",
+        region=".lf-margin-preview",
+    ),
     State("triage", "triage-board", at_rest),
     State("triage-phone", "triage-board", at_rest, viewport=(390, 844), touch=True),
     State(
@@ -2981,7 +3008,7 @@ STATES = (
 
 # Every state's input by name, for `leaf-dev probe --do drive:NAME`.
 DRIVERS: dict[str, Callable[[Page], None]] = {
-    state.drive.__name__.replace("_", "-"): state.drive for state in STATES
+    getattr(state.drive, "__name__").replace("_", "-"): state.drive for state in STATES
 }
 
 

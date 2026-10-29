@@ -1,9 +1,10 @@
 # Packages
 
 A package is a directory Leaf adds to a page. It can hold a theme, widgets, helper
-modules, libraries and external-data contracts. `page init` combines Leaf's kernel with
-the page's packages, checks the result, and copies it into the page as the page's
-layer. Packages need no browser build or npm command: write widgets and helpers as
+modules, libraries and external-data contracts. `page init` records the selected
+packages and checks their composition. The Leaf serving, checking or exporting a page
+composes its layer from that selection ("Package reach", below).
+Packages need no browser build or npm command: write widgets and helpers as
 JavaScript the browser loads directly, importing the shipped `/runtime/widget-api.js`.
 
 This file covers what every package follows and how to declare a widget.
@@ -67,9 +68,9 @@ Every package uses this layout, and every file is optional:
 ```text
 package/
 ├── registry.json       element declarations and shared $ declarations
-├── widgets.css         defaults: its widgets', and a theme's element rules
+├── defaults.css        defaults: its widgets', and a theme's element rules
 ├── widget-shadow.css   widget defaults also loaded in their shadow trees
-├── theme.css           page-wide theme inputs and presentation
+├── overrides.css       page-wide rules that outrank every package's defaults
 ├── instructions/       Markdown instructions named for their audiences
 ├── runtime/            package-owned browser modules
 ├── widgets/            entry modules and their private helpers
@@ -92,15 +93,15 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 Choose a stylesheet by the contribution it makes. A package may supply any combination;
 adding a widget does not change its theme styling.
 
-| Sheet               | Document                | Declared shadow trees |
-| ------------------- | ----------------------- | --------------------- |
-| `widgets.css`       | `lf-base`               | —                     |
-| `widget-shadow.css` | `lf-base`               | `lf-shadow`           |
-| `theme.css`         | Page-wide in `lf-theme` | —                     |
+| Sheet               | Document                    | Declared shadow trees |
+| ------------------- | --------------------------- | --------------------- |
+| `defaults.css`      | `lf-base`                   | —                     |
+| `widget-shadow.css` | `lf-base`                   | `lf-shadow`           |
+| `overrides.css`     | Page-wide in `lf-overrides` | —                     |
 
-Defaults, a widget's own and a theme's element rules and idioms, go in `widgets.css`,
-below Layouts; theme contributions rank above them. Leaf orders
-the cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-theme`,
+Defaults, a widget's own and a theme's element rules and idioms, go in `defaults.css`,
+below Layouts; overrides, in `overrides.css`, rank above them. Leaf orders
+the cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-overrides`,
 `lf-state`. A shared shadow sheet precedes its document-only sheet; later selected
 packages win ties. The page's own CSS is unlayered above these normal rules. Layouts
 do not reach inside shadow trees. A theme's rules, like the page's own, reach the
@@ -130,7 +131,7 @@ also reaches a foreign widget nested inside it, so style structure a nested widg
 share through a child combinator or the package's own classes. Replacing a widget's
 declaration or module does not withdraw the selected package's stylesheet
 contribution. Inherited values cross every widget boundary. Adjust another widget's
-internals through its inputs or API; theme contributions are deliberately page-wide.
+internals through its inputs or API; overrides are deliberately page-wide.
 
 Document selectors don't reach into a shadow root. A declared `x-shadow` root built with
 `shadowStage` gets the composed shared stylesheet. Use theme inputs for changes across

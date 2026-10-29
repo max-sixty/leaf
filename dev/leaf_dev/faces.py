@@ -24,7 +24,10 @@ decoration and not read.
 A face is what makes two presses read as different kinds, at rest and again under
 the pointer: its fill, border and corner radii, its shadow, its ink (the words'
 colour, an input's value's, an icon's stroke or fill), a worded press's font,
-underline, and opacity. Size is not part of it, since a symbol is sized to the
+underline, and opacity. A press resting at opacity 0 until something reveals it, as a
+message's controls do until the message is hovered, compares at the opacity it shows
+under the pointer, since whether it shows isn't what it looks like; its face says how
+many of its presses rest hidden. Size is not part of it, since a symbol is sized to the
 surface it sits on (`--lf-icon-action-face`): a face lists the sizes its presses
 come in (a symbol's width and height; a worded press's height and side padding,
 since its width is its label's), at rest and under the pointer, and a press that
@@ -137,14 +140,25 @@ def look(face: dict | None) -> dict | None:
     return {field: value for field, value in face.items() if field != "size"}
 
 
+def hidden(press: dict) -> bool:
+    """Whether the press rests at opacity 0, as a message's controls do until the
+    message is hovered: whether it shows, not what it looks like."""
+    return press["rest"]["opacity"] == 0
+
+
+def looks(press: dict) -> tuple[dict, dict | None]:
+    """A press's look at rest and under the pointer, a hidden press's at rest at the
+    opacity it shows under the pointer."""
+    rest, hover = look(press["rest"]), look(press["hover"])
+    if hidden(press):
+        rest["opacity"] = hover["opacity"] if hover else 1
+    return rest, hover
+
+
 def signature(press: dict) -> str:
+    rest, hover = looks(press)
     return json.dumps(
-        {
-            "words": press["words"],
-            "rest": look(press["rest"]),
-            "hover": look(press["hover"]),
-        },
-        sort_keys=True,
+        {"words": press["words"], "rest": rest, "hover": hover}, sort_keys=True
     )
 
 
@@ -341,16 +355,22 @@ def face_lines(
 ) -> list[str]:
     state, first = members[0]
     states = {member_state for member_state, _ in members}
-    # What every press shares, its state's scheme and pointer included: a face drawn
-    # in both schemes from the same tokens is one face, and one only dark says so.
+    # What every press shares, its state's scheme and pointer included, so a face only
+    # dark states show says so, and how many rest hidden until something reveals them.
     shared = set.intersection(
         *(set(press["flags"]) | conditions[s] for s, press in members)
     )
+    concealed = sum(hidden(press) for _, press in members)
+    if concealed:
+        shared.add(
+            "hidden at rest"
+            if concealed == len(members)
+            else f"{concealed} hidden at rest"
+        )
     what = [
         COLOUR.sub(lambda colour: token_name(colour.group(), tokens), line)
         for line in describe(
-            look(first["rest"]),
-            look(first["hover"]),
+            *looks(first),
             first["words"],
             sizes(members),
             touch="touch" in conditions[state],

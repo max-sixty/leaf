@@ -46,6 +46,21 @@ def test_a_token_alias_changes_no_face_and_a_dark_ink_change_shows():
     assert len(groups(head)) == 2
 
 
+def test_a_press_hidden_until_hovered_wears_the_face_it_shows():
+    revealed = press("Copy", [10, 50], "#6f6a60")
+    revealed["rest"]["opacity"] = 0
+    census = {
+        "card": {
+            "presses": [press("Show", [10, 10], "#6f6a60"), revealed],
+            "tokens": {},
+        }
+    }
+    [members] = groups(census).values()
+    assert len(members) == 2
+    text, _ = report(census, census, {"card": set()})
+    assert "(1 hidden at rest)" in text
+
+
 def test_a_second_press_with_the_same_label_moves_no_press():
     base = {"card": {"presses": [press("Reply", [10, 10], "#6f6a60")], "tokens": {}}}
     # The styles reading tells like siblings apart by order, so the first Reply's key

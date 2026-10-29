@@ -857,9 +857,16 @@ html[data-lf-region-capture] main * {
      row holding focus. So nothing below moves when it appears. It stays in the
      accessibility tree, so a screen reader reads it as its command's description.
      Without hover, a finger has no route to a hidden one, so there each description
-     shows at rest under its command. */
+     shows at rest under its command.
+
+     Each row is its command's press, an option of the results' listbox
+     (command-reference.js), so a press anywhere on it runs the command, and the row
+     face (controls.css, `.lf-row`) draws its wash and its ring inside it. It runs the
+     list's width and 6px past it at either end, as wide as its wash. */
   .lf-command-reference-row:not([hidden]) {
     position: relative;
+    box-sizing: border-box;
+    width: calc(100% + 12px);
     display: grid;
     grid-template-columns: minmax(0, max-content) auto minmax(0, 1fr);
     grid-template-areas: "action key desc";
@@ -886,8 +893,8 @@ html[data-lf-region-capture] main * {
   .lf-command-reference-key {
     grid-area: key;
   }
-  /* A walk lands a command's row (command-reference.js), and the row's ring stands
-     past its edge, so the row keeps the ring's room as a landing's margin. */
+  /* A walk lands a command's row (command-reference.js), which keeps the ring's
+     landing room around it as a margin. */
   .lf-command-reference-row {
     scroll-margin-block: var(--focus-ring-landing);
   }
@@ -900,11 +907,7 @@ html[data-lf-region-capture] main * {
     text-overflow: ellipsis;
     opacity: 0;
   }
-  .lf-command-reference-row:is(
-      :hover,
-      [aria-selected="true"],
-      :has(.lf-command-reference-command[data-lf-focus])
-    )
+  .lf-command-reference-row:is(:hover, [aria-selected="true"], [data-lf-focus])
     .lf-command-reference-description {
     opacity: 1;
   }
@@ -918,8 +921,7 @@ html[data-lf-region-capture] main * {
       white-space: normal;
     }
     /* Up into the slack of its command's aim floor, which centers one line in 44px. */
-    .lf-command-reference-row:has(.lf-command-reference-command)
-      .lf-command-reference-description {
+    .lf-command-reference-command .lf-command-reference-description {
       margin-top: calc((1lh - var(--aim-floor)) / 2);
     }
   }
@@ -939,32 +941,6 @@ html[data-lf-region-capture] main * {
     flex: none;
     color: var(--muted);
     font-size: var(--t-6);
-  }
-  /* A row's command is its one control: the button stretches over the row, so a press
-     on its keys or description runs it too, and the row wears its wash and focus ring. */
-  .lf-command-reference-command {
-    flex: none;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-  .lf-command-reference-command::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-  }
-  .lf-command-reference-command[data-lf-focus-visible] {
-    outline: none;
-  }
-  .lf-command-reference-row:has(.lf-command-reference-command[data-lf-focus-visible]) {
-    outline: var(--focus-ring);
-    outline-offset: 1px;
   }
   .lf-page-map-head,
   .lf-inspection-head {

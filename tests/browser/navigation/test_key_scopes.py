@@ -1277,7 +1277,7 @@ def test_native_controls_need_no_generic_space_binding(browser, serve):
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
     expect(help_el).not_to_contain_text("On a control")
-    expect(help_el.get_by_role("row").filter(has_text="Grab the card")).to_contain_text(
+    expect(help_el.get_by_role("option").filter(has_text="Grab the card")).to_contain_text(
         "space"
     )
     page.keyboard.press("Escape")

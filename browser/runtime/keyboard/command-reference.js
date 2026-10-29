@@ -623,71 +623,73 @@ function activateCommandEntry(entry) {
   });
 }
 
+// A command is one option of the results' listbox, a row (prepaint.js,
+// `ACTION_FACES`) holding its title, its keys and its description, so the whole row is
+// the press and wears the row's wash and ring. One that can't run from the catalog, a
+// gesture with no command to run, stands as a disabled option at the same face.
 function commandEntryTemplate(entry, promoted = false, shown = true) {
   const selected = commandReferenceView.selectedCommandId === entry.id;
-  const action = entry.actionable
-    ? html`<button
-        type="button"
-        class="lf-command-reference-command"
-        data-lf-command=${entry.id}
-        data-lf-available=${String(entry.available)}
-        data-lf-selected=${String(selected)}
-        aria-describedby=${[
-          entry.keySequence ? entry.keyId : null,
-          entry.description ? entry.descriptionId : null,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        title=${
-          [entry.description, entry.available ? "" : entry.unavailableMessage]
-            .filter(Boolean)
-            .join("\n") || nothing
-        }
-        @click=${() => activateCommandEntry(entry)}
-        .textContent=${entry.title}
-      ></button>`
-    : entry.title;
+  const titleId = `${entry.rowId}-title`;
   const scope = promoted
     ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>`
     : nothing;
   // Whitespace in these cells is observable to accessibility and command consumers.
   // prettier-ignore
-  const actionCell = html`<div role="gridcell" class="lf-command-reference-action">${action}${scope}</div>`;
-  // prettier-ignore
-  const descriptionCell = entry.description ? html`<div role="gridcell" id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</div>` : nothing;
-  return html`
-    <div
+  const cells = html`<span class="lf-command-reference-action"><span id=${titleId} class="lf-command-reference-title-words">${entry.title}</span>${scope}</span><span class="lf-command-reference-key">${
+      entry.keySequence
+        ? keySequenceTemplate(entry.keySequence, {
+            id: entry.keyId,
+            label: entry.keyLabel,
+          })
+        : nothing
+    }</span>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}`;
+  const rowClass = `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`;
+  if (!entry.actionable)
+    return html`<div
       id=${entry.rowId}
-      role="row"
-      ${offeredAction(
-        "row",
-        `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`,
-      )}
+      role="option"
+      ${offeredAction("row", rowClass)}
       data-lf-command=${entry.id}
-      aria-selected=${entry.actionable ? String(selected) : nothing}
+      aria-disabled="true"
+      aria-labelledby=${titleId}
       ?hidden=${!shown}
     >
-      ${actionCell}
-      <div role="gridcell" class="lf-command-reference-key">
-        ${
-          entry.keySequence
-            ? keySequenceTemplate(entry.keySequence, {
-                id: entry.keyId,
-                label: entry.keyLabel,
-              })
-            : nothing
-        }
-      </div>
-      ${descriptionCell}
-    </div>
-  `;
+      ${cells}
+    </div>`;
+  return html`<button
+    type="button"
+    id=${entry.rowId}
+    role="option"
+    ${offeredAction("row", `${rowClass} lf-command-reference-command`)}
+    data-lf-command=${entry.id}
+    data-lf-available=${String(entry.available)}
+    data-lf-selected=${String(selected)}
+    aria-selected=${String(selected)}
+    aria-labelledby=${titleId}
+    aria-describedby=${[
+      entry.keySequence ? entry.keyId : null,
+      entry.description ? entry.descriptionId : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || nothing}
+    title=${
+      [entry.description, entry.available ? "" : entry.unavailableMessage]
+        .filter(Boolean)
+        .join("\n") || nothing
+    }
+    ?hidden=${!shown}
+    @click=${() => activateCommandEntry(entry)}
+  >
+    ${cells}
+  </button>`;
 }
 
+// A section's heading names the group of each command under it (`aria-labelledby`), as
+// a listbox holds only options and their groups, so it stands out of the
+// accessibility tree itself.
 const headingRow = (id, title, hidden = false) => html`
-  <div role="rowgroup" ?hidden=${hidden}>
-    <div role="row">
-      <div role="gridcell"><h3 class="lf-label" id=${id}>${title}</h3></div>
-    </div>
+  <div role="none" ?hidden=${hidden}>
+    <h3 class="lf-label" id=${id} aria-hidden="true">${title}</h3>
   </div>
 `;
 
@@ -749,7 +751,7 @@ const commandReferenceItems = () => {
 function commandReferenceItemTemplate(item) {
   if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
   return html`<div
-    role="rowgroup"
+    role="group"
     aria-labelledby=${
       item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId
     }
@@ -796,14 +798,17 @@ function commandReferenceTemplate() {
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"
-      role="grid"
+      role="listbox"
       aria-label="Command reference"
     >
       ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
-      <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
-        <div class="lf-command-reference-empty" role="gridcell">
-          No matching commands
-        </div>
+      <div
+        class="lf-command-reference-empty"
+        role="option"
+        aria-disabled="true"
+        ?hidden=${commandReferenceView.shown !== 0}
+      >
+        No matching commands
       </div>
     </div>
   `;
@@ -818,7 +823,7 @@ function presentCommandReference() {
   keeps(search, "role", "combobox");
   keeps(search, "aria-autocomplete", "list");
   keeps(search, "aria-expanded", "true");
-  keeps(search, "aria-haspopup", "grid");
+  keeps(search, "aria-haspopup", "listbox");
   const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
   if (search.ariaControlsElements?.[0] !== results)
     search.ariaControlsElements = [results];
@@ -976,7 +981,7 @@ function moveCommandReferenceSelection(dir) {
   presentCommandReference();
   const next = commandButton(nextId);
   if (focusedId) focusDestination(next, "move");
-  scrollIntoView(next.closest('[role="row"]'), { block: "nearest" });
+  scrollIntoView(next, { block: "nearest" });
   beginWalk("shortcut-command", "Command", () => {
     const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
     return listWalkPosition(

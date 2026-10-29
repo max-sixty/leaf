@@ -898,9 +898,9 @@ def test_align_current_item_keeps_obligation_control_heading_selection_and_histo
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     page.get_by_role("combobox", name="Search commands").fill("g z")
-    alignment = reference.locator('[role=row][data-lf-command="reading.align.top"]')
+    alignment = reference.locator('[role=option][data-lf-command="reading.align.top"]')
     expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
-    alignment.get_by_role("button").click()
+    alignment.click()
     expect(reference).to_be_hidden()
     # The reference hands focus back before the current-location paint. Its command can align
     # before the ring supplies a scroll margin; either landing clears the pinned band.

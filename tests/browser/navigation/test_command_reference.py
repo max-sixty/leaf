@@ -172,7 +172,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
 
     # The reference advertises the whole palette even while its controls are closed.
     expect(
-        help_el.locator('[role=row][data-lf-command="response.reaction.choose"] kbd')
+        help_el.locator('[role=option][data-lf-command="response.reaction.choose"] kbd')
     ).to_have_text("1–6")
 
     # Tab is the browser's in the modal: it walks the reference and out to the browser's
@@ -256,7 +256,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
         re.compile(r" · ⏎ activate$")
     )
-    first_row = commands.first.locator("xpath=ancestor::*[@role='row'][1]")
+    first_row = commands.first
     assert search.evaluate(
         "input => input.ariaActiveDescendantElement?.id"
     ) == first_row.get_attribute("id")
@@ -269,7 +269,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("ArrowUp")
     expect(search).to_be_focused()
     expect(commands.last).to_have_attribute("data-lf-selected", "true")
-    last_row = commands.last.locator("xpath=ancestor::*[@role='row'][1]")
+    last_row = commands.last
     assert search.evaluate(
         "input => input.ariaActiveDescendantElement?.id"
     ) == last_row.get_attribute("id")
@@ -288,13 +288,13 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
           const results = help.querySelector('.lf-command-reference-results');
           return {{
             overflow: results.scrollWidth - results.clientWidth,
-            keys: [...help.querySelectorAll('[role=row]:not([hidden]) .lf-binding-sequence')]
+            keys: [...help.querySelectorAll('[role=option]:not([hidden]) .lf-binding-sequence')]
               .map(key => {{
                 const box = key.getBoundingClientRect();
-                const row = key.closest('[role=row]');
+                const row = key.closest('[role=option]');
                 return {{
                   command: row.dataset.lfCommand,
-                  outside: box.right - key.closest('[role=gridcell]').getBoundingClientRect().right,
+                  outside: box.right - key.closest('.lf-command-reference-key').getBoundingClientRect().right,
                   covers: overlap(box, row.querySelector('.lf-command-reference-action')
                     .getBoundingClientRect()),
                 }};
@@ -308,11 +308,11 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     ], geometry
     search.fill("space")
     matches = help_el.locator(
-        ".lf-command-reference-binding-matches [role=row][data-lf-command]:visible"
+        ".lf-command-reference-binding-matches [role=option][data-lf-command]:visible"
     ).evaluate_all(
         f"""rows => rows.map(row => {{
           const overlap = {overlap};
-          const command = row.querySelector('.lf-command-reference-command');
+          const command = row.querySelector('.lf-command-reference-title-words');
           const words = document.createRange();
           words.selectNodeContents(command);
           return {{
@@ -331,7 +331,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     # filtered DOM, which is both the visual order and the Arrow-key command rail. A
     # trailing separator asks for continuations, and case puts the shifted face first.
     search.fill("g ")
-    ranked = help_el.locator("[role=row][data-lf-command]:visible").evaluate_all(
+    ranked = help_el.locator("[role=option][data-lf-command]:visible").evaluate_all(
         """rows => rows.map(row => ({
           command: row.dataset.lfCommand,
           binding: [...row.querySelectorAll('kbd')].map(key => key.textContent).join(' '),
@@ -352,14 +352,14 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     )
     search.fill("g t")
     assert (
-        help_el.locator("[role=row][data-lf-command]:visible").first.get_attribute(
+        help_el.locator("[role=option][data-lf-command]:visible").first.get_attribute(
             "data-lf-command"
         )
         == "navigation.target.filter.threads"
     )
     search.fill("g T")
     assert (
-        help_el.locator("[role=row][data-lf-command]:visible").first.get_attribute(
+        help_el.locator("[role=option][data-lf-command]:visible").first.get_attribute(
             "data-lf-command"
         )
         == "navigation.panel.threads"
@@ -375,16 +375,16 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     )
     search.fill("Tab")
     tab_matches = help_el.locator(
-        ".lf-command-reference-binding-matches [role=row][data-lf-command]:visible"
+        ".lf-command-reference-binding-matches [role=option][data-lf-command]:visible"
     ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
     assert "panel.floating.menu.leave-forward" in tab_matches, tab_matches
     search.fill("w")
-    w_results = help_el.locator("[role=row][data-lf-command]:visible").evaluate_all(
+    w_results = help_el.locator("[role=option][data-lf-command]:visible").evaluate_all(
         "rows => rows.map(row => row.dataset.lfCommand)"
     )
     assert w_results.index("draw.mode.exit") < w_results.index("page.down"), w_results
     w_matches = help_el.locator(
-        ".lf-command-reference-binding-matches [role=row][data-lf-command]:visible"
+        ".lf-command-reference-binding-matches [role=option][data-lf-command]:visible"
     ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
     assert "draw.mode.exit" in w_matches, w_matches
     assert w_results.index("page.down") >= len(w_matches), w_results
@@ -395,11 +395,11 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     )
     expect(result).to_have_count(1)
     expect(result).to_have_attribute("data-lf-command", "thread.resolution.toggle")
-    expect(search).to_have_attribute("aria-haspopup", "grid")
+    expect(search).to_have_attribute("aria-haspopup", "listbox")
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
     expect(result).to_have_attribute("data-lf-selected", "true")
-    expect(result.locator("xpath=ancestor::*[@role='row'][1]")).to_have_attribute(
+    expect(result).to_have_attribute(
         "aria-selected", "true"
     )
     page.keyboard.type("!")
@@ -501,9 +501,9 @@ def test_the_reference_enters_named_go_to_destinations(
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     page.get_by_role("combobox", name="Search commands").fill(command)
-    row = reference.locator(f'[role=row][data-lf-command="{command}"]')
+    row = reference.locator(f'[role=option][data-lf-command="{command}"]')
     expect(row.locator(".lf-binding-sequence > kbd")).to_have_text(["g", suffix])
-    row.get_by_role("button").click()
+    row.click()
     expect(reference).to_be_hidden()
     expect(destination).to_be_visible()
     page.wait_for_function(
@@ -524,7 +524,7 @@ def test_a_command_reference_versions_press_enters_the_menu_from_the_leaf(
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     page.get_by_role("combobox", name="Search commands").fill("version.open")
-    reference.locator('[role=row][data-lf-command="version.open"] button').click()
+    reference.locator('[role=option][data-lf-command="version.open"]').click()
     versions = page.locator('.lf-fp-menu[data-level="versions"]')
     expect(versions).to_be_visible()
     expect(versions.locator(".lf-fp-item:focus")).to_have_count(1)
@@ -612,7 +612,7 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
     search.fill("r")
     expect(result).to_have_attribute("data-lf-selected", "true")
     expect(result).to_have_attribute("tabindex", "0")
-    row = result.locator("xpath=ancestor::*[@role='row'][1]")
+    row = result
     expect(row).to_have_attribute("aria-selected", "true")
     assert search.evaluate(
         "input => input.ariaActiveDescendantElement?.id"
@@ -721,8 +721,12 @@ def test_the_reference_runs_the_exact_numbered_obligation_action(browser, serve)
     second = page.locator(
         '.lf-command-reference-command[data-lf-command="option.choose-lq-token"]'
     )
-    expect(first).to_have_text("Keep the store")
-    expect(second).to_have_text("Signed tokens")
+    expect(first.locator(".lf-command-reference-title-words")).to_have_text(
+        "Keep the store"
+    )
+    expect(second.locator(".lf-command-reference-title-words")).to_have_text(
+        "Signed tokens"
+    )
 
     second.click()
     expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
@@ -742,12 +746,12 @@ def test_away_from_an_obligation_the_reference_names_widget_owned_options(
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
-    first = reference.locator('[role=row][data-lf-command="option.choose-lq-keep"]')
-    second = reference.locator('[role=row][data-lf-command="option.choose-lq-token"]')
-    expect(first.locator(".lf-command-reference-command")).to_have_attribute(
+    first = reference.locator('[role=option][data-lf-command="option.choose-lq-keep"]')
+    second = reference.locator('[role=option][data-lf-command="option.choose-lq-token"]')
+    expect(first).to_have_attribute(
         "data-lf-available", "false"
     )
-    expect(second.locator(".lf-command-reference-command")).to_have_attribute(
+    expect(second).to_have_attribute(
         "data-lf-available", "false"
     )
     expect(first.locator("kbd")).to_have_text("1")
@@ -797,14 +801,14 @@ def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
     rows = page.evaluate(
         """() => {
           const listed = []; let inside = false;
-          for (const row of document.querySelectorAll('.lf-command-reference [role=row]')) {
-            const heading = row.querySelector('h3');
-            if (heading) { inside = heading.textContent === 'In the floating panel'; continue; }
+          for (const row of document.querySelectorAll(
+            '.lf-command-reference h3, .lf-command-reference [role=option]')) {
+            if (row.matches('h3')) { inside = row.textContent === 'In the floating panel'; continue; }
             if (!inside || !row.dataset.lfCommand) continue;
             listed.push([
               row.dataset.lfCommand,
               [...row.querySelectorAll('kbd')].map(key => key.textContent.trim()).join(' '),
-              row.querySelector('.lf-command-reference-command').textContent,
+              row.querySelector('.lf-command-reference-title-words').textContent,
             ]);
           }
           return listed;
@@ -858,12 +862,12 @@ def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, ser
     count = buttons.count()
     assert count > 10, "the command walk must extend beyond the visible results"
     last_command = buttons.last.evaluate(
-        "button => button.closest('[role=row]').dataset.lfCommand"
+        "button => button.dataset.lfCommand"
     )
     before = page.evaluate("scrollY")
     search.press("ArrowUp")
     rendered(page)
-    selected = page.locator('.lf-command-reference [role=row][aria-selected="true"]')
+    selected = page.locator('.lf-command-reference [role=option][aria-selected="true"]')
     expect(selected).to_have_attribute("data-lf-command", last_command)
     expect(search).to_be_focused()
     bounds = selected.evaluate("""row => {

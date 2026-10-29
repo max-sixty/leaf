@@ -83,13 +83,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     )
     expect(
         page.locator(
-            ".lf-command-reference [role=row]",
+            ".lf-command-reference [role=option]",
             has_text="Next on me",
         ).locator("kbd")
     ).to_have_text("m")
     expect(
         page.locator(
-            ".lf-command-reference [role=row]",
+            ".lf-command-reference [role=option]",
             has_text="Previous on me",
         ).locator("kbd")
     ).to_have_text("M")
@@ -389,7 +389,7 @@ def shown_commands(page):
     help_el = page.locator(".lf-command-reference")
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
-    reference = help_el.locator("[role=row][data-lf-command]").evaluate_all(
+    reference = help_el.locator("[role=option][data-lf-command]").evaluate_all(
         "rows => rows.map(r => r.dataset.lfCommand)"
     )
     runnable = help_el.locator(

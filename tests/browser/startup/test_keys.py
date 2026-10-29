@@ -621,7 +621,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
         )
     ).to_be_visible()
     expect(
-        page.locator('.lf-command-reference [role=row][data-lf-command="draft.edit"]')
+        page.locator('.lf-command-reference [role=option][data-lf-command="draft.edit"]')
     ).to_be_attached()
     # Help is a scope: the table stands down behind it, so c must open nothing under
     # the sheet, neither a panel view nor the page comment in the panel's field.

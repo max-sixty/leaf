@@ -404,7 +404,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 button.lf-inline-action,
 .lf-react,
 .lf-margin-entry,
-.lf-command-reference-command,
 .lf-quote {
   min-width: var(--aim-floor);
   min-height: var(--lf-face-floor, var(--aim-floor));

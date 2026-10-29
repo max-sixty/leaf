@@ -477,12 +477,12 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
 
     page.keyboard.press("?")
     goto = command_reference_rows(page, "Go to")
-    filters = goto.locator('[role=row][data-lf-command^="navigation.target.filter."]')
+    filters = goto.locator('[role=option][data-lf-command^="navigation.target.filter."]')
     assert filters.evaluate_all(
         """rows => rows.map(row => ({
           command: row.dataset.lfCommand,
           keys: [...row.querySelectorAll('kbd')].map(key => key.textContent),
-          action: row.querySelector('.lf-command-reference-command').textContent,
+          action: row.querySelector('.lf-command-reference-title-words').textContent,
         }))"""
     ) == [
         {
@@ -507,7 +507,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         },
     ]
     expect(filters.locator(".lf-command-reference-description")).to_have_count(0)
-    target_help = goto.locator('[role=row][data-lf-command="navigation.target"]')
+    target_help = goto.locator('[role=option][data-lf-command="navigation.target"]')
     expect(target_help.locator("kbd")).to_have_text(["g", "letters"])
     expect(target_help).to_contain_text("Visible target")
     expect(target_help).not_to_contain_text("filter first")
@@ -697,18 +697,18 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     page.keyboard.press("?")
     goto = command_reference_rows(page, "Go to")
     reference_commands = set(
-        page.locator(".lf-command-reference [role=row][data-lf-command]").evaluate_all(
+        page.locator(".lf-command-reference [role=option][data-lf-command]").evaluate_all(
             "rows => rows.map(row => row.dataset.lfCommand)"
         )
     )
     alignment = page.locator(
-        '.lf-command-reference [role=row][data-lf-command="reading.align.top"]'
+        '.lf-command-reference [role=option][data-lf-command="reading.align.top"]'
     )
     expect(alignment).to_have_count(1)
     # Alignment has a page-level route even when no reading item stands while
     # the reference opens from chrome.
     expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
-    overlaps = goto.locator("[role=row][data-lf-command]").evaluate_all(
+    overlaps = goto.locator("[role=option][data-lf-command]").evaluate_all(
         """rows => rows.flatMap(row => {
           const key = row.querySelector('.lf-command-reference-key')
             .firstElementChild.getBoundingClientRect();
@@ -1228,7 +1228,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(setting).to_be_focused()
     setting.press("Space")
     expect(setting).not_to_be_checked()
-    comment = reference.locator('[role=row][data-lf-command="comment.create"]')
+    comment = reference.locator('[role=option][data-lf-command="comment.create"]')
     expect(comment.locator("kbd")).to_have_count(0)
     # Disabling the key makes the command actionable even from the text field where
     # that key was previously reserved for typing.
@@ -1265,9 +1265,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(button).not_to_have_attribute("title", re.compile(r"\(1\)"))
     settings()
     page.get_by_role("combobox", name="Search commands").fill("Comment on an element")
-    reference.locator('[role=row][data-lf-command="target.picker.open"]').get_by_role(
-        "button"
-    ).click()
+    reference.locator('[role=option][data-lf-command="target.picker.open"]').click()
     rendered(page)
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
     expect(page.locator(".lf-live")).not_to_contain_text("type one of")
@@ -1330,9 +1328,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     page.locator("body").focus()
     settings()
     page.get_by_role("combobox", name="Search commands").fill("Comment on an element")
-    reference.locator('[role=row][data-lf-command="target.picker.open"]').get_by_role(
-        "button"
-    ).click()
+    reference.locator('[role=option][data-lf-command="target.picker.open"]').click()
     rendered(page)
     expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
     page.keyboard.press("Escape")

@@ -2007,7 +2007,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     expect(
-        reference.locator('[role=row][data-lf-command="aim.comment"]')
+        reference.locator('[role=option][data-lf-command="aim.comment"]')
     ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")

@@ -3744,7 +3744,7 @@ def test_versions_rests_the_page_s_keys_and_takes_a_version_s_number(browser, se
     reference = page.locator(".lf-command-reference")
     expect(
         reference.locator(
-            '[role=row][data-lf-command="panel.floating.versions.pick"] kbd'
+            '[role=option][data-lf-command="panel.floating.versions.pick"] kbd'
         )
     ).to_have_text(["1–3"])
     page.keyboard.press("Escape")

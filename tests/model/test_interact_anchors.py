@@ -82,6 +82,17 @@ def test_an_empty_quote_neighbour_is_an_exact_boundary():
     assert resolve_quote(revised, anchor) is None
 
 
+def test_a_whitespace_quote_refuses_instead_of_searching_forever(page_dir):
+    result = comment(
+        published(page_dir), "--quote", " \t\n ", "--text", "Which passage?"
+    )
+    assert result.exit_code != 0, result.output
+    assert refused_on(result.output).code == "unanchorable"
+    assert not any(
+        event["kind"] == "comment" for event in events_model.read_events(page_dir)
+    )
+
+
 def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_dir):
     """Admission/revision preserve uncertainty; unique file capture stays ordinary."""
     from leaf.anchor_capture import resolve_quote

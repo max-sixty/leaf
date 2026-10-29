@@ -67,7 +67,7 @@ def invalid(directory: Path):
     if record is not None:
         record['lifetim']
         record['port'] = '8080'
-        record['lifetime'] = 'persistant'
+        record['lifetime'] = 'temporary'
     ACCESS.write(directory, {'token': None})
     ACCESS.write(directory, {})
 """

@@ -208,7 +208,7 @@
     },
   ];
 
-  function createView(host, { offerElement, generatedElement }) {
+  function createView(host, { offerActionElement, generatedElement }) {
     const { html, ref } = document.documentElement.lfInitial.lit;
     const samples = GROUPS.map((group, groupIndex) =>
       group.samples.map((sample, sampleIndex) => ({
@@ -222,8 +222,9 @@
     const face = (entry) =>
       ref((node) => {
         if (node)
-          entry.control = offerElement(
+          entry.control = offerActionElement(
             node,
+            "entry",
             "margin-entry-gallery-face lf-margin-entry",
           );
       });

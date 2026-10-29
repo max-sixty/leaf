@@ -584,7 +584,9 @@ summary,
  * presses, the floating panel's included, stand beside its neighbours' alike. The
  * presses that still keep a face of their own, each family drawn by its one owner,
  * are listed with the reason no role serves them yet in `PRESS_FAMILIES`
- * (tests/model/test_interact_layer.py).
+ * (tests/model/test_interact_layer.py). One face stands elsewhere, the entry's, in
+ * base.css beside the margin it is drawn for, and the response face extends the
+ * response bar's shared frame in response.css.
  *
  * The word face: words in the muted ink with no frame, until a hovering pointer or
  * visible focus lays the chip under them and inks them. A press leaves focus on the

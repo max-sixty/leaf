@@ -1589,11 +1589,15 @@ def _bundled_modules():
 PRESS_FAMILIES = {
     "the composer's actions": (
         {"lf-compose-submit", "lf-compose-dictate"},
-        "Send and Dictate, which wireInput draws as a glyph on a disc in the field",
+        "Send and Dictate, which wireInput draws as a glyph on a disc in the field;"
+        " the symbol role awaits the composer's own change",
     ),
     "keyboard stops": (
         {"lf-mark-note", "lf-visual-action", "lf-gloss-mark"},
-        "the keyboard's stop, unseen at rest, for what the pointer takes on the page",
+        "the keyboard's stop, unseen at rest, for what the pointer takes on the page;"
+        " it shows two ways when reached, a card at the window's head (a comment note,"
+        " a picture's proxy) or a ring on its host (a gloss), and which is the role's"
+        " face is the user's choice",
     ),
 }
 

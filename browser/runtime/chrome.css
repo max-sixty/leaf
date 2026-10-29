@@ -890,6 +890,14 @@ html[data-lf-region-capture] main * {
     align-items: baseline;
     gap: 8px;
   }
+  /* A command's words stand the aim floor tall, as the button they were stood, so a
+     row is as tall as it was and a finger's description rises into the slack
+     (below). */
+  .lf-command-reference-command > .lf-command-reference-action {
+    box-sizing: content-box;
+    min-height: var(--aim-floor);
+    align-content: center;
+  }
   .lf-command-reference-key {
     grid-area: key;
   }

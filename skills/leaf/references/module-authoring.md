@@ -436,20 +436,13 @@ The roles are:
 - `"row"`, one row of a list or menu, its words in the ink; the row under the pointer
   or the keys is washed. Give the row the list stands on, such as the step a timeline
   shows, `aria-current`, which draws it with the accent's stripe and tint.
-- `"answer"`, one of the answers a question offers the user, framed so the set reads
-  as one to pick from; `label` is its words. Give the chosen one `aria-pressed="true"`,
-  which marks it in the ok tone, as a chosen option is.
-- `"entry"`, a margin entry. Leaf builds these from a package's contributions
-  (`contributionEntry`); a widget doesn't build one itself.
-- `"reaction"`, a reaction's token in a message's strip, showing its own glyph. Give
-  one in force `aria-pressed="true"`, which keeps it in the accent.
-- `"response"`, a choice of the response bar, which Leaf builds for Comment, Suggest
-  and each reaction.
-- `"gutter"`, a line's number in a code view's gutter that takes a comment on its
-  line; `label` is the number. Its seat places it over the gutter and shows its + for
-  the line under the pointer.
-- `"picture"`, a picture that opens larger in the media viewer, its face the picture
-  itself.
+- `"answer"`, one of the answers a question offers, framed; give the chosen one
+  `aria-pressed="true"`, drawn in the ok tone.
+- `"entry"`, a margin entry; Leaf builds these.
+- `"reaction"`, a reaction in a message's strip, `aria-pressed="true"` in force.
+- `"response"`, a response bar's choice; Leaf builds these.
+- `"gutter"`, a line's number in a code gutter that takes a comment.
+- `"picture"`, a picture that opens in the media viewer; its face is the picture.
 
 `className` places the control; don't restyle its face. Use a symbol where a standard
 symbol for the action exists, one readers know from other software, and words where

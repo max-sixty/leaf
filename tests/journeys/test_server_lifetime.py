@@ -74,7 +74,9 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     # The record names the serving incarnation, which its responses carry as
     # `Leaf-Server`. Read the record rather than the server: a fetch the server
     # closes leaves the port in TIME_WAIT, and the restart would wait that out.
-    before = server_model.running_server(page_dir)["server_id"]
+    original = server_model.running_server(page_dir)
+    assert original is not None
+    before = original["server_id"]
     claim = service_model.page_claim(page_dir)
     layer = layer_record(page_dir)
     assert layer is not None
@@ -109,7 +111,8 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     assert layer_2 is not None
     assert (layer_2["generation"] != generation) == changed
     assert (incarnation() != before) == changed
-    assert server_model.running_server(page_dir)["url"] == url
+    assert (current := server_model.running_server(page_dir)) is not None
+    assert current["url"] == url
     # The restart claims nothing, so the turn the claim records is left as it was.
     assert service_model.page_claim(page_dir) == claim
     assert waiter.poll() is None, waited.read_text()
@@ -234,7 +237,8 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     # The old server went down with the restart, and this checkout's came up in its
     # place at the same URL, under the lifetime and claim it had.
     old_server.wait(timeout=STATED_TIMEOUT)
-    assert server_model.running_server(page_dir)["url"] == url
+    assert (current := server_model.running_server(page_dir)) is not None
+    assert current["url"] == url
     assert read_record(page_dir / "service.json")["lifetime"] == lifetime
     assert service_model.page_claim(page_dir) == prior_owner
     restored = declared(page_dir)

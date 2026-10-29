@@ -3059,8 +3059,8 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
     )
     access = server_model.page_access(page_dir, "box.tailnet.example")
     assert access["host"] == "box.tailnet.example" and access["bind"] == "::"
-    assert access["port"] == 41234
-    assert access["lifetime"] == "persistent"
+    assert access.get("port") == 41234
+    assert access.get("lifetime") == "persistent"
 
 
 def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessionless):
@@ -3409,13 +3409,15 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     neighbour_page(neighbor, title="Repairable", dead=True, port=0)
     hosting_model.start_server(neighbor, persistent=True, harness=None)
     wait_for(
-        lambda: server_rows_model.read_row(
-            neighbor, server_model.running_server(neighbor)
+        lambda: (
+            (current := server_model.running_server(neighbor))
+            and server_rows_model.read_row(neighbor, current)
         ),
         bool,
         failure="the server did not publish a row",
     )
-    original = server_model.running_server(neighbor)["server_id"]
+    original = server_model.running_server(neighbor)
+    assert original is not None
     (neighbor / "stream.json").write_text("{invalid")
     wait_for(
         lambda: server_model.running_server(neighbor),
@@ -3427,8 +3429,9 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     write_record(neighbor / "stream.json", {})
     declare_work(neighbor, "repaired", ts=cleanup_model.now_iso())
     hosting_model.start_server(neighbor, persistent=True, revive=True, harness=None)
-    renewed = server_model.running_server(neighbor)["server_id"]
-    assert renewed != original
+    renewed = server_model.running_server(neighbor)
+    assert renewed is not None
+    assert renewed["server_id"] != original["server_id"]
     [row] = wait_for(
         lambda: presence_model.other_leaves(page_dir),
         lambda rows: len(rows) == 1 and rows[0]["activity"]["detail"] == "repaired",
@@ -4740,8 +4743,9 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
         assert len(successor) == 1
         assert fetch(successor[0].url)[0] == 200
         wait_for(
-            lambda: server_rows_model.read_row(
-                page_dir, server_model.running_server(page_dir)
+            lambda: (
+                (current := server_model.running_server(page_dir))
+                and server_rows_model.read_row(page_dir, current)
             ),
             bool,
             failure="the accepted successor did not publish its own serving row",
@@ -4762,6 +4766,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     record_claim(neighbor, id="private-revival")
     hosting_model.start_server(neighbor, persistent=True, harness=None)
     previous = server_model.running_server(neighbor)
+    assert previous is not None
     wait_for(
         lambda: server_rows_model.read_row(neighbor, previous),
         bool,
@@ -4813,6 +4818,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
                 )
                 assert rows[0]["title"] == "Private revival"
                 current = server_model.running_server(neighbor)
+                assert current is not None
                 assert current["server_id"] != previous["server_id"]
                 assert (
                     files_model.read_json(server_rows_model.row_path(neighbor))[
@@ -4838,6 +4844,7 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
     """A producer constructor failure publishes neither service nor acquisition."""
     hosting_model.start_server(page_dir, persistent=True, harness=None)
     previous = server_model.running_server(page_dir)
+    assert previous is not None
     wait_for(
         lambda: server_rows_model.read_row(page_dir, previous),
         bool,

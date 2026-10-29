@@ -802,7 +802,9 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
     enabled and down in just this way. Only a stop, or the claim leaving this
     session, ends the preview."""
     _, _, directory, process, url, log = served_preview
-    port = server_model.running_server(directory)["port"]
+    original = server_model.running_server(directory)
+    assert original is not None
+    port = original["port"]
     claim = service_model.page_claim(directory)
     events = (directory / "events.jsonl").read_bytes()
     # Hold the watcher while taking the stopped server's port. Revival waits for
@@ -831,13 +833,13 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
         assert server_model.running_server(directory) is None
         assert files_model.read_json(directory / "service.json")["enabled"]
 
-    wait_for(
+    restored = wait_for(
         lambda: server_model.running_server(directory),
         bool,
         failure="the preview did not bring its server back",
     )
     assert process.poll() is None, log.read_text()
-    assert server_model.running_server(directory)["port"] == port
+    assert restored["port"] == port
     wait_for(
         lambda: _reachable(url),
         bool,

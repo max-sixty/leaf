@@ -40,8 +40,6 @@ from interact_support import (
     state_json,
     words,
 )
-from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -64,6 +62,8 @@ from leaf.validation.admission import (
     revision_publication,
 )
 from leaf.validation.instances import reference_errors
+from leaf_dev.example_data import regression_sources
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
@@ -1328,6 +1328,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
         ("Crawler", "worker-2"),
     ]
     session = service_model.page_claim(page_dir)
+    assert session is not None
     assert session["id"] == "hub" and session["agent"] == "Hub"
     assert page_state(page_dir)["agent"] == "Hub"
 
@@ -1373,6 +1374,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     update = json.loads(posted.output)
     assert update["ephemeral"] is True and "responds" not in update
     start = todos_model.start_reading(update)
+    assert start is not None
     assert (start["item"], start["text"]) == (root["id"], "Checking the camera.")
     assert events_model.read_events(claimed)[-1] == update
     [working] = page_state(claimed)["workflows"]

@@ -3,6 +3,7 @@
 import json
 
 from click.testing import CliRunner
+
 from leaf_dev.arrangement_eval import comparison_inputs
 from leaf_dev.commands import eval_discover
 

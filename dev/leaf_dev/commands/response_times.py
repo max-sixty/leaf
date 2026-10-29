@@ -118,7 +118,7 @@ def visible_feedback(
             origin["ts"]
         ):
             origins[identity] = row
-    result = {}
+    result: dict[str, dict] = {}
     for row in browser:
         if row["type"] != "reply_visible" or row["visibility"] != "visible":
             continue
@@ -130,6 +130,7 @@ def visible_feedback(
         origin = origins.get(identity)
         if origin is None or row["session"] != origin["session"]:
             continue
+        assert identity is not None
         result.setdefault(
             identity,
             {
@@ -182,7 +183,7 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
         (row for row in observations if row["source"] == "semantic"),
         key=lambda row: row["event_seq"],
     )
-    rows = {}
+    rows: dict[str, dict] = {}
     admitted_times = {}
     input_attempts = {}
     reply_inputs = {}
@@ -363,7 +364,11 @@ def breakdown(row: dict, commands: list[dict]) -> dict | None:
         milestones["opened"]["at"],
         answered["at"],
     )
-    return {**reply, "case": "working" if reply["busyMs"] else "waiting"}
+    return (
+        {**reply, "case": "working" if reply["busyMs"] else "waiting"}
+        if reply is not None
+        else None
+    )
 
 
 def waited(row: dict, watches: list[dict]) -> dict | None:

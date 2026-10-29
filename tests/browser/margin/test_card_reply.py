@@ -23,6 +23,7 @@ from render_harness import (
     open_page,
     pane_scroll_behavior,
     resized,
+    rgb_pixel,
     round_trip,
     scroll_settled,
     sending,
@@ -561,7 +562,7 @@ def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
         """The share of the field's width along row `y`, in the clip's CSS pixels,
         drawn in the ring's colour."""
         row = [
-            pixels.getpixel((round(x * scale), round(y * scale)))
+            rgb_pixel(pixels, (round(x * scale), round(y * scale)))
             for x in range(24, round(stood["width"]) - 16)
         ]
         return sum(

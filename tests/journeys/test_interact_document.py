@@ -102,6 +102,7 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
         activated = revisioning_model.activate_source(page_dir)
         assert activated.error is None, activated.error
         assert activated.created
+        assert activated.revision is not None
         return artifact_model.read_artifact(page_dir, activated.revision)
 
     base = activate()
@@ -180,9 +181,9 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     extra.mkdir()
     (extra / "theme.css").write_text("/* another selection */\n")
     vendoring_model.cmd_init(page_dir, (*page_packages(), "./extra"))
-    reissued = artifact_model.read_artifact(
-        page_dir, files_model.latest_revision(page_dir)
-    )
+    revision_2 = files_model.latest_revision(page_dir)
+    assert revision_2 is not None
+    reissued = artifact_model.read_artifact(page_dir, revision_2)
     assert reissued.digest != redeclared.digest
     assert reissued.executable != redeclared.executable
 

@@ -125,7 +125,9 @@ def version_num(name: str) -> int:
     what you add to make a string comparison come out right, and nothing here
     compares names. `v10.html` precedes `v9.html` in every ordering a string
     has, and follows it in the only one that means anything."""
-    return int(VERSION_FILE.fullmatch(name).group("version"))
+    match = VERSION_FILE.fullmatch(name)
+    assert match is not None
+    return int(match.group("version"))
 
 
 def version_name(version: int) -> str:
@@ -134,7 +136,9 @@ def version_name(version: int) -> str:
 
 def revision_num(name: str) -> int:
     """The ordered identity carried by an immutable revision file."""
-    return int(REVISION_FILE.fullmatch(name).group("revision"))
+    match = REVISION_FILE.fullmatch(name)
+    assert match is not None
+    return int(match.group("revision"))
 
 
 class _RevisionFiles(Slot):
@@ -210,7 +214,7 @@ def unfinished_publications(page_dir: Path, events: list) -> list[dict]:
     not yet written: a publication interrupted between its prerequisite and its
     marker (`revision_artifact`), in log order."""
     published = set(list_revisions(page_dir))
-    unfinished = {}
+    unfinished: dict[int, dict] = {}
     for event in events:
         if event.get("publication") and event["revision"] not in published:
             unfinished.setdefault(event["revision"], event)

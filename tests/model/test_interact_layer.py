@@ -1900,7 +1900,7 @@ def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
         assert url.startswith("http://127.0.0.1:")
 
 
-def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index(
+def test_payload_provenance_belongs_to_the_plugin_repo_without_changing_git_state(
     tmp_path, monkeypatch
 ):
     """An enclosing repo is not the payload, and reading the payload leaves Git alone."""
@@ -1949,6 +1949,10 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
     (plugin / ".codex-marketplace-install.json").write_text("{}\n")
     index = plugin / ".git" / "index"
     before = index.stat().st_mtime_ns
+    monitor = tmp_path / "fsmonitor"
+    monitor.write_text('#!/bin/sh\n: > "$0.invoked"\nprintf "token\\0"\n')
+    monitor.chmod(0o755)
+    git(plugin, "config", "core.fsmonitor", str(monitor))
 
     committed = git(plugin, "show", "--no-patch", "--format=%cI", "HEAD").stdout.strip()
     clean = layer_model.payload_provenance(include_path=True)
@@ -1970,6 +1974,7 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
         "dirty": True,
     }
     assert index.stat().st_mtime_ns == before
+    assert not monitor.with_suffix(".invoked").exists()
 
 
 def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(

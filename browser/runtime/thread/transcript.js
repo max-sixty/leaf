@@ -82,8 +82,7 @@ function workingView(working, controls = nothing) {
                 working.timestamp
                   ? html`<time datetime=${working.timestamp}>${working.age}</time>`
                   : nothing
-              }
-              ${working.condition}</span
+              }${working.condition ? html`<span>${working.condition}</span>` : nothing}</span
             >`
           : nothing
       }

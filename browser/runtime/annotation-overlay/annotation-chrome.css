@@ -705,10 +705,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      fact doesn't fit it says one count of all that waits (held-news.js, `newsNotice`).
      A desktop card's heads keep their names and times whole beside it. On a phone's
      card, whose three controls, notice and Edit each take a finger's width, a head
-     still lacks room for both, and gives up its name first (above). Drawn whole, the
-     notice stood over the head of the user's message, which read "M51d ago".
-     Rejected: the notice wrapping beneath the actions, which would stand over the
-     first message's words in the actions' track. */
+     still lacks room for both, and gives up its parts in their order (surfaces.css).
+     Drawn whole, the notice stood over the head of the user's message, which read
+     "M51d ago". Rejected: the notice wrapping beneath the actions, which would stand
+     over the first message's words in the actions' track. */
   .lf-margin-thread .lf-margin-thread-controls .lf-thread-news {
     max-inline-size: min(
       var(--lf-news-width),

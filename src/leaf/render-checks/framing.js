@@ -40,7 +40,7 @@ const moduleOwnsBox = (el) => {
 // is painted as the parent's inset instead. So the number a stylesheet states is not the
 // number a user sees, and which of the two they get depends on what the author wrote
 // inside: a card ending in a sentence showed its 16px, the same card ending in a paragraph
-// showed 29. theme.css states the trim and a box opts in where it draws the frame
+// showed 29. base.css states the trim and a box opts in where it draws the frame
 // (`--lf-block-frame`); this is what says when one hasn't.
 //
 // It is a reading of the rendered page because nothing else can be. The trim is a style
@@ -201,7 +201,7 @@ export const laidOutItems = (box) =>
 // A frame's trim can split a row either at a box declaring the frame itself or where
 // its edge passes through a wrapper: one item's margin goes and those beside it stay.
 // A stylesheet cannot ask a box for its display, so a flex or grid box declares
-// --lf-holds-edge: 1 (theme.css) to hold either route. This names the actual split when
+// --lf-holds-edge: 1 (base.css) to hold either route. This names the actual split when
 // it hasn't; unequal margins outside a frame's trim remain the author's placement.
 // Items are in one row when their margin boxes start (or end) on the same line.
 export function splitEdges() {

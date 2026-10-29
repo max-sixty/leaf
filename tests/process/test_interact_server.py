@@ -1515,7 +1515,7 @@ def _select_another_layer(page_dir):
     a new generation."""
     extra = page_dir.parent / "extra"
     extra.mkdir(exist_ok=True)
-    (extra / "theme.css").write_text("/* another selection */\n")
+    (extra / "overrides.css").write_text("/* another selection */\n")
     vendoring_model.cmd_init(page_dir, (*page_packages(), "./extra"))
 
 
@@ -4378,7 +4378,7 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
 def test_a_frozen_preview_keeps_package_bytes_and_addresses_after_reinit(tmp_path):
     package = tmp_path / "custom"
     package.mkdir()
-    sheet = package / "widgets.css"
+    sheet = package / "defaults.css"
     sheet.write_text("p { color: red; }")
     page = tmp_path / "page"
     page.mkdir()

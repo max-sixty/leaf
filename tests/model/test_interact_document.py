@@ -3977,7 +3977,7 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
     is counted against the tokens in the same breath: it is how many series an author is
     told a chart can colour apart, and a palette one step longer than the number it
     publishes would hold a colour nobody is told to use."""
-    theme = (schema_model.ASSETS / "theme.css").read_text()
+    theme = (schema_model.ASSETS / "base.css").read_text()
     declared = json.loads((schema_model.ASSETS / "registry.json").read_text())[
         "$series"
     ]["steps"]

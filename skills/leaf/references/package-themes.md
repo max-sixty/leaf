@@ -3,9 +3,9 @@
 Read with [packages.md](packages.md), which holds the package contract and how styles
 compose. A theme is a page's look: a package whose rules style the page as a whole,
 whether or not it also declares widgets. Defaults that Layouts and the page's sheet
-should outrank, such as element rules, belong in `widgets.css`, in the layer with
+should outrank, such as element rules, belong in `defaults.css`, in the layer with
 Leaf's own defaults; rules meant to win over widget defaults and Layouts belong in
-`theme.css`. Idioms belong in either, declared in the package's registry.
+`overrides.css`. Idioms belong in either, declared in the package's registry.
 
 ## Personal themes
 
@@ -142,7 +142,7 @@ Startup behavior and transition protection follow
 ## Theme colors
 
 Use independent inputs where the foreground and background need a deliberate contrast
-choice. The default palette is declared in `browser/theme.css`:
+choice. The default palette is declared in `browser/base.css`:
 
 | Surface                  | Inputs                                                                                                                                                                                |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

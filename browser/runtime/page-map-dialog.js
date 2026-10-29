@@ -42,7 +42,7 @@ import { iconTemplate } from "./icons.js";
 import { keys, paintKeys, paintKeysWithin } from "./keyboard/scopes.js";
 import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
-import { closeControl, el, searchField } from "./widget-elements.js";
+import { closeControl, el, offeredAction, searchField } from "./widget-elements.js";
 import { keepsHidden, keepsText } from "./keeps.js";
 import { placeKeeper } from "./user-place.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -219,7 +219,7 @@ export function createPageMapDialog({
   const sheetItemTemplate = (action) => html`
     <button
       type="button"
-      class="lf-page-map-action"
+      ${offeredAction("row", "lf-page-map-action")}
       data-lf-map-key=${action.key}
       data-lf-map-item=${action.item.id}
       aria-label=${[action.label, action.context].filter(Boolean).join(", ")}
@@ -259,7 +259,7 @@ export function createPageMapDialog({
     return html`<button
       id=${action.id}
       type="button"
-      class="lf-page-map-action"
+      ${offeredAction("row", "lf-page-map-action")}
       data-lf-map-key=${action.key}
       data-lf-map-margin-entry=${action.key}
       ${sheetHost(action, actions)}

@@ -50,7 +50,7 @@
   --wa-color-brand-fill-loud: var(--accent);
   --wa-color-brand-on-loud: light-dark(var(--card), var(--paper));
   --wa-color-focus: var(--accent);
-  /* Upstream's corner scale is Leaf's (theme.css, `--r`); one home for both. */
+  /* Upstream's corner scale is Leaf's (base.css, `--r`); one home for both. */
   --wa-border-radius-s: var(--r-s);
   --wa-border-radius-m: var(--r);
   --wa-border-radius-l: var(--r-l);
@@ -88,7 +88,7 @@ wa-input {
 
 /* The band appears with the focus. A running transition is reported as the value the
    property is leaving, so a ring that fades in is a ring no reading sees at the moment
-   it is drawn — theme.css states the same for the layer's own rules, and these two are
+   it is drawn — base.css states the same for the layer's own rules, and these two are
    the vendored controls that animate their outline. Naming the properties that stay
    leaves the vendor's own durations and easing to it. */
 wa-input::part(base),

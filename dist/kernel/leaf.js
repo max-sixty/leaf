@@ -5779,7 +5779,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       role=${role ?? nothing}
       data-row=${row ?? nothing}
       title=${title ?? nothing}
-      class="lf-fp-face lf-fp-item"
+      ${offeredAction("row", "lf-fp-face lf-fp-item")}
       aria-current=${current ? "true" : nothing}
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
@@ -5843,11 +5843,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       <button
         type="button"
         role="menuitem"
-        class="lf-fp-face lf-fp-item lf-fp-menu-back"
+        ${offeredAction("row", "lf-fp-face lf-fp-menu-back")}
         aria-label=${`Back to the page menu from ${titleOf(menuAt.value)}`}
         @click=${() => showMenuAt(null)}
       >
-        <span class="lf-fp-label">${iconTemplate("next", "lf-fp-chevron")}Menu</span>
+        ${iconTemplate("next", "lf-fp-chevron")}Menu
       </button>
     </div>`;
 	}
@@ -6117,7 +6117,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const resolved = rows.filter(({ section }) => section === "resolved").map(({ thread }) => thread);
 		const row = (thread) => html`<button
         type="button"
-        class="lf-fp-face lf-fp-thread"
+        ${offeredAction("row", "lf-fp-face lf-fp-thread")}
         data-key=${thread.key}
         ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
@@ -6229,7 +6229,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`<header class="lf-fp-quote-head">
       ${quote.localReading ? html`<button
               type="button"
-              class="lf-fp-face lf-thread-disclosure lf-quote-expand lf-disclosure-marker"
+              ${offeredAction("inline", "lf-thread-disclosure lf-quote-expand lf-disclosure-marker")}
               aria-label="Full quote"
               hidden
               aria-expanded=${String(opening.quoteExpanded)}
@@ -6638,7 +6638,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
     >
       <button
         type="button"
-        class="lf-fp-face lf-fp-item lf-fp-on-line"
+        ${offeredAction("row", "lf-fp-face lf-fp-item lf-fp-on-line")}
         aria-expanded=${String(opened)}
         ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
         @click=${() => toggleItem(key)}
@@ -6798,7 +6798,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             ><span class="lf-fp-label">${row.title}</span
             ><span class="lf-fp-value">${row.self ? "This page" : row.line}</span>`;
 			return row.self ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>` : html`<a
-                class="lf-fp-face lf-fp-page"
+                ${offeredAction("row", "lf-fp-face lf-fp-page")}
                 data-key=${row.key}
                 href=${row.href}
                 target="_blank"
@@ -6849,7 +6849,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`<div class="lf-fp-crumb">
         ${parent ? html`<button
                 type="button"
-                class="lf-fp-face lf-fp-back"
+                ${offeredAction("row", "lf-fp-face lf-fp-back")}
                 aria-label=${`Back to ${titleOf(parent)}`}
                 @click=${back}
               >
@@ -6922,7 +6922,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		opening.onPageSeat ||= Boolean(thread.anchor) && (inMessage || !atLastResort(thread.key));
 		const aux = html`${opening.unreadSeat ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-next-unread"
+              ${offeredAction("inline", "lf-fp-next-unread")}
               ?disabled=${!thread.unread.length}
               ?data-unoffered=${!thread.unread.length}
               @click=${() => void firstUnread(thread.key)}
@@ -7667,7 +7667,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 	const sheetItemTemplate = (action) => html`
     <button
       type="button"
-      class="lf-page-map-action"
+      ${offeredAction("row", "lf-page-map-action")}
       data-lf-map-key=${action.key}
       data-lf-map-item=${action.item.id}
       aria-label=${[action.label, action.context].filter(Boolean).join(", ")}
@@ -7696,7 +7696,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		return html`<button
       id=${action.id}
       type="button"
-      class="lf-page-map-action"
+      ${offeredAction("row", "lf-page-map-action")}
       data-lf-map-key=${action.key}
       data-lf-map-margin-entry=${action.key}
       ${sheetHost(action, actions)}
@@ -9717,7 +9717,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     <div
       id=${entry.rowId}
       role="row"
-      class=${`lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`}
+      ${offeredAction("row", `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`)}
       data-lf-command=${entry.id}
       aria-selected=${entry.actionable ? String(selected) : nothing}
       ?hidden=${!shown}

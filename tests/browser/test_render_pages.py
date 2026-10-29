@@ -2979,7 +2979,7 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     separated table adds its padding outside the width it is given, so every row on
     every joined group stood 30px past its group, diagram or no diagram, the clip
     spending the overhang out of the pick's word-room. The box a wide widget gets
-    answers to the room and never to its content (contain: inline-size, theme.css),
+    answers to the room and never to its content (contain: inline-size, base.css),
     and the row keeps its reservation inside the width it states (box-sizing:
     border-box, packages/default/theme.css)."""
     source = FRAMED_WIDE_PAGE.replace(

@@ -103,7 +103,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     (widgets / "lf-badged.js").write_text(keyed("lf-badged", ", bindingBadge: null"))
     # An element the theme does not style is inline, whose box a padding would not
     # grow the way a block's grows.
-    (package / "widgets.css").write_text(
+    (package / "defaults.css").write_text(
         ":is(lf-grow, lf-holder, lf-fixed) { display: block; }\n"
         "lf-fixed { height: 100px; }\n"
         ":is(lf-pinned, lf-declared, lf-sideways) { display: block; "

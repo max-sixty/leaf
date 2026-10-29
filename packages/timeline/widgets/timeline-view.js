@@ -207,8 +207,9 @@ export function drawTimeline(host, tools) {
   const listRef = generated(true);
   const rowRefs = model.steps.map((_, index) => (node) => {
     if (!node) return;
-    // A span keeps the words selectable while the shared command routes activate it.
-    tools.selectableOfferElement(node, "button", "lf-timeline-step");
+    // A span keeps the words selectable while the shared command routes activate it;
+    // it wears the row's face, the step the timeline shows as the current row.
+    tools.selectableOfferElement(node, "button", "lf-timeline-step", "row");
     drawing.rows[index] = tools.generatedElement(node, { says: true });
   });
 

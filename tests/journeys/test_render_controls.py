@@ -501,7 +501,7 @@ RING_EXAMPLE_FILES = {
 RING_REMOTE_CARRIER = {
     ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
     ".lf-diff-frame": "lf-diff code[data-lf-focus-visible] + .lf-diff-frame",
-    # A pane draws its focused body's band inset over the body's cell (theme.css).
+    # A pane draws its focused body's band inset over the body's cell (base.css).
     "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
 

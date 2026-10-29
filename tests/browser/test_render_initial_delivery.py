@@ -209,7 +209,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             runtime="",
             # The theme holds the arriving host out of the page.
             inline_stylesheet=lambda _: (
-                stylesheet(assets / "theme.css", assets)
+                stylesheet(assets / "base.css", assets)
                 + "lf-initial-outer{display:block;margin-block:16px}"
                 ".initial-frame{padding:24px;border:1px solid black}"
             ),

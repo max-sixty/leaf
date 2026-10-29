@@ -43,11 +43,14 @@
      is a newer one, wherever focus is; a move that only counted placements would
      pull the user back to its destination after they had gone on typing elsewhere.
 
-   It also keeps the one reading of the press in progress (`pressing`, `onPress`), and
-   the press on a label that leaves the user on the control they had focused until
-   it lands (`focused`). Rejected: merging the two counts into one, which would void a
-   hold on every keystroke; and each owner keeping its own press tracker, which is how
-   holds came to read the in-between node a label press goes through.
+   It also keeps the one reading of the press in progress (`pressing`, `onPress`), from
+   its pointerdown through the compatibility events its release owes, and the press on a
+   label that leaves the user on the control they had focused until it lands
+   (`focused`). Rejected: merging the two counts into one, which would void a hold on
+   every keystroke; and each owner keeping its own press tracker, which is how holds
+   came to read the in-between node a label press goes through, and how owners came to
+   wait out a release's click each its own way, by a timer the next press could outrun
+   or a flag held until the next press, and a flag a stopped release left standing.
 
    And it owns the widget primitives built on these: closing a layer and handing the user
    on as one act (`closeLayer`), holding a place in a keyed list (`holdFocus` with `key`),
@@ -69,6 +72,7 @@ import { afterScript, nextRender } from "./rendering.js";
 import { signal } from "/vendor/signals-core.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
+import { pressIsKeyboardActivation } from "./pointer.js";
 import {
   excludedByInert,
   isNativeLayer,
@@ -851,14 +855,39 @@ addEventListener(
 );
 export const recentPlaceInput = () => placeInput;
 
-// The primary pointer's press, from its `pointerdown` until it ends: its pointer and the
-// nodes under its start, read after the event has gone, when the platform no longer
+// The primary pointer's press, from its `pointerdown` until it is over: its pointer and
+// the nodes under its start, read after the event has gone, when the platform no longer
 // reports its path. `onPress(start, path)` hears each press begin and returns what
-// hears it end, as `end(event, completed)`. A release completes it. Every other end does
-// not: a cancel, which the browser sends when it took the press for something else,
-// commonly a touch scroll; a native menu the press opened, which swallows the release;
-// and the window losing it altogether. So a gesture judged where it starts and acted on
-// where it ends reads both from one press.
+// hears it end, as `end(event, completed)`, which may in turn return what hears it be
+// over. A release completes it. Every other end does not: a cancel, which the browser
+// sends when it took the press for something else, commonly a touch scroll; a native
+// menu the press opened, which swallows the release; and the window losing it
+// altogether. So a gesture judged where it starts and acted on where it ends reads both
+// from one press.
+//
+// An ended press is `released` and still the one `pressing()` returns until the browser
+// has delivered what its release owes: the compatibility `mouseup` and `click` (or
+// `auxclick`) the page's controls act on. A mouse delivers them in the release's own
+// task in every engine; a finger's tap only once the browser has recognised it, in a
+// later task, and a drag none, nor does WebKit after a cancelled touch `pointerdown`.
+// So the press is over at the task after its click; at the task after an end that owes
+// none; at the task after any newer input, which no compatibility event of this press
+// follows; and as the next press begins, before it, since the browser may deliver that
+// press ahead of any task queued at the release. An owner keeps what it knows of one
+// press against the press itself (`pressRecords`), so what it knows can't outlast it: a
+// release a widget stops, or one let go off the window, still ends it here, where no
+// widget's listener runs first.
+/**
+ * @typedef {{
+ *   pointerId: number,
+ *   path: EventTarget[],
+ *   ends: ((event: Event, completed: boolean) => (() => void) | void | null)[],
+ *   overs: (() => void)[],
+ *   released: boolean,
+ *   clickClaimed: boolean,
+ * }} Press
+ */
+/** @type {Press | null} */
 let press = null;
 export const pressing = () => press;
 const pressReaders = new Set();
@@ -867,6 +896,61 @@ export const onPress = (read) => {
   pressReaders.add(read);
   return () => pressReaders.delete(read);
 };
+// What one owner knows of a press, kept against it: `keep(event, value)` at the press's
+// own pointerdown records it, and `kept()` returns it until that press is over, then
+// null. Another contact's pointerdown keeps nothing, since it is no part of the press.
+export function pressRecords() {
+  const records = new WeakMap();
+  return {
+    keep(event, value) {
+      if (press?.pointerId === event.pointerId && !press.released)
+        records.set(press, value);
+      return value;
+    },
+    kept: () => (press && records.get(press)) ?? null,
+  };
+}
+// Whether a pointer event is the press under way's own: its pointer's events while it is
+// down, and the release or cancel that ends it, but not that pointer hovering on after.
+export const pressHolds = (event) =>
+  press?.pointerId === event.pointerId &&
+  (event.type !== "pointermove" || !press.released);
+function overPress(ended) {
+  if (press !== ended) return;
+  press = null;
+  for (const over of ended.overs) over();
+}
+const overSoon = (ended) => setTimeout(() => overPress(ended));
+// A press that commits at its release, as a held word does or the panel's field handing
+// selected words to the comment box, leaves the browser's own click after it to land on
+// whatever the release put under the pointer. The release claims that click, the one the
+// press under way owes; a keyboard's carries no count and is never it.
+export const claimReleaseClick = () => {
+  if (press) press.clickClaimed = true;
+};
+document.addEventListener(
+  "click",
+  (event) => {
+    if (!press?.clickClaimed || !event.isTrusted || pressIsKeyboardActivation(event))
+      return;
+    press.clickClaimed = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  },
+  { capture: true },
+);
+for (const type of ["click", "auxclick"])
+  addEventListener(
+    type,
+    (event) => {
+      if (press?.released && event.isTrusted && !pressIsKeyboardActivation(event))
+        overSoon(press);
+    },
+    { capture: true, passive: true },
+  );
+onUserInput((event) => {
+  if (press?.released && event.type !== "pointerdown") overSoon(press);
+});
 // A press away from a surface puts it away: a primary press that begins outside it and
 // completes outside it, `away(path)` reading each end's composed path. That is how the
 // platform judges its own light dismissal (a popover's, a dialog's `closedby`), so a
@@ -893,12 +977,28 @@ addEventListener(
   "pointerdown",
   (event) => {
     if (!event.isPrimary) return;
+    if (press) {
+      // The press before is over as this one begins: one still owed its click, or one
+      // whose release never came, as one let go off a window that never heard it, which
+      // ends here as one that did not complete.
+      const before = press;
+      endPress(event, false);
+      overPress(before);
+    }
     const path = event.composedPath();
-    const ends = [];
-    press = { pointerId: event.pointerId, path, ends };
+    /** @type {Press} */
+    const begun = {
+      pointerId: event.pointerId,
+      path,
+      ends: [],
+      overs: [],
+      released: false,
+      clickClaimed: false,
+    };
+    press = begun;
     for (const read of pressReaders) {
       const end = read(event, path);
-      if (end) ends.push(end);
+      if (end) begun.ends.push(end);
     }
     if (event.button !== 0 || labelPress) return;
     const label = /** @type {(EventTarget & Partial<HTMLLabelElement>)[]} */ (
@@ -912,9 +1012,15 @@ addEventListener(
 );
 function endPress(event, completed) {
   if (!press) return;
-  const { ends } = press;
-  press = null;
-  for (const end of ends) end(event, completed);
+  const ended = press;
+  if (!ended.released) {
+    ended.released = true;
+    for (const end of ended.ends) {
+      const over = end(event, completed);
+      if (over) ended.overs.push(over);
+    }
+  }
+  if (!completed) overSoon(ended);
 }
 for (const type of /** @type {const} */ (["pointerup", "pointercancel"]))
   addEventListener(

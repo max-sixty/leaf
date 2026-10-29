@@ -598,7 +598,7 @@ def _reserved_author_response(page_dir):
     )
     target = codex_model.stream_reply_target(prepared.payload)
     thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
-    cleanup_model.open_session_turn("codex-thread", "author-turn")
+    cleanup_model.prompt_turn("codex-thread", "author-turn")
     stream = codex_model.AppServerReplyStream(
         "codex-thread", "author-turn", prepared.payload["id"], target
     )
@@ -1097,7 +1097,7 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
     )
     target = codex_model.stream_reply_target(prepared.payload)
     thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
-    cleanup_model.open_session_turn("codex-thread", "author-turn")
+    cleanup_model.prompt_turn("codex-thread", "author-turn")
     stream = codex_model.AppServerReplyStream(
         "codex-thread", "author-turn", prepared.payload["id"], target
     )

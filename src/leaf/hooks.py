@@ -74,6 +74,7 @@ from .state import (
     prompt_turn,
     session_lock_path,
     session_record,
+    turn_closed,
     worker_tool_batch,
 )
 
@@ -138,11 +139,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         # harness whose steps can start a turn opens it first (`reconcile_turn`).
         with flocked(session_lock_path(sid)):
             record = session_record(sid)
-            if (
-                not record
-                or record["ended"] is not None
-                or record["turn_closed"] is not None
-            ):
+            if record is None or turn_closed(record):
                 return
             if record["turn"] != turn_id:
                 if record["provider"] or event != "PostToolUse":

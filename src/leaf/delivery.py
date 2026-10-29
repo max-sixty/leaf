@@ -87,6 +87,7 @@ from .state import (
     session_lock_path,
     session_record,
     state_home,
+    turn_closed,
 )
 
 _INTEGER = {"type": "integer"}
@@ -1155,7 +1156,7 @@ def awaiting_receipt(page: PageTransaction) -> set[str]:
     a Stop hook or interrupted as its harness's record says
     (`activity.claimant_turn`): what that record still lacks reached no model."""
     claim = page.active_claim
-    if claim is None or claim["turn_closed"] is not None:
+    if claim is None or turn_closed(claim):
         return set()
     seqs = {event["id"]: event["seq"] for event in page.events}
     handed = {
@@ -1388,7 +1389,7 @@ def receive_one(
         turn = None
         if session_id:
             observed = session_record(session_id)
-            if observed["turn_closed"] is not None:
+            if turn_closed(observed):
                 raise ReceiptRefused("the receiving provider turn has ended")
             if expected is not None and observed != expected:
                 raise ReceiptRefused("the receiving turn has been replaced")

@@ -113,6 +113,7 @@ from .state import (
     session_record,
     start_session_turn,
     state_home,
+    turn_closed,
 )
 from .thread import delivery_reply_reserved
 
@@ -230,7 +231,11 @@ class TaskConnection:
     adopting a current lifecycle. Matching completion refreshes the token for the
     next natural provider turn. Terminal provider IDs remain terminal for this
     subscription, even after their heavy live folds are discarded; late output
-    and stale running snapshots cannot give them a new lifecycle.
+    and stale running snapshots cannot give them a new lifecycle. The session
+    record refuses to reopen only the turn it holds (`state.advance_turn`); an
+    earlier id, such as the history a snapshot lists, only this subscription can
+    name again, so it keeps those ids itself rather than writing each into the
+    record, whose revision every hook offer compares against.
     """
 
     def __init__(self, endpoint: str, thread_id: str):
@@ -239,9 +244,9 @@ class TaskConnection:
         self.turns: dict[str, TurnFold] = {}
         self.running: str | None = None
         self.lifecycle = session_record(thread_id)
-        self.terminal_turns: set[str] = set()
-        if self.lifecycle and self.lifecycle["turn_closed"] is not None:
-            self.terminal_turns.add(self.lifecycle["turn"])
+        self.terminal_turns: set[str] = (
+            {self.lifecycle["turn"]} if turn_closed(self.lifecycle) else set()
+        )
         self.stop_event = threading.Event()
         self.socket = None
         self.started = False

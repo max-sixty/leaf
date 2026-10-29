@@ -1,6 +1,6 @@
 import { LAYOUT, PAGE_PAINT_ATTRIBUTE, bindQueuedWork, byRenderedOrder, cancelRender, fragmentId, holdRendering, motionEasing, motionPlays, motionTime, nextFrame, nextRender, observePreparations, observeQueuedWork, pagePresented, pageUpgraded, playMotion, reducedMotion, renderedOrder, renderedUnder, renderingState, scrollBehavior, scrollGlides, scrolling, setScroll, shadowHost, sizeObserver, skipped, tabStore, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
-import { CARET_KEYS, COLLAPSE, J, LitElement, MODIFIER_KEYS, PRESENTATION_DOM, PRESSES, SHARE_ROOT, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, WEBSITE_DELIVERY, WORKS, Z, agentName, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, closeLayer, closeNativeLayer, currentLocationIn, d, decisionFor, declareReading, deepFocus, dismissPopoversOutside, documentChanged, drawn, focusDestination, focusRevision, focused, guard, handBack, holdFocus, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keeps, keepsHidden, keepsText, keyed, layerLanding, layoutPx, letGo, live, marksSheet, move, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, q, readPart, ref, registry, release, releaseFocus, render, repeat, rove, runtime, runtimeResource, sameAnchor, selectsAll, shareUrl, showNativeLayer, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, typesText, watchLayerChanges, whenApplicationPresented, x } from "./runtime/bundle-layer-stack.js";
-import { EVERYTHING, LINK, PRESS, PRESSABLE, actionTemplate, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, namedAction, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
+import { CARET_KEYS, COLLAPSE, J, LitElement, MODIFIER_KEYS, PRESENTATION_DOM, PRESSES, SHARE_ROOT, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, WEBSITE_DELIVERY, WORKS, Z, agentName, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, currentLocationIn, d, decisionFor, declareReading, deepFocus, dismissPopoversOutside, documentChanged, drawn, focusDestination, focusRevision, focused, guard, handBack, holdFocus, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keeps, keepsHidden, keepsText, keyed, layerLanding, layoutPx, letGo, live, marksSheet, move, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, pointerAt, pressHolds, pressIsKeyboardActivation, pressRecords, q, readPart, ref, registry, release, releaseFocus, render, repeat, rove, runtime, runtimeResource, sameAnchor, selectsAll, shareUrl, showNativeLayer, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, typesText, watchLayerChanges, whenApplicationPresented, x } from "./runtime/bundle-layer-stack.js";
+import { EVERYTHING, LINK, PRESS, PRESSABLE, actionTemplate, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimsEsc, clampedRow, closeControl, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, namedAction, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
 import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep, workflowVoice } from "./runtime/bundle-data.js";
@@ -1047,14 +1047,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		if (selectionUpdate && selectionIntent()) return;
 		deferSelectionUpdate(updateFab);
 	};
-	let pointerSelecting = false;
-	let selectionPressIntent = null;
-	let selectionDragged = false;
-	let selectionRangeDuringPress = null;
-	let selectionBackwardDuringPress = false;
-	let selectionPressPoint = null;
-	let selectionGestureClaimed = false;
-	let actionPress = false;
+	const pagePresses = pressRecords();
 	let targetActivation = false;
 	let fabInputTakingFocus = false;
 	let fabFocusHandoff = null;
@@ -1100,9 +1093,6 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		fabInput.addEventListener("focus", () => {
 			cancelRender(selectionUpdate);
 			selectionUpdate = null;
-			primaryPointerPressed = false;
-			pointerSelecting = false;
-			selectionPressIntent = null;
 			offerSelection(null);
 			fabInputTakingFocus = true;
 		});
@@ -1110,7 +1100,6 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 			fabInputTakingFocus = false;
 		});
 	}
-	let primaryPointerPressed = false;
 	let selectionStood = false;
 	const reflectSelection = () => {
 		const stands = Boolean(pageSelection());
@@ -1118,43 +1107,31 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		selectionStood = stands;
 		repaint();
 	};
-	let wordsAtPress = "";
-	const rememberPointerSelection = () => {
+	const rememberPointerSelection = (press) => {
 		const selection = pageSelection();
 		if (!selection || leftThePage(selection)) return;
 		const anchor = selectionAnchor(selection);
 		if (hasQuote(anchor)) {
-			selectionRangeDuringPress = pageRange(selection).cloneRange();
-			selectionBackwardDuringPress = selectionBackward(selection);
+			press.range = pageRange(selection).cloneRange();
+			press.backward = selectionBackward(selection);
 		}
 	};
 	const finishPointerSelection = (ev) => {
 		if (drawModeActive()) return;
-		const releasePress = () => setTimeout(() => {
-			if (!actionPress) return;
-			actionPress = false;
-			selectionChanged();
-		});
+		const press = pagePresses.kept();
+		if (!press?.selecting) return;
 		if (offeredSelection && inChrome(ev.composedPath()[0])) {
-			primaryPointerPressed = false;
-			pointerSelecting = false;
-			selectionGestureClaimed = false;
-			releasePress();
+			press.selecting = null;
 			return;
 		}
-		if (primaryPointerPressed && ev.type === "pointerup" && ev.pointerType === "mouse") {
-			releasePress();
-			return;
-		}
-		if (primaryPointerPressed && pointerSelecting && selectionPressIntent?.() && !selectionGestureClaimed) {
-			rememberSelection();
-			scheduleSelectionUpdate();
-		}
-		primaryPointerPressed = false;
-		pointerSelecting = false;
-		selectionGestureClaimed = false;
-		releasePress();
+		if (ev.type === "pointerup" && ev.pointerType === "mouse") return;
+		const selected = press.selecting() && !press.claimed;
+		press.selecting = null;
+		if (!selected) return;
+		rememberSelection();
+		scheduleSelectionUpdate();
 	};
+	const rereadAfterAction = () => pagePresses.kept()?.action ? selectionChanged : null;
 	function pressedAway(path) {
 		if (drawModeActive() || captureActive() || nativeLayers().some((layer) => layer.kind === "modal")) return false;
 		const [target] = path;
@@ -1194,9 +1171,10 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 	});
 	function selectionChanged() {
 		const automatic = programmaticSelection(getSelection());
-		if (primaryPointerPressed && selectionPressIntent?.()) {
-			rememberPointerSelection();
-			if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed) rememberSelection();
+		const press = pagePresses.kept();
+		if (press?.selecting?.()) {
+			rememberPointerSelection(press);
+			if (coarsePointer.matches && !press.claimed) rememberSelection();
 			reflectSelection();
 			return;
 		}
@@ -1204,7 +1182,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 			offerSelection(null);
 			return;
 		}
-		if (actionPress || targetActivation) return;
+		if (press?.action || targetActivation) return;
 		const selection = pageSelection();
 		if (coarsePointer.matches && selection && !automatic) rememberSelection(selection);
 		observeSelection();
@@ -1217,62 +1195,62 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		coarsePointer.addEventListener("change", observeSelection);
 		document.addEventListener("pointerdown", (ev) => {
 			if (drawModeActive()) return;
-			const target = ev.composedPath()[0];
-			primaryPointerPressed = ev.isPrimary && ev.button === 0;
-			pointerSelecting = primaryPointerPressed && pageWords(target);
-			selectionPressIntent = pointerSelecting ? retainUserIntent({ source: target }) : null;
-			selectionDragged = false;
-			selectionRangeDuringPress = null;
-			selectionGestureClaimed = false;
-			selectionPressPoint = pointerSelecting ? {
-				x: ev.clientX,
-				y: ev.clientY
-			} : null;
 			const stood = pageSelection();
 			selectionStood = Boolean(stood);
-			wordsAtPress = stood ? stood.toString() : "";
-			const selection = pointerSelecting ? stood : null;
-			if (selection && pageRange(selection).intersectsNode(target)) rememberPointerSelection();
-			actionPress = offeredSelection && inChrome(target) || Boolean(target.closest?.(".lf-react-surface, .lf-composer"));
+			if (!ev.isPrimary) return;
+			const target = ev.composedPath()[0];
+			const selecting = ev.button === 0 && pageWords(target);
+			const press = pagePresses.keep(ev, {
+				selecting: selecting ? retainUserIntent({ source: target }) : null,
+				point: {
+					x: ev.clientX,
+					y: ev.clientY
+				},
+				dragged: false,
+				range: null,
+				backward: false,
+				claimed: false,
+				words: stood ? stood.toString() : "",
+				action: offeredSelection && inChrome(target) || Boolean(target.closest?.(".lf-react-surface, .lf-composer"))
+			});
+			if (selecting && stood && pageRange(stood).intersectsNode(target)) rememberPointerSelection(press);
 		}, true);
+		onPress(() => rereadAfterAction);
 		document.addEventListener("pointermove", (ev) => {
 			if (drawModeActive()) return;
-			if (!pointerSelecting || !selectionPressPoint) return;
+			const press = pagePresses.kept();
+			if (!press?.selecting) return;
 			if (ev.defaultPrevented) {
-				selectionGestureClaimed = true;
+				press.claimed = true;
 				return;
 			}
-			selectionDragged ||= Math.hypot(ev.clientX - selectionPressPoint.x, ev.clientY - selectionPressPoint.y) > 3;
+			press.dragged ||= Math.hypot(ev.clientX - press.point.x, ev.clientY - press.point.y) > 3;
 		});
 		document.addEventListener("touchstart", (ev) => {
-			if (primaryPointerPressed && pointerSelecting) selectionPressIntent = retainUserIntent({ source: ev.composedPath()[0] });
+			const press = pagePresses.kept();
+			if (press?.selecting) press.selecting = retainUserIntent({ source: ev.composedPath()[0] });
 		});
 		document.addEventListener("pointerup", finishPointerSelection);
 		document.addEventListener("pointercancel", finishPointerSelection);
 		document.addEventListener("selectionchange", selectionChanged);
 		document.addEventListener("mouseup", (ev) => {
 			if (drawModeActive()) return;
-			const selectedOnPage = pointerSelecting && selectionPressIntent?.();
-			primaryPointerPressed = false;
-			pointerSelecting = false;
-			const gestureClaimed = selectionGestureClaimed;
-			selectionGestureClaimed = false;
-			if (gestureClaimed) {
-				selectionRangeDuringPress = null;
-				return;
-			}
-			if (actionPress || !selectedOnPage) return;
+			const press = pagePresses.kept();
+			if (!press?.selecting) return;
+			const selectedOnPage = press.selecting();
+			press.selecting = null;
+			if (press.claimed || press.action || !selectedOnPage) return;
 			const selection = pageSelection();
 			const selected = selection ? selectionAnchor(selection) : null;
-			const escaped = selectionDragged && leftThePage();
-			const completed = selectionDragged && (escaped || !hasQuote(selected)) ? selectionRangeDuringPress : null;
-			const selectedByGesture = selectionDragged || ev.detail > 1 || selection?.toString() !== wordsAtPress;
+			const escaped = press.dragged && leftThePage();
+			const completed = press.dragged && (escaped || !hasQuote(selected)) ? press.range : null;
+			const selectedByGesture = press.dragged || ev.detail > 1 || selection?.toString() !== press.words;
 			if (selectedByGesture && hasQuote(selected) && !escaped) rememberSelection();
 			deferSelectionUpdate(() => {
 				if (completed) {
 					const head = [completed.startContainer, completed.startOffset];
 					const tail = [completed.endContainer, completed.endOffset];
-					selectEnds(...selectionBackwardDuringPress ? [tail, head] : [head, tail]);
+					selectEnds(...press.backward ? [tail, head] : [head, tail]);
 				} else if (escaped) {
 					putAwayFab();
 					return;
@@ -1302,7 +1280,8 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 			const target = ev.composedPath()[0];
 			if (!pageWords(target)) return;
 			const words = pageSelection();
-			if (words && words.toString() !== wordsAtPress) return;
+			const press = pagePresses.kept();
+			if (words && words.toString() !== (press?.words ?? "")) return;
 			if (designModeActive()) {
 				const design = designTarget(target);
 				if (design) openOnDesign(design);
@@ -1525,23 +1504,10 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 	let stroke = null;
 	let session = null;
 	let lastDrawn = null;
-	let claimThroughClick = false;
-	let claimedPointer = null;
-	let releaseTimer = null;
 	let mounted = false;
+	const claimed = pressRecords();
+	const claimsPointer = (event) => Boolean(claimed.kept()) && pressHolds(event);
 	const drawModeActive = () => drawModeOn;
-	function holdCompatibilityClick() {
-		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
-		releaseTimer = null;
-		claimThroughClick = true;
-	}
-	function releaseCompatibilityClickSoon() {
-		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
-		releaseTimer = setTimeout(() => {
-			releaseTimer = null;
-			claimThroughClick = false;
-		});
-	}
 	function setDrawMode(on, { spoken = true } = {}) {
 		on = Boolean(on);
 		if (on) {
@@ -1551,10 +1517,7 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 		}
 		drawModeOn = on;
 		session = null;
-		if (!on) {
-			stroke = null;
-			if (claimedPointer === null) claimThroughClick = false;
-		}
+		if (!on) stroke = null;
 		document.documentElement.toggleAttribute("data-lf-draw-mode", on);
 		refreshAim();
 		if (spoken) announce(on ? `Draw mode: draw anywhere on the page; each stroke adds to one drawing, and z takes one back. ${coarsePointer.matches ? "Exit Draw mode leaves." : "Escape leaves."}` : "Draw mode off");
@@ -1683,8 +1646,7 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 		if (event.button !== 0) return;
 		const origin = event.composedPath()[0];
 		if (leafSurface(origin)) return;
-		holdCompatibilityClick();
-		claimedPointer = event.pointerId;
+		claimed.keep(event, true);
 		claim(event);
 		const target = sessionTarget() ?? targetAtPointer();
 		target?.element.dispatchEvent(new Event("lf-inspect", {
@@ -1718,7 +1680,7 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 	}
 	function move(event) {
 		if (!stroke || event.pointerId !== stroke.pointerId) {
-			if (event.pointerId === claimedPointer) claim(event);
+			if (claimsPointer(event)) claim(event);
 			return;
 		}
 		claim(event);
@@ -1726,19 +1688,13 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 	}
 	function finish(event) {
 		if (!stroke || event.pointerId !== stroke.pointerId) {
-			if (event.pointerId === claimedPointer) {
-				claim(event);
-				claimedPointer = null;
-				releaseCompatibilityClickSoon();
-			}
+			if (claimsPointer(event)) claim(event);
 			return;
 		}
 		claim(event);
 		rememberPoint(event.clientX, event.clientY);
 		const completed = stroke;
 		stroke = null;
-		claimedPointer = null;
-		releaseCompatibilityClickSoon();
 		if (completed.invalid) {
 			shiftDrawingPaint();
 			announce("Stroke canceled because its page element changed.");
@@ -1787,20 +1743,14 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 	}
 	function cancel(event) {
 		if (!stroke || event.pointerId !== stroke.pointerId) {
-			if (event.pointerId === claimedPointer) {
-				claim(event);
-				claimedPointer = null;
-				releaseCompatibilityClickSoon();
-			}
+			if (claimsPointer(event)) claim(event);
 			return;
 		}
 		claim(event);
-		claimedPointer = null;
-		releaseCompatibilityClickSoon();
 		dropStroke();
 	}
 	const compatibilityPress = (event) => {
-		if (claimThroughClick && !pressIsKeyboardActivation(event)) claim(event);
+		if (claimed.kept() && !pressIsKeyboardActivation(event)) claim(event);
 	};
 	function activeDrawing() {
 		if (!stroke || stroke.points.length < 2) return null;
@@ -1878,14 +1828,10 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 			stopWatching();
 		}
 		mounted = false;
-		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
-		releaseTimer = null;
 		drawModeOn = false;
 		stroke = null;
 		session = null;
 		lastDrawn = null;
-		claimThroughClick = false;
-		claimedPointer = null;
 		document.documentElement.removeAttribute("data-lf-draw-mode");
 	}
 	pageScope("draw mode", {
@@ -1949,8 +1895,7 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 function createRegionCapture({ parent, visibleTargets, openComposerWithMedia, closeTargetPicker, closeReactionMode }) {
 	let opening = false;
 	let selector = null;
-	let claimedPointer = null;
-	let throughClick = false;
+	const claimed = pressRecords();
 	const active = () => opening;
 	const claim = (event) => {
 		event.preventDefault();
@@ -1965,18 +1910,14 @@ function createRegionCapture({ parent, visibleTargets, openComposerWithMedia, cl
 		"pointerup",
 		"pointercancel"
 	]) document.addEventListener(type, (event) => {
-		if (type === "pointerdown" && event.isPrimary) throughClick = false;
-		const held = event.pointerId === claimedPointer;
-		if (!held && (!selector || leafSurface(event.composedPath()[0]))) return;
+		if (!(Boolean(claimed.kept()) && pressHolds(event)) && (!selector || leafSurface(event.composedPath()[0]))) return;
 		if (type === "pointerdown") {
 			if (!event.isPrimary || event.button !== 0) return;
-			claimedPointer = event.pointerId;
-			throughClick = true;
+			claimed.keep(event, true);
 			document.documentElement.setPointerCapture(event.pointerId);
 		}
 		claim(event);
 		selector?.pointer(event);
-		if (held && (type === "pointerup" || type === "pointercancel")) claimedPointer = null;
 	}, { capture: true });
 	for (const type of [
 		"mousedown",
@@ -1985,7 +1926,7 @@ function createRegionCapture({ parent, visibleTargets, openComposerWithMedia, cl
 		"dblclick",
 		"auxclick"
 	]) document.addEventListener(type, (event) => {
-		if (!pressIsKeyboardActivation(event) && (throughClick || selector && !leafSurface(event.composedPath()[0]))) claim(event);
+		if (!pressIsKeyboardActivation(event) && (claimed.kept() || selector && !leafSurface(event.composedPath()[0]))) claim(event);
 	}, { capture: true });
 	onCurrentLocation((node) => {
 		if (selector && node && node !== document.body && !closestAcross(node, ".lf-floating-panel, .lf-command-reference, .lf-region-capture")) selector.cancel({ restore: false });
@@ -5280,21 +5221,20 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (Boolean(draftOf(fieldInput())) !== drafted) paint();
 	}
 	field.addEventListener("input", retype);
-	let pressedWords = null;
+	const pressedWords = pressRecords();
 	const quotedWords = () => general && fieldInput() === general.input && fieldReading(null, general.input).says === "selection" ? selectedWords : null;
 	field.addEventListener("pointerdown", (event) => {
-		pressedWords = event.isPrimary && event.composedPath().includes(general?.input) ? quotedWords() : null;
-		if (pressedWords) event.preventDefault();
+		if (!event.isPrimary || !event.composedPath().includes(general?.input)) return;
+		const words = quotedWords();
+		if (!words) return;
+		pressedWords.keep(event, words);
+		event.preventDefault();
 	}, true);
 	field.addEventListener("pointerup", (event) => {
-		const words = pressedWords;
-		pressedWords = null;
+		const words = pressHolds(event) && pressedWords.kept();
 		if (!words || !event.composedPath().includes(general?.input)) return;
 		claimReleaseClick();
 		words.comment();
-	});
-	field.addEventListener("pointercancel", () => {
-		pressedWords = null;
 	});
 	field.addEventListener("beforeinput", () => passErrors(sayable().map((error) => error.id)), { capture: true });
 	const threads = () => readThreads().threads;
@@ -7380,17 +7320,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	});
 	let heldCurrentLocation = null;
 	holdPagePlace(() => currentLocationIn(host) ? heldCurrentLocation : null);
-	let pressedIn = false;
-	host.addEventListener("pointerdown", () => {
+	const fromThePage = pressRecords();
+	host.addEventListener("pointerdown", (event) => {
 		if (currentLocationIn(host)) return;
 		heldCurrentLocation = readPlace();
-		pressedIn = true;
-		setTimeout(() => pressedIn = false);
+		fromThePage.keep(event, true);
 	}, true);
 	onCurrentLocation((node, _cause, left) => {
 		if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu)) setMenu(false);
 		const inside = Boolean(node) && renderedUnder(node, host);
-		if (inside && !left && !pressedIn) heldCurrentLocation = null;
+		if (inside && !left && !fromThePage.kept()) heldCurrentLocation = null;
 		else if (inside && left?.isConnected && !renderedUnder(left, host)) heldCurrentLocation = readPlace(left);
 		const next = inside ? writing || node.localName === "leaf-text" : false;
 		if (next === writing && !inside) return;

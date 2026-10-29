@@ -155,13 +155,29 @@ def test_floating_thread_pages_on_to_its_page(browser, serve, long):
         if not card.evaluate("card => card.getBoundingClientRect().bottom > 0"):
             break
         page.keyboard.press("d")
+        # The card follows document scrolling during rendering. Read its delivered
+        # position before deciding whether another press is needed.
+        rendered(page)
     expect(card.locator(".lf-page-thread")).to_be_focused()
-    assert not card.evaluate("card => card.getBoundingClientRect().bottom > 0")
+    assert not card.evaluate("card => card.getBoundingClientRect().bottom > 0"), {
+        "scroll": page.evaluate("scrollY"),
+        "card": card.evaluate("card => card.getBoundingClientRect().toJSON()"),
+    }
     for key in ("d", "u"):
         page_at = page.evaluate("scrollY")
         page.keyboard.press(key)
         moved = page.evaluate("scrollY") - page_at
-        assert moved > 20 if key == "d" else moved < -20
+        assert moved > 20 if key == "d" else moved < -20, {
+            "key": key,
+            "before": page_at,
+            "moved": moved,
+            "geometry": card.evaluate("""card => ({
+                scroll: scrollY,
+                limit: document.scrollingElement.scrollHeight - innerHeight,
+                card: card.getBoundingClientRect().toJSON(),
+                transcript: card.querySelector('.lf-thread-transcript').scrollTop,
+            })"""),
+        }
 
 
 @pytest.mark.parametrize("height", [900, 250])
@@ -825,6 +841,10 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(browser, serve
     preview = page.locator(".lf-margin-preview")
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
     expect(reply).to_be_visible()
+    # Playwright reveals its target before hover and click. Measure after that
+    # setup scroll, so the comparison isolates entering the field.
+    reply.scroll_into_view_if_needed()
+    rendered(page)
     resting_box = reply.bounding_box()
     field = preview.locator(".lf-thread-reply .lf-compose-field")
     resting_field_box = field.bounding_box()
@@ -848,6 +868,7 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(browser, serve
     )
 
     reply.hover()
+    assert reply.bounding_box() == pytest.approx(resting_box, abs=0.5)
     expect(field).to_have_css("background-color", resting_face[0])
     reply.click()
     expect(reply).to_be_focused()

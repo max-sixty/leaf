@@ -309,7 +309,13 @@ const scrolls = (box) => userScrollport(getComputedStyle(box).overflowY);
 // "bounded" when the region's own body scrolls, "flow" when something outside it does.
 export const regionScrollBehavior = (regionOrNode) => {
   const region = asRegion(regionOrNode);
-  return region && live(region) && scrolls(region.body) ? "bounded" : "flow";
+  return region &&
+    live(region) &&
+    !concealed(region) &&
+    !skipped(region.body) &&
+    scrolls(region.body)
+    ? "bounded"
+    : "flow";
 };
 
 export function effectiveScroller(regionOrNode) {

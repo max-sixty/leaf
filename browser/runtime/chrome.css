@@ -836,14 +836,16 @@ html[data-lf-region-capture] main * {
     margin: 16px 0 4px;
   }
   /* The reference is a list a reader scans for a command and then reads its keys, so
-     each key sits beside the words it runs, as a menu or Gmail's `?` sets it: the
-     command, then its keys 10px after, then its description. Two layouts were
-     rejected. In a table whose key column was a fixed 104px, a lone key stood some 80px
-     from its command, the longest lists still wrapped, and the table wore the
-     document's data-table rule, a hairline under every cell. Keys at the row's end, as
-     a wide command palette sets them, stood 300px away. Rows share no column, so one long
-     binding list (`⇥ / ⇧⇥ / ← / → / ↑ / ↓`) widens only its own row. Rows part by
-     their own room, and a section by the space above its heading.
+     each key leads the words it runs, as Gmail's `?` sets it: its keys, set against
+     the command 10px after them, then the command, then its description. The keys
+     share one column, as wide as `g letters`, so every command starts on one edge;
+     a step's alternatives stand as keys of their own, two to a line, so Move's six
+     take three. The user chose this on 28 October over three others: each key 10px after
+     its command, which zigzagged down the list; keys at the row's end, a dialog's
+     width from their words; and one column after the widest command. Before those, a
+     table whose key column was a fixed 104px stood a lone key some 80px from its
+     command and wore the document's data-table rule, a hairline under every cell.
+     Rows part by their own room, and a section by the space above its heading.
 
      A description stays out of sight at rest, as references set none and palettes set
      theirs small and on the title's line: it shows, on its row's one line and cut short
@@ -855,10 +857,12 @@ html[data-lf-region-capture] main * {
   .lf-command-reference-row:not([hidden]) {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(0, max-content) auto minmax(0, 1fr);
-    grid-template-areas: "action key desc";
-    align-items: center;
+    grid-template-columns: 5.6em minmax(0, max-content) minmax(0, 1fr);
+    grid-template-areas: "key action desc";
+    align-items: baseline;
+    align-content: center;
     column-gap: 10px;
+    min-height: var(--aim-floor);
     margin-inline: -6px;
     /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
     padding-inline: 4px 6px;
@@ -879,6 +883,7 @@ html[data-lf-region-capture] main * {
   }
   .lf-command-reference-key {
     grid-area: key;
+    justify-self: end;
   }
   /* A walk lands a command's row (command-reference.js), and the row's ring stands
      past its edge, so the row keeps the ring's room as a landing's margin. */
@@ -904,22 +909,20 @@ html[data-lf-region-capture] main * {
   }
   @media (hover: none) {
     .lf-command-reference-row:not([hidden]) {
-      grid-template-areas: "action key ." "desc desc desc";
+      grid-template-areas: "key action ." ". desc desc";
     }
     .lf-command-reference-description {
       padding-top: 0;
       opacity: 1;
       white-space: normal;
     }
-    /* Up into the slack of its command's aim floor, which centers one line in 44px. */
-    .lf-command-reference-row:has(.lf-command-reference-command)
-      .lf-command-reference-description {
-      margin-top: calc((1lh - var(--aim-floor)) / 2);
-    }
   }
-  .lf-command-reference .lf-binding-sequence {
+  /* A step's alternatives stand two to a line, so Move's arrows pair as ← → and ↑ ↓. */
+  .lf-command-reference .lf-binding-sequence:has(> [data-lf-key-or]) {
     flex-wrap: wrap;
-    max-width: 100%;
+    justify-content: flex-end;
+    row-gap: 4px;
+    max-width: calc(2 * var(--lf-key-badge-size) + 14px);
   }
   .lf-command-reference .lf-binding-sequence > kbd {
     max-width: 100%;
@@ -936,8 +939,14 @@ html[data-lf-region-capture] main * {
   }
   /* A row's command is its one control: the button stretches over the row, so a press
      on its keys or description runs it too, and the row wears its wash and focus ring. */
+  /* It keeps to its column, so a long command wraps there beside its keys. Its row,
+     which its reach (`::after`) covers, meets the aim floor, so the command stands only
+     as tall as its words and a description follows them closely, however many lines
+     they take. */
   .lf-command-reference-command {
-    flex: none;
+    --lf-face-floor: 0px;
+    flex: 0 1 auto;
+    max-width: 100%;
     margin: 0;
     padding: 0;
     border: 0;
@@ -970,38 +979,23 @@ html[data-lf-region-capture] main * {
   .lf-inspection-head > strong {
     flex: 1;
   }
+  /* A press here is a row (controls.css, `.lf-row`), and a status beside it lays out
+     as one (`.lf-row-plain`), so their words share one edge. The user's turn paints
+     the row's ground as it paints its margin entry, in one rule set in base.css, and
+     the row's wash under the pointer lies over it. */
   .lf-page-map-action {
-    width: 100%;
-    min-width: 0;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 8px;
-    align-items: baseline;
-    /* A press here is a row (controls.css, `.lf-row`), and a status beside it keeps
-       the row's stripe room too, so their words share one edge. The user's turn
-       paints the row's ground as it paints its margin entry, in one rule set in
-       base.css, and the row's wash under the pointer lies over it. */
-    border: 0;
-    border-inline-start: 2px solid transparent;
     background-color: var(--lf-entry-tint, transparent);
     color: inherit;
-    padding: 7px 8px 7px 6px;
-    font: inherit;
-    text-align: left;
     cursor: default;
+  }
+  /* Each group is a list of its own, so a kind's symbol, an icon, a glyph or an emoji,
+     stands centred in a square a line tall, and every group's names start on one edge. */
+  .lf-page-map-action > .lf-row-lead {
+    width: 1lh;
+    justify-items: center;
   }
   .lf-page-map-action:is(button, [role="button"]):not([aria-disabled="true"]) {
     cursor: pointer;
-  }
-  .lf-page-map-action .lf-margin-kind {
-    align-self: center;
-  }
-  .lf-page-map-action-label {
-    min-width: 0;
-  }
-  .lf-page-map-action-label-word,
-  .lf-page-map-action-context {
-    display: block;
   }
   .lf-page-map-action-label-word,
   .lf-page-map-group h3 {
@@ -1010,12 +1004,6 @@ html[data-lf-region-capture] main * {
     -webkit-line-clamp: 2;
     overflow: hidden;
     overflow-wrap: anywhere;
-  }
-  .lf-page-map-action-context {
-    margin-block-start: 2px;
-    color: var(--muted);
-    font-size: var(--t-6);
-    line-height: 1.25;
   }
   /* Inset, because a row here fills the list to its own edge and the list is a
      scroller: there is nothing outside the row for a ring to be drawn in, and an
@@ -1141,8 +1129,7 @@ html[data-lf-region-capture] main * {
     line-height: 1.35;
   }
   .lf-page-map-actions {
-    display: grid;
-    gap: 2px;
+    row-gap: 2px;
   }
 
   @media (forced-colors: active) {
@@ -1157,6 +1144,11 @@ html[data-lf-region-capture] main * {
     align-items: center;
     gap: 1px;
     white-space: nowrap;
+  }
+  /* A step's keys are alternatives, as `z` and `⌘z` both undo a stroke: each stands
+     apart from the next, where a sequence's steps stand together. */
+  .lf-binding-sequence > kbd[data-lf-key-or] {
+    margin-inline-start: 4px;
   }
   .lf-binding-sequence > kbd[data-lf-sequence-step-state="pressed"] {
     border-color: var(--accent);

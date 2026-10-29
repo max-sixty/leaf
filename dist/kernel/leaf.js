@@ -2230,15 +2230,21 @@ function createAim({ marginTargetAt, refreshAim, commentOnTarget, drawModeActive
 
 //#endregion
 //#region runtime/keyboard/key-sequence.js
-const rowSteps = (row, route = null) => {
-	if (route) return [spell(route.binding)];
-	const label = labelOf(row);
-	return word(row.sequenceSteps) ?? (label ? [label] : []);
+const rowKeySteps = (row, route = null) => {
+	if (route) return [[spell(route.binding)]];
+	const steps = word(row.sequenceSteps);
+	if (steps) return steps.map((step) => [step]);
+	const label = word(row.label);
+	if (label !== void 0 && label !== null) return label ? [[label]] : [];
+	const keys = bindings(row).map(spell);
+	return keys.length ? [keys] : [];
 };
-const completeRowSteps = (row, route = null) => {
-	if (route) return rowSteps(row, route);
-	return word(row.completeSequenceSteps) ?? rowSteps(row);
+const completeRowKeySteps = (row, route = null) => {
+	const steps = route ? null : word(row.completeSequenceSteps);
+	return steps ? steps.map((step) => [step]) : rowKeySteps(row, route);
 };
+const stepText = (keys) => keys.join(" / ");
+const completeRowSteps = (row, route = null) => completeRowKeySteps(row, route).map(stepText);
 const neutralStates = (steps) => steps.map(() => "neutral");
 const progressStates = (steps, pressed) => {
 	let matching = true;
@@ -2247,13 +2253,15 @@ const progressStates = (steps, pressed) => {
 		return matching ? "pressed" : "neutral";
 	});
 };
-function keySequenceModel(steps, states = neutralStates(steps), spokenSteps = steps) {
-	if (!steps.length || states.length !== steps.length || spokenSteps.length !== steps.length) throw new Error("leaf: a key sequence needs one state and spoken label per step");
+function keySequenceModel(steps, states = neutralStates(steps), spokenSteps = steps, keySteps = steps.map((text) => [text])) {
+	if (!steps.length || states.length !== steps.length || spokenSteps.length !== steps.length || keySteps.length !== steps.length) throw new Error("leaf: a key sequence needs one state, spoken label and set of keys per step");
 	const reading = steps.map((text, index) => {
 		const state = states[index];
 		const spoken = spokenSteps[index];
+		const keys = Object.freeze([...keySteps[index]]);
 		return Object.freeze({
 			text,
+			keys,
 			spoken,
 			state
 		});
@@ -2269,12 +2277,13 @@ function keySequenceTemplate(model, { id = null, label = false } = {}) {
     class=${`lf-binding-sequence${label ? " lf-key-label" : ""}`}
     role="group"
     aria-label=${model.label}
-    >${repeat(model.steps, (_step, index) => index, (step) => html`<kbd
-          class="lf-key-badge"
-          data-lf-sequence-step-state=${step.state}
-          aria-hidden="true"
-          >${step.text}</kbd
-        >`)}</span
+    >${repeat(model.steps, (_step, index) => index, (step) => step.keys.map((key, index) => html`<kbd
+              class="lf-key-badge"
+              data-lf-sequence-step-state=${step.state}
+              ?data-lf-key-or=${index > 0}
+              aria-hidden="true"
+              >${key}</kbd
+            >`))}</span
   >`;
 }
 
@@ -4780,7 +4789,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                           ?data-lf-thread-view=${threadOf(route) !== null}
                           ?data-lf-rises=${Boolean(route.thread)}
                           ${ref(declareView)}
-                          style=${route === top && room !== null ? `height: ${room}px` : nothing}
+                          style=${route === top && opening.room !== null ? `height: ${opening.room}px` : nothing}
                           ?data-leaving=${route === leaving}
                           @scroll=${sawAnswer}
                         >
@@ -5187,14 +5196,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			accessibleName: () => `Reply to ${threadTitle(key)}`,
 			sending: streamSend,
 			sent: () => {
-				room = null;
-				rewriting = false;
+				opening.room = null;
+				opening.rewriting = false;
 				landing = {
 					key,
 					after: drawnTurns(),
 					end: true
 				};
-				waiting = null;
+				opening.waiting = null;
 				queueMicrotask(paint);
 			}
 		});
@@ -5326,6 +5335,23 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const at = viewOf(route).menu ? menuOpen.value && menuAt.value : trail.value.at(-1);
 		return Boolean(at) && routeKey(at) === routeKey(route);
 	};
+	const freshOpening = () => ({
+		drawn: false,
+		room: null,
+		rewriting: false,
+		pressed: null,
+		drawnSections: null,
+		drawnThread: null,
+		waiting: null,
+		placed: null,
+		onPageSeat: false,
+		unreadSeat: null,
+		quoteExpanded: false,
+		openItem: null,
+		seatHeights: /* @__PURE__ */ new Map(),
+		planShown: false
+	});
+	let opening = freshOpening();
 	const pathTo = (route) => {
 		const [over] = viewOf(route).over ?? [];
 		return over ? [{ view: over }, route] : [route];
@@ -5501,29 +5527,22 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}, compact);
 	}
 	addEventListener("resize", followBox);
-	let onPageSeat = false;
-	let unreadSeat = null;
 	function decideUnreadSeat() {
 		const route = trail.value.at(-1);
-		if (!route?.thread || unreadSeat !== null) return;
-		const key = routeKey(route);
+		const at = opening;
+		if (!route?.thread || at.unreadSeat !== null) return;
 		afterReadingPass(() => {
-			const top = trail.value.at(-1);
-			if (!top || routeKey(top) !== key || unreadSeat !== null) return;
-			unreadSeat = (threadByKey(route.thread)?.unread.length ?? 0) > 0;
-			if (unreadSeat) paint();
+			if (opening !== at || at.unreadSeat !== null) return;
+			at.unreadSeat = (threadByKey(route.thread)?.unread.length ?? 0) > 0;
+			if (at.unreadSeat) paint();
 		});
 	}
-	let room = null;
-	let drawnTop = null;
 	let stood = null;
-	let rewriting = false;
 	const holdThread = (height) => {
-		if (!trail.value.at(-1)?.thread || room !== null || height === null) return false;
-		room = height;
+		if (!trail.value.at(-1)?.thread || opening.room !== null || height === null) return false;
+		opening.room = height;
 		return true;
 	};
-	let pressed = null;
 	const contentTop = (node, view) => node.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop;
 	const holding = (view) => Math.max(0, ...[...view.children].map((child) => contentTop(child, view) + child.getBoundingClientRect().height));
 	function pressAt(node) {
@@ -5531,7 +5550,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const view = openView();
 		if (!top?.thread || !view || !(node instanceof Element)) return;
 		if (!renderedUnder(node, view)) return;
-		pressed = {
+		opening.pressed = {
 			node,
 			at: contentTop(node, view),
 			height: view.offsetHeight,
@@ -5540,8 +5559,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 	}
 	function judgePress() {
-		const press = pressed;
-		pressed = null;
+		const press = opening.pressed;
+		opening.pressed = null;
 		const view = openView();
 		if (!press || !view || !press.node.isConnected) return;
 		if (Math.abs(holding(view) - press.holds) < .5) return;
@@ -5561,31 +5580,30 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (!trail.value.at(-1)?.thread || cause === "drop" || overPanel(node)) return;
 		const view = openView();
 		const writing = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
-		if (writing === rewriting) return;
+		if (writing === opening.rewriting) return;
 		if (writing) {
-			rewriting = holdThread(stood);
-			if (!rewriting) return;
+			opening.rewriting = holdThread(stood);
+			if (!opening.rewriting) return;
 		} else {
-			rewriting = false;
-			room = null;
+			opening.rewriting = false;
+			opening.room = null;
 		}
 		paint();
 	});
 	function holdRoom() {
 		const top = trail.value.at(-1);
-		if (!top || top.thread || room !== null || refitting) return false;
-		if (drawnTop !== routeKey(top)) return false;
+		if (!top || top.thread || opening.room !== null || refitting) return false;
+		if (!opening.drawn) return false;
 		const view = shownView();
 		if (!view || view.querySelector(".lf-fp-asked:empty")) return false;
-		room = view.offsetHeight;
+		opening.room = view.offsetHeight;
 		return true;
 	}
 	let refitting = false;
-	let drawnSections = null;
 	let landingKeys = null;
 	function refit() {
-		room = null;
-		drawnSections = null;
+		opening.room = null;
+		opening.drawnSections = null;
 		viewMovingUntil = performance.now() + viewResizeMs();
 		if (refitting) return;
 		refitting = true;
@@ -5593,24 +5611,21 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			refitting = false;
 		});
 	}
-	let drawnThread = null;
-	let waiting = null;
 	const drawnNode = (within, key) => within?.querySelector(isFace(key) ? `${WORKING}[data-face="${CSS.escape(key.slice(5))}"]` : `.lf-msg[data-message="${CSS.escape(key)}"]`) ?? null;
 	let fitted = null;
-	let placed = null;
 	function fitAnswer() {
 		const top = trail.value.at(-1);
 		const view = openView();
 		const outlet = outletOf();
 		if (!top?.thread || !view || !outlet) {
-			drawnThread = null;
+			opening.drawnThread = null;
 			return;
 		}
 		const keys = [...outlet.querySelectorAll(`.lf-msg[data-message], ${WORKING}`)].filter((node) => showsContents(node)).map((node) => node.dataset.message ?? FACE + node.dataset.face);
-		const before = drawnThread?.key === top.thread ? drawnThread : null;
+		const before = opening.drawnThread?.key === top.thread ? opening.drawnThread : null;
 		const msgs = threadByKey(top.thread)?.msgs ?? [];
 		const message = (key) => msgs.find((each) => each.key === key);
-		drawnThread = {
+		opening.drawnThread = {
 			key: top.thread,
 			keys,
 			coming: keys.filter((key) => isFace(key) || message(key)?.ephemeral || message(key)?.provisional),
@@ -5630,12 +5645,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const answer = answerIn(keys);
 		const asked = before && answerIn(before.keys);
 		if (!answer?.keys.length || asked?.turn !== answer.turn || !asked.keys.every((key) => before.coming.includes(key)) || !answer.keys.every((key) => isFace(key) || message(key)?.author === "agent")) return;
-		if (!waiting && view.scrollHeight <= before.extent + .5) return;
+		if (!opening.waiting && view.scrollHeight <= before.extent + .5) return;
 		const atEnd = before.limit - view.scrollTop <= 2;
 		const turn = outlet.querySelector(`.lf-msg[data-message="${CSS.escape(answer.turn)}"]`);
 		const pad = Number.parseFloat(getComputedStyle(view).paddingTop);
 		const from = () => turn.getBoundingClientRect().top - view.getBoundingClientRect().top - pad;
-		if (!waiting && atEnd && view.scrollHeight - view.scrollTop - from() <= view.clientHeight) {
+		if (!opening.waiting && atEnd && view.scrollHeight - view.scrollTop - from() <= view.clientHeight) {
 			scrollToEnd(view);
 			return;
 		}
@@ -5649,11 +5664,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			message: answer.keys[0],
 			label: "New message"
 		};
-		if (waiting?.message === next.message) return;
-		const arriving = !waiting;
-		waiting = next;
+		if (opening.waiting?.message === next.message) return;
+		const arriving = !opening.waiting;
+		opening.waiting = next;
 		nextRender(() => {
-			if (waiting !== next || openView() !== view) return;
+			if (opening.waiting !== next || openView() !== view) return;
 			paint();
 			if (!arriving || !atEnd || !turn.isConnected) return;
 			const foot = view.querySelector(".lf-fp-foot")?.getBoundingClientRect();
@@ -5661,12 +5676,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			const by = Math.min(Math.max(below, 0), from());
 			if (Math.abs(by) < .5) return;
 			moveScrollerBy(view, by);
-			placed = view.scrollTop;
+			opening.placed = view.scrollTop;
 		});
 	}
 	function showAnswer() {
-		const answer = waiting;
-		waiting = null;
+		const answer = opening.waiting;
+		opening.waiting = null;
 		paint();
 		const view = openView();
 		if (view) focusDestination(view, "move");
@@ -5675,13 +5690,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	function sawAnswer(event) {
 		const view = event.currentTarget;
-		if (!waiting || view.scrollTop === placed) return;
-		const node = drawnNode(view, waiting.message);
+		if (!opening.waiting || view.scrollTop === opening.placed) return;
+		const node = drawnNode(view, opening.waiting.message);
 		const press = view.querySelector(".lf-fp-new-reply");
 		if (!node || !press) return;
 		if (press === focused()) return;
 		if (node.getBoundingClientRect().top >= press.getBoundingClientRect().top) return;
-		waiting = null;
+		opening.waiting = null;
 		paint();
 	}
 	let held = null;
@@ -5706,25 +5721,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		postureMoved = true;
 		const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
 		const reading = [before, after].some((route) => route?.thread);
-		if (after?.view !== "queue") {
-			seated = null;
-			openItem = null;
-			planShown = false;
-			seatHeights.clear();
-		}
+		if (after?.view !== "queue") seated = null;
 		const changed = (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
-		if (changed) {
-			room = null;
-			drawnSections = null;
-			rewriting = false;
-			pressed = null;
-			quoteExpanded = false;
-			waiting = null;
-			placed = null;
-			drawnThread = null;
-			onPageSeat = false;
-			unreadSeat = null;
-		}
+		if (changed) opening = freshOpening();
 		if (changed && before?.thread && !handedOn) dismissReply(threadByKey(before.thread)?.key ?? before.thread);
 		leaving = changed && before && after ? before : null;
 		if (changed) viewMovingUntil = performance.now() + outMs() + viewResizeMs();
@@ -5796,8 +5795,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       ?data-opens=${opens}
       @click=${press}
     >
-      <span class="lf-fp-label">${label}</span
-      ><span class="lf-fp-end"
+      <span class="lf-fp-label lf-row-main">${label}</span
+      ><span class="lf-fp-end lf-row-end"
         >${end}${opens ? iconTemplate("next", "lf-fp-chevron") : nothing}</span
       >
     </button>`;
@@ -5950,7 +5949,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               <b>${latest.label}</b>
               <p class="lf-fp-failed-error scroll">${latest.error}</p>
             </div>` : nothing}
-      <div class="lf-fp-versions" role="none">
+      <div class="lf-fp-versions lf-rows" role="none">
         ${repeat(versions, (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`, (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
               ${menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, nothing, () => showVersion(entry), {
 			title: entry.note,
@@ -6031,7 +6030,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const joined = [];
 		for (const thread of shownThreads()) {
 			const now = searched ? "found" : thread.resolved ? "resolved" : "open";
-			const was = drawnSections ? drawnSections.get(thread.key) ?? null : now;
+			const was = opening.drawnSections ? opening.drawnSections.get(thread.key) ?? null : now;
 			if (was === now || gesturedOn(thread)) rows.push({
 				thread,
 				section: now
@@ -6055,7 +6054,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 	}
 	function noteDrawnSections() {
-		drawnSections = showing({ view: "threads" }) && inventoried() ? new Map(threadsListing().rows.map(({ thread, section }) => [thread.key, section])) : null;
+		opening.drawnSections = showing({ view: "threads" }) && inventoried() ? new Map(threadsListing().rows.map(({ thread, section }) => [thread.key, section])) : null;
 	}
 	function joinedFacts(joined) {
 		const counted = (kind, one, many) => {
@@ -6078,7 +6077,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			unfolded.add("resolved");
 			refit();
 		}
-		drawnSections = null;
+		opening.drawnSections = null;
 		landingKeys = keys;
 		paint();
 		landingKeys = null;
@@ -6107,7 +6106,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`<h3 class="lf-label lf-fp-on-group lf-fp-settled-group">
       <button
         type="button"
-        class="lf-fp-face lf-fp-settled lf-disclosure-marker"
+        ${offeredAction("row", "lf-fp-face lf-fp-settled lf-disclosure-marker")}
         aria-expanded=${open ? "true" : "false"}
         @click=${() => {
 			if (open) unfolded.delete(key);
@@ -6116,8 +6115,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			paint();
 		}}
       >
-        <span class="lf-fp-label">${title}</span
-        ><span class="lf-fp-count">${count}</span>
+        <span class="lf-fp-label lf-row-main">${title}</span
+        ><span class="lf-fp-count lf-row-end">${count}</span>
       </button>
     </h3>`;
 	}
@@ -6137,14 +6136,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			thread: thread.key
 		})}
       >
-        <span class="lf-fp-news-mark lf-unread-dot"
-          >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
+        <span class="lf-row-lead"
+          ><span class="lf-fp-news-mark lf-unread-dot"
+            >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
+          ></span
         >
-        <span class="lf-fp-label">${threadHeading(thread)}</span>
-        <span class="lf-fp-value">${threadStatus(thread)}</span>
+        <span class="lf-fp-label lf-row-main">${threadHeading(thread)}</span>
+        <span class="lf-row-end">${threadStatus(thread)}</span>
       </button>`;
 		const rowsOf = (threads) => repeat(threads, (thread) => thread.key, row);
-		return html`<div class="lf-fp-list">
+		return html`<div class="lf-fp-list lf-rows">
       ${listed.length ? rowsOf(listed) : inventoried() ? html`<p class="lf-fp-empty">
                 ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
               </p>` : nothing}
@@ -6221,11 +6222,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	declareView(controls);
 	declareView(replyOutlet);
-	let quoteExpanded = false;
 	function measureQuote() {
 		const quote = stage.querySelector(".lf-fp-view:not([data-leaving]) .lf-fp-quote");
 		const press = quote?.previousElementSibling;
-		if (press?.classList.contains("lf-quote-expand")) keeps(press, "hidden", !quoteExpanded && quote.scrollHeight <= quote.clientHeight ? "" : null);
+		if (press?.classList.contains("lf-quote-expand")) keeps(press, "hidden", !opening.quoteExpanded && quote.scrollHeight <= quote.clientHeight ? "" : null);
 	}
 	const quoteWatch = sizeObserver(() => nextRender(measureQuote));
 	const watchQuote = (node) => {
@@ -6236,17 +6236,17 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		documentChanged();
 		const quote = quoteReading(thread, { placedAt });
 		if (!quote) return nothing;
-		const expanded = quote.localReading && quoteExpanded;
+		const expanded = quote.localReading && opening.quoteExpanded;
 		return html`<header class="lf-fp-quote-head">
       ${quote.localReading ? html`<button
               type="button"
               ${offeredAction("inline", "lf-thread-disclosure lf-quote-expand lf-disclosure-marker")}
               aria-label="Full quote"
               hidden
-              aria-expanded=${String(quoteExpanded)}
+              aria-expanded=${String(opening.quoteExpanded)}
               aria-controls="lf-fp-quote"
               @click=${() => {
-			quoteExpanded = !quoteExpanded;
+			opening.quoteExpanded = !opening.quoteExpanded;
 			paint();
 		}}
             >
@@ -6271,22 +6271,19 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			id
 		})))}
       <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
-      ${waiting?.key === key ? html`<div class="lf-fp-foot">
+      ${opening.waiting?.key === key ? html`<div class="lf-fp-foot">
               <button
                 type="button"
                 class="lf-fp-face lf-fp-new-reply"
                 @click=${showAnswer}
               >
-                ${iconTemplate("down", "lf-action-icon")}${waiting.label}
+                ${iconTemplate("down", "lf-action-icon")}${opening.waiting.label}
               </button>
             </div>` : nothing}`;
 	}
 	let queueTab = "you";
 	let seated = null;
-	let openItem = null;
 	const carrying = /* @__PURE__ */ new Map();
-	const seatHeights = /* @__PURE__ */ new Map();
-	let planShown = false;
 	const QUEUE_TABS = Object.freeze({
 		you: "user",
 		agent: "agent"
@@ -6298,8 +6295,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (tab === queueTab) return false;
 		queueTab = tab;
 		seated = null;
-		openItem = null;
-		seatHeights.clear();
+		opening.openItem = null;
+		opening.seatHeights.clear();
 		refit();
 		fromTop = true;
 		return true;
@@ -6426,11 +6423,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const planHead = ({ done, total }) => html`<button
       type="button"
       class="lf-fp-face lf-fp-plan-head"
-      aria-expanded=${String(planShown)}
+      aria-expanded=${String(opening.planShown)}
       @click=${() => {
-		planShown = !planShown;
+		opening.planShown = !opening.planShown;
 		refit();
-		fromTop = planShown;
+		fromTop = opening.planShown;
 		paint();
 	}}
     >
@@ -6452,16 +6449,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	};
 	let fitting = false;
 	function toggleItem(key) {
-		if (openItem) seatHeights.delete(openItem);
-		openItem = openItem === key ? null : key;
+		if (opening.openItem) opening.seatHeights.delete(opening.openItem);
+		opening.openItem = opening.openItem === key ? null : key;
 		fitting = true;
 		paint();
 	}
 	function forgetOpened(items) {
-		if (openItem && !items.some((item) => queueItemKey(item) === openItem)) openItem = null;
+		if (opening.openItem && !items.some((item) => queueItemKey(item) === opening.openItem)) opening.openItem = null;
 	}
 	function foldItem() {
-		const key = openItem;
+		const key = opening.openItem;
 		toggleItem(key);
 		const line = shownView()?.querySelector(`.lf-fp-on-item[data-key="${CSS.escape(key)}"] .lf-fp-on-line`);
 		if (line) focusDestination(line, "return");
@@ -6470,13 +6467,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (!fitting) return;
 		fitting = false;
 		const view = shownView();
-		if (!view || room === null || trail.value.at(-1)?.view !== "queue") return;
+		if (!view || opening.room === null || trail.value.at(-1)?.view !== "queue") return;
 		const foot = view.getBoundingClientRect().bottom - Number.parseFloat(getComputedStyle(view).paddingBottom);
 		const card = view.querySelector(".lf-fp-on-item[data-open]");
 		const end = (card ?? view.lastElementChild)?.getBoundingClientRect().bottom;
 		const change = end === void 0 ? 0 : card ? Math.max(0, end - foot) : Math.min(0, end - foot);
 		if (change) {
-			room = Math.max(0, room + change);
+			opening.room = Math.max(0, opening.room + change);
 			viewMovingUntil = performance.now() + viewResizeMs();
 			paint();
 		}
@@ -6592,7 +6589,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       </button>`;
 		} else answers = nothing;
 		const key = queueItemKey(item);
-		const opened = openItem === key;
+		const opened = opening.openItem === key;
 		const stop = queueStop(item);
 		const kind = item.owner === "user" ? stop.noun : agentNoun(item);
 		const where = says === "place" ? "" : onMe.place(item);
@@ -6606,7 +6603,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         data-key=${key}
         data-obligation=${record?.id ?? nothing}
         ?data-walked=${walked}
-        style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
+        style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
         ${about.length ? html`<p class="lf-fp-on-place">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
                 <div
@@ -6648,7 +6645,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       data-obligation=${record?.id ?? nothing}
       ?data-open=${opened}
       ?data-walked=${walked}
-      style=${opened && seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
+      style=${opened && opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
     >
       <button
         type="button"
@@ -6657,8 +6654,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
         @click=${() => toggleItem(key)}
       >
-        <span class="lf-fp-value lf-fp-on-noun">${kind}</span
-        ><span class="lf-fp-on-says"
+        <span class="lf-fp-value lf-fp-on-noun lf-row-lead">${kind}</span
+        ><span class="lf-fp-on-says lf-row-main"
           ><span class="lf-fp-label">${name}</span>${end}</span
         >
       </button>
@@ -6694,7 +6691,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				group
 			});
 		}
-		return html`<div class="lf-fp-on-list">
+		return html`<div class="lf-fp-on-list lf-rows">
       ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-label lf-fp-on-group">
                   <span class="lf-fp-label">${row.group.title}</span
                   ><span class="lf-fp-count"
@@ -6780,7 +6777,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}
 		].filter((group) => group.items.length);
 		forgetOpened([...lists.agent, ...lists.done]);
-		return html`${planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on ${agentName()}.</p>`}${groupedItems(groups, (item, group) => onItemCard(item, group.key === "done" ? "done" : "agent"))}`}`;
+		return html`${opening.planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on ${agentName()}.</p>`}${groupedItems(groups, (item, group) => onItemCard(item, group.key === "done" ? "done" : "agent"))}`}`;
 	}
 	function workSummary(inHand, queued, done) {
 		const work = inHand.map(workOn);
@@ -6933,8 +6930,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const thread = threadOf(route);
 		if (!thread) return {};
 		const inMessage = Boolean(placedAt(thread.id)?.message);
-		onPageSeat ||= Boolean(thread.anchor) && (inMessage || !atLastResort(thread.key));
-		const aux = html`${unreadSeat ? html`<button
+		opening.onPageSeat ||= Boolean(thread.anchor) && (inMessage || !atLastResort(thread.key));
+		const aux = html`${opening.unreadSeat ? html`<button
               type="button"
               ${offeredAction("inline", "lf-fp-next-unread")}
               ?disabled=${!thread.unread.length}
@@ -6942,7 +6939,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               @click=${() => void firstUnread(thread.key)}
             >
               ${iconTemplate("down", "lf-action-icon")}Next unread
-            </button>` : nothing}${onPageSeat ? html`<button
+            </button>` : nothing}${opening.onPageSeat ? html`<button
               type="button"
               ${offeredAction("symbol", "lf-fp-on-page", inMessage ? "Show in message" : "Show on page", { action: "show" })}
               ?disabled=${!thread.anchor}
@@ -7034,7 +7031,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			if (outlet) {
 				draw ||= !asked.has(outlet);
 				asked.add(outlet);
-			} else if (!seatHeights.has(card.dataset.key)) seatHeights.set(card.dataset.key, card.getBoundingClientRect().height);
+			} else if (!opening.seatHeights.has(card.dataset.key)) opening.seatHeights.set(card.dataset.key, card.getBoundingClientRect().height);
 		}
 		if (draw) present({ release: true }).then(() => {
 			fitting = true;
@@ -7054,6 +7051,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	function paintNow() {
 		const top = trail.value.at(-1) ?? null;
+		const drawing = opening;
 		const search = activeSearch();
 		const folded = prefs().rest === "mark" && !top && !menuOpen.value && !search;
 		keeps(host, "data-search", search ? pageSearch?.open ? "page" : "threads" : null);
@@ -7116,7 +7114,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			rove(rows, rows.includes(focused()) ? focused() : rows[0]);
 		}
 		if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
-		drawnTop = top ? routeKey(top) : null;
+		drawing.drawn = true;
 		regionViews();
 		const outlet = outletOf();
 		if (outlet !== fitted) {
@@ -7641,11 +7639,11 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		const thread = item && inventory.sourceItem(item)?.thread;
 		return thread ? threadHeading(thread) : visibleLabel;
 	};
-	const sheetFace = ({ icon, glyph, item, visibleLabel, context }) => html`${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}<span class="lf-page-map-action-label"
-        ><span class="lf-page-map-action-label-word"
-          >${sheetName(item, visibleLabel)}</span
-        >${context ? html`<span class="lf-page-map-action-context">${context}</span>` : nothing}</span
-      >`;
+	const sheetFace = ({ icon, glyph, item, visibleLabel, context }) => html`<span class="lf-row-lead"
+        >${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}</span
+      ><span class="lf-page-map-action-label-word lf-row-main"
+        >${sheetName(item, visibleLabel)}</span
+      >${context ? html`<span class="lf-page-map-action-context lf-row-end">${context}</span>` : nothing}`;
 	function activateSheetControl(event, action) {
 		const { offered, record } = action;
 		if (record.behavior === "status" || record.disabled) return;
@@ -7699,7 +7697,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		const body = sheetFace(action);
 		if (action.record.behavior === "status") return html`<span
         id=${action.id}
-        class="lf-page-map-action"
+        class="lf-page-map-action lf-row-plain"
         data-lf-map-key=${action.key}
         data-lf-map-margin-entry=${action.key}
         ${sheetHost(action, actions)}
@@ -7726,7 +7724,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
       ?hidden=${Boolean(query) && !group.search.includes(query)}
     >
       <h3>${group.entry.title}</h3>
-      <div class="lf-page-map-actions">
+      <div class="lf-page-map-actions lf-rows">
         ${repeat(group.actions, ({ key }) => key, (action) => action.kind === "item" ? sheetItemTemplate(action) : sheetControlTemplate(action, group.actions))}
       </div>
     </section>
@@ -9558,7 +9556,8 @@ function captureCommandReferenceCatalog() {
 			const title = listedTitle(route ? titleOf(route) : rowInfo.baseTitle);
 			const description = route?.description !== void 0 ? descriptionOf(route) : rowInfo.baseDescription;
 			const alternatives = (route ? [route.binding] : rowInfo.declared).filter(bindingEnabled);
-			const steps = alternatives.length ? [...rowInfo.sequence, ...completeRowSteps(rowInfo.referenceRow, route)] : [];
+			const keySteps = alternatives.length ? [...rowInfo.sequence.map((step) => [step]), ...completeRowKeySteps(rowInfo.referenceRow, route)] : [];
+			const steps = keySteps.map(stepText);
 			const isAvailable = executable.has(id);
 			const spokenSteps = spokenReferenceSteps(rowInfo.row, route, steps, rowInfo.declared);
 			const entry = Object.freeze({
@@ -9572,7 +9571,7 @@ function captureCommandReferenceCatalog() {
 				sequenceControl: Boolean(rowInfo.row.sequenceControl),
 				keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
 				steps: Object.freeze(steps),
-				keySequence: steps.length ? keySequenceModel(steps, neutralStates(steps), spokenSteps) : null,
+				keySequence: steps.length ? keySequenceModel(steps, neutralStates(steps), spokenSteps, keySteps) : null,
 				title,
 				description,
 				actionable: actionable(rowInfo.row, route),

@@ -790,7 +790,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
     present = {
         "status": {"state": "idle", "ts": now.isoformat()},
         "claim_session": "session-1",
-        "claim_turn": "turn-1",
+        "turn": "turn-1",
         "cursor": 0,
         "turn_closed": None,
         "listening": True,

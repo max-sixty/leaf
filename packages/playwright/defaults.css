@@ -540,16 +540,13 @@ lf-trace[hidden="until-found"] {
   max-inline-size: 44rem;
 }
 /* A saved moment is a row (controls.css, `.lf-row`), the moment shown its current
- * row. The row keeps 2px at its start for the stripe where the word face it wore kept
- * 1px all round, so the padding gives the difference back and the words stay put. */
+ * row, led by its number in the ring its marker wears on the track; the ring stands
+ * taller than a line, so the row's parts meet on its middle. */
 .lf-trace-bookmark {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--sp-2);
-  inline-size: 100%;
-  min-block-size: var(--lf-trace-control-size);
-  padding: var(--sp-2) calc(var(--sp-2) + 1px) var(--sp-2) calc(var(--sp-2) - 1px);
+}
+.lf-trace-bookmark > .lf-row-lead {
+  align-self: center;
 }
 .lf-trace-clock,
 .lf-trace-readout,
@@ -720,6 +717,7 @@ lf-trace-bookmark {
   border: 1px solid var(--border-2);
   border-radius: 999px;
   background: var(--paper);
+  font-weight: 600;
 }
 .lf-trace-full-image {
   flex: 0 0 auto;
@@ -739,18 +737,6 @@ lf-trace-bookmark {
 }
 .lf-trace-image-loading .lf-trace-image-status {
   display: block;
-}
-.lf-trace-moment-number {
-  justify-self: start;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-.lf-trace-moment-time {
-  color: var(--muted);
-  font-size: var(--lf-trace-small-type);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 /* A sticky header: its controls stand its top padding below where it sticks, which
  * the layer's focus margin reads (`--lf-head-inset`, kernel shadow.css). */

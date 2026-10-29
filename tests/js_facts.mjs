@@ -593,7 +593,8 @@ function dressing(node, parents, depth) {
 //   `ref`, whose binding calls one, directly or through a function it calls.
 // - "made": a "button" made by `offer`, `el` or `createElement`, with the `className`
 //   later given to the variable it is bound to; "role as it is made" when it is made
-//   as the element of `offerActionElement` or `offerContentElement`.
+//   as the element of `offerActionElement` or `offerContentElement`, or that variable
+//   is later handed to one.
 // - "copy control": a `copyControl(…)`, "role in its options" when they name a role,
 //   "trigger in its options" when they hand it a trigger, a press read on its own.
 // - "scripted role": an element a module makes, bound in scope, and gives the role
@@ -606,6 +607,7 @@ function presses() {
     const program = tree(file);
     const parents = new Map();
     const assigned = [];
+    const dressed = [];
     walk(program, (node, _loops, parent) => {
       parents.set(node, parent);
       if (
@@ -615,6 +617,8 @@ function presses() {
         node.left.object.type === "Identifier"
       )
         assigned.push(node);
+      if (ROLE_BUILDERS.has(callee(node)) && node.arguments[0]?.type === "Identifier")
+        dressed.push(node);
     });
     const found = [];
     const press = (start, end, kind, built, values) =>
@@ -633,6 +637,13 @@ function presses() {
         : assigned
             .filter((a) => declaration(a.left.object.name, a, parents) === binding)
             .flatMap((a) => words(a.right, parents));
+    // The role builders' calls handed the variable a made element is bound to.
+    const dressedLater = (binding) =>
+      !binding
+        ? []
+        : dressed.filter(
+            (call) => declaration(call.arguments[0].name, call, parents) === binding,
+          );
     const bindingOf = (made) => {
       const parent = parents.get(made);
       if (parent?.type === "VariableDeclarator" && parent.init === made) return parent;
@@ -650,16 +661,21 @@ function presses() {
       const args = node.arguments ?? [];
       if (MAKERS.has(name) && words(args[0], parents).includes("button")) {
         const parent = parents.get(node);
+        const binding = bindingOf(node);
+        const later = dressedLater(binding);
         const asMade =
-          ROLE_BUILDERS.has(callee(parent)) && parent.arguments[0] === node;
+          (ROLE_BUILDERS.has(callee(parent)) && parent.arguments[0] === node) ||
+          later.length > 0;
         press(node.start, node.end, "made", asMade && "role as it is made", [
           ...words(args[CLASS_ARGUMENT[name]], parents),
-          ...givenLater(bindingOf(node)),
+          ...givenLater(binding),
+          ...later.flatMap((call) =>
+            words(call.arguments[CLASS_ARGUMENT[callee(call)]], parents),
+          ),
         ]);
       }
       if (name === "copyControl" && node.callee.type === "Identifier") {
-        const option = (name) =>
-          args[1]?.properties?.find((p) => p.key?.name === name);
+        const option = (name) => args[1]?.properties?.find((p) => p.key?.name === name);
         const role = option("role") && words(option("role").value, parents).length;
         press(
           node.start,

@@ -416,9 +416,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
     expect(result).to_have_attribute("data-lf-selected", "true")
-    expect(result).to_have_attribute(
-        "aria-selected", "true"
-    )
+    expect(result).to_have_attribute("aria-selected", "true")
     page.keyboard.type("!")
     expect(search).to_have_value("r resolve!")
     expect(help_el.locator(".lf-command-reference-empty")).to_be_visible()
@@ -764,13 +762,11 @@ def test_away_from_an_obligation_the_reference_names_widget_owned_options(
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     first = reference.locator('[role=option][data-lf-command="option.choose-lq-keep"]')
-    second = reference.locator('[role=option][data-lf-command="option.choose-lq-token"]')
-    expect(first).to_have_attribute(
-        "data-lf-available", "false"
+    second = reference.locator(
+        '[role=option][data-lf-command="option.choose-lq-token"]'
     )
-    expect(second).to_have_attribute(
-        "data-lf-available", "false"
-    )
+    expect(first).to_have_attribute("data-lf-available", "false")
+    expect(second).to_have_attribute("data-lf-available", "false")
     expect(first.locator("kbd")).to_have_text("1")
     expect(second.locator("kbd")).to_have_text("2")
     expect(first).to_contain_text("Keep the store")
@@ -878,9 +874,7 @@ def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, ser
     buttons = page.locator(".lf-command-reference-command")
     count = buttons.count()
     assert count > 10, "the command walk must extend beyond the visible results"
-    last_command = buttons.last.evaluate(
-        "button => button.dataset.lfCommand"
-    )
+    last_command = buttons.last.evaluate("button => button.dataset.lfCommand")
     before = page.evaluate("scrollY")
     search.press("ArrowUp")
     rendered(page)

@@ -13,14 +13,20 @@
    the guard rolls back to it rather than past it. The guard stands first in the chrome
    sheet and outside its @scope, so every chrome rule of the same weight wins by order or
    scope proximity. Custom properties are outside `all`, so a token the page sets on
-   :root still reaches the chrome. A shadow root would stop all of these. Its spike
-   (e7745b70d, #2828) left the card, passage outlines and margin carriers at their
-   fallback positions, since no
-   engine yet lets a shadow tree's own styles name an `anchor-name` in the document
-   (csswg-drafts#9408 allows it). A document `::part()` rule that sets `position-anchor`
-   does anchor, in Chromium 156, Firefox 157 and WebKit 27.2, so the shadow root is a
-   cost to weigh rather than a block; the user set the direction aside in #3579, and
-   #4030 (a page restyling the chrome through named parts) would bring it back.
+   :root still reaches the chrome, as it would reach a shadow tree.
+
+   What gets past in practice is a page's state face on a bare element rule
+   (`button:hover`, `button:focus`, `button:disabled`), which few pages write. Two
+   stronger boundaries were weighed and set aside as costing more than that. A shadow
+   root would stop every route above, but each anchored box would take its
+   `position-anchor` from a document `::part()` rule, since no engine yet lets a shadow
+   tree's own styles name a document `anchor-name` (interop#1351), and the chrome's
+   sheets, selection, hit testing and document-state rules would have to be carried
+   across the boundary (spike e7745b70d, #2828). Giving this rule and the chrome's own
+   rules an id's weight stops those state faces, but then each shared rule that dresses
+   a chrome element needs a branch of that weight too. An engine that resolves
+   higher-tree anchor names, or #4030 settling on named parts, would reopen the shadow
+   root.
 
    A pseudo-element inherits from its element, which the guard covers. The guard once
    also covered `::before`, `::after` and `::placeholder` themselves, but no authored

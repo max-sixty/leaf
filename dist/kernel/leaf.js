@@ -2230,15 +2230,21 @@ function createAim({ marginTargetAt, refreshAim, commentOnTarget, drawModeActive
 
 //#endregion
 //#region runtime/keyboard/key-sequence.js
-const rowSteps = (row, route = null) => {
-	if (route) return [spell(route.binding)];
-	const label = labelOf(row);
-	return word(row.sequenceSteps) ?? (label ? [label] : []);
+const rowKeySteps = (row, route = null) => {
+	if (route) return [[spell(route.binding)]];
+	const steps = word(row.sequenceSteps);
+	if (steps) return steps.map((step) => [step]);
+	const label = word(row.label);
+	if (label !== void 0 && label !== null) return label ? [[label]] : [];
+	const keys = bindings(row).map(spell);
+	return keys.length ? [keys] : [];
 };
-const completeRowSteps = (row, route = null) => {
-	if (route) return rowSteps(row, route);
-	return word(row.completeSequenceSteps) ?? rowSteps(row);
+const completeRowKeySteps = (row, route = null) => {
+	const steps = route ? null : word(row.completeSequenceSteps);
+	return steps ? steps.map((step) => [step]) : rowKeySteps(row, route);
 };
+const stepText = (keys) => keys.join(" / ");
+const completeRowSteps = (row, route = null) => completeRowKeySteps(row, route).map(stepText);
 const neutralStates = (steps) => steps.map(() => "neutral");
 const progressStates = (steps, pressed) => {
 	let matching = true;
@@ -2247,13 +2253,15 @@ const progressStates = (steps, pressed) => {
 		return matching ? "pressed" : "neutral";
 	});
 };
-function keySequenceModel(steps, states = neutralStates(steps), spokenSteps = steps) {
-	if (!steps.length || states.length !== steps.length || spokenSteps.length !== steps.length) throw new Error("leaf: a key sequence needs one state and spoken label per step");
+function keySequenceModel(steps, states = neutralStates(steps), spokenSteps = steps, keySteps = steps.map((text) => [text])) {
+	if (!steps.length || states.length !== steps.length || spokenSteps.length !== steps.length || keySteps.length !== steps.length) throw new Error("leaf: a key sequence needs one state, spoken label and set of keys per step");
 	const reading = steps.map((text, index) => {
 		const state = states[index];
 		const spoken = spokenSteps[index];
+		const keys = Object.freeze([...keySteps[index]]);
 		return Object.freeze({
 			text,
+			keys,
 			spoken,
 			state
 		});
@@ -2269,12 +2277,13 @@ function keySequenceTemplate(model, { id = null, label = false } = {}) {
     class=${`lf-binding-sequence${label ? " lf-key-label" : ""}`}
     role="group"
     aria-label=${model.label}
-    >${repeat(model.steps, (_step, index) => index, (step) => html`<kbd
-          class="lf-key-badge"
-          data-lf-sequence-step-state=${step.state}
-          aria-hidden="true"
-          >${step.text}</kbd
-        >`)}</span
+    >${repeat(model.steps, (_step, index) => index, (step) => step.keys.map((key, index) => html`<kbd
+              class="lf-key-badge"
+              data-lf-sequence-step-state=${step.state}
+              ?data-lf-key-or=${index > 0}
+              aria-hidden="true"
+              >${key}</kbd
+            >`))}</span
   >`;
 }
 
@@ -9560,7 +9569,8 @@ function captureCommandReferenceCatalog() {
 			const title = listedTitle(route ? titleOf(route) : rowInfo.baseTitle);
 			const description = route?.description !== void 0 ? descriptionOf(route) : rowInfo.baseDescription;
 			const alternatives = (route ? [route.binding] : rowInfo.declared).filter(bindingEnabled);
-			const steps = alternatives.length ? [...rowInfo.sequence, ...completeRowSteps(rowInfo.referenceRow, route)] : [];
+			const keySteps = alternatives.length ? [...rowInfo.sequence.map((step) => [step]), ...completeRowKeySteps(rowInfo.referenceRow, route)] : [];
+			const steps = keySteps.map(stepText);
 			const isAvailable = executable.has(id);
 			const spokenSteps = spokenReferenceSteps(rowInfo.row, route, steps, rowInfo.declared);
 			const entry = Object.freeze({
@@ -9574,7 +9584,7 @@ function captureCommandReferenceCatalog() {
 				sequenceControl: Boolean(rowInfo.row.sequenceControl),
 				keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
 				steps: Object.freeze(steps),
-				keySequence: steps.length ? keySequenceModel(steps, neutralStates(steps), spokenSteps) : null,
+				keySequence: steps.length ? keySequenceModel(steps, neutralStates(steps), spokenSteps, keySteps) : null,
 				title,
 				description,
 				actionable: actionable(rowInfo.row, route),

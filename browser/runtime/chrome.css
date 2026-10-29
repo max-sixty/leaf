@@ -836,14 +836,16 @@ html[data-lf-region-capture] main * {
     margin: 16px 0 4px;
   }
   /* The reference is a list a reader scans for a command and then reads its keys, so
-     each key sits beside the words it runs, as a menu or Gmail's `?` sets it: the
-     command, then its keys 10px after, then its description. Two layouts were
-     rejected. In a table whose key column was a fixed 104px, a lone key stood some 80px
-     from its command, the longest lists still wrapped, and the table wore the
-     document's data-table rule, a hairline under every cell. Keys at the row's end, as
-     a wide command palette sets them, stood 300px away. Rows share no column, so one long
-     binding list (`⇥ / ⇧⇥ / ← / → / ↑ / ↓`) widens only its own row. Rows part by
-     their own room, and a section by the space above its heading.
+     each key leads the words it runs, as Gmail's `?` sets it: its keys, set against
+     the command 10px after them, then the command, then its description. The keys
+     share one column, as wide as `g letters`, so every command starts on one edge;
+     a step's alternatives stand as keys of their own, two to a line, so Move's six
+     take three. The user chose this on 28 October over three others: each key 10px after
+     its command, which zigzagged down the list; keys at the row's end, a dialog's
+     width from their words; and one column after the widest command. Before those, a
+     table whose key column was a fixed 104px stood a lone key some 80px from its
+     command and wore the document's data-table rule, a hairline under every cell.
+     Rows part by their own room, and a section by the space above its heading.
 
      A description stays out of sight at rest, as references set none and palettes set
      theirs small and on the title's line: it shows, on its row's one line and cut short
@@ -855,9 +857,9 @@ html[data-lf-region-capture] main * {
   .lf-command-reference-row:not([hidden]) {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(0, max-content) auto minmax(0, 1fr);
-    grid-template-areas: "action key desc";
-    align-items: center;
+    grid-template-columns: 5.6em minmax(0, max-content) minmax(0, 1fr);
+    grid-template-areas: "key action desc";
+    align-items: baseline;
     column-gap: 10px;
     margin-inline: -6px;
     /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
@@ -879,6 +881,7 @@ html[data-lf-region-capture] main * {
   }
   .lf-command-reference-key {
     grid-area: key;
+    justify-self: end;
   }
   /* A walk lands a command's row (command-reference.js), and the row's ring stands
      past its edge, so the row keeps the ring's room as a landing's margin. */
@@ -904,7 +907,7 @@ html[data-lf-region-capture] main * {
   }
   @media (hover: none) {
     .lf-command-reference-row:not([hidden]) {
-      grid-template-areas: "action key ." "desc desc desc";
+      grid-template-areas: "key action ." ". desc desc";
     }
     .lf-command-reference-description {
       padding-top: 0;
@@ -917,9 +920,12 @@ html[data-lf-region-capture] main * {
       margin-top: calc((1lh - var(--aim-floor)) / 2);
     }
   }
-  .lf-command-reference .lf-binding-sequence {
+  /* A step's alternatives stand two to a line, so Move's arrows pair as ← → and ↑ ↓. */
+  .lf-command-reference .lf-binding-sequence:has(> [data-lf-key-or]) {
     flex-wrap: wrap;
-    max-width: 100%;
+    justify-content: flex-end;
+    row-gap: 4px;
+    max-width: calc(2 * var(--lf-key-badge-size) + 14px);
   }
   .lf-command-reference .lf-binding-sequence > kbd {
     max-width: 100%;
@@ -1135,6 +1141,11 @@ html[data-lf-region-capture] main * {
     align-items: center;
     gap: 1px;
     white-space: nowrap;
+  }
+  /* A step's keys are alternatives, as `z` and `⌘z` both undo a stroke: each stands
+     apart from the next, where a sequence's steps stand together. */
+  .lf-binding-sequence > kbd[data-lf-key-or] {
+    margin-inline-start: 4px;
   }
   .lf-binding-sequence > kbd[data-lf-sequence-step-state="pressed"] {
     border-color: var(--accent);

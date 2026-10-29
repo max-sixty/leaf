@@ -5,6 +5,9 @@
 lf-activity {
   display: block;
   margin: var(--sp-3) 0;
+  /* The feed it draws wears markup's reading face (`reading.css`) whatever theme the
+     page takes, its rows' spacing at working density included. */
+  --lf-reading-face: 1;
 }
 lf-activity .lf-activity-news {
   display: block;

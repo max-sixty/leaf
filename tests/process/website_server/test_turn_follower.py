@@ -5,7 +5,6 @@ import json
 import os
 import threading
 
-import leaf_website as website_server
 import pytest
 from interact_support import (
     STATED_TIMEOUT,
@@ -18,6 +17,7 @@ from interact_support import (
 )
 from interact_support import append_carried_log_record as append_event
 
+import leaf_website as website_server
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected
 from leaf.delivery import response_addresses
@@ -150,7 +150,9 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
     [reply] = [event for event in events if event["kind"] == "reply"]
     assert (reply["responds"], reply["failure"]) == (comment["id"], "turn_failed")
     assert reply["text"] == website_server.FAILURE_RECEIPTS["turn_failed"]
-    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    claim_record = website_server.page_claim(page_dir)
+    assert claim_record is not None
+    assert claim_record["turn_closed"] is not None
     assert activity["kind"] != "working"
     assert activity["obligations"] == []
 
@@ -611,7 +613,9 @@ def test_a_stream_that_goes_silent_ends_its_turn_like_a_dropped_one(
     [reply] = [event for event in events if event["kind"] == "reply"]
     assert (reply["responds"], reply["failure"]) == (comment["id"], "turn_failed")
     assert interrupts == [("hosted-thread", "app-server-turn")]
-    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    claim_record_2 = website_server.page_claim(page_dir)
+    assert claim_record_2 is not None
+    assert claim_record_2["turn_closed"] is not None
     assert activity_reading(page_dir)["kind"] != "working"
     assert silent.closed
 
@@ -658,7 +662,9 @@ def test_a_follower_fault_of_any_shape_still_releases_its_website_turn(
     [reply] = [event for event in events if event["kind"] == "reply"]
     assert (reply["responds"], reply["failure"]) == (comment["id"], "turn_failed")
     assert interrupts == [("hosted-thread", "app-server-turn")]
-    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    claim_record_3 = website_server.page_claim(page_dir)
+    assert claim_record_3 is not None
+    assert claim_record_3["turn_closed"] is not None
     activity = activity_reading(page_dir)
     assert activity["kind"] != "working"
     assert activity["obligations"] == []
@@ -691,6 +697,7 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
         )
 
     claim = website_server.page_claim(page_dir)
+    assert claim is not None
     assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
     assert declared(page_dir)["state"] == "waiting"
@@ -730,7 +737,9 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
     with pytest.raises(OSError, match="could not be opened"):
         turn.commit({"id": "app-server-turn", "status": "completed", "items": []})
 
-    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    claim_record_4 = website_server.page_claim(page_dir)
+    assert claim_record_4 is not None
+    assert claim_record_4["turn_closed"] is not None
     [receipt] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
     assert (receipt["responds"], receipt["failure"]) == (comment["id"], "turn_failed")
 
@@ -794,6 +803,7 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
     )
 
     claim = website_server.page_claim(page_dir)
+    assert claim is not None
     assert claim["turn"] == "new-app-turn"
     assert claim["turn_closed"] is None
     replies = {

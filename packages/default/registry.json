@@ -716,7 +716,7 @@
   },
   "lf-sample": {
     "description": "A labeled sample: quoted content, interactive content on this page, or an isolated child Leaf page.",
-    "x-instructions": "Use interactive for inline controls that share this page’s state and Undo. For an isolated live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome. Read live-samples.md for child-page interaction, reset, and isolation.",
+    "x-instructions": "Use interactive for inline controls that share this page’s state and Undo; they ask nothing, so none goes on On me. For an isolated live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome. Read live-samples.md for child-page interaction, reset, and isolation.",
     "x-name": "label",
     "type": "object",
     "properties": {

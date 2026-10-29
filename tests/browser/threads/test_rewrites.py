@@ -23,6 +23,7 @@ from render_harness import (
     leaf_page,
     open_page,
     resized,
+    rgb_pixel,
     round_trip,
     sending,
     stored_draft_text,
@@ -67,7 +68,7 @@ def _ring_gaps(page, target):
         shot = page.screenshot(
             clip={"x": px - 0.5, "y": py - 0.5, "width": 1, "height": 1}
         )
-        seen = Image.open(io.BytesIO(shot)).convert("RGB").getpixel((0, 0))
+        seen = rgb_pixel(Image.open(io.BytesIO(shot)).convert("RGB"), (0, 0))
         if max(abs(a - b) for a, b in zip(seen, color)) > 40:
             gaps.append(side)
     return gaps

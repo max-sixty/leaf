@@ -28,6 +28,7 @@ from render_harness import (
     open_threads,
     page_comment,
     panel_settled,
+    rgb_pixel,
     scroll_settled,
 )
 
@@ -206,7 +207,9 @@ def test_an_open_part_wears_a_tab_panels_ring_on_its_own_edge(browser, serve):
     clip = {"x": round(box["x"]), "y": round(box["y"] + 40), "width": 4, "height": 1}
     shot = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
-    assert shot.getpixel((0, 0)) == accent, [shot.getpixel((x, 0)) for x in range(4)]
+    assert rgb_pixel(shot, (0, 0)) == accent, [
+        rgb_pixel(shot, (x, 0)) for x in range(4)
+    ]
 
     page.evaluate(
         """(x) => {
@@ -954,7 +957,8 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
         shot = page.screenshot(
             clip={"x": x - 0.5, "y": y - 0.5, "width": 1, "height": 1}
         )
-        red, green, blue = Image.open(io.BytesIO(shot)).convert("RGB").getpixel((0, 0))
+        getpixel_result = rgb_pixel(Image.open(io.BytesIO(shot)).convert("RGB"), (0, 0))
+        red, green, blue = getpixel_result
         painted = red > 200 and green < 80 and blue < 80
         covers = current_location_ring(page)["covers"]
         assert bool(covers) == painted, (
@@ -1057,7 +1061,8 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
       return [b.left + b.width / 2, b.top - 3];
     }""")
     shot = page.screenshot(clip={"x": x - 0.5, "y": y - 0.5, "width": 1, "height": 1})
-    red, green, blue = Image.open(io.BytesIO(shot)).convert("RGB").getpixel((0, 0))
+    getpixel_result_2 = rgb_pixel(Image.open(io.BytesIO(shot)).convert("RGB"), (0, 0))
+    red, green, blue = getpixel_result_2
     assert not (red > 200 and green < 80 and blue < 80), (
         "the page paints the band over the ring here, so this case holds nothing"
     )

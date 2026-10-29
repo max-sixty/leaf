@@ -23,7 +23,6 @@ from interact_support import (
     woken,
 )
 from journeys.test_render_export import ROOT, _reachable
-from leaf_dev.commands import preview as preview_model
 from playwright.sync_api import expect
 from render_harness import (
     REPLAYED_PAGE,
@@ -46,6 +45,7 @@ from leaf import state as cleanup_model
 from leaf.findings import Finding
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.structure import SourceDocument
+from leaf_dev.commands import preview as preview_model
 
 
 def end_preview(process) -> None:
@@ -640,6 +640,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
         timeout=COMPOSITE_TIMEOUT,
     )
     claim = service_model.page_claim(directory)
+    assert claim is not None
     assert claim["pid"] == owner.pid
     with theme.open("a", encoding="utf-8") as stream:
         stream.write("\nh1 { color: navy; }\n")
@@ -657,6 +658,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     with service_model.PageTransaction(directory):
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: teal; }\n")
+        assert claim is not None
         cleanup_model.end_session(claim["id"])
     wait_for(
         lambda: server_model.running_server(directory),
@@ -867,7 +869,9 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
         failure="the former owner's preview kept following the successor's page",
     )
     assert process.returncode == 0, log.read_text()
-    assert service_model.page_claim(directory)["id"] == "successor"
+    claim_record = service_model.page_claim(directory)
+    assert claim_record is not None
+    assert claim_record["id"] == "successor"
     assert server_model.running_server(directory)
     assert _reachable(url)
 
@@ -910,7 +914,9 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     )
     page.goto(out.as_uri(), wait_until="load")
     source = (ROOT / "examples" / "pr-walkthrough.html").read_text(encoding="utf-8")
-    title = " ".join(SourceDocument(source).tree.select_one("h1").text.split())
+    select_one_result = SourceDocument(source).tree.select_one("h1")
+    assert select_one_result is not None
+    title = " ".join(select_one_result.text.split())
     expect(page.get_by_role("heading", name=title)).to_be_visible()
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     assert page.evaluate("document.compatMode") == "CSS1Compat"

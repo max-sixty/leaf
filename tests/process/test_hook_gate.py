@@ -40,7 +40,9 @@ def test_claude_code_runs_the_whole_hook_once_its_session_claims(page_dir):
     assert state_model.session_record(session) is None
 
     hook("PreToolUse", session)
-    assert state_model.session_record(session)["turn_closed"] is None
+    turn_record = state_model.session_record(session)
+    assert turn_record is not None
+    assert turn_record["turn_closed"] is None
     claimed = subprocess.run(
         [LAUNCHER, "page", "claim", str(page_dir)],
         capture_output=True,
@@ -49,11 +51,14 @@ def test_claude_code_runs_the_whole_hook_once_its_session_claims(page_dir):
     )
     assert claimed.returncode == 0, claimed.stderr
     claim = service_model.page_claim(page_dir)
+    assert claim is not None
     assert claim["id"] == session
     assert claim["turn_closed"] is None
 
     hook("Stop", session)
-    assert state_model.session_record(session)["turn_closed"] is not None
+    turn_record_2 = state_model.session_record(session)
+    assert turn_record_2 is not None
+    assert turn_record_2["turn_closed"] is not None
 
 
 def test_worker_batch_skips_uv_even_when_parent_holds_a_page(claimed, tmp_path):

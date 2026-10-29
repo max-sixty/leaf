@@ -807,21 +807,17 @@ html[data-lf-region-capture] main * {
      floor, empty or not, and the results start a step below it. */
   .lf-command-reference-head,
   .lf-command-reference-search,
-  .lf-command-reference-meta-box {
+  .lf-command-reference-meta {
     flex: none;
   }
-  .lf-command-reference-meta-box {
-    display: grid;
+  .lf-command-reference-meta {
     min-height: 1lh;
     margin: 6px 0;
+    overflow: hidden;
     color: var(--muted);
     font-size: var(--t-6);
-  }
-  .lf-command-reference-meta-box > * {
-    grid-area: 1 / 1;
-  }
-  .lf-command-reference-meta-box > [aria-hidden] {
-    visibility: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   /* The results reach 10px into the dialog's padding, so a row's wash (6px beyond its
      words) and its focus ring outside that keep their room inside the scroller. */

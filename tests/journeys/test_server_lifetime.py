@@ -25,7 +25,6 @@ from interact_support import (
     wait_for,
     woken,
 )
-from leaf_dev.page_fixtures import package_selection_args
 
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -37,6 +36,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf.registry.storage import layer_record
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def _another_selection(page_dir):
@@ -76,7 +76,9 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     # closes leaves the port in TIME_WAIT, and the restart would wait that out.
     before = server_model.running_server(page_dir)["server_id"]
     claim = service_model.page_claim(page_dir)
-    generation = layer_record(page_dir)["generation"]
+    layer = layer_record(page_dir)
+    assert layer is not None
+    generation = layer["generation"]
     session_model.cmd_waiting(page_dir)
     waited = tmp_path / "wait.log"
     with waited.open("w", encoding="utf-8") as output:
@@ -103,7 +105,9 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
         check=False,
     )
     assert revendored.returncode == 0, revendored.stderr
-    assert (layer_record(page_dir)["generation"] != generation) == changed
+    layer_2 = layer_record(page_dir)
+    assert layer_2 is not None
+    assert (layer_2["generation"] != generation) == changed
     assert (incarnation() != before) == changed
     assert server_model.running_server(page_dir)["url"] == url
     # The restart claims nothing, so the turn the claim records is left as it was.
@@ -139,7 +143,9 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
     publish(page_dir)
     started = start_server_command(page_dir, session_id="other")
     assert started.returncode == 0, started.stderr
-    generation = layer_record(page_dir)["generation"]
+    layer_3 = layer_record(page_dir)
+    assert layer_3 is not None
+    generation = layer_3["generation"]
     if service == "stopped":
         assert hosting_model.cmd_stop(page_dir) is True
     elif service == "orphaned":
@@ -149,7 +155,9 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
         cli_model.cli, ["page", "init", *_another_selection(page_dir), str(page_dir)]
     )
 
-    revendored = layer_record(page_dir)["generation"] != generation
+    layer_4 = layer_record(page_dir)
+    assert layer_4 is not None
+    revendored = layer_4["generation"] != generation
     if service == "foreign":
         assert result.exit_code == 1
         assert "served for another session" in result.output
@@ -220,7 +228,9 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
         ],
     )
     assert revendored.exit_code == 0, revendored.output
-    assert layer_record(page_dir)["packages"][-1] == "./packages/.leaf"
+    layer_5 = layer_record(page_dir)
+    assert layer_5 is not None
+    assert layer_5["packages"][-1] == "./packages/.leaf"
     # The old server went down with the restart, and this checkout's came up in its
     # place at the same URL, under the lifetime and claim it had.
     old_server.wait(timeout=STATED_TIMEOUT)

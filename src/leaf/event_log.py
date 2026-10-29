@@ -145,7 +145,7 @@ def _append_event_unlocked(
     return {**event, "seq": seq}
 
 
-def start_log(page_dir: Path, events: list[dict] = ()) -> None:
+def start_log(page_dir: Path, events: list[dict] | tuple[dict, ...] = ()) -> None:
     """Start a page's log holding `events`, each already admitted, in order: empty
     for a page `page init` starts, or a sample's starting history (`samples`). The
     log's inode is the page's successful-init marker, so it is written whole."""

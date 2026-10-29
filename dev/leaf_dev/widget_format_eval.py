@@ -403,7 +403,7 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
     result = infer(prompt, system, work)
     (work / "response.txt").write_text(result["text"])
     grading = check(result["text"], condition, case, work)
-    metadata = {
+    metadata: dict = {
         "work": str(work),
         "case": case,
         "condition": condition,

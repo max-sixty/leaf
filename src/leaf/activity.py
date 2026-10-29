@@ -406,12 +406,15 @@ def claimant_turn(
     since = _moment(live.get("since"))
     stamped = max((moment for moment in (opened, closed) if moment), default=None)
     dialog = live.get("state") == "waiting" and since and since >= (stamped or since)
-    step = {"step": "awaiting_user", "step_since": since} if dialog else {}
+    step = "awaiting_user" if dialog else None
+    step_since = since if dialog else None
     if closed is not None or opened is None or present.get("claim_turn") is None:
         background = closed is not None and live.get("state") == "busy"
-        return Turn(False, ended=closed, background=background, **step)
+        return Turn(
+            False, ended=closed, background=background, step=step, step_since=step_since
+        )
     if awaiting or dialog:
-        return Turn(True, **step)
+        return Turn(True, step=step, step_since=step_since)
     renewals = [opened, _moment(declared)]
     if stream and stream.get("session") == present.get("claim_session"):
         renewals.append(_moment(stream.get("ts")))
@@ -428,11 +431,11 @@ def declared_at(present: dict, events: list) -> str | None:
     from .todos import last_start
 
     moments = [
-        moment
+        (parsed, moment)
         for moment in (present["status"].get("ts"), last_start(events))
-        if _moment(moment)
+        if (parsed := _moment(moment)) is not None
     ]
-    return max(moments, key=_moment, default=None)
+    return max(moments, key=lambda pair: pair[0])[1] if moments else None
 
 
 def current_turn(
@@ -498,7 +501,7 @@ def _start_age(
 
 def _canonical_workflows(
     evidence: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
-) -> tuple[list[dict], dict[str, tuple[bool, bool]]]:
+) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]]]:
     """Age each workflow's evidence, and return beside them, for each Working update,
     the start that holds it and how quiet and whether dropped that start is, which
     the page reading below dates by."""
@@ -604,8 +607,10 @@ def canonical_activity(
     if stream_live and turn.running:
         observed = stream
     elif turn.step is not None and status["state"] != "idle":
+        assert turn.step_since is not None
         observed = {"kind": turn.step, "detail": "", "ts": turn.step_since.isoformat()}
     elif turn.background and status["state"] != "idle":
+        assert turn.ended is not None
         observed = {
             "kind": "working",
             "detail": BACKGROUND_DETAIL,
@@ -643,17 +648,18 @@ def canonical_activity(
             present.get("claim_turn"),
             present.get("turn_closed"),
         ):
+            assert reservation is not None
             answer.update(writer="turn", attempt=reservation["attempt"])
         return answer
 
     # The items in hand: each Working update, by the start that holds it, and each to-do
     # a start runs on, each beside how quiet and whether dropped that start is. Their
     # newest start is the line the page's status shows.
-    in_hand = [
+    in_hand: list[tuple[dict, tuple[bool, bool]]] = [
         (aging[item["id"]][0], aging[item["id"]][1:])
         for item in workflows
         if item["stage"] == "working"
-    ] + [(start, age) for start, *age in todo_aging.values()]
+    ] + [(start, (quiet, dropped)) for start, quiet, dropped in todo_aging.values()]
 
     # Every moment at which some belief above lapses, each as a moment and the
     # grace that runs from it. Status age and the turn's ending can change ownership
@@ -782,6 +788,7 @@ def canonical_activity(
         # A belief the turn's ending retired is dated by that ending, not by the
         # start's own last word: "last checked in just now" beside an amber dot
         # would argue with the dot.
+        assert turn.ended is not None
         ts = turn.ended.isoformat()
 
     return {

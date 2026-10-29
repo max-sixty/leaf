@@ -520,6 +520,12 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     # editor scrolls.
     write(editor, "\n".join(f"Line {n}" for n in range(60)))
     rendered(page)
+    page.wait_for_function(
+        """() => !document.querySelector('.lf-margin-preview')
+            .getAnimations({subtree: true}).some(animation =>
+                animation.playState === 'running' &&
+                animation.effect.getComputedTiming().iterations !== Infinity)"""
+    )
     tall = page.evaluate(CARD_AND_REPLY)
     assert tall["cardBottom"] == pytest.approx(tall["foot"], abs=1), tall
     assert tall["cardTop"] == pytest.approx(tall["head"], abs=1), tall

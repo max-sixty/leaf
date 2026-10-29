@@ -6805,7 +6805,7 @@ var ThreadView = class {
 				name,
 				need,
 				spare: head.getBoundingClientRect().width - need,
-				yields: parseFloat(style.getPropertyValue("--lf-msg-control")) + wordsWidth(time)
+				yields: parseFloat(style.getPropertyValue("--lf-msg-control")) - parseFloat(getComputedStyle(head, "::after").minInlineSize) + wordsWidth(time)
 			});
 		}
 		if (!heads.length || !notice.isConnected) {

@@ -75,6 +75,30 @@ an explanation beside the evidence it interprets. Use the registry's semantic HT
 widgets and class idioms for those roles, including the theme's `.metric` entry
 for a metric.
 
+For measured results, such as an experiment's arms, build the presentation around the
+comparison the reader's decision turns on rather than the table the analysis printed.
+Put each variant beside its baseline at one scale, so its effect reads without
+arithmetic, and show the text or setting each variant changed beside its effect. An
+`lf-chart` of each variant against its baseline usually shows this at a glance, with
+the counts behind it as supporting detail. For a prompt tested in three wordings on two
+models:
+
+<example>
+<bad reason="Crosses wordings with models in the columns, so each wording's baseline sits columns away and every effect is a subtraction.">
+
+Bad: a table with columns "Current, model A | Current, model B | New, model A | New,
+model B | Short, model A | Short, model B" and cells such as "1/10" and "10/10".
+
+</bad>
+<good reason="Puts every wording beside the current one on a shared axis, per model, with its text.">
+
+Good: an `lf-chart` with one row per behaviour and one dot per wording on a shared
+0–100% axis, a panel per model, each new wording quoted beside it, and the counts in a
+collapsed table below.
+
+</good>
+</example>
+
 Choose the Layout after the content: `layout-column` supports a sequence of views,
 including wide diagrams and comparisons; `layout-sidebar` keeps context beside a
 working region; `layout-workspace` lets the user work within one screen. A Layout is a

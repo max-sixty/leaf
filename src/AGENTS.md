@@ -14,7 +14,10 @@ never prints it (`cli.py`'s header).
 Some owners are the one way to do something anywhere in the package: every event is
 appended through `event_contracts.append_admitted`, every finding a check reports or
 note a command prints is a `findings` record, and every JSON record Leaf keeps outside a
-page's log and document is a `state.Record`.
+page's log and document is a `state.Record`. Whether a session is live, and whether its
+turn is open or closed, is asked of `state.session_live`, `state.turn_open` and
+`state.turn_closed`, whether the caller holds the session record, a claim or the page's
+served reading of it.
 
 ## Protocol references
 

@@ -36,7 +36,9 @@ def catalogue(tmp_path, *, default="editorial"):
 
 def served_theme(page: Path) -> str:
     """The theme sheet the layer `page` selects serves (`registry.storage.selected`)."""
-    return selected(layer_record(page), page).files["/theme.css"].decode()
+    layer_2 = layer_record(page)
+    assert layer_2 is not None
+    return selected(layer_2, page).files["/theme.css"].decode()
 
 
 def test_an_installed_theme_keeps_the_files_its_sheet_imports(tmp_path):
@@ -107,11 +109,15 @@ def test_a_new_page_reads_in_leaf_s_look_unless_it_takes_none(tmp_path):
     page = tmp_path / "page"
     cmd_init(page)
     assert layer_metadata(page)["theme"] == {"name": "reading", "source": "default"}
-    assert ".callout" in selected(layer_record(page), page).registry
+    layer_3 = layer_record(page)
+    assert layer_3 is not None
+    assert ".callout" in selected(layer_3, page).registry
     assert "color-scheme: light dark;\n  --lf-reading-face: 1;" in served_theme(page)
     cmd_init(page, theme=False)
     assert layer_metadata(page)["theme"] is None
-    assert ".callout" not in selected(layer_record(page), page).registry
+    layer_4 = layer_record(page)
+    assert layer_4 is not None
+    assert ".callout" not in selected(layer_4, page).registry
     bare = served_theme(page)
     assert (
         ".callout" not in bare
@@ -134,7 +140,9 @@ def test_a_project_package_restates_a_theme_s_idiom(tmp_path, monkeypatch):
     monkeypatch.chdir(project.parent)
     page = tmp_path / "page"
     cmd_init(page, ("./.leaf",))
-    layer = selected(layer_record(page), page)
+    layer_5 = layer_record(page)
+    assert layer_5 is not None
+    layer = selected(layer_5, page)
     assert layer.registry[".callout"] == callout
     sheet = layer.files["/theme.css"].decode()
     assert sheet.index(

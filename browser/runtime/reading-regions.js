@@ -234,8 +234,8 @@ export const readingRegionFor = (node) => {
 let recentRegionId = null;
 let pageRegionId = null;
 // Chrome can focus body between pointerdown on unfocusable words and pointerup.
-// That focus belongs to the same press (focus.js, `pressing`); pointerdown has already
-// named its place.
+// That focus belongs to the same press while it is down (focus.js, `pressing`);
+// pointerdown has already named its place.
 const readingInputReaders = new Set();
 export const onReadingInput = (read) => readingInputReaders.add(read);
 const readingInput = (node) => {
@@ -248,7 +248,7 @@ const actedAt = (at, arriving) => {
     if (under(region.host, pageDocument())) pageRegionId = region.id;
   } else if (
     (at === document.body || under(at, pageDocument())) &&
-    !(arriving && at === document.body && pressing())
+    !(arriving && at === document.body && pressing()?.released === false)
   )
     recentRegionId = pageRegionId = null;
 };

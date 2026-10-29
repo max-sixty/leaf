@@ -1317,8 +1317,10 @@
     background: var(--lf-fp-hover);
   }
   /* The versions share one end column, as wide as Compare or Showing, whichever is
-     wider, so the two words start on one line and every version's press, washed under
-     the pointer, ends at the same edge (floating-panel.js, `versionsList`). */
+     wider, each word set against the row's end (floating-panel.js, `versionsList`).
+     A version's press spans the row, so its wash and the shown version's mark run
+     across it; Compare stands over the press's end as a press of its own, and Showing
+     lets a press on it through to the version's. */
   .lf-fp-versions {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -1330,12 +1332,12 @@
     grid-template-columns: subgrid;
     align-items: center;
   }
-  /* A version's press has no value, key or chevron, so it gives the end column it would
-     keep for them to its words, which stay on one line; its number's digits share one
-     width, so v1's note starts where v2's does. */
+  /* The press has no value, key or chevron, so its words take the first column alone,
+     on one line; its number's digits share one width, so v1's note starts where v2's
+     does. The name reads over its note in weight and ink. */
   .lf-fp-version > .lf-fp-item {
-    grid-column: 1;
-    grid-template-columns: minmax(0, 1fr);
+    grid-area: 1 / 1 / 2 / -1;
+    grid-template-columns: subgrid;
     align-items: center;
   }
   .lf-fp-version > .lf-fp-item > .lf-fp-end {
@@ -1344,19 +1346,21 @@
   .lf-fp-version > .lf-fp-item > .lf-fp-label {
     display: block;
     white-space: nowrap;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
   }
   .lf-fp-version > :is(.lf-fp-compare, .lf-fp-showing) {
-    grid-column: 2;
-    text-align: start;
+    grid-area: 1 / 2;
+    justify-self: end;
+    position: relative;
   }
+  /* Showing says which version the page shows, in the accent the shown version wears;
+     Compare stays a quiet press. */
   .lf-fp-showing {
     padding-inline: 8px;
-    color: var(--lf-fp-muted);
+    color: var(--accent);
     font-size: 12px;
-  }
-  .lf-fp-version[data-current] .lf-fp-label {
-    font-weight: 600;
+    pointer-events: none;
   }
   /* What the check found in the agent's latest save, over the versions. */
   .lf-fp-failed {

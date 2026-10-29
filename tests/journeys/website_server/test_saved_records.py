@@ -9,7 +9,6 @@ import sys
 import urllib.error
 import urllib.request
 
-import leaf_website as website_server
 import pytest
 from interact_support import (
     PAGE,
@@ -23,6 +22,7 @@ from process.website_server import (
 )
 from process.website_server.test_saved_records import durable_page_store
 
+import leaf_website as website_server
 from leaf.delivery import receive_batch
 from leaf.event_log import read_events
 from leaf.files import revision_path
@@ -106,7 +106,8 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         with PageTransaction(private):
             pass
         httpd = LeafHTTPServer(
-            ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
+            ("127.0.0.1", 0),
+            website_server.site_endpoint(site, FakeCodexHarness()),
         )
         with running_http_server(httpd):
             media = base64.b64decode(

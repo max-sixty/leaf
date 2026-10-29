@@ -250,6 +250,7 @@ class Session:
     def comment(self, run: int) -> dict:
         words = f"Bench comment {run + 1}."
         box = self.page.locator(f"#{PASSAGE}").bounding_box()
+        assert box is not None
         y = box["y"] + 10
         self.page.mouse.move(box["x"] + 2, y)
         self.page.mouse.down()

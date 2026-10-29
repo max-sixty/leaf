@@ -343,6 +343,7 @@ def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
         source,
         re.DOTALL,
     )
+    assert packaged is not None
     package = json.loads(packaged[1])
     composed = package["document"]
     held_document, entries = entry.subn("", composed)
@@ -350,6 +351,7 @@ def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
 
     def write_document(path, document):
         package["document"] = document
+        assert packaged is not None
         path.write_text(
             source[: packaged.start(1)]
             + json_script(package)

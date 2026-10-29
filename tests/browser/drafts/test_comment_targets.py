@@ -4,7 +4,6 @@ or moves to another location, and whose words a transfer carries."""
 import re
 
 import pytest
-from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_cases_navigation import compose, go_to_address, pending_text
 from render_harness import (
@@ -26,6 +25,7 @@ from browser.drafts import (
 )
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import slow_cpu
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -52,6 +52,7 @@ import {
 } from "../passages.js";
 import { anchoringIsReady, sectionOf } from "../anchor-resolution.js";
 import { coarsePointer, pressIsKeyboardActivation } from "../pointer.js";
+import { pressHolds, pressRecords } from "../focus.js";
 import { under } from "../shadow.js";
 import { shownScheme } from "../color-scheme.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
@@ -161,28 +162,15 @@ export function createDrawingController({
   // The draft the latest stroke went to, which an undo takes it back from. Unlike the
   // session, it outlasts Draw mode: leaving the mode does not change what was drawn last.
   let lastDrawn = null;
-  let claimThroughClick = false;
-  let claimedPointer = null;
-  let releaseTimer = null;
   let mounted = false;
+  // The press Draw mode claimed. The claim is the press's (focus.js, `pressRecords`), so
+  // it stands from the pointerdown through the compatibility events its release owes,
+  // and goes with the press: leaving Draw mode with the pointer still down, as Escape
+  // can, keeps that physical press claimed through its click; only the drawing stops.
+  const claimed = pressRecords();
+  const claimsPointer = (event) => Boolean(claimed.kept()) && pressHolds(event);
 
   const drawModeActive = () => drawModeOn;
-
-  // A release still waiting from the last press is that press's: a new press claims its
-  // own compatibility events, which the browser may deliver before the timer runs.
-  function holdCompatibilityClick() {
-    if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
-    releaseTimer = null;
-    claimThroughClick = true;
-  }
-
-  function releaseCompatibilityClickSoon() {
-    if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
-    releaseTimer = setTimeout(() => {
-      releaseTimer = null;
-      claimThroughClick = false;
-    });
-  }
 
   function setDrawMode(on, { spoken = true } = {}) {
     on = Boolean(on);
@@ -193,12 +181,7 @@ export function createDrawingController({
     }
     drawModeOn = on;
     session = null;
-    if (!on) {
-      stroke = null;
-      // Escape can leave while the pointer remains down. Keep claiming that physical
-      // press through its compatibility click; only the drawing itself stops.
-      if (claimedPointer === null) claimThroughClick = false;
-    }
+    if (!on) stroke = null;
     document.documentElement.toggleAttribute("data-lf-draw-mode", on);
     refreshAim();
     if (spoken)
@@ -392,8 +375,7 @@ export function createDrawingController({
     if (event.button !== 0) return;
     const origin = event.composedPath()[0];
     if (leafSurface(origin)) return;
-    holdCompatibilityClick();
-    claimedPointer = event.pointerId;
+    claimed.keep(event, true);
     claim(event);
     const target = sessionTarget() ?? targetAtPointer();
     // The drawing owner has claimed inspection. Let a moving visual freeze
@@ -431,7 +413,7 @@ export function createDrawingController({
 
   function move(event) {
     if (!stroke || event.pointerId !== stroke.pointerId) {
-      if (event.pointerId === claimedPointer) claim(event);
+      if (claimsPointer(event)) claim(event);
       return;
     }
     claim(event);
@@ -440,19 +422,13 @@ export function createDrawingController({
 
   function finish(event) {
     if (!stroke || event.pointerId !== stroke.pointerId) {
-      if (event.pointerId === claimedPointer) {
-        claim(event);
-        claimedPointer = null;
-        releaseCompatibilityClickSoon();
-      }
+      if (claimsPointer(event)) claim(event);
       return;
     }
     claim(event);
     rememberPoint(event.clientX, event.clientY);
     const completed = stroke;
     stroke = null;
-    claimedPointer = null;
-    releaseCompatibilityClickSoon();
     if (completed.invalid) {
       shiftDrawingPaint();
       announce("Stroke canceled because its page element changed.");
@@ -533,16 +509,10 @@ export function createDrawingController({
 
   function cancel(event) {
     if (!stroke || event.pointerId !== stroke.pointerId) {
-      if (event.pointerId === claimedPointer) {
-        claim(event);
-        claimedPointer = null;
-        releaseCompatibilityClickSoon();
-      }
+      if (claimsPointer(event)) claim(event);
       return;
     }
     claim(event);
-    claimedPointer = null;
-    releaseCompatibilityClickSoon();
     dropStroke();
   }
 
@@ -553,7 +523,7 @@ export function createDrawingController({
   // Eating it silently lost the user's press — Ctrl+Enter on the composer the stroke
   // had just opened sent nothing, and nothing said so.
   const compatibilityPress = (event) => {
-    if (claimThroughClick && !pressIsKeyboardActivation(event)) claim(event);
+    if (claimed.kept() && !pressIsKeyboardActivation(event)) claim(event);
   };
 
   // The drawing as it will stand when this stroke lifts, earlier strokes included, so the
@@ -651,14 +621,10 @@ export function createDrawingController({
       stopWatching();
     }
     mounted = false;
-    if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
-    releaseTimer = null;
     drawModeOn = false;
     stroke = null;
     session = null;
     lastDrawn = null;
-    claimThroughClick = false;
-    claimedPointer = null;
     document.documentElement.removeAttribute("data-lf-draw-mode");
   }
 

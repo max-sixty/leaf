@@ -33,6 +33,19 @@ whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
 `diff.png` outlining the head's own regions, a change in red and a move in blue. The
 crops cover both stills' regions.
 
+Beside each pair, the command reads the cascade a screenshot only shows in part: the
+computed `STYLED` properties of every element in the document and its open shadow
+trees, hidden ones included, so the corpus states read every page it composes (a
+rule that depends on a page's own Layout, such as a sidebar page's panels, reads only
+on that page's states).
+Elements are keyed by their path of tags, ids and first two classes. A state with a
+differing property, or a subtree only one arm has, also counts as changed, and its
+`styles.txt` lists them (`style_changes`). The properties are the cascade's own, not
+the geometry it produces, which the stills show; width, height and offsets stay out
+because they move with every reflow. A widget inside a tab or disclosure the page
+opens shut, such as a chart, may or may not have drawn by the reading, in either arm,
+so rerun a state before taking a difference confined to one as a change.
+
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
@@ -78,6 +91,102 @@ DIFFERENCE = ROOT / "packages" / "default" / "widgets" / "image-difference.js"
 # Where `differences` serves the stills and the module that compares them.
 ORIGIN = "http://stills.invalid"
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
+# The computed properties `style_changes` compares: the faces, boxes and flow a rule
+# sets, not the layout it produces.
+STYLED = [
+    "color",
+    "background-color",
+    "background-image",
+    "border-top-width",
+    "border-right-width",
+    "border-bottom-width",
+    "border-left-width",
+    "border-top-style",
+    "border-right-style",
+    "border-bottom-style",
+    "border-left-style",
+    "border-top-color",
+    "border-right-color",
+    "border-bottom-color",
+    "border-left-color",
+    "border-top-left-radius",
+    "border-top-right-radius",
+    "border-bottom-right-radius",
+    "border-bottom-left-radius",
+    "box-shadow",
+    "outline-style",
+    "outline-width",
+    "outline-color",
+    "outline-offset",
+    "font-family",
+    "font-size",
+    "font-weight",
+    "font-style",
+    "font-variant-numeric",
+    "line-height",
+    "letter-spacing",
+    "text-transform",
+    "text-align",
+    "text-decoration-line",
+    "text-decoration-color",
+    "text-underline-offset",
+    "text-wrap-style",
+    "white-space",
+    "overflow-wrap",
+    "margin-top",
+    "margin-right",
+    "margin-bottom",
+    "margin-left",
+    "padding-top",
+    "padding-right",
+    "padding-bottom",
+    "padding-left",
+    "display",
+    "position",
+    "max-width",
+    "min-width",
+    "max-height",
+    "overflow-x",
+    "overflow-y",
+    "vertical-align",
+    "list-style-type",
+    "gap",
+    "flex-direction",
+    "align-items",
+    "justify-content",
+    "color-scheme",
+    "container-type",
+    "opacity",
+    "visibility",
+    "cursor",
+    "box-sizing",
+    "z-index",
+]
+# Every element's `STYLED` values by its path, sharing each distinct set of values.
+STYLES = """(properties) => {
+  const skip = new Set(["head", "script", "style", "template", "link", "meta"]);
+  const faces = new Map();
+  const elements = {};
+  const walk = (parent, prefix) => {
+    const seen = {};
+    for (const element of parent.children) {
+      if (skip.has(element.localName)) continue;
+      const label = element.localName + (element.id
+        ? `#${element.id}`
+        : [...element.classList].slice(0, 2).map((name) => `.${name}`).join(""));
+      seen[label] = (seen[label] ?? -1) + 1;
+      const key = prefix + label + (seen[label] ? `:${seen[label]}` : "");
+      const style = getComputedStyle(element);
+      const face = JSON.stringify(properties.map((name) => style.getPropertyValue(name)));
+      if (!faces.has(face)) faces.set(face, faces.size);
+      elements[key] = faces.get(face);
+      walk(element, `${key} > `);
+      if (element.shadowRoot) walk(element.shadowRoot, `${key} >> `);
+    }
+  };
+  walk(document, "");
+  return { faces: [...faces.keys()].map((face) => JSON.parse(face)), elements };
+}"""
 
 
 def at_rest(page: Page) -> None:
@@ -429,6 +538,7 @@ def card_aging(page: Page) -> None:
     """An open card follows the clock while its reply is being drafted."""
     card_reply(page)
     timestamp = page.locator(".lf-margin-preview time").first.get_attribute("datetime")
+    assert timestamp is not None
     now = datetime.fromisoformat(timestamp) + timedelta(seconds=30)
 
     def aged_state(route):
@@ -766,9 +876,12 @@ def panel_by_keyboard(page: Page) -> None:
 def composer_resting(page: Page) -> None:
     """An empty anchored comment opened by selecting a passage, without focus."""
     box = page.locator("#triage-lede").bounding_box()
+    assert box is not None
     y = box["y"] + 10
+    assert box is not None
     page.mouse.move(box["x"] + 2, y)
     page.mouse.down()
+    assert box is not None
     page.mouse.move(box["x"] + 200, y, steps=8)
     page.mouse.up()
     # Under a finger a selection is offered in the floating panel's field, which quotes
@@ -1277,6 +1390,7 @@ def aim_cut_by_pane(page: Page) -> None:
         }"""
     )
     box = page.locator("#sort-source").bounding_box()
+    assert box is not None
     page.mouse.move(box["x"] + 120, box["y"] + 20)
     page.keyboard.down("Alt")
     page.wait_for_function(
@@ -1393,6 +1507,7 @@ def capture_small_drag(page: Page) -> None:
     capture_menu(page)
     page.locator(".lf-region-selection").wait_for(state="visible")
     target = page.locator("#plan-current").bounding_box()
+    assert target is not None
     left, top = round(target["x"]) + 45, round(target["y"]) + 8
     page.mouse.move(left, top)
     page.mouse.down()
@@ -2844,14 +2959,17 @@ STATES = (
 
 # Every state's input by name, for `leaf-dev probe --do drive:NAME`.
 DRIVERS: dict[str, Callable[[Page], None]] = {
-    state.drive.__name__.replace("_", "-"): state.drive for state in STATES
+    getattr(state.drive, "__name__").replace("_", "-"): state.drive for state in STATES
 }
 
 
-def capture(browser, address: str, state: State, path: Path) -> dict | None:
+def capture(
+    browser, address: str, state: State, path: Path
+) -> tuple[dict | None, dict[str, list[str]]]:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
     density of the displays its pairs are read on, so a crop shows text and hairlines
-    as the reader's screen draws them."""
+    as the reader's screen draws them. Return the state's region in the screenshot,
+    if it names one, and its elements' styles (`STYLES`)."""
     scale = 2
     with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
         load(page, address)
@@ -2875,7 +2993,47 @@ def capture(browser, address: str, state: State, path: Path) -> dict | None:
                 - y,
             }
         page.screenshot(path=path)
-        return {key: value * scale for key, value in clip.items()} if clip else None
+        reading = page.evaluate(STYLES, STYLED)
+        styles = {
+            key: reading["faces"][face] for key, face in reading["elements"].items()
+        }
+        region = {key: value * scale for key, value in clip.items()} if clip else None
+        return region, styles
+
+
+def style_changes(
+    base: dict[str, list[str]], head: dict[str, list[str]]
+) -> tuple[int, list[str]]:
+    """Each `STYLED` property whose value differs between an element's base and head
+    readings, grouped by property and values with up to four of its elements, then
+    the subtrees only one arm has, each named by its outermost element, since a widget
+    that draws in one arm and not the other adds every node of its drawing. Return how
+    many element properties differ, plus those subtrees, and the lines that list them."""
+    groups: dict[tuple[str, str, str], list[str]] = {}
+    for key in base.keys() & head.keys():
+        for name, before, after in zip(STYLED, base[key], head[key]):
+            if before != after:
+                groups.setdefault((name, before, after), []).append(key)
+    alone = {
+        heading: sorted(
+            key for key in keys if re.sub(r" >>? [^ ]+$", "", key) not in keys
+        )
+        for heading, keys in (
+            ("only in base", base.keys() - head.keys()),
+            ("only in head", head.keys() - base.keys()),
+        )
+    }
+    lines = []
+    for (name, before, after), keys in sorted(
+        groups.items(), key=lambda group: -len(group[1])
+    ):
+        lines.append(f"{name}: {before} -> {after}  x{len(keys)}")
+        lines.extend(f"    {key}" for key in sorted(keys)[:4])
+    for heading, keys in alone.items():
+        if keys:
+            lines.append(f"{heading}  x{len(keys)}")
+            lines.extend(f"    {key}" for key in keys[:4])
+    return sum(map(len, groups.values())) + sum(map(len, alone.values())), lines
 
 
 @contextmanager
@@ -2995,7 +3153,12 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                 source_roots[arm] = scratch / f"{arm}-source"
                 source_roots[arm].mkdir()
                 copy_committed(
-                    ("examples", "tests/fixtures/pages", "leaf-assets.json"),
+                    (
+                        "examples",
+                        "tests/fixtures/pages",
+                        "docs/examples.html",
+                        "leaf-assets.json",
+                    ),
                     source_roots[arm],
                     commit,
                 )
@@ -3004,6 +3167,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                 folder = out / state.name
                 folder.mkdir()
                 crop_regions = []
+                styles = {}
                 for arm, arm_dir in arms.items():
                     # Every state starts from its authored fixture. A prior Send or
                     # Resolve must not become the next state's initial event log.
@@ -3016,7 +3180,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                             source_roots[arm] / "examples" / f"{state.source}.html",
                             scratch / f"{arm}-{state.name}",
                         ) as address:
-                            region = capture(
+                            region, styles[arm] = capture(
                                 browser, address, state, folder / f"{arm}.png"
                             )
                             if region:
@@ -3031,6 +3195,11 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                         crop(
                             folder, difference["regions"], framing=crop_regions or None
                         )
+                    difference["styles"], lines = style_changes(
+                        styles["base"], styles["head"]
+                    )
+                    if lines:
+                        (folder / "styles.txt").write_text("\n".join(lines) + "\n")
                     read[state.name] = difference
                 except Exception as error:  # noqa: BLE001 - isolate each comparison
                     failure(state, "comparison", error)
@@ -3040,9 +3209,10 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
         folder = out / state.name
         if state.name in failed:
             click.echo(f"  failed  {state.name} {'; '.join(failed[state.name])}")
-        elif (difference := read[state.name])["changed"]:
+        elif (difference := read[state.name])["changed"] or difference["styles"]:
             click.echo(
-                f"  changed {state.name}: {difference['changed']} px -> {folder}"
+                f"  changed {state.name}: {difference['changed']} px,"
+                f" {difference['styles']} styles -> {folder}"
             )
         else:
             unchanged += 1

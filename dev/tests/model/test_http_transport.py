@@ -7,8 +7,9 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
-from leaf_dev import ROOT
 from playwright.sync_api import Error, sync_playwright
+
+from leaf_dev import ROOT
 
 
 def test_playwright_transport_records_reuse_reset_and_ray_without_secrets(
@@ -31,7 +32,7 @@ def test_playwright_transport_records_reuse_reset_and_ray_without_secrets(
             self.end_headers()
             self.wfile.write(b"ok")
 
-        def log_message(self, *args):
+        def log_message(self, format, *args):
             pass
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

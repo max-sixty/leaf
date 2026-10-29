@@ -33,11 +33,11 @@ import time
 import tomllib
 import urllib.error
 import urllib.request
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, NamedTuple
+from typing import IO, NamedTuple, Protocol
 from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
@@ -102,9 +102,10 @@ class AgentSession(NamedTuple):
     state: dict
 
 
-def check(condition: bool, message: str) -> None:
+def check[T](condition: T | None, message: str) -> T:
     if not condition:
         raise RuntimeError(message)
+    return condition
 
 
 def said(failures: list[Finding]) -> str:
@@ -112,7 +113,17 @@ def said(failures: list[Finding]) -> str:
     return "; ".join(map(str, failures)) or "none"
 
 
-def answered(response: APIResponse, url: str) -> APIResponse:
+class HttpAnswer(Protocol):
+    @property
+    def ok(self) -> bool: ...
+
+    @property
+    def status(self) -> int: ...
+
+    def text(self) -> str: ...
+
+
+def answered[Response: HttpAnswer](response: Response, url: str) -> Response:
     """Hold one API answer to being an answer, quoting what a refusal said (a Leaf
     fault's body is `{"error": "<class>: <message>"}`)."""
     if not response.ok:
@@ -292,7 +303,7 @@ def verify_page(
     activation = activation_url(url, passive_response.json())
     # No wait here: `--wait` reruns the whole pass until the release verifies.
     activation_response = activation_read(context, activation)
-    check(activation_response is not None, f"{activation} {STILL_STARTING}")
+    activation_response = check(activation_response, f"{activation} {STILL_STARTING}")
     check(
         activation_response.headers.get("leaf-session") == "active",
         f"{activation} did not activate a private container",
@@ -600,7 +611,7 @@ def announced_origin(log: Path, event: str) -> str | None:
 
 
 @contextmanager
-def logged(log: Path) -> Iterator[IO[str]]:
+def logged(log: Path) -> Generator[IO[str]]:
     """Collect a local server's output in `log`, printing it beside any failure."""
     log.parent.mkdir(parents=True, exist_ok=True)
     with log.open("w") as output:
@@ -619,7 +630,7 @@ def serving(
     ready: Callable[[], str | None],
     patience: float,
     **popen,
-) -> Iterator[str]:
+) -> Generator[str]:
     """Run a local server and yield the origin its readiness probe confirms."""
     with subprocess.Popen(
         command, stdout=output, stderr=subprocess.STDOUT, **popen
@@ -644,7 +655,7 @@ def ready_origin(log: Path, event: str, path: str) -> str | None:
 
 
 @contextmanager
-def local_adapter() -> Iterator[tuple[str, str]]:
+def local_adapter() -> Generator[tuple[str, str]]:
     """Build the site and serve it with the website adapter sharing the host's login.
 
     Its isolated Codex home and normal Leaf plugin installation are removed with
@@ -711,10 +722,8 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     state_url = urljoin(url, "api/state")
     before = worker.containers()
     session = user_session(browser, url, state_url, worker.release)
-    check(
-        isinstance(session, AgentSession),
-        f"saved-state fixture could not activate: {session}",
-    )
+    if not isinstance(session, AgentSession):
+        raise RuntimeError(f"saved-state fixture could not activate: {session}")
     cookies = session.context.cookies()
     session.context.close()
     wait_for_host_network()
@@ -958,7 +967,7 @@ class LocalWorker:
 
 
 @contextmanager
-def local_worker() -> Iterator[LocalWorker]:
+def local_worker() -> Generator[LocalWorker]:
     """Serve the built site through `wrangler dev`: the Worker and its page container.
 
     Build the image before timing HTTP readiness: a cold dependency download is not

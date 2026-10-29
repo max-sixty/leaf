@@ -25,15 +25,9 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
-import leaf_website as website_server
 import pytest
 from conftest import LENT_LINKED_DIRS
 from interact_support import declared, running_http_server, wait_for
-from leaf_dev.browser import panel_tab, show_resolved
-from leaf_dev.commands import site as site_build
-from leaf_dev.example_data import catalog_sources, data_operations, example_versions
-from leaf_dev.leaf_assets import pinned_assets
-from leaf_dev.page_fixtures import authored_markup, read_event_lines, source_packages
 from PIL import Image
 from playwright.sync_api import expect
 from render_harness import (
@@ -59,6 +53,8 @@ from render_harness import (
     write,
 )
 
+import leaf_website as website_server
+
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "Waits".
 from journeys import expect_showing
@@ -76,6 +72,11 @@ from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
 from leaf.structure import SourceDocument
+from leaf_dev.browser import panel_tab, show_resolved
+from leaf_dev.commands import site as site_build
+from leaf_dev.example_data import catalog_sources, data_operations, example_versions
+from leaf_dev.leaf_assets import pinned_assets
+from leaf_dev.page_fixtures import authored_markup, read_event_lines, source_packages
 
 ROOT = Path(__file__).parents[2]
 DOCS = ROOT / "docs"
@@ -141,7 +142,9 @@ def pages_under(directory):
 
 def heading(source: str) -> str:
     """The words of the h1 an authored source carries, as the parser reads them."""
-    return " ".join(SourceDocument(source).tree.select_one("h1").text.split())
+    select_one_result = SourceDocument(source).tree.select_one("h1")
+    assert select_one_result is not None
+    return " ".join(select_one_result.text.split())
 
 
 def example_title(stem: str) -> str:
@@ -227,11 +230,14 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
             if ctype not in schema_model.BINARY_TYPES:
                 ctype += "; charset=utf-8"
             response = self._content(200, ctype, file.read_bytes())
+            layer = page["layer"]
+            assert isinstance(layer, str)
+            assert self.release is not None
             response.headers.update(
                 {
                     "Access-Control-Allow-Origin": "*",
                     "Access-Control-Expose-Headers": "*",
-                    "Leaf-Layer": page["layer"],
+                    "Leaf-Layer": layer,
                     "Leaf-Release": self.release,
                 }
             )
@@ -340,6 +346,7 @@ def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeyp
     context_theme = layer_model.stylesheet(package / "overrides.css", package).rstrip()
     for source in site_build.published_page_sources():
         record = layer_record(site / "examples" / source.stem)
+        assert record is not None
         theme = (
             selected(record, site / "examples" / source.stem)
             .top_files["theme.css"]
@@ -385,7 +392,9 @@ def test_product_pages_are_published_as_complete_page_records(site):
         # beside each revision rather than the page holding them
         # (`runtime_selection`).
         assert list((page / "revisions").iterdir()), f"{source.name}: no revisions"
-        artifact = read_artifact(page, files_model.latest_revision(page))
+        revision_2 = files_model.latest_revision(page)
+        assert revision_2 is not None
+        artifact = read_artifact(page, revision_2)
         for path, resource in artifact.resources.items():
             if path.startswith("/media/"):
                 assert (page / path.lstrip("/")).read_bytes() == resource.data

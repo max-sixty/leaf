@@ -12,7 +12,6 @@ from interact_support import (
     append_command,
     refused_on,
 )
-from leaf_dev.browser import threads_tab
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -87,6 +86,7 @@ from leaf import schema as schema_model
 from leaf.registry.contract import RANK
 from leaf.render_checks import rendered
 from leaf.render_gate.scheme import console_finding
+from leaf_dev.browser import threads_tab
 
 DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 

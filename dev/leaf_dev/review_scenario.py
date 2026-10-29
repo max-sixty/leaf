@@ -16,6 +16,7 @@ import click
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.service import page_claim
+from leaf.state import turn_closed
 from leaf.thread import successful_replies
 from leaf_dev import ROOT
 from leaf_dev.arms import PageClient, run_leaf
@@ -112,9 +113,10 @@ def post(url: str, step: str, text: str | None = None) -> str:
     )
 
 
-def require(condition: bool, message: str) -> None:
+def require[T](condition: T | None, message: str) -> T:
     if not condition:
         raise click.ClickException(message)
+    return condition
 
 
 def answers(page: Path, comment: str) -> list[dict]:
@@ -138,13 +140,13 @@ def settled(page: Path, session: str, sent: dict[str, str]) -> dict:
             f"comment `{step}` has a reply but never entered the harness context",
         )
     claim = page_claim(page)
-    require(claim is not None, "the page has no claim")
+    claim = require(claim, "the page has no claim")
     require(
         claim["id"] == session,
         f"the page is claimed by {claim['id']}, not the task {session}",
     )
     require(
-        claim["turn_closed"] is not None,
+        turn_closed(claim),
         f"turn {claim['turn']} has ended, but the claim holds it open",
     )
     return claim

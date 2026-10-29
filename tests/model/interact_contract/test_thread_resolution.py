@@ -412,7 +412,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
     ).spoken
     assert "sug-a" in spk["c1"].within  # the namesake really is inside the widget
     folds = [passages_model.enclosing_of(spk), passages_model.enclosing_ids(document)]
-    events = events_model.read_events(page_dir)
+    events: list[dict] = events_model.read_events(page_dir)
     for within in folds:
         assert event_folds_model.build_threads(events, within)["c1"]["resolved"][
             "detail"
@@ -429,7 +429,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "restated": ["sug-a"],
         },
     )
-    events = events_model.read_events(page_dir)
+    events: list[dict] = events_model.read_events(page_dir)
     for within in folds:
         assert event_folds_model.build_threads(events, within)["c1"]["resolved"] is None
 
@@ -477,6 +477,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     assert labeled["meaning"]["depends"] == ["proposal"]
     # Literal text matching an id is not a dependency; ancestry remains live for
     # declared identities, tested in the named-dependency contrast below.
+    assert revision is not None
     assert not event_folds_model.action_retracted(
         labeled, {"proposed": revision + 1}, {"proposed": ("proposal", "proposed")}
     )
@@ -529,7 +530,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     }
     html = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
     stated = ModelPage(html, registry=registry)
-    events = [{**COMMENT, "seq": 1}]
+    events: list[dict] = [{**COMMENT, "seq": 1}]
     accepted = event_contracts_model.admitted_event(
         stated,
         events,
@@ -673,7 +674,8 @@ def test_every_change_to_a_threads_resolution_reaches_its_membership():
         }
 
     for history in itertools.product(steps, repeat=3):
-        events, revision, in_force = list(comments), 1, []
+        events: list[dict] = list(comments)
+        revision, in_force = 1, []
         for index, step in enumerate(history):
             if step[0] == "act":
                 event = {
@@ -698,6 +700,7 @@ def test_every_change_to_a_threads_resolution_reaches_its_membership():
                     "revision": revision,
                     "restated": [step[1]],
                 }
+            assert event is not None
             events.append(event)
         memberships = thread_memberships(events, {"c1": "c1", "c2": "c2"}, {}, within)
         for at in range(len(comments), len(events)):

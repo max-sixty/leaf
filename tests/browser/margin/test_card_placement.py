@@ -6,7 +6,7 @@ from io import BytesIO
 
 import pytest
 from interact_support import append_carried_log_record
-from PIL import Image
+from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
@@ -268,13 +268,9 @@ def test_a_cut_name_leaves_the_gap_before_the_time_clear(browser, serve):
         "height": at["height"] - 4,
     }
     pixels = Image.open(BytesIO(page.screenshot(clip=band))).convert("RGB")
-    ground = pixels.getpixel((0, pixels.height - 1))
-    ink = max(
-        max(abs(a - b) for a, b in zip(pixels.getpixel((x, y)), ground, strict=True))
-        for x in range(pixels.width)
-        for y in range(pixels.height)
-    )
-    assert ink < 24, ink
+    ground = Image.new("RGB", pixels.size, pixels.getpixel((0, pixels.height - 1)))
+    _low, ink = ImageChops.difference(pixels, ground).convert("L").getextrema()
+    assert isinstance(ink, (int, float)) and ink < 24, ink
 
 
 def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):

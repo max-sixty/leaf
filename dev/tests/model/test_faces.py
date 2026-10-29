@@ -4,7 +4,7 @@ names them, not by the tokens a theme calls a colour or the order presses come i
 from leaf_dev.faces import groups, pairs, report
 
 
-def press(label, at, ink, hover_ink="#1c1b18", scope=None):
+def press(label, at, ink, hover_ink="#1c1b18", key="main > button"):
     def face(colour):
         return {
             "size": {"width": 28, "height": 28},
@@ -21,10 +21,8 @@ def press(label, at, ink, hover_ink="#1c1b18", scope=None):
 
     return {
         "label": label,
-        "element": "button",
+        "key": key,
         "at": at,
-        "key": None,
-        "scope": scope,
         "flags": [],
         "words": False,
         "rest": face(ink),
@@ -50,11 +48,13 @@ def test_a_token_alias_changes_no_face_and_a_dark_ink_change_shows():
 
 def test_a_second_press_with_the_same_label_moves_no_press():
     base = {"card": {"presses": [press("Reply", [10, 10], "#6f6a60")], "tokens": {}}}
+    # The styles reading tells like siblings apart by order, so the first Reply's key
+    # now names the new one.
     head = {
         "card": {
             "presses": [
                 press("Reply", [10, 50], "#2f5480"),
-                press("Reply", [10, 10], "#6f6a60"),
+                press("Reply", [10, 10], "#6f6a60", key="main > button:1"),
             ],
             "tokens": {},
         }
@@ -68,13 +68,17 @@ def test_a_second_press_with_the_same_label_moves_no_press():
 def test_a_reply_in_another_thread_is_new_not_moved():
     base = {
         "card": {
-            "presses": [press("Reply", [10, 10], "#6f6a60", scope="#thread-a")],
+            "presses": [
+                press("Reply", [10, 10], "#6f6a60", key="div#thread-a > button")
+            ],
             "tokens": {},
         }
     }
     head = {
         "card": {
-            "presses": [press("Reply", [10, 10], "#2f5480", scope="#thread-b")],
+            "presses": [
+                press("Reply", [10, 10], "#2f5480", key="div#thread-b > button")
+            ],
             "tokens": {},
         }
     }

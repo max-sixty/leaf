@@ -5,7 +5,9 @@ faces, and say which faces a candidate adds, drops or moves a press between.
 controls should wear one face per kind (`ACTION_FACES` in browser/runtime/prepaint.js,
 drawn in browser/styles/components/controls.css), and a scan of the source sees only
 class names, while a press can take a stray look through the cascade, a shadow-tree
-part or a family's own rules. So this reads the rendered press instead.
+part or a family's own rules. So this reads the rendered press instead, through the
+reader stills' styles reading leaves on the page (styled.js), with its properties
+(`STYLED`) and its keys, under each pointer it needs; it reads only geometry itself.
 
 A press is a button in any spelling, a tab, a menu row, a disclosure's summary, or a
 link laid out as a box rather than a run of prose, in the document or an open shadow
@@ -63,6 +65,9 @@ from playwright.sync_api import Page
 
 SCRIPT = Path(__file__).with_suffix(".js")
 COLOUR = re.compile(r"#[0-9a-f]{6}(?: \d+%)?")
+# An element's id in its part of a styles key, `tag#id`, before any `:n` the reading
+# adds to tell like siblings apart.
+ID = re.compile(r"#(.+?)(?::\d+)?$")
 # How far a relabelled press's centre may sit from its old one and still be it.
 NEARBY = 8
 
@@ -71,7 +76,8 @@ def read_faces(page: Page, *, hover: bool) -> dict:
     """Read every press the state shows at rest and, when `hover`, under the pointer:
     `{"presses": [...], "tokens": {colour: [root custom properties]}}`.
 
-    Moves the pointer, so read once the state is captured."""
+    Moves the pointer, so read once the state is captured and its styles read
+    (`STYLES` in stills.py), whose reader this reads through."""
     page.evaluate(SCRIPT.read_text())
     count = page.evaluate("() => leafDevFaces.collect()")
     resting = page.evaluate("() => leafDevFaces.resting()")
@@ -146,21 +152,34 @@ def name(face: str) -> str:
     return hashlib.sha1(face.encode()).hexdigest()[:6]
 
 
-# What pairs a press across arms, in order: its own id or key, then its label within
-# its nearest keyed ancestor, if it has one. Each pairs only presses it names once on
+def path(press: dict) -> list[str]:
+    """The press's key, the path the styles reading keys it by, as its elements."""
+    return re.split(r" >>? ", press["key"])
+
+
+def own(press: dict) -> str | None:
+    """The press's own id: what names it in both versions of a page."""
+    return (found := ID.search(path(press)[-1])) and found[1]
+
+
+def scope(press: dict) -> str | None:
+    """The id of the nearest ancestor that has one, such as a thread's."""
+    return next(
+        (found[1] for part in reversed(path(press)[:-1]) if (found := ID.search(part))),
+        None,
+    )
+
+
+# What pairs a press across arms, in order: its own id, then its label within its
+# nearest ancestor with an id, if it has one. Each pairs only presses it names once on
 # each side.
-STAGES = (
-    lambda press: press.get("key"),
-    lambda press: press["label"] and (press.get("scope"), press["label"]),
-)
+STAGES = (own, lambda press: press["label"] and (scope(press), press["label"]))
 
 
 def compatible(before: dict, after: dict) -> bool:
-    """Whether two presses may be one press: in one scope, and not keyed apart."""
-    keys = before.get("key"), after.get("key")
-    return before.get("scope") == after.get("scope") and (
-        None in keys or keys[0] == keys[1]
-    )
+    """Whether two presses may be one press: in one scope, and not named apart."""
+    owns = own(before), own(after)
+    return scope(before) == scope(after) and (None in owns or owns[0] == owns[1])
 
 
 def once(presses: list[dict], stage: Callable[[dict], object]) -> dict:
@@ -310,7 +329,7 @@ def sizes(members: list[tuple[str, dict]]) -> str:
 
 def example(state: str, press: dict) -> str:
     label = press["label"] if len(press["label"]) <= 40 else press["label"][:39] + "…"
-    return f'{state} "{label}" {press["element"]}'
+    return f'{state} "{label}" {re.sub(r":\d+$", "", path(press)[-1])}'
 
 
 def face_lines(

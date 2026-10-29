@@ -1,12 +1,14 @@
 /* Development-only census of the presses on screen, for `leaf-dev stills --faces`;
  * faces.py says what a face is and how two versions' faces compare.
  *
- * Evaluated in a tab once its state is driven and captured. `collect` finds the
- * presses the state shows, `rest` reads them with the pointer where Python has put
- * it, `point` and `hovered` read one under the pointer Python has moved onto it, and
- * `finish` resolves every colour to sRGB and returns the faces with the root's colour
- * tokens. Colours resolve through one probe element added only then, after every
- * reading, so the page's own observers never act on it first.
+ * Evaluated in a tab once its state is driven, captured and its styles read
+ * (styled.js), whose reader it reads every computed property through, by the same
+ * properties and keys; it reads only geometry itself. `collect` finds the presses the
+ * state shows among the elements that reading keyed, `rest` reads them with the
+ * pointer where Python has put it, `point` and `hovered` read one under the pointer
+ * Python has moved onto it, and `finish` resolves every colour to sRGB and returns the
+ * faces with the root's colour tokens. Colours resolve through one probe element added
+ * only then, after every reading, so the page's own observers never act on it first.
  */
 (() => {
   // What a reader presses to act: buttons in every spelling, a tab, a menu's row, a
@@ -31,9 +33,8 @@
     el.matches(INPUT_PRESS)
       ? el.value.trim() || { submit: "Submit", reset: "Reset" }[el.type] || null
       : null;
-  const SIDES = ["Top", "Right", "Bottom", "Left"];
-  const SIDE_NAMES = ["top", "right", "bottom", "left"];
-  const CORNERS = ["TopLeft", "TopRight", "BottomRight", "BottomLeft"];
+  const SIDES = ["top", "right", "bottom", "left"];
+  const CORNERS = ["top-left", "top-right", "bottom-right", "bottom-left"];
   // How far two boxes' edges may part and still be one box: a part filling its host.
   const EDGE = 0.5;
   const SENTINEL = "rgb(1, 2, 3)";
@@ -74,7 +75,14 @@
     Math.abs(a.top - b.top) <= EDGE &&
     Math.abs(a.right - b.right) <= EDGE &&
     Math.abs(a.bottom - b.bottom) <= EDGE;
-  const contents = (el) => getComputedStyle(el).display === "contents";
+  // An element's or its pseudo-element's computed style, by property, as the styles
+  // reading reads it; null for a pseudo-element that draws nothing.
+  const css = (el, pseudo) => {
+    const { properties, values } = globalThis.leafDevStyled;
+    const read = values(el, pseudo);
+    return read && Object.fromEntries(properties.map((name, at) => [name, read[at]]));
+  };
+  const contents = (el) => css(el).display === "contents";
 
   const shown = (text) => {
     if (!text.data.trim()) return false;
@@ -150,32 +158,30 @@
   };
 
   const layer = (style) => ({
-    fill: style.backgroundColor,
-    image: style.backgroundImage !== "none",
+    fill: style["background-color"],
+    image: style["background-image"] !== "none",
     sides: SIDES.map((side) => [
-      parseFloat(style[`border${side}Width`]),
-      style[`border${side}Style`],
-      style[`border${side}Color`],
+      parseFloat(style[`border-${side}-width`]),
+      style[`border-${side}-style`],
+      style[`border-${side}-color`],
     ]),
-    radius: CORNERS.map((corner) => style[`border${corner}Radius`]),
-    shadow: style.boxShadow,
+    radius: CORNERS.map((corner) => style[`border-${corner}-radius`]),
+    shadow: style["box-shadow"],
   });
   // An element's paint, and its `::before` where that is drawn: a press that keeps a
-  // larger hit box draws its face there (response.css, Send and Resolve).
+  // larger hit box draws its face there (response.css, Send and Resolve). The
+  // `::before` box is geometry, which the styles reading leaves out.
   const paint = (el) => {
-    const style = getComputedStyle(el);
-    const before = getComputedStyle(el, "::before");
-    const drawn =
-      !["none", "normal"].includes(before.content) && before.display !== "none";
+    const style = css(el);
+    const before = css(el, "::before");
+    const box = before && getComputedStyle(el, "::before");
     return {
       ...layer(style),
-      pad: [parseFloat(style.paddingLeft), parseFloat(style.paddingRight)],
-      before: drawn
-        ? {
-            ...layer(before),
-            size: [parseFloat(before.width), parseFloat(before.height)],
-          }
-        : null,
+      pad: [parseFloat(style["padding-left"]), parseFloat(style["padding-right"])],
+      before: before && {
+        ...layer(before),
+        size: [parseFloat(box.width), parseFloat(box.height)],
+      },
     };
   };
 
@@ -202,14 +208,18 @@
       const range = document.createRange();
       if (text) range.selectNodeContents(text);
       inked = (field ?? range).getBoundingClientRect();
-      const style = getComputedStyle(worded);
+      const style = css(worded);
       ink = style.color;
-      underline = style.textDecorationLine.includes("underline");
-      const family = style.fontFamily
+      underline = style["text-decoration-line"].includes("underline");
+      const family = style["font-family"]
         .split(",")[0]
         .trim()
         .replace(/^["']|["']$/g, "");
-      font = [Math.round(parseFloat(style.fontSize)), Number(style.fontWeight), family];
+      font = [
+        Math.round(parseFloat(style["font-size"])),
+        Number(style["font-weight"]),
+        family,
+      ];
     } else {
       // A symbol's ink: an icon's stroke, or else its fill; a picture; or the fill of
       // the first thing drawn inside the box, as a dot or a masked glyph paints.
@@ -222,7 +232,7 @@
           symbol.querySelector(
             "path, circle, ellipse, line, polyline, polygon, rect, use, text",
           ) ?? symbol;
-        const style = getComputedStyle(shape);
+        const style = css(shape);
         ink = style.stroke !== "none" ? style.stroke : style.fill;
       } else if (symbol) ink = "picture";
       else {
@@ -230,14 +240,14 @@
           press.stack.at(-1),
           (el) =>
             !press.stack.includes(el) &&
-            getComputedStyle(el).backgroundColor !== "rgba(0, 0, 0, 0)",
+            css(el)["background-color"] !== "rgba(0, 0, 0, 0)",
         );
-        if (drawn) ink = getComputedStyle(drawn).backgroundColor;
+        if (drawn) ink = css(drawn)["background-color"];
       }
     }
     let opacity = 1;
     for (let at = press.stack.at(-1); at; at = flatParent(at))
-      opacity *= Number(getComputedStyle(at).opacity);
+      opacity *= Number(css(at).opacity);
     return {
       words: Boolean(worded),
       size: [Math.round(box.width), Math.round(box.height)],
@@ -261,19 +271,6 @@
     if (text) return text.data.trim().replace(/\s+/g, " ");
     for (const el of press.stack) if (el.title?.trim()) return el.title.trim();
     return "";
-  };
-  // What names a press apart from its label in both versions of a page: an id or a
-  // key the page or the runtime gives it, or the nearest ancestor's (`scope`).
-  const keyOf = (el) =>
-    el.id ? `#${el.id}` : el.dataset?.key ? `[data-key="${el.dataset.key}"]` : null;
-  const scopeOf = (el) => {
-    for (let at = flatParent(el); at; at = flatParent(at))
-      if (keyOf(at)) return keyOf(at);
-    return null;
-  };
-  const describe = (el) => {
-    const classes = [...el.classList].filter((name) => !name.startsWith("lf-ui"));
-    return [el.localName, ...classes.slice(0, 2)].join(".");
   };
   const STATE_ATTRIBUTES = [
     "aria-pressed",
@@ -317,19 +314,12 @@
       rest?.width && under !== document.body && under !== document.documentElement
         ? { x: rest.left + rest.width / 2, y: rest.top + rest.height / 2 }
         : null;
-    const found = [];
-    const walk = (root) => {
-      for (const el of root.querySelectorAll("*")) {
-        if (el.matches(PRESS)) found.push(el);
-        if (el.shadowRoot) walk(el.shadowRoot);
-      }
-    };
-    walk(document);
+    const { keys } = globalThis.leafDevStyled;
     const claimed = new Set();
     presses = [];
-    for (const el of found) {
-      if (claimed.has(el)) continue;
-      if (el.localName === "a" && getComputedStyle(el).display === "inline") continue;
+    for (const el of keys.keys()) {
+      if (claimed.has(el) || !el.matches(PRESS)) continue;
+      if (el.localName === "a" && css(el).display === "inline") continue;
       if (
         !el.checkVisibility({ visibilityProperty: true, contentVisibilityAuto: true })
       )
@@ -340,14 +330,13 @@
       press.at = [Math.round(at.x), Math.round(at.y)];
       for (const member of press.stack) claimed.add(member);
       press.label = label(press);
-      // The element an author writes: a host whose part is the button, not the part.
-      press.element = describe(
+      // The element an author writes, keyed as the styles reading keys it: a host
+      // whose part is the button, not the part.
+      press.key = keys.get(
         press.stack.find(
           (member) => member.matches(PRESS) || member.localName.includes("-"),
         ),
       );
-      press.key = press.stack.map(keyOf).find(Boolean) ?? null;
-      press.scope = scopeOf(press.stack[0]);
       press.rest = null;
       press.hover = null;
       presses.push(press);
@@ -522,7 +511,7 @@
         border: sides.every((side) => side === sides[0])
           ? sides[0]
           : Object.fromEntries(
-              sides.flatMap((side, index) => (side ? [[SIDE_NAMES[index], side]] : [])),
+              sides.flatMap((side, index) => (side ? [[SIDES[index], side]] : [])),
             ),
         radius,
         shadow: shadows.join(", ") || null,
@@ -539,10 +528,8 @@
         const on = faceOn(press);
         return {
           label: press.label,
-          element: press.element,
-          at: press.at,
           key: press.key,
-          scope: press.scope,
+          at: press.at,
           flags: press.flags,
           words: press.rest.words,
           rest: face(press.rest, on),

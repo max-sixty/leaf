@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 
 from leaf.findings import Finding
 from leaf.registry.contract import element_declarations
-from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
+from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS, close_render_page
 
 from .readings import (
     SWEEP_WIDTHS,
@@ -198,7 +198,7 @@ def _render_version_attempt(
     except PlaywrightError:
         for page in opened_pages:
             if not page.is_closed():
-                page.close()
+                close_render_page(page)
         raise
     reading = RenderReading(
         [*_findings_with_viewports(failures, desktop), *swept_faults(samples), *advice],

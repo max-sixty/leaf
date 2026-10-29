@@ -901,15 +901,16 @@ wa-copy-button.lf-icon-action {
    pointer. One announcing news waiting (`data-lf-news`) takes the danger ink, as do
    the words a seat's Resolved summary says its threads hold (thread/inline.js), and
    one whose words say a warning (`data-lf-tone="warn"`), as a file editor's conflict
-   does, the warning's ink. The
-   four drew four faces (held news bold at 10px, the feed's notice underlined at rest,
-   Next unread at the body's weight and Full quote muted, those two washed under the
-   pointer) until the user chose this one on 28 October. It takes its line's whole
-   type, in a declared tree as in the document, where a button's own type is the
-   browser's rather than its line's, and a generated control's the chrome's
-   (surfaces.css, `.lf-ui-face`); a press whose box stands beside its line rather
-   than in it states the line's size where it is placed. */
+   does, the warning's ink. The four drew four faces (held news bold at 10px, the
+   feed's notice underlined at rest, Next unread at the body's weight and Full quote
+   muted, those two washed under the pointer) until the user chose this one on 28
+   October. It takes its line's whole type and no padding, in a declared tree as in
+   the document, where a button's own type and padding are the browser's rather than
+   its line's, and a generated control's type the chrome's (surfaces.css,
+   `.lf-ui-face`); a press whose box stands beside its line rather than in it states
+   the line's size where it is placed. */
 :where(button).lf-inline-action {
+  padding: 0;
   border: 0;
   background: none;
   color: var(--accent);

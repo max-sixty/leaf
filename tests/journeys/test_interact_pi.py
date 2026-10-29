@@ -34,8 +34,11 @@ def test_the_pi_extension_carries_a_comment_into_a_new_run(
     the whole delivery into context, using the same envelope as Claude Code. Ending the
     session ends the claim's lifetime."""
     claim = service_model.page_claim(page_dir)
+    assert claim is not None
     assert (claim["harness"], claim["id"], claim["agent"]) == ("pi", "pi-s1", "Pi")
-    assert cleanup_model.session_record("pi-s1")["lifetime"] == {"pid": pi.pid}
+    turn_record = cleanup_model.session_record("pi-s1")
+    assert turn_record is not None
+    assert turn_record["lifetime"] == {"pid": pi.pid}
 
     # A run with nothing pending: no context at its prompt, nothing that keeps it
     # going as it settles.
@@ -43,7 +46,9 @@ def test_the_pi_extension_carries_a_comment_into_a_new_run(
     pi.emit("agent_start")
     assert pi.emit("agent_before_settle") is None
     pi.emit("agent_settled", idle=True)
-    closed_turn = cleanup_model.session_record("pi-s1")["turn"]
+    turn_record_2 = cleanup_model.session_record("pi-s1")
+    assert turn_record_2 is not None
+    closed_turn = turn_record_2["turn"]
 
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
@@ -59,6 +64,7 @@ def test_the_pi_extension_carries_a_comment_into_a_new_run(
     assert page_state(page_dir)["pending"] == 1
     pi.emit("agent_start")
     active = cleanup_model.session_record("pi-s1")
+    assert active is not None
     assert active["turn"] != closed_turn and active["turn_closed"] is None
     assert page_state(page_dir)["pending"] == 1
     if cancelled:
@@ -126,7 +132,9 @@ def test_the_pi_extension_carries_a_comment_into_a_new_run(
     assert workflow["stage"] == "picked_up"
 
     pi.quit()
-    assert cleanup_model.session_record("pi-s1")["ended"] is not None
+    turn_record_3 = cleanup_model.session_record("pi-s1")
+    assert turn_record_3 is not None
+    assert turn_record_3["ended"] is not None
 
 
 def test_input_during_a_run_is_picked_up_only_once_pi_takes_it(page_dir, pi):
@@ -156,16 +164,22 @@ def test_input_during_a_run_is_picked_up_only_once_pi_takes_it(page_dir, pi):
         [workflow] = page_state(page_dir)["workflows"]
         return workflow["stage"]
 
-    interrupted_turn = cleanup_model.session_record("pi-s1")["turn"]
+    turn_record_4 = cleanup_model.session_record("pi-s1")
+    assert turn_record_4 is not None
+    interrupted_turn = turn_record_4["turn"]
     assert stage() != "picked_up"
     # Pi emits a turn boundary for the cancelled tool before agent_settled.
     # That boundary still has the old aborted signal and cannot take input.
     assert pi.emit("turn_end", aborted=True) is None
     assert stage() != "picked_up"
-    assert cleanup_model.session_record("pi-s1")["turn"] == interrupted_turn
+    turn_record_5 = cleanup_model.session_record("pi-s1")
+    assert turn_record_5 is not None
+    assert turn_record_5["turn"] == interrupted_turn
     pi.emit("agent_settled", idle=True)
     assert pi.delivered(until=comment["id"]) == [comment["id"]]
-    assert cleanup_model.session_record("pi-s1")["turn"] != interrupted_turn
+    turn_record_6 = cleanup_model.session_record("pi-s1")
+    assert turn_record_6 is not None
+    assert turn_record_6["turn"] != interrupted_turn
     assert stage() == "picked_up"
 
 
@@ -173,7 +187,9 @@ def test_a_reload_keeps_the_pi_session_and_its_watch(page_dir, pi):
     """`/reload` shuts the extension down and loads it again in the same session,
     so the session's claims stand and the reloaded extension watches them."""
     pi.reload()
-    assert cleanup_model.session_record("pi-s1")["ended"] is None
+    turn_record_7 = cleanup_model.session_record("pi-s1")
+    assert turn_record_7 is not None
+    assert turn_record_7["ended"] is None
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "after reload"}
     )

@@ -1,6 +1,6 @@
 /* Markup's reading face: how headings, prose, links, lists, tables, code, quotes,
  * figures, disclosures, definitions, rules and pictures read. Leaf's own surfaces wear it (a thread's transcript wherever it is drawn, the
- * chrome and the controls Leaf builds, `theme.css`), and so does a page whose theme
+ * chrome and the controls Leaf builds, `base.css`), and so does a page whose theme
  * takes it: the bundled `reading` theme sets `--lf-reading-face: 1` on the root. A
  * page that takes no theme sets nothing, and its markup keeps the browser's faces; a
  * page or theme may set the input on any subtree. The face's rules stand in
@@ -193,7 +193,7 @@
 
 /* Every picture in reading content wears one face: a 1px ring in its surface's edge
    colour (`--lf-ring`, which a surface on another ground sets) and the lowest lift
-   (theme.css, `--raise-1`, which an image lies at). A capture whose edge is the
+   (base.css, `--raise-1`, which an image lies at). A capture whose edge is the
    ground's colour, such as a screenshot of a white page, then shows where it ends: on
    the page, in a thread wherever it is drawn, and on a draft's shelf as once it is
    sent. A box that frames a picture wears the face for it by declaring
@@ -256,7 +256,7 @@
   /* A code block is sized by how many characters it takes across, which is why its size
    * is off the serif ladder above. At --code-size, the column keeps a few more than the
    * 80 characters most source is written to (about 84 at 13.5px), and a `wide` block
-   * 100 (theme.css, --wide).
+   * 100 (base.css, --wide).
    *
    * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
    * shadow tree must keep one density through upgrade. */
@@ -523,7 +523,7 @@
    * the serif is left to carry what there is to read. Listing them in one rule is the
    * point: what counts as apparatus is a judgement, and a judgement made in twenty
    * places is twenty chances to answer it differently. This rule is the theme's own
-   * words, its elements and idioms; a widget package (packages/default/widgets.css, or
+   * words, its elements and idioms; a widget package (packages/default/defaults.css, or
    * any selected package's) states the same rule for the words its widgets wear.
    *
    * This is a look, not a permission — the anchoring norm's distinction exactly. A
@@ -561,7 +561,7 @@
     font-variant-numeric: tabular-nums;
   }
   /* Working density (`--lf-density: working`, which the `density-working` style sets with
-   * its ladder and spacing, theme.css) answered for the flow's small margins, which are
+   * its ladder and spacing, base.css) answered for the flow's small margins, which are
    * numbers rather than tokens, wherever the face is worn. Like the element styles above,
    * these are prose defaults.
    * A component's own spacing must win, including package rules in this same base
@@ -589,7 +589,7 @@
 }
 /* One owner for message type and spacing on every surface, including widget shadow
    trees: a message and the comment field it is typed in read in `--msg-font`
-   (theme.css). A contextual
+   (base.css). A contextual
    card supplies its editor's vertical inset; retaining its viewport never changes
    these rules.
    Paragraphs keep the editor's whitespace, and a Markdown message's blocks the blank
@@ -736,4 +736,7 @@ leaf-text.lf-fab-input,
   margin: 0;
   font: inherit;
   overflow: visible;
+  /* Visible overflow releases the formatting context pre's scrolling establishes.
+     Keep its scrollbar-clearance float inside the source's own box. */
+  display: flow-root;
 }

@@ -15,7 +15,7 @@ from ..findings import Finding, Rejected, element_at
 from .kernel import verb_writers
 
 
-def matches_when(attrs: dict, when: dict) -> bool:
+def matches_when(attrs: dict, when: dict | None) -> bool:
     """Every attribute `when` names holds one of the matching values, a flag's
     two values being its presence and its absence."""
     return all(
@@ -309,6 +309,7 @@ def detail_schema(
             }
         binding = spec.get("contract")
         if binding and attrs and (name := attrs.get(binding["attribute"])):
+            assert registry is not None
             contract = registry["$data"]["contracts"].get(name)
             selected = (
                 {"$id": f"leaf:contract/{name}", **contract["schema"]}

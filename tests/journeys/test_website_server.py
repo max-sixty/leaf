@@ -2,10 +2,8 @@
 
 import os
 
-import leaf_website as website_server
 import pytest
 from browser.threads import open_panel_thread
-from leaf_dev.commands import verify_site
 from playwright.sync_api import expect
 from process.website_server import (
     _no_harness_outlives_its_test_fixture,  # noqa: F401 (fixtures)
@@ -21,11 +19,13 @@ from render_harness import (
     write,
 )
 
+import leaf_website as website_server
 from leaf.delivery import current_responses
 from leaf.event_log import read_events
 from leaf.leases import take_wait_lease, waiter_lease_path
 from leaf.render_checks import rendered
 from leaf.thread import ProviderFinal, cmd_resolve, post_reply
+from leaf_dev.commands import verify_site
 
 
 @pytest.mark.parametrize("read_elsewhere", [False, True], ids=["here", "elsewhere"])
@@ -55,7 +55,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     )
     harness = website_server.WebsiteCodexHarness("codex")
     turn = hosted_follower(harness, page_dir, prepared)
-    watcher = take_wait_lease(waiter_lease_path(page_dir, "hosted-thread"))
+    lease_path = waiter_lease_path(page_dir, "hosted-thread")
+    assert lease_path is not None
+    watcher = take_wait_lease(lease_path)
     assert watcher is not None
     request.addfinalizer(watcher.close)
     # The send opens the new thread's view in the panel, its reply standing in the

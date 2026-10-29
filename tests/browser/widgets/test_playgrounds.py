@@ -21,6 +21,7 @@ from render_harness import (
     open_page,
     post_event,
     resized,
+    rgb_pixels,
     round_trip,
     sending,
     stamp_page,
@@ -688,7 +689,7 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
         body.evaluate("el => el.removeAttribute('data-lf-more-below')")
         bare = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
         body.evaluate("(el, had) => el.toggleAttribute('data-lf-more-below', had)", had)
-        delta = ImageChops.difference(marked, bare).get_flattened_data()
+        delta = rgb_pixels(ImageChops.difference(marked, bare))
         return sum(1 for pixel in delta if max(pixel) > 24)
 
     page = open_page(browser, serve(ROOT / "examples" / "code-comparison.html"))
@@ -1383,7 +1384,7 @@ def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serv
           document.documentElement.lfInitial.paint(
             quotedOutput.querySelector('lf-playground'));
           const initial = document.documentElement.lfInitial.paint(host);
-          initial.renderValues({...initial.values, tone: 'bold'});
+          initial.render({values: {...initial.values, tone: 'bold'}});
           return {
             controls: initial.controls.map(control => control.getAttribute('name')),
             values: initial.values,

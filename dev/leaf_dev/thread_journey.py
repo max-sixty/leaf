@@ -256,7 +256,8 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
             with page.expect_request(
                 lambda request: (
                     request.url.endswith("/api/event")
-                    and request.post_data_json.get("kind") in kinds_declaring("message")
+                    and (request.post_data_json or {}).get("kind")
+                    in kinds_declaring("message")
                 )
             ):
                 page.keyboard.press("Enter")

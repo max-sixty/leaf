@@ -15,3 +15,4 @@ export * from "./words.js";
 export * from "./view.js";
 export * from "./scrollbars.js";
 export * from "./outputs.js";
+export * from "./shifts.js";

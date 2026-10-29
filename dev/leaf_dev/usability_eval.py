@@ -26,6 +26,7 @@ from leaf.harness import ClaudeCodeHarness
 from leaf.passages import SourceReading
 from leaf.registry.kernel import kinds_declaring
 from leaf.service import requires_agent_attention
+from leaf.state import turn_open
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -714,7 +715,7 @@ def observed_active_turn(run: Run, page: Path, child) -> str | None:
     home. The native Codex parent turn must also still run at the injection edge.
     """
     state = page_state(run, page)
-    turn = state["claim_turn"] if state["turn_closed"] is None else None
+    turn = state["turn"] if turn_open(state) else None
     if run.harness == "codex" and turn not in child.task.running:
         return None
     return turn

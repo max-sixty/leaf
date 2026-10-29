@@ -69,7 +69,7 @@ lf-visual-review {
   border-radius: 0;
   min-inline-size: 0;
 }
-/* The queue's body is no container, as a pane's body otherwise is (theme.css): the
+/* The queue's body is no container, as a pane's body otherwise is (base.css): the
    case buttons follow the review's own width (`visual-review`), and Chromium left
    them in the wide layout's padding the first time that width crossed a query
    after the review upgraded, while a container stood between them and it. Nothing
@@ -85,51 +85,23 @@ lf-visual-review {
   --lf-pane-top: 0px;
   container-type: normal;
 }
+/* A case is a row (controls.css, `.lf-row`), the case shown its current row: its
+ * number, its title, and a check in the ok ink at its end once it looks right. A
+ * case not yet checked shows nothing there, since the header's count and the case's
+ * own Looks right box say so, and the check keeps its room, so checking a case moves
+ * no word. The check stood as the words Looks right on a line of their own under the
+ * title, which left every unchecked case a blank line taller than its words. */
 .lf-vr-case-button {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  align-items: baseline;
-  gap: 8px;
-  inline-size: 100%;
-  text-align: start;
-  border: 0;
-  border-block-end: 1px solid var(--rule);
-  border-radius: 0;
-  padding: 14px 4px;
-  background: transparent;
-  box-shadow: none;
-  color: var(--muted);
-  font: inherit;
   cursor: pointer;
 }
-.lf-vr-case-button[aria-current="true"] {
-  color: var(--ink);
-  background: color-mix(in srgb, var(--ink) 4%, transparent);
-  border-block-end-color: var(--ink);
-}
+/* Each case sizes its own columns, since the list is a strip of tabs at a narrow width,
+   so its number keeps two digits' room and every title starts on one edge. */
 .lf-vr-case-number {
-  font: var(--t-working-label)/1.5 var(--sans);
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-.lf-vr-case-label {
-  display: grid;
-  gap: 4px;
-}
-.lf-vr-case-name {
-  font-weight: 550;
-  line-height: 1.35;
+  min-width: 2ch;
 }
 .lf-vr-case-status {
-  color: var(--muted);
-  font-size: var(--t-working-label);
-  font-weight: 400;
-}
-.lf-vr-case-status[data-approved="true"] {
   color: var(--ok-ink);
 }
-/* A case not yet checked says nothing: the header's count and the case's own Looks
-   right box say so. Its words keep their line, so checking a case moves no row. */
 .lf-vr-case-status[data-approved="false"] {
   visibility: hidden;
 }
@@ -335,7 +307,7 @@ lf-visual-review {
     margin-block-start: 2px;
   }
   .lf-vr-case-button {
-    padding: 10px 8px;
+    padding-block: 10px;
   }
   .lf-vr-caption {
     padding-block: 14px 8px;
@@ -350,19 +322,11 @@ lf-visual-review {
     font-size: 12px;
   }
   .lf-vr-case-button {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
-    padding: 8px 6px;
+    padding-block: 8px;
     font-size: 12px;
   }
   .lf-vr-case-number {
     display: none;
-  }
-  .lf-vr-case-status {
-    font-size: 11px;
-  }
-  .lf-vr-case-label {
-    gap: 4px;
   }
   .lf-vr-caption h3 {
     font-size: var(--t-3);

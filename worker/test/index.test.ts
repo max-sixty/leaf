@@ -1954,6 +1954,50 @@ describe("page faults", () => {
 });
 
 describe("website page agent", () => {
+  it("identifies silent container disconnect responses without logging private data", async () => {
+    const { storage, close } = sqliteStorage();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const session = new LeafWebsiteSession(
+        { storage, container: { running: true } } as never,
+        environment(),
+      );
+      for (const [body, headers, expected] of [
+        ["Container suddenly disconnected, try again", {}, "disconnected"],
+        ["private-page-content-and-secret".repeat(100), {}, "unclassified"],
+        ["private-adapter-error", { "Leaf-Release": RELEASE }, "adapter"],
+      ] as const) {
+        forwardedContainerFetch.mockResolvedValueOnce(
+          new Response(body, { status: 500, headers }),
+        );
+        const response = await session.fetch(
+          new Request(
+            "https://leaf.page/examples/triage-board/api/state?private=secret",
+          ),
+        );
+        expect(response.status).toBe(500);
+        expect(await response.text()).toBe(body);
+        expect(log).toHaveBeenLastCalledWith({
+          component: "leaf-container",
+          event: "http_error",
+          method: "GET",
+          status: 500,
+          source: expected,
+        });
+      }
+      expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|secret/);
+      log.mockClear();
+      forwardedContainerFetch.mockResolvedValueOnce(new Response("healthy"));
+      expect(
+        await (await session.fetch(new Request("https://leaf.page/"))).text(),
+      ).toBe("healthy");
+      expect(log).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+      close();
+    }
+  });
+
   it("recalls saved content and private resources without starting the container", async () => {
     const { storage, close } = sqliteStorage();
     try {

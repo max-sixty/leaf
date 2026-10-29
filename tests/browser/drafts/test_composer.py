@@ -481,9 +481,10 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     if hidden_tab:
         page.get_by_role("tab", name="Reading", exact=True).focus()
         page.keyboard.press("Enter")
-    page.locator("#elsewhere").scroll_into_view_if_needed()
     resized(page, 390, 844)
+    page.locator("#elsewhere").scroll_into_view_if_needed()
     scroll_settled(page)
+    expect(page.locator("#elsewhere")).to_be_in_viewport()
     source_entry = page.evaluate("navigation.currentEntry.key")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")

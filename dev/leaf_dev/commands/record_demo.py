@@ -99,8 +99,10 @@ def folded_board(page_dir: Path) -> dict[str, list[str]]:
     with PageTransaction(page_dir) as page:
         context = read_page(page_dir, page.events)
         state, reading, _ = read_served_page(context)
+        assert reading is not None
         document = reading.documents[state["active"]["revision"]]
         registry = context.registry
+        assert registry is not None
         order = folded_positions(
             "punch-list",
             "move",
@@ -253,7 +255,9 @@ class DemoWaiter:
             payload = freeze_delivery(
                 [plan.batch for plan in read_plans(harness.session) if plan.batch]
             )
-            receive_held(payload, harness.session, session_record(harness.session))
+            record = session_record(harness.session)
+            assert record is not None
+            receive_held(payload, harness.session, record)
         else:
             payload = json.loads(stdout)
         batches = payload.get("batches", [])
@@ -388,8 +392,10 @@ def record(
     applied_before_move = page.locator("body").get_attribute("data-lf-applied")
     grip = page.locator("#card-oncall .lf-grip").bounding_box()
     destination = page.locator("#col-during").bounding_box()
+    assert grip is not None
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
     page.mouse.down()
+    assert destination is not None
     page.mouse.move(
         destination["x"] + destination["width"] / 2,
         destination["y"] + destination["height"] / 2,

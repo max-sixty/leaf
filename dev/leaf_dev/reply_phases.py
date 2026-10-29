@@ -351,7 +351,7 @@ def reply_breakdown(
                 else:
                     unsplit += free(since, until)
             else:
-                call = {"ms": 0}
+                call: dict = {"ms": 0}
                 sent = next((at for at in requests if since < at <= until), None)
                 start = sent if sent is not None else since
                 first = next((at for at in outputs if start < at <= until), None)

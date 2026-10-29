@@ -112,7 +112,11 @@ to-do itself, which no turn or session ending lapses (`todos.py`).
 ### Turns and generations
 
 A turn's stamps and generation belong to the session's one lifecycle record, so no
-opening or ending rewrites a claim (`state.py`). `state.end_harness_instance` says
+opening or ending rewrites a claim (`state.py`). That module alone reads the stamps
+as a phase: no turn yet, open, closed, or ended, which closes the turn too. Every
+other reader, of the record or of a claim's view of it, asks `state.turn_open`,
+`state.turn_closed` or `state.session_live`, and every opening refuses a turn id the
+record holds closed. `state.end_harness_instance` says
 which generations SessionEnd ends and which, such as a desktop Codex chat's or a
 background job's, outlive the harness instance.
 

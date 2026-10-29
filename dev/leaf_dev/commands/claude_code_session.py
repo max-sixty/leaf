@@ -97,18 +97,22 @@ def claude_code_session(stopping: bool) -> None:
     )
     cc.say(REQUEST)
     cc.until(lambda: page_claim(place.page) is not None, "the page was not claimed")
-    cc.session = page_claim(place.page)["id"]
+    claim = page_claim(place.page)
+    assert claim is not None
+    cc.session = claim["id"]
     cc.until(
         lambda: running_server(place.page) is not None and cc.idle(),
         "the page was not served with the session idle",
     )
+    server = running_server(place.page)
+    assert server is not None
     click.echo(
         json.dumps(
             {
                 "pane": cc.pane,
                 "attach": f"tmux attach -t {cc.pane}",
                 "page": str(place.page),
-                "url": running_server(place.page)["url"],
+                "url": server["url"],
                 "state_home": str(place.state),
                 "debug_log": str(debug_log),
             },

@@ -59,6 +59,7 @@ from leaf.registry.contract import element_declarations, read_registry_declarati
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import (
     RENDER_VIEWPORT,
+    close_render_page,
     evaluate_probe,
     install_driver,
     output_values,
@@ -208,7 +209,7 @@ def _readings(
     except (PlaywrightError, RuntimeError, TimeoutError) as error:
         raise UnreadablePage(str(error).strip()) from error
     finally:
-        page.close()
+        close_render_page(page)
 
 
 def served_examples(package: Path, pages):

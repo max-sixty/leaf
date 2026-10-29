@@ -126,8 +126,8 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
             pages[resource] = (page, status, documents)
         # A changed layer replaces the server. An invalid input is now refused
         # before that replacement, so change a valid theme to test recovery.
-        theme = runtime / "browser" / "theme.css"
-        updated = runtime.parent / "theme.css.next"
+        theme = runtime / "browser" / "base.css"
+        updated = runtime.parent / "base.css.next"
         updated.write_text(theme.read_text() + "\nh1 { color: navy; }\n")
         updated.replace(theme)
         expect(open_tab.locator("h1")).to_have_css(
@@ -185,8 +185,8 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
         # makes must find a server that answers.
         if not interrupted:
             interrupted.append(True)
-            theme = runtime / "browser" / "theme.css"
-            updated = runtime.parent / "theme.css.next"
+            theme = runtime / "browser" / "base.css"
+            updated = runtime.parent / "base.css.next"
             updated.write_text(theme.read_text() + "\nh1 { color: navy; }\n")
             updated.replace(theme)
             route.abort("failed")

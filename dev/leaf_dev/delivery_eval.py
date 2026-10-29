@@ -57,7 +57,7 @@ def operation_times(task: Path) -> dict[str, float]:
     """When the workload fixture first logged each operation."""
     log = task / "operations.jsonl"
     rows = map(json.loads, log.read_text().splitlines()) if log.exists() else ()
-    times = {}
+    times: dict[str, float] = {}
     for row in rows:
         times.setdefault(row["operation"], row["at"])
     return times

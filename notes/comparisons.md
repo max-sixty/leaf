@@ -349,6 +349,58 @@ Agentation embeds precise annotation into an existing application. It is a
 reference for selecting rendered targets and connecting feedback to a host,
 rather than a document revision or persistent agent-workspace model.
 
+## Hypothesis
+
+Read on 2026-10-29 from the [client source](https://github.com/hypothesis/client)
+on `main`, last pushed October 19. Hypothesis injects an annotation layer, by
+browser extension or script tag, into pages whose authors never see the
+annotations. It is not an agent tool, but it has shipped two mechanisms Leaf also
+needs.
+
+**Re-attaching a comment to changed text.** Each annotation stores W3C Web
+Annotation selectors: a `RangeSelector` (XPaths and offsets), a
+`TextPositionSelector` (character offsets) and a `TextQuoteSelector` (the quote with
+32 characters of `prefix` and `suffix`).
+[`anchoring/html.ts`](https://github.com/hypothesis/client/blob/main/src/annotator/anchoring/html.ts)
+tries them in that order, and the first two count only when the text they reach
+equals the stored quote. The quote selector then matches approximately
+([`match-quote.ts`](https://github.com/hypothesis/client/blob/main/src/annotator/anchoring/match-quote.ts)):
+it allows edit errors up to half the quote's length, scores each candidate on how
+closely its quote, its prefix and suffix and, as a tie-breaker, its offset match the
+stored ones, and takes the best. An annotation with no candidate becomes an orphan,
+counted on its own sidebar tab.
+
+Leaf's anchor carries the same `quote`, `prefix` and `suffix`, but matches the quote
+exactly ([events.md](../src/leaf/events.md), "Anchors";
+`anchor_capture.resolve_quote`). It takes the occurrence whose context matches
+exactly, or the quote's only occurrence. Repeated text with no deciding context
+detaches, and a revision that drops the passage moves the thread to its surviving
+section or detaches it. Approximate matching suits Hypothesis, where a page changes
+without its author knowing about the annotations, so a likely position is better than
+an orphan. In Leaf the agent revising the page can move a thread itself in a reply,
+and a thread moved silently to the wrong sentence would misstate what the user said.
+
+**Keeping injected interface clear of the page's styles.** Each in-page control,
+such as the selection toolbar, the bucket bar and the notebook, renders into a
+`<hypothesis-NAME>` element with an open shadow root
+([`preact-container.ts`](https://github.com/hypothesis/client/blob/main/src/annotator/util/preact-container.ts)).
+The sidebar is a separate application in an iframe, which sits in a
+`<hypothesis-sidebar>` shadow root and talks to the page over message ports.
+Highlights are `<hypothesis-highlight>` elements wrapped around the page's own text
+nodes, where page CSS can reach them. Two details bear on Leaf's shadow-root
+question, recorded in [chrome-guard.css](../browser/styles/chrome-guard.css):
+
+- [`shadow-root.ts`](https://github.com/hypothesis/client/blob/main/src/annotator/util/shadow-root.ts)
+  copies each `@property` rule from the shadow tree's stylesheet into a sheet the
+  document adopts, since engines ignore `@property` inside a shadow tree
+  ([tailwindcss#15005](https://github.com/tailwindlabs/tailwindcss/issues/15005),
+  [csswg-drafts#10541](https://github.com/w3c/csswg-drafts/issues/10541)). Leaf's
+  chrome registers its custom properties with `@property` too, so a shadow-root
+  chrome would need the same copy.
+- Hypothesis places its toolbar with inline `top` and `left` computed from the
+  selection's rectangle. It uses no CSS anchor positioning, which is what stopped
+  Leaf's shadow-root spike.
+
 ## html-effectiveness
 
 Read on 2026-07-31 from the

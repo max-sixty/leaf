@@ -1355,6 +1355,7 @@ body { font-family: system-ui, sans-serif; }
             str(value).lower() if isinstance(value, bool) else str(value)
         )
     workspace = result.select_one("#notification-workspace")
+    assert workspace is not None
     workspace.attrs["class"] = "layout-column"
     artifact_section = result.select_one("#notification-artifact")
     configuration = turbohtml.E(
@@ -1362,12 +1363,15 @@ body { font-family: system-ui, sans-serif; }
         {"id": "notification-configuration", "open": ""},
         turbohtml.E("summary", "Original configuration"),
     )
-    result.select_one("#notification-ask").wrap(configuration)
+    select_one_result = result.select_one("#notification-ask")
+    assert select_one_result is not None
+    select_one_result.wrap(configuration)
     configuration.insert_before(turbohtml.E("h1", "Review the deployment notification"))
+    assert artifact_section is not None
     artifact_section.attrs.pop("hidden")
-    artifact_section.select_one("#notification-artifact-source").attrs["label"] = (
-        "deployment-notification.html"
-    )
+    select_one_result_2 = artifact_section.select_one("#notification-artifact-source")
+    assert select_one_result_2 is not None
+    select_one_result_2.attrs["label"] = "deployment-notification.html"
     workspace.append(artifact_section)
     result_source = result.serialize()
     assert "notification-configuration" in result_source

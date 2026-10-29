@@ -191,8 +191,8 @@
           "description": "What the claimant's harness calls its session now (`Harness.session_name`), or null where it names none.",
           "type": ["string", "null"]
         },
-        "claim_turn": {
-          "description": "The claimant's current turn, which an opened delivery names, or null.",
+        "turn": {
+          "description": "The claimant's current turn, which an opened delivery names, or null. It and the two stamps after it are the claim's turn under the session record's names, which `state.turn_open` and `state.turn_closed` read.",
           "type": ["string", "null"]
         },
         "turn_closed": {
@@ -302,7 +302,7 @@
         "agent",
         "claim_session",
         "session_name",
-        "claim_turn",
+        "turn",
         "turn_closed",
         "turn_opened",
         "turn_takes_input",

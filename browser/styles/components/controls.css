@@ -78,7 +78,7 @@
 }
 /* Reaction controls own their resting, selected and interactive appearance together.
    A surface places and reveals them without restating their ink, border or fill.
-   Margin reactions wear the margin-entry family (theme.css); response actions keep
+   Margin reactions wear the margin-entry family (base.css); response actions keep
    an opaque resting surface because they float over page content. */
 /* A message's controls are symbols (`.lf-icon-action`, below), as the thread's own
    are beside them; one whose picker is open keeps the chip while the picker shows. */
@@ -121,7 +121,7 @@
    otherwise one glyph. The word is the choice's own name, so it says what the accessible
    name says, and it stands above the choice, where the finger pressing it does not cover
    it. The press owns the gesture, so it neither scrolls nor opens the platform's
-   long-press menu; a margin choice says its word through its own label (theme.css). */
+   long-press menu; a margin choice says its word through its own label (base.css). */
 .lf-react {
   touch-action: none;
   -webkit-touch-callout: none;
@@ -292,7 +292,7 @@ svg[data-lf-icon] {
    nothing, so any class a caller sizes an icon by outranks it, and an icon whose class
    says nothing of size still draws at 16px rather than at the 300px an unsized SVG
    takes. Each class once restated the 16px, and a place that wanted another size had
-   to know which. The page's rule for its own pictures (theme.css) leaves these alone. */
+   to know which. The page's rule for its own pictures (base.css) leaves these alone. */
 :where(svg[data-lf-icon]) {
   inline-size: 16px;
   block-size: 16px;
@@ -433,7 +433,7 @@ svg[data-lf-icon] {
 }
 /* The unread dot: news's one mark, wherever it is marked, a reply, a row of Threads,
    the On me mark and the folded leaf. A margin entry draws the same dot on its corner
-   (theme.css, `[data-lf-unread]`), where it can wear no class. */
+   (base.css, `[data-lf-unread]`), where it can wear no class. */
 .lf-unread-dot {
   width: 6px;
   height: 6px;
@@ -835,7 +835,7 @@ wa-copy-button.lf-icon-action {
    (`.lf-mark-bar`, integration.css), as a code block's Copy and a draft's Edit, Save
    and Discard do. Every mark wears this one face at one size: the face the user chose
    on 22 October from the panel's fold, its icon in the dim ink and full ink under the
-   pointer, at the fold's 20px (`--mark-size`, theme.css). On 25 October the user gave
+   pointer, at the fold's 20px (`--mark-size`, base.css). On 25 October the user gave
    it to the toolbars' marks as well, which had been 26px with a quiet wash under the
    pointer, a second look for the same kind of press. A seat gives its marks only a
    place and a ground: a corner mark a patch of its own, a toolbar's marks the

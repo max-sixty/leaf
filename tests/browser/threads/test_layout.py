@@ -548,8 +548,8 @@ setTimeout(() => {
 def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     browser, serve, tmp_path
 ):
-    """A theme contribution, even beside a widget, outranks the Layouts and
-    every widget package's defaults (layer.py, `lf-theme`), so its `main` padding beats
+    """A package's overrides, even beside a widget, outrank the Layouts and
+    every widget package's defaults (layer.py, `lf-overrides`), so its `main` padding beats
     the column Layout's and its plain `lf-card` rule beats the board's own `lf-card`
     rule. Like the page's own rules, its `button` rule dresses the page's buttons and the
     controls the board builds."""
@@ -570,7 +570,7 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
             }
         )
     )
-    (theme / "theme.css").write_text(
+    (theme / "overrides.css").write_text(
         "main { padding-top: 11px; }\n"
         "lf-card { padding-left: 13px; }\n"
         "main button { font-family: cursive; }\n"

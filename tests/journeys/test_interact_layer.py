@@ -433,7 +433,7 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
         (config / "leaf", "xdg"),
     ):
         (package / "widgets").mkdir(parents=True)
-        (package / "theme.css").write_text(f":root {{ --{marker}-package: 1; }}\n")
+        (package / "overrides.css").write_text(f":root {{ --{marker}-package: 1; }}\n")
         (package / "widgets" / f"{marker}.js").write_text(f"// {marker}\n")
     page = tmp_path / "page"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
@@ -557,13 +557,13 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     created = runner.invoke(cli_model.cli, ["package", "init", str(source)])
     assert created.exit_code == 0, created.output
     add_test_widget(source, "lf-installed", upgrade=True)
-    (source / "theme.css").write_text("lf-installed { color: teal; }\n")
+    (source / "overrides.css").write_text("lf-installed { color: teal; }\n")
     first = runner.invoke(cli_model.cli, ["package", "install", str(source)])
     assert first.exit_code == 0, first.output
     held = layer_model.named_package(name)
     assert held == Path(json.loads(first.output)["package"])
     first_registry = (held / "registry.json").read_bytes()
-    (source / "theme.css").write_text("lf-installed { color: purple; }\n")
+    (source / "overrides.css").write_text("lf-installed { color: purple; }\n")
     source_registry = source / "registry.json"
     updated = json.loads(source_registry.read_text())
     updated["lf-installed"]["description"] = "Replacement snapshot."
@@ -574,7 +574,9 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     def at_publication(staged, destination):
         if Path(staged).name == "selection":
             observations.append(layer_model.named_package(name))
-            assert (held / "theme.css").read_text() == "lf-installed { color: teal; }\n"
+            assert (
+                held / "overrides.css"
+            ).read_text() == "lf-installed { color: teal; }\n"
         replace(staged, destination)
         if Path(staged).name == "selection":
             observations.append(layer_model.named_package(name))
@@ -586,7 +588,7 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     current = layer_model.named_package(name)
     assert observations == [held, current] and held != current
     assert (held / "registry.json").read_bytes() == first_registry
-    assert (held / "theme.css").read_text() == "lf-installed { color: teal; }\n"
+    assert (held / "overrides.css").read_text() == "lf-installed { color: teal; }\n"
     assert current is not None
     assert (
         json.loads((current / "registry.json").read_text())["lf-installed"][
@@ -594,7 +596,9 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
         ]
         == "Replacement snapshot."
     )
-    assert (current / "theme.css").read_text() == "lf-installed { color: purple; }\n"
+    assert (
+        current / "overrides.css"
+    ).read_text() == "lf-installed { color: purple; }\n"
 
     page = tmp_path / "page"
     vendored = runner.invoke(
@@ -606,11 +610,13 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     assert layer_3 is not None
     theme = selected(layer_3, page).top_files["theme.css"].decode()
     assert "lf-installed { color: purple; }" in theme
-    (source / "theme.css").write_text(".bad { color red; }\n")
+    (source / "overrides.css").write_text(".bad { color red; }\n")
     refused = runner.invoke(cli_model.cli, ["package", "install", str(source)])
     assert refused.exit_code != 0 and "syntax error" in refused.output
     assert layer_model.named_package(name) == current
-    assert (current / "theme.css").read_text() == "lf-installed { color: purple; }\n"
+    assert (
+        current / "overrides.css"
+    ).read_text() == "lf-installed { color: purple; }\n"
 
 
 def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
@@ -635,7 +641,7 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
         '<lf-risk-note id="risk-note"><strong>Risk note</strong> The retry budget '
         "is three attempts before manual review.</lf-risk-note>"
     )
-    assert (package_root / "widgets.css").read_bytes() == b""
+    assert (package_root / "defaults.css").read_bytes() == b""
     module = (package_root / "widgets" / "lf-risk-note.js").read_text()
     checked = runner.invoke(cli_model.cli, ["package", "check", str(package)])
     assert checked.exit_code == 0, checked.output
@@ -798,7 +804,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
 
     package = tmp_path / ".leaf"
     assert json.loads((package / "registry.json").read_text()) == {}
-    assert (package / "theme.css").is_file()
+    assert (package / "overrides.css").is_file()
     assert list((package / "instructions").iterdir()) == []
     assert (package / "widgets").is_dir()
     assert (package / "vendor").is_dir()
@@ -826,7 +832,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     # The package's widget rule reaches the page among its defaults, unscoped.
     theme = layer.top_files["theme.css"].decode()
     assert "lf-callout {\n  display: block;" in theme
-    assert theme.index("lf-callout {") < theme.index("@layer lf-theme")
+    assert theme.index("lf-callout {") < theme.index("@layer lf-overrides")
     assert load_registry(page)["lf-callout"] == entry
     assert (
         "Use them for short notices."

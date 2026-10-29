@@ -40,6 +40,7 @@ import {
   compoundReadingRegionId,
   preserveReadingRegions,
   commandsChanged,
+  iconTemplate,
 } from "/runtime/widget-api.js";
 
 // A popover's way out wears the face of every surface's close control in Leaf: the
@@ -299,12 +300,13 @@ customElements.define(
                     aria-controls=${`${this.id}-${record.id}`}
                     @click=${() => this.#select(record.id)}
                   >
-                    <span class="lf-vr-case-number" aria-hidden="true"
-                      >${String(run.cases.indexOf(record) + 1).padStart(2, "0")}</span
-                    >
-                    <span class="lf-vr-case-label"
-                      ><span class="lf-vr-case-name">${record.title}</span>
-                      <span class="lf-vr-case-status" data-approved=${String(approved)}
+                    <span class="lf-vr-case-number lf-row-lead" aria-hidden="true"
+                      >${run.cases.indexOf(record) + 1}</span
+                    ><span class="lf-row-main">${record.title}</span
+                    ><span
+                      class="lf-vr-case-status lf-row-end"
+                      data-approved=${String(approved)}
+                      >${iconTemplate("check")}<span class="lf-quiet"
                         >Looks right</span
                       ></span
                     >

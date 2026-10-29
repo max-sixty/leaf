@@ -5856,8 +5856,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       ?data-opens=${opens}
       @click=${press}
     >
-      <span class="lf-fp-label">${label}</span
-      ><span class="lf-fp-end"
+      <span class="lf-fp-label lf-row-main">${label}</span
+      ><span class="lf-fp-end lf-row-end"
         >${end}${opens ? iconTemplate("next", "lf-fp-chevron") : nothing}</span
       >
     </button>`;
@@ -6010,7 +6010,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               <b>${latest.label}</b>
               <p class="lf-fp-failed-error scroll">${latest.error}</p>
             </div>` : nothing}
-      <div class="lf-fp-versions" role="none">
+      <div class="lf-fp-versions lf-rows" role="none">
         ${repeat(versions, (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`, (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
               ${menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, nothing, () => showVersion(entry), {
 			title: entry.note,
@@ -6167,7 +6167,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`<h3 class="lf-label lf-fp-on-group lf-fp-settled-group">
       <button
         type="button"
-        class="lf-fp-face lf-fp-settled lf-disclosure-marker"
+        class="lf-fp-face lf-fp-settled lf-row-plain lf-disclosure-marker"
         aria-expanded=${open ? "true" : "false"}
         @click=${() => {
 			if (open) unfolded.delete(key);
@@ -6176,8 +6176,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			paint();
 		}}
       >
-        <span class="lf-fp-label">${title}</span
-        ><span class="lf-fp-count">${count}</span>
+        <span class="lf-fp-label lf-row-main">${title}</span
+        ><span class="lf-fp-count lf-row-end">${count}</span>
       </button>
     </h3>`;
 	}
@@ -6197,14 +6197,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			thread: thread.key
 		})}
       >
-        <span class="lf-fp-news-mark lf-unread-dot"
-          >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
+        <span class="lf-row-lead"
+          ><span class="lf-fp-news-mark lf-unread-dot"
+            >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
+          ></span
         >
-        <span class="lf-fp-label">${threadHeading(thread)}</span>
-        <span class="lf-fp-value">${threadStatus(thread)}</span>
+        <span class="lf-fp-label lf-row-main">${threadHeading(thread)}</span>
+        <span class="lf-row-end">${threadStatus(thread)}</span>
       </button>`;
 		const rowsOf = (threads) => repeat(threads, (thread) => thread.key, row);
-		return html`<div class="lf-fp-list">
+		return html`<div class="lf-fp-list lf-rows">
       ${listed.length ? rowsOf(listed) : inventoried() ? html`<p class="lf-fp-empty">
                 ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
               </p>` : nothing}
@@ -6717,8 +6719,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
         @click=${() => toggleItem(key)}
       >
-        <span class="lf-fp-value lf-fp-on-noun">${kind}</span
-        ><span class="lf-fp-on-says"
+        <span class="lf-fp-value lf-fp-on-noun lf-row-lead">${kind}</span
+        ><span class="lf-fp-on-says lf-row-main"
           ><span class="lf-fp-label">${name}</span>${end}</span
         >
       </button>
@@ -6754,7 +6756,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				group
 			});
 		}
-		return html`<div class="lf-fp-on-list">
+		return html`<div class="lf-fp-on-list lf-rows">
       ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-label lf-fp-on-group">
                   <span class="lf-fp-label">${row.group.title}</span
                   ><span class="lf-fp-count"
@@ -7702,11 +7704,11 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		const thread = item && inventory.sourceItem(item)?.thread;
 		return thread ? threadHeading(thread) : visibleLabel;
 	};
-	const sheetFace = ({ icon, glyph, item, visibleLabel, context }) => html`${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}<span class="lf-page-map-action-label"
-        ><span class="lf-page-map-action-label-word"
-          >${sheetName(item, visibleLabel)}</span
-        >${context ? html`<span class="lf-page-map-action-context">${context}</span>` : nothing}</span
-      >`;
+	const sheetFace = ({ icon, glyph, item, visibleLabel, context }) => html`<span class="lf-row-lead"
+        >${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}</span
+      ><span class="lf-page-map-action-label-word lf-row-main"
+        >${sheetName(item, visibleLabel)}</span
+      >${context ? html`<span class="lf-page-map-action-context lf-row-end">${context}</span>` : nothing}`;
 	function activateSheetControl(event, action) {
 		const { offered, record } = action;
 		if (record.behavior === "status" || record.disabled) return;
@@ -7760,7 +7762,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		const body = sheetFace(action);
 		if (action.record.behavior === "status") return html`<span
         id=${action.id}
-        class="lf-page-map-action"
+        class="lf-page-map-action lf-row-plain"
         data-lf-map-key=${action.key}
         data-lf-map-margin-entry=${action.key}
         ${sheetHost(action, actions)}
@@ -7787,7 +7789,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
       ?hidden=${Boolean(query) && !group.search.includes(query)}
     >
       <h3>${group.entry.title}</h3>
-      <div class="lf-page-map-actions">
+      <div class="lf-page-map-actions lf-rows">
         ${repeat(group.actions, ({ key }) => key, (action) => action.kind === "item" ? sheetItemTemplate(action) : sheetControlTemplate(action, group.actions))}
       </div>
     </section>

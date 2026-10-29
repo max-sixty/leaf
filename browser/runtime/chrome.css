@@ -970,38 +970,23 @@ html[data-lf-region-capture] main * {
   .lf-inspection-head > strong {
     flex: 1;
   }
+  /* A press here is a row (controls.css, `.lf-row`), and a status beside it lays out
+     as one (`.lf-row-plain`), so their words share one edge. The user's turn paints
+     the row's ground as it paints its margin entry, in one rule set in theme.css, and
+     the row's wash under the pointer lies over it. */
   .lf-page-map-action {
-    width: 100%;
-    min-width: 0;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 8px;
-    align-items: baseline;
-    /* A press here is a row (controls.css, `.lf-row`), and a status beside it keeps
-       the row's stripe room too, so their words share one edge. The user's turn
-       paints the row's ground as it paints its margin entry, in one rule set in
-       theme.css, and the row's wash under the pointer lies over it. */
-    border: 0;
-    border-inline-start: 2px solid transparent;
     background-color: var(--lf-entry-tint, transparent);
     color: inherit;
-    padding: 7px 8px 7px 6px;
-    font: inherit;
-    text-align: left;
     cursor: default;
+  }
+  /* Each group is a list of its own, so a kind's symbol, an icon, a glyph or an emoji,
+     stands centred in a square a line tall, and every group's names start on one edge. */
+  .lf-page-map-action > .lf-row-lead {
+    width: 1lh;
+    justify-items: center;
   }
   .lf-page-map-action:is(button, [role="button"]):not([aria-disabled="true"]) {
     cursor: pointer;
-  }
-  .lf-page-map-action .lf-margin-kind {
-    align-self: center;
-  }
-  .lf-page-map-action-label {
-    min-width: 0;
-  }
-  .lf-page-map-action-label-word,
-  .lf-page-map-action-context {
-    display: block;
   }
   .lf-page-map-action-label-word,
   .lf-page-map-group h3 {
@@ -1010,12 +995,6 @@ html[data-lf-region-capture] main * {
     -webkit-line-clamp: 2;
     overflow: hidden;
     overflow-wrap: anywhere;
-  }
-  .lf-page-map-action-context {
-    margin-block-start: 2px;
-    color: var(--muted);
-    font-size: var(--t-6);
-    line-height: 1.25;
   }
   /* Inset, because a row here fills the list to its own edge and the list is a
      scroller: there is nothing outside the row for a ring to be drawn in, and an

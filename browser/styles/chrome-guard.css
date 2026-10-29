@@ -13,10 +13,13 @@
    rather than past it. The guard stands first in the chrome sheet and outside its
    @scope, so every chrome rule of the same weight wins by order or scope proximity.
    Custom properties are outside `all`, so a token the page sets on :root still reaches
-   the chrome. A shadow root would stop all of these, and was rejected: no engine lets
-   an element in a shadow root anchor to an `anchor-name` in the document, so the card,
-   passage outlines and margin carriers fell to their fallback positions (the spike is
-   e7745b70d, #2828; dropped in #3579).
+   the chrome. A shadow root would stop all of these. Its spike (e7745b70d, #2828) left
+   the card, passage outlines and margin carriers at their fallback positions, since no
+   engine yet lets a shadow tree's own styles name an `anchor-name` in the document
+   (csswg-drafts#9408 allows it). A document `::part()` rule that sets `position-anchor`
+   does anchor, in Chromium 156, Firefox 157 and WebKit 27.2, so the shadow root is a
+   cost to weigh rather than a block; the user set the direction aside in #3579, and
+   #4030 (a page restyling the chrome through named parts) would bring it back.
 
    Zoom is restated rather than rolled back: no Leaf rule sets it, so `normal` is the
    value revert-layer reaches, and Chrome 155 crashed the renderer on load at any page

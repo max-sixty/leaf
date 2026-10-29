@@ -1391,7 +1391,7 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
 # Quotes holding quotes, code and a list, and a fence its quote ends, each line ending in
 # a word.
 NESTED = (
-    "> alpha\n> > beta\n> gamma\n\n> ```\n> delta\n> ```\n\n>     epsilon\n\n"
+    "> alpha\n> > beta\n> gamma\n\n> ```\n> delta\n> ```\n\n"
     "> ```\n> zeta\nomega\n\n> - kappa\n> - lambda"
 )
 # Where each word stands in a root's content box: its left edge, its top, the left edge
@@ -1445,7 +1445,6 @@ def test_a_draft_nests_its_blocks_as_its_sent_message_does(browser, serve):
         "beta",
         "gamma",
         "delta",
-        "epsilon",
         "zeta",
         "omega",
         "kappa",

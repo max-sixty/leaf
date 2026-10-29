@@ -2171,16 +2171,15 @@ function placedMarkdownTokens(source) {
 	starts.push(source.length);
 	const found = [];
 	let inlineAt = 0;
-	for (const [index, token] of tokens.entries()) {
+	for (const token of tokens) {
 		const from = token.map ? starts[token.map[0]] : 0;
 		const to = token.map ? starts[token.map[1]] : source.length;
 		if (token.type !== "inline") {
-			if (token.map && (token.nesting === 1 || token.type === "fence" || token.type === "code_block")) found.push({
+			if (token.map && (token.nesting === 1 || token.type === "fence")) found.push({
 				token,
 				from,
 				to,
 				markers: token.meta?.markers?.map(([line, a, b]) => [starts[line] + a, starts[line] + b]),
-				contentLines: token.type === "heading_open" ? tokens[index + 1].map.map((at) => starts[at]) : void 0,
 				words: token.nesting ? null : token.content
 			});
 			continue;
@@ -2441,17 +2440,13 @@ function sourcePositions(markdown) {
 		}
 	});
 }
-const BLOCK_LEAVES = /* @__PURE__ */ new Set([
-	"fence",
-	"code_block",
-	"hr"
-]);
+const BLOCK_LEAVES = /* @__PURE__ */ new Set(["fence", "hr"]);
 function makeMarkdown(module, breaks) {
 	const markdown = new module.MarkdownIt({
 		html: false,
 		breaks,
 		linkify: true
-	}).use(module.taskLists, { enabled: false });
+	}).disable(["lheading", "code"]).use(module.taskLists, { enabled: false });
 	markdown.linkify.set({ fuzzyLink: false });
 	markdown.core.ruler.after("block", "blank_lines", (state) => {
 		const lines = state.src.split("\n");

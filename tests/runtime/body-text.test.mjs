@@ -100,10 +100,11 @@ test("Markdown body readings share file dialect, safe destinations and native st
     );
   }
   const body = document.createElement("div");
+  // A `---` under a line is a rule: Setext headings are off.
   body.innerHTML = renderMarkdown("<div>\n**bold**\n</div>\n\n<div>\nHeading\n---");
   assert.equal(
     body.innerHTML,
-    '<p data-lf-gap="0">&lt;div&gt;<br><strong>bold</strong><br>&lt;/div&gt;</p>\n<h2 data-lf-gap="1">&lt;div&gt;<br>Heading</h2>\n',
+    '<p data-lf-gap="0">&lt;div&gt;<br><strong>bold</strong><br>&lt;/div&gt;</p>\n<p data-lf-gap="1">&lt;div&gt;<br>Heading</p>\n<hr data-lf-gap="0">\n',
   );
   body.innerHTML = renderMarkdown("- [x] Done\n- [ ] Todo");
   assert.deepEqual(
@@ -246,43 +247,35 @@ test("block markers retain native source spans inside containers and fences", as
     [
       "> - # Heading ##",
       [
-        ["blockquote_open", ["> "], null],
-        ["list_item_open", ["- "], null],
-        ["heading_open", ["# ", "##"], "> - # Heading ##"],
-      ],
-    ],
-    [
-      "> Heading\n> -------",
-      [
-        ["blockquote_open", ["> ", "> "], null],
-        ["heading_open", ["-------"], "> Heading\n"],
+        ["blockquote_open", ["> "]],
+        ["list_item_open", ["- "]],
+        ["heading_open", ["# ", "##"]],
       ],
     ],
     [
       "lead\r\n\r\n> # Heading",
       [
-        ["blockquote_open", ["> "], null],
-        ["heading_open", ["# "], "> # Heading"],
+        ["blockquote_open", ["> "]],
+        ["heading_open", ["# "]],
       ],
     ],
-    ["````\n```\nbody\n````", [["fence", ["````", "````"], null]]],
-    ["~~~\n```\nbody\n~~~", [["fence", ["~~~", "~~~"], null]]],
+    ["````\n```\nbody\n````", [["fence", ["````", "````"]]]],
+    ["~~~\n```\nbody\n~~~", [["fence", ["~~~", "~~~"]]]],
     [
       "> 1. ~~~\n>    ```\n>    body",
       [
-        ["blockquote_open", ["> ", "> ", "> "], null],
-        ["list_item_open", ["1. "], null],
-        ["fence", ["~~~"], null],
+        ["blockquote_open", ["> ", "> ", "> "]],
+        ["list_item_open", ["1. "]],
+        ["fence", ["~~~"]],
       ],
     ],
   ]) {
     assert.deepEqual(
       placedMarkdownTokens(source)
         .filter(({ markers }) => markers)
-        .map(({ token, markers, contentLines }) => [
+        .map(({ token, markers }) => [
           token.type,
           markers.filter(([a, b]) => a < b).map(([a, b]) => source.slice(a, b)),
-          contentLines ? source.slice(...contentLines) : null,
         ]),
       expected,
       source,
@@ -299,17 +292,20 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
   try {
     const source = new DOMParser()
       .parseFromString(
-        '<main><lf-source-contract id="source"><pre>    code\n\n**Words**  \n</pre></lf-source-contract></main>',
+        '<main><lf-source-contract id="source"><pre>```\n    code\n```\n\n**Words**  \n</pre></lf-source-contract></main>',
         "text/html",
       )
       .querySelector("main");
     const authored = source.innerHTML;
     await preloadWidgets(source);
     assert.equal(source.innerHTML, authored);
-    assert.equal(dataBody(source.firstElementChild), "    code\n\n**Words**  \n");
+    assert.equal(
+      dataBody(source.firstElementChild),
+      "```\n    code\n```\n\n**Words**  \n",
+    );
     const arrival = document.importNode(source.firstElementChild, true);
     formatDeclaredMarkdown(arrival);
-    assert.equal(arrival.querySelector("pre").textContent, "code\n");
+    assert.equal(arrival.querySelector("pre").textContent, "    code\n");
     assert.equal(arrival.querySelector("strong").textContent, "Words");
     assert.equal(
       source.innerHTML,

@@ -1247,10 +1247,10 @@ function readFaces(field, display) {
 		const list = tag === "ul" || tag === "ol";
 		rules.push(`.lf-face-${tag} { ${type} }`, `.lf-starts-${tag} { --lf-gap-start: ${list ? collapsed(start, li.start) : start}px }`, `.lf-ends-${tag} { --lf-gap-end: ${list ? collapsed(end, li.end) : end}px }`);
 	}
-	rules.push(`.lf-face-gap { line-height: ${GAP} }`, `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`, `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`, `.lf-face-rule { line-height: 0 }`, `.lf-face-gap-above { padding-block-start: ${GAP} }`, `.lf-face-fence-open { line-height: ${pre.padStart}px }`, `.lf-face-fence-close { line-height: ${pre.padEnd}px }`, `.lf-face-code { padding-inline: ${pre.inset} }`, `.lf-face-quote { margin-inline-start: ${quote.indent}; --quote-inset: ${quote.inset} }`, `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`, `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`, `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`, `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`, `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`, `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`);
+	rules.push(`.lf-face-gap { line-height: ${GAP} }`, `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`, `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`, `.lf-face-gap-above { padding-block-start: ${GAP} }`, `.lf-face-fence-open { line-height: ${pre.padStart}px }`, `.lf-face-fence-close { line-height: ${pre.padEnd}px }`, `.lf-face-code { padding-inline: ${pre.inset} }`, `.lf-face-quote { margin-inline-start: ${quote.indent}; --quote-inset: ${quote.inset} }`, `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`, `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`, `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`, `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`, `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`, `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`);
 	return rules.join("\n");
 }
-const blockTag = (token) => token.type === "fence" || token.type === "code_block" ? "pre" : token.tag;
+const blockTag = (token) => token.type === "fence" ? "pre" : token.tag;
 function standBlocks(state, blocks, out, line) {
 	const lines = (from, to, each) => {
 		for (let at = from; at < to;) {
@@ -1273,18 +1273,14 @@ function standBlocks(state, blocks, out, line) {
 	const open = [];
 	let item = null;
 	const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
-	for (const { token, from, to, markers, contentLines } of blocks) {
+	for (const { token, from, to, markers } of blocks) {
 		if (!token.block) continue;
 		const tag = blockTag(token);
-		if (token.type === "heading_open") {
-			lines(...contentLines, (each) => named(each.from, `lf-face-${tag}`));
-			if (!token.markup.startsWith("#")) {
-				for (const [at] of markers) if (!lineTouched(at)) named(state.doc.lineAt(at).from, "lf-face-rule");
-			}
-		} else if (token.type === "fence" || token.type === "code_block") {
+		if (token.type === "heading_open") lines(from, to, (each) => named(each.from, `lf-face-${tag}`));
+		else if (token.type === "fence") {
 			lines(from, to, (each) => named(each.from, "lf-face-code"));
 			const opener = state.doc.lineAt(from).number;
-			for (const [at] of token.type === "fence" ? markers : []) {
+			for (const [at] of markers) {
 				const fence = state.doc.lineAt(at);
 				if (lineTouched(at)) continue;
 				const side = fence.number === opener ? "open" : "close";
@@ -1450,7 +1446,7 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 				at = current.to + 1;
 			}
 		};
-		for (const { token, from, to, contentFrom, contentTo, escapes, markers, contentLines, words: said } of placed) {
+		for (const { token, from, to, contentFrom, contentTo, escapes, markers, words: said } of placed) {
 			const syntax = touches(state, from, to) ? dim : hide;
 			if (token.type === "code_inline" || contentFrom !== void 0) {
 				const words = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
@@ -1471,28 +1467,22 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 				}).range(to) : Decoration.replace({ widget }).range(from, to));
 			} else if (token.type === "text") for (const at of escapes ?? []) add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
 			else if (token.type === "heading_open") {
-				lines(...contentLines, (each) => {
+				lines(from, to, (each) => {
 					out.push(line("lf-md-heading").range(each.from));
 				});
-				for (const [a, b] of markers) {
-					const rule = state.doc.lineAt(a);
-					const shown = touches(state, rule.from, rule.to) ? dim : unseen;
-					add(a, b, token.markup.startsWith("#") ? syntax : shown);
-				}
-			} else if (token.type === "fence" || token.type === "code_block") {
+				for (const [a, b] of markers) add(a, b, syntax);
+			} else if (token.type === "fence") {
 				code.push([from, to]);
 				const body = token.content.split("\n");
 				if (body.at(-1) === "") body.pop();
-				const fenced = token.type === "fence";
-				const opened = state.doc.lineAt(from).number + (fenced ? 1 : 0);
+				const opened = state.doc.lineAt(from).number + 1;
 				lines(from, to, (each) => {
 					const first = each.from <= from;
 					const last = each.to + 1 >= to;
 					const ends = [
 						first ? " lf-md-code-first" : "",
 						last ? " lf-md-code-last" : "",
-						first && !fenced ? " lf-md-code-pad-start" : "",
-						last && !(fenced && markers.length > 1) ? " lf-md-code-pad-end" : ""
+						last && markers.length < 2 ? " lf-md-code-pad-end" : ""
 					].join("");
 					out.push(line(`lf-md-code-block${ends}`).range(each.from));
 					const kept = body[each.number - opened];
@@ -1866,12 +1856,10 @@ sheet.replaceSync(`
     stroke-linejoin: round; overflow: visible; user-select: none;
     -webkit-user-select: none; }
   /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
-     and an end of the code no fence line stands at, as indented code's ends and the
-     end of a fence its container or the draft ends, takes that padding on the code's
-     own line instead. A field that edits in place reads its display's padding over
+     and the end of a fence its container or the draft ends, where no fence line
+     stands, takes that padding on the code's own line instead. A field that edits in place reads its display's padding over
      this (\`readFaces\`). */
   .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
-  .lf-md-code-pad-start { padding-block-start: var(--pre-pad-block); }
   .cm-line.lf-md-code-pad-end { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
 let editor = null;

@@ -28,8 +28,8 @@
  * beside the field, where the page's own rules and density reach it, and is read and
  * removed in the same task. The rules it yields go in a sheet of the field's own, which
  * the classes of the lines and of the quotes' boxes name, so the field draws nothing differently without one. A code
- * fence's line and a Setext heading's rule then stand for the block's padding while the
- * caret is away from that line. A list's inner gaps, a quote's inner blocks and a table
+ * fence's line then stands for the block's padding while the caret is away from that
+ * line. A list's inner gaps, a quote's inner blocks and a table
  * keep the source's lines. Rejected: rules the theme states for each element also stated
  * for parts the field exposes, which can set type but not the gaps, since CodeMirror
  * measures a line without its margins and a gap collapses two blocks'; and a style
@@ -259,12 +259,10 @@ sheet.replaceSync(`
     stroke-linejoin: round; overflow: visible; user-select: none;
     -webkit-user-select: none; }
   /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
-     and an end of the code no fence line stands at, as indented code's ends and the
-     end of a fence its container or the draft ends, takes that padding on the code's
-     own line instead. A field that edits in place reads its display's padding over
+     and the end of a fence its container or the draft ends, where no fence line
+     stands, takes that padding on the code's own line instead. A field that edits in place reads its display's padding over
      this (\`readFaces\`). */
   .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
-  .lf-md-code-pad-start { padding-block-start: var(--pre-pad-block); }
   .cm-line.lf-md-code-pad-end { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
 

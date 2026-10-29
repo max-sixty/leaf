@@ -96,7 +96,6 @@ export function readFaces(field, display) {
     `.lf-face-gap { line-height: ${GAP} }`,
     `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`,
     `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`,
-    `.lf-face-rule { line-height: 0 }`,
     `.lf-face-gap-above { padding-block-start: ${GAP} }`,
     `.lf-face-fence-open { line-height: ${pre.padStart}px }`,
     `.lf-face-fence-close { line-height: ${pre.padEnd}px }`,
@@ -120,8 +119,7 @@ export function readFaces(field, display) {
 // the caret is away, and an item after the first in a list stands its gap above it.
 // The display trims the outer margins of its first and last blocks, so the field
 // leaves none there, but a list's first and last items keep theirs.
-const blockTag = (token) =>
-  token.type === "fence" || token.type === "code_block" ? "pre" : token.tag;
+const blockTag = (token) => (token.type === "fence" ? "pre" : token.tag);
 function standBlocks(state, blocks, out, line) {
   const lines = (from, to, each) => {
     for (let at = from; at < to;) {
@@ -147,19 +145,16 @@ function standBlocks(state, blocks, out, line) {
   const open = [];
   let item = null;
   const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
-  for (const { token, from, to, markers, contentLines } of blocks) {
+  for (const { token, from, to, markers } of blocks) {
     if (!token.block) continue;
     const tag = blockTag(token);
     // A heading and a fence wear their faces wherever they stand.
     if (token.type === "heading_open") {
-      lines(...contentLines, (each) => named(each.from, `lf-face-${tag}`));
-      if (!token.markup.startsWith("#"))
-        for (const [at] of markers)
-          if (!lineTouched(at)) named(state.doc.lineAt(at).from, "lf-face-rule");
-    } else if (token.type === "fence" || token.type === "code_block") {
+      lines(from, to, (each) => named(each.from, `lf-face-${tag}`));
+    } else if (token.type === "fence") {
       lines(from, to, (each) => named(each.from, "lf-face-code"));
       const opener = state.doc.lineAt(from).number;
-      for (const [at] of token.type === "fence" ? markers : []) {
+      for (const [at] of markers) {
         const fence = state.doc.lineAt(at);
         if (lineTouched(at)) continue;
         const side = fence.number === opener ? "open" : "close";
@@ -394,7 +389,6 @@ function fieldEditor(
       contentTo,
       escapes,
       markers,
-      contentLines,
       words: said,
     } of placed) {
       const syntax = touches(state, from, to) ? dim : hide;
@@ -428,36 +422,27 @@ function fieldEditor(
         for (const at of escapes ?? [])
           add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
       } else if (token.type === "heading_open") {
-        lines(...contentLines, (each) => {
+        lines(from, to, (each) => {
           out.push(line("lf-md-heading").range(each.from));
         });
-        // A Setext heading's rule is a line of its own, which keeps its room unseen while
-        // the caret is away, as a fence's does.
-        for (const [a, b] of markers) {
-          const rule = state.doc.lineAt(a);
-          const shown = touches(state, rule.from, rule.to) ? dim : unseen;
-          add(a, b, token.markup.startsWith("#") ? syntax : shown);
-        }
-      } else if (token.type === "fence" || token.type === "code_block") {
+        for (const [a, b] of markers) add(a, b, syntax);
+      } else if (token.type === "fence") {
         code.push([from, to]);
         // Each line of code keeps the indent the parser's reading of it keeps; the rest,
-        // a list item's or an indented block's own four spaces after its containers'
-        // markers, the message drops. The code's reading ends each line it holds with a
+        // a list item's indent after its containers' markers, the message drops. The code's reading ends each line it holds with a
         // break, except a last line the draft's end ends, and holds none for a fence
         // with no code. An end no fence line stands for (`standBlocks`) takes the
         // padding on the code's own line.
         const body = token.content.split("\n");
         if (body.at(-1) === "") body.pop();
-        const fenced = token.type === "fence";
-        const opened = state.doc.lineAt(from).number + (fenced ? 1 : 0);
+        const opened = state.doc.lineAt(from).number + 1;
         lines(from, to, (each) => {
           const first = each.from <= from;
           const last = each.to + 1 >= to;
           const ends = [
             first ? " lf-md-code-first" : "",
             last ? " lf-md-code-last" : "",
-            first && !fenced ? " lf-md-code-pad-start" : "",
-            last && !(fenced && markers.length > 1) ? " lf-md-code-pad-end" : "",
+            last && markers.length < 2 ? " lf-md-code-pad-end" : "",
           ].join("");
           out.push(line(`lf-md-code-block${ends}`).range(each.from));
           const kept = body[each.number - opened];

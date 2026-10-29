@@ -145,14 +145,11 @@ export function placedMarkdownTokens(source) {
   starts.push(source.length);
   const found = [];
   let inlineAt = 0;
-  for (const [index, token] of tokens.entries()) {
+  for (const token of tokens) {
     const from = token.map ? starts[token.map[0]] : 0;
     const to = token.map ? starts[token.map[1]] : source.length;
     if (token.type !== "inline") {
-      if (
-        token.map &&
-        (token.nesting === 1 || token.type === "fence" || token.type === "code_block")
-      )
+      if (token.map && (token.nesting === 1 || token.type === "fence"))
         found.push({
           token,
           from,
@@ -161,11 +158,6 @@ export function placedMarkdownTokens(source) {
             starts[line] + a,
             starts[line] + b,
           ]),
-          // A heading's inline token owns its content lines, excluding Setext syntax.
-          contentLines:
-            token.type === "heading_open"
-              ? tokens[index + 1].map.map((at) => starts[at])
-              : undefined,
           words: token.nesting ? null : token.content,
         });
       continue;
@@ -520,13 +512,15 @@ function sourcePositions(markdown) {
 }
 
 // The blocks the parser emits whole, with no opening and closing pair.
-const BLOCK_LEAVES = new Set(["fence", "code_block", "hr"]);
+const BLOCK_LEAVES = new Set(["fence", "hr"]);
 
 function makeMarkdown(module, breaks) {
-  const markdown = new module.MarkdownIt({ html: false, breaks, linkify: true }).use(
-    module.taskLists,
-    { enabled: false },
-  );
+  // Setext headings and indented code are off: a `---` under a line is a rule, not a
+  // heading, and leading spaces are text, so neither surprises a writer, and a fence
+  // is the one way to write code. passages.py reads the same dialect.
+  const markdown = new module.MarkdownIt({ html: false, breaks, linkify: true })
+    .disable(["lheading", "code"])
+    .use(module.taskLists, { enabled: false });
   // A bare domain is indistinguishable from a file name such as setup.py. Require
   // an explicit URL or Markdown link instead of inventing an external destination.
   markdown.linkify.set({ fuzzyLink: false });

@@ -953,10 +953,10 @@ wa-copy-button.lf-icon-action {
    the stripe's room and 6px more before its words, as the panel's inset does, 8px after
    them and 5px over and under them, at least 30px in all, so a heading among the rows
    in a smaller voice stands as tall as they do; under a finger every row reaches the
-   aim floor. A row that wears another face or none, such as the Resolved heading in
-   Threads or a status in the Page Map, lays out as one with `.lf-row-plain`, keeping
-   the stripe's room. A row takes this layout by naming its main part; one that names
-   none, such as a way back or a command in the reference, keeps its own.
+   aim floor. A row that offers nothing, such as a status in the Page Map, lays out as
+   one with `.lf-row-plain`, keeping the stripe's room. A row takes this layout by
+   naming its main part; one that names none, such as a way back or a command in the
+   reference, keeps its own.
 
    The rows of a list (`.lf-rows`) share its columns, so every lead takes the widest
    lead's room, every name starts on one edge, and the end column is as wide as its

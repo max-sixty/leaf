@@ -1495,7 +1495,6 @@
   }
   .lf-fp-settled {
     align-items: center;
-    border-radius: var(--r);
     font: inherit;
     letter-spacing: inherit;
     text-transform: inherit;

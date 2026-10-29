@@ -3083,6 +3083,9 @@
   // these exact terms until paint admission; reporting never re-runs the solver.
   // Keep the sampled endpoints even when no term was accepted: otherwise zero
   // credit cannot distinguish a missing owner from a missing or ineligible sample.
+  // Size effects can reflow siblings, including after their target leaves that
+  // flow. Keep those candidates even when they are not the receiver's ancestors;
+  // filtering by successful propagation would hide the rejected proof we need.
   const motionEvidence = (node, from, to, selected) => {
     const ancestors = new Set([
       ...ancestryAt(node, from),
@@ -3096,7 +3099,13 @@
     const endpoint = (sample) =>
       sample ? { at: sample.at, values: sample.values } : null;
     return [...candidates]
-      .filter((animation) => ancestors.has(animation.effect?.target))
+      .filter(
+        (animation) =>
+          ancestors.has(animation.effect?.target) ||
+          effectProperties(animation).some((property) =>
+            SIZE_GEOMETRY.has(property),
+          ),
+      )
       .map((animation) => {
         const samples = animated.get(animation) ?? [];
         return {

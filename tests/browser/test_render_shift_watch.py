@@ -2553,7 +2553,24 @@ def test_fold_reparenting_keeps_only_its_original_flow_credit(
     if placement == "carried":
         assert take_browser_errors(page) == []
     else:
-        consume_browser_errors(page, moved_within("button#control"))
+        errors = consume_browser_errors(page, moved_within("button#control"))
+        motions = [
+            animation
+            for error in errors
+            for comparison in shift_evidence(error)["comparisons"]
+            for animation in comparison["animations"]
+            if within(animation["target"], "div#fold")
+        ]
+        assert motions, errors
+        assert any(
+            motion["selected"]
+            and "height" in motion["properties"]
+            and motion["before"]
+            and motion["after"]
+            and "height" in motion["before"]["values"]
+            and "height" in motion["after"]["values"]
+            for motion in motions
+        ), motions
 
 
 def test_absolute_size_animation_cannot_credit_an_independent_control_move(browser):

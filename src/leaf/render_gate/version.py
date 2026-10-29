@@ -11,6 +11,7 @@ from .readings import (
     arrangement_changes,
     margin_changes,
     open_widgets,
+    passive_layout_shift_advice,
     settle_at,
     shrunk_label_advice,
     squeezed_table_advice,
@@ -96,7 +97,8 @@ def _render_version_attempt(
     geometry between them), and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme,
     it reads, as advice, whether a widget declaring x-height drew at a height its first
-    paint did not hold; and then, resizing that loaded page through every width from
+    paint did not hold, and native layout shifts during a three-second passive
+    observation after presentation; and then, resizing that loaded page through every width from
     360px to 1920px (`readings.sweep`), the geometry that moves with the window: the
     page scrolling sideways, content set past the column and out into the margin, a
     horizontal scrollbar with no room below what it scrolls, a control clipped out of
@@ -150,6 +152,7 @@ def _render_version_attempt(
 
     def desktop_sweep(page, registry):
         # First, at the first paint's viewport, which the sweep then leaves.
+        advice.extend(passive_layout_shift_advice(page))
         advice.extend(unreserved_height_advice(page, element_declarations(registry)))
         sample(page, registry)
         widths = sweep(page, steps, open_widgets(registry))

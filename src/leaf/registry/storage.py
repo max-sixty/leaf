@@ -196,11 +196,13 @@ def read_page_registry(page_dir: Path):
         layer = load_registry(page_dir)
         if layer is None:
             return None
+        record = layer_record(page_dir)
+        assert record is not None
         return compose_candidate(
             page_dir,
             layer,
             [
-                *layer_widgets(layer_record(page_dir), page_dir),
+                *layer_widgets(record, page_dir),
                 *(path for path, _ in widgets),
             ],
             validated=read_revision(page_dir, active).registry if active else None,

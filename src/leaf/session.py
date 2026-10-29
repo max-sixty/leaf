@@ -172,9 +172,12 @@ class Watch:
         self.session_id = harness.session if harness else None
         self.explicit_pages = pages
         targets = (None,) if harness else pages
-        self.lease_paths = tuple(
-            waiter_lease_path(page, self.session_id) for page in targets
-        )
+        lease_paths = []
+        for page in targets:
+            path = waiter_lease_path(page, self.session_id)
+            assert path is not None
+            lease_paths.append(path)
+        self.lease_paths = tuple(lease_paths)
         self.leases = []
         self._revived: set = set()
         self._lost: set = set()
@@ -282,6 +285,7 @@ class Watch:
             discovery, key, roots = plan()
             if not holds(key, roots):
                 install(key, roots)
+            assert self.changes is not None
             # Stamp the subscribed set. A locator added during installation must
             # differ at the next comparison, so its target is subscribed in turn.
             reading = self.reading(discovery)
@@ -299,6 +303,7 @@ class Watch:
         watched, before, generation = mark
         if self.watched != watched:
             return True
+        assert self.changes is not None
         deadline = time.monotonic() + timeout
         while True:
             if self.reading() != before:

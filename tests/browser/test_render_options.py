@@ -55,6 +55,7 @@ from render_harness import (
     panel_control,
     regions_side_by_side,
     resized,
+    rgb_pixels,
     root_overflow,
     round_trip,
     sending,
@@ -1017,7 +1018,7 @@ def test_a_picked_cell_rings_every_side_alike(browser, serve):
         shot = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
         inked = [
             sum(abs(a - b) for a, b in zip(px, ok, strict=True)) < 40
-            for px in shot.getdata()
+            for px in rgb_pixels(shot)
         ]
         # The ring's two edges along this line: from the middle outward, the first run
         # of ink each way, so a picked neighbour's edge past the hairline is its own.

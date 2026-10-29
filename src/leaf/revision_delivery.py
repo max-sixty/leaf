@@ -36,6 +36,7 @@ import re
 import struct
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from typing import Literal
 from urllib.parse import quote, unquote, urlsplit
 
 import turbohtml
@@ -96,13 +97,13 @@ def page_path(reference: str, base: str) -> tuple[str, str] | None:
     """
     if not reference:
         return None
-    reference = dependency_reference(reference, base)
-    if reference is None or not _PAGE_PATH.fullmatch(reference[0]):
+    located = dependency_reference(reference, base)
+    if located is None or not _PAGE_PATH.fullmatch(located[0]):
         return None
-    return reference
+    return located
 
 
-def _attributes(attributes: Mapping[str, str | bool | None]) -> str:
+def _attributes(attributes: Mapping[str, str | Literal[True] | None]) -> str:
     """Attributes to write in a start tag, each value escaped: `True` writes the name
     alone, and `None` leaves the attribute out."""
     return "".join(
@@ -119,7 +120,7 @@ def _raw_text(tag: str, text: str) -> str:
 
 
 def runtime_element(
-    tag: str, attributes: Mapping[str, str | bool | None], body: str = ""
+    tag: str, attributes: Mapping[str, str | Literal[True] | None], body: str = ""
 ) -> str:
     """An element a host adds to a document it delivers, marked `data-lf-runtime` as
     delivery's own: the runtime reads past it as no part of the author's page, and a
@@ -141,7 +142,7 @@ def runtime_settings(
     page_root: str,
     entry: str,
     probe: str,
-    declared: Mapping[str, str | bool | None],
+    declared: Mapping[str, str | Literal[True] | None],
 ) -> str:
     """The script that says how a host delivered a document (`runtime/context.js`):
     the layer generation it belongs to, its page root, the runtime entry, which is
@@ -161,7 +162,7 @@ def runtime_settings(
     )
 
 
-def _rebase(reference: str, base: str, address: Address) -> str:
+def _rebase(reference: str, base: str, address: Address) -> str | None:
     located = page_path(reference, base)
     if located is None:
         return reference
@@ -221,7 +222,7 @@ def rebase_document(
             index(location.end_line, location.end_col),
         )
 
-    def rebase(reference: str) -> str:
+    def rebase(reference: str) -> str | None:
         return _rebase(reference, "/index.html", address)
 
     for element in delivered_elements(tree):
@@ -682,7 +683,7 @@ def delivery_sheets(
     Shared chrome and marks are always present; physical annotation sheets are absent
     in page mode. The browser constructs only the sheets this carrier actually holds.
     """
-    sheets = {
+    sheets: dict = {
         name: rebase_css(resources[path].data.decode("utf-8"), path, address)
         for name, path in (
             ("chrome", "/runtime/chrome.css"),

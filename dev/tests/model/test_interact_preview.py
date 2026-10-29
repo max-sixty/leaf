@@ -20,6 +20,7 @@ import subprocess
 import sys
 from functools import partial
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlsplit
 
 import pytest
@@ -34,17 +35,18 @@ from interact_support import (
     stamp,
     wait_for,
 )
-from leaf_dev import arms, page_fixtures
-from leaf_dev.commands import preview, record_demo, site
-from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 from leaf import cli as cli_model
 from leaf import codex_adapter, leases, server, service, session
+from leaf.detached import Handshake
 from leaf.interaction_log import read_interactions
 from leaf.layer import stylesheet
 from leaf.media import media_name
 from leaf.registry.storage import layer_record, load_registry, selected
 from leaf.structure import SourceDocument
+from leaf_dev import arms, page_fixtures
+from leaf_dev.commands import preview, record_demo, site
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 LEAF_S_THEME = {"name": "reading", "source": "default"}
 
@@ -208,9 +210,11 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     registry = load_registry(page)
     assert "nav.sitenav" in registry
     package = ROOT / "docs" / "package"
+    layer_2 = layer_record(page)
+    assert layer_2 is not None
     assert (
         stylesheet(package / "theme.css", package).rstrip()
-        in selected(layer_record(page), page).top_files["theme.css"].decode()
+        in selected(layer_2, page).top_files["theme.css"].decode()
     )
     watched = preview.watch_paths(source, ROOT, [])
     assert str(ROOT / "docs" / "layer.json") in watched.paths
@@ -450,11 +454,10 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
 
 def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     """Native source events regenerate the corpus before its live page is refreshed."""
-    from leaf_dev.commands import corpus
-    from leaf_dev.example_data import data_file, named_source, page_files
-
     from leaf.data import read_data
     from leaf.registry.storage import load_registry
+    from leaf_dev.commands import corpus
+    from leaf_dev.example_data import data_file, named_source, page_files
 
     examples = tmp_path / "examples"
     examples.mkdir()
@@ -822,6 +825,7 @@ finally:
         )
         url, _ = json.loads(ready.read_text())
         claim = service.page_claim(page_dir)
+        assert claim is not None
         assert claim["id"] == "preview-thread"
         assert claim["pid"] == task.pid, (
             "detached child replaced its launching harness lifetime"
@@ -1019,8 +1023,11 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
     try:
         with pytest.raises(KeyboardInterrupt), owner.starting():
             pass
+        assert owner.claim is not None
+        claim_record = page_claim(page_dir)
+        assert claim_record is not None
         assert (
-            page_claim(page_dir)["acquisition"] != owner.claim["acquisition"]
+            claim_record["acquisition"] != owner.claim["acquisition"]
         ) == transferred
         owner.stop()
         assert bool(server.running_server(page_dir)) == transferred
@@ -1049,6 +1056,7 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
     try:
         expected = ValueError if refusal == "abort_reuse" else StartRefused
         with pytest.raises(expected), claim_and_start(page_dir) as prepared:
+            assert previous is not None
             assert prepared.claim["acquisition"] != previous["acquisition"]
             assert page_claim(page_dir) == previous
             assert not original.ended
@@ -1056,9 +1064,9 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
                 raise ValueError("caller leaves before accepting reuse")
             end_session(prepared.claim["id"])
             if refusal == "new_generation":
-                ensure_session(
-                    prepared.claim["id"], harness.session_harness().lifetime()
-                )
+                harness_3 = harness.session_harness()
+                assert harness_3 is not None
+                ensure_session(prepared.claim["id"], harness_3.lifetime())
         assert page_claim(page_dir) == previous
         assert not original.ended
         assert fetch(url)[0] == 200
@@ -1082,7 +1090,9 @@ def test_service_publication_failure_keeps_previous_preview_claim(
     published = json.loads((page_dir / "service.json").read_text())
     published["enabled"] = True
     write_json(page_dir / "service.json", published)
-    intent = prepare_claim(session_harness(), page_dir)
+    harness_2 = session_harness()
+    assert harness_2 is not None
+    intent = prepare_claim(harness_2, page_dir)
 
     class Accepted:
         def announce(self, _ready, *, commit):
@@ -1100,7 +1110,7 @@ def test_service_publication_failure_keeps_previous_preview_claim(
                 harness=session_harness(),
                 acquire=True,
                 prepared_claim=intent,
-                handshake=Accepted(),
+                handshake=cast(Handshake, Accepted()),
             )
         assert page_claim(page_dir) == previous
         assert not original.ended

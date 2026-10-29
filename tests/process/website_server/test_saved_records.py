@@ -12,7 +12,6 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-import leaf_website as website_server
 import pytest
 from interact_support import (
     PAGE,
@@ -21,6 +20,7 @@ from interact_support import (
     running_http_server,
 )
 
+import leaf_website as website_server
 from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.service import PageTransaction
@@ -33,7 +33,7 @@ from process.website_server import (
 @contextmanager
 def durable_page_store():
     """A real HTTP store boundary; Leaf still performs every admission and fold."""
-    stored = {
+    stored: dict = {
         "publications": [],
         "records": {},
         "staged": {},
@@ -124,7 +124,7 @@ def durable_page_store():
             self.send_response(204)
             self.end_headers()
 
-        def log_message(self, *_args):
+        def log_message(self, format, *_args):
             pass
 
     with running_http_server(ThreadingHTTPServer(("127.0.0.1", 0), Store)) as server:
@@ -140,6 +140,7 @@ def test_public_and_private_snapshots_keep_a_stored_revisions_publication_date(
     assert activation.error is None
     revision = activation.revision
     assert not any(event["kind"] == "note" for event in read_events(page_dir))
+    assert revision is not None
     marker = revision_path(page_dir, revision)
     os.utime(marker, (1_700_000_000, 1_700_000_000))
     captured_at = "2030-01-01T00:00:00+00:00"
@@ -155,6 +156,7 @@ def test_public_and_private_snapshots_keep_a_stored_revisions_publication_date(
         revision + 1,
         url="/",
     )
+    assert candidate.context.active is not None
     assert candidate.context.active["activated_at"] == captured_at
 
 
@@ -209,7 +211,10 @@ def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
     write_manifest(site, {"/example": ("page", "example")})
     activation = website_server.activate_source(private)
     assert activation.error is None
-    os.utime(revision_path(private, activation.revision), (1_700_000_000,) * 2)
+    assert activation.revision is not None
+    os.utime(
+        revision_path(private, activation.revision), (1_700_000_000, 1_700_000_000)
+    )
     expected = website_server.PageStateService(private).page_state()["browser"][
         "views"
     ][str(activation.revision)]["published_at"]

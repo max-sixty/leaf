@@ -15,7 +15,6 @@ from browser.test_render_playwright_trace import (
     navigate_to_phase,
     stop_time,
 )
-from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
 from render_harness import (
     holding,
@@ -30,6 +29,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.page_fixtures import example_media
 
 
 def expect_after_checkpoint(root, seconds):
@@ -85,7 +85,9 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
 
     script = ROOT / "packages/playwright/scripts/import_trace.py"
     spec = importlib.util.spec_from_file_location("trace_import", script)
+    assert spec is not None
     importer = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
     spec.loader.exec_module(importer)
     record = importer.import_trace(
         archive,
@@ -597,7 +599,9 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
 
     script = ROOT / "packages/playwright/scripts/import_trace.py"
     spec = importlib.util.spec_from_file_location("trace_import", script)
+    assert spec is not None
     importer = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
     spec.loader.exec_module(importer)
     record = importer.import_trace(
         archive,

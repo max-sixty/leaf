@@ -956,7 +956,9 @@ def test_a_width_change_keeps_what_stands_at_the_landing_edge(browser, serve, sh
         )
 
     read = now("take")
+    tolerance = case["tolerance"]
+    assert isinstance(tolerance, (int, float))
     for width in (600, 1200, 800, 1200):
         resized(page, width, 800)
         rendered(page)
-        assert now("read") == pytest.approx(read, abs=case["tolerance"]), width
+        assert now("read") == pytest.approx(read, abs=tolerance), width

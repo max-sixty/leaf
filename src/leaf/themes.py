@@ -64,7 +64,7 @@ def catalogue() -> tuple[Path, dict]:
         return path, {"themes": []}
     except (OSError, tomllib.TOMLDecodeError) as error:
         raise Refused(f"{path}: {error}") from None
-    if error := next(_CATALOGUE.iter_errors(config), None):
+    if error := next(iter(_CATALOGUE.iter_errors(config)), None):
         raise Refused(f"{path}: {error.message}")
     if (default := config.get("default")) is not None and default not in config[
         "themes"
@@ -120,7 +120,7 @@ def selected_theme(page_dir: Path, choice: ThemeChoice, *, fresh: bool) -> dict 
 
 def theme_package(theme: dict | None) -> str | None:
     """The package a recorded theme selection composes, or None for none."""
-    return theme and theme["name"]
+    return theme["name"] if theme else None
 
 
 def with_theme(packages: tuple[str, ...], theme: dict | None) -> tuple[str, ...]:

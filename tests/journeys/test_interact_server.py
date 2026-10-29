@@ -32,7 +32,6 @@ from interact_support import (
     wait_for,
     write_record,
 )
-from leaf_dev.page_fixtures import package_selection_args
 
 from leaf import cli as cli_model
 from leaf import event_log as event_model
@@ -51,6 +50,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_authored_recordings_are_served_with_seekable_captured_bytes(
@@ -721,6 +721,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     end_work(neighbor)
     declare(neighbor, "waiting")
     session = cleanup_model.session_record("invisible")
+    assert session is not None
     cleanup_model.write_session({**session, "turn_closed": cleanup_model.now_iso()})
     await_row(lambda row: row["activity"]["kind"] == "away")
     # The harness's dialog changes outside the page, with no lifecycle rewrite.
@@ -738,9 +739,9 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     await_row(lambda row: row["activity"]["observed_kind"] == "awaiting_user")
     harness_record.unlink()
     await_row(lambda row: row["activity"]["kind"] == "away")
-    waiter = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(neighbor, "invisible")
-    )
+    lease_path = leases_model.waiter_lease_path(neighbor, "invisible")
+    assert lease_path is not None
+    waiter = leases_model.take_wait_lease(lease_path)
     try:
         await_row(lambda row: row["activity"]["kind"] == "listening")
     finally:

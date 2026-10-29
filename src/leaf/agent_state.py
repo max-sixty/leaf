@@ -365,7 +365,7 @@ def _page_state(
                 "claim_session",
                 "session_name",
                 "session_cwd",
-                "claim_turn",
+                "turn",
                 "turn_closed",
             )
         },

@@ -26,6 +26,7 @@ server revival path.
 
 import sys
 import time
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
@@ -121,7 +122,9 @@ ROW = Record(
 )
 
 
-def read_row(page_dir: Path, service: dict, *, record=None) -> dict | None:
+def read_row(
+    page_dir: Path, service: Mapping[str, object], *, record=None
+) -> dict | None:
     """The row this live service's own incarnation published for the page, from
     `record` where the caller has already read it."""
     if record is None:

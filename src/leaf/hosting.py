@@ -5,6 +5,8 @@ when a server is constructed, so stopping or reviving a service doesn't load a
 second server stack in the client process.
 """
 
+from __future__ import annotations
+
 import contextlib
 import errno
 import functools
@@ -21,6 +23,7 @@ import traceback
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
@@ -56,6 +59,10 @@ from .service import (
     prepare_claim,
     same_claim,
 )
+
+if TYPE_CHECKING:
+    from .record_types import ServiceRecord
+    from .server import PageAddress
 
 # The side that closes a TCP connection first keeps its address in TIME_WAIT, for
 # 60 s on Linux and 30 s on macOS. A server is that side for the keep-alive
@@ -214,7 +221,7 @@ class LeafHTTPServer:
             )
         )
         self.socket = listening_socket(*address)
-        self.server_address = self.socket.getsockname()[:2]
+        self.server_address: tuple[str, int] = self.socket.getsockname()[:2]
 
     def fileno(self) -> int:
         return self.socket.fileno()
@@ -418,7 +425,7 @@ def started_server(page_dir: Path, url: str) -> dict:
 def _serve_claim(
     page_dir: Path,
     page: PageTransaction,
-    service: dict | None,
+    service: ServiceRecord | None,
     persistent: bool,
     revive: bool,
     harness: Harness | None,
@@ -493,8 +500,12 @@ def _take_server_lease(page_dir: Path):
 
 
 def _service_record(
-    access: dict, httpd, persistent: bool, claimed: bool, runtime: dict
-) -> dict:
+    access: ServiceRecord | PageAddress,
+    httpd: LeafHTTPServer,
+    persistent: bool,
+    claimed: bool,
+    runtime: dict,
+) -> ServiceRecord:
     """The durable desired state for a newly bound server."""
     lifetime = (
         "persistent"
@@ -815,13 +826,11 @@ def cmd_stop(
                 # started over it, which exits once its record is gone.
                 (page_dir / SERVICE_FILE).unlink(missing_ok=True)
             elif first:
-                disabled = {
-                    **{
-                        key: value for key, value in service.items() if key != "restart"
-                    },
-                    "enabled": False,
-                    **({"restart": restart} if restart else {}),
-                }
+                disabled = service.copy()
+                disabled.pop("restart", None)
+                disabled["enabled"] = False
+                if restart:
+                    disabled["restart"] = restart
                 if disabled != service:
                     write_service(page_dir, disabled)
             elif service["enabled"]:

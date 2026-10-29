@@ -394,13 +394,19 @@ const CLASS_ARGUMENT = {
   offerAction: 1,
   offeredAction: 1,
   offerActionElement: 2,
+  offerContentElement: 2,
   selectableOffer: 1,
   selectableOffered: 1,
   copyControl: 0,
 };
 // The builders that give an element a role's face (prepaint.js, `ACTION_FACES`), and
 // the calls that make an element of the tag they are handed first.
-const ROLE_BUILDERS = new Set(["offerAction", "offeredAction", "offerActionElement"]);
+const ROLE_BUILDERS = new Set([
+  "offerAction",
+  "offeredAction",
+  "offerActionElement",
+  "offerContentElement",
+]);
 const MAKERS = new Set(["offer", "el", "createElement"]);
 
 const callee = (node) =>
@@ -587,7 +593,7 @@ function dressing(node, parents, depth) {
 //   `ref`, whose binding calls one, directly or through a function it calls.
 // - "made": a "button" made by `offer`, `el` or `createElement`, with the `className`
 //   later given to the variable it is bound to; "role as it is made" when it is made
-//   as `offerActionElement`'s element.
+//   as the element of `offerActionElement` or `offerContentElement`.
 // - "copy control": a `copyControl(…)`, "role in its options" when they name a role,
 //   "trigger in its options" when they hand it a trigger, a press read on its own.
 // - "scripted role": an element a module makes, bound in scope, and gives the role

@@ -279,6 +279,11 @@ const { offerAction, offerActionElement } = actionOffers({
 });
 export { offerAction, offerActionElement };
 export const offeredAction = elementDirective("offeredAction", offerActionElement);
+// A press that is content of its own, such as a message's picture, built by its role
+// without a generated control's marks, which would read it as Leaf's apparatus.
+/** @type {LeafInitial["offerContentElement"]} */
+export const offerContentElement = (...args) =>
+  document.documentElement.lfInitial.offerContentElement(...args);
 
 // A press whose face its surface draws rather than a role, such as the composer's
 // Send and Dictate, still takes its symbol and name from its action, and a role's

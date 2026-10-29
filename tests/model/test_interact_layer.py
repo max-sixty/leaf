@@ -1591,10 +1591,6 @@ PRESS_FAMILIES = {
         {"lf-compose-submit", "lf-compose-dictate"},
         "Send and Dictate, which wireInput draws as a glyph on a disc in the field",
     ),
-    "pictures": (
-        {"lf-media-open"},
-        "a picture that opens the media viewer, its face the picture itself",
-    ),
     "keyboard stops": (
         {"lf-mark-note", "lf-visual-action", "lf-gloss-mark"},
         "the keyboard's stop, unseen at rest, for what the pointer takes on the page",

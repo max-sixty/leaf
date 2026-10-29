@@ -492,6 +492,8 @@
   // - `gutter`: a line's number in a code view's gutter, which takes a comment on its
   //   line, as a diff's do: the number in the code's muted ink, a + before it under
   //   the keys.
+  // - `picture`: a picture that opens larger in the media viewer, a message's or a
+  //   draft's, whose face is the picture itself, unframed, under a magnifier.
   //
   // A difference that was only a past choice is not a role: a symbol once came bordered
   // in some widgets and quiet in others, a word framed in some, quiet in others and a
@@ -509,6 +511,7 @@
     reaction: "lf-reaction",
     response: "lf-response-face",
     gutter: "lf-gutter",
+    picture: "lf-picture",
   };
   const faceOf = (role) => {
     const face = ACTION_FACES[role];
@@ -541,6 +544,16 @@
     );
     if (label !== undefined && role !== "symbol" && role !== "mark")
       node.textContent = label;
+    return node;
+  };
+  // A press that is content of its own, such as a message's picture, which the page's
+  // readings treat as the message's words rather than Leaf's apparatus: it wears its
+  // role's face and the press's mark, and none of a generated control's (`lf-ui`,
+  // `data-lf-gen`).
+  const offerContentElement = (node, role, cls) => {
+    keepsAttribute(node, "class", cls ? `${faceOf(role)} ${cls}` : faceOf(role));
+    if (node instanceof HTMLButtonElement) keepsAttribute(node, "type", "button");
+    keepsAttribute(node, "data-lf-offer", node.type ?? node.localName);
     return node;
   };
   // `face` names the action role whose face a selectable press wears, such as a `row`
@@ -1427,6 +1440,7 @@
     offerElement,
     offerAction,
     offerActionElement,
+    offerContentElement,
     selectableOffer,
     selectableOfferElement,
     generatedElement,

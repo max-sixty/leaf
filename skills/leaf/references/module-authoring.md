@@ -448,6 +448,8 @@ The roles are:
 - `"gutter"`, a line's number in a code view's gutter that takes a comment on its
   line; `label` is the number. Its seat places it over the gutter and shows its + for
   the line under the pointer.
+- `"picture"`, a picture that opens larger in the media viewer, its face the picture
+  itself.
 
 `className` places the control; don't restyle its face. Use a symbol where a standard
 symbol for the action exists, one readers know from other software, and words where

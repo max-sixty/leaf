@@ -5,6 +5,7 @@ import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { elementsDeclaring, declarationFor } from "./registry.js";
 import { alignText } from "./text-alignment.js";
 import { dataBody } from "./widget-upgrade.js";
+import { offerContentElement } from "./widget-elements.js";
 
 const escapeHtml = (text) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -596,10 +597,11 @@ function makeMarkdown(module, breaks) {
     const image = renderedElement(markup, "img");
     const source = scopedMediaUrl(href);
     image.setAttribute("src", source);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "lf-media-open lf-message-media";
-    button.setAttribute("data-lf-offer", "button");
+    const button = offerContentElement(
+      document.createElement("button"),
+      "picture",
+      "lf-media-open lf-message-media",
+    );
     button.setAttribute("data-lf-said", "");
     button.setAttribute("data-lf-media-url", source);
     button.setAttribute("aria-label", `View ${alt || "Image"}`);

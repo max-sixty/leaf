@@ -839,6 +839,24 @@ wa-copy-button.lf-icon-action {
 .lf-gutter[data-lf-focus]::before {
   opacity: 1;
 }
+/* The picture face: a picture that opens larger in the media viewer, a message's or a
+   draft's. Its face is the picture itself, with no frame, fill or padding, its
+   corners rounded as a picture's are and the pointer a magnifier over it. It declines
+   the wash a generated press takes under the pointer, which the picture would hide
+   but for its corners. A message's picture is its message's content, so it is built
+   without a generated control's marks (prepaint.js, `offerContentElement`). */
+.lf-picture {
+  padding: 0;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: zoom-in;
+}
+.lf-picture:hover {
+  box-shadow: none;
+}
 /* Standing on a press, in the band everything else the user is on is drawn in
    (--focus-ring). This was the last place on the product still wearing the browser's own
    ring: a user who backed out of the panel landed on Threads in Chrome's blue, beside
@@ -853,7 +871,7 @@ wa-copy-button.lf-icon-action {
    Beside the face above it, so a button inside a declared widget tree wears this ring
    too. In chrome.css, where it was, it reached neither that button nor a
    package wanting to answer it. */
-:is(.lf-btn, .button, .lf-icon-action, .lf-answer)[data-lf-focus-visible] {
+:is(.lf-btn, .button, .lf-icon-action, .lf-answer, .lf-picture)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }

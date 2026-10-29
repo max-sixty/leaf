@@ -40,7 +40,8 @@ type LeafActionRole =
   | "entry"
   | "reaction"
   | "response"
-  | "gutter";
+  | "gutter"
+  | "picture";
 
 /** A package's retained template and optional rendering root. Node references and
  * mechanical inputs remain package-owned; the same render is used after upgrade. */
@@ -138,6 +139,7 @@ interface LeafInitial {
     label?: string,
     options?: { title?: string },
   ): T;
+  offerContentElement<T extends Element>(node: T, role: LeafActionRole, cls?: string): T;
   generatedElement<T extends Element>(node: T, options: { says: boolean | "echo" }): T;
   origin(node: Node): Node | undefined;
   parent(node: Node): Element | null;

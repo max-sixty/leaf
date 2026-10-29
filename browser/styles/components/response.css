@@ -308,23 +308,12 @@ leaf-composition-field {
   align-items: stretch;
   box-sizing: border-box;
 }
+/* A picture that opens in the media viewer (media.js) wears the picture face
+   (controls.css, `.lf-picture`) and stands as wide as itself, up to its place's. */
 .lf-media-open {
   display: block;
   width: fit-content;
   max-width: 100%;
-  padding: 0;
-  border: 0;
-  border-radius: var(--r);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-}
-button.lf-media-open {
-  cursor: zoom-in;
-}
-.lf-media-open[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
 }
 /* Each attachment is its picture alone and its controls marks on its corners: there
    under a finger, and shown to a pointer over the picture or a key on it. The user

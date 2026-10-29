@@ -736,4 +736,7 @@ leaf-text.lf-fab-input,
   margin: 0;
   font: inherit;
   overflow: visible;
+  /* Visible overflow releases the formatting context pre's scrolling establishes.
+     Keep its scrollbar-clearance float inside the source's own box. */
+  display: flow-root;
 }

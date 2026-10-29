@@ -525,14 +525,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* The card accompanies a live page: scrolling continues there at either edge,
      including when all turns fit and the transcript has no scroll travel. */
-  /* Deliberate visual tradeoff: this pale thumb falls below WCAG's usual 3:1
+  /* Both moments of a floating comment share their scrollbar: the field while
+     writing and the transcript after Send. No gutter is reserved before it scrolls.
+     Deliberate visual tradeoff: this pale thumb falls below WCAG's usual 3:1
      contrast guidance for custom controls, chosen to keep the card's chrome quiet.
      Native scrolling, hiding, and hover widening remain browser-controlled. */
+  .lf-fab-bar:not([data-lf-presentation="inline"]) leaf-text.lf-fab-input,
+  .lf-margin-thread .lf-thread-transcript {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--ink) 12%, var(--paper)) transparent;
+  }
   .lf-margin-thread .lf-thread-transcript {
     min-height: 1lh;
     overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--ink) 12%, var(--paper)) transparent;
     scroll-padding-block: var(--focus-ring-room);
     /* The room above the heads is where their slot starts (`--lf-top-start`,
        base.css), held open by a row before the first message, not padding: Firefox

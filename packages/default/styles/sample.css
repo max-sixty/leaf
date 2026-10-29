@@ -1,5 +1,6 @@
 /* lf-sample: labeled content with a provenance gutter. `interactive` keeps inline
- * widgets in the parent page's state, with no child document or sample controls.
+ * widgets in the parent page's state, with no child document or sample controls; they
+ * still ask nothing of the user (x-exhibit).
  * Without that flag, it is quoted material — a widget or section the page exhibits rather
  * than speaks (a sample decision, a demo board). It wears the quotation idiom, a
  * muted left gutter — not the callout's tinted field, and not the left-accent bar
@@ -130,7 +131,7 @@ lf-sample {
   --lf-sample-word: "quoted";
   --lf-sample-prefix: "quoted · ";
 }
-lf-sample:is([interactive], [data-lf-sample-live]) {
+lf-sample:is([interactive], :has(> template[data-sample])) {
   --lf-sample-word: none;
   --lf-sample-prefix: "";
 }
@@ -168,7 +169,7 @@ lf-sample > [data-lf-said="label"]::before {
 lf-sample:has(> .lf-sample-view:modal) {
   height: var(--lf-sample-height);
 }
-lf-sample[data-lf-sample-live] {
+lf-sample:has(> template[data-sample]) {
   padding-left: 0;
   border-left: 0;
 }

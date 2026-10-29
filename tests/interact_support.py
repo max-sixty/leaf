@@ -22,6 +22,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
@@ -517,6 +518,7 @@ def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
 
     path = page_dir / schema_model.LAYER_FILE
     record = layer_record(page_dir)
+    assert record is not None
     foreign = record["protocol"] + (1 if newer else -1)
     path.unlink()
     LAYER.write(path, {**record, "protocol": foreign})
@@ -696,7 +698,11 @@ def command_findings(*args) -> list[Finding]:
     """The findings the refusal of the leaf command `args`, run in process, carries:
     none where the command succeeds."""
     result = CliRunner().invoke(cli_model.cli, [*map(str, args)], standalone_mode=False)
-    return [] if result.exception is None else result.exception.__cause__.findings
+    if result.exception is None:
+        return []
+    cause = result.exception.__cause__
+    assert isinstance(cause, Refused)
+    return list(cause.findings)
 
 
 def read_page_data(page_dir) -> dict:
@@ -930,9 +936,9 @@ def native_codex_chat(tmp_path):
                 "transcript_path": str(source),
             },
         )
-        assert cleanup_model.session_record(session_id)["transcript_path"] == str(
-            source
-        )
+        turn_record = cleanup_model.session_record(session_id)
+        assert turn_record is not None
+        assert turn_record["transcript_path"] == str(source)
         return source
 
     return create
@@ -1048,8 +1054,10 @@ def bind_task_lifetime_to_worker(page):
     briefly leave the already-running adapter with no pages to own.
     """
     claim = service_model.page_claim(page)
+    assert claim is not None
     with cleanup_model.flocked(cleanup_model.session_lock_path(claim["id"])):
         record = cleanup_model.session_record(claim["id"])
+        assert record is not None
         assert record["generation"] == claim["generation"]
         assert record["ended"] is None
         cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
@@ -2506,7 +2514,7 @@ class _SnapshotDumper(yaml.SafeDumper):
     def best_width(self, width):
         self._best_width = width
 
-    def increase_indent(self, flow=False, **_indentless):
+    def increase_indent(self, flow=False, indentless=False):  # noqa: F841 -- override keyword names
         # A list sits indented under its key, as a person writes one.
         return super().increase_indent(flow, False)
 
@@ -2624,7 +2632,7 @@ class _YamlSnapshotHandler(BaseSnapshotHandler):
     def compare(self, current_obj, recorded_obj):
         return current_obj == recorded_obj
 
-    def show_differences(self, current_obj, recorded_obj, *_presentation):
+    def show_differences(self, current_obj, recorded_obj, has_markup, use_ddiff):  # noqa: F841 -- override keyword names
         return list(
             difflib.unified_diff(
                 recorded_obj.splitlines(),
@@ -2655,7 +2663,9 @@ def consume_pending_input(session_id):
     if not batches:
         return None
     payload = delivery.freeze_delivery(batches)
-    delivery.receive_held(payload, session_id, state.session_record(session_id))
+    turn_record_2 = state.session_record(session_id)
+    assert turn_record_2 is not None
+    delivery.receive_held(payload, session_id, turn_record_2)
     return payload
 
 
@@ -2700,16 +2710,16 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
         ):
             payload = candidate
             break
+    if not session:
+        harness = session_model.session_harness()
+        assert harness is not None
+        session = harness.session
     if payload is not None:
         assert payload["acknowledge"] is not None
-        delivery_model.receive(
-            payload, session or session_model.session_harness().session
-        )
+        delivery_model.receive(payload, session)
     else:
         assert "has new input" in output, output
-        payload = consume_pending_input(
-            session or session_model.session_harness().session
-        )
+        payload = consume_pending_input(session)
         assert payload["acknowledge"] is None
     assert payload["format"] == delivery_model.DELIVERY.format
     [batch] = payload["batches"]
@@ -2986,9 +2996,10 @@ def _watched(page_dir):
     """A claimed page this session watches, so only its debts reach the hooks."""
     session_model.cmd_waiting(page_dir)
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(page_dir, session["id"])
-    )
+    assert session is not None
+    lease_path = leases_model.waiter_lease_path(page_dir, session["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     return lease
 

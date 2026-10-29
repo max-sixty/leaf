@@ -207,7 +207,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   user-select: none;
   -webkit-user-select: none;
 }
-/* Pressable, said once per layer, and .tag (theme.css) is what it is said against. A
+/* Pressable, said once per layer, and .tag (the reading theme's) is what it is said against. A
  * chip that opens a section and a badge that counts something were the same object at
  * rest — one ground, one ink, one corner, one size — and the only page that said which
  * was which said it in prose. The user had to press one to find out.
@@ -432,7 +432,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   button.lf-icon-action,
   .lf-compose-submit,
   .lf-compose-dictate,
-  .lf-msg-control,
   .lf-thread-notice:is(button),
   button.lf-mark-action,
   button.lf-fp-face
@@ -579,17 +578,19 @@ summary {
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;
-  /* A message's control: the head keeps its room (controls.css), and so does the
-     thread's own controls' row beside a first message (below). An open rewrite's
-     Discard and Save stand in that room, covering the head's labels beyond it
-     (response.css), but never a notice of news, a press of its own, which the head
-     keeps clear of the pair's whole width. */
-  --lf-msg-control-size: 26px;
+  /* A message's control, a symbol as tall as the thread's own: the head keeps its
+     room (controls.css), and so does the thread's own controls' row beside a first
+     message (below). An open rewrite's Discard and Save stand in that room, covering
+     the head's labels beyond it (response.css), but never a notice of news, a press of
+     its own, which the head keeps clear of the pair's whole width. */
+  --lf-msg-control-size: var(--lf-icon-action-face);
   --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
   --lf-msg-edit-gap: 4px;
-  --lf-msg-edit-width: calc(
-    2 * var(--lf-msg-control-width) + var(--lf-msg-edit-gap) + var(--sp-2)
+  /* A message's Copy beside its own control. */
+  --lf-msg-controls-width: calc(
+    2 * var(--lf-msg-control-width) + var(--lf-msg-edit-gap)
   );
+  --lf-msg-edit-width: calc(var(--lf-msg-controls-width) + var(--sp-2));
   /* The room a held-news notice keeps at its end for the count of facts it drops
      (`.lf-thread-news > span[data-lf-more]`, below). */
   --lf-news-count-room: 16px;
@@ -937,6 +938,15 @@ summary {
       > :is(.lf-react-strip, .lf-msg-control)
   ) {
   --lf-thread-message-control-room: calc(var(--lf-msg-control-width) + var(--sp-2));
+}
+@media (hover: hover) and (pointer: fine) {
+  .lf-thread-content:has(> .lf-thread-controls):has(
+      > .lf-thread-transcript
+        > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
+        > .lf-msg-copy
+    ) {
+    --lf-thread-message-control-room: calc(var(--lf-msg-controls-width) + var(--sp-2));
+  }
 }
 .lf-thread-content:has(> .lf-thread-controls):has(
     > .lf-thread-transcript

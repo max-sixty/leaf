@@ -13,6 +13,7 @@ from interact_support import (
     PAGE,
     append_carried_log_record,
     append_command,
+    check_findings,
     element_declaration,
     fresh_process,
     page_packages,
@@ -56,10 +57,10 @@ def test_page_registry_composes_declarations_and_implementations_independently(
     }
     layer_before = deepcopy(layer)
     page_before = deepcopy(declarations)
+    layer_2 = registry_storage.layer_record(page_dir)
+    assert layer_2 is not None
     widget_paths = {
-        *registry_storage.layer_widgets(
-            registry_storage.layer_record(page_dir), page_dir
-        ),
+        *registry_storage.layer_widgets(layer_2, page_dir),
         "widgets/lf-local.js",
         "page/widgets/lf-page-only.js",
         "page/widgets/lf-tabs.js",
@@ -98,11 +99,9 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
         }
     }
     member = {**deepcopy(layer["lf-old"]), "x-retired-when": "reject"}
-    widget_paths = set(
-        registry_storage.layer_widgets(
-            registry_storage.layer_record(page_dir), page_dir
-        )
-    )
+    layer_3 = registry_storage.layer_record(page_dir)
+    assert layer_3 is not None
+    widget_paths = set(registry_storage.layer_widgets(layer_3, page_dir))
 
     composed = registry_page.compose_page_registry(
         layer, {"lf-gone": member}, widget_paths
@@ -112,6 +111,29 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
         "accept": ["lf-old"],
         "reject": ["lf-new", "lf-gone"],
     }
+
+
+@pytest.mark.parametrize(("schema", "stamped"), [(True, "words"), (False, False)])
+def test_a_boolean_schema_for_a_toned_attribute_is_stamped_with_its_words(
+    page_dir, schema, stamped
+):
+    """An attribute that takes the layer's tones may have `true` for its schema, which
+    becomes the tones alone, or `false`, which admits none already."""
+    layer = registry_storage.load_registry(page_dir)
+    declaration = element_declaration("lf-local")
+    declaration["properties"]["tone"] = schema
+    declaration["x-tone"] = "tone"
+    layer_4 = registry_storage.layer_record(page_dir)
+    assert layer_4 is not None
+    widget_paths = set(registry_storage.layer_widgets(layer_4, page_dir))
+
+    composed = registry_page.compose_page_registry(
+        layer, {"lf-local": declaration}, widget_paths
+    ).registry
+
+    assert composed["lf-local"]["properties"]["tone"] == (
+        {"enum": layer["$tones"]["names"]} if stamped else False
+    )
 
 
 def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir):
@@ -134,11 +156,9 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
             "record": {"kind": "value", "attr": "reading"},
         },
     }
-    widget_paths = set(
-        registry_storage.layer_widgets(
-            registry_storage.layer_record(page_dir), page_dir
-        )
-    )
+    layer_5 = registry_storage.layer_record(page_dir)
+    assert layer_5 is not None
+    widget_paths = set(registry_storage.layer_widgets(layer_5, page_dir))
 
     composed = registry_page.compose_page_registry(
         layer, {"lf-local": declaration}, {*widget_paths, "widgets/lf-local.js"}
@@ -202,7 +222,65 @@ def test_page_registry_rejects_invalid_authored_contracts(
     assert finding.values["registry"] == str(authored.absolute())
 
 
-def test_page_registry_reads_candidate_changes_without_mutating_the_layer(page_dir):
+def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
+    return {**element_declaration(tag, upgrade=upgrade), **keys}
+
+
+@pytest.mark.parametrize(
+    ("declarations", "expected"),
+    [
+        # Faults each declaration shows alone, beside a data contract's.
+        (
+            {
+                "lf-alpha": _faulty("lf-alpha", description=""),
+                "lf-beta": _faulty("lf-beta", **{"x-says": ["label"]}),
+                "$data": {
+                    "contracts": {"bad": {"description": "x", "schema": {"type": 3}}}
+                },
+            },
+            [
+                ("contract-schema", ""),
+                ("no-description", "<lf-alpha>"),
+                ("invalid-extensions", "<lf-beta>"),
+            ],
+        ),
+        # Faults against the other declarations, once every one holds alone.
+        (
+            {
+                "lf-beta": _faulty("lf-beta", **{"x-name": "label"}),
+                "lf-eps": _faulty("lf-eps", **{"x-initial": "/early.js"}),
+            },
+            [("undeclared-attributes", "<lf-beta>"), ("requires", "<lf-eps>")],
+        ),
+        # An example and a module, once the vocabulary holds.
+        (
+            {
+                "lf-gamma": _faulty(
+                    "lf-gamma",
+                    **{"x-example": '<lf-gamma id="g" tone="x">G</lf-gamma>'},
+                ),
+                "lf-delta": _faulty("lf-delta", upgrade=True),
+            },
+            [("invalid-example", "<lf-gamma>"), ("missing-module", "<lf-delta>")],
+        ),
+    ],
+)
+def test_one_check_reports_the_first_problem_in_each_declaration(
+    page_dir, declarations, expected
+):
+    """An author repairing page declarations reads every independent problem from
+    one `page check`, rather than one per run."""
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "registry.json").write_text(json.dumps(declarations))
+
+    status, findings = check_findings(page_dir)
+
+    assert status != 0
+    assert [
+        (finding.code, finding.at)
+        for finding in findings
+        if "registry" in finding.values
+    ] == expected
     authored = page_dir / "page"
     authored.mkdir(exist_ok=True)
     source = authored / "registry.json"
@@ -235,6 +313,7 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
         registry_storage.active_registry(page_dir),
         page_view_model.PageView(page_dir).registry(None),
     ):
+        assert vocabulary is not None
         assert vocabulary["lf-local"] == declaration
 
 
@@ -265,7 +344,10 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
     publish_choice(not active_attention)
     original = files_model.latest_revision(page_dir)
     publish_choice(active_attention)
-    assert files_model.latest_revision(page_dir) > original
+    value_2 = files_model.latest_revision(page_dir)
+    assert value_2 is not None
+    assert original is not None
+    assert value_2 > original
 
     action = append_command(
         page_dir,
@@ -394,6 +476,7 @@ def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page
         },
     )
     events = events_model.read_events(page_dir)
+    assert revision is not None
     historical = read_artifact(page_dir, revision)
     after_undo = [
         *events,
@@ -513,6 +596,7 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     assert activated.error is None and activated.created
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
+    assert first_revision is not None
     historical = page_reading(
         passages_model.SourceReading(
             structure_model.SourceDocument(original),
@@ -561,6 +645,7 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
     refused = revisioning_model.activate_source(page_dir)
 
     assert refused.error is None and refused.created
+    assert revision is not None
     assert refused.revision == revision + 1
 
 
@@ -570,13 +655,13 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     """A revision's vocabulary was validated when it activated, so a process reading
     the page anew does not validate it again while it stands unchanged, and no check
     parses the layer's sheets: together they were most of a cold first read."""
-    from leaf.validation import source as source_model
+    from leaf import revision_artifact, styles
 
     (page_dir / "index.html").write_text(styled("main { color: red; }"))
     assert revisioning_model.activate_source(page_dir).error is None
     validated, linted = [], []
     real_validate = registry_page.validate_registry
-    real_lint = source_model.css_syntax_errors
+    real_lint = styles.dropped_css
     monkeypatch.setattr(
         registry_page,
         "validate_registry",
@@ -584,9 +669,10 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
             validated.append(source) or real_validate(registry, source)
         ),
     )
+    # The source check reads the document's sheets and each file under page/.
     monkeypatch.setattr(
-        source_model,
-        "css_syntax_errors",
+        revision_artifact,
+        "dropped_css",
         lambda css, where, **kw: linted.append(where) or real_lint(css, where, **kw),
     )
 

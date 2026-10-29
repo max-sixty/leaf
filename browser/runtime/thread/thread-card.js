@@ -221,10 +221,9 @@ export function threadReading(thread, surface, commands) {
   const resolved = Boolean(thread.resolved);
   // A settlement in flight has already flipped `resolved`, because what the page can
   // draw of a gesture stands in the turn that sends it. The control the user is left
-  // looking at is therefore the opposite one, offering to take the gesture back, and it
-  // wears the word for that: a delivery status is not the result, so there is no
-  // "Resolving…" state to name.
-  const settling = Boolean(thread.settling);
+  // looking at is therefore the opposite one, live at once: a press sends the opposite
+  // settlement after the first, as the ledger orders them. A delivery status is not the
+  // result, so there is no "Resolving…" state to name.
   const kind = resolved ? "unresolve" : "resolve";
   const word = resolved ? "Reopen" : "Resolve";
   const label = resolved ? word : "Resolve thread";
@@ -283,7 +282,6 @@ export function threadReading(thread, surface, commands) {
       kind,
       word,
       label,
-      pending: settling,
     }),
     reply: replyAvailable(thread),
     // The user's open to-dos on the thread, each named at the thread's head with its
@@ -768,14 +766,12 @@ export class ThreadView {
       ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve", label, {
         action: reopen ? "reopen" : "resolve",
       })}
-      aria-busy=${state.pending ? "true" : nothing}
       ${commandsOn(`On a thread's ${word} button`, (button) => [
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
           title: word.toLowerCase(),
           control: button,
-          when: () => !this.#shown.value.settlement?.pending,
           run: this.#settle,
         },
       ])}

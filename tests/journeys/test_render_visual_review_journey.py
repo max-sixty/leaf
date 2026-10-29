@@ -176,7 +176,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         "locale": "en-US",
         "timezone": "America/Los_Angeles",
     }
-    record = {
+    record: dict = {
         "title": "Release navigation through a protected preview",
         "base": {"revision": "northstar-16", "url": target_base},
         "candidate": {"revision": "northstar-17", "url": target_candidate},
@@ -255,7 +255,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
     field.evaluate("node => node.setSelectionRange(8, 12, 'backward')")
-    shifted = record | {
+    shifted: dict = record | {
         "cases": [
             record["cases"][0],
             record["cases"][1]

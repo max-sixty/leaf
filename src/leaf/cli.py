@@ -354,15 +354,13 @@ def page() -> None:
 @click.option(
     "--no-packages",
     is_flag=True,
-    help="remove all explicit packages and the selected personal theme",
+    help="remove all explicit packages, keeping the theme",
 )
-@click.option(
-    "--theme", metavar="NAME", help="select a personal theme from `leaf theme list`"
-)
+@click.option("--theme", metavar="NAME", help="select a theme from `leaf theme list`")
 @click.option(
     "--no-theme",
     is_flag=True,
-    help="clear the personal theme while keeping content packages",
+    help="take no theme, so the page starts from the browser's defaults",
 )
 @click.option(
     "--dry-run",
@@ -377,12 +375,13 @@ def init(
     no_theme: bool,
     dry_run: bool,
 ) -> dict:
-    """Create a page directory, recording the packages it selects.
+    """Create a page directory, recording the packages and theme it selects.
 
     The author writes PAGE/index.html; every Leaf that serves or checks the page
-    composes its layer from the selection. Re-running preserves the page's explicit
-    packages unless --package or --no-packages replaces them, and validates the
-    current vocabulary and markup. A changed selection restarts its server at the
+    composes its layer from the selection. A new page takes the default theme
+    (`leaf theme list`). Re-running preserves the page's explicit packages unless
+    --package or --no-packages replaces them, and its theme unless --theme or
+    --no-theme replaces it, and validates the current vocabulary and markup. A changed selection restarts its server at the
     same URL; identical initialization leaves it running. --dry-run reports the
     planned change without writing it.
     A package may contain any subset of the package layout, including zero, one,
@@ -392,8 +391,6 @@ def init(
 
     if selected and no_packages:
         raise click.UsageError("--package and --no-packages cannot be used together")
-    if theme is not None and no_packages:
-        raise click.UsageError("--theme and --no-packages cannot be used together")
     if theme is not None and no_theme:
         raise click.UsageError("--theme and --no-theme cannot be used together")
     if any(not selection for selection in selected):
@@ -404,17 +401,17 @@ def init(
     return cmd_init(
         page_path(dir),
         selections,
-        theme=False if no_packages or no_theme else theme,
+        theme=False if no_theme else theme,
         dry_run=dry_run,
     )
 
 
-@cli.group(short_help="Discover personal themes for page authoring.")
+@cli.group(short_help="Discover themes for page authoring.")
 def theme() -> None:
-    """Discover personal themes for page authoring."""
+    """Discover themes for page authoring."""
 
 
-@theme.command("list", short_help="List personal themes and their author instructions.")
+@theme.command("list", short_help="List themes and their author instructions.")
 def theme_list() -> dict:
     from leaf.themes import cmd_list
 

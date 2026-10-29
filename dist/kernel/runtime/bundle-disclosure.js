@@ -1,13 +1,12 @@
-import { PENDING_TASK, afterScript, bindQueuedWork, byRenderedOrder, composedParentNode, failSoft, failSoftUnreported, frameVisibility, holdRendering, isNativeLayer, nextRender, onFrameVisibility, once, placesFailure, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, reportFailure, shadowHost, sizeObserver, under, upFrom, watchOwner, whileConnected } from "./bundle-portable.js";
-import { TEXT_FIELD, Z, canPlaceFocus, closeLayer, d, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, move, onCurrentLocation, onUserInput, openLayer, openerOf, q, takesLetters, whenLeft, x } from "./bundle-dom-move.js";
-import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, agentName, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, closeNativeLayer, discussed, documentChanged, drawingSchema, editable, html, isMessageEvent, isThreadEvent, matchesWhen, moved, offlineInteractive, offlineState, pageUrl, presentDocument, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, stateCoordinate, tagsDeclaring, threadKey, tokenChoices, turns, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-layer-stack.js";
-import { PRESS, TEXT_ENTRY, actionIcon, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, elementDirective, generatedElement, holdingError, iconTemplate, isCommandScope, keys, layerHeaders, notice, offer, offerAction, paintKeys, paintKeysWithin, postEvent, pressIsKeyboardActivation, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
-import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleMarginContentLayout, sectionOf, settlePageInterface, syncLayoutRegion, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
+import { PENDING_TASK, actionIcon, afterScript, agentArrivalDuration, bindQueuedWork, byRenderedOrder, composedParentNode, failSoft, failSoftUnreported, frameVisibility, holdRendering, isNativeLayer, nextRender, onFrameVisibility, once, placesFailure, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, reportFailure, scrollBehavior, setScroll, shadowHost, sizeObserver, under, upFrom, watchOwner, whileConnected } from "./bundle-portable.js";
+import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, TEXT_FIELD, Z, actionForWidget, agentName, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, canPlaceFocus, closeLayer, closeNativeLayer, d, deepFocus, discussed, documentChanged, drawingSchema, drawn, editable, focusDestination, focused, handBack, holdFocus, html, inputCount, isMessageEvent, isThreadEvent, keeps, keepsHidden, keepsText, matchesWhen, move, moved, offlineInteractive, offlineState, onCurrentLocation, onUserInput, openLayer, openerOf, pageUrl, presentDocument, pressIsKeyboardActivation, projectionOrigins, q, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, stateCoordinate, tagsDeclaring, takesLetters, threadKey, tokenChoices, turns, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, x } from "./bundle-layer-stack.js";
+import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, elementDirective, generatedElement, holdingError, iconTemplate, isCommandScope, keys, layerHeaders, notice, offer, offerAction, paintKeys, paintKeysWithin, postEvent, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
+import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleMarginContentLayout, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
 import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoLabel, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowLabel, workflowVoice } from "./bundle-data.js";
 import { clamp, clippedContents, clipsPastSurfaces, growthIsSeen, hasArea, intersect, layoutWindow, placeBox, placeHolder, presented as presented$1, seenRect, shownWindow, union, watchRoom, whenNone } from "./bundle-geometry.js";
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
 import { alreadyShown, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
-import { agentArrivalDuration, isCanonicalMediaUrl, reducedMotion, scopedMediaUrl, scrollBehavior } from "./bundle-media.js";
+import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
 //#region runtime/pending/state.js
@@ -1142,9 +1141,9 @@ function editorViewOver({ Compartment, Direction, EditorState, EditorView, State
 		const yMargin = clamp(options.yMargin, -port.offsetHeight, port.offsetHeight);
 		const x = horizontal === "center" ? (rectangle.left - margins.left + rectangle.right + margins.right - left - right) / 2 : travel(rectangle.left - margins.left, rectangle.right + margins.right, left, right, horizontal, xMargin, side);
 		const y = travel(rectangle.top - margins.top, rectangle.bottom + margins.bottom, top, bottom, options.y, yMargin, side);
-		port.scrollBy({
-			left: port.scrollWidth > port.clientWidth ? x / scaleX : 0,
-			top: port.scrollHeight > port.clientHeight ? y / scaleY : 0,
+		setScroll(port, {
+			left: port.scrollLeft + (port.scrollWidth > port.clientWidth ? x / scaleX : 0),
+			top: port.scrollTop + (port.scrollHeight > port.clientHeight ? y / scaleY : 0),
 			behavior: "instant"
 		});
 	}
@@ -1943,7 +1942,7 @@ var LeafText = class extends HTMLElement {
 		else if (this.#composing || event.isComposing) return;
 		this.#readRest();
 		this.#paintEmpty();
-		this.dispatchEvent(new Event("input", { bubbles: true }));
+		this.#emit("input");
 		if (event.type === "compositionend" && editor) this.#build();
 	}
 	#readRest() {
@@ -2095,7 +2094,7 @@ var LeafText = class extends HTMLElement {
 				module.runOwnerSteps(transactions);
 				this.#paintEmpty();
 				this.#measureOverflow();
-				if (edited) this.dispatchEvent(new Event("input", { bubbles: true }));
+				if (edited) this.#emit("input");
 				else if (transactions.some((tr) => tr.isUserEvent("select"))) this.dispatchEvent(new Event("lf-caret-move", { bubbles: true }));
 			}
 		});
@@ -2113,8 +2112,14 @@ var LeafText = class extends HTMLElement {
 		this.#paintRest();
 		this.#measureOverflow();
 	}
+	#emit(type) {
+		this.dispatchEvent(new Event(type, {
+			bubbles: true,
+			composed: true
+		}));
+	}
 	#beforeEdit() {
-		this.dispatchEvent(new Event("lf-before-edit", { bubbles: true }));
+		this.#emit("lf-before-edit");
 	}
 	disconnectedCallback() {
 		queueMicrotask(() => {
@@ -2209,7 +2214,7 @@ var LeafText = class extends HTMLElement {
 			if (!this.isConnected) return;
 			this.#paintRest();
 			this.#paintEmpty();
-			this.dispatchEvent(new Event("input", { bubbles: true }));
+			this.#emit("input");
 		});
 	}
 	record(undo, redo) {
@@ -4649,6 +4654,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			const localPart = part ?? "reply";
 			if (part === "message") showHeld(id);
 			const openSurface = async () => {
+				if (!scroll && !presented$1(surfaceFocusTarget(id, { part: localPart }))) return DECLINED;
 				if (preview) intent.handoff(preview.close);
 				if (navigationStep) {
 					if (!await scrollToThread(id, {
@@ -4658,7 +4664,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 						history
 					})) return null;
 				} else if (focus === false) {
-					await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
+					if (scroll) await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
 					if (!mayPresent()) return null;
 				} else if (!await arrive(() => {
 					const current = surfaceFocusTarget(id, { part: localPart });
@@ -4833,7 +4839,7 @@ function createThreadActions({ post, withdraw, sendReaction, currentRevision, op
 	const reply = (key, text, { attempt } = {}) => {
 		if (!text) return null;
 		const thread = find(key);
-		if (!thread?.offers.reply) return null;
+		if (!thread) return null;
 		return post({
 			kind: "reply",
 			revision: currentRevision(),
@@ -4844,7 +4850,7 @@ function createThreadActions({ post, withdraw, sendReaction, currentRevision, op
 	};
 	const edit = (key, messageId, text, { attempt, base } = {}) => {
 		const thread = find(key);
-		if (!thread || thread.settling) return null;
+		if (!thread) return null;
 		const message = thread.msgs.find((item) => item.id === messageId);
 		if (!message || !editable(message) || !text || text === message.text) return null;
 		return post({
@@ -4857,7 +4863,7 @@ function createThreadActions({ post, withdraw, sendReaction, currentRevision, op
 	};
 	const settle = (key, resolved, { attempt } = {}) => {
 		const thread = find(key);
-		if (!thread?.offers[resolved ? "resolve" : "reopen"]) return null;
+		if (!thread || Boolean(thread.resolved) === resolved) return null;
 		return post({
 			kind: resolved ? "resolve" : "unresolve",
 			parent: thread.root.id,
@@ -4880,7 +4886,7 @@ function createThreadActions({ post, withdraw, sendReaction, currentRevision, op
 	return Object.freeze({
 		async open(key, { message = null, ...options } = {}) {
 			const thread = find(key);
-			if (!thread?.offers.open) return null;
+			if (!thread) return null;
 			const target = message === null ? thread : thread.msgs.find((item) => item.key === message);
 			if (!target) return null;
 			return open(target.id, message === null ? options : {
@@ -6393,6 +6399,7 @@ function mountApplication(dependencies) {
 			part: "reply",
 			focus: false,
 			travel: false,
+			scroll: false,
 			intent
 		}),
 		returnToPage: threadDestinations.returnToPage,
@@ -6701,6 +6708,12 @@ function returnToThread(thread) {
 }
 const cardThread = () => focusedThreadTarget();
 const resolutionControl = (thread) => thread ? threadPart(thread, "settlement") : null;
+const messageAt = (node) => (node instanceof Element ? node : node?.parentElement)?.closest(".lf-msg") ?? null;
+function messageCopy(thread) {
+	if (!thread) return null;
+	const caret = getSelection().anchorNode;
+	return (messageAt(focused()) ?? (thread.contains(caret) ? messageAt(caret) : null) ?? [...thread.querySelectorAll(".lf-msg")].at(-1))?.querySelector(":scope > .lf-msg-copy") ?? null;
+}
 function prepareLanding({ held = null, box, route = null }) {
 	if (!box) return false;
 	held ??= closestAcross(box, SAYS_IN);
@@ -6742,29 +6755,40 @@ function declareThreadKeys(landIn, threadHere) {
 		root: focused,
 		when: () => threadList().length > 0,
 		at: () => Boolean(threadHere()),
-		rows: [{
-			id: "thread.primary",
-			touch: false,
-			keys: ["Enter"],
-			title: () => !threadInput(cardThread()) && resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
-			when: () => Boolean(threadInput(cardThread())) || resolutionControl(cardThread())?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])"),
-			run: () => {
-				const thread = cardThread();
-				const box = threadInput(thread);
-				if (box) landIn({
-					held: thread,
-					box
-				});
-				else resolutionControl(thread).click();
+		rows: [
+			{
+				id: "thread.primary",
+				touch: false,
+				keys: ["Enter"],
+				title: () => !threadInput(cardThread()) && resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
+				when: () => Boolean(threadInput(cardThread())) || resolutionControl(cardThread())?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])"),
+				run: () => {
+					const thread = cardThread();
+					const box = threadInput(thread);
+					if (box) landIn({
+						held: thread,
+						box
+					});
+					else resolutionControl(thread).click();
+				}
+			},
+			{
+				id: "thread.resolution.toggle",
+				touch: false,
+				keys: ["r"],
+				title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
+				when: () => resolutionControl(threadHere())?.matches(":not(:disabled, [aria-disabled=\"true\"])"),
+				run: () => resolutionControl(threadHere()).click()
+			},
+			{
+				id: "message.copy",
+				touch: false,
+				keys: ["Mod+c"],
+				title: "copy message as Markdown",
+				when: () => Boolean(messageCopy(threadHere())) && getSelection().isCollapsed,
+				run: () => messageCopy(threadHere()).shadowRoot.querySelector("button").click()
 			}
-		}, {
-			id: "thread.resolution.toggle",
-			touch: false,
-			keys: ["r"],
-			title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-			when: () => resolutionControl(threadHere())?.matches(":not(:disabled, [aria-disabled=\"true\"])"),
-			run: () => resolutionControl(threadHere()).click()
-		}]
+		]
 	});
 }
 
@@ -7268,7 +7292,6 @@ function registerRootHeader(header) {
 }
 function createPageLayout({ scheduleThreadPreviewPosition, syncReactLayout, refreshFab, pageShifted, repaintPage }) {
 	function syncLayout() {
-		syncLayoutRegion();
 		scheduleMarginContentLayout();
 		scheduleThreadPreviewPosition?.();
 		if (syncReactLayout()) return;

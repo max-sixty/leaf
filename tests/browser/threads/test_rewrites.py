@@ -23,6 +23,7 @@ from render_harness import (
     leaf_page,
     open_page,
     resized,
+    rgb_pixel,
     round_trip,
     sending,
     stored_draft_text,
@@ -67,7 +68,7 @@ def _ring_gaps(page, target):
         shot = page.screenshot(
             clip={"x": px - 0.5, "y": py - 0.5, "width": 1, "height": 1}
         )
-        seen = Image.open(io.BytesIO(shot)).convert("RGB").getpixel((0, 0))
+        seen = rgb_pixel(Image.open(io.BytesIO(shot)).convert("RGB"), (0, 0))
         if max(abs(a - b) for a, b in zip(seen, color)) > 40:
             gaps.append(side)
     return gaps
@@ -914,7 +915,7 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     """The margin card kept no room in a head for a message's control, since it draws no
     reactions, so an open rewrite's Discard and Save stood over the head's time and
     receipt, the words and the controls reading through each other. The head keeps its
-    Edit's room as every other surface's does, and the rewrite's pair, two glyphs,
+    controls' room as every other surface's does, and the rewrite's pair, two glyphs,
     stands in that room and covers the head beyond it: nothing under the pair shows
     while the rewrite is open, and opening it moves none of the head's words. The
     row is the rewrite's: the card's Resolve leaves it while the rewrite is open.

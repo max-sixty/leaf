@@ -18,9 +18,6 @@ from interact_support import (
     record_claim,
     working,
 )
-from leaf_dev import browser as dev_browser
-from leaf_dev.browser import panel_tab
-from leaf_dev.panel_paint import ink_box, settled
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -40,6 +37,7 @@ from render_harness import (
     panel_control,
     panel_view,
     resized,
+    rgb_pixels,
     round_trip,
     select_words,
     sending,
@@ -59,6 +57,9 @@ from leaf import interaction_log as interaction_model
 from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf_dev import browser as dev_browser
+from leaf_dev.browser import panel_tab
+from leaf_dev.panel_paint import ink_box, settled
 
 OBLIGATION_PAGE = leaf_page(
     "obligation",
@@ -2503,8 +2504,8 @@ def test_floating_status_records_feedback_only_when_its_words_show(
 def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     browser, serve, request
 ):
-    """A clock tick cannot move tooltip words; the leaf stays live and reopening
-    reads current status. A notice answering a gesture still shows immediately."""
+    """A clock tick cannot move tooltip words, and reopening reads current status. A
+    notice answering a gesture still shows immediately."""
     from browser.threads import claim_for_codex
 
     url = serve(LONG_PAGE)
@@ -2539,7 +2540,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
 
     page.route("**/api/state*", aged_state)
     page.clock.set_fixed_time(now)
-    expect(leaf).to_have_attribute("aria-label", re.compile("1m ago"))
+    ticked(page)
     assert peek.inner_text() == words
     assert peek.bounding_box() == before
     page.mouse.move(5, 5)
@@ -2572,7 +2573,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     words = peek.inner_text()
     now += timedelta(minutes=1)
     page.clock.set_fixed_time(now)
-    expect(leaf).to_have_attribute("aria-label", re.compile("2m ago"))
+    ticked(page)
     assert peek.inner_text() == words
     page.evaluate(
         "async () => (await window.__lfWidgetApi()).notice('Saved for later')"
@@ -2720,7 +2721,9 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     # Still under reduced motion, in a face well short of the ink words are written in.
     page.emulate_media(reduced_motion="reduce")
     sheen(False)
-    alpha = float(re.search(r"/\s*([\d.]+)\)$", words.evaluate(ink)).group(1))
+    match = re.search(r"/\s*([\d.]+)\)$", words.evaluate(ink))
+    assert match is not None
+    alpha = float(match.group(1))
     assert alpha < 0.7, f"the resting status reads at {alpha:.0%} of ink"
     page.emulate_media(reduced_motion="no-preference")
     sheen(True)
@@ -3148,6 +3151,7 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
             "L"
         )
         low, high = pixels.getextrema()
+        assert isinstance(low, (int, float)) and isinstance(high, (int, float))
         assert high - low > 32, (low, high)
 
     def words_follow_leaf():
@@ -3168,8 +3172,7 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
         attachment = shelf.bounding_box()
         pixels = Image.open(BytesIO(page.screenshot(clip=attachment))).convert("RGB")
         assert any(
-            r > 200 and 90 < g < 170 and b < 100
-            for r, g, b in pixels.get_flattened_data()
+            r > 200 and 90 < g < 170 and b < 100 for r, g, b in rgb_pixels(pixels)
         )
 
     row = reading()
@@ -3316,7 +3319,9 @@ def test_the_folded_leaf_keeps_its_badge_and_face_through_motion(browser, serve)
     settled(page)
     after = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
     difference = ImageChops.difference(before, after)
-    assert max(channel[1] for channel in difference.getextrema()) <= 8
+    extrema = difference.getextrema()
+    assert all(isinstance(channel, tuple) for channel in extrema)
+    assert max(channel[1] for channel in extrema if isinstance(channel, tuple)) <= 8
 
 
 def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
@@ -3703,7 +3708,9 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     expect(view.locator("[tabindex='0']")).to_have_count(1)
 
     other = view.locator(".lf-fp-version:not([data-current]) .lf-fp-label")
-    number = re.search(r"v\d+", other.inner_text()).group(0)
+    match_2 = re.search(r"v\d+", other.inner_text())
+    assert match_2 is not None
+    number = match_2.group(0)
     other.click()
     expect(page).to_have_url(re.compile(rf"/versions/{number}\b"))
 
@@ -4026,7 +4033,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
     url = serve(OBLIGATION_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
-    line = re.compile(r"^(\S+ ago · )?Drafting the rollout")
+    line = re.compile(r"^Drafting the rollout")
     page.locator(".lf-fp-leaf").click()
     head = page.locator(".lf-fp-state")
     expect(head.locator("> *")).to_have_count(2)

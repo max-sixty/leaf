@@ -39,10 +39,13 @@ mechanism in the same frame as the other options', a capture of today's interfac
 beside the change, with a fault marked where it goes wrong, a wording as it would
 appear, or a code change's text or effect before and after. A change they would
 neither see nor picture, such as a refactor, needs only words. Each option holds its
-own picture, so nothing pairs it with another option's; a picture of both answers at
-once, such as an `lf-shot` pair, belongs to the group. Vary only what the choice
-changes, and show today in the option that keeps it, or above the options where none
-does.
+own pictures, so nothing pairs them with another option's; a picture of both answers
+at once, such as an `lf-shot` pair, belongs to the group. Where the result spans
+several captures, such as several surfaces or states, every option sets them out
+alike, in a table of captures with the same columns (`authoring-evidence.md`, "Source
+files and media"), so the reader compares each one down the options. Vary only what
+the choice changes, and show today in the option that keeps it, or above the options
+where none does.
 
 When the page exists to choose among approaches, its title and headings ask the
 question without answering it. Give each alternative the same depth on the same
@@ -75,23 +78,20 @@ put on the user is work for them to do, such as trying a build, not a question.
 
 ## On the page
 
-Make each question on the document answerable where On me takes the user, without
-reading earlier content. Pressing `m` brings that question to the top of the window,
-leaving preceding prose out of view. So the question opens with a heading that asks
-its question, and holds its explanation, its evidence, the current state and the
-answering control, inside the answering widget or an enclosing `lf-ask`. Build that
-self-contained question around the material the user judges; backing detail goes after
-it.
+Make each question answerable where On me takes the user: pressing `m` brings its
+heading to the top of the window, leaving earlier content out of view. Inside the
+answering widget or an enclosing `lf-ask`, build the question around the material the
+user judges: a heading that asks it, why it arises, the current state and its evidence.
+Shared evidence and its limits come before the answering control; optional detail
+follows it.
 
-On a quick-answer page, open with the question and put its backing in a disclosure after
+On a quick-answer page, open with the question and put optional detail in a disclosure after
 it; the first screen shows the goal, the current state and what the user can do next. On
 a record or system page, put each question in the part of the page it decides: a
 question about one entry goes with that entry, and one that turns on a claim contains
 the claim and its evidence. Only a question about the whole record comes last.
 
-Keep the question, its evidence and the options on screen together, so the user
-compares the options without scrolling between them and always sees which one they
-are reading. Where a table, chart or playground inside the question, or the pictures in
+Where a table, chart or playground inside the question, or the pictures in
 its options, can't be read at the prose's width, give that block, or the `lf-options`,
 its own `data-width` (`page-layout.md`, "Bounds and widths"). Size an option's picture
 by the difference the user weighs between the options rather than by the capture: crop

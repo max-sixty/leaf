@@ -1,14 +1,13 @@
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, bindQueuedWork, byRenderedOrder, cancelRender, holdRendering, nextFrame, nextRender, observePreparations, observeQueuedWork, pagePresented, pageUpgraded, renderedOrder, renderedUnder, renderingState, scrollGlides, scrolling, shadowHost, sizeObserver, skipped, tabStore, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
-import { CARET_KEYS, J, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, Z, closeLayer, currentLocationIn, d, declareReading, deepFocus, drawn, focusDestination, focusRevision, focused, handBack, holdFocus, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, q, release, releaseFocus, rove, selectsAll, takesLetters, typesText, x } from "./runtime/bundle-dom-move.js";
-import { COLLAPSE, LitElement, PRESENTATION_DOM, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, agentName, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, closeNativeLayer, decisionFor, dismissPopoversOutside, documentChanged, guard, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keyed, live, marksSheet, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, readPart, ref, registry, render, repeat, runtime, runtimeResource, sameAnchor, shareUrl, showNativeLayer, tagsDeclaring, threadCounts, threadKey, threadNames, tick, watchLayerChanges, whenApplicationPresented } from "./runtime/bundle-layer-stack.js";
-import { EVERYTHING, LINK, PRESS, PRESSABLE, actionTemplate, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, namedAction, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
-import { ADDRESSABLE, JUST_NOW, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentId, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
+import { LAYOUT, PAGE_PAINT_ATTRIBUTE, bindQueuedWork, byRenderedOrder, cancelRender, fragmentId, holdRendering, motionEasing, motionPlays, motionTime, nextFrame, nextRender, observePreparations, observeQueuedWork, pagePresented, pageUpgraded, playMotion, reducedMotion, renderedOrder, renderedUnder, renderingState, scrollBehavior, scrollGlides, scrolling, setScroll, shadowHost, sizeObserver, skipped, tabStore, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
+import { CARET_KEYS, COLLAPSE, J, LitElement, MODIFIER_KEYS, PRESENTATION_DOM, PRESSES, SHARE_ROOT, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, WEBSITE_DELIVERY, WORKS, Z, agentName, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, currentLocationIn, d, decisionFor, declareReading, deepFocus, dismissPopoversOutside, documentChanged, drawn, focusDestination, focusRevision, focused, guard, handBack, holdFocus, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keeps, keepsHidden, keepsText, keyed, layerLanding, layoutPx, letGo, live, marksSheet, move, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, pointerAt, pressHolds, pressIsKeyboardActivation, pressRecords, q, readPart, ref, registry, release, releaseFocus, render, repeat, rove, runtime, runtimeResource, sameAnchor, selectsAll, shareUrl, showNativeLayer, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, typesText, watchLayerChanges, whenApplicationPresented, x } from "./runtime/bundle-layer-stack.js";
+import { EVERYTHING, LINK, PRESS, PRESSABLE, actionTemplate, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimsEsc, clampedRow, closeControl, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, iconTemplate, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, namedAction, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
+import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
 import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep, workflowVoice } from "./runtime/bundle-data.js";
 import { clamp, clippedContents, coveredShare, declareOccluder, declareWindowChrome, intersect, landingBand, layoutWindow, overlaps, overlapsAcross, placeHolder, presented, seenRect, shownBox, shownParts, shownRect, showsContents, stackLevel, startsAt, underOccluder, union, windowChromeBoxes } from "./runtime/bundle-geometry.js";
 import { LEAF_SURFACE, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
 import { copyControl, landedBox, landingRoom, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./runtime/bundle-copy-control.js";
-import { mediaViewer, motionEasing, motionPlays, motionTime, playMotion, readAttachedMedia, reducedMotion, scopedMediaUrl, scrollBehavior, writeAttachedMedia } from "./runtime/bundle-media.js";
+import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./runtime/media.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, annotationItems, beginRead, clearContributionControls, composerOpen, composerQuote, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, declareThreadKeys, disclosed, entryControls, fabBar, fabInput, fabOptionsTrigger, inPageOrder, leavesBox, mountApplication, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerContribution, sendReaction, spokenSubject, textField, threadInput, visibleContributionEntryLabel, watchDisclosures } from "./runtime/bundle-disclosure.js";
 import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
 import { pageImage, pageRenderer } from "./runtime/bundle-page-image.js";
@@ -1079,14 +1078,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		if (selectionUpdate && selectionIntent()) return;
 		deferSelectionUpdate(updateFab);
 	};
-	let pointerSelecting = false;
-	let selectionPressIntent = null;
-	let selectionDragged = false;
-	let selectionRangeDuringPress = null;
-	let selectionBackwardDuringPress = false;
-	let selectionPressPoint = null;
-	let selectionGestureClaimed = false;
-	let actionPress = false;
+	const pagePresses = pressRecords();
 	let targetActivation = false;
 	let fabInputTakingFocus = false;
 	let fabFocusHandoff = null;
@@ -1132,9 +1124,6 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		fabInput.addEventListener("focus", () => {
 			cancelRender(selectionUpdate);
 			selectionUpdate = null;
-			primaryPointerPressed = false;
-			pointerSelecting = false;
-			selectionPressIntent = null;
 			offerSelection(null);
 			fabInputTakingFocus = true;
 		});
@@ -1142,7 +1131,6 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 			fabInputTakingFocus = false;
 		});
 	}
-	let primaryPointerPressed = false;
 	let selectionStood = false;
 	const reflectSelection = () => {
 		const stands = Boolean(pageSelection());
@@ -1150,43 +1138,31 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		selectionStood = stands;
 		repaint();
 	};
-	let wordsAtPress = "";
-	const rememberPointerSelection = () => {
+	const rememberPointerSelection = (press) => {
 		const selection = pageSelection();
 		if (!selection || leftThePage(selection)) return;
 		const anchor = selectionAnchor(selection);
 		if (hasQuote(anchor)) {
-			selectionRangeDuringPress = pageRange(selection).cloneRange();
-			selectionBackwardDuringPress = selectionBackward(selection);
+			press.range = pageRange(selection).cloneRange();
+			press.backward = selectionBackward(selection);
 		}
 	};
 	const finishPointerSelection = (ev) => {
 		if (drawModeActive()) return;
-		const releasePress = () => setTimeout(() => {
-			if (!actionPress) return;
-			actionPress = false;
-			selectionChanged();
-		});
+		const press = pagePresses.kept();
+		if (!press?.selecting) return;
 		if (offeredSelection && inChrome(ev.composedPath()[0])) {
-			primaryPointerPressed = false;
-			pointerSelecting = false;
-			selectionGestureClaimed = false;
-			releasePress();
+			press.selecting = null;
 			return;
 		}
-		if (primaryPointerPressed && ev.type === "pointerup" && ev.pointerType === "mouse") {
-			releasePress();
-			return;
-		}
-		if (primaryPointerPressed && pointerSelecting && selectionPressIntent?.() && !selectionGestureClaimed) {
-			rememberSelection();
-			scheduleSelectionUpdate();
-		}
-		primaryPointerPressed = false;
-		pointerSelecting = false;
-		selectionGestureClaimed = false;
-		releasePress();
+		if (ev.type === "pointerup" && ev.pointerType === "mouse") return;
+		const selected = press.selecting() && !press.claimed;
+		press.selecting = null;
+		if (!selected) return;
+		rememberSelection();
+		scheduleSelectionUpdate();
 	};
+	const rereadAfterAction = () => pagePresses.kept()?.action ? selectionChanged : null;
 	function pressedAway(path) {
 		if (drawModeActive() || captureActive() || nativeLayers().some((layer) => layer.kind === "modal")) return false;
 		const [target] = path;
@@ -1226,9 +1202,10 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 	});
 	function selectionChanged() {
 		const automatic = programmaticSelection(getSelection());
-		if (primaryPointerPressed && selectionPressIntent?.()) {
-			rememberPointerSelection();
-			if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed) rememberSelection();
+		const press = pagePresses.kept();
+		if (press?.selecting?.()) {
+			rememberPointerSelection(press);
+			if (coarsePointer.matches && !press.claimed) rememberSelection();
 			reflectSelection();
 			return;
 		}
@@ -1236,7 +1213,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 			offerSelection(null);
 			return;
 		}
-		if (actionPress || targetActivation) return;
+		if (press?.action || targetActivation) return;
 		const selection = pageSelection();
 		if (coarsePointer.matches && selection && !automatic) rememberSelection(selection);
 		observeSelection();
@@ -1249,62 +1226,62 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		coarsePointer.addEventListener("change", observeSelection);
 		document.addEventListener("pointerdown", (ev) => {
 			if (drawModeActive()) return;
-			const target = ev.composedPath()[0];
-			primaryPointerPressed = ev.isPrimary && ev.button === 0;
-			pointerSelecting = primaryPointerPressed && pageWords(target);
-			selectionPressIntent = pointerSelecting ? retainUserIntent({ source: target }) : null;
-			selectionDragged = false;
-			selectionRangeDuringPress = null;
-			selectionGestureClaimed = false;
-			selectionPressPoint = pointerSelecting ? {
-				x: ev.clientX,
-				y: ev.clientY
-			} : null;
 			const stood = pageSelection();
 			selectionStood = Boolean(stood);
-			wordsAtPress = stood ? stood.toString() : "";
-			const selection = pointerSelecting ? stood : null;
-			if (selection && pageRange(selection).intersectsNode(target)) rememberPointerSelection();
-			actionPress = offeredSelection && inChrome(target) || Boolean(target.closest?.(".lf-react-surface, .lf-composer"));
+			if (!ev.isPrimary) return;
+			const target = ev.composedPath()[0];
+			const selecting = ev.button === 0 && pageWords(target);
+			const press = pagePresses.keep(ev, {
+				selecting: selecting ? retainUserIntent({ source: target }) : null,
+				point: {
+					x: ev.clientX,
+					y: ev.clientY
+				},
+				dragged: false,
+				range: null,
+				backward: false,
+				claimed: false,
+				words: stood ? stood.toString() : "",
+				action: offeredSelection && inChrome(target) || Boolean(target.closest?.(".lf-react-surface, .lf-composer"))
+			});
+			if (selecting && stood && pageRange(stood).intersectsNode(target)) rememberPointerSelection(press);
 		}, true);
+		onPress(() => rereadAfterAction);
 		document.addEventListener("pointermove", (ev) => {
 			if (drawModeActive()) return;
-			if (!pointerSelecting || !selectionPressPoint) return;
+			const press = pagePresses.kept();
+			if (!press?.selecting) return;
 			if (ev.defaultPrevented) {
-				selectionGestureClaimed = true;
+				press.claimed = true;
 				return;
 			}
-			selectionDragged ||= Math.hypot(ev.clientX - selectionPressPoint.x, ev.clientY - selectionPressPoint.y) > 3;
+			press.dragged ||= Math.hypot(ev.clientX - press.point.x, ev.clientY - press.point.y) > 3;
 		});
 		document.addEventListener("touchstart", (ev) => {
-			if (primaryPointerPressed && pointerSelecting) selectionPressIntent = retainUserIntent({ source: ev.composedPath()[0] });
+			const press = pagePresses.kept();
+			if (press?.selecting) press.selecting = retainUserIntent({ source: ev.composedPath()[0] });
 		});
 		document.addEventListener("pointerup", finishPointerSelection);
 		document.addEventListener("pointercancel", finishPointerSelection);
 		document.addEventListener("selectionchange", selectionChanged);
 		document.addEventListener("mouseup", (ev) => {
 			if (drawModeActive()) return;
-			const selectedOnPage = pointerSelecting && selectionPressIntent?.();
-			primaryPointerPressed = false;
-			pointerSelecting = false;
-			const gestureClaimed = selectionGestureClaimed;
-			selectionGestureClaimed = false;
-			if (gestureClaimed) {
-				selectionRangeDuringPress = null;
-				return;
-			}
-			if (actionPress || !selectedOnPage) return;
+			const press = pagePresses.kept();
+			if (!press?.selecting) return;
+			const selectedOnPage = press.selecting();
+			press.selecting = null;
+			if (press.claimed || press.action || !selectedOnPage) return;
 			const selection = pageSelection();
 			const selected = selection ? selectionAnchor(selection) : null;
-			const escaped = selectionDragged && leftThePage();
-			const completed = selectionDragged && (escaped || !hasQuote(selected)) ? selectionRangeDuringPress : null;
-			const selectedByGesture = selectionDragged || ev.detail > 1 || selection?.toString() !== wordsAtPress;
+			const escaped = press.dragged && leftThePage();
+			const completed = press.dragged && (escaped || !hasQuote(selected)) ? press.range : null;
+			const selectedByGesture = press.dragged || ev.detail > 1 || selection?.toString() !== press.words;
 			if (selectedByGesture && hasQuote(selected) && !escaped) rememberSelection();
 			deferSelectionUpdate(() => {
 				if (completed) {
 					const head = [completed.startContainer, completed.startOffset];
 					const tail = [completed.endContainer, completed.endOffset];
-					selectEnds(...selectionBackwardDuringPress ? [tail, head] : [head, tail]);
+					selectEnds(...press.backward ? [tail, head] : [head, tail]);
 				} else if (escaped) {
 					putAwayFab();
 					return;
@@ -1334,7 +1311,8 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 			const target = ev.composedPath()[0];
 			if (!pageWords(target)) return;
 			const words = pageSelection();
-			if (words && words.toString() !== wordsAtPress) return;
+			const press = pagePresses.kept();
+			if (words && words.toString() !== (press?.words ?? "")) return;
 			if (designModeActive()) {
 				const design = designTarget(target);
 				if (design) openOnDesign(design);
@@ -1557,23 +1535,10 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 	let stroke = null;
 	let session = null;
 	let lastDrawn = null;
-	let claimThroughClick = false;
-	let claimedPointer = null;
-	let releaseTimer = null;
 	let mounted = false;
+	const claimed = pressRecords();
+	const claimsPointer = (event) => Boolean(claimed.kept()) && pressHolds(event);
 	const drawModeActive = () => drawModeOn;
-	function holdCompatibilityClick() {
-		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
-		releaseTimer = null;
-		claimThroughClick = true;
-	}
-	function releaseCompatibilityClickSoon() {
-		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
-		releaseTimer = setTimeout(() => {
-			releaseTimer = null;
-			claimThroughClick = false;
-		});
-	}
 	function setDrawMode(on, { spoken = true } = {}) {
 		on = Boolean(on);
 		if (on) {
@@ -1583,10 +1548,7 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 		}
 		drawModeOn = on;
 		session = null;
-		if (!on) {
-			stroke = null;
-			if (claimedPointer === null) claimThroughClick = false;
-		}
+		if (!on) stroke = null;
 		document.documentElement.toggleAttribute("data-lf-draw-mode", on);
 		refreshAim();
 		if (spoken) announce(on ? `Draw mode: draw anywhere on the page; each stroke adds to one drawing, and z takes one back. ${coarsePointer.matches ? "Exit Draw mode leaves." : "Escape leaves."}` : "Draw mode off");
@@ -1715,8 +1677,7 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 		if (event.button !== 0) return;
 		const origin = event.composedPath()[0];
 		if (leafSurface(origin)) return;
-		holdCompatibilityClick();
-		claimedPointer = event.pointerId;
+		claimed.keep(event, true);
 		claim(event);
 		const target = sessionTarget() ?? targetAtPointer();
 		target?.element.dispatchEvent(new Event("lf-inspect", {
@@ -1750,7 +1711,7 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 	}
 	function move(event) {
 		if (!stroke || event.pointerId !== stroke.pointerId) {
-			if (event.pointerId === claimedPointer) claim(event);
+			if (claimsPointer(event)) claim(event);
 			return;
 		}
 		claim(event);
@@ -1758,19 +1719,13 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 	}
 	function finish(event) {
 		if (!stroke || event.pointerId !== stroke.pointerId) {
-			if (event.pointerId === claimedPointer) {
-				claim(event);
-				claimedPointer = null;
-				releaseCompatibilityClickSoon();
-			}
+			if (claimsPointer(event)) claim(event);
 			return;
 		}
 		claim(event);
 		rememberPoint(event.clientX, event.clientY);
 		const completed = stroke;
 		stroke = null;
-		claimedPointer = null;
-		releaseCompatibilityClickSoon();
 		if (completed.invalid) {
 			shiftDrawingPaint();
 			announce("Stroke canceled because its page element changed.");
@@ -1819,20 +1774,14 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 	}
 	function cancel(event) {
 		if (!stroke || event.pointerId !== stroke.pointerId) {
-			if (event.pointerId === claimedPointer) {
-				claim(event);
-				claimedPointer = null;
-				releaseCompatibilityClickSoon();
-			}
+			if (claimsPointer(event)) claim(event);
 			return;
 		}
 		claim(event);
-		claimedPointer = null;
-		releaseCompatibilityClickSoon();
 		dropStroke();
 	}
 	const compatibilityPress = (event) => {
-		if (claimThroughClick && !pressIsKeyboardActivation(event)) claim(event);
+		if (claimed.kept() && !pressIsKeyboardActivation(event)) claim(event);
 	};
 	function activeDrawing() {
 		if (!stroke || stroke.points.length < 2) return null;
@@ -1910,14 +1859,10 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 			stopWatching();
 		}
 		mounted = false;
-		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
-		releaseTimer = null;
 		drawModeOn = false;
 		stroke = null;
 		session = null;
 		lastDrawn = null;
-		claimThroughClick = false;
-		claimedPointer = null;
 		document.documentElement.removeAttribute("data-lf-draw-mode");
 	}
 	pageScope("draw mode", {
@@ -1981,8 +1926,7 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 function createRegionCapture({ parent, visibleTargets, openComposerWithMedia, closeTargetPicker, closeReactionMode }) {
 	let opening = false;
 	let selector = null;
-	let claimedPointer = null;
-	let throughClick = false;
+	const claimed = pressRecords();
 	const active = () => opening;
 	const claim = (event) => {
 		event.preventDefault();
@@ -1997,18 +1941,14 @@ function createRegionCapture({ parent, visibleTargets, openComposerWithMedia, cl
 		"pointerup",
 		"pointercancel"
 	]) document.addEventListener(type, (event) => {
-		if (type === "pointerdown" && event.isPrimary) throughClick = false;
-		const held = event.pointerId === claimedPointer;
-		if (!held && (!selector || leafSurface(event.composedPath()[0]))) return;
+		if (!(Boolean(claimed.kept()) && pressHolds(event)) && (!selector || leafSurface(event.composedPath()[0]))) return;
 		if (type === "pointerdown") {
 			if (!event.isPrimary || event.button !== 0) return;
-			claimedPointer = event.pointerId;
-			throughClick = true;
+			claimed.keep(event, true);
 			document.documentElement.setPointerCapture(event.pointerId);
 		}
 		claim(event);
 		selector?.pointer(event);
-		if (held && (type === "pointerup" || type === "pointercancel")) claimedPointer = null;
 	}, { capture: true });
 	for (const type of [
 		"mousedown",
@@ -2017,7 +1957,7 @@ function createRegionCapture({ parent, visibleTargets, openComposerWithMedia, cl
 		"dblclick",
 		"auxclick"
 	]) document.addEventListener(type, (event) => {
-		if (!pressIsKeyboardActivation(event) && (throughClick || selector && !leafSurface(event.composedPath()[0]))) claim(event);
+		if (!pressIsKeyboardActivation(event) && (claimed.kept() || selector && !leafSurface(event.composedPath()[0]))) claim(event);
 	}, { capture: true });
 	onCurrentLocation((node) => {
 		if (selector && node && node !== document.body && !closestAcross(node, ".lf-floating-panel, .lf-command-reference, .lf-region-capture")) selector.cancel({ restore: false });
@@ -4035,7 +3975,7 @@ const appendWords = (parts, words, step = false) => {
 	const head = textOf(parts);
 	parts.push({ text: after(head, words, step).slice(head.length) });
 };
-function statusWords({ age, dated, detail, detailSource, handling, invite, kind, overdue, saved, waits, work }) {
+function statusWords({ dated, detail, detailSource, handling, invite, kind, overdue, saved, waits, work }) {
 	if (kind === "closed") return [
 		"Done with this page",
 		"Done with this page.",
@@ -4057,7 +3997,7 @@ function statusWords({ age, dated, detail, detailSource, handling, invite, kind,
 		}] : [];
 		const said = waits ? [work, ...detail ? [" — ", ...sentence] : []] : detail ? sentence : [delivered ? `Got ${delivered}` : work];
 		return [
-			[...age && age !== "just now" ? [`${age} · `] : [], ...said],
+			said,
 			said,
 			""
 		];
@@ -4146,7 +4086,6 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	const ended = `Stopped${facts.silentSince ? " " + facts.silentSince : ""}`;
 	const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
 	const [summaryWords, explanationWords, beyond, asked = false, voice = "agent"] = statusWords({
-		age,
 		dated: facts.left ? ended : checkedIn,
 		detail,
 		detailSource: activity.detail_source,
@@ -5313,21 +5252,20 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (Boolean(draftOf(fieldInput())) !== drafted) paint();
 	}
 	field.addEventListener("input", retype);
-	let pressedWords = null;
+	const pressedWords = pressRecords();
 	const quotedWords = () => general && fieldInput() === general.input && fieldReading(null, general.input).says === "selection" ? selectedWords : null;
 	field.addEventListener("pointerdown", (event) => {
-		pressedWords = event.isPrimary && event.composedPath().includes(general?.input) ? quotedWords() : null;
-		if (pressedWords) event.preventDefault();
+		if (!event.isPrimary || !event.composedPath().includes(general?.input)) return;
+		const words = quotedWords();
+		if (!words) return;
+		pressedWords.keep(event, words);
+		event.preventDefault();
 	}, true);
 	field.addEventListener("pointerup", (event) => {
-		const words = pressedWords;
-		pressedWords = null;
+		const words = pressHolds(event) && pressedWords.kept();
 		if (!words || !event.composedPath().includes(general?.input)) return;
 		claimReleaseClick();
 		words.comment();
-	});
-	field.addEventListener("pointercancel", () => {
-		pressedWords = null;
 	});
 	field.addEventListener("beforeinput", () => passErrors(sayable().map((error) => error.id)), { capture: true });
 	const threads = () => readThreads().threads;
@@ -5877,12 +5815,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			pointedInPanel = event.type === "pointerdown" && inPanel;
 		}
 	});
-	const menuItem = (label, end, press, { urgent = false, disabled = false, role = "menuitem", row = null, opens = false, title = null } = {}) => html`<button
+	const menuItem = (label, end, press, { urgent = false, disabled = false, role = "menuitem", row = null, opens = false, title = null, current = false } = {}) => html`<button
       type="button"
       role=${role ?? nothing}
       data-row=${row ?? nothing}
       title=${title ?? nothing}
       class="lf-fp-face lf-fp-item"
+      aria-current=${current ? "true" : nothing}
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
       ?data-opens=${opens}
@@ -6042,18 +5981,23 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               <b>${latest.label}</b>
               <p class="lf-fp-failed-error scroll">${latest.error}</p>
             </div>` : nothing}
-      ${repeat(versions, (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`, (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
-            ${menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing, () => showVersion(entry), { title: entry.note })}${entry.comparable ? html`<button
-                    type="button"
-                    role="menuitem"
-                    class="lf-fp-face lf-fp-quiet lf-fp-compare"
-                    aria-pressed=${String(selection.on && selection.base === entry.version)}
-                    aria-label=${`Compare with ${entry.name}`}
-                    @click=${() => putAwayThen(() => versionPicker.compare(entry.version))}
-                  >
-                    Compare
-                  </button>` : nothing}
-          </div>`)}
+      <div class="lf-fp-versions" role="none">
+        ${repeat(versions, (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`, (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
+              ${menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, nothing, () => showVersion(entry), {
+			title: entry.note,
+			current: entry.current
+		})}${entry.current ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>` : nothing}${entry.comparable ? html`<button
+                      type="button"
+                      role="menuitem"
+                      class="lf-fp-face lf-fp-quiet lf-fp-compare"
+                      aria-pressed=${String(selection.on && selection.base === entry.version)}
+                      aria-label=${`Compare with ${entry.name}`}
+                      @click=${() => putAwayThen(() => versionPicker.compare(entry.version))}
+                    >
+                      Compare
+                    </button>` : nothing}
+            </div>`)}
+      </div>
       ${versions.length ? nothing : html`<p class="lf-fp-empty" role="none">Showing ${picker.token}</p>`}
     `;
 	}
@@ -7051,7 +6995,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             ></button>` : nothing}<button
         type="button"
         ${offeredAction("symbol", `lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}`, thread.resolved ? "Reopen" : "Resolve thread", { action: thread.resolved ? "reopen" : "resolve" })}
-        aria-disabled=${String(!(thread.resolved ? thread.offers.reopen : thread.offers.resolve))}
         @click=${() => {
 			if (!thread.resolved) dismissReply(thread.key);
 			settleThread({
@@ -7406,17 +7349,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	});
 	let heldCurrentLocation = null;
 	holdPagePlace(() => currentLocationIn(host) ? heldCurrentLocation : null);
-	let pressedIn = false;
-	host.addEventListener("pointerdown", () => {
+	const fromThePage = pressRecords();
+	host.addEventListener("pointerdown", (event) => {
 		if (currentLocationIn(host)) return;
 		heldCurrentLocation = readPlace();
-		pressedIn = true;
-		setTimeout(() => pressedIn = false);
+		fromThePage.keep(event, true);
 	}, true);
 	onCurrentLocation((node, _cause, left) => {
 		if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu)) setMenu(false);
 		const inside = Boolean(node) && renderedUnder(node, host);
-		if (inside && !left && !pressedIn) heldCurrentLocation = null;
+		if (inside && !left && !fromThePage.kept()) heldCurrentLocation = null;
 		else if (inside && left?.isConnected && !renderedUnder(left, host)) heldCurrentLocation = readPlace(left);
 		const next = inside ? writing || node.localName === "leaf-text" : false;
 		if (next === writing && !inside) return;
@@ -7824,6 +7766,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		const restoreFocus = holdFocus(dialog);
 		place$1.around(() => presentSheet());
 		restoreFocus?.(dialogSearch);
+		paintKeysWithin(dialog);
 	}
 	function presentSheet() {
 		const query = dialogSearch.value.trim().toLocaleLowerCase();
@@ -9545,8 +9488,7 @@ let commandReferenceInvoke = null;
 let commandReferenceCatalog = Object.freeze({
 	total: 0,
 	entries: Object.freeze([]),
-	sections: Object.freeze([]),
-	describedMeta: Object.freeze([])
+	sections: Object.freeze([])
 });
 let commandReferenceState = {
 	query: "",
@@ -9689,8 +9631,7 @@ function captureCommandReferenceCatalog() {
 	return Object.freeze({
 		total: entries.length,
 		entries: Object.freeze(entries),
-		sections: Object.freeze(sections),
-		describedMeta: Object.freeze(entries.filter((entry) => entry.actionable && entry.description).map(selectionMeta))
+		sections: Object.freeze(sections)
 	});
 }
 const selectionMeta = (entry) => [
@@ -9930,14 +9871,11 @@ function commandReferenceTemplate() {
       >
     </label>
     ${commandReferenceSearch}
-    <div class="lf-command-reference-meta-box">
-      ${commandReferenceCatalog.describedMeta.map((text) => html`<span aria-hidden="true">${text}</span>`)}
-      <div
-        class="lf-command-reference-meta"
-        aria-live="polite"
-        .textContent=${commandReferenceView.metadata}
-      ></div>
-    </div>
+    <div
+      class="lf-command-reference-meta"
+      aria-live="polite"
+      .textContent=${commandReferenceView.metadata}
+    ></div>
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"
@@ -10013,7 +9951,7 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
 		const search = commandReferenceDialog.querySelector(".lf-command-reference-search");
 		const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
 		search.value = "";
-		results.scrollTo({
+		setScroll(results, {
 			top: 0,
 			behavior: "instant"
 		});
@@ -10239,7 +10177,7 @@ function stepAlong(from, amount, unit) {
 function glideTo(box, goal) {
 	goal = Math.max(0, Math.min(scrollLimit(box), goal));
 	if (reducedMotion()) {
-		box.scrollTo({
+		setScroll(box, {
 			top: goal,
 			behavior: "instant"
 		});
@@ -10254,7 +10192,7 @@ function glideTo(box, goal) {
 			return;
 		}
 		if (reducedMotion()) {
-			box.scrollTo({
+			setScroll(box, {
 				top: goal,
 				behavior: "instant"
 			});
@@ -10262,7 +10200,7 @@ function glideTo(box, goal) {
 			return;
 		}
 		const t = Math.max(0, Math.min(1, (now - t0) / SCROLL_MS));
-		box.scrollTo({
+		setScroll(box, {
 			top: goal - (goal - start) * (1 - t) ** 3,
 			behavior: "instant"
 		});

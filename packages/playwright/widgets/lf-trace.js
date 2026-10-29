@@ -78,7 +78,6 @@ import {
   dragging,
   cancelAnimation,
   nextAnimation,
-  frameFor,
   compoundReadingRegionId,
   registerReadingRegion,
   keepsHidden,
@@ -373,7 +372,7 @@ customElements.define(
 
     // Viewer owns its container sizing; reapply the page's inspection view after
     // a resize refits the image, including a hidden tab becoming visible.
-    #resize = frameFor(this, () => {
+    #resize = () => {
       if (!this.#viewport.value.clientWidth) {
         this.pause();
         if (this.#pendingPicture) this.#closePicture();
@@ -394,7 +393,7 @@ customElements.define(
       this.#placePlayback();
       this.#imageZoom();
       this.#parts.update();
-    });
+    };
 
     setup() {
       this.#build();

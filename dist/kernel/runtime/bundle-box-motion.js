@@ -1,11 +1,10 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { afterSettling, cancelRender, nextRender } from "./bundle-portable.js";
-import { TEXT_FIELD, atLayoutPrecision, keeps, layoutPx, move, onUserInput } from "./bundle-dom-move.js";
+import { afterSettling, cancelRender, motionEasing, motionPlays, motionTime, nextRender, playMotion } from "./bundle-portable.js";
+import { TEXT_FIELD, atLayoutPrecision, keeps, layoutPx, move, onUserInput } from "./bundle-layer-stack.js";
 import { el } from "./bundle-layer-client.js";
 import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, contentRides, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";
 import { hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-geometry.js";
 import { inChrome } from "./bundle-passages.js";
-import { motionEasing, motionPlays, motionTime, playMotion } from "./bundle-media.js";
 
 //#region runtime/target-paint-geometry.js
 const SVG_NS = "http://www.w3.org/2000/svg";

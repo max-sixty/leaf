@@ -50,7 +50,7 @@ export function createThreadActions({
   const reply = (key, text, { attempt } = {}) => {
     if (!text) return null;
     const thread = find(key);
-    if (!thread?.offers.reply) return null;
+    if (!thread) return null;
     return post({
       kind: "reply",
       revision: currentRevision(),
@@ -66,7 +66,7 @@ export function createThreadActions({
    * @param {{attempt?: string, base?: string}} [options] */
   const edit = (key, messageId, text, { attempt, base } = {}) => {
     const thread = find(key);
-    if (!thread || thread.settling) return null;
+    if (!thread) return null;
     const message = thread.msgs.find((item) => item.id === messageId);
     if (!message || !editable(message) || !text || text === message.text) return null;
     return post({
@@ -83,7 +83,7 @@ export function createThreadActions({
   /** @param {string} key @param {boolean} resolved @param {{attempt?: string}} [options] */
   const settle = (key, resolved, { attempt } = {}) => {
     const thread = find(key);
-    if (!thread?.offers[resolved ? "resolve" : "reopen"]) return null;
+    if (!thread || Boolean(thread.resolved) === resolved) return null;
     return post({
       kind: resolved ? "resolve" : "unresolve",
       parent: thread.root.id,
@@ -117,7 +117,7 @@ export function createThreadActions({
   return Object.freeze({
     async open(key, { message = null, ...options } = {}) {
       const thread = find(key);
-      if (!thread?.offers.open) return null;
+      if (!thread) return null;
       const target =
         message === null ? thread : thread.msgs.find((item) => item.key === message);
       if (!target) return null;

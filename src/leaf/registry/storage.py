@@ -1,6 +1,6 @@
 """A page's layer record, and the vocabulary every reader composes from it.
 
-A page records which packages and personal theme it selects (`LAYER`), never the
+A page records which packages and theme it selects (`LAYER`), never the
 layer itself: every Leaf that serves, checks or exports the page composes its own
 (`layer.selected_layer`), as it supplies its own runtime (`runtime_selection`)."""
 
@@ -26,7 +26,7 @@ LAYER = Record(
     {
         "description": (
             "A page's layer selection, `layer.json` in its directory: the packages"
-            " and personal theme every Leaf that reads the page composes, the"
+            " and theme every Leaf that reads the page composes, the"
             " generation an open document speaks, and the page protocol a Leaf last"
             " initialized it at."
         ),
@@ -79,13 +79,14 @@ def selected(record: dict, page_dir: Path):
     it (`layer.selected_layer`), refused as a registry fault where a selected package
     is gone or invalid."""
     from leaf.layer import selected_layer
+    from leaf.themes import theme_package
 
-    theme = record["theme"]["name"] if record["theme"] else None
+    theme = theme_package(record["theme"])
     try:
         return selected_layer(tuple(record["packages"]), theme, page_dir)
     except Refused as error:
         raise RegistryError(
-            Finding("layer-unavailable", values={"error": str(error)})
+            [Finding("layer-unavailable", values={"error": str(error)})]
         ) from None
 
 
@@ -156,7 +157,7 @@ def load_registry(page_dir: Path):
     if record is None:
         return None
     if refusal := incompatible_layer(page_dir, record):
-        raise IncompatibleLayer(refusal)
+        raise IncompatibleLayer([refusal])
     return layer_vocabulary(record, page_dir)
 
 
@@ -195,11 +196,13 @@ def read_page_registry(page_dir: Path):
         layer = load_registry(page_dir)
         if layer is None:
             return None
+        record = layer_record(page_dir)
+        assert record is not None
         return compose_candidate(
             page_dir,
             layer,
             [
-                *layer_widgets(layer_record(page_dir), page_dir),
+                *layer_widgets(record, page_dir),
                 *(path for path, _ in widgets),
             ],
             validated=read_revision(page_dir, active).registry if active else None,
@@ -275,7 +278,7 @@ def layer_metadata(page_dir: Path) -> dict:
     """The page's layer identity (`layer_metadata_of`), refused before init."""
     record = layer_record(page_dir)
     if record is None:
-        raise RegistryError(Finding("no-layer", values={"page": str(page_dir)}))
+        raise RegistryError([Finding("no-layer", values={"page": str(page_dir)})])
     return layer_metadata_of(record)
 
 

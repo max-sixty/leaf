@@ -93,16 +93,6 @@ export const nameAdmitted = (event, admitted) => {
   return named;
 };
 
-/** @template {{event: import("../../types/domain.js").Command, namedParent?: string}} T
- * @param {readonly T[]} entries @param {string} id @param {string[] | null} kinds
- */
-export const pendingForParent = (entries, id, kinds = null) =>
-  entries.find(
-    (entry) =>
-      (entry.event.parent === id || entry.namedParent === id) &&
-      (!kinds || kinds.includes(entry.event.kind)),
-  );
-
 /** The widget dispatcher's command, before the ledger assigns its attempt.
  * @param {Pick<import("../framework/application.js").WidgetDescriptor, "id">} descriptor
  * @param {{verb: string, detail?: Record<string, unknown>, attempt?: string}} command

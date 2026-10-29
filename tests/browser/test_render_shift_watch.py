@@ -7,7 +7,6 @@ from html import escape
 from urllib.parse import quote
 
 import pytest
-from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE
 from render_harness import (
@@ -27,6 +26,7 @@ from render_harness import (
 )
 
 from leaf.render_checks import rendered
+from leaf_dev.browser import slow_cpu
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
 # field, or grows the field itself, as the page's `data-key` says.
@@ -788,6 +788,7 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
     action_after = page.locator("#action").bounding_box()
     assert action_after["x"] != before["x"]
     if fault == "escaping_outer":
+        assert outer_before is not None
         assert (
             before["x"] + before["width"] <= outer_before["x"] + outer_before["width"]
         )
@@ -3795,6 +3796,29 @@ motion.pause();motion.currentTime=150;
     errors = take_browser_errors(page)
     assert names_move(errors, "p#trigger"), errors
     assert names_move(errors, "button#control") == bool(fault), errors
+    if fault == "child":
+        finding = next(
+            error
+            for error in errors
+            if is_problem(error, moved_within("button#control"))
+        )
+        comparisons = shift_evidence(finding)["comparisons"]
+        motions = [
+            animation
+            for comparison in comparisons
+            for animation in comparison["animations"]
+            if within(animation["target"], "div#panel")
+        ]
+        assert motions, comparisons
+        assert any(
+            motion["selected"]
+            and "translate" in motion["properties"]
+            and motion["before"]
+            and motion["after"]
+            and "translate" in motion["before"]["values"]
+            and "translate" in motion["after"]["values"]
+            for motion in motions
+        ), motions
 
 
 @pytest.mark.parametrize(

@@ -10,7 +10,7 @@
  *
  * Each region is drawn once. The playground itself is no card: the stage is the
  * preview's own well, and each rail pane is a panel as a sidebar page draws its regions
- * (theme.css, section.panel), so a candidate the page draws on the stage is the only
+ * (the reading theme's section.panel), so a candidate the page draws on the stage is the only
  * surface inside the well rather than a card in a well in a card. */
 lf-playground {
   --lf-block-frame: 1;
@@ -120,6 +120,18 @@ lf-playground:has(> .lf-playground-split) {
       min-block-size: 0;
       margin-block: 0;
       --lf-full-height: inherit;
+    }
+
+    /* The outer scroller must include the stage's minimum and the whole action bar,
+     * leaving its reserved panel room after both. Only scrolling bodies contribute
+     * no intrinsic size: presets and actions still set their tracks' minimum. */
+    lf-playground:has(> .lf-playground-split) {
+      grid-template-rows: minmax(min-content, 1fr);
+      scroll-padding-block-end: var(--lf-end-room);
+    }
+
+    :is(.lf-playground-preview-body, .lf-playground-controls) {
+      contain: size;
     }
 
     :is(.lf-playground-split, .lf-playground-rail) {
@@ -378,6 +390,7 @@ lf-playground-value {
 }
 
 .lf-playground-actions {
+  border-block-start: 0;
   padding: 12px 18px;
   display: flex;
   flex-wrap: wrap;

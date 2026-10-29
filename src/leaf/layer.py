@@ -233,13 +233,16 @@ def _stylesheet(source: Path, root: Path, opened: tuple[Path, ...]) -> str:
     """`stylesheet`, inside the imports of `opened`."""
     import tinycss2
 
-    from .styles import css_stylesheet, css_syntax_errors
+    from .revision_artifact import css_syntax_errors
+    from .styles import css_stylesheet
 
     opened = (*opened, source.resolve())
     try:
         css = source.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         raise Refused(f"{source} must be UTF-8")
+    # A layer's sheet is a package's maintained code, so a declaration a browser
+    # drops refuses it here, though a page's own sheets only hear it as advice.
     if errors := css_syntax_errors(css, str(source)):
         raise Refused(str(errors[0]))
     parts = []
@@ -317,7 +320,8 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     in input order. Leaf places sheets and rewrites none of their rules.
 
     A sheet's filename sets its role. widgets.css holds a package's defaults in
-    lf-base. widget-shadow.css holds rules for both trees, in lf-base in the
+    lf-base, below Layouts: a widget's own, and a theme's element rules and idioms,
+    such as the bundled `reading` look. widget-shadow.css holds rules for both trees, in lf-base in the
     document and lf-shadow in every declared shadow tree. Leaf adds no scope around
     either, so each names the widgets it styles: by tag in the document, and by
     `:host(tag)` in a shadow tree, where a rule reaches everything the tree holds,
@@ -439,7 +443,7 @@ def selected_layer(
     packages: tuple[str, ...], theme: str | None, page_dir: Path
 ) -> LayerComposition:
     """The layer this Leaf composes for the page at `page_dir` that selects
-    `packages` and the personal `theme`, the package composed last: its core and
+    `packages` and the `theme`, composed before them: its core and
     bundled packages, the user's installed ones, as this process first read them,
     and the copies the page holds of packages it selects by path.
 
@@ -452,7 +456,7 @@ def selected_layer(
     page, and an installed name another snapshot after `package install`; and a
     page's copy by its stamp too, since its next `page init` replaces it in place."""
     if theme is not None:
-        packages = (*(name for name in packages if name != theme), theme)
+        packages = (theme, *(name for name in packages if name != theme))
     inputs = tuple(layer_inputs(packages, page_dir))
     copies = tuple(file_stamp(root) for root in inputs if root.is_relative_to(page_dir))
     return _composed(inputs, copies)
@@ -576,7 +580,7 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
     """
     source = Path(__file__) if root is None else root / "src/leaf/layer.py"
     root = PLUGIN_ROOT if root is None else root.resolve()
-    provenance = {"path": str(root)} if include_path else {}
+    provenance: dict = {"path": str(root)} if include_path else {}
     distribution = root / "leaf-distribution.json"
     if distribution.is_file():
         published = json.loads(distribution.read_text())
@@ -599,7 +603,10 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
         )
         return provenance
 
-    git = ["git", "--no-optional-locks", "-C", str(root)]
+    # Reading provenance must leave the payload untouched. Optional locks suppress
+    # index writes; disabling fsmonitor also prevents Git from starting a daemon
+    # whose socket would make Codex refuse the installed plugin's hook fingerprint.
+    git = ["git", "--no-optional-locks", "-c", "core.fsmonitor=false", "-C", str(root)]
     try:
         identity = subprocess.run(
             [*git, "rev-parse", "--show-toplevel", "--short=12", "HEAD"],

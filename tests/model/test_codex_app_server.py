@@ -12,6 +12,7 @@ import threading
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import cast
 
 import psutil
 import pytest
@@ -41,7 +42,6 @@ from interact_support import (
     wait_for,
     write_record,
 )
-from leaf_dev.commands.response_times import page_timings
 
 from leaf import activity as activity_model
 from leaf import cli as cli_model
@@ -61,6 +61,7 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
+from leaf_dev.commands.response_times import page_timings
 
 
 def test_only_one_turn_reply_can_bind_the_app_server_final_message():
@@ -480,6 +481,7 @@ def test_app_server_events_report_semantic_codex_progress():
             },
         }
     )
+    assert reply_delta is not None
     delta_text = reply_delta["message"].pop("text")
     assert delta_text.endswith("The page is ready for review.")
     assert "I am checking the implementation." not in delta_text
@@ -521,6 +523,7 @@ def test_app_server_events_report_semantic_codex_progress():
             },
         }
     )
+    assert completed_reply is not None
     completed_text = completed_reply["message"].pop("text")
     assert completed_text.endswith("The page is ready for review.")
     assert "I am checking the implementation." not in completed_text
@@ -684,6 +687,7 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
             "id": 1,
         }
     )
+    assert approval is not None
     assert approval["activity"] == {"kind": "awaiting_approval"}
     heartbeat = events.read(
         {
@@ -696,6 +700,7 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
             },
         }
     )
+    assert heartbeat is not None
     assert heartbeat["activity"] == {"kind": "awaiting_approval"}
 
     active = events.read(
@@ -708,6 +713,7 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
             },
         }
     )
+    assert active is not None
     assert active["activity"] == {"kind": "tool", "detail": "Running run first"}
     completed = item("item/completed", "second", "commandExecution", 1_200)
     assert completed["activity"] == {"kind": "tool", "detail": "Running run first"}
@@ -727,6 +733,7 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
             "id": 1,
         }
     )
+    assert awaiting_input is not None
     assert awaiting_input["activity"] == {"kind": "awaiting_input"}
 
 
@@ -995,9 +1002,11 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
         harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
     claim = service_model.page_claim(page_dir)
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(page_dir, claim["id"])
-    )
+    assert claim is not None
+    lease_path = leases_model.waiter_lease_path(page_dir, claim["id"])
+    assert lease_path is not None
+    assert claim is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     request.addfinalizer(lease.close)
 
@@ -1256,9 +1265,9 @@ def test_a_turn_that_shares_a_user_message_leaves_the_delivery_owed(
     target = codex_model.stream_reply_target(prepared.payload)
     items = _joined_items(prepared.payload, join)
     # The task's watcher, which the Stop hook asks whether the reply will commit.
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(page_dir, "codex-thread")
-    )
+    lease_path_2 = leases_model.waiter_lease_path(page_dir, "codex-thread")
+    assert lease_path_2 is not None
+    lease = leases_model.take_wait_lease(lease_path_2)
     assert lease
     request.addfinalizer(lease.close)
     release = threading.Event()
@@ -1329,6 +1338,7 @@ def test_a_turn_that_shares_a_user_message_leaves_the_delivery_owed(
     )
     # While the turn runs it holds the update, and the Stop hook reads the turn as
     # done with it, so it lets the turn end on its own answer.
+    assert target is not None
     assert thread_model.delivery_reply_reserved(
         "codex-thread", prepared.payload["id"], target
     )
@@ -1402,6 +1412,7 @@ def test_a_joined_turn_read_back_from_history_is_not_the_reply(page_dir):
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ] == []
+    assert target is not None
     assert not thread_model.delivery_reply_reserved(
         "codex-thread", prepared.payload["id"], target
     )
@@ -1506,15 +1517,17 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
         transaction.take_claim(
             harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
-        path, _, _ = codex_model.append_batch(
+        append_batch_result = codex_model.append_batch(
             "codex-thread",
             page_dir,
             transaction,
             service_model.unacknowledged(transaction.events, transaction.cursor),
         )
-    queued = codex_model.offer_delivery(
-        path, codex_model.read_record(path), transport="queue"
-    )
+        assert append_batch_result is not None
+        path, _, _ = append_batch_result
+    record_2 = codex_model.read_record(path)
+    assert isinstance(record_2, (codex_model.Collecting, codex_model.Offering))
+    queued = codex_model.offer_delivery(path, record_2, transport="queue")
     [event] = queued.payload["batches"][0]["events"]
     assert event["answer"]["kind"] == "reply"
 
@@ -1702,6 +1715,7 @@ def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
             },
         }
     )
+    assert update is not None
     assert update["message"]["text"] == "Current answer"
 
 
@@ -1718,7 +1732,6 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
         "responds": comment["id"],
         "ref": response_reference(page_dir, comment),
     }
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
         "codex-thread", "turn-1", "delivery-1", target
     )
@@ -1751,7 +1764,7 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
     assert "answered" not in before["milestones"]
     assert "send_to_visible" not in before["milestones"]
     cleanup_model.close_session_turn("codex-thread", "turn-1")
-    cleanup_model.open_session_turn("codex-thread", "turn-2")
+    cleanup_model.prompt_turn("codex-thread", "turn-2")
 
     assert stream.finish("completed", "First turn reply") is None
 
@@ -1763,7 +1776,9 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
     assert [(reply["responds"], reply["text"]) for reply in replies] == [
         (comment["id"], "First turn reply")
     ]
-    assert service_model.page_claim(page_dir)["turn"] == "turn-2"
+    claim_record = service_model.page_claim(page_dir)
+    assert claim_record is not None
+    assert claim_record["turn"] == "turn-2"
     [after] = page_timings(page_dir, since=None, until=datetime.now(UTC))["samples"]
     assert after["milestones"]["first_reply"] == before["milestones"]["first_reply"]
     assert after["milestones"]["answered"]["event_id"] == replies[0]["id"]
@@ -1775,7 +1790,6 @@ def test_a_stream_reply_finishes_when_its_diagnostic_sink_is_unwritable(page_dir
         {"kind": "comment", "author": "user", "text": "Answer this input"},
     )
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
         "codex-thread",
         "turn-1",
@@ -1817,7 +1831,6 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
         "ref": response_reference(page_dir, comment),
     }
     thread_model.reserve_delivery_reply("codex-thread", "delivery-1", target)
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
         "codex-thread", "turn-1", "delivery-1", target
     )
@@ -1832,7 +1845,7 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
         }
     )
     cleanup_model.close_session_turn("codex-thread", "turn-1")
-    cleanup_model.open_session_turn("codex-thread", "turn-2")
+    cleanup_model.prompt_turn("codex-thread", "turn-2")
 
     assert stream.finish("interrupted") is None
 
@@ -1850,7 +1863,6 @@ def test_provider_reservation_refuses_unaddressed_competing_writes(page_dir):
         {"kind": "comment", "author": "user", "text": "Move this reply too"},
     )
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     target = {
         "page": str(page_dir),
         "parent": comment["id"],
@@ -1922,7 +1934,6 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
         {"kind": "comment", "author": "user", "text": "Answer this"},
     )
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
         "codex-thread",
         "turn-1",
@@ -1935,6 +1946,7 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
         },
     )
     claim = service_model.page_claim(page_dir)
+    assert claim is not None
     record_claim(page_dir, **{**claim, "id": "successor-thread", "agent": "Successor"})
 
     error = stream.finish("completed", "Stale answer")
@@ -1965,7 +1977,6 @@ def test_a_streamed_final_rejects_invalid_source_without_stranding_the_draft(pag
         {"kind": "comment", "author": "user", "text": "Change this page"},
     )
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     target = {
         "page": str(page_dir),
         "parent": comment["id"],
@@ -2002,7 +2013,6 @@ def test_partial_text_is_not_committed_without_a_completed_final(page_dir):
         {"kind": "comment", "author": "user", "text": "Answer this"},
     )
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
         "codex-thread",
         "turn-1",
@@ -2083,6 +2093,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
         (created + timedelta(minutes=16)).isoformat(),
         reply,
     )
+    assert projected is not None
     assert projected["state"] == "active"
 
 
@@ -2164,6 +2175,7 @@ def test_a_reply_reservation_lapses_when_a_turn_it_does_not_name_opens(page_dir)
         page_dir, harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
     )
     target = codex_model.stream_reply_target(prepared.payload)
+    assert target is not None
     thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
     observer = _observer()
     observer._read(
@@ -2242,6 +2254,7 @@ def test_a_reply_reservation_lapses_when_its_turn_closes(page_dir):
         page_dir, harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
     )
     target = codex_model.stream_reply_target(prepared.payload)
+    assert target is not None
     thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
     observer = _observer()
     observer._read(
@@ -2313,7 +2326,9 @@ def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
         }
     )
 
-    assert service_model.page_claim(page_dir)["turn"] == "codex-turn"
+    claim_record_2 = service_model.page_claim(page_dir)
+    assert claim_record_2 is not None
+    assert claim_record_2["turn"] == "codex-turn"
     [owed] = _obligations(page_dir)
     assert (owed["stage"], owed["condition"]) == ("picked_up", None)
 
@@ -2333,7 +2348,7 @@ def test_reconnect_closes_a_completed_stream_reservation(page_dir):
         "turn-complete",
         lifecycle=cleanup_model.session_record("codex-thread"),
     )
-    fold.reply_stream = Stream()
+    fold.reply_stream = cast(codex_model.AppServerReplyStream, Stream())
     observer.turns = {"turn-complete": fold}
     observer.running = "turn-complete"
 
@@ -2357,7 +2372,9 @@ def test_reconnect_closes_a_completed_stream_reservation(page_dir):
     )
 
     assert finished == [("completed", "Done.")]
-    assert service_model.page_claim(page_dir)["turn_closed"] is not None
+    claim_record_3 = service_model.page_claim(page_dir)
+    assert claim_record_3 is not None
+    assert claim_record_3["turn_closed"] is not None
     assert observer.turns == {}
     assert not observer.working()
 
@@ -2453,6 +2470,7 @@ def test_a_busy_codex_task_keeps_its_delivery_for_a_later_turn(
         codex_model.read_task_delivery("codex-thread", prepared.payload["id"]),
         codex_model.Offering,
     )
+    assert target is not None
     assert not thread_model.delivery_reply_reserved(
         "codex-thread", prepared.payload["id"], target
     )
@@ -2504,6 +2522,7 @@ def test_a_refused_turn_gives_up_the_reply_it_reserved(
     else:
         assert json.loads(str(rejected.value)) == refusal
 
+    assert target is not None
     assert not thread_model.delivery_reply_reserved(
         "codex-thread", prepared.payload["id"], target
     )
@@ -2536,6 +2555,7 @@ def test_an_unacknowledged_turn_keeps_the_reply_it_reserved(
     ):
         task_connection(endpoint).start_delivery(prepared.payload)
 
+    assert target is not None
     assert thread_model.delivery_reply_reserved(
         "codex-thread", prepared.payload["id"], target
     )
@@ -2554,6 +2574,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
     prepared = _codex_delivery(page_dir)
     payload = prepared.payload
     target = codex_model.stream_reply_target(payload)
+    assert target is not None
     thread_model.reserve_delivery_reply("codex-thread", payload["id"], target)
     admitted = cleanup_model.start_session_turn(
         "codex-thread", "leaf-turn", cleanup_model.session_record("codex-thread")
@@ -2579,7 +2600,9 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
     with pytest.raises(OSError, match="could not be opened"):
         turn.commit({"id": "leaf-turn", "status": "completed", "items": []})
 
-    assert service_model.page_claim(page_dir)["turn_closed"] is not None
+    claim_record_4 = service_model.page_claim(page_dir)
+    assert claim_record_4 is not None
+    assert claim_record_4["turn_closed"] is not None
     assert read_record(page_dir / "stream.json")["activity"] is None
     # The reservation is released too: a reply that faulted part-written holds one
     # nothing will ever commit, and every other writer waits behind it.
@@ -2602,6 +2625,7 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
     prepared = _codex_delivery(page_dir)
     payload = prepared.payload
     target = codex_model.stream_reply_target(payload)
+    assert target is not None
     thread_model.reserve_delivery_reply("codex-thread", payload["id"], target)
     observer = _observer()
     observer._read(
@@ -2644,7 +2668,9 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
         )
 
     assert observer.turns == {}
-    assert service_model.page_claim(page_dir)["turn_closed"] is not None
+    claim_record_5 = service_model.page_claim(page_dir)
+    assert claim_record_5 is not None
+    assert claim_record_5["turn_closed"] is not None
     assert not thread_model.delivery_reply_reserved(
         "codex-thread", payload["id"], target
     )
@@ -2781,7 +2807,7 @@ def test_an_active_task_whose_turn_is_not_named_records_no_turn(monkeypatch):
             }
         }
 
-    observer._send = send
+    monkeypatch.setattr(observer, "_send", send)
 
     class Socket:
         def __enter__(self):
@@ -2826,7 +2852,7 @@ def test_an_app_server_failure_cleans_up_its_streams_before_retrying(
             return True
 
     observer = _observer()
-    observer.stop_event = StopAfterFailure()
+    observer.stop_event = cast(threading.Event, StopAfterFailure())
     cleanup = []
 
     class Stream:
@@ -2839,7 +2865,7 @@ def test_an_app_server_failure_cleans_up_its_streams_before_retrying(
         "bound-turn",
         lifecycle=cleanup_model.session_record("codex-thread"),
     )
-    bound.reply_stream = Stream()
+    bound.reply_stream = cast(codex_model.AppServerReplyStream, Stream())
     observer.turns = {
         "bound-turn": bound,
         "user-turn": codex_model.TurnFold(
@@ -2849,7 +2875,9 @@ def test_an_app_server_failure_cleans_up_its_streams_before_retrying(
         ),
     }
     observer.started = True
-    observer._connect = lambda: (_ for _ in ()).throw(ConnectionError("offline"))
+    monkeypatch.setattr(
+        observer, "_connect", lambda: (_ for _ in ()).throw(ConnectionError("offline"))
+    )
 
     def fail_activity_cleanup(_session, turn=None, **_scope):
         cleanup.append(("activity", turn))
@@ -3196,7 +3224,9 @@ def test_one_subscription_commits_completion_before_the_start_response(
     assert len(starts) == 1
     assert not connection.working()
     assert connection.turns == {}
-    assert service_model.page_claim(page_dir)["turn_closed"] is not None
+    claim_record_6 = service_model.page_claim(page_dir)
+    assert claim_record_6 is not None
+    assert claim_record_6["turn_closed"] is not None
     assert [
         event["text"]
         for event in events_model.read_events(page_dir)
@@ -3270,9 +3300,9 @@ def test_an_uncertain_start_without_a_reply_reservation_survives_adapter_restart
         connection.start_delivery(prepared.payload)
     path = codex_model.record_path("codex-thread", prepared.payload["id"])
     with pytest.raises(codex_model.AppServerDeliveryUncertain):
-        codex_model.offer_delivery(
-            path, codex_model.read_record(path), transport="queue"
-        )
+        record_3 = codex_model.read_record(path)
+        assert isinstance(record_3, (codex_model.Collecting, codex_model.Offering))
+        codex_model.offer_delivery(path, record_3, transport="queue")
     connection.stop()
     connection = task_connection(endpoint)
     assert connection.start_delivery(prepared.payload)
@@ -3394,6 +3424,7 @@ def test_abandonment_recovery_releases_the_seat_and_preserves_manual_answers(
     """A crash after abandonment publication resumes its full receipt, including release."""
     prepared = _codex_delivery(page_dir)
     target = codex_model.stream_reply_target(prepared.payload)
+    assert target is not None
     thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
     path = codex_model.record_path("codex-thread", prepared.payload["id"])
     record = files_model.read_json(path)
@@ -3471,6 +3502,7 @@ def test_full_paginated_history_hydrates_an_accepted_delivery_omitted_from_resum
         cleanup_model.prompt_turn("codex-thread", "newer-turn")
     elif lifecycle == "resolved":
         target = codex_model.stream_reply_target(prepared.payload)
+        assert target is not None
         thread_model.cmd_resolve(page_dir, target["parent"])
     if restart:
         connection = _observer()
@@ -3856,6 +3888,7 @@ def test_manual_answer_retires_an_unknown_start_before_the_provider_becomes_idle
     record = files_model.read_json(path)
     record["state"] = "starting"
     cleanup_model.write_json(path, record)
+    assert target is not None
     thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
     cleanup_model.prompt_turn("codex-thread", "manual-turn")
     thread_model.post_reply(
@@ -3926,7 +3959,9 @@ def test_observer_continues_after_a_recovered_provider_completion(claimed):
             "turns": [{"id": "old", "status": "completed", "items": []}],
         }
     )
-    assert cleanup_model.session_record("s1")["turn_closed"] is not None
+    turn_record = cleanup_model.session_record("s1")
+    assert turn_record is not None
+    assert turn_record["turn_closed"] is not None
     observer._read(
         {
             "method": "turn/started",
@@ -3937,7 +3972,9 @@ def test_observer_continues_after_a_recovered_provider_completion(claimed):
         }
     )
     assert observer.running == "next"
-    assert cleanup_model.session_record("s1")["turn"] == "next"
+    turn_record_2 = cleanup_model.session_record("s1")
+    assert turn_record_2 is not None
+    assert turn_record_2["turn"] == "next"
 
 
 def test_provider_start_cannot_reopen_a_completed_named_turn(claimed):
@@ -4040,6 +4077,7 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
         status_before = status_and_stream(page_dir)
         connection._resume(thread, expected)
     assert cleanup_model.session_record("codex-thread") == winner
+    assert winner is not None
     assert winner["turn"] == "new-turn"
     assert connection.running == (
         "new-turn" if replacement == "provider_notification" else None
@@ -4103,7 +4141,9 @@ def test_a_matching_live_completion_allows_the_next_turn_without_prompt_hooks(pa
             }
         )
         assert connection.running == turn_id
-        assert cleanup_model.session_record("codex-thread")["turn"] == turn_id
+        turn_record_3 = cleanup_model.session_record("codex-thread")
+        assert turn_record_3 is not None
+        assert turn_record_3["turn"] == turn_id
         connection._read(
             {
                 "method": "turn/completed",
@@ -4155,7 +4195,9 @@ def test_completion_after_stop_advances_observation_without_a_running_fold(
         }
     )
     assert connection.running == "second-turn"
-    assert cleanup_model.session_record("codex-thread")["turn"] == "second-turn"
+    turn_record_4 = cleanup_model.session_record("codex-thread")
+    assert turn_record_4 is not None
+    assert turn_record_4["turn"] == "second-turn"
 
 
 @pytest.mark.parametrize("existing_fold", [False, True])
@@ -4304,9 +4346,9 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
     _codex_delivery(page_dir)
     connection = _observer()
     path, _ = codex_model.delivery_records("codex-thread")[0]
-    offered = codex_model.offer_delivery(
-        path, codex_model.read_record(path), transport="app-server"
-    )
+    record_4 = codex_model.read_record(path)
+    assert isinstance(record_4, (codex_model.Collecting, codex_model.Offering))
+    offered = codex_model.offer_delivery(path, record_4, transport="app-server")
     construct = connection._fold
     winner = {}
 
@@ -4407,7 +4449,9 @@ def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_di
             },
         }
     )
-    assert cleanup_model.session_record("codex-thread")["turn_closed"] is not None
+    turn_record_5 = cleanup_model.session_record("codex-thread")
+    assert turn_record_5 is not None
+    assert turn_record_5["turn_closed"] is not None
 
 
 @pytest.mark.parametrize(
@@ -4462,6 +4506,7 @@ def test_an_invalid_automatic_final_delivers_one_exact_correction(
             "original-turn",
             cleanup_model.session_record("codex-thread"),
         )
+        assert successor is not None
         assert successor["generation"] != lifecycle["generation"]
         fold.commit(terminal)
         assert fold.correction is None
@@ -4477,7 +4522,9 @@ def test_an_invalid_automatic_final_delivers_one_exact_correction(
                 "stop_hook_active": True,
             },
         )
-        assert cleanup_model.session_record("codex-thread")["turn_closed"] is not None
+        turn_record_6 = cleanup_model.session_record("codex-thread")
+        assert turn_record_6 is not None
+        assert turn_record_6["turn_closed"] is not None
     if broken_source == "hydrated":
         connection = _observer()
         terminal["items"].insert(0, _delivery_item(prepared.payload))
@@ -4493,12 +4540,14 @@ def test_an_invalid_automatic_final_delivers_one_exact_correction(
     assert "invalid" in correction["correction"]["diagnostic"]
     target = delivery_model.stream_reply_target(correction)
     assert target == delivery_model.stream_reply_target(prepared.payload)
+    assert target is not None
     assert target["responds"] == comment["id"]
     # Duplicate completion and history hydration must retain this exact repair.
     if broken_source == "hydrated":
         assert connection._reconcile(terminal)
     else:
         fold.commit(terminal)
+        assert fold.correction is not None
         assert fold.correction["id"] == correction["id"]
     assert len(codex_model.delivery_records("codex-thread")) == 1
     assert codex_model.prepare_codex_delivery(page_dir, harness).payload == correction

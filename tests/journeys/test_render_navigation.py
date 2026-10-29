@@ -8,7 +8,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf_dev.browser import show_resolved
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
@@ -58,6 +57,7 @@ from render_harness import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import show_resolved
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -135,11 +135,14 @@ def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
     pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
 
     page.locator("#right-head").focus()
+    assert page.evaluate(reading) == "right-reading"
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(panel_view("threads"))).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
+    # Closing the focused view leaves body active. It is no selected passage;
+    # the landing must read the remembered pane rather than scan the whole page.
     assert page.evaluate(reading) == "right-reading"
     page.keyboard.press("d")
     page.wait_for_function(f"() => ({tops})()[1] > 0")
@@ -1842,13 +1845,16 @@ _FOCUSED_INPUT = """() => {
     + 'input:is([type=search], [type=text], :not([type])):not(:disabled, [readonly])');
 }"""
 # Each element's painted keys and availability, held in the page as a Map keyed by
-# the element, so the reading after the repaint is compared node by node.
+# the element, so the reading after the repaint is compared node by node. Hidden
+# controls have no accessible keys; a native close can hide them before its deferred
+# close event refreshes their attributes. Compare the controls a reader can use.
 _PAINTED_KEYS = """() => {
   const painted = new Map();
   const walk = root => {
     for (const element of root.querySelectorAll('*')) {
-      painted.set(element, [element.getAttribute('aria-disabled'),
-                            element.getAttribute('aria-keyshortcuts')]);
+      if (element.checkVisibility())
+        painted.set(element, [element.getAttribute('aria-disabled'),
+                              element.getAttribute('aria-keyshortcuts')]);
       if (element.shadowRoot) walk(element.shadowRoot);
     }
   };

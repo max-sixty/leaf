@@ -103,6 +103,7 @@ dev = [
   "pytest-image-snapshot[pixelmatch]>=0.5.3",
   "ty>=0.0.94",
   "ruff>=0.17.3",
+  "datamodel-code-generator>=0.87.0",
 ]
 
 # An install never syncs the members, but uv reads their `pyproject.toml` files to

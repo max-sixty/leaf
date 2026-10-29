@@ -40,9 +40,10 @@ import stat
 import sys
 import tempfile
 import time
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic, TypeVar, cast
 
 if TYPE_CHECKING:
     from typing import TypeGuard
@@ -295,9 +296,10 @@ def kernel_registry() -> dict:
 
 # Every declared `Record` by its kind, which names one shape.
 RECORDS: dict = {}
+_RecordValue = TypeVar("_RecordValue", bound=Mapping[str, object])
 
 
-class Record:
+class Record(Generic[_RecordValue]):
     """One kind of JSON object Leaf keeps outside a page's log and document, such as
     a page's stream, a claim or a session's lifecycle.
 
@@ -331,26 +333,26 @@ class Record:
     def format(self) -> str:
         return f"leaf-{self.kind}/{self.since}"
 
-    def read(self, path: Path) -> dict | None:
+    def read(self, path: Path) -> _RecordValue | None:
         """The record at `path`, less its `format`, or None where this Leaf reads
         none there."""
         stored = stored_record(path)
         if stored is None or stored.pop("format", None) != self.format:
             return None
-        return stored
+        return cast(_RecordValue, stored)
 
-    def stored(self, value: dict) -> dict:
+    def stored(self, value: _RecordValue) -> dict:
         """`value` as `write` stores it, led by its `format`."""
         return {"format": self.format} | {
             name: item for name, item in value.items() if name != "format"
         }
 
-    def encode(self, value: dict) -> bytes:
+    def encode(self, value: _RecordValue) -> bytes:
         """The bytes `write` writes, for a writer that replaces several files at
         once or writes through a lease it holds."""
         return json_bytes(self.stored(value))
 
-    def write(self, path: Path, value: dict) -> dict:
+    def write(self, path: Path, value: _RecordValue) -> _RecordValue:
         """Atomically replace the record at `path`, preserving a regular target's
         mode, and return `value` as `read` will."""
         replace_bytes([(path, self.encode(value), not path.is_symlink())])

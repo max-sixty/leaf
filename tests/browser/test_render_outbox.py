@@ -967,11 +967,9 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # accepted event whose authoritative state is still incomplete.
     first_item = page.locator('[data-lf-margin-for="sug-refill"]')
     first_item.get_by_role("button", name=re.compile(r"^Undo accepting")).click()
-    expect(first_item.locator(".lf-margin-receipt")).to_have_text(
-        "Undo failed · Accepted"
-    )
+    expect_panel_says(page, "Wait for the current change to finish before undoing")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     assert _traffic(page).sends == sent
-    first_item.get_by_role("button", name="Cancel", exact=True).click()
 
     # A later refusal is another asynchronous reconciliation wake-up. It may not release
     # either hold merely because its delivery completed.
@@ -988,9 +986,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     lifted = True
     told(page)
     undo_offered(page)
-    page.locator("[data-lf-margin-for='sug-in-card']").get_by_role(
-        "button", name="Retry", exact=True
-    ).click()
+    suggestion_control(page, "sug-in-card", "accept").click()
     round_trip(page)
 
     assert [request["attempt"] for request in requests].count(first_attempt[0]) == 1

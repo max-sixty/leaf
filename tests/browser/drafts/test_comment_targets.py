@@ -356,11 +356,11 @@ def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
         # browser animation runs, so a Resume that does not cancel it loses them.
         page.evaluate("""async () => {
           const {executeCommand} = await window.__lfCheckApi();
-          const scrollBy = Element.prototype.scrollBy;
-          Element.prototype.scrollBy = function(options) {
-            const result = scrollBy.call(this, options);
+          const scrollTo = Element.prototype.scrollTo;
+          Element.prototype.scrollTo = function(options) {
+            const result = scrollTo.call(this, options);
             if (this === document.scrollingElement && options.behavior === 'smooth') {
-              Element.prototype.scrollBy = scrollBy;
+              Element.prototype.scrollTo = scrollTo;
               window.earlyResumeBoxes = ['#p3', '.lf-fab-input'].map(selector =>
                 document.querySelector(selector).getBoundingClientRect().toJSON());
               queueMicrotask(() => executeCommand('writing.resume'));

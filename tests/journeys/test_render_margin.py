@@ -501,7 +501,15 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
                 now,
             )
         assert now["scrolled"] == 0, now
-    wrapped = readings[-1]
+    # Layout is ready before the box's motion has carried Send to its landing.
+    # Keep the per-input stability readings, then measure the completed wrap.
+    page.wait_for_function(
+        """() => !document.querySelector('.lf-margin-preview')
+            .getAnimations({subtree: true}).some(animation =>
+                animation.playState === 'running' &&
+                animation.effect.getComputedTiming().iterations !== Infinity)"""
+    )
+    wrapped = page.evaluate(CARD_AND_REPLY)
     for edge in ("editorBottom", "cardBottom", "send"):
         assert wrapped[edge] > before[edge] + 30, (edge, before, wrapped)
 

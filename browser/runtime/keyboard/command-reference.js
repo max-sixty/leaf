@@ -68,7 +68,9 @@ import {
 } from "./bindings.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import {
+  completeRowKeySteps,
   completeRowSteps,
+  stepText,
   keySequenceModel,
   keySequenceTemplate,
   neutralStates,
@@ -386,9 +388,13 @@ function captureCommandReferenceCatalog() {
         const alternatives = (route ? [route.binding] : rowInfo.declared).filter(
           bindingEnabled,
         );
-        const steps = alternatives.length
-          ? [...rowInfo.sequence, ...completeRowSteps(rowInfo.referenceRow, route)]
+        const keySteps = alternatives.length
+          ? [
+              ...rowInfo.sequence.map((step) => [step]),
+              ...completeRowKeySteps(rowInfo.referenceRow, route),
+            ]
           : [];
+        const steps = keySteps.map(stepText);
         const isAvailable = executable.has(id);
         const spokenSteps = spokenReferenceSteps(
           rowInfo.row,
@@ -408,7 +414,7 @@ function captureCommandReferenceCatalog() {
           keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
           steps: Object.freeze(steps),
           keySequence: steps.length
-            ? keySequenceModel(steps, neutralStates(steps), spokenSteps)
+            ? keySequenceModel(steps, neutralStates(steps), spokenSteps, keySteps)
             : null,
           title,
           description,

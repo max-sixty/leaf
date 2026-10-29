@@ -304,7 +304,7 @@ HELD = {
     "listening": True,
     "session_alive": True,
     "claim_session": "served-records",
-    "claim_turn": "turn-1",
+    "turn": "turn-1",
 }
 QUIET = "2026-09-19T11:30:00+00:00"
 

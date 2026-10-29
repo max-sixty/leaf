@@ -13,8 +13,9 @@ no turn yet, open, closed and ended. Ending a session closes its turn too, and a
 turn is open only once it has an id, so `turn_open` and `turn_closed` read a record
 and a claim's view of it (`service.claim_reading`) alike, and `session_live` says
 whether the generation may open another. Code that holds a record or a claim asks
-these rather than reading its stamps; the page's served reading copies the stamps
-(`presence.presence_with_activity`) for activity to fold as dated evidence. Every
+these rather than reading its stamps. The page's served reading carries the claim's
+turn and stamps under the record's names (`presence.presence_with_activity`), so its
+readers ask these too, and activity folds the stamps as dated evidence. Every
 opening passes through `advance_turn`, which keeps the one rule the transitions
 share: a turn id the record holds closed never reopens.
 

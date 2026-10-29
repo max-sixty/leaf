@@ -342,9 +342,7 @@ class PageTransaction:
 
         reservation = self.stream["reply_reservations"].get(responds)
         claim = self.active_claim
-        if claim and reply_reservation_stands(
-            reservation, claim["id"], claim["turn"], claim["turn_closed"]
-        ):
+        if claim and reply_reservation_stands(reservation, claim["id"], claim):
             return reservation
         return None
 

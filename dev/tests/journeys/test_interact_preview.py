@@ -567,7 +567,7 @@ def test_preview_tracks_committed_layer_across_refused_source_edits(
     package = tmp_path / "package"
     package.mkdir()
     (package / "registry.json").write_text("{}")
-    theme = package / "theme.css"
+    theme = package / "overrides.css"
     theme.write_text(":root { --proof: 1; }")
     (tmp_path / "layer.json").write_text(
         json.dumps(["./" + os.path.relpath(package, ROOT)])
@@ -638,7 +638,7 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
     package = tmp_path / "elsewhere/package"
     package.mkdir(parents=True)
     (package / "registry.json").write_text("{}")
-    theme = package / "theme.css"
+    theme = package / "overrides.css"
     theme.write_text(":root { --package-proof: 1; }")
     selection = "./" + os.path.relpath(package, ROOT)
     page = tmp_path / "preview"
@@ -668,7 +668,7 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
             # The page's copy of the package takes the edit.
             assert (
                 "--package-proof: 2"
-                in (page / "packages" / "package" / "theme.css").read_text()
+                in (page / "packages" / "package" / "overrides.css").read_text()
             )
 
     monkeypatch.setattr(
@@ -761,7 +761,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     package = tmp_path / "package"
     package.mkdir()
     (package / "registry.json").write_text("{}")
-    theme = package / "theme.css"
+    theme = package / "overrides.css"
     theme.write_text(":root { --proof: 1; }")
     (tmp_path / "layer.json").write_text(
         json.dumps(["default", "./" + os.path.relpath(package, ROOT)])

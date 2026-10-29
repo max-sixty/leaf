@@ -1524,7 +1524,7 @@ def trial_family(root: Path) -> None:
     # add_test_widget frames every tag as a card. The slots draw no box of their own;
     # clearing their paragraph margins keeps a retired sibling from leaving a margin
     # trapped against the holder's frame. Geometry is not this family's subject.
-    with (package / "widgets.css").open("a") as theme:
+    with (package / "defaults.css").open("a") as theme:
         theme.write(
             "\nlf-current, lf-proposed "
             "{ display: block; margin: 0; padding: 0; border: none; "
@@ -2443,7 +2443,7 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
     declaration = element_declaration(tag, upgrade=upgrade)
     registry[tag] = declaration
     registry_path.write_text(json.dumps(registry, indent=2))
-    with (package / "widgets.css").open("a") as theme:
+    with (package / "defaults.css").open("a") as theme:
         theme.write(
             f"\n{tag} {{\n"
             "  display: block;\n"

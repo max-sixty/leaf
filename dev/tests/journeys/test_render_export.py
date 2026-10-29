@@ -602,7 +602,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     source = tmp_path / "detached.html"
     source.write_text(REPLAYED_PAGE)
     runtime = install_payload(tmp_path / "detached-runtime")
-    theme = runtime / "browser" / "theme.css"
+    theme = runtime / "browser" / "base.css"
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
     # The Codex task runs the preview as its own long-running command.
@@ -767,7 +767,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             source.read_text().replace("Rollout", "A watched revision", 1)
         )
     else:
-        theme = runtime / "browser" / "theme.css"
+        theme = runtime / "browser" / "base.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
     wait_for(

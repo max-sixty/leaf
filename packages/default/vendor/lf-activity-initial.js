@@ -12,7 +12,7 @@
     write(link, "href", href);
     if (href) write(link, "tabindex", null);
   }
-  function initialActivity(host, { offerElement, generatedElement, tabStore, keeps }) {
+  function initialActivity(host, { offerElement, offerActionElement, generatedElement, tabStore, keeps }) {
     const storageKey = ACTIVITY_VIEW + host.id;
     const saved = tabStore.get(storageKey);
     const reading = saved ? JSON.parse(saved) : { open: false, shown: "[]", label: "Show activity", news: false };
@@ -29,7 +29,7 @@
     const notice = (node) => {
       if (!node) return;
       drawing.notice = node;
-      offerElement(node, "lf-activity-news lf-thread-notice");
+      offerActionElement(node, "inline", "lf-activity-news");
     };
     const target = (row) => {
       if (row.thread)

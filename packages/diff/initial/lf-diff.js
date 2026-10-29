@@ -1,7 +1,7 @@
 /* An inline patch first paints as its source, a different height from the drawing
  * that replaces it. This counts what the drawing stands on and writes the counts on
  * the host, where the theme turns them into its reserved height ("First paint",
- * theme.css): each file's frame, and a row per source line and hunk separator, but
+ * base.css): each file's frame, and a row per source line and hunk separator, but
  * none for header lines or for a first hunk that starts the file. Prose files wrap
  * their rows (`overflowFor`), which only the width can say, so for those rows the
  * count is the greedy wrap of each row's text at the column the drawing will give

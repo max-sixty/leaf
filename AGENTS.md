@@ -180,7 +180,8 @@ share goes in the protocol reference for that boundary, which says what each sid
 relies on, not how one side provides it. A header also records
 the product decisions its module embodies and the alternatives they rejected; a
 change that reverses one rewrites that record and says so in its commit. A
-workflow for one kind of task goes in `/developing-leaf`.
+maintainer's workflow for one kind of task goes in a project skill such as
+`/developing-leaf`, not in the shipped `/leaf` skill.
 
 Don't copy into prose a list the code already keeps, such as the bundles in
 `vendor.mjs`; point to it, so a new member needs no edit. Where the prose must

@@ -11,8 +11,8 @@
  * face: an outer host declaration would outrank even its internal state rules.
  *
  * It is a default, and three things make it behave like one. It stands at this sheet's
- * head, which composes ahead of theme.css and every package sheet, so each component rule
- * that names the same property wins on ordinary cascade order; stated in theme.css, after
+ * head, which composes ahead of base.css and every package sheet, so each component rule
+ * that names the same property wins on ordinary cascade order; stated in base.css, after
  * this sheet, it beat them, and .lf-compose-submit drew near-black on Send and on Add
  * option instead of the accent. It keeps a class's specificity, so the element rules of the
  * layered sheets lose to it; the page's own rules are unlayered and win over it, as they
@@ -230,7 +230,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * an operation's press is inked by whether it is live, a pick's mark by whether it is
  * taken. A wash toward the ink leaves both of those readable and reads the same way on
  * the paper-white palette and the dark one — the joined option group's own answer to
- * this question, arrived at there for the same reason (packages/default/widgets.css).
+ * this question, arrived at there for the same reason (packages/default/defaults.css).
  *
  * An inset shadow rather than a background, because it composes instead of competing.
  * `background` is the one property a control's own dress is written in, and every layer
@@ -286,7 +286,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 /* A landing clears the sticky headers stacked over what it lands on. Its scroller's
    `scroll-padding` clears those over the whole scroller (the head room, a page tab
    strip); this margin clears the rest, those over part of it, such as a framed tab
-   set's strip or a diff's file header: the slot (`--lf-top`, theme.css) less what the
+   set's strip or a diff's file header: the slot (`--lf-top`, base.css) less what the
    band covers whole (`--lf-top-covered`). Content the band covers past, beside a page
    tab strip rather than under it, keeps no margin. The browser's own scroll to a
    target reads it, and so does the runtime's landing (landing-scroll.js), as one
@@ -312,7 +312,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    under a trace's toolbar, and a page tab strip, which stands wholly inside the band,
    was centred, 313px a key.
    So the margin is read from the slot. `--lf-top` less what the band covers whole
-   (`--lf-top-covered`, theme.css) is the headers stacked over the focused box that the
+   (`--lf-top-covered`, base.css) is the headers stacked over the focused box that the
    band does not count, so a landing clears them. A box in a header that sticks at its
    top (its sticky rule sets `--lf-head-inset: 0px`) stands at its own slot when stuck, so its margin
    also takes the band's room back (`--lf-head-inset`, none) and a control focused there
@@ -352,7 +352,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    all of them presses a user has to land on with a mouse, and none of them a
    control anybody chose the size of.
 
-   --aim-floor is the length, and theme.css asks the pointer query that sets it once,
+   --aim-floor is the length, and base.css asks the pointer query that sets it once,
    so a control cannot reach one floor without reaching the other. It is stated in this file because a button, a chip, a
    reaction and a margin entry stand in the page and in declared widget trees as well
    as in the chrome, and a floor written inside the chrome's scope left every one of
@@ -401,7 +401,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 ),
 .lf-btn,
 .button,
-.lf-thread-notice:is(button),
+button.lf-inline-action,
 .lf-react,
 .lf-margin-entry,
 .lf-command-reference-command,
@@ -432,7 +432,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   button.lf-icon-action,
   .lf-compose-submit,
   .lf-compose-dictate,
-  .lf-thread-notice:is(button),
+  button.lf-inline-action,
   button.lf-mark-action,
   button.lf-fp-face
 ) {
@@ -592,11 +592,12 @@ summary {
   );
   --lf-msg-edit-width: calc(var(--lf-msg-controls-width) + var(--sp-2));
   /* The room a held-news notice keeps at its end for the count of facts it drops
-     (`.lf-thread-news > span[data-lf-more]`, below). */
-  --lf-news-count-room: 16px;
-  /* The widest a primary reader's news notice stands, in a message head or a part,
-     its count's room included. */
-  --lf-primary-news-width: calc(5rem + var(--lf-news-count-room));
+     (`.lf-thread-news > span[data-lf-more]`, below), in the notice's own size. */
+  --lf-news-count-room: 1.6em;
+  /* The widest a news notice beside a message head's words stands, its count's room
+     included: a primary reader's, in a message head or a part, and a margin card's, in
+     its controls row (annotation-chrome.css), so the head keeps its author and time. */
+  --lf-news-width: calc(5rem + var(--lf-news-count-room));
 }
 .lf-thread-transcript {
   min-width: 0;
@@ -622,6 +623,13 @@ summary {
   syntax: "<color>";
   inherits: true;
   initial-value: transparent;
+}
+/* The room a head keeps for its message's controls (controls.css), typed so the
+   runtime reads it as a length (thread-card.js, `#fitMarginNews`). */
+@property --lf-msg-control {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
 }
 @property --lf-msg-arrival {
   syntax: "<number>";
@@ -666,7 +674,7 @@ summary {
    elsewhere (thread/primary-reader.js). */
 .lf-msg > .lf-msg-head:has(> .lf-primary-news) {
   position: relative;
-  --lf-msg-head-room: var(--lf-primary-news-width);
+  --lf-msg-head-room: var(--lf-news-width);
   padding-inline-end: var(--lf-msg-head-room);
 }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head:has(> .lf-primary-news) {
@@ -684,7 +692,7 @@ summary {
   box-sizing: border-box;
   inset-block-start: 0;
   inset-inline-end: var(--lf-msg-control, 0px);
-  max-inline-size: var(--lf-primary-news-width);
+  max-inline-size: var(--lf-news-width);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -771,6 +779,8 @@ summary {
 .lf-summary-text > :last-child {
   margin-bottom: 0;
 }
+/* A thread's disclosure, an inline press (controls.css): a progress run's "N steps" in
+   its message's head, and a retained quote's Full quote (floating-panel.js). */
 .lf-thread-disclosure {
   display: inline-flex;
   align-items: center;
@@ -778,12 +788,7 @@ summary {
   min-height: var(--aim-floor);
   max-inline-size: 100%;
   flex-shrink: 0;
-  border: 0;
   padding: 4px 0;
-  background: transparent;
-  color: var(--accent);
-  font: 600 11px/1.4 var(--sans);
-  cursor: pointer;
 }
 /* Progress belongs to the completing reply's metadata, or to the face of a run no
    reply folds, with no summary row. Flex wrapping keeps its complete label and hit
@@ -800,10 +805,6 @@ summary {
 /* The age can change without a gesture; keep its progress control at the row end. */
 :is(.lf-msg-head, .lf-thread-working-head) > .lf-progress-expand {
   margin-inline-start: auto;
-}
-.lf-thread-disclosure:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 .lf-summary-required {
   margin-top: 6px;
@@ -877,10 +878,6 @@ summary {
     }
   }
 }
-.lf-thread-disclosure[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
-}
 /* Held news and header words spend separate retained allocations. A receipt may
    change inside its metadata box, but cannot grow underneath the notice. */
 .lf-msg-head > .lf-held-header-item {
@@ -917,9 +914,8 @@ summary {
   > .lf-msg-head {
   anchor-name: --lf-thread-headline;
   margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
-  padding-inline-end: calc(
-    var(--lf-thread-notice-room) + var(--sp-2) + var(--lf-thread-message-control-room)
-  );
+  padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2));
+  --lf-msg-control: var(--lf-thread-message-control-room);
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
@@ -966,8 +962,12 @@ summary {
   display: inline-flex;
   flex: none;
   align-items: center;
+  block-size: var(--lf-icon-action-face);
   gap: 4px;
   margin-inline-start: auto;
+}
+.lf-thread-meta-actions > button {
+  block-size: 100%;
 }
 .lf-thread-controls > .lf-thread-meta-actions {
   min-height: var(--lf-thread-action-room);
@@ -1004,44 +1004,21 @@ summary {
   white-space: nowrap;
   text-align: start;
 }
-/* Unread and held news share one text face in chrome and declared widget trees.
-   Their color says whether the conversation can be opened normally or is waiting
-   behind a deliberate reveal. A notice button keeps its aim floor without a chip's
-   border, fill or padding; a label inside a disclosure keeps the disclosure's hit box.
-   Both use an underline on hover, declining the generic pressable's inset wash. */
-.lf-thread-notice {
-  color: var(--accent);
-  font: 700 10px/14px var(--sans);
-  white-space: nowrap;
-}
-.lf-thread-notice-news {
-  color: var(--danger);
-}
-button.lf-thread-notice {
-  appearance: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-}
-.lf-thread-notice:hover {
-  box-shadow: none;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-button.lf-thread-notice[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 1px;
-}
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).
    The row it appears in already stands at the height of the control beside it, the
    head controls row's Resolve or Reopen. Centred rather than on the row's baseline,
    it asks for none of the depth below the words. A seat that draws no thread shows it
-   in its controls row's place, at the height the runtime measured that row at. */
+   in its controls row's place, at the height the runtime measured that row at. It
+   wears the inline face (controls.css) on the line of a message's head, and states
+   that line's size, at a weight above the face's, because its box stands beside the
+   head rather than in it. */
 .lf-thread-news {
   flex: none;
   align-self: center;
+  white-space: nowrap;
+}
+button.lf-thread-news {
+  font-size: var(--t-6);
 }
 /* Each fact of the news has a span of its own (held-news.js, `newsNotice`). Where the
    notice is narrower than all of them, as when its room holds the news it first said,
@@ -1081,12 +1058,13 @@ button.lf-thread-notice[data-lf-focus-visible] {
   margin-inline-end: -1px;
 }
 /* While facts are dropped, the notice counts them on the words' line, in a room just
-   past their end: "+1" (held-news.js, `newsNotice`), since a finger never sees the
-   title that lists them. A placement that bounds the notice's width, and so may drop
-   facts, reserves that room from the notice's first paint, so the count arriving moves
-   nothing under the pointer. A placement that draws the notice whole, as a margin
-   card's controls row does, drops no fact and reserves no room. The count stays out
-   of the accessible name, which already says every fact. */
+   past the last fact it shows: "+1" (held-news.js, `newsNotice`), since a finger never
+   sees the title that lists them. A placement that bounds the notice's width, and so
+   may drop facts, reserves that room from the notice's first paint, so the count
+   arriving moves nothing under the pointer; a margin card's controls row reserves it
+   in its own rule (annotation-chrome.css). A placement that draws the notice whole, as
+   the floating panel's crumb does, drops no fact and reserves no room. The count stays
+   out of the accessible name, which already says every fact. */
 .lf-thread-content > .lf-thread-news,
 button.lf-primary-news {
   padding-inline-end: var(--lf-news-count-room);
@@ -1095,10 +1073,36 @@ button.lf-primary-news {
   content: attr(data-lf-more) / "";
   position: absolute;
   inset-block-start: 0;
-  inset-inline-start: 100%;
+  inset-inline-start: var(--lf-news-shown, 100%);
   inline-size: var(--lf-news-count-room);
   text-align: end;
   font-variant-numeric: tabular-nums;
+}
+/* Where even the first fact would be cut, the notice says one count of all that waits,
+   "2 new" or "+2" (held-news.js, `newsNotice`), at the words' start. The facts keep
+   their places, unseen, so the notice measures what it measured before; the title,
+   which says every fact, names the press while they are hidden. */
+.lf-thread-news > span[data-lf-short] > span {
+  visibility: hidden;
+}
+.lf-thread-news > span[data-lf-short]::before {
+  content: attr(data-lf-short) / "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  white-space: pre;
+  font-variant-numeric: tabular-nums;
+}
+.lf-thread-news > span[data-lf-short]::after {
+  content: none;
+}
+/* The counts are part of the press, but they stand out of the words' flow, where the
+   face's underline under the pointer (controls.css) doesn't reach, so they inherit
+   it, through the words. */
+.lf-thread-news > span,
+.lf-thread-news > span::before,
+.lf-thread-news > span::after {
+  text-decoration: inherit;
 }
 .lf-seat-news {
   display: flex;

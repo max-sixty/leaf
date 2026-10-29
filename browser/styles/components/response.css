@@ -138,7 +138,10 @@ leaf-composition-field {
    Send here, so Send is one line tall and its disc a square of that line (`--lf-field-row`, the aim floor
    at least), centred on the last row and clear of the row above, whether or not the
    corner is free; the box is as tall as its rows, so that row stands at the same
-   place above its foot however many there are. Rejected: showing it
+   place above its foot however many there are. Send reads that line as the field's
+   own, so a composer sets its words' face on the field, which the words inherit.
+   Over the words Send's box is the field's paper (`--lf-field-ground`), which a field
+   standing on other paper than a card's restates. Rejected: showing it
    on hovering the whole box, since the pointer rests there while typing and Send
    would cover the words at the corner most of the time; and taking presses as soon
    as it shows, which sent a press meant to place the caret. */
@@ -155,6 +158,7 @@ leaf-composition-field {
   }
   .lf-compose-field:has(> .lf-compose-submit) {
     --lf-field-row: 1lh;
+    --lf-field-ground: var(--card);
   }
   .lf-compose-field:has(> .lf-compose-submit) > .lf-compose-submit {
     --lf-send-height: max(var(--aim-floor), var(--lf-field-row));
@@ -197,7 +201,7 @@ leaf-composition-field {
      into that paper across an em, so the words it covers end softly rather than in a
      cut stroke beside its square. */
   .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit {
-    background: var(--card);
+    background: var(--lf-field-ground);
   }
   .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit::after {
     content: "";
@@ -205,11 +209,11 @@ leaf-composition-field {
     inset-block: 0;
     inset-inline: auto 100%;
     inline-size: 1em;
-    background: linear-gradient(to left, var(--card), transparent);
+    background: linear-gradient(to left, var(--lf-field-ground), transparent);
     pointer-events: none;
   }
   .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit::before {
-    background: var(--card);
+    background: var(--lf-field-ground);
   }
   .lf-compose-field[data-send-pointed]:has(> leaf-text:state(corner-taken))
     > .lf-compose-submit::before {
@@ -519,13 +523,17 @@ button.lf-media-open {
 .lf-response-control {
   filter: drop-shadow(var(--raise-1));
 }
+/* The words wear the message's face, so a box's lines break where its message's
+   will. */
+.lf-comment-box > leaf-composition-field > .lf-compose-field {
+  font: var(--msg-font);
+}
 .lf-comment-box > leaf-composition-field > .lf-compose-field > leaf-text {
   padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
   border: 0;
   border-radius: 0;
   background: transparent;
   color: var(--ink);
-  font: var(--t-5)/1.5 var(--sans);
   max-height: 50vh;
   overflow-y: auto;
 }

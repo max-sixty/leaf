@@ -675,9 +675,12 @@ export class ThreadView {
         name,
         need,
         spare: head.getBoundingClientRect().width - need,
-        // What the head gives up before its name.
+        // What the head gives up before its name: its time, and its controls' room
+        // where that isn't held whole (controls.css).
         yields:
-          parseFloat(style.getPropertyValue("--lf-msg-control")) + wordsWidth(time),
+          parseFloat(style.getPropertyValue("--lf-msg-control")) -
+          parseFloat(getComputedStyle(head, "::after").minInlineSize) +
+          wordsWidth(time),
       });
     }
     if (!heads.length || !notice.isConnected) {

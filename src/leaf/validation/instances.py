@@ -7,7 +7,6 @@ from leaf.gesture_words import leading_title_node
 from leaf.obligations import (
     encloses,
     local_obligation_entry,
-    quoted_in,
 )
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
@@ -276,13 +275,18 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     regions = [rec for rec in lf_elements if encloses(registry.get(rec["tag"], {}))]
     framed = {id(region): [] for region in regions}
     # A widget asks inside every frame around it, so a frame holding only a nested frame
-    # is as full as that one; the nearest still gives the obligation its prompt.
+    # is as full as that one; the nearest still gives the obligation its prompt. A
+    # sample's widgets ask nothing beyond it (obligations.py, `shown_in`), so the walk
+    # stops there and a frame inside the sample still counts them.
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
-        if not local_obligation_entry(entry) or quoted_in(rec, registry):
+        if not local_obligation_entry(entry):
             continue
         for holder in enclosing_widgets(rec):
-            if encloses(registry.get(holder["tag"], {})):
+            holder_entry = registry.get(holder["tag"], {})
+            if holder_entry.get("x-exhibit"):
+                break
+            if encloses(holder_entry):
                 framed[id(holder)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
@@ -292,8 +296,7 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         # question's place in the outline and in heading navigation.
         title = leading_title_node(document.authoring.node_of(region))
         titled = bool(title) and title["tag"] in {f"h{n}" for n in range(1, 7)}
-        # A quoted enclosing widget is a mention whose widgets ask nothing by design.
-        if not quoted_in(region, registry) and all(lacks for _, lacks in held):
+        if all(lacks for _, lacks in held):
             widgets = [
                 {
                     "at": element_at(rec["tag"], rec["attrs"].get("id", "")),

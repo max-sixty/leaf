@@ -751,6 +751,36 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     );
     padding-inline-end: var(--lf-news-count-room);
   }
+  /* When paging leaves too little room for a readable message head, the controls
+     keep their own line above the transcript. The subgrid then gives every head the
+     full reading width rather than shrinking its track below its contents. Cards
+     without paging keep their actions beside the head. */
+  @media (max-width: 30rem) {
+    .lf-margin-thread:has(.lf-margin-preview-nav) .lf-page-thread {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, max-content) auto auto;
+    }
+    .lf-margin-thread:has(.lf-margin-preview-nav)
+      .lf-page-thread
+      > .lf-margin-thread-controls {
+      grid-column: 1;
+      grid-row: 2;
+      justify-self: end;
+      margin-block-end: var(--sp-1);
+    }
+    .lf-margin-thread:has(.lf-margin-preview-nav) .lf-thread-transcript {
+      grid-row: 3;
+    }
+    .lf-margin-thread:has(.lf-margin-preview-nav) .lf-page-thread::after {
+      grid-row: 3;
+    }
+    .lf-margin-thread:has(.lf-margin-preview-nav) .lf-reply-space {
+      grid-row: 4;
+    }
+    .lf-margin-thread:has(.lf-margin-preview-nav) .lf-thread-reply {
+      grid-row: 5;
+    }
+  }
   /* A sticky head and its words paint the message's one animated ground.
      Shared message rules own wrapping, including progress disclosures below the
      capped metadata when the card's actions leave too little inline room. */

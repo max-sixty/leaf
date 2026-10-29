@@ -410,11 +410,11 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(
         ).to_be_visible()
 
 
-@pytest.mark.parametrize(("width", "touch"), [(390, False), (311, True)])
+@pytest.mark.parametrize(("width", "touch"), [(390, False), (311, True), (390, True)])
 def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     browser, serve, width, touch
 ):
-    """A narrow floating card keeps the full disclosure beside shared-target controls."""
+    """A narrow floating card keeps its disclosure readable and paging reachable."""
     url = serve(PANEL_PAGE)
     roots = [
         panel_comment(serve.page_dir, text, {"section": "lede"})
@@ -457,15 +457,18 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
 
     def expect_headers_clear_actions():
         geometry = card.evaluate("""card => ({
-          actions: card.querySelector('.lf-margin-thread-controls').getBoundingClientRect().left,
+          actions: card.querySelector('.lf-margin-thread-controls').getBoundingClientRect().toJSON(),
           heads: [...card.querySelectorAll('.lf-msg-head')]
             .filter(head => head.checkVisibility())
-            .map(head => head.getBoundingClientRect().right)
+            .map(head => head.getBoundingClientRect().toJSON())
         })""")
         assert geometry["heads"], geometry
-        assert all(right <= geometry["actions"] + 0.5 for right in geometry["heads"]), (
-            geometry
-        )
+        assert all(
+            head["right"] <= geometry["actions"]["left"] + 0.5
+            or head["top"] >= geometry["actions"]["bottom"] - 0.5
+            or head["bottom"] <= geometry["actions"]["top"] + 0.5
+            for head in geometry["heads"]
+        ), geometry
 
     expect_headers_clear_actions()
     originals = [
@@ -528,6 +531,10 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     expect(card.locator(".lf-msg").first).to_be_in_viewport()
     expect(collapse).to_be_focused()
     expect(originals[0]).to_be_in_viewport()
+    preview.get_by_role("button", name="Next thread", exact=True).click()
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("2/3")
+    preview.get_by_role("button", name="Previous thread", exact=True).click()
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/3")
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])

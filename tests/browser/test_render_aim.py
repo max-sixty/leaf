@@ -706,10 +706,8 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
         ),
     )
     resized(page, 1440, 900)
-    foot = page.evaluate(
-        """async () => (await window.__lfWidgetApi())
-          .shownWindow({gap: 8}).bottom"""
-    )
+    # This margin stands beside the panel, so its frame can reach the window foot.
+    foot = page.evaluate("innerHeight - 8")
     passage = page.locator("#passage")
     passage.evaluate(
         """(node, foot) => scrollBy({
@@ -723,6 +721,16 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     field = open_compact_comment(page)
     bar = page.locator(".lf-fab-bar")
     assert bar.get_attribute("data-lf-placement") == "right-start"
+    assert (
+        bar.evaluate(
+            """async node => {
+          const {left, right} = node.getBoundingClientRect();
+          return (await window.__lfWidgetApi())
+            .shownWindow({gap: 8, across: {left, right}}).bottom;
+        }"""
+        )
+        == foot
+    )
     resting = page.evaluate(SIDE_COMMENT)
     assert resting["bottom"] < foot - 20, (resting, foot)
     write(field, "\n".join(f"Line {n}" for n in range(6)))
@@ -794,9 +802,12 @@ def test_a_side_comment_s_words_and_send_ride_its_edges_as_it_grows(browser, ser
     passage.click(modifiers=["Alt"])
     open_compact_comment(page, "Line 0")
     bar = page.locator(".lf-fab-bar")
-    foot = page.evaluate(
-        """async () => (await window.__lfWidgetApi())
-          .shownWindow({gap: 8}).bottom"""
+    foot = bar.evaluate(
+        """async node => {
+          const {left, right} = node.getBoundingClientRect();
+          return (await window.__lfWidgetApi())
+            .shownWindow({gap: 8, across: {left, right}}).bottom;
+        }"""
     )
     # Lines until one more takes the box past the window's foot.
     lines = 1
@@ -1732,7 +1743,9 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     told(page)
 
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
-    expect(marker).to_have_attribute("aria-label", re.compile(r"^Haven't seen it yet,"))
+    expect(marker).to_have_attribute(
+        "aria-label", re.compile(r"^Still queued for \w+,")
+    )
     marker.hover()
     label = marker.locator(":scope > .lf-margin-entry-label")
     trace = page.locator('.lf-target-trace[data-for="jobs"]')

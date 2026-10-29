@@ -43,7 +43,7 @@ import {
   whileConnected,
   keeps,
   keepsText,
-  iconElement,
+  nameAction,
   layoutPx,
   mountSample,
   once,
@@ -207,7 +207,6 @@ customElements.define(
     #build() {
       this.#template = this.querySelector(":scope > template[data-sample]");
       if (!this.#template) return;
-      this.dataset.lfSampleLive = "";
       this.#frame = document.createElement("iframe");
       this.#frame.className = "lf-sample-frame";
       this.#frame.title = this.getAttribute("label") || "Leaf sample";
@@ -231,7 +230,7 @@ customElements.define(
       generatedElement(controls, { says: false });
       const actions = document.createElement("div");
       this.#reset = offerAction("symbol", "lf-sample-action", "Reset", {
-        icon: "retry",
+        action: "reset",
       });
       this.#reset.addEventListener("click", () => {
         if (this.#reset.ariaDisabled === "true") return;
@@ -239,7 +238,9 @@ customElements.define(
       });
       this.#status = offer("span", "lf-sample-status");
       this.#status.setAttribute("role", "status");
-      this.#full = offerAction("symbol", "lf-sample-action");
+      this.#full = offerAction("symbol", "lf-sample-action", undefined, {
+        action: "expand",
+      });
       this.#paintFull(false);
       this.#full.addEventListener("click", () => {
         if (isNativeLayer(this.#view)) this.#return();
@@ -291,12 +292,9 @@ customElements.define(
     }
 
     #paintFull(expanded) {
-      this.#full.ariaLabel = this.#full.title = expanded
-        ? "Return to page"
-        : "Full view";
-      this.#full.replaceChildren(
-        iconElement(expanded ? "collapse" : "expand", "lf-action-icon"),
-      );
+      nameAction(this.#full, expanded ? "collapse" : "expand", {
+        label: expanded ? "Return to page" : "Full view",
+      });
     }
 
     #setWindow(value) {

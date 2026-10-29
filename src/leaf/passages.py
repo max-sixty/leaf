@@ -96,22 +96,29 @@ def _markdown_dialect(added: bool):
     """The browser's safe Markdown dialect; `added` reads soft line breaks as hard
     ones, as a user-created child and a block body render them."""
     from markdown_it import MarkdownIt
+    from markdown_it.renderer import RendererHTML
     from mdit_py_plugins.tasklists import tasklists_plugin
 
-    parser = MarkdownIt("gfm-like", {"html": False, "breaks": added}).use(
+    class PageMarkdown(MarkdownIt):
+        def validateLink(self, url: str) -> bool:
+            return True
+
+    parser = PageMarkdown("gfm-like", {"html": False, "breaks": added}).use(
         tasklists_plugin
     )
+    assert parser.linkify is not None
     parser.linkify.set({"fuzzy_link": False})
     # The browser accepts syntax first, then removes unsafe link destinations while
     # retaining their label. Parse those links here too, where only visible text is read.
-    parser.validateLink = lambda _url: True
+    renderer = parser.renderer
+    assert isinstance(renderer, RendererHTML)
     # Nested image labels may retain entity/escape tokens after text joining.
-    parser.renderer.rules["text_special"] = parser.renderer.rules["text"]
+    renderer.rules["text_special"] = renderer.rules["text"]
 
-    def safe_image(tokens, idx, options, env):
+    def safe_image(_renderer, tokens, idx, options, env):
         token = tokens[idx]
         alt = _rendered_words(
-            parser.renderer.renderInline(token.children, options, env), image_alt=True
+            renderer.renderInline(token.children, options, env), image_alt=True
         )
         token.attrSet("alt", alt)
         if urlsplit(token.attrGet("src") or "").scheme not in (
@@ -121,12 +128,12 @@ def _markdown_dialect(added: bool):
             "mailto",
         ):
             return escape(alt)
-        return parser.renderer.renderToken(tokens, idx, options, env)
+        return renderer.renderToken(tokens, idx, options, env)
 
-    parser.renderer.rules["image"] = safe_image
-    link = parser.renderer.rules.get("link_open")
+    parser.add_render_rule("image", safe_image)
+    link = renderer.rules.get("link_open")
 
-    def safe_link(tokens, idx, options, env):
+    def safe_link(_renderer, tokens, idx, options, env):
         token = tokens[idx]
         if urlsplit(token.attrGet("href") or "").scheme not in (
             "",
@@ -142,19 +149,19 @@ def _markdown_dialect(added: bool):
         return (
             link(tokens, idx, options, env)
             if link
-            else parser.renderer.renderToken(tokens, idx, options, env)
+            else renderer.renderToken(tokens, idx, options, env)
         )
 
-    parser.renderer.rules["link_open"] = safe_link
+    parser.add_render_rule("link_open", safe_link)
 
-    def safe_link_close(tokens, idx, options, env):
+    def safe_link_close(_renderer, tokens, idx, options, env):
         return (
             ""
             if tokens[idx].meta.get("unsafe")
-            else parser.renderer.renderToken(tokens, idx, options, env)
+            else renderer.renderToken(tokens, idx, options, env)
         )
 
-    parser.renderer.rules["link_close"] = safe_link_close
+    parser.add_render_rule("link_close", safe_link_close)
     return parser
 
 
@@ -282,7 +289,7 @@ class _PassageParser:
         decided=None,
         rewrites=None,
         additions=None,
-        source=("page", None),
+        source: tuple[str, str | None] = ("page", None),
     ):
         self.registry = registry or {}
         self.decided = decided or {}
@@ -415,7 +422,7 @@ class _PassageParser:
                     break
                 if ancestor["upgrade"]:
                     break
-        provenance = None
+        provenance: tuple[str, str | None, int] | None = None
         if entry.get("x-verbatim"):
             provenance = (*self.verbatim_source, self.verbatim_owners)
             self.verbatim_owners += 1
@@ -558,7 +565,9 @@ def _walk(parser: "_PassageParser", node) -> None:
         ],
     )
     if parser.registry.get(node.tag, {}).get("x-text-format") == "markdown":
-        feed_markdown(parser, pre_body(node))
+        body = pre_body(node)
+        assert body is not None
+        feed_markdown(parser, body)
     else:
         for child in node.children:
             _walk(parser, child)
@@ -674,18 +683,6 @@ class SourceReading:
         from .obligations import obligation_sources
 
         return obligation_sources(self.document, self.registry)
-
-    @cached_property
-    def refused(self) -> bool:
-        """Whether this Leaf refuses a revision that captured this vocabulary
-        (`layer.incompatible_revision`). A page server asks it of the revision a tab
-        reads on every request (`http.PageEndpoint._revision_layer`), and the answer
-        walks the whole vocabulary, so a held reading takes it once."""
-        from .layer import incompatible_revision
-
-        # The refusal names the revision it was asked of, which only labels it:
-        # whether there is one depends on the vocabulary alone.
-        return incompatible_revision(0, self.registry) is not None
 
     @cached_property
     def passages(self) -> Passages:

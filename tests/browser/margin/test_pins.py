@@ -6,7 +6,6 @@ from math import hypot
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf_dev.commands import pins as pin_cases
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
 from render_cases_widgets import RAIL_BAND_PAGE
@@ -21,6 +20,7 @@ from render_harness import (
     pane_scroll_behavior,
     panel_control,
     panel_field,
+    press_visible,
     regions_side_by_side,
     resized,
     write,
@@ -30,6 +30,7 @@ from browser.margin import (
     _comment_on,
 )
 from leaf.render_checks import rendered
+from leaf_dev.commands import pins as pin_cases
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -494,7 +495,7 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
 
     toggle = panel_control(page, "command:annotations.toggle", at="annotate")
     expect(toggle).to_contain_text("Hide annotations")
-    toggle.tap()
+    press_visible(page, toggle, touch=True)
     expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
@@ -503,7 +504,7 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
 
     toggle = panel_control(page, "command:annotations.toggle", at="annotate")
     expect(toggle).to_contain_text("Show annotations")
-    toggle.tap()
+    press_visible(page, toggle, touch=True)
     expect(page.locator("html")).not_to_have_attribute(
         "data-lf-annotations", re.compile(".*")
     )

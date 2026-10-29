@@ -50,7 +50,8 @@
    arrival. Mechanical returns, programmatic arrivals and scrolling are not choices
    of another passage. Each consumer interprets that target in its own domain. */
 import { nextRender, sizeObserver } from "./rendering.js";
-import { landingBand, shownRect, skipped, userScrollport } from "./geometry.js";
+import { landingBand, shownRect, userScrollport } from "./geometry.js";
+import { skipped } from "./shown-box.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
@@ -134,8 +135,8 @@ export function registerReadingRegion({
 // scrolls. Its id is the authored id of the box or, for an only child, of the child of
 // `main` holding it, as a sidebar page's `aside` names that box, so a neighbour's
 // arrival or removal never renames it; an unnamed one takes its place among the unnamed
-// ones, in a namespace of its own. Chrome layout asks on every pass, since a revision can
-// replace `main`'s children and a resize can change which of them the stylesheet marks.
+// ones, in a namespace of its own. Document composition asks on every pass, since a
+// revision can replace `main`'s children and a resize can change which of them the stylesheet marks.
 const layoutRegions = new Map();
 const marked = (box) =>
   box.checkVisibility() &&
@@ -233,8 +234,8 @@ export const readingRegionFor = (node) => {
 let recentRegionId = null;
 let pageRegionId = null;
 // Chrome can focus body between pointerdown on unfocusable words and pointerup.
-// That focus belongs to the same press (focus.js, `pressing`); pointerdown has already
-// named its place.
+// That focus belongs to the same press while it is down (focus.js, `pressing`);
+// pointerdown has already named its place.
 const readingInputReaders = new Set();
 export const onReadingInput = (read) => readingInputReaders.add(read);
 const readingInput = (node) => {
@@ -247,7 +248,7 @@ const actedAt = (at, arriving) => {
     if (under(region.host, pageDocument())) pageRegionId = region.id;
   } else if (
     (at === document.body || under(at, pageDocument())) &&
-    !(arriving && at === document.body && pressing())
+    !(arriving && at === document.body && pressing()?.released === false)
   )
     recentRegionId = pageRegionId = null;
 };

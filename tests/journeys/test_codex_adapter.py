@@ -92,9 +92,9 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
         )
         assert codex_adapter_model.capture_batch("codex-thread", reading)
     record_path, record = current_codex_record("codex-thread")
-    prepared = codex_model.offer_delivery(
-        record_path, codex_model.read_record(record_path), transport="app-server"
-    )
+    record_2 = codex_model.read_record(record_path)
+    assert isinstance(record_2, (codex_model.Collecting, codex_model.Offering))
+    prepared = codex_model.offer_delivery(record_path, record_2, transport="app-server")
     record = files_model.read_json(record_path)
     record.update(
         state="opened", turn="taken", pending=list(range(len(record["batches"])))
@@ -239,7 +239,12 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     before_release = cleanup_model.session_record("codex-thread")
     release_codex_command(page, started, finished)
     after_release = cleanup_model.session_record("codex-thread")
-    assert service_model.page_claim(page)["generation"] == claim["generation"]
+    claim_record = service_model.page_claim(page)
+    assert claim_record is not None
+    assert claim is not None
+    assert claim_record["generation"] == claim["generation"]
+    assert after_release is not None
+    assert before_release is not None
     assert after_release["generation"] == before_release["generation"]
     assert after_release["turn"] == before_release["turn"]
     out, err = started.communicate(timeout=STATED_TIMEOUT)
@@ -256,7 +261,9 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             failure="the Codex adapter did not become live and listening",
         )
 
-        assert service_model.page_claim(page)["turn_closed"] is None
+        claim_record_2 = service_model.page_claim(page)
+        assert claim_record_2 is not None
+        assert claim_record_2["turn_closed"] is None
         append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": "hello adapter"}
         )
@@ -588,9 +595,9 @@ def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
             failure="delivery runtime replacement did not finish",
         )
         assert all(status == 0 for status, _out, _err in outcomes), outcomes
-        assert codex_adapter_model.running_adapter("codex-thread")["launcher"] == str(
-            PLUGIN_ROOT / "bin/leaf"
-        )
+        adapter_2 = codex_adapter_model.running_adapter("codex-thread")
+        assert adapter_2 is not None
+        assert adapter_2["launcher"] == str(PLUGIN_ROOT / "bin/leaf")
         append_carried_log_record(
             codex_claimed_page,
             {

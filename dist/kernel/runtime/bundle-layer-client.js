@@ -1,39 +1,6 @@
-import { CARET_KEYS, PRESSES, TEXT_BOX, WORKS, Z, controlNavigationKeys, focusRevision, focused, isNativeLayer, keeps, keepsText, nextRender, onCurrentLocation, onFocusVisibility, renderedParent, sizeObserver, takesLetters, under, x as x$1 } from "./bundle-dom-move.js";
-import { AsyncDirective, DELIVERY, Directive, PAGE_ROOT, PartType, describeFailure, directive, html, nothing, offlineInteractive, pageUrl, render, runtime, shownBox, tagsDeclaring } from "./bundle-geometry.js";
+import { ANNOUNCE, COMMANDS, PAGE_PAINT_ATTRIBUTE, actionIcon, actionName, actionOffers, commandsChangedOn, failureContext, failureOf, iconMarkup, isNativeLayer, nextRender, refuseCommands, renderedParent, showAction, under } from "./bundle-portable.js";
+import { AsyncDirective, CARET_KEYS, DELIVERY, Directive, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, coarsePointer, controlNavigationKeys, describeFailure, directive, focusDestination, focusRevision, focused, html, keeps, keepsText, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, pageUrl, pressIsKeyboardActivation, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, x } from "./bundle-layer-stack.js";
 
-//#region runtime/page-paint.js
-const PAGE_PAINT_ATTRIBUTE = Object.freeze({
-	class: "class",
-	obligation: "data-lf-obligation",
-	done: "data-lf-done",
-	restated: "data-lf-restated",
-	retired: "data-lf-retired",
-	settlement: "data-lf-state",
-	applied: "data-lf-applied",
-	reading: "data-lf-reading",
-	dataVersion: "data-lf-data-version",
-	source: "data-lf-source",
-	sourceRevision: "data-lf-source-revision",
-	userOverride: "data-lf-user-override",
-	presented: "data-lf-presented",
-	reported: "data-lf-reported",
-	upgraded: "data-lf-upgraded",
-	scrolls: "data-lf-scrolls",
-	moreBefore: "data-lf-more-before",
-	moreAfter: "data-lf-more-after",
-	scrollDirection: "data-lf-scroll-direction",
-	moreBelow: "data-lf-more-below",
-	goto: "data-lf-go-to-active",
-	traffic: "data-lf-traffic",
-	player: "data-lf-player",
-	kept: "data-lf-kept",
-	mediaWidth: "data-lf-media-width",
-	mediaHeight: "data-lf-media-height"
-});
-const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
-const pageUpgraded = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgraded);
-
-//#endregion
 //#region runtime/root-state.js
 const setRuntimeRootAttribute = (...args) => document.documentElement.lfInitial.setRuntimeRootAttribute(...args);
 const setRuntimeRootStyle = (...args) => document.documentElement.lfInitial.setRuntimeRootStyle(...args);
@@ -426,43 +393,6 @@ if (enabled) {
 }
 
 //#endregion
-//#region runtime/pointer.js
-let x = -1;
-let y = -1;
-const remember = (ev) => {
-	x = ev.clientX;
-	y = ev.clientY;
-};
-document.addEventListener("pointermove", remember, { capture: true });
-document.addEventListener("pointerdown", remember, { capture: true });
-const pointerAt = () => ({
-	x,
-	y
-});
-const coarsePointer = matchMedia("(pointer: coarse)");
-const hoveringPointer = matchMedia("(hover: hover)");
-const pressIsKeyboardActivation = (event) => event.type === "click" && !event.detail;
-const plainPress = (event) => event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
-let releaseClaimed = false;
-const claimReleaseClick = () => {
-	releaseClaimed = true;
-};
-document.addEventListener("pointerdown", () => {
-	releaseClaimed = false;
-}, { capture: true });
-document.addEventListener("click", (event) => {
-	if (!releaseClaimed || !event.isTrusted || pressIsKeyboardActivation(event)) return;
-	releaseClaimed = false;
-	event.preventDefault();
-	event.stopImmediatePropagation();
-}, { capture: true });
-function restorePointer(point) {
-	if (x !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return;
-	x = point.x;
-	y = point.y;
-}
-
-//#endregion
 //#region runtime/keyboard/bindings.js
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const GLYPH = {
@@ -737,6 +667,7 @@ function checked(rows, where, ready) {
 		if (!row) throw new TypeError(`${where}: row ${i + 1} is missing`);
 		named(row);
 		if (row.decision && row.control == null) throw new Error(`leaf: ${row.id} is a Decision command with no control`);
+		if (row.lands !== void 0 && typeof row.lands !== "function") throw new TypeError(`leaf: ${row.id} lands must be a function`);
 		if (row.native && !row.run) throw new Error(`leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`);
 		if (row.exit && (!row.run || row.touch || row.routes)) throw new Error(`leaf: ${row.id} is its stance's way out, which the panel's row offers in its own words, so it needs a run and no touch words or routes`);
 		if (row.touch && (!row.run || row.routes)) throw new Error(`leaf: ${row.id} stands in for its keys under a finger, so it needs a run and makes one press, with no routes`);
@@ -953,7 +884,7 @@ function reflectButton(control, candidates) {
 	const ref = new WeakRef(control);
 	let reading = candidates;
 	let failure = null;
-	const dispose = x$1(() => {
+	const dispose = x(() => {
 		if (reading) {
 			const read = reading;
 			reading = null;
@@ -990,6 +921,11 @@ function claimButton(control) {
 	if (control.disabled) control.disabled = false;
 	rememberScopedElement(control);
 }
+function runLanding(row, run, from) {
+	run();
+	const to = row.lands?.(from);
+	if (to) focusDestination(to, "move");
+}
 function wireButton(control) {
 	claimButton(control);
 	if (wiredButtons.has(control)) return;
@@ -1000,7 +936,7 @@ function wireButton(control) {
 		if (!command) return;
 		event.preventDefault();
 		if (command.scope.when && !command.scope.when() || !commandAvailable(command.row, command.entry === command.row ? null : command.entry)) return;
-		command.row.run(commandBinding(command.row, command.entry === command.row ? null : command.entry));
+		runLanding(command.row, () => command.row.run(commandBinding(command.row, command.entry === command.row ? null : command.entry)), control);
 	});
 }
 function wireDeclaredButtons(scope) {
@@ -1215,6 +1151,30 @@ const commandsOn = directive(class extends AsyncDirective {
 		if (detachScope(this.#element, this.#scope)) repaint();
 	}
 });
+const declared = /* @__PURE__ */ new WeakMap();
+addEventListener(COMMANDS, (event) => {
+	const element = commandsChangedOn(event);
+	const declaration = element.lfCommands ?? null;
+	const standing = declared.get(element);
+	if (declaration === (standing?.declaration ?? null)) {
+		paintKeys();
+		return;
+	}
+	if (!declaration) {
+		declared.delete(element);
+		if (detachScope(element, standing.scope)) repaint();
+		return;
+	}
+	try {
+		const scope = attachScope(element, isCommandScope(declaration) ? declaration.scope : declaredScope(declaration.title, declaration.rows, declaration));
+		declared.set(element, {
+			declaration,
+			scope
+		});
+	} catch (error) {
+		refuseCommands(event, error);
+	}
+});
 function commandScope(title, rows, options) {
 	const scope = {
 		...declaredScope(title, rows, options),
@@ -1317,7 +1277,7 @@ function reflectAvailabilityReaders() {
 	availabilityTracking?.();
 	let first = true;
 	let failure = null;
-	availabilityTracking = x$1(() => {
+	availabilityTracking = x(() => {
 		if (first) {
 			first = false;
 			try {
@@ -1366,7 +1326,7 @@ function reflectTracked(element) {
 	const ref = new WeakRef(element);
 	let first = true;
 	let failure = null;
-	const dispose = x$1(() => {
+	const dispose = x(() => {
 		if (first) {
 			first = false;
 			try {
@@ -1449,66 +1409,6 @@ function scopesFor(node) {
 const claimsEsc = (node) => scopesFor(node).some((scope) => scope.rows.some((row) => live(row) && bindings(row).includes("Escape")));
 
 //#endregion
-//#region runtime/icon-paths.js
-const SEND = "<path d=\"M8 13V3M4 7l4-4 4 4\"/>";
-const ICONS = {
-	activity: "<circle cx=\"8\" cy=\"8\" r=\"3\" fill=\"currentColor\" stroke=\"none\"/>",
-	add: "<path d=\"M8 3v10M3 8h10\"/>",
-	change: "<path d=\"M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13\"/>",
-	check: "<path d=\"m3 8.25 3.15 3.15L13 4.75\"/>",
-	comment: "<path d=\"M3 3.25h10v7H7.25L4 12.75v-2H3z\"/>",
-	copy: "<rect x=\"6\" y=\"6\" width=\"7\" height=\"7\" rx=\"1.25\"/><path d=\"M10 6V4.25C10 3.56 9.44 3 8.75 3h-4.5C3.56 3 3 3.56 3 4.25v4.5C3 9.44 3.56 10 4.25 10H6\"/>",
-	cross: "<path d=\"m4 4 8 8M12 4l-8 8\"/>",
-	dot: "<circle cx=\"8\" cy=\"8\" r=\"1.5\" fill=\"currentColor\" stroke=\"none\"/>",
-	down: "<path d=\"m4 6.25 4 4 4-4\"/>",
-	edit: "<path d=\"m3.25 10.75-.5 2.5 2.5-.5 6.9-6.9-2-2zM9.25 4.75l2 2\"/>",
-	expand: "<path d=\"M9.5 3H13v3.5M13 3 9.25 6.75M6.5 13H3V9.5M3 13l3.75-3.75\"/>",
-	collapse: "<path d=\"M13 3 9.25 6.75M9.25 3.25v3.5h3.5M3 13l3.75-3.75M3.25 9.25h3.5v3.5\"/>",
-	fit: "<path d=\"M6 3H3v3M10 3h3v3M3 10v3h3M13 10v3h-3\"/>",
-	fold: "<path d=\"M3 8h10M5.5 2.75 8 5.25l2.5-2.5M5.5 13.25 8 10.75l2.5 2.5\"/>",
-	more: "<circle cx=\"3.5\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"8\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12.5\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/>",
-	inbox: "<path d=\"M2.75 9.25h2.9l1 1.6h2.7l1-1.6h2.9M2.75 9.25 4.4 4h7.2l1.65 5.25v2.75H2.75z\"/>",
-	link: "<path d=\"M6.67 8.67a3.33 3.33 0 0 0 5.03.36l2-2a3.33 3.33 0 0 0-4.71-4.71l-1.15 1.14M9.33 7.33a3.33 3.33 0 0 0-5.03-.36l-2 2a3.33 3.33 0 0 0 4.71 4.71l1.14-1.14\"/>",
-	microphone: "<rect x=\"6\" y=\"2\" width=\"4\" height=\"7\" rx=\"2\"/><path d=\"M4 7.5v.75a4 4 0 0 0 8 0V7.5M8 12.25V14M6 14h4\"/><path class=\"lf-mic-slash\" d=\"M2.5 2.5l11 11\"/>",
-	next: "<path d=\"m6 3.5 4.5 4.5L6 12.5\"/>",
-	pause: "<path d=\"M5 3v10M11 3v10\"/>",
-	play: "<path d=\"m5 3 7 5-7 5z\"/>",
-	previous: "<path d=\"m10 3.5-4.5 4.5 4.5 4.5\"/>",
-	arrange: "<path d=\"M3 4.5h10M3 8h7M3 11.5h4\"/>",
-	all: "<path d=\"M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4\"/>",
-	pickup: "<path d=\"M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2\"/>",
-	question: "<path d=\"M5.6 6.1a2.5 2.5 0 1 1 3.1 2.45c-.7.2-.7.8-.7 1.2\"/><circle cx=\"8\" cy=\"12.35\" r=\".7\" fill=\"currentColor\" stroke=\"none\"/>",
-	reaction: "<circle cx=\"6.5\" cy=\"8.25\" r=\"4.25\"/><circle cx=\"5\" cy=\"7.25\" r=\".55\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"8\" cy=\"7.25\" r=\".55\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M4.75 9.25c.5.75 1.08 1.1 1.75 1.1s1.25-.35 1.75-1.1M11 4h4M13 2v4\"/>",
-	retry: "<path d=\"M12.5 5.25V2.75M12.5 2.75H10M12.35 3.1A5 5 0 1 0 13 9\"/>",
-	save: "<path d=\"M3 4.25A1.25 1.25 0 0 1 4.25 3h6.5L13 5.25v6.5A1.25 1.25 0 0 1 11.75 13h-7.5A1.25 1.25 0 0 1 3 11.75zM5.5 3v2.5h4V3\"/>",
-	search: "<circle cx=\"7\" cy=\"7\" r=\"3.75\"/><path d=\"m10 10 3 3\"/>",
-	send: SEND,
-	sent: SEND,
-	start: "<path d=\"M3.5 3v10M12.5 3.5 6 8l6.5 4.5z\"/>",
-	subtract: "<path d=\"M3 8h10\"/>",
-	unfold: "<path d=\"M3 8h10M5.5 5.25 8 2.75l2.5 2.5M5.5 10.75 8 13.25l2.5-2.5\"/>",
-	undo: "<path d=\"M5.25 4.25 2.75 6.5 5.25 8.75M3 6.5h5.5a4 4 0 0 1 4 4v1\"/>",
-	up: "<path d=\"m4 9.75 4-4 4 4\"/>",
-	waiting: "<circle cx=\"8\" cy=\"8\" r=\"5\"/><path d=\"M8 5v3.25l2 1.25\"/>"
-};
-const SVG = "http://www.w3.org/2000/svg";
-const iconMarkup = (icon) => {
-	const markup = ICONS[icon];
-	if (!markup) throw new TypeError(`Unknown Leaf icon: ${icon}`);
-	return markup;
-};
-function iconElement(icon, className = "lf-margin-entry-icon") {
-	const svg = document.createElementNS(SVG, "svg");
-	svg.setAttribute("viewBox", "0 0 16 16");
-	svg.setAttribute("focusable", "false");
-	svg.setAttribute("aria-hidden", "true");
-	svg.setAttribute("class", className);
-	svg.dataset.lfIcon = icon;
-	svg.innerHTML = iconMarkup(icon);
-	return svg;
-}
-
-//#endregion
 //#region runtime/icons.js
 function iconTemplate(icon, className = "lf-margin-entry-icon") {
 	return html`<svg
@@ -1520,27 +1420,28 @@ function iconTemplate(icon, className = "lf-margin-entry-icon") {
     .innerHTML=${iconMarkup(icon)}
   ></svg>`;
 }
+const actionTemplate = (action, className) => iconTemplate(actionIcon(action), className);
 
 //#endregion
 //#region runtime/widget-elements.js
 function reveal(el, mayReveal) {
 	const chain = [];
-	const pending = [];
+	const settling = /* @__PURE__ */ new Set();
 	let replacedView = false;
 	for (let a = el; a; a = renderedParent(a)) chain.push(a);
-	for (const a of chain.reverse()) {
+	chain.reverse();
+	for (const [at, a] of chain.entries()) {
 		if (!mayReveal()) break;
 		if (a.tagName === "DETAILS" && !a.open) a.open = true;
-		a.dispatchEvent(new CustomEvent("lf-reveal", { detail: {
-			target: el,
-			mayReveal,
-			replacedView: () => {
-				replacedView = true;
-			},
-			present: (ready) => ready?.then && pending.push(ready)
-		} }));
+		if (a.hasAttribute?.("popover") && !isNativeLayer(a)) showNativeLayer(a, { modal: false });
+		if (a.getAttribute?.("hidden") !== "until-found") continue;
+		const shown = [...a.parentNode?.children ?? []].filter((s) => !s.hidden);
+		a.dispatchEvent(new Event("beforematch", { bubbles: true }));
+		a.removeAttribute("hidden");
+		if (shown.some((sibling) => sibling.hidden)) replacedView = true;
+		for (const owner of chain.slice(0, at + 1)) if (owner.updateComplete?.then) settling.add(owner.updateComplete);
 	}
-	const ready = Promise.all(pending);
+	const ready = Promise.all(settling);
 	ready.catch(() => {});
 	return {
 		ready,
@@ -1562,41 +1463,6 @@ const dragging = (el, on) => {
 	hands.value = held;
 	paintKeysWithin(el);
 };
-const LAYOUT = "lf-layout";
-const layoutChanged = (el) => {
-	const pending = [];
-	el.dispatchEvent(new CustomEvent(LAYOUT, {
-		bubbles: true,
-		composed: true,
-		detail: { present: (ready) => ready?.then && pending.push(ready) }
-	}));
-	const ready = Promise.all(pending);
-	ready.catch(() => {});
-	return ready;
-};
-const measurements = /* @__PURE__ */ new WeakMap();
-const drawn = (el) => {
-	const box = shownBox(el);
-	return Boolean(box.width || box.height);
-};
-const unmeasured = sizeObserver((entries) => {
-	const taking = [];
-	for (const { target } of entries) {
-		if (!drawn(target)) continue;
-		unmeasured.unobserve(target);
-		taking.push(measurements.get(target));
-		measurements.delete(target);
-	}
-	for (const take of taking) take();
-});
-function measure(el, take) {
-	if (drawn(el)) {
-		if (measurements.delete(el)) unmeasured.unobserve(el);
-		return take();
-	}
-	measurements.set(el, take);
-	unmeasured.observe(el);
-}
 function worksInside(node, container) {
 	const parts = /* @__PURE__ */ new Set([container.localName]);
 	for (let grew = true; grew;) {
@@ -1647,15 +1513,20 @@ function elementDirective(name, write) {
 	});
 }
 const offered = elementDirective("offered", offerElement);
-const offerActionElement = (...args) => document.documentElement.lfInitial.offerActionElement(...args);
-function offerAction(role, className, label, { title, icon } = {}) {
-	const control = document.documentElement.lfInitial.offerAction(role, className, label, title === void 0 ? void 0 : { title });
-	if (icon) control.append(iconElement(icon, role === "mark" ? "lf-mark-icon" : "lf-action-icon"));
-	return control;
-}
+const { offerAction, offerActionElement } = actionOffers({
+	offerAction: (...args) => document.documentElement.lfInitial.offerAction(...args),
+	offerActionElement: (...args) => document.documentElement.lfInitial.offerActionElement(...args)
+});
 const offeredAction = elementDirective("offeredAction", offerActionElement);
-const selectableOfferElement = (node, role, cls) => document.documentElement.lfInitial.selectableOfferElement(node, role, cls);
-const selectableOffer = (role, cls, label) => document.documentElement.lfInitial.selectableOffer(role, cls, label);
+function nameAction(control, action, { label, title, className } = {}) {
+	const name = label ?? actionName(action);
+	keeps(control, "aria-label", name);
+	keeps(control, "title", title ?? name);
+	showAction(control, action, className);
+}
+const namedAction = elementDirective("namedAction", nameAction);
+const selectableOfferElement = (node, role, cls, face) => document.documentElement.lfInitial.selectableOfferElement(node, role, cls, face);
+const selectableOffer = (role, cls, label, face) => document.documentElement.lfInitial.selectableOffer(role, cls, label, face);
 const selectableOffered = elementDirective("selectableOffered", selectableOfferElement);
 const PRESSABLE = "[data-lf-offer]:not([data-lf-offer=\"\"])";
 function reachedForWords(el) {
@@ -1678,10 +1549,10 @@ function relabel(node, label, { says } = {}) {
 }
 const closeControl = ({ name, title = name, className = "" }) => offerAction("symbol", className, name, {
 	title,
-	icon: "cross"
+	action: "close"
 });
-function responseAction(control, { glyph = null, icon = null, label, behavior = "action", collapse = false }) {
-	if (Boolean(String(glyph ?? "").trim()) === Boolean(icon)) throw new TypeError("A response action needs exactly one glyph or icon");
+function responseAction(control, { glyph = null, action = null, label, behavior = "action", collapse = false }) {
+	if (Boolean(String(glyph ?? "").trim()) === Boolean(action)) throw new TypeError("A response action needs exactly one glyph or action");
 	control.classList.toggle("lf-response-control", true);
 	control.classList.toggle("lf-response-action", true);
 	keeps(control, "data-lf-behavior", behavior);
@@ -1689,7 +1560,7 @@ function responseAction(control, { glyph = null, icon = null, label, behavior = 
 	if (behavior !== "action" && !control.hasAttribute("aria-expanded")) control.setAttribute("aria-expanded", "false");
 	if (behavior === "action") control.removeAttribute("aria-expanded");
 	if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
-	render(html`${icon ? iconTemplate(icon) : html`<span class="lf-response-action-glyph" aria-hidden="true"
+	render(html`${action ? actionTemplate(action) : html`<span class="lf-response-action-glyph" aria-hidden="true"
               >${glyph}</span
             >`}<span class="lf-response-action-space" aria-hidden="true"> </span
       ><span class="lf-response-action-label">${label}</span>`, control);
@@ -1731,6 +1602,7 @@ function announce(msg) {
 		liveEl.append(msg);
 	}, 30);
 }
+addEventListener(ANNOUNCE, (event) => announce(event.detail));
 function showNotice(msg, background = null) {
 	presentNotice(msg, true);
 	showingBackground = background;
@@ -2103,6 +1975,11 @@ function exceptionText(reason, context = "") {
 	return `${context}: ${reason instanceof Error ? describeFailure(reason) : message ?? String(reason)}${message === void 0 ? "" : `\n${evidence}`}`;
 }
 window.addEventListener("error", (e) => {
+	const failure = failureOf(e);
+	if (failure) {
+		reportPageError(failure.reason, failureContext(failure.element));
+		return;
+	}
 	if (e.message?.startsWith("ResizeObserver loop")) return;
 	reportPageError(e.error?.stack ? e.error : `${e.message} (${e.filename}:${e.lineno})`);
 });
@@ -2111,4 +1988,4 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 //#endregion
-export { EVERYTHING, LAYOUT, LINK, LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, TEXT_ENTRY, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, layoutChanged, live, liveEl, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offerActionElement, offered, offeredAction, pagePresented, pageUpgraded, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };
+export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offerActionElement, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, postEvent, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, reveal, revealLayer, routedCommand, rowArrows, runLanding, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };

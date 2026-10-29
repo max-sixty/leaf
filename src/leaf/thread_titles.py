@@ -135,7 +135,7 @@ def title_request(page_dir: Path, message: str) -> tuple[str, str] | None:
         events = page.events
     thread_id = thread_names(events).get(message)
     thread = build_threads(events, active_enclosing(page_dir)).get(thread_id)
-    if thread is None or thread["title"] is not None:
+    if thread_id is None or thread is None or thread["title"] is not None:
         return None
     parts = []
     if quote := (thread["anchor"] or {}).get("quote"):

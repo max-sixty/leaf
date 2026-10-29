@@ -7,7 +7,7 @@ import { under, renderedUnder, shadowHost } from "../shadow.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { MessageView, messageReading } from "./messages.js";
 import { Transcript } from "./transcript.js";
-import { createReplyView, replyAvailable } from "./replies.js";
+import { createReplyView } from "./replies.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { generatedElement } from "../widget-elements.js";
 import { focusDestination } from "../focus.js";
@@ -42,7 +42,9 @@ import { turns } from "./model.js";
    the parts stand: a reply part's, or the one the presentation drawing them declares
    (selectors.js, `threadPart`), as the floating panel declares its field. A reply part takes
    the presentation's words for its box and its own landing of a send (replies.js,
-   `createReplyView`). The thread itself, where a walk or a notice lands the keyboard, is
+   `createReplyView`). It stands in a resolved thread too, where a reply reopens the
+   thread: the presentation gave the box its place, unlike a card, which would add a
+   row for it (replies.js, `replyAvailable`). The thread itself, where a walk or a notice lands the keyboard, is
    the drawing the presentation declares around the parts, as the panel's view is.
    The notice of what the reader holds back (held-news.js) stands where the
    presentation nominates it (`parts.news`), as the floating panel stands it among its
@@ -389,7 +391,7 @@ export function createPrimaryReader(
             let joined = false;
             // What the box reads, when it holds its sends and how a send lands are the
             // presentation's (replies.js, `createReplyView`), given with its nomination.
-            const { hint, hintAside, accessibleName, busy, sending, sent } =
+            const { hint, hintLead, accessibleName, busy, sending, sent } =
               item.options;
             // The part draws whichever row the view holds: its own, or the session's
             // row it takes from a view that can draw the thread no more, the user
@@ -405,7 +407,7 @@ export function createPrimaryReader(
               },
               editLast: rewritesOf(item.key).editLast,
               hint,
-              hintAside,
+              hintLead,
               accessibleName,
               busy,
               sending,
@@ -464,7 +466,6 @@ export function createPrimaryReader(
             message.provisional && message === item.thread.msgs.at(-1) ? "" : null,
           );
         } else {
-          keepsHidden(view.node, !replyAvailable(item.thread));
           if (nominated) view.notice.node.remove();
           else if (view.notice.node.parentNode !== view.node)
             move(view.node, view.notice.node, null);

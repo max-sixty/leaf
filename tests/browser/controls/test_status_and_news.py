@@ -70,9 +70,9 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
     )
 
     claim = record_claim(serve.page_dir, id="s", pid=os.getpid())
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(serve.page_dir, claim["id"])
-    )
+    lease_path = leases_model.waiter_lease_path(serve.page_dir, claim["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     with service_model.PageTransaction(serve.page_dir) as transaction:
         transaction.set_stream_activity(

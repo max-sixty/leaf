@@ -2,9 +2,11 @@
    that semantic intake and revision comparison read before behavior modules start. */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { render, nothing, html, LeafElement } from "/runtime/widget-api.js";
 import { authoredBody, initialRender, initialOrigin } from "/runtime/initial-render.js";
 import { unmarkedCopy } from "/runtime/initial-render.js";
-import { tabStore } from "/runtime/storage.js";
+import { tabStore } from "/runtime/tab-store.js";
+import { actionOffers } from "/runtime/icon-paths.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import {
   rememberAuthoredParents,
@@ -27,7 +29,7 @@ test("initial drawing and module adoption share nodes and restored tab values", 
     const control = context.offer("input", "early-input", undefined, "text");
     control.value = context.tabStore.get("initial-test");
     node.append(control);
-    return { control };
+    return { control, render: () => control };
   });
   const early = document.documentElement.lfInitial.paint(host);
   const adopted = initialRender(host);
@@ -51,12 +53,12 @@ test("nested initial drawings retain authored member order, node routes and sema
   const coordinator = document.documentElement.lfInitial;
   coordinator.register("lf-inner", (host, { offer }) => {
     host.replaceChildren(offer("div", "inner-face", "Drawn"));
-    return { host };
+    return { host, render: () => nothing };
   });
   coordinator.register("lf-outer", (host) => {
     host.setAttribute("status", "drawing");
     host.querySelector("lf-right").append(inner);
-    return { host };
+    return { host, render: () => nothing };
   });
   coordinator.paint(inner);
   coordinator.paint(outer);
@@ -102,7 +104,7 @@ test("a runtime arrival uses the same producer and preserves the frozen source",
       const control = offer("button", "later-button", "Run");
       offerElement(control, "later-button");
       node.append(control);
-      return { control };
+      return { control, render: () => control };
     },
   );
   const drawing = initialRender(host);
@@ -155,7 +157,7 @@ test("an arriving source root keeps its declared parent and exhibit fence", () =
   assert.equal(before.descriptors.get("arrival").quoted, true);
   document.documentElement.lfInitial.register("lf-arrival", (node, { offer }) => {
     node.append(offer("button", "arrival-button", "Run"));
-    return { node };
+    return { node, render: () => nothing };
   });
   initialRender(arriving);
   const after = stageWidgetDescriptors(arriving, { kind: "page", revision: 2 });
@@ -224,7 +226,8 @@ test("the contents drawing keeps its early parts through upgrade and keyed revis
     chrome: () => false,
     lends: true,
   };
-  const sections = live.update(reading);
+  render(live.render(reading), host, { host });
+  const sections = live.sections();
   assert.equal(live, early);
   assert.equal(host.querySelector("details"), disclosure);
   assert.equal(host.querySelector("summary"), summary);
@@ -240,7 +243,8 @@ test("the contents drawing keeps its early parts through upgrade and keyed revis
   const next = document.querySelector("h3");
   first.before(next);
   first.textContent = "Read the inventory";
-  const reordered = live.update(reading);
+  render(live.render(reading), host, { host });
+  const reordered = live.sections();
   assert.deepEqual(
     reordered.map(({ link }) => link),
     [links[0], links[2], links[1]],
@@ -251,7 +255,8 @@ test("the contents drawing keeps its early parts through upgrade and keyed revis
   assert.equal(live.scope(), null);
   document.querySelector("main").append(host);
   assert.equal(live.scope(), document.querySelector("main"));
-  assert.equal(live.update(reading)[1].link, links[2]);
+  render(live.render(reading), host, { host });
+  assert.equal(live.sections()[1].link, links[2]);
 });
 
 test("generated words say which kind they are, and a producer can't leave it unsaid", () => {
@@ -268,7 +273,7 @@ test("generated words say which kind they are, and a producer can't leave it uns
       generatedElement(declared, { says: true });
       node.append(heading, name, declared);
       assert.throws(() => generatedElement(document.createElement("p"), {}), TypeError);
-      return { heading, name, declared };
+      return { heading, name, declared, render: () => nothing };
     },
   );
   const { heading, name, declared } = document.documentElement.lfInitial.paint(host);
@@ -295,13 +300,91 @@ test("an authored body takes every child its host was written with, source intac
     const frame = document.createElement("section");
     frame.append(tools.offer("span", "bodied-label", "Label"), body);
     node.append(frame);
-    return { body };
+    return { body, render: () => frame };
   });
-  coordinator.register("lf-plain", () => ({}));
+  coordinator.register("lf-plain", () => ({ render: () => nothing }));
   const { body } = coordinator.paint(host);
   coordinator.paint(document.querySelector("lf-plain"));
   assert.deepEqual([...body.childNodes], written);
   assert.equal(authoredBody(host), body);
   assert.equal(authoredBody(document.querySelector("lf-plain")), null);
   assert.equal(unmarkedCopy(host).outerHTML, authored);
+});
+
+test("a parser template becomes the live element's same Lit root without losing native state", async () => {
+  const tag = "lf-retained-lifecycle";
+  const coordinator = document.documentElement.lfInitial;
+  coordinator.register(tag, (host) => ({
+    render: (label = "Before upgrade") => html`
+      <details open>
+        <summary>${label}</summary>
+        <input .value=${"Authored value"} />
+      </details>
+    `,
+  }));
+  const host = document.createElement(tag);
+  document.body.append(host);
+  coordinator.paint(host);
+  const disclosure = host.querySelector("details");
+  const input = host.querySelector("input");
+  disclosure.open = false;
+  input.value = "Reader's draft";
+  disclosure.open = true;
+  input.focus();
+  input.setSelectionRange(3, 7);
+  disclosure.open = false;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      static properties = { label: {} };
+      #view;
+      setup() {
+        this.#view = initialRender(this);
+        this.label = "After upgrade";
+      }
+      render() {
+        return this.#view.render(this.label);
+      }
+    },
+  );
+  await host.updateComplete;
+  assert.equal(host.querySelectorAll("details").length, 1);
+  assert.equal(host.querySelector("details"), disclosure);
+  assert.equal(disclosure.open, false);
+  assert.equal(host.querySelector("input"), input);
+  assert.equal(input.value, "Reader's draft");
+  assert.equal(input.selectionStart, 3);
+  assert.equal(input.selectionEnd, 7);
+  assert.equal(host.querySelector("summary").textContent, "After upgrade");
+  host.label = "A live update";
+  await host.updateComplete;
+  assert.equal(host.querySelector("input"), input);
+  assert.equal(input.value, "Reader's draft");
+  assert.equal(disclosure.open, false);
+  host.remove();
+});
+
+test("off Leaf, a producer gets both role constructors in prepaint's shapes", () => {
+  document.body.innerHTML = "<main><lf-plain-host></lf-plain-host></main>";
+  const host = document.querySelector("lf-plain-host");
+  const root = document.documentElement;
+  const leaf = root.lfInitial;
+  delete root.lfInitial;
+  try {
+    const drawing = initialRender(host, (_, tools) => {
+      const offers = actionOffers(tools);
+      const play = offers.offerAction("symbol", "play", "Play", { action: "play" });
+      const send = offers.offerAction("commit", "", "Send");
+      host.append(play, send);
+      return { play, send, render: () => nothing };
+    });
+    assert.equal(drawing.play.localName, "button");
+    assert.equal(drawing.play.type, "button");
+    assert.equal(drawing.play.getAttribute("aria-label"), "Play");
+    assert.ok(drawing.play.querySelector("svg"));
+    assert.equal(drawing.send.textContent, "Send");
+    assert.equal(drawing.send.getAttribute("aria-label"), null);
+  } finally {
+    root.lfInitial = leaf;
+  }
 });

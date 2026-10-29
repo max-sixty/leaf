@@ -10,6 +10,7 @@ from click.testing import CliRunner
 from interact_support import (
     add_test_widget,
     append_carried_log_record,
+    declare_on_page,
     record_claim,
 )
 from PIL import Image, ImageChops, ImageStat
@@ -91,6 +92,7 @@ from browser.threads import open_panel_thread
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
+from leaf.registry.storage import load_registry
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
 
@@ -211,6 +213,67 @@ def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve)
     assert code, "the summary had no target-picker hint"
     page.keyboard.type(code)
     expect(page.locator(".lf-live")).to_contain_text("Chosen list: Observed")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_facts_layout_belongs_to_definition_lists(request, serve, engine):
+    """A page's prose and cards keep their flow when their class is named facts.
+
+    Definition-list facts still pair their values and dock inside titled options.
+    The option's special rail must not narrow an ordinary paragraph either."""
+    source = leaf_page(
+        "Facts and prose",
+        """<h1>Queue review</h1>
+<div class="prose-box"><p class="facts" id="prose-facts"><b>What we know.</b>
+The queue recovered after reverting the timeout change.
+<b>The owner confirmed that the shorter connection timeout caused the incident.</b></p></div>
+<div class="facts prose-box" id="card-facts"><div>24 queued requests</div>
+<div>The oldest request is waiting for review.</div></div>
+<dl class="facts" id="pairs"><dt>Owner</dt><dd>Imani</dd>
+<dt>Budget</dt><dd>Four hours</dd></dl>
+<lf-options id="routes">
+<lf-option id="route-one"><strong>Keep the queue</strong>
+<dl class="facts" id="option-facts"><dt>Owner</dt><dd>Imani</dd>
+<dt>Budget</dt><dd>Four hours</dd></dl><p>Keep the current response budget.</p></lf-option>
+<lf-option id="route-two"><strong>Review the queue</strong>
+<p class="facts" id="option-prose">Keep this explanation in the option's full reading
+width while the owner checks the oldest requests.</p></lf-option>
+</lf-options>
+<dl class="facts authored-facts" id="authored-pairs"><dt>Owner</dt><dd>Imani</dd></dl>""",
+        head="""<style>
+.prose-box {inline-size:280px;overflow:hidden;}
+p.facts, div.facts {font-size:12px;}
+.authored-facts {display:block;}
+</style>""",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    paragraph = page.locator("#prose-facts")
+    assert paragraph.evaluate("""p => {
+      const range = document.createRange();
+      range.selectNodeContents(p);
+      const box = p.getBoundingClientRect();
+      return [...range.getClientRects()].every(r =>
+        r.left >= box.left - 1 && r.right <= box.right + 1);
+    }"""), "the prose was laid out outside its card"
+    title, note = page.locator("#card-facts > div").all()
+    assert note.bounding_box()["y"] >= (
+        title.bounding_box()["y"] + title.bounding_box()["height"]
+    )
+    terms = page.locator("#pairs dt").all()
+    values = page.locator("#pairs dd").all()
+    assert values[0].bounding_box()["x"] > terms[0].bounding_box()["x"]
+    assert values[0].bounding_box()["x"] == pytest.approx(
+        values[1].bounding_box()["x"], abs=1
+    )
+    docked = page.locator("#option-facts").bounding_box()
+    assert docked["x"] > page.locator("#route-one > strong").bounding_box()["x"]
+    prose = page.locator("#option-prose").bounding_box()
+    assert prose["width"] > page.locator("#route-two").bounding_box()["width"] * 0.75
+    authored = page.locator("#authored-pairs")
+    assert authored.locator("dd").bounding_box()["y"] >= (
+        authored.locator("dt").bounding_box()["y"]
+        + authored.locator("dt").bounding_box()["height"]
+    )
 
 
 def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, serve):
@@ -578,10 +641,13 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     the target on the strength of its entry. This rules out a consumer that knows one
     widget by name and silently misses the next."""
     url = serve(PICTURE_PAGE)
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry = load_registry(serve.page_dir)
     assert registry["lf-diagram"]["x-visual"], "this test needs the shipped declaration"
-    registry["lf-code"]["x-visual"] = "whole"  # a widget core has never heard of
-    (serve.page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_on_page(
+        serve.page_dir,
+        # A widget core has never heard of.
+        lambda registry: registry["lf-code"].update({"x-visual": "whole"}),
+    )
     page = open_page(browser, url)
 
     # The inner svg belongs to the renderer and carries generated ids; the anchor
@@ -751,6 +817,8 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
         },
     )
     page = open_page(browser, url)
+    # This compares overlay paint, independently of the thread entrance motion.
+    page.emulate_media(reduced_motion="reduce")
     stand_on_thread(page, "blocked-card-comment")
 
     card = page.locator("#lp-k-checks")
@@ -1527,6 +1595,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + '<div data-width="wide">Room.</div></span></div>'
         + '<div id="padded" style="margin-inline: -600px; padding-inline: 600px">'
         + '<div data-width="wide">Room.</div></div>'
+        + '<div id="pinned" style="position: fixed; inset: auto 0 0 0">Pinned.</div>'
     )
     column = open_page(browser, serve(leaf_page("Column", body + extras)))
     resized(column, 1726, 900)
@@ -1555,7 +1624,8 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # An obligation that spans its block is a breakout the theme grows, so the gate reads it
     # as one, even where it reaches further than a table of two columns does; a box the
     # page pulls out of the column by its margins, an inline one, or one it grows round
-    # its block by margins and padding of its own, still stands in the margin.
+    # its block by margins and padding of its own, still stands in the margin. A fixed
+    # box across the column's edges answers for itself, as it hangs off the window.
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
         ("past-column", "<div id=pulled>"),
@@ -1936,7 +2006,17 @@ def test_a_row_of_metrics_sets_every_figure_on_one_line(request, serve, engine):
                     "",
                 )
                 + tile.format("plain", "duration", "4 min", "")
-                + "</div>",
+                + "</div>"
+                '<div id="custom-metrics"><div class="metric" id="custom-metric">'
+                '<div>Pages per month</div><div class="number">37</div>'
+                "<small>Today’s configuration</small></div>"
+                '<dl class="metric" id="qualified-metric"><dt>Error rate</dt>'
+                "<dd><strong>0.42%</strong></dd><small>Baseline 0.31%</small></dl></div>",
+                head="""<style>
+#custom-metrics { display: grid; grid-template-columns: repeat(2, 1fr); }
+#custom-metrics .metric { padding: 12px; background: var(--card); }
+#custom-metrics .number { font-size: 29px; }
+</style>""",
             )
         ),
     )
@@ -1954,6 +2034,14 @@ def test_a_row_of_metrics_sets_every_figure_on_one_line(request, serve, engine):
     )
     assert figures[1]["lines"] > figures[0]["lines"], f"no label wraps: {figures}"
     assert len({f["figure"] for f in figures}) == 1, figures
+    # Neither a page's div.metric card nor an extra qualification fits the
+    # definition-list idiom's two-row subgrid.
+    for selector in ("#custom-metric", "#qualified-metric"):
+        custom = page.locator(f"{selector} > *").evaluate_all(
+            "elements => elements.map(element => element.getBoundingClientRect().toJSON())"
+        )
+        assert custom[0]["bottom"] <= custom[1]["top"] + 1, custom
+        assert custom[1]["bottom"] <= custom[2]["top"] + 1, custom
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -2893,7 +2981,7 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     separated table adds its padding outside the width it is given, so every row on
     every joined group stood 30px past its group, diagram or no diagram, the clip
     spending the overhang out of the pick's word-room. The box a wide widget gets
-    answers to the room and never to its content (contain: inline-size, theme.css),
+    answers to the room and never to its content (contain: inline-size, base.css),
     and the row keeps its reservation inside the width it states (box-sizing:
     border-box, packages/default/theme.css)."""
     source = FRAMED_WIDE_PAGE.replace(

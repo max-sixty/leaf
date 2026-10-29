@@ -13,7 +13,6 @@ from interact_support import (
     append_carried_log_record,
     append_command,
 )
-from leaf_dev.example_data import named_source
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
@@ -63,11 +62,13 @@ from render_harness import (
 from leaf import render_checks as render_checks_model
 from leaf.files import latest_revision
 from leaf.findings import Finding
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.revision_artifact import read_revision
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -540,8 +541,8 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
 def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
     """A notice the page raises on the rendering turn after the gate's last probe, in
     every attempt, is heard and confirmed by a second whole four-render attempt, and
-    the gate reports it once as recurring. A console warning beside it fails the gate
-    once per scheme however many attempts heard it."""
+    the gate reports it once as recurring. A console warning beside it is advice,
+    reported once per scheme however many attempts heard it."""
     pages = []
 
     def prepare(page):
@@ -552,9 +553,10 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
         )
         pages.append(page)
 
-    failures = render_gate_model.render_version(
+    reading = render_gate_model.render_version(
         primed(browser.unwatched, prepare), serve(LONG_PAGE)
-    ).failures
+    )
+    failures = reading.failures
 
     assert len(pages) == 8
     recurring = [
@@ -566,12 +568,12 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
     assert [failure.scheme for failure in recurring] == ["light"], failures
     assert recurring[0].values["text"].startswith("ResizeObserver loop"), recurring
     warnings = [
-        failure
-        for failure in failures
-        if failure.code == "console-warning"
-        and failure.values["text"] == "authored warning"
+        advice
+        for advice in reading.advice
+        if advice.code == "console-warning"
+        and advice.values["text"] == "authored warning"
     ]
-    assert len(warnings) == 2, failures
+    assert len(warnings) == 2, reading.findings
 
 
 def test_the_gate_passes_what_the_renderer_draws(browser, serve):
@@ -755,9 +757,14 @@ def test_page_fixture_renders(browser, serve, source):
     (`untouched_resize_findings`)."""
     url = serve(source)
     revision = latest_revision(serve.page_dir)
-    with preview_server(
-        serve.page_dir, read_revision(serve.page_dir, revision).document, revision
-    ) as preview:
+    assert revision is not None
+    snapshot = capture_page_snapshot(
+        serve.page_dir,
+        read_revision(serve.page_dir, revision).document,
+        revision,
+        url="/",
+    )
+    with preview_server(serve.page_dir, snapshot) as preview:
         gate = render_gate_model.render_version(browser, preview).failures
     # Reduced motion, which the still_page asks for, also holds the sort film still
     # while the scroll pass measures its writes.
@@ -811,7 +818,7 @@ def test_page_fixture_opens_without_firefox_console_warnings(
     response blocked as opaque. Every page of the corpus, each live sample loaded,
     leaves the console as `firefox_browser` requires: empty."""
     page = open_page(firefox_browser, serve(source))
-    for sample in page.locator("lf-sample[data-lf-sample-live]").all():
+    for sample in page.locator("lf-sample:has(> template[data-sample])").all():
         sample.scroll_into_view_if_needed()
         sample.evaluate(
             """sample => Promise.race([sample.ready, new Promise((_, reject) =>
@@ -879,7 +886,9 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     owners = wrapped("sessions")
     assert owners and all("Owners" in widths for widths in owners), advice
     phone = [a for a in advice if a.at == "<table id=options>"]
-    assert phone and all(a.widths[0] == 360 for a in phone), advice
+    assert phone and all(a.widths is not None and a.widths[0] == 360 for a in phone), (
+        advice
+    )
     assert len(squeezed) + len(owners) + len(phone) == len(advice), advice
 
 
@@ -1573,9 +1582,10 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
     it holds, and the side is resolved rather than string-matched, so `inline-start`
     is the same left edge. A float carried off the window's leading edge is drawn
     outside the root scrollport, which never scrolls before that edge, so only the
-    clipping reading sees it. Fixed placement answers for a box wholly outside the
-    column, not one crossing it; only the desktop leaves an outer gutter wider than
-    the 174px the fixed margin content takes.
+    clipping reading sees it. Fixed placement answers for a box wherever it stands,
+    outside the column or across its edge, since it hangs off the window, though one
+    drawn over the prose is still named for the words it covers; only the desktop
+    leaves an outer gutter wider than the 174px the fixed margin content takes.
 
     Words no mark can be shown on: an element with `display: contents` generates no
     box, and the runtime hangs a mark on the boxes it shows through instead. `#veiled`
@@ -1661,8 +1671,8 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
     assert not naming("fixed-margin"), (
         f"the fixed margin content was reported for standing where it was put: {failures}"
     )
-    assert reported("past-column", "<div id=fixed-half>"), (
-        f"a fixed box crossing the column escaped the gate: {failures}"
+    assert not reported("past-column", "<div id=fixed-half>"), (
+        f"a fixed box crossing the column was read as a spill: {failures}"
     )
     assert reported("unmarkable", "<div id=ghost>"), (
         f"the gate said nothing about words no mark can be shown on: {failures}"

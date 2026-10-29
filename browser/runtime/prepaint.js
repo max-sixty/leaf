@@ -420,8 +420,8 @@
     );
     return node;
   };
-  // Words an upgrade wrote, which the page's authored source lacks: the version diff
-  // looks past them, and they are a passage cell of their own. `says` is whether they
+  // Words an upgrade wrote, which the page's authored source lacks: the `wrote` reading
+  // leaves them out, and they are a passage cell of their own. `says` is whether they
   // are the page speaking (data-lf-said, quotable even inside chrome), a copy of words
   // the page says elsewhere ("echo", data-lf-echo), or neither; widget-elements.js,
   // over `relabel`, says why each answer matters and why none is assumed.
@@ -463,33 +463,46 @@
   // - `symbol`: a press drawn as one of Leaf's icons, named by its tooltip and
   //   accessible name (browser/AGENTS.md, "Visual grammar"): quiet at rest, the chip
   //   under a hovering pointer or visible focus.
-  // - `word`: a press that says what it does in words, quiet as a symbol is, a row of
-  //   a list or menu included. A toggle is a word whose `aria-pressed` the theme draws
-  //   as selected.
+  // - `word`: a press that says what it does in words, quiet as a symbol is. A toggle
+  //   is a word whose `aria-pressed` the theme draws as selected.
   // - `commit`: the one press on a surface that commits the user's work, framed in the
   //   accent.
   // - `mark`: a small symbol seated on the thing it acts on, at a corner or on a
   //   block's border toolbar, where a larger face would cover the thing.
+  // - `inline`: a press read as part of the line of words it stands in, such as a
+  //   thread's held news or a quote's Full quote, drawn as words in the accent at the
+  //   line's size with no frame. One that announces news waiting says so with
+  //   `data-lf-news`, which draws it in the danger ink.
+  // - `row`: one row of a list or menu, whose words are what the reader scans, so they
+  //   stand in the ink; the row under the pointer or the keys is washed, and the row
+  //   the list stands on (`aria-current`) wears the accent's stripe and tint.
   //
   // A difference that was only a past choice is not a role: a symbol once came bordered
-  // in some widgets and quiet in others, and a word framed in some, quiet in others and
-  // a list's row in a third, before each merged.
+  // in some widgets and quiet in others, a word framed in some, quiet in others and a
+  // list's row in a third, four presses among words drew four faces of their own, and
+  // seven lists drew their rows six ways, before each merged.
   const ACTION_FACES = {
     symbol: "lf-icon-action",
     word: "lf-btn",
     commit: "lf-btn primary",
     mark: "lf-mark-action",
+    inline: "lf-inline-action",
+    row: "lf-row",
+  };
+  const faceOf = (role) => {
+    const face = ACTION_FACES[role];
+    if (!face)
+      throw new TypeError(
+        `A control's role is one of ${Object.keys(ACTION_FACES).join(", ")}, not ${role}`,
+      );
+    return face;
   };
   // `label` names the press. A worded role shows it, and `offerAction` writes it as the
   // words; the element writer leaves the words to whoever owns the element's content,
   // such as a template. A symbol or mark says it as the accessible name and the
   // tooltip, `title` where the tooltip says more, such as the key that does the same.
   const offerActionElement = (node, role, cls, label, { title = label } = {}) => {
-    const face = ACTION_FACES[role];
-    if (!face)
-      throw new TypeError(
-        `A control's role is one of ${Object.keys(ACTION_FACES).join(", ")}, not ${role}`,
-      );
+    const face = faceOf(role);
     offerElement(node, cls ? `${face} ${cls}` : face);
     if (label !== undefined && (role === "symbol" || role === "mark")) {
       keepsAttribute(node, "aria-label", label);
@@ -509,17 +522,20 @@
       node.textContent = label;
     return node;
   };
-  const selectableOfferElement = (node, role, cls) => {
+  // `face` names the action role whose face a selectable press wears, such as a `row`
+  // whose words are the page's own.
+  const selectableOfferElement = (node, role, cls, face) => {
+    const classes = [face && faceOf(face), cls, "lf-ui lf-ui-face"].filter(Boolean);
     keepsAttribute(node, "role", role);
-    keepsAttribute(node, "class", cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face");
+    keepsAttribute(node, "class", classes.join(" "));
     keepsAttribute(node, "data-lf-gen", "1");
     keepsAttribute(node, "data-lf-offer", role);
     keepsAttribute(node, "data-lf-selectable-offer", "");
   };
 
-  const selectableOffer = (role, cls, label) => {
+  const selectableOffer = (role, cls, label, face) => {
     const node = document.createElement("span");
-    selectableOfferElement(node, role, cls);
+    selectableOfferElement(node, role, cls, face);
     node.tabIndex = 0;
     if (label !== undefined) node.textContent = label;
     return node;
@@ -1255,7 +1271,7 @@
   // The header a Layout sticks over its body, as a workspace does where the window is
   // too small to be its screen (layouts.css, "Workspace"): what the body stands under is
   // the header's height, which no CSS can read, so it is written here for the body's
-  // sticky-header slot (`--lf-top`, theme.css) to add. Which header sticks is the
+  // sticky-header slot (`--lf-top`, base.css) to add. Which header sticks is the
   // stylesheet's to say; this reads its computed position.
   const HEAD = "--lf-layout-head-h";
   const head = () => {
@@ -1358,6 +1374,8 @@
         throw new TypeError(
           `initial renderer for <${host.localName}> must be synchronous`,
         );
+      if (drawing !== null)
+        root.lfInitial.lit.render(drawing.render(), drawing.root ?? host, { host });
       drawings.set(host, drawing);
       return drawing;
     },

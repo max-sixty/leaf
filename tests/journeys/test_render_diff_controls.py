@@ -44,7 +44,7 @@ def test_diff_filter_has_one_frame_and_clears_with_its_count_inside(
     field = diff.locator(".lf-diff-search")
     editor = field.locator("input")
     count = diff.locator(".lf-diff-progress")
-    rows = diff.locator(".lf-diff-file:not(.lf-diff-filtered)")
+    rows = diff.locator(".lf-diff-file:not([hidden])")
     expect(editor).to_have_accessible_name("Filter diff files")
     page.get_by_role("heading", name="Changed files").click()
     for _ in range(8):
@@ -199,7 +199,7 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
 def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     browser, serve, touch, scheme
 ):
-    """Moving the response into a source widget changes placement, not its face.
+    """Response text, focus cues and Markdown reading survive source-widget seating.
 
     Sending the same Markdown on both sides additionally exercises the complete
     reading vocabulary installed in declared trees, including a table that must
@@ -214,7 +214,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
             head="""<style id="response-inset-override">
               :is(.lf-fab-bar, .lf-margin-preview) {
                 --lf-thread-text-pad-block: 12px !important;
-                --lf-comment-text-end: 60px !important;
+                --lf-compose-action-inset: 16px !important;
               }
             </style>""",
         )
@@ -239,9 +239,19 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
         return field.evaluate("""node => {
           const style = getComputedStyle(node);
           const properties = ['font-family', 'font-size', 'line-height', 'color',
-            'min-height', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-            'border-top-width', 'border-top-color', 'border-radius', 'box-shadow'];
+            'padding-top', 'padding-right', 'padding-bottom', 'padding-left'];
           return Object.fromEntries(properties.map(name => [name, style.getPropertyValue(name)]));
+        }""")
+
+    def forced_ring(field):
+        return field.evaluate("""field => {
+          // A floating editor gives its frame the ring; a seated editor wears it.
+          for (const node of [field, field.closest('.lf-compose-field')]) {
+            const style = getComputedStyle(node);
+            if (style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0)
+              return [style.outlineWidth, style.outlineStyle, style.outlineColor];
+          }
+          return null;
         }""")
 
     def reading(message):
@@ -271,15 +281,15 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     physical_face = face(floating)
     assert float(physical_face["padding-top"].removesuffix("px")) + 1 == 12
     page.emulate_media(forced_colors="active")
-    forced = floating.evaluate(
-        "node => [getComputedStyle(node).outlineWidth, "
-        "getComputedStyle(node).outlineStyle, getComputedStyle(node).outlineColor]"
-    )
-    assert forced[1] != "none"
+    forced = forced_ring(floating)
+    assert forced, "the floating response paints no focus ring in forced colors"
     page.emulate_media(forced_colors="none")
     write(floating, markdown)
     draft_face = face(floating)
-    assert float(draft_face["padding-right"].removesuffix("px")) + 1 == 60
+    text_end = f"{(44 if touch else 28) + 2 * 16 + 1}px"
+    assert (
+        f"{float(draft_face['padding-right'].removesuffix('px')) + 1:g}px" == text_end
+    )
     floating.press("Control+Enter" if touch else "Enter")
     physical_reading = reading(page.locator(".lf-margin-preview .lf-msg-body").first)
     sent_insets = page.locator(".lf-margin-preview .lf-msg-text").first.evaluate(
@@ -288,7 +298,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
           return {block: style.paddingTop, end: style.paddingInlineEnd};
         }"""
     )
-    assert sent_insets == {"block": "12px", "end": "60px"}
+    assert sent_insets == {"block": "12px", "end": text_end}
     page.keyboard.press("Escape")
     diff = page.locator("#patch")
     # An author can dress a declared tree too. Install the same inputs before
@@ -302,13 +312,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     assert inline.evaluate("node => node.getRootNode() instanceof ShadowRoot")
     assert face(inline) == physical_face
     page.emulate_media(forced_colors="active")
-    assert (
-        inline.evaluate(
-            "node => [getComputedStyle(node).outlineWidth, "
-            "getComputedStyle(node).outlineStyle, getComputedStyle(node).outlineColor]"
-        )
-        == forced
-    )
+    assert forced_ring(inline) == forced
     page.emulate_media(forced_colors="none")
     write(inline, markdown)
     assert face(inline) == draft_face

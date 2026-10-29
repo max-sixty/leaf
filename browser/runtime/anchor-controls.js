@@ -311,7 +311,7 @@ export function createAnchorControls({
               },
               {
                 key: `reaction:${root.id}:remove`,
-                icon: "undo",
+                action: "undo",
                 label: `Undo ${root.token} reaction`,
                 rank: "secondary",
                 className: "lf-react-remove",

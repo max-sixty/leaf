@@ -29,7 +29,14 @@
    the turn the user was reading, even when it is not the latest one. A thread opened
    for reading, on a card or in the panel's view, shows its first unread turn, else
    its latest (`showReturnTurn`). */
-import { seenRect, slotTop, stuckBox, userScrollport } from "../geometry.js";
+import { setScroll } from "../arrivals.js";
+import {
+  seenRect,
+  showsContents,
+  slotTop,
+  stuckBox,
+  userScrollport,
+} from "../geometry.js";
 import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -109,8 +116,8 @@ const returnTurn = (transcript, unread) => {
     ...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)"),
   ];
   let start = unread && turns.find((node) => node.dataset.message === unread);
-  while (start && !start.checkVisibility()) start = start.previousElementSibling;
-  return start ?? turns.findLast((node) => node.checkVisibility()) ?? null;
+  while (start && !showsContents(start)) start = start.previousElementSibling;
+  return start ?? turns.findLast((node) => showsContents(node)) ?? null;
 };
 
 // A thread opened for reading shows the turn the user comes back for: the end of the
@@ -309,7 +316,10 @@ export function followBoxGrowth(input) {
   const grew = height - (rowHeights.get(input) ?? height);
   rowHeights.set(input, height);
   const by = Math.max(0, Math.min(grew, covered(reply)));
-  if (by) scrollerFor(reply).scrollBy({ top: by, behavior: "instant" });
+  if (by) {
+    const box = scrollerFor(reply);
+    setScroll(box, { top: box.scrollTop + by });
+  }
   // A row pins only at its scroller's foot, so one the user scrolled past is brought back.
   if (!onScreen(reply)) revealWritingArea(held, input, reply);
 }

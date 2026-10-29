@@ -12,7 +12,6 @@ from interact_support import (
     append_command,
     refused_on,
 )
-from leaf_dev.browser import threads_tab
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -87,6 +86,7 @@ from leaf import schema as schema_model
 from leaf.registry.contract import RANK
 from leaf.render_checks import rendered
 from leaf.render_gate.scheme import console_finding
+from leaf_dev.browser import threads_tab
 
 DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 
@@ -143,14 +143,15 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     # Observe the instant after the immutable rejection publishes and seals, before
     # its queued imperative application. A later settled read cannot see an overclaim.
     page.evaluate("""async () => {
-      const {watchSemantic, readApplication, readApplicationPresentation} =
+      const {watchSemantic, readApplication, readApplicationPresentation, applicationPresented} =
         await window.__lfCheckApi();
       let previous = readApplication().effective.thread.all.length;
       watchSemantic(root => {
           const count = root.effective.thread.all.length;
           if (previous > 0 && count === 0) queueMicrotask(() => {
-            const {semanticEpoch, presentedEpoch, pending} = readApplicationPresentation();
-            window.rejectionPresentation = {semanticEpoch, presentedEpoch, pending};
+            window.rejectionPresentation = {
+              ...readApplicationPresentation(), presented: applicationPresented(),
+            };
           });
           previous = count;
         });
@@ -161,7 +162,8 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     round_trip(page)
     page.wait_for_function("window.rejectionPresentation !== undefined")
     reading = page.evaluate("window.rejectionPresentation")
-    assert reading["presentedEpoch"] < reading["semanticEpoch"], reading
+    assert reading["sealed"] is True, reading
+    assert reading["presented"] is False, reading
     assert "thread" in reading["pending"], reading
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
@@ -1855,7 +1857,8 @@ def test_a_complete_read_does_not_repaint_an_already_undone_settlement(browser, 
 def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve):
     """A later record-less action on the same declared unit supersedes the first.
     When one complete read accounts the held accept and also replays another tab's
-    reject, the older send continuation must not paint accept over that chronology."""
+    reject, the older send's answer must not paint accept over that chronology. The
+    press announced the accept when it was made, so what the page says isn't read."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -1893,8 +1896,10 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
         ("sug-refill", "reject"),
     ]
     held[0].fulfill(response=accepted_answer)
-    page.wait_for_timeout(100)
-    expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
+    round_trip(page)
+    rendered(page)
+    assert page.locator("#sug-refill").get_attribute("data-lf-state") == "reject"
+    assert page.locator("#sug-refill lf-new").is_hidden()
     page.unroute("**/api/event")
 
 

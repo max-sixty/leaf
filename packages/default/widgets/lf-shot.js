@@ -37,6 +37,7 @@
 // A containing widget can create a pair absent from the authored document.
 import "/vendor/lf-shot-initial.js";
 import {
+  setScroll,
   afterPresentation,
   announce,
   once,
@@ -49,12 +50,11 @@ import {
   closeNativeLayer,
   isNativeLayer,
   initialRender,
+  render,
   nextFrame,
   isCanonicalMediaUrl,
   layoutChanged,
-  commands,
   keeps,
-  paintKeys,
   plainPress,
   scopedMediaUrl,
   widgetController,
@@ -63,6 +63,7 @@ import {
   sizeObserver,
   registerReadingRegion,
   compoundReadingRegionId,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 let comparing = Promise.resolve();
@@ -158,7 +159,7 @@ customElements.define(
               peer.scrollLeft !== viewport.scrollLeft ||
               peer.scrollTop !== viewport.scrollTop
             )
-              peer.scrollTo({
+              setScroll(peer, {
                 left: viewport.scrollLeft,
                 top: viewport.scrollTop,
                 behavior: "instant",
@@ -352,19 +353,23 @@ customElements.define(
           if (dragged || handleOf(event) || !plainPress(event)) return;
           comparison.position = comparison.position > 50 ? 0 : 100;
         });
-        commands(comparison, "On a screenshot divider", [
-          {
-            id: "screenshot.adjust",
-            keys: ["ArrowLeft", "ArrowRight"],
-            repeat: true,
-            title: "adjust the comparison",
-          },
-          {
-            id: "screenshot.edge",
-            keys: ["Home", "End"],
-            title: "show before or after",
-          },
-        ]);
+        comparison.lfCommands = {
+          title: "On a screenshot divider",
+          rows: [
+            {
+              id: "screenshot.adjust",
+              keys: ["ArrowLeft", "ArrowRight"],
+              repeat: true,
+              title: "adjust the comparison",
+            },
+            {
+              id: "screenshot.edge",
+              keys: ["Home", "End"],
+              title: "show before or after",
+            },
+          ],
+        };
+        commandsChanged(comparison);
         this.#drawing.canvas.append(comparison);
         this.#comparison = comparison;
         void comparison.updateComplete.then(() => this.#paintHandle());
@@ -393,9 +398,9 @@ customElements.define(
 
     #paint() {
       if (!this.#drawing) return;
-      this.#drawing.paint();
+      render(this.#drawing.render(), this, { host: this });
       this.#paintHandle();
-      paintKeys();
+      commandsChanged(this);
     }
 
     async #markDifference(capture) {

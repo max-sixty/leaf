@@ -22,6 +22,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
@@ -73,8 +74,9 @@ from leaf.findings import Finding
 from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
-from leaf.registry.storage import load_registry
-from leaf.revision_artifact import active_enclosing
+from leaf.registry.storage import load_registry, read_page_registry
+from leaf.revision_artifact import active_enclosing, read_artifact
+from leaf.runtime_selection import execution_identity
 from leaf.served_state import page as served_page
 from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
@@ -160,13 +162,19 @@ def append_carried_log_record(page_dir, event):
     return events_model.append_event(page_dir, record)
 
 
+def revision_root(page_dir: Path, revision: int) -> str:
+    """Where a page's server answers revision `revision`'s resources: under the
+    identity of the runtime and layer it executes (`http.PageEndpoint._named_root`)."""
+    name = files_model.revision_path(page_dir, revision).stem
+    return f"/revisions/{name}/{execution_identity(read_artifact(page_dir, revision))}"
+
+
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
     """Write revision `revision` of `data` under the page's current registry.
 
     A shortcut past `page stamp` for a test that stages history directly: it
     runs no gate and no activation, and refuses a revision number already taken."""
     from leaf.passages import SourceReading
-    from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import capture_artifact, write_artifact
     from leaf.structure import SourceDocument
 
@@ -499,38 +507,73 @@ def install_payload(destination):
 
 
 def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
-    """Record another page protocol in the page's vendored `$events`, and return it.
+    """Record another page protocol in the page's layer record, and return it.
 
-    The state a breaking Leaf update leaves a page in: its layer is the one an
-    earlier `page init` copied, at an older number this Leaf no longer speaks, or
-    with `newer`, one a later Leaf vendored. Only the number changes, which is all
-    the comparison reads, and the file is replaced rather than written through, as
-    every file a lent page may share with its template has to be.
+    The state a breaking Leaf update leaves a page in: an earlier `page init`
+    recorded an older number this Leaf no longer speaks, or with `newer`, a later
+    Leaf recorded a higher one. The file is replaced rather than written through,
+    as every file a lent page may share with its template has to be.
     """
-    stamp = page_dir / "registry.json"
-    registry = json.loads(stamp.read_text(encoding="utf-8"))
-    foreign = registry["$events"]["protocol"] + (1 if newer else -1)
-    registry["$events"]["protocol"] = foreign
-    cleanup_model.write_json(stamp, registry)
+    from leaf.registry.storage import LAYER, layer_record
+
+    path = page_dir / schema_model.LAYER_FILE
+    record = layer_record(page_dir)
+    assert record is not None
+    foreign = record["protocol"] + (1 if newer else -1)
+    path.unlink()
+    LAYER.write(path, {**record, "protocol": foreign})
     return foreign
 
 
-def vendored_before_a_key_rename(page_dir: Path) -> None:
-    """Spell `x-word` as `x-noun`, as if that were its name before a rename, in the
-    page's layer and in every registry its revisions captured: in `$keys` and in each
-    entry that declares it, `lf-ask`'s among them. The state an older Leaf leaves
-    a page in, at the same protocol; files are replaced rather than written through."""
-    for path in [
-        page_dir / "registry.json",
-        *page_dir.glob("revisions/*/resources/registry.json"),
-    ]:
-        registry = json.loads(path.read_text(encoding="utf-8"))
-        assert "x-word" in registry["$keys"]
-        for entry in [registry["$keys"], *registry.values()]:
-            if isinstance(entry, dict) and "x-word" in entry:
-                entry["x-noun"] = entry.pop("x-word")
+def declare_on_page(page_dir: Path, mutate) -> None:
+    """Apply `mutate` to the page's vocabulary as the page's own declarations.
+
+    A page's layer is the Leaf's own (`layer.selected_layer`), so a test that needs
+    a vocabulary the shipped layer lacks declares it where an author would, in
+    `page/registry.json`: each entry `mutate` changes or adds, whole, and each `$`
+    fact by the members it changes, which merge over the layer's, a map member by
+    merge-patch (`registry.layer.merge_layer_declarations`). `mutate` sees the
+    declarations the page already makes."""
+    from copy import deepcopy
+
+    from leaf.registry.layer import merge_layer_declarations
+
+    path = page_dir / "page" / "registry.json"
+    declarations = json.loads(path.read_text()) if path.is_file() else {}
+    before = deepcopy(
+        {
+            key: value
+            for key, value in load_registry(page_dir).items()
+            if key != "$layer"
+        }
+    )
+    merge_layer_declarations(before, deepcopy(declarations))
+    after = deepcopy(before)
+    mutate(after)
+    for key, value in after.items():
+        if value == before.get(key):
+            continue
+        if key.startswith("$") and isinstance(before.get(key), dict):
+            members = declarations.setdefault(key, {})
+            for member, item in value.items():
+                earlier = before[key].get(member)
+                if item == earlier:
+                    continue
+                if isinstance(item, dict) and isinstance(earlier, dict):
+                    patch = members.get(member)
+                    members[member] = {
+                        **(patch if isinstance(patch, dict) else {}),
+                        **{k: v for k, v in item.items() if earlier.get(k) != v},
+                        **{k: None for k in earlier.keys() - item.keys()},
+                    }
+                else:
+                    members[member] = item
+        else:
+            declarations[key] = value
+    path.parent.mkdir(exist_ok=True)
+    if path.is_file():
         path.unlink()
-        cleanup_model.write_json(path, registry)
+    path.write_text(json.dumps(declarations))
 
 
 PAGE = """<!doctype html>
@@ -655,12 +698,17 @@ def command_findings(*args) -> list[Finding]:
     """The findings the refusal of the leaf command `args`, run in process, carries:
     none where the command succeeds."""
     result = CliRunner().invoke(cli_model.cli, [*map(str, args)], standalone_mode=False)
-    return [] if result.exception is None else result.exception.__cause__.findings
+    if result.exception is None:
+        return []
+    cause = result.exception.__cause__
+    assert isinstance(cause, Refused)
+    return list(cause.findings)
 
 
 def read_page_data(page_dir) -> dict:
-    """Every source the page records, judged against the page's own layer."""
-    return data_model.read_data(page_dir, load_registry(page_dir))
+    """Every source the page records, judged against the vocabulary a write to it
+    takes: the page's layer with its own declarations (`data._write_source`)."""
+    return data_model.read_data(page_dir, read_page_registry(page_dir).registry)
 
 
 def declare_data_input(
@@ -675,13 +723,10 @@ def declare_data_input(
     activate=True,
 ):
     """Add one typed widget input and bind it in the mutable source."""
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
     declaration = {"description": "Test data contract.", "schema": schema}
     if instructions:
         declaration["instructions"] = instructions
-    registry["$data"]["contracts"][contract] = declaration
-    registry[tag] = {
+    entry = {
         "description": "A test widget with one external-data input.",
         "type": "object",
         "properties": {
@@ -694,7 +739,12 @@ def declare_data_input(
         "x-data": {input_name: {"contract": contract, "source": "source"}},
         "x-upgrade": False,
     }
-    registry_path.write_text(json.dumps(registry))
+
+    def declare(registry):
+        registry["$data"]["contracts"][contract] = declaration
+        registry[tag] = entry
+
+    declare_on_page(page_dir, declare)
     source_path = page_dir / "index.html"
     html = source_path.read_text()
     source_path.write_text(
@@ -731,9 +781,12 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     which is where the append door reads the vocabulary and the markup that
     admit an action.
     """
-    registry = files_model.read_json(page_dir / "registry.json")
-    registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
-    cleanup_model.write_json(page_dir / "registry.json", registry)
+    declare_on_page(
+        page_dir,
+        lambda registry: registry["lf-options"]["properties"].update(
+            resolves={"type": "string"}
+        ),
+    )
     # An obligation, so a pick answers it; the markup already records that pick, so the
     # answer owes no version of its own and only the thread is left to settle.
     source = page_dir / "index.html"
@@ -883,9 +936,9 @@ def native_codex_chat(tmp_path):
                 "transcript_path": str(source),
             },
         )
-        assert cleanup_model.session_record(session_id)["transcript_path"] == str(
-            source
-        )
+        turn_record = cleanup_model.session_record(session_id)
+        assert turn_record is not None
+        assert turn_record["transcript_path"] == str(source)
         return source
 
     return create
@@ -1001,8 +1054,10 @@ def bind_task_lifetime_to_worker(page):
     briefly leave the already-running adapter with no pages to own.
     """
     claim = service_model.page_claim(page)
+    assert claim is not None
     with cleanup_model.flocked(cleanup_model.session_lock_path(claim["id"])):
         record = cleanup_model.session_record(claim["id"])
+        assert record is not None
         assert record["generation"] == claim["generation"]
         assert record["ended"] is None
         cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
@@ -1321,9 +1376,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
 
 
 def _mutated_registry_check(page_dir, mutate):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    mutate(registry)
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_on_page(page_dir, mutate)
     return check_findings(page_dir)
 
 
@@ -1471,7 +1524,7 @@ def trial_family(root: Path) -> None:
     # add_test_widget frames every tag as a card. The slots draw no box of their own;
     # clearing their paragraph margins keeps a retired sibling from leaving a margin
     # trapped against the holder's frame. Geometry is not this family's subject.
-    with (package / "widgets.css").open("a") as theme:
+    with (package / "defaults.css").open("a") as theme:
         theme.write(
             "\nlf-current, lf-proposed "
             "{ display: block; margin: 0; padding: 0; border: none; "
@@ -1685,6 +1738,17 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     servers")."""
     yield
     retire_test_services(tmp_path, isolated_session)
+
+
+@pytest.fixture(autouse=True)
+def _each_test_composes_its_own_layers():
+    """Each test composes the layers its pages select afresh, as a new process does.
+
+    A process holds each selection's composition for its life
+    (`layer.selected_layer`), and a test may rewrite a package at a path an
+    earlier test's package held."""
+    yield
+    layer_model._composed.cache_clear()
 
 
 def retire_bridge(lock):
@@ -2379,7 +2443,7 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
     declaration = element_declaration(tag, upgrade=upgrade)
     registry[tag] = declaration
     registry_path.write_text(json.dumps(registry, indent=2))
-    with (package / "widgets.css").open("a") as theme:
+    with (package / "defaults.css").open("a") as theme:
         theme.write(
             f"\n{tag} {{\n"
             "  display: block;\n"
@@ -2450,7 +2514,7 @@ class _SnapshotDumper(yaml.SafeDumper):
     def best_width(self, width):
         self._best_width = width
 
-    def increase_indent(self, flow=False, **_indentless):
+    def increase_indent(self, flow=False, indentless=False):  # noqa: F841 -- override keyword names
         # A list sits indented under its key, as a person writes one.
         return super().increase_indent(flow, False)
 
@@ -2568,7 +2632,7 @@ class _YamlSnapshotHandler(BaseSnapshotHandler):
     def compare(self, current_obj, recorded_obj):
         return current_obj == recorded_obj
 
-    def show_differences(self, current_obj, recorded_obj, *_presentation):
+    def show_differences(self, current_obj, recorded_obj, has_markup, use_ddiff):  # noqa: F841 -- override keyword names
         return list(
             difflib.unified_diff(
                 recorded_obj.splitlines(),
@@ -2599,7 +2663,9 @@ def consume_pending_input(session_id):
     if not batches:
         return None
     payload = delivery.freeze_delivery(batches)
-    delivery.receive_held(payload, session_id, state.session_record(session_id))
+    turn_record_2 = state.session_record(session_id)
+    assert turn_record_2 is not None
+    delivery.receive_held(payload, session_id, turn_record_2)
     return payload
 
 
@@ -2644,16 +2710,16 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
         ):
             payload = candidate
             break
+    if not session:
+        harness = session_model.session_harness()
+        assert harness is not None
+        session = harness.session
     if payload is not None:
         assert payload["acknowledge"] is not None
-        delivery_model.receive(
-            payload, session or session_model.session_harness().session
-        )
+        delivery_model.receive(payload, session)
     else:
         assert "has new input" in output, output
-        payload = consume_pending_input(
-            session or session_model.session_harness().session
-        )
+        payload = consume_pending_input(session)
         assert payload["acknowledge"] is None
     assert payload["format"] == delivery_model.DELIVERY.format
     [batch] = payload["batches"]
@@ -2930,9 +2996,10 @@ def _watched(page_dir):
     """A claimed page this session watches, so only its debts reach the hooks."""
     session_model.cmd_waiting(page_dir)
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(page_dir, session["id"])
-    )
+    assert session is not None
+    lease_path = leases_model.waiter_lease_path(page_dir, session["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     return lease
 

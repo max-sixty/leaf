@@ -1,0 +1,107 @@
+/* The diagram package's presentation. Everything here was in the default package's
+ * theme until the diagram renderer left every page carrying a large bundle most never
+ * draw with. The shared declaration-driven allocation stays in core; this package owns
+ * the diagram's natural-size alignment and scrolling. */
+
+/* Inherited palette aliases keep the generated SVG responsive to the live page's
+ * scheme without redrawing its nodes or replacing Comment coordinates. */
+lf-diagram {
+  box-sizing: border-box;
+  --pele-bg: var(--paper);
+  --pele-fg: var(--ink);
+  --pele-muted: var(--muted);
+  --pele-line: var(--muted);
+  --pele-surface: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  --pele-surface-alt: var(--paper);
+  --pele-border: var(--accent);
+  --pele-accent: var(--accent);
+  --pele-font: var(--sans);
+  --pele-font-mono: var(--mono);
+}
+/* Without the runtime, or once it could not start (runtime/prepaint.js), nothing will
+ * draw, and the box holds authored source for good. That source reads from the
+ * column's left edge instead of taking the available allocation. Where the runtime
+ * runs, the box takes the drawing's allocation from first paint, at the height its
+ * occurrence reserves (x-height), so the drawing lands in the box it already has. A
+ * failed render becomes `.lf-error`; core's fail-soft room rule then gives the message
+ * the column. */
+@scope (html:not([data-lf-interactive]) lf-diagram) {
+  :scope:is(lf-diagram)[data-lf-space="available"] {
+    --lf-room: 0px;
+  }
+}
+/* The drawing keeps its natural size, between two spacers. Where the runtime allocated
+ * room, the spacers spend it on each side so a drawing that fits remains on the prose
+ * axis; when it does not fit they give way before the drawing and this box scrolls.
+ * Where nothing allocated room — a thread's message — they are empty and the drawing
+ * centres. This arrangement belongs to the diagram, independently of the `available`
+ * capacity it requests from core. */
+lf-diagram.lf-rendered {
+  display: flex;
+  justify-content: safe center;
+  align-items: flex-start;
+  overflow: auto hidden;
+}
+lf-diagram.lf-rendered::before,
+lf-diagram.lf-rendered::after {
+  content: "";
+  flex: 0 1 auto;
+  width: 0;
+}
+lf-diagram.lf-rendered[data-lf-space="available"]::before {
+  width: calc(2 * var(--lf-grow-l));
+}
+lf-diagram.lf-rendered[data-lf-space="available"]::after {
+  width: calc(2 * var(--lf-grow-r));
+}
+lf-diagram.lf-rendered > * {
+  flex: none;
+}
+/* Pele's viewport includes the scrollbar's clearance. Its natural height is the
+ * minimum: overlay tracks cover the blank bottom padding, and a negative SVG margin
+ * lets native classic tracks consume that padding, leaving 1px for strokes. A wider
+ * classic track grows the box through native layout instead of clipping the drawing.
+ * A declared reservation may hold more room without stretching the SVG. The renderer
+ * supplies its dimensions; no measurement or later scroll-state query sizes the box. */
+@media screen {
+  lf-diagram.lf-rendered {
+    min-block-size: max(var(--lf-diagram-height), attr(data-lf-height px, 0px));
+  }
+  /* `:last-child` outranks the layer's trim of a frame's last margin, which the
+   * drawing is. */
+  lf-diagram.lf-rendered > svg:last-child {
+    margin-block-end: calc(1px - var(--lf-diagram-padding));
+  }
+}
+/* The layer marks each edge a scrolled box has more beyond (shadow.css, at
+ * [data-lf-more-before/after]) by fading the content there toward the page's ground, and
+ * a drawing takes that fade with two settings of its own. A fade all the way to the
+ * ground reads as the drawing's end: three agent-written plans drawn `flowchart LR`
+ * showed two and a half of five steps at 1440px, the third fading out, and every reader
+ * took the plan for three steps. What says "cut" is the drawing touching the edge: a
+ * node's fill and rules, or an arrow's line, running into the scrollport's side rather
+ * than stopping short of it. So the fade stops at 30% of the drawing, and is 32px wide,
+ * a few letters of a label, so the cut node's words stay readable up to where they are
+ * cut. A grey shadow over the edge said the same and read as a stray shadow instead.
+ * The drawing itself is never scaled or re-laid out. */
+lf-diagram.lf-rendered {
+  --lf-more-fade: 32px;
+  --lf-more-fade-to: rgb(0 0 0 / 0.3);
+}
+
+/* A rendered diagram keeps its natural size rather than scaling a wide flowchart's
+ * labels below legibility, so a wide one
+ * scrolls in its own box, the same answer a wide table gets, instead of painting over
+ * the margin. max-width: none escapes the page-wide svg rule in the kernel's base.css, which
+ * would scale it right back down. Paper cannot scroll, so print restores the fit: width
+ * and viewBox stay in the markup, and max-width alone scales the drawing whole. */
+lf-diagram svg {
+  display: block;
+  margin: 0 auto;
+  max-width: none;
+}
+@media print {
+  lf-diagram svg {
+    max-width: 100%;
+  }
+}

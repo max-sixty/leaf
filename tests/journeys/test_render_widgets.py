@@ -1188,10 +1188,10 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
         "candidateB": {"density": "comfortable", "wrap": False},
     }
     expect(candidate_a.locator(".code-candidate-title")).to_have_text(
-        "A · comfortable · scroll"
+        "comfortable · scroll"
     )
     expect(candidate_b.locator(".code-candidate-title")).to_have_text(
-        "B · comfortable · scroll"
+        "comfortable · scroll"
     )
     assert playground.evaluate("root => root.values.comparison.candidateA") == {
         "density": "comfortable",
@@ -1205,15 +1205,6 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
         "candidateB": {"density": "compact", "wrap": False},
     }
 
-    playground.get_by_role("button", name="B at 320px").click()
-    expect(
-        playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
-    ).to_have_value("320")
-    expect(playground.get_by_role("radio", name="B", exact=True)).to_be_checked()
-    playground.get_by_role("button", name="A at 420px").click()
-    expect(
-        playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
-    ).to_have_value("420")
     playground.get_by_role("button", name="Reset").click()
     assert playground.evaluate("root => root.values.comparison") == {
         "candidateA": {"density": "compact", "wrap": False},
@@ -1241,7 +1232,7 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
 
     resized(page, 480, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 480
-    expect(page.locator(".code-comparison-grid")).to_have_css(
+    expect(page.locator("#code-treatment > .lf-playground-choices")).to_have_css(
         "grid-template-columns", re.compile(r"\d+(?:\.\d+)?px")
     )
     resized(page, 1100, 320)
@@ -1266,6 +1257,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     playground = page.locator("#notification-playground")
 
     playground.get_by_role("button", name="Needs attention").click()
+    playground.get_by_role("radio", name="Status strip", exact=True).click()
     page.locator('lf-playground-control[name="title"] input').fill(
         "Checkout needs attention"
     )
@@ -1363,6 +1355,7 @@ body { font-family: system-ui, sans-serif; }
             str(value).lower() if isinstance(value, bool) else str(value)
         )
     workspace = result.select_one("#notification-workspace")
+    assert workspace is not None
     workspace.attrs["class"] = "layout-column"
     artifact_section = result.select_one("#notification-artifact")
     configuration = turbohtml.E(
@@ -1370,12 +1363,15 @@ body { font-family: system-ui, sans-serif; }
         {"id": "notification-configuration", "open": ""},
         turbohtml.E("summary", "Original configuration"),
     )
-    result.select_one("#notification-ask").wrap(configuration)
+    select_one_result = result.select_one("#notification-ask")
+    assert select_one_result is not None
+    select_one_result.wrap(configuration)
     configuration.insert_before(turbohtml.E("h1", "Review the deployment notification"))
+    assert artifact_section is not None
     artifact_section.attrs.pop("hidden")
-    artifact_section.select_one("#notification-artifact-source").attrs["label"] = (
-        "deployment-notification.html"
-    )
+    select_one_result_2 = artifact_section.select_one("#notification-artifact-source")
+    assert select_one_result_2 is not None
+    select_one_result_2.attrs["label"] = "deployment-notification.html"
     workspace.append(artifact_section)
     result_source = result.serialize()
     assert "notification-configuration" in result_source

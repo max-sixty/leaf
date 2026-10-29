@@ -1,12 +1,12 @@
 """The browser fixture fails the layout shifts the "Stability" rule forbids
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
+import re
 from datetime import UTC, datetime, timedelta
 from html import escape
 from urllib.parse import quote
 
 import pytest
-from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE
 from render_harness import (
@@ -26,6 +26,7 @@ from render_harness import (
 )
 
 from leaf.render_checks import rendered
+from leaf_dev.browser import slow_cpu
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
 # field, or grows the field itself, as the page's `data-key` says.
@@ -787,6 +788,7 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
     action_after = page.locator("#action").bounding_box()
     assert action_after["x"] != before["x"]
     if fault == "escaping_outer":
+        assert outer_before is not None
         assert (
             before["x"] + before["width"] <= outer_before["x"] + outer_before["width"]
         )
@@ -2110,7 +2112,7 @@ def test_a_frame_off_screen_judges_existing_records_without_awaiting_paint(
 
 def test_a_frame_on_screen_awaits_paint_with_its_root_scrolled_away(browser):
     """A live page's root is one viewport tall and scrolls with its content
-    (theme.css), so once read past its first screen the root's box has left the
+    (base.css), so once read past its first screen the root's box has left the
     frame's viewport while the frame itself is on screen. Its judgement still awaits
     the frame's paint."""
     child = (
@@ -2551,7 +2553,24 @@ def test_fold_reparenting_keeps_only_its_original_flow_credit(
     if placement == "carried":
         assert take_browser_errors(page) == []
     else:
-        consume_browser_errors(page, moved_within("button#control"))
+        errors = consume_browser_errors(page, moved_within("button#control"))
+        motions = [
+            animation
+            for error in errors
+            for comparison in shift_evidence(error)["comparisons"]
+            for animation in comparison["animations"]
+            if within(animation["target"], "div#fold")
+        ]
+        assert motions, errors
+        assert any(
+            motion["selected"]
+            and "height" in motion["properties"]
+            and motion["before"]
+            and motion["after"]
+            and "height" in motion["before"]["values"]
+            and "height" in motion["after"]["values"]
+            for motion in motions
+        ), motions
 
 
 def test_absolute_size_animation_cannot_credit_an_independent_control_move(browser):
@@ -3794,6 +3813,29 @@ motion.pause();motion.currentTime=150;
     errors = take_browser_errors(page)
     assert names_move(errors, "p#trigger"), errors
     assert names_move(errors, "button#control") == bool(fault), errors
+    if fault == "child":
+        finding = next(
+            error
+            for error in errors
+            if is_problem(error, moved_within("button#control"))
+        )
+        comparisons = shift_evidence(finding)["comparisons"]
+        motions = [
+            animation
+            for comparison in comparisons
+            for animation in comparison["animations"]
+            if within(animation["target"], "div#panel")
+        ]
+        assert motions, comparisons
+        assert any(
+            motion["selected"]
+            and "translate" in motion["properties"]
+            and motion["before"]
+            and motion["after"]
+            and "translate" in motion["before"]["values"]
+            and "translate" in motion["after"]["values"]
+            for motion in motions
+        ), motions
 
 
 @pytest.mark.parametrize(
@@ -4882,7 +4924,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     header = surface_root.locator(".lf-msg-head").first
     receipt = header.locator(".lf-msg-sending")
     timestamp = header.locator("time")
-    expect(receipt).to_have_text("Saved")
+    expect(receipt).to_have_text(re.compile(r"^Queued for "))
     expect(timestamp).to_have_text("just now")
     # Age changes are news after Chrome's recent-input grace, even when opening the
     # surface and resizing it happened immediately before this clock transition.
@@ -4909,7 +4951,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
         page.clock.set_fixed_time(now + delta)
         ticked(page)
         expect(timestamp).to_have_text(age)
-        expect(receipt).to_have_text("Saved")
+        expect(receipt).to_have_text(re.compile(r"^Queued for "))
         judge_watches()
         assert surface_root.bounding_box() == thread_before
         assert owner.bounding_box() == owner_before

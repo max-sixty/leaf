@@ -36,6 +36,7 @@ import re
 import struct
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from typing import Literal
 from urllib.parse import quote, unquote, urlsplit
 
 import turbohtml
@@ -54,14 +55,15 @@ from .revision_artifact import (
 )
 from .schema import (
     BROWSER_DIRS,
+    LAYER_TOP_FILES,
     MEDIA_DIR,
     RENDER_CHECKS_DIR,
-    VENDORED_FILES,
 )
 from .structure import (
     UTF8_BOM,
     SourceDocument,
     annotation_mode,
+    delivered_elements,
     element_attrs,
     page_layout,
     rel_tokens,
@@ -80,7 +82,7 @@ _PAGE_PATH = re.compile(
     "/(?:"
     + "|".join(
         [f"(?:page|{MEDIA_DIR}|{'|'.join(BROWSER_DIRS)})/.+"]
-        + [re.escape(name) for name in VENDORED_FILES]
+        + [re.escape(name) for name in LAYER_TOP_FILES]
     )
     + ")"
 )
@@ -95,13 +97,13 @@ def page_path(reference: str, base: str) -> tuple[str, str] | None:
     """
     if not reference:
         return None
-    reference = dependency_reference(reference, base)
-    if reference is None or not _PAGE_PATH.fullmatch(reference[0]):
+    located = dependency_reference(reference, base)
+    if located is None or not _PAGE_PATH.fullmatch(located[0]):
         return None
-    return reference
+    return located
 
 
-def _attributes(attributes: Mapping[str, str | bool | None]) -> str:
+def _attributes(attributes: Mapping[str, str | Literal[True] | None]) -> str:
     """Attributes to write in a start tag, each value escaped: `True` writes the name
     alone, and `None` leaves the attribute out."""
     return "".join(
@@ -118,7 +120,7 @@ def _raw_text(tag: str, text: str) -> str:
 
 
 def runtime_element(
-    tag: str, attributes: Mapping[str, str | bool | None], body: str = ""
+    tag: str, attributes: Mapping[str, str | Literal[True] | None], body: str = ""
 ) -> str:
     """An element a host adds to a document it delivers, marked `data-lf-runtime` as
     delivery's own: the runtime reads past it as no part of the author's page, and a
@@ -140,7 +142,7 @@ def runtime_settings(
     page_root: str,
     entry: str,
     probe: str,
-    declared: Mapping[str, str | bool | None],
+    declared: Mapping[str, str | Literal[True] | None],
 ) -> str:
     """The script that says how a host delivered a document (`runtime/context.js`):
     the layer generation it belongs to, its page root, the runtime entry, which is
@@ -160,7 +162,7 @@ def runtime_settings(
     )
 
 
-def _rebase(reference: str, base: str, address: Address) -> str:
+def _rebase(reference: str, base: str, address: Address) -> str | None:
     located = page_path(reference, base)
     if located is None:
         return reference
@@ -220,97 +222,123 @@ def rebase_document(
             index(location.end_line, location.end_col),
         )
 
-    def rebase(reference: str) -> str:
+    def rebase(reference: str) -> str | None:
         return _rebase(reference, "/index.html", address)
 
-    roots = [tree]
-    for root in roots:
-        for element in root.find_all(True):
-            if element.shadow_root is not None:
-                roots.append(element.shadow_root)
-            location = element.source_location
-            if location is None:
-                continue
-            attrs = element_attrs(element)
-            tag = element.tag
-            if tag == "script" and address("/leaf.js") is None:
-                start = span(location.start_tag)[0]
-                end = span(location.end_tag or location.start_tag)[1]
-                edits.append((start, end, ""))
-                continue
-            stylesheet = tag == "link" and "stylesheet" in rel_tokens(attrs)
-            if (
-                stylesheet
-                and inline_stylesheet is not None
-                and (located := page_path(attrs.get("href", ""), "/index.html"))
-            ):
-                # Preserve stylesheet declarations, such as its media and data attributes;
-                # only the linked resource's address and fetch mechanism disappear.
-                kept = _attributes(
-                    {
-                        name: value
-                        for name, value in attrs.items()
-                        if name not in {"rel", "href", "crossorigin", "integrity"}
-                    }
+    for element in delivered_elements(tree):
+        location = element.source_location
+        if location is None:
+            continue
+        attrs = element_attrs(element)
+        tag = element.tag
+        if tag == "script" and address("/leaf.js") is None:
+            start = span(location.start_tag)[0]
+            end = span(location.end_tag or location.start_tag)[1]
+            edits.append((start, end, ""))
+            continue
+        stylesheet = tag == "link" and "stylesheet" in rel_tokens(attrs)
+        if (
+            stylesheet
+            and inline_stylesheet is not None
+            and (located := page_path(attrs.get("href", ""), "/index.html"))
+        ):
+            # Preserve stylesheet declarations, such as its media and data attributes;
+            # only the linked resource's address and fetch mechanism disappear.
+            kept = _attributes(
+                {
+                    name: value
+                    for name, value in attrs.items()
+                    if name not in {"rel", "href", "crossorigin", "integrity"}
+                }
+            )
+            css = _raw_text("style", inline_stylesheet(located[0]))
+            start, end = span(location.start_tag)
+            edits.append((start, end, f"<style{kept}>{css}</style>"))
+            continue
+        # An opaque sample shares this native delivery. CORS keeps its local
+        # sheets readable by the CSSOM owners; a no-CORS link would paint but
+        # deny Leaf's layout readings. Same-origin pages
+        # retain their ordinary credentials, and external authored links stand.
+        if (
+            stylesheet
+            and "crossorigin" not in attrs
+            and page_path(attrs.get("href", ""), "/index.html") is not None
+        ):
+            _, end = span(location.start_tag)
+            at = end - (2 if source[end - 2 : end] == "/>" else 1)
+            edits.append((at, at, ' crossorigin="anonymous"'))
+        for name, value in attrs.items():
+            if name == "style":
+                delivered = rebase_css(value, "/index.html", address, declarations=True)
+            elif (tag == "script" and name == "src") or (stylesheet and name == "href"):
+                delivered = rebase(value)
+            else:
+                delivered = rewrite_attribute_references(
+                    tag, attrs, name, value, rebase
                 )
-                css = _raw_text("style", inline_stylesheet(located[0]))
-                start, end = span(location.start_tag)
-                edits.append((start, end, f"<style{kept}>{css}</style>"))
+            if delivered != value:
+                start, end = span(location.attrs[name])
+                edits.append(
+                    (
+                        start,
+                        end,
+                        f'{name}="{html.escape(delivered, quote=True)}"'
+                        if delivered is not None
+                        else "",
+                    )
+                )
+        # Delivery's own scripts (`runtime_element`) run where they stand.
+        authored = "data-lf-runtime" not in attrs
+        if authored and tag == "script" and script_kind(attrs) in {"module", "classic"}:
+            edits.extend(_deferred(source, span, location, attrs))
+        if tag in {"script", "style"} and location.end_tag is not None:
+            start = index(location.start_tag.end_line, location.start_tag.end_col)
+            end = index(location.end_tag.start_line, location.end_tag.start_col)
+            body = source[start:end]
+            if tag == "style":
+                delivered = rebase_css(body, "/index.html", address)
+            elif script_kind(attrs) in {"module", "classic"} and not attrs.get("src"):
+                delivered = rebase_module(
+                    body.encode("utf-8"), "/index.html", address
+                ).decode("utf-8")
+                if authored and script_kind(attrs) == "classic":
+                    # An inline classic script runs from a deferred `data:` file,
+                    # which keeps its global scope and sloppy mode. Its lines are
+                    # padded to where it stands, and `sourceURL` names the
+                    # document, so an error it throws names its line in index.html.
+                    line = location.start_tag.end_line
+                    text = "\n" * (line - 1) + delivered
+                    text += "\n//# sourceURL=index.html"
+                    url = "data:text/javascript;charset=utf-8," + quote(text, safe="")
+                    _, tag_end = span(location.start_tag)
+                    edits.append((tag_end - 1, tag_end - 1, f' src="{url}"'))
+                    delivered = ""
+            else:
                 continue
-            # An opaque sample shares this native delivery. CORS keeps its local
-            # sheets readable by the CSSOM owners; a no-CORS link would paint but
-            # deny Leaf's layout readings. Same-origin pages
-            # retain their ordinary credentials, and external authored links stand.
-            if (
-                stylesheet
-                and "crossorigin" not in attrs
-                and page_path(attrs.get("href", ""), "/index.html") is not None
-            ):
-                _, end = span(location.start_tag)
-                at = end - (2 if source[end - 2 : end] == "/>" else 1)
-                edits.append((at, at, ' crossorigin="anonymous"'))
-            for name, value in attrs.items():
-                if name == "style":
-                    delivered = rebase_css(
-                        value, "/index.html", address, declarations=True
-                    )
-                elif (tag == "script" and name == "src") or (
-                    stylesheet and name == "href"
-                ):
-                    delivered = rebase(value)
-                else:
-                    delivered = rewrite_attribute_references(
-                        tag, attrs, name, value, rebase
-                    )
-                if delivered != value:
-                    start, end = span(location.attrs[name])
-                    edits.append(
-                        (
-                            start,
-                            end,
-                            f'{name}="{html.escape(delivered, quote=True)}"'
-                            if delivered is not None
-                            else "",
-                        )
-                    )
-            if tag in {"script", "style"} and location.end_tag is not None:
-                start = index(location.start_tag.end_line, location.start_tag.end_col)
-                end = index(location.end_tag.start_line, location.end_tag.start_col)
-                body = source[start:end]
-                if tag == "style":
-                    delivered = rebase_css(body, "/index.html", address)
-                elif script_kind(attrs) in {"module", "classic"} and not attrs.get(
-                    "src"
-                ):
-                    delivered = rebase_module(
-                        body.encode("utf-8"), "/index.html", address
-                    ).decode("utf-8")
-                else:
-                    continue
-                if delivered != body:
-                    edits.append((start, end, delivered))
+            if delivered != body:
+                edits.append((start, end, delivered))
 
     return _spliced(source, edits)
+
+
+def _deferred(source: str, span, location, attrs: dict) -> list[tuple[int, int, str]]:
+    """Edits that hold a page's script until the runtime has read the page.
+
+    The runtime's module runs once the document has parsed, and so does every deferred
+    script after it, in document order. A classic script the parser would run where it
+    stands, or one marked `async`, could run first, changing what the runtime reads
+    as authored and throwing before anything listens. So delivery defers it: `async`
+    goes, and a classic script gains `defer`, an inline one by moving its text to a
+    `data:` file (`rebase_document`). What it gives up is running mid-parse, which
+    leaves `document.write` ignored."""
+    edits = []
+    if "async" in attrs:
+        edits.append((*span(location.attrs["async"]), ""))
+    if script_kind(attrs) == "classic" and "defer" not in attrs:
+        _, end = span(location.start_tag)
+        at = end - (2 if source[end - 2 : end] == "/>" else 1)
+        edits.append((at, at, " defer"))
+    return edits
 
 
 def _spliced(source: str, edits: list[tuple[int, int, str]]) -> str:
@@ -498,13 +526,11 @@ def mark_declared(
     return _spliced(source, [(offset, offset, text) for offset, text in edits])
 
 
-def initial_script_paths(
-    source: str, registry: Mapping, resources: Mapping[str, Resource]
-) -> list[str]:
-    """The used producers and their build-declared prerequisites, in execution order.
+def initial_script_paths(source: str, registry: Mapping) -> list[str]:
+    """Shared Lit followed by the used classic producers, before parsing their hosts.
 
-    The build records imports that it binds to shared classic globals. Delivery reads
-    that graph instead of making every document pay for every producer's libraries.
+    Every producer can return a Lit view, including a page-owned classic script with
+    no build step. Delivery owns that prerequisite; producer imports are irrelevant.
     A producer inside a template does not run during parsing.
     """
     tree = turbohtml.parse(source, scripting=True)
@@ -514,21 +540,7 @@ def initial_script_paths(
         if element.closest("template") is None
         and (path := registry.get(element.tag, {}).get("x-initial"))
     )
-    if not used:
-        return []
-    dependencies = json.loads(resources["/vendor/initial-dependencies.json"].data)
-    return list(
-        dict.fromkeys(
-            [
-                *(
-                    dependency
-                    for path in used
-                    for dependency in dependencies.get(path, [])
-                ),
-                *used,
-            ]
-        )
-    )
+    return ["/vendor/lit-initial.js", *used] if used else []
 
 
 def initial_scripts(paths: list[str], resources: Mapping[str, Resource]) -> str:
@@ -627,20 +639,13 @@ def delivered_resource(
     return deliver_resource(resource, source, address)
 
 
-def delivery_identity(
-    revision: int, version: int | None, executable: str, widgets: dict
-) -> str:
+def delivery_identity(revision: int, version: int | None, executable: str) -> str:
     """State which revision a delivered document is, and what it is made of.
 
-    A later revision reaches an open document as a state reading, and two questions
-    decide what the user gets. The executable digest says whether this document can
-    take that revision on at all: a running document evaluates a module graph once and
-    defines an element once, so new bytes behind either need a fresh one. The widget
-    digests then say which widgets the user keeps, one per declared widget — by id,
-    or by tag and place among the unnamed of that tag — over the markup its author
-    wrote. Both travel in the head, where a document knows its own
-    answer without asking, and where the revision document a patch already fetches
-    carries the other one for free.
+    A later revision reaches an open document as a state reading. The executable
+    digest says whether this document can take that revision on at all: a running
+    document evaluates a module graph once and
+    defines an element once, so new bytes behind either need a fresh one.
 
     Every delivered document carries this (`compose_document`). A document that says
     part of it is a document the next reader of the contract has to guess about.
@@ -648,7 +653,6 @@ def delivery_identity(
     named = {
         "lf-revision": str(revision),
         "lf-executable": executable,
-        "lf-widgets": json.dumps(widgets, separators=(",", ":")),
         **({"lf-version": str(version)} if version is not None else {}),
     }
     return "".join(
@@ -679,7 +683,7 @@ def delivery_sheets(
     Shared chrome and marks are always present; physical annotation sheets are absent
     in page mode. The browser constructs only the sheets this carrier actually holds.
     """
-    sheets = {
+    sheets: dict = {
         name: rebase_css(resources[path].data.decode("utf-8"), path, address)
         for name, path in (
             ("chrome", "/runtime/chrome.css"),
@@ -706,7 +710,6 @@ def delivery_prelude(
     revision: int,
     version: int | None,
     executable: str,
-    widgets: dict,
 ) -> str:
     """Declare encoding, a device-width viewport, and immutable Leaf identity.
 
@@ -724,7 +727,7 @@ def delivery_prelude(
     )
     return (
         runtime_element("meta", {"charset": "utf-8"})
-        + delivery_identity(revision, version, executable, widgets)
+        + delivery_identity(revision, version, executable)
         + viewport
     )
 
@@ -762,7 +765,6 @@ def compose_document(
     version: int | None,
     *,
     executable: str,
-    widgets: dict,
     resources: Mapping[str, Resource],
     registry: Mapping,
     delivery: Delivery,
@@ -780,7 +782,7 @@ def compose_document(
     runtime will draw and whether it could not start. It reads the canonical address,
     so that comes first; it names a startup fault before the host's runtime script
     hears of it, so it comes before that. The shared Lit implementation follows the
-    prepaint only when a used `x-initial` producer imports Lit. Used bundles then
+    prepaint whenever the document uses an `x-initial` producer. Used bundles then
     register the package producers that the body's parser invocations run. Later
     modules export this same Lit instance; other pages load Lit as a normal module.
     These scripts stand before the theme, since a
@@ -790,12 +792,10 @@ def compose_document(
     begun to load.
     """
     initial = (
-        initial_script_paths(source, registry, resources)
-        if delivery.runtime is not None
-        else []
+        initial_script_paths(source, registry) if delivery.runtime is not None else []
     )
     import_map = delivery.import_map
-    if "/vendor/lit-initial.js" in initial and import_map is not None:
+    if initial and import_map is not None:
         imports = import_map["imports"]
         # Hosted documents map directories. Export's exact leaf: graph already
         # embeds the selected facade under Lit's canonical module identity. Both
@@ -853,7 +853,7 @@ def compose_document(
             + theme
         )
     head = (
-        delivery_prelude(document, revision, version, executable, widgets)
+        delivery_prelude(document, revision, version, executable)
         + (
             runtime_element("script", {"type": "importmap"}, json_script(import_map))
             if import_map is not None

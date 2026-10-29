@@ -279,7 +279,15 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
         check=False,
     )
     assert init.returncode == 0, init.stderr
-    installed_registry = json.loads((page_dir / "registry.json").read_text())
+    vocabulary = subprocess.run(
+        [launcher, "page", "vocabulary", page_dir],
+        cwd=elsewhere,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert vocabulary.returncode == 0, vocabulary.stderr
+    installed_registry = json.loads(vocabulary.stdout)
     assert "lf-diagram" in installed_registry
     assert installed_registry["$layer"]["packages"] == ["diagram"]
     (page_dir / "index.html").write_text(

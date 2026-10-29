@@ -4,24 +4,15 @@ import contextlib
 from pathlib import Path
 
 from leaf.hosting import TemporaryPageServer
-from leaf.leases import page_locked
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.revision_artifact import RevisionArtifact
-from leaf.structure import SourceDocument
+from leaf.page_snapshot import PageSnapshot
 
 
 @contextlib.contextmanager
 def preview_server(
     page_dir: Path,
-    document: SourceDocument,
-    revision: int,
-    *,
-    transition_held: bool = False,
-    artifact: RevisionArtifact | None = None,
-    through_seq: int | None = None,
+    snapshot: PageSnapshot,
 ):
-    """Serve one exact document without changing the page's durable state, against
-    the log through `through_seq` when given (`PageRead.through`).
+    """Serve a captured reading without holding a mutable page's locks.
 
     Its own key, not the machine's: this server is loopback-only and lives for the
     length of a `with`, so it neither needs nor should mint the access every page
@@ -30,15 +21,9 @@ def preview_server(
 
     The server runs this Leaf's runtime and serves its probes beside it
     (`runtime_selection`), so the probes read the runtime they were written for
-    whichever Leaf vendored the page.
+    whichever Leaf initialized the page.
     """
-    transition = contextlib.nullcontext() if transition_held else page_locked(page_dir)
-    with transition:
-        snapshot = capture_page_snapshot(
-            page_dir, document, revision, url="/", artifact=artifact
-        )
-        if through_seq is not None:
-            snapshot = snapshot.through(through_seq)
-        server = TemporaryPageServer(page_dir, page_options={"page_snapshot": snapshot})
-        with server:
-            yield server.url
+    with TemporaryPageServer(
+        page_dir, page_options={"page_snapshot": snapshot}
+    ) as server:
+        yield server.url

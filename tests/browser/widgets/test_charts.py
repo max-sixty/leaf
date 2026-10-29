@@ -396,7 +396,22 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     assert held > 0, "the chart holds no word of the runtime's"
 
     # Narrower than the column, which is where the room actually changes: the column is
-    # capped, so a wider window leaves a chart exactly where it was.
+    # capped, so a wider window leaves a chart exactly where it was. Read during resize
+    # delivery, before paint: waiting for settlement would hide one frame of shrunken
+    # labels from an SVG still drawn for the preceding width.
+    page.evaluate("""() => {
+        window.chartResizeReadings = [];
+        window.chartResizeWatch = new ResizeObserver(entries => {
+            for (const {target} of entries) {
+                const svg = target.querySelector('svg[role=img]');
+                chartResizeReadings.push({
+                    room: Math.round(target.clientWidth),
+                    width: Number(svg.getAttribute('width')),
+                });
+            }
+        });
+        chartResizeWatch.observe(document.getElementById('c-bars'));
+    }""")
     resized(page, 620, 900)
     page.wait_for_function(
         """(id) => {
@@ -408,6 +423,12 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     )
     after = page.evaluate(CHART_MARKS, "c-bars")
     assert after["room"] < before["room"], (before, after)
+    readings = page.evaluate("""() => {
+        chartResizeWatch.disconnect();
+        return chartResizeReadings;
+    }""")
+    assert any(reading["room"] == after["room"] for reading in readings), readings
+    assert all(reading["width"] == reading["room"] for reading in readings), readings
     # The painted box of a tick label, not its computed font-size: a drawing scaled by its
     # viewBox keeps the same computed size and renders smaller, so the property this test
     # is about is invisible to the one reading and plain in the other.
@@ -448,8 +469,8 @@ def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
     assert box["height"] == 240, box
     assert box["legends"], box
     assert box["svg"] == box["drawing"] == box["bottom"], box
-    # Until it is drawn again for a narrower room, a frame later, the drawing keeps its
-    # height: scaled with the width, it would move everything below it for that frame.
+    # The drawing keeps its height even before resize delivery redraws it, so measuring
+    # the new room cannot move everything below the chart.
     narrowed = page.evaluate(
         """() => {
             const el = document.getElementById('c-tall');
@@ -458,6 +479,45 @@ def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
         }"""
     )
     assert narrowed == 240, narrowed
+
+
+def test_a_chart_keeps_its_stated_height_beside_a_taller_one(browser, serve):
+    """A row of tiles stretches each cell to the row's tallest, and once a chart is drawn
+    its box is the drawing's, so a short chart's box stands as tall as its neighbour.
+    Drawn again for a new width, it keeps the height it states. Drawn to the stretched
+    box, it took the neighbour's height, and each width change after kept it there."""
+    body = """{
+  ariaLabel: "Merged by team: backend 12, frontend 19",
+  marks: [Plot.barY([{team: "backend", n: 12}, {team: "frontend", n: 19}],
+                    {x: "team", y: "n"})],
+}"""
+    tiles = "".join(
+        chart_markup(chart_id, body).replace(
+            f'<lf-chart id="{chart_id}">',
+            f'<lf-chart id="{chart_id}" data-height="{height}">',
+        )
+        for chart_id, height in (("c-short", 200), ("c-tall", 420))
+    )
+    source = leaf_page(
+        "tiled charts",
+        f'<h1 id="t">Merged</h1><div class="layout-tiles">{tiles}</div>',
+    )
+    page = open_page(browser, serve(source))
+    heights = """() => Object.fromEntries(['c-short', 'c-tall'].map(id => [id,
+        Number(document.querySelector(`#${id} svg[role=img]`).getAttribute('height'))]))"""
+    drawn_for_room = """() => ['c-short', 'c-tall'].every(id => {
+        const el = document.getElementById(id);
+        const svg = el.querySelector('svg[role=img]');
+        return Number(svg.getAttribute('width')) === Math.round(el.clientWidth);
+    })"""
+    assert page.evaluate(heights) == {"c-short": 200, "c-tall": 420}
+    widths = []
+    for width in (640, 1280):
+        resized(page, width, 900)
+        page.wait_for_function(drawn_for_room)
+        widths.append(page.locator("#c-short").evaluate("el => el.clientWidth"))
+    assert widths[0] != widths[1], "the charts were never drawn again"
+    assert page.evaluate(heights) == {"c-short": 200, "c-tall": 420}
 
 
 def test_a_chart_that_fails_on_a_redraw_stays_failed_when_it_returns(browser, serve):

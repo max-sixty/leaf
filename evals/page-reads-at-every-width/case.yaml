@@ -43,8 +43,7 @@ variants:
         ($0.50/hour), A10 ($1.20/hour), A100 ($3/hour), and H100 ($5/hour). I also
         need batch or urgent priority, initially batch. Show what each job and the
         whole run will cost as I change the choices. Let me send the final
-        configuration to you to apply; do not apply anything yet. I am using a
-        1728×999 desktop window.
+        configuration to you to apply; do not apply anything yet.
   # A real comparison passed render checks with fixed drawings stranded at the
   # left of expanding grid tracks. Readable labels did not establish a balanced pair.
   diagram-comparison:

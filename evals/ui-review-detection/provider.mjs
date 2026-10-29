@@ -38,13 +38,13 @@ class BudgetExhausted extends Error {}
 const SYSTEM =
   'You are reviewing a user interface. Assess the supplied evidence, explain any concrete problems you can establish, and distinguish uncertainty from observation. Do not change the interface. Return your final assessment as JSON with fields verdict ("ready", "needs-work", or "insufficient-evidence"), findings (an array of objects with title, evidence, and consequence), and uncertainties (an array of strings).';
 const BROWSER_DESCRIPTION =
-  "Inspect the candidate interface. snapshot returns its current screenshot, visible text, Playwright accessibility snapshot, and numbered controls. Controls labelHint is a locator hint, not a computed accessible name; consult accessibility for accessible names, roles and state. click uses a control index or an exact button accessible name. press sends one keyboard key or chord. scroll moves the document or a numbered scrollable control. Every operation returns a new snapshot. Only the candidate fixture is reachable.";
+  "Inspect the candidate interface. snapshot returns its current screenshot, visible text, Playwright accessibility snapshot, and numbered controls. Controls labelHint is a locator hint, not a computed accessible name; consult accessibility for accessible names, roles and state. click uses a control index or an exact button accessible name. hover moves the pointer onto a control index, or to page coordinates x and y, and leaves it there. press sends one keyboard key or chord. scroll moves the document or a numbered scrollable control. Every operation returns a new snapshot. Only the candidate fixture is reachable.";
 const browserDescription = (limit) =>
   `${BROWSER_DESCRIPTION} You may make at most ${limit} total browser operations, including snapshots and failed operations. Each snapshot reports remainingOperations. Finish your final assessment before requesting another operation when none remain.`;
 // The browser tool's arguments. The Claude arm's SDK takes the schema itself; the Codex
 // arm sends its JSON Schema, and `invoke` parses every call against it.
 const BrowserArgs = z.strictObject({
-  action: z.enum(["snapshot", "click", "press", "scroll"]),
+  action: z.enum(["snapshot", "click", "hover", "press", "scroll"]),
   index: z.number().int().nonnegative().optional(),
   name: z.string().optional(),
   key: z.string().optional(),
@@ -198,6 +198,14 @@ export async function openBrowser(manifest, evidenceDir, limit = 12) {
           if ((await target.count()) !== 1)
             throw new Error("click must identify exactly one current control");
           await target.click();
+        } else if (args.action === "hover") {
+          if (args.index !== undefined)
+            await page
+              .locator(`[data-eval-control="${Number(args.index)}"]`)
+              .hover({ force: true });
+          else if (args.x !== undefined && args.y !== undefined)
+            await page.mouse.move(args.x, args.y);
+          else throw new Error("hover requires a control index or x and y");
         } else if (args.action === "press") {
           if (
             !/^(?:(?:Shift|Control|Alt|Meta)\+)*(?:Enter|Escape|Space|Tab|ArrowLeft|ArrowRight|ArrowUp|ArrowDown|Home|End|PageUp|PageDown|[a-z0-9])$/.test(

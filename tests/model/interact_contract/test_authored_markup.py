@@ -59,7 +59,7 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
     ]
 
 
-def test_check_requires_the_vendored_layer(tmp_path):
+def test_check_requires_an_initialized_page(tmp_path):
     d = tmp_path / "bare"
     d.mkdir(parents=True)
     (d / "index.html").write_text(PAGE)
@@ -279,6 +279,26 @@ def test_check_validates_each_sample_document(page_dir, markup, code, samples, h
     assert refused.samples == samples
 
 
+@pytest.mark.parametrize("holder", ["page", "message"])
+def test_a_sample_child_naming_a_missing_picture_is_refused_once(page_dir, holder):
+    """A page's capture reads its samples' children with it, and a message, which no
+    capture reads, asks of the children it carries at its own gate: either way a
+    picture the page directory lacks is refused, and by one of the two. The capture
+    names a file once however many documents name it; the message's gate names it in
+    each child that does."""
+    picture = '<img src="/media/0000000000000009.png" alt="shot">'
+    findings = sample_holder_findings(
+        page_dir,
+        holder,
+        f'<template id="practice" data-sample><p>{picture}</p>'
+        f'<template id="nested" data-sample><p>{picture}</p></template></template>',
+    )
+    missing = found(findings, "missing-media", ref="/media/0000000000000009.png")
+    assert [refused.samples for refused in missing] == (
+        [()] if holder == "page" else [("practice",), ("practice", "nested")]
+    )
+
+
 @pytest.mark.parametrize("poster", ["agent", "fixture"])
 def test_a_message_sample_cannot_select_the_thread_holding_it(page_dir, poster):
     """Its child would hold the same message and sample, whose child would too,
@@ -406,6 +426,89 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_di
         "page <style> (line 6)",
         "<p style> (line 11)",
     ]
+
+
+@pytest.mark.parametrize("style", ["color: red; } }", "& { color: red; }"])
+@pytest.mark.parametrize(
+    "holder",
+    [
+        "{}",
+        "<template>{}</template>",
+        '<div><template shadowrootmode="open">{}</template></div>',
+    ],
+    ids=["document", "template", "shadow-root"],
+)
+@pytest.mark.parametrize("door", ["page", "message"])
+def test_what_delivery_cannot_read_is_refused_at_each_door(
+    page_dir, style, holder, door
+):
+    """What a sheet must not hold is what delivery's reader can't read, so each door
+    asks that reader of every sheet delivery rewrites, a template's and a shadow
+    root's included, and refuses with its words. A nested rule in a style attribute
+    parses as a block's contents but not as the declaration list delivery reads,
+    and once passed every check only for delivery to refuse it with no reason."""
+    from leaf.revision_artifact import ArtifactError
+    from leaf.revision_delivery import DeliveryAddress, rebase_document
+
+    markup = holder.format(f'<p style="{style}">Shown</p>')
+    source = styled("", markup)
+    if door == "page":
+        (page_dir / "index.html").write_text(source)
+        _, findings = check_findings(page_dir)
+    else:
+        published(page_dir)
+        findings = command_findings(
+            "thread", "create", page_dir, "--text", "Look:", "--markup", markup
+        )
+    [refused] = findings if door == "message" else found(findings, "css-syntax")
+    assert refused.code == "css-syntax"
+    assert refused.values["sheet"].startswith("<p style>")
+    with pytest.raises(ArtifactError) as delivered:
+        rebase_document(source, DeliveryAddress("/root", "/revision"))
+    assert [f.values["message"] for f in delivered.value.findings] == [
+        refused.values["message"]
+    ]
+
+
+@pytest.mark.parametrize("door", ["page", "page-sample", "message-sample"])
+def test_a_sheet_delivery_refuses_reports_nothing_dropped(page_dir, door):
+    """A sheet delivery's reader refuses has its syntax error and nothing more: a
+    reparse past that error would report the rules it misreads as dropped."""
+    sheet = "<style>p { ] }</style>"
+    sample = f'<template id="practice" data-sample>{sheet}<h1>Child</h1></template>'
+    if door == "message-sample":
+        published(page_dir)
+        findings = command_findings(
+            "thread", "create", page_dir, "--text", "Try:", "--markup", sample
+        )
+    else:
+        (page_dir / "index.html").write_text(
+            styled("", sample) if door == "page-sample" else styled("p { ] }")
+        )
+        _, findings = check_findings(page_dir)
+    assert [
+        (f.code, f.values["message"]) for f in findings if f.severity == "error"
+    ] == [("css-syntax", "Unmatched ]")]
+
+
+def test_a_dropped_declaration_is_advice(page_dir):
+    """A declaration a browser drops is one delivery's reader reads whole, so it
+    refuses nothing of Leaf's: the check reports it beside a passing result, and a
+    message carrying it is admitted (`styles.DROPPED_SEVERITY`)."""
+    (page_dir / "index.html").write_text(styled("p { color: red; broken; }"))
+    status, findings = check_findings(page_dir)
+    [dropped] = found(findings, "css-dropped")
+    assert (status, dropped.severity) == (0, "advice")
+    published_markup = (
+        '<template id="practice" data-sample><style>p { broken; }</style>'
+        "<h1>Child</h1></template>"
+    )
+    (page_dir / "index.html").write_text(PAGE)
+    published(page_dir)
+    refused = command_findings(
+        "thread", "create", page_dir, "--text", "Try:", "--markup", published_markup
+    )
+    assert refused == []
 
 
 def test_a_sampled_thread_starts_as_its_source_log_leaves_it():

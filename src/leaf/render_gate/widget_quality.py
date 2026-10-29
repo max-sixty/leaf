@@ -52,8 +52,9 @@ from uuid import uuid4
 from leaf.data import write_data
 from leaf.data_contracts import declared_data_bindings, output_findings, resource_urls
 from leaf.findings import Finding, element_at
-from leaf.layer import LayerComposition, checked_layer_inputs, compose_layer
+from leaf.layer import checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry.contract import element_declarations, read_registry_declarations
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import (
@@ -210,19 +211,12 @@ def _readings(
         page.close()
 
 
-def _page_findings(
-    browser,
-    composition: LayerComposition,
-    pages: list[tuple[str, SourceDocument, dict]],
-    tags: list[str],
-) -> list[Finding]:
-    """`keeps-first-box`, `shows-context-keys` and `grows-with-content` over each page
-    of examples, served
-    from a page vendored with the package's layer and thrown away after."""
-    findings = []
+def served_examples(package: Path, pages):
+    """Serve each page of examples in turn, from a page selecting `package` and
+    thrown away after, yielding its Layout, URL and artifact while it is served."""
     with tempfile.TemporaryDirectory(prefix="leaf-widgets-") as temporary:
         page_dir = Path(temporary)
-        start_throwaway_page(page_dir, composition)
+        start_throwaway_page(page_dir, package)
         candidate = read_page_registry(page_dir)
         (page_dir / MEDIA_DIR).mkdir(exist_ok=True)
         for layout, document, data in pages:
@@ -272,47 +266,63 @@ def _page_findings(
                 )
             except ArtifactError as error:
                 raise UnreadablePage(str(error)) from error
-            with preview_server(page_dir, document, 1, artifact=artifact) as url:
-                changed, unshown, held, outputs = _readings(browser, url, tags)
-            findings += output_findings(
-                outputs,
-                artifact.registry,
-                artifact.implementations,
-                artifact.declaration_sources,
+            snapshot = capture_page_snapshot(
+                page_dir, document, 1, url="/", artifact=artifact
             )
-            findings += [
-                _finding(
-                    "keeps-first-box",
-                    box["tag"],
-                    box["id"],
-                    layout=layout,
-                    first=box["first"],
-                    now=box["now"],
-                )
-                for box in changed
-                if box["tag"] in tags
-            ]
-            findings += [
-                _finding(
-                    "shows-context-keys",
-                    command["tag"],
-                    command["id"],
-                    layout=layout,
-                    command=command["command"],
-                )
-                for command in unshown
-            ]
-            findings += [
-                _finding(
-                    "grows-with-content",
-                    box["tag"],
-                    box["id"],
-                    layout=layout,
-                    box=box["at"],
-                    height=box["height"],
-                )
-                for box in held
-            ]
+            with preview_server(page_dir, snapshot) as url:
+                yield layout, url, artifact
+
+
+def _page_findings(
+    browser,
+    package: Path,
+    pages: list[tuple[str, SourceDocument, dict]],
+    tags: list[str],
+) -> list[Finding]:
+    """`keeps-first-box`, `shows-context-keys` and `grows-with-content` over each page
+    of examples (`served_examples`)."""
+    findings = []
+    for layout, url, artifact in served_examples(package, pages):
+        changed, unshown, held, outputs = _readings(browser, url, tags)
+        findings += output_findings(
+            outputs,
+            artifact.registry,
+            artifact.implementations,
+            artifact.declaration_sources,
+        )
+        findings += [
+            _finding(
+                "keeps-first-box",
+                box["tag"],
+                box["id"],
+                layout=layout,
+                first=box["first"],
+                now=box["now"],
+            )
+            for box in changed
+            if box["tag"] in tags
+        ]
+        findings += [
+            _finding(
+                "shows-context-keys",
+                command["tag"],
+                command["id"],
+                layout=layout,
+                command=command["command"],
+            )
+            for command in unshown
+        ]
+        findings += [
+            _finding(
+                "grows-with-content",
+                box["tag"],
+                box["id"],
+                layout=layout,
+                box=box["at"],
+                height=box["height"],
+            )
+            for box in held
+        ]
     return findings
 
 
@@ -331,5 +341,5 @@ def widget_findings(browser, package: Path) -> list[Finding]:
     shown = {record["tag"] for _, page, _ in pages for record in page.lf_elements}
     findings = [_finding("example", tag) for tag in tags if tag not in shown]
     if pages:
-        findings += _page_findings(browser, composition, pages, tags)
+        findings += _page_findings(browser, package, pages, tags)
     return findings

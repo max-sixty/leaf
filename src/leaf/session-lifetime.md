@@ -30,7 +30,7 @@ The table lists each fact the fold reads, and when it stops being believed.
 | turn id, `turn_opened`, `turn_closed`                                  | the session lifecycle record (`state.py`)                                                       | a prompt, an App Server client, Codex's transcript (`codex_state.py`) or an explicit reader acknowledgement opens or renews the turn, under the harness's id where it names one; the Stop hook or an App Server client closes it | the next opening of another id; a closed id never reopens                                                                                                                                                                             |
 | the harness's word on the session: `idle`, `waiting` or `busy`, dated  | the harness's own record, read live (`Harness.live_turn`)                                       | the harness                                                                                                                                                                                                                      | read live; absent where the harness publishes nothing                                                                                                                                                                                 |
 | the turn ending this page last nudged its session after                | `messaged_ending` in the claim                                                                  | `PageTransaction.note_messaged`, once a nudge lands or a watch wakes the session                                                                                                                                                 | a later ending differs from it                                                                                                                                                                                                        |
-| wait lease                                                             | `waiter.lock`, or `sessions/<session>.wait` for a harness session                               | `leaf wait`, or a harness's watch between turns; the kernel lock proves it live, never the file (`leases.py`)                                                                                                                    | process exit, a crash included, or a later watch superseding it                                                                                                                                                                       |
+| wait lease                                                             | `waiter.lock`, or `sessions/<session>.wait` for a harness session                               | `leaf wait`, or a harness's watch between turns; the kernel lock proves it live, never the file (`leases.py`)                                                                                                                    | process exit, a crash included, or a later watch superseding it; and by a Leaf at a later page protocol than the one the file names, which that watch can't read (`leases.wait_is_live`)                                              |
 | the harness runs Leaf's hooks for this session                         | `sessions/<session>.hooks`                                                                      | every Leaf hook                                                                                                                                                                                                                  | SessionEnd                                                                                                                                                                                                                            |
 | acknowledgement cursor                                                 | the greatest `through` among `receipt` events (`service.acknowledged`)                          | `delivery.receive_batch`, called by whatever confirms a delivery reached its consumer                                                                                                                                            | never; it only advances within its log                                                                                                                                                                                                |
 | pickup transition                                                      | a `pickup` event                                                                                | `queued`: Codex's adapter, when Codex accepts a batch it can't observe; `opened`, with session and turn: whatever puts the batch into a turn                                                                                     | never; each transition is idempotent                                                                                                                                                                                                  |
@@ -112,7 +112,11 @@ to-do itself, which no turn or session ending lapses (`todos.py`).
 ### Turns and generations
 
 A turn's stamps and generation belong to the session's one lifecycle record, so no
-opening or ending rewrites a claim (`state.py`). `state.end_harness_instance` says
+opening or ending rewrites a claim (`state.py`). That module alone reads the stamps
+as a phase: no turn yet, open, closed, or ended, which closes the turn too. Every
+other reader, of the record or of a claim's view of it, asks `state.turn_open`,
+`state.turn_closed` or `state.session_live`, and every opening refuses a turn id the
+record holds closed. `state.end_harness_instance` says
 which generations SessionEnd ends and which, such as a desktop Codex chat's or a
 background job's, outlive the harness instance.
 
@@ -120,8 +124,9 @@ Where nothing answers for the declaration, activity reports the page `unheld`. A
 with a persistent service spends most of its life unheld, and picks up again when a
 session takes it.
 
-A developer user preview can select the runtime that delivers for its session
-(`session_runtime.py`); page servers keep their own.
+A session's hooks, watch and bare `leaf` commands run its delivering Leaf: a checkout
+a user preview or a re-vendor selected, or the copy Claude Code installed since the
+session loaded its own (`session_runtime.py`); page servers keep their own.
 
 ## Watchers
 

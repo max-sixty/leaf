@@ -59,6 +59,7 @@ import time
 from concurrent.futures import Future
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from types import EllipsisType
 
 # The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
 # one binding: whatever takes a turn's readings there takes every client's too.
@@ -113,6 +114,7 @@ from .state import (
     session_record,
     start_session_turn,
     state_home,
+    turn_closed,
 )
 from .thread import delivery_reply_reserved
 
@@ -133,7 +135,7 @@ ADAPTER = Record(
             },
             {
                 "launcher": described(
-                    "The immutable runtime running the adapter.", {"type": "string"}
+                    "The launcher running the adapter.", {"type": "string"}
                 )
             },
         ),
@@ -230,7 +232,11 @@ class TaskConnection:
     adopting a current lifecycle. Matching completion refreshes the token for the
     next natural provider turn. Terminal provider IDs remain terminal for this
     subscription, even after their heavy live folds are discarded; late output
-    and stale running snapshots cannot give them a new lifecycle.
+    and stale running snapshots cannot give them a new lifecycle. The session
+    record refuses to reopen only the turn it holds (`state.advance_turn`); an
+    earlier id, such as the history a snapshot lists, only this subscription can
+    name again, so it keeps those ids itself rather than writing each into the
+    record, whose revision every hook offer compares against.
     """
 
     def __init__(self, endpoint: str, thread_id: str):
@@ -239,9 +245,9 @@ class TaskConnection:
         self.turns: dict[str, TurnFold] = {}
         self.running: str | None = None
         self.lifecycle = session_record(thread_id)
-        self.terminal_turns: set[str] = set()
-        if self.lifecycle and self.lifecycle["turn_closed"] is not None:
-            self.terminal_turns.add(self.lifecycle["turn"])
+        self.terminal_turns: set[str] = (
+            {self.lifecycle["turn"]} if turn_closed(self.lifecycle) else set()
+        )
         self.stop_event = threading.Event()
         self.socket = None
         self.started = False
@@ -489,12 +495,16 @@ class TaskConnection:
             ) != "idle" or self.running is not None:
                 return
             for delivery_id in pending:
+                payload = codex.stored_delivery(delivery_id)
+                assert payload is not None
                 codex.abandon_uncertain_delivery(
                     self.thread_id,
-                    codex.stored_delivery(delivery_id),
+                    payload,
                 )
 
-    def _resume(self, thread: dict, expected: dict | None | object = ...) -> set[str]:
+    def _resume(
+        self, thread: dict, expected: dict | None | EllipsisType = ...
+    ) -> set[str]:
         """Reconcile task metadata; return turn IDs whose full items were read."""
         # A followed turn the snapshot does not list — a paginated thread's `turns`
         # can leave it out — stays disconnected until it says something.
@@ -532,7 +542,9 @@ class TaskConnection:
             )
         return hydrated
 
-    def _reconcile(self, turn: dict, expected: dict | None | object = ...) -> bool:
+    def _reconcile(
+        self, turn: dict, expected: dict | None | EllipsisType = ...
+    ) -> bool:
         """Bring one snapshot turn's fold up to what the snapshot says of it.
 
         A running turn is followed, whether or not it was before the connection
@@ -640,7 +652,7 @@ class TaskConnection:
         )
 
     def _observe_lifecycle(
-        self, turn_id: str, expected: dict | None | object = ...
+        self, turn_id: str, expected: dict | None | EllipsisType = ...
     ) -> bool:
         """Adopt ordered live provider evidence only against this subscription's epoch."""
         if turn_id in self.terminal_turns:

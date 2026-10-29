@@ -29,7 +29,7 @@
   // the anchored response bar, which writes `outline: none` so its states keep one
   // silhouette, and the target hint the keyboard is browsing, a chip in a layer nothing can
   // focus — and to a user they are the same band as every other ring (--focus-shadow,
-  // theme.css).
+  // base.css).
   //
   // What makes it that band rather than the layer's other shadows: no offsets, no blur, and
   // the ring's own width as its spread. The elevation shadows are the third length away —
@@ -221,6 +221,18 @@
       return false;
     };
     const focused = deepFocus();
+    const { accent } = accentSwatch();
+    // A colour as the screenshot holds it, whatever space it was written in: a canvas
+    // paints it into sRGB.
+    const canvas = document.createElement("canvas").getContext("2d", {
+      willReadFrequently: true,
+    });
+    const srgb = (colour) => {
+      canvas.clearRect(0, 0, 1, 1);
+      canvas.fillStyle = colour;
+      canvas.fillRect(0, 0, 1, 1);
+      return [...canvas.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+    };
     const claimed = globalThis.__lfRingClaims;
     delete globalThis.__lfRingClaims;
     const answers = [];
@@ -231,7 +243,7 @@
       // leaving — and this once read every ring that way, because the theme's
       // reduced-motion guard shortened transitions rather than removing them and
       // `transition-property` is `all`, so a ring arriving was a ring in transit for two
-      // frames on every page. That is fixed where it was made (theme.css). A layer that
+      // frames on every page. That is fixed where it was made (base.css). A layer that
       // deliberately animates a ring owes this reading a wait on `getAnimations()`; one
       // written here now would wait on nothing, in front of the reading it is meant to
       // protect.
@@ -242,9 +254,18 @@
       // wherever there is one, so every box this reading already measured is measured the
       // same way: the two carriers are on different boxes in this layer, and where a box
       // ever wears both, the outline is the one the layer's own rules put there.
-      const w = outlined || cast;
-      const grow = outlined ? outlined + (parseFloat(cs.outlineOffset) || 0) : cast;
+      //
+      // Both are in the box's own pixels, which a scaled box, such as a film's terminal
+      // drawn in an SVG's foreignObject, shows smaller on screen. offsetWidth is the
+      // unscaled width in whole pixels, so a difference of a pixel or less is its rounding.
       const b = pseudo ? rectangles[index] : el.getBoundingClientRect();
+      const scale =
+        !pseudo && Math.abs(b.width - el.offsetWidth) > 1
+          ? b.width / el.offsetWidth
+          : 1;
+      const w = (outlined || cast) * scale;
+      const grow =
+        (outlined ? outlined + (parseFloat(cs.outlineOffset) || 0) : cast) * scale;
       const ring = {
         top: b.top - grow,
         left: b.left - grow,
@@ -264,7 +285,14 @@
       // two defects. The innermost box is the more useful of the two answers anyway: it
       // is the box the control lives in.
       const taken = {};
+      // What of the page the ring can show through: every band that clips it, and the
+      // window. The pixel reading below samples only there.
+      const clip = { top: 0, left: 0, bottom: innerHeight, right: innerWidth };
       const took = (band, who) => {
+        clip.top = Math.max(clip.top, band.top);
+        clip.left = Math.max(clip.left, band.left);
+        clip.bottom = Math.min(clip.bottom, band.bottom);
+        clip.right = Math.min(clip.right, band.right);
         // Only the sides where this box is showing the control's own edge, which is the
         // claim a box can be held to: where the control can be seen, so can the ring
         // around it. Asked of the edge rather than of the size, because the two answers
@@ -616,8 +644,67 @@
           break;
         }
       }
+      // Hit testing sees only boxes that take hits, so paint that takes none passes the
+      // reading above: a box shadow, a pseudo-element or a layer with no pointer events,
+      // or a ring never painted at all. A margin card's sticky message head lays paper
+      // over the room above it as a shadow, and the ring on the message under it read
+      // whole with its top run gone. So each run is also read off the screenshot where
+      // nothing in front of the ring takes hits, which leaves every box hit testing
+      // can see to the reading above and its excuses. `rings_drawn` takes the
+      // screenshot and reports a run the ring's colour doesn't cover.
+      //
+      // Only the layer's own ring is read, whose colour is known; a rounded ring's
+      // corners curve off the run's line, so the run is read short of them. A ring
+      // the screenshot can't show in its known colour is left to the reading above:
+      // one faded with its box, as a disabled control is at reduced opacity; one scaled,
+      // whose band lands on fractional pixels and blends with its ground; and an inline
+      // box's split over lines, whose fragments each wear their own ring rather than
+      // the one rectangle the runs follow.
+      const runs = [];
+      let opacity = 1;
+      for (let a = el; a; a = flatParent(a)) opacity *= +getComputedStyle(a).opacity;
+      if (here && opacity === 1 && scale === 1 && el.getClientRects().length === 1) {
+        const radius = Math.max(
+          ...["TopLeft", "TopRight", "BottomLeft", "BottomRight"].map(
+            (corner) => parseFloat(cs[`border${corner}Radius`]) || 0,
+          ),
+        );
+        const end = radius + grow + w + 1;
+        // A press of the box's own standing in front is chrome seated on its border on
+        // purpose, as a draft's toolbar and a code block's Copy are, so the ring under
+        // it is not read; the box's other contents, such as a card message's sticky
+        // head, are, since nothing makes their cover deliberate.
+        const exposed = (x, y) => {
+          const front = document.elementsFromPoint(x, y)[0];
+          if (!front || front === el) return true;
+          const press = front.closest("button, a[href]");
+          if (press && press !== el && holds(el, press)) return false;
+          return holds(el, front) || holds(front, el);
+        };
+        for (const [side, line, horizontal] of [
+          ["top", ring.top + w / 2, true],
+          ["bottom", ring.bottom - w / 2, true],
+          ["left", ring.left + w / 2, false],
+          ["right", ring.right - w / 2, false],
+        ]) {
+          const [from, to] = horizontal
+            ? [ring.left + end, ring.right - end]
+            : [ring.top + end, ring.bottom - end];
+          const points = [];
+          for (let t = from; t <= to; t += 4) {
+            const [x, y] = horizontal ? [t, line] : [line, t];
+            if (x < clip.left || x >= clip.right || y < clip.top || y >= clip.bottom)
+              continue;
+            if (orderedAt(x, y) && exposed(x, y)) points.push([x, y]);
+          }
+          if (points.length >= 4) runs.push({ side, points });
+        }
+      }
       answers.push({
         who: named(el),
+        ink: srgb(outlined ? cs.outlineColor : accent),
+        ringAt: at(ring),
+        runs,
         here,
         mark: el.matches(".lf-mark-el"),
         pseudo: pseudo ? "after" : null,
@@ -668,7 +755,7 @@
   // What this cannot see, said out loud so a green is not read as more than it is. A
   // joined `lf-options` carrying log news — restated, pending, reported — deliberately
   // stands its ring down, because an element takes one outline and the log has claimed it;
-  // the layer's own comment (packages/default/widgets.css) names the carriers that stand in
+  // the layer's own comment (packages/default/defaults.css) names the carriers that stand in
   // its place as the washed cell and the key badges, and neither is an outline nor an
   // accent shadow. That is a fifth way of drawing "here" and this reading has no honest
   // test for it: accepting a background would pass every stop on a tinted page. No corpus

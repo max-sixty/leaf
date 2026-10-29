@@ -1,0 +1,250 @@
+:is(lf-event, lf-lane, lf-timeline) {
+  display: block;
+  min-width: 0;
+}
+/* The authored lanes and events are the drawing's data; once Leaf draws, the drawing
+   shows them. Without the runtime they read as a plain list. */
+lf-lane {
+  display: block;
+  margin-block: var(--sp-2);
+}
+lf-lane::before {
+  content: attr(label);
+  font-weight: 600;
+}
+lf-event {
+  display: list-item;
+  margin-inline-start: var(--list-inset);
+}
+lf-event::before {
+  content: attr(at) " ms: " attr(label);
+}
+@scope (html[data-lf-interactive] :is(lf-event, lf-lane)) {
+  :scope:is(lf-lane, lf-event) {
+    display: none;
+  }
+}
+
+.lf-timeline-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-block-end: var(--sp-2);
+  font: 13px/1.4 var(--sans);
+}
+/* The position follows both buttons, so its changing width never moves them. */
+.lf-timeline-position {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lf-timeline-chart {
+  --lf-timeline-row: 22px;
+  --lf-timeline-bar: 22px;
+  --lf-timeline-ruler: 22px;
+  --lf-timeline-label-weight: 500;
+  --lf-timeline-ground: var(--lf-ground, var(--paper));
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-rows: var(--lf-timeline-ruler) repeat(var(--lf-timeline-lanes, 1), auto);
+  font: var(--lf-timeline-label-weight) 12px/1 var(--sans);
+  color: var(--ink);
+  user-select: none;
+  /* Marks and done spans are painted backgrounds, which paper otherwise drops. */
+  print-color-adjust: exact;
+}
+.lf-timeline-name {
+  grid-column: 1;
+  display: flex;
+  align-items: end;
+  box-sizing: border-box;
+  block-size: calc(
+    var(--lf-timeline-rows) * var(--lf-timeline-row) + var(--lf-timeline-bar)
+  );
+  padding-inline-end: var(--sp-2);
+  padding-block-end: 5px;
+  border-block-start: 1px solid var(--rule);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.lf-timeline-ruler {
+  grid-row: 1;
+  grid-column: 2;
+  position: relative;
+  color: var(--muted);
+}
+/* Each position is a fraction of the track (--lf-timeline-at, set by the drawing)
+   inside its edge inset, so it holds at any width, a printed page's included. */
+.lf-timeline-tick {
+  position: absolute;
+  left: calc(
+    var(--lf-timeline-edge) + var(--lf-timeline-at) *
+      (100% - 2 * var(--lf-timeline-edge))
+  );
+  inset-block-end: 0;
+  block-size: 4px;
+  border-inline-start: 1px solid var(--border-2);
+  white-space: nowrap;
+}
+.lf-timeline-tick[data-major] {
+  block-size: 100%;
+  box-sizing: border-box;
+  padding-inline-start: 3px;
+  padding-block-start: 3px;
+  border-inline-start-color: var(--muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+/* The last label reads back from its tick, inside the scale. */
+.lf-timeline-tick[data-flip] {
+  translate: -100% 0;
+  padding-inline: 0 3px;
+  border-inline-start: 0;
+  border-inline-end: 1px solid var(--muted);
+}
+.lf-timeline-lane {
+  grid-column: 2;
+  position: relative;
+  box-sizing: border-box;
+  block-size: calc(
+    var(--lf-timeline-rows) * var(--lf-timeline-row) + var(--lf-timeline-bar)
+  );
+  border-block-start: 1px solid var(--rule);
+}
+/* One event's label and mark. The group spans its lane so that each part is
+   positioned in the lane's coordinates; only the label and mark take presses. */
+.lf-timeline-event {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  --lf-timeline-tone: var(--ink);
+}
+.lf-timeline-event[data-state="current"] {
+  --lf-timeline-tone: var(--accent);
+}
+.lf-timeline-event[data-state="future"] {
+  --lf-timeline-tone: var(--muted);
+}
+/* Label row 0 sits nearest the bar row. Labels stand in front of the playhead on
+   the chart's ground, so the line passes behind words rather than through them. */
+.lf-timeline-label {
+  position: absolute;
+  left: calc(
+    var(--lf-timeline-edge) + var(--lf-timeline-at) *
+      (100% - 2 * var(--lf-timeline-edge))
+  );
+  z-index: 2;
+  inset-block-start: calc(
+    (var(--lf-timeline-rows) - 1 - var(--lf-timeline-row-index, 0)) *
+      var(--lf-timeline-row) + 3px
+  );
+  box-sizing: border-box;
+  block-size: calc(var(--lf-timeline-row) - 4px);
+  display: flex;
+  align-items: center;
+  padding-inline: 5px;
+  border-inline-start: 2px solid var(--lf-timeline-tone);
+  background: var(--lf-timeline-ground);
+  color: var(--lf-timeline-tone);
+  max-inline-size: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.lf-timeline-label[data-place="flip"] {
+  translate: -100% 0;
+  border-inline-start: 0;
+  border-inline-end: 2px solid var(--lf-timeline-tone);
+}
+/* Too long to read either way from its mark: against the axis end. */
+.lf-timeline-label[data-place="end"] {
+  left: auto;
+  right: 0;
+}
+.lf-timeline-event[data-state="current"] .lf-timeline-label {
+  font-weight: 600;
+}
+.lf-timeline-mark {
+  position: absolute;
+  left: calc(
+    var(--lf-timeline-edge) + var(--lf-timeline-at) *
+      (100% - 2 * var(--lf-timeline-edge))
+  );
+  z-index: 2;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.lf-timeline-mark[data-kind="span"] {
+  inset-block-end: 6px;
+  block-size: 10px;
+  inline-size: max(4px, var(--lf-timeline-span) * (100% - 2 * var(--lf-timeline-edge)));
+  border-radius: 3px;
+  border: 1px solid var(--lf-timeline-tone);
+  box-sizing: border-box;
+  /* Done up to the playhead, open after it. */
+  background: linear-gradient(
+    to right,
+    var(--lf-timeline-tone) calc(var(--lf-timeline-done) * 100%),
+    transparent 0
+  );
+}
+.lf-timeline-mark[data-kind="instant"] {
+  inset-block-end: 5px;
+  inline-size: 12px;
+  block-size: 12px;
+  translate: -50% 0;
+  rotate: 45deg;
+  background: var(--lf-timeline-tone);
+  border: 2px solid var(--lf-timeline-ground);
+  box-sizing: border-box;
+}
+.lf-timeline-event[data-state="future"] .lf-timeline-mark[data-kind="instant"] {
+  background: var(--lf-timeline-ground);
+  border-color: var(--muted);
+}
+.lf-timeline-playhead {
+  grid-row: 1 / -1;
+  grid-column: 2;
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+.lf-timeline-playhead-line {
+  position: absolute;
+  left: calc(
+    var(--lf-timeline-edge) + var(--lf-timeline-at) *
+      (100% - 2 * var(--lf-timeline-edge))
+  );
+  inset-block: 0;
+  inline-size: 2px;
+  margin-inline-start: -1px;
+  background: var(--accent);
+}
+/* Step changes move the retained line to its new time. The shared presentation and
+ * reduced-motion guards suppress this transition when the page must appear at rest. */
+@media screen {
+  .lf-timeline-playhead-line {
+    transition: left 160ms ease;
+  }
+}
+
+.lf-timeline-steps {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  font: 13px/1.45 var(--sans);
+}
+/* Each step is a row (controls.css, `.lf-row`), led by its time, the step shown its
+ * current row; a step still ahead of it stands in the muted ink. */
+.lf-timeline-step {
+  cursor: pointer;
+}
+.lf-timeline-step:not([data-past], [aria-current]) {
+  color: var(--muted);
+}
+.lf-timeline-step-lane {
+  font-weight: 600;
+}

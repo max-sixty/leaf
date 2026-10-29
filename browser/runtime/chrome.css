@@ -18,7 +18,7 @@
    each surface.
 
    Every rule that draws a focus ring draws it with `--focus-ring` or `--focus-shadow`
-   (theme.css) and names nothing; the suite asks the browser which rule drew it. The ring is drawn outside its box, so every scroll region a ringed box can land in
+   (base.css) and names nothing; the suite asks the browser which rule drew it. The ring is drawn outside its box, so every scroll region a ringed box can land in
    reserves `--focus-ring-room` with `scroll-padding`, and a sticky row keeps that room as
    its own padding; a box whose edge touches something that paints draws its ring inset.
    A large composite region paints a quiet ground inside its box instead.
@@ -32,7 +32,7 @@
    absolute chrome with the passage it stands beside. */
 /* Shared vocabulary. This sheet is adopted after the theme and every package, so a
    shared face stated here would outrank each component's own rule. The vocabulary's
-   faces are therefore stated page-side (the margin entries in theme.css; .lf-key-badge,
+   faces are therefore stated page-side (the margin entries in base.css; .lf-key-badge,
    .lf-ui, .lf-btn and the aim floor in shadow.css, which also reaches
    widget trees). What stays here is paint the runtime lays over the page, which has to
    beat page and widget alike, and the `box-sizing` reset. test_interact_layer.py holds
@@ -194,7 +194,7 @@ html[data-lf-region-capture] main * {
    It is an outline, so it moves nothing. A widget carrying the location itself stands
    it down with `--lf-obligation-ring: none` on the decision. */
 /* The ring stands outside the decision, so a landing keeps its room at the scroller's
-   edge, as a margin entry's does (theme.css): an obligation landed at the top of a scrolling
+   edge, as a margin entry's does (base.css): an obligation landed at the top of a scrolling
    pane stood flush with it, the top of its ring cut off under the pane's header rule. */
 [data-lf-obligation] {
   outline: var(--lf-obligation-ring, var(--focus-ring));
@@ -391,7 +391,7 @@ html[data-lf-region-capture] main * {
       );
     }
     /* A clip that leaves no room outside the target (visual-mark-paint.js) takes the
-       perimeter just inside its edge, as a control packed into a list does (theme.css). */
+       perimeter just inside its edge, as a control packed into a list does (base.css). */
     &.lf-visual-mark-inset::before,
     &.lf-visual-mark-inset::after {
       outline-offset: calc(-1 * var(--focus-ring-w));
@@ -417,7 +417,7 @@ html[data-lf-region-capture] main * {
   }
 
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
-     mask is the page's actual vendored mark, so a project that replaces icon.svg does
+     mask is the layer's own mark, so a package that replaces icon.svg does
      not keep an unrelated leaf-like glyph in the panel. Shape is identity and colour
      is state, from the same registry-owned tones the tab icon wears. Each state adds
      no specificity, so a forced palette's later rule replaces every tone. */
@@ -807,21 +807,17 @@ html[data-lf-region-capture] main * {
      floor, empty or not, and the results start a step below it. */
   .lf-command-reference-head,
   .lf-command-reference-search,
-  .lf-command-reference-meta-box {
+  .lf-command-reference-meta {
     flex: none;
   }
-  .lf-command-reference-meta-box {
-    display: grid;
+  .lf-command-reference-meta {
     min-height: 1lh;
     margin: 6px 0;
+    overflow: hidden;
     color: var(--muted);
     font-size: var(--t-6);
-  }
-  .lf-command-reference-meta-box > * {
-    grid-area: 1 / 1;
-  }
-  .lf-command-reference-meta-box > [aria-hidden] {
-    visibility: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   /* The results reach 10px into the dialog's padding, so a row's wash (6px beyond its
      words) and its focus ring outside that keep their room inside the scroller. */
@@ -840,14 +836,16 @@ html[data-lf-region-capture] main * {
     margin: 16px 0 4px;
   }
   /* The reference is a list a reader scans for a command and then reads its keys, so
-     each key sits beside the words it runs, as a menu or Gmail's `?` sets it: the
-     command, then its keys 10px after, then its description. Two layouts were
-     rejected. In a table whose key column was a fixed 104px, a lone key stood some 80px
-     from its command, the longest lists still wrapped, and the table wore the
-     document's data-table rule, a hairline under every cell. Keys at the row's end, as
-     a wide command palette sets them, stood 300px away. Rows share no column, so one long
-     binding list (`⇥ / ⇧⇥ / ← / → / ↑ / ↓`) widens only its own row. Rows part by
-     their own room, and a section by the space above its heading.
+     each key leads the words it runs, as Gmail's `?` sets it: its keys, set against
+     the command 10px after them, then the command, then its description. The keys
+     share one column, as wide as `g letters`, so every command starts on one edge;
+     a step's alternatives stand as keys of their own, two to a line, so Move's six
+     take three. The user chose this on 28 October over three others: each key 10px after
+     its command, which zigzagged down the list; keys at the row's end, a dialog's
+     width from their words; and one column after the widest command. Before those, a
+     table whose key column was a fixed 104px stood a lone key some 80px from its
+     command and wore the document's data-table rule, a hairline under every cell.
+     Rows part by their own room, and a section by the space above its heading.
 
      A description stays out of sight at rest, as references set none and palettes set
      theirs small and on the title's line: it shows, on its row's one line and cut short
@@ -859,13 +857,15 @@ html[data-lf-region-capture] main * {
   .lf-command-reference-row:not([hidden]) {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(0, max-content) auto minmax(0, 1fr);
-    grid-template-areas: "action key desc";
-    align-items: center;
+    grid-template-columns: 5.6em minmax(0, max-content) minmax(0, 1fr);
+    grid-template-areas: "key action desc";
+    align-items: baseline;
+    align-content: center;
     column-gap: 10px;
+    min-height: var(--aim-floor);
     margin-inline: -6px;
-    padding-inline: 6px;
-    border-radius: var(--r);
+    /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
+    padding-inline: 4px 6px;
   }
   .lf-command-reference-row > * {
     min-width: 0;
@@ -883,6 +883,7 @@ html[data-lf-region-capture] main * {
   }
   .lf-command-reference-key {
     grid-area: key;
+    justify-self: end;
   }
   /* A walk lands a command's row (command-reference.js), and the row's ring stands
      past its edge, so the row keeps the ring's room as a landing's margin. */
@@ -908,22 +909,20 @@ html[data-lf-region-capture] main * {
   }
   @media (hover: none) {
     .lf-command-reference-row:not([hidden]) {
-      grid-template-areas: "action key ." "desc desc desc";
+      grid-template-areas: "key action ." ". desc desc";
     }
     .lf-command-reference-description {
       padding-top: 0;
       opacity: 1;
       white-space: normal;
     }
-    /* Up into the slack of its command's aim floor, which centers one line in 44px. */
-    .lf-command-reference-row:has(.lf-command-reference-command)
-      .lf-command-reference-description {
-      margin-top: calc((1lh - var(--aim-floor)) / 2);
-    }
   }
-  .lf-command-reference .lf-binding-sequence {
+  /* A step's alternatives stand two to a line, so Move's arrows pair as ← → and ↑ ↓. */
+  .lf-command-reference .lf-binding-sequence:has(> [data-lf-key-or]) {
     flex-wrap: wrap;
-    max-width: 100%;
+    justify-content: flex-end;
+    row-gap: 4px;
+    max-width: calc(2 * var(--lf-key-badge-size) + 14px);
   }
   .lf-command-reference .lf-binding-sequence > kbd {
     max-width: 100%;
@@ -940,8 +939,14 @@ html[data-lf-region-capture] main * {
   }
   /* A row's command is its one control: the button stretches over the row, so a press
      on its keys or description runs it too, and the row wears its wash and focus ring. */
+  /* It keeps to its column, so a long command wraps there beside its keys. Its row,
+     which its reach (`::after`) covers, meets the aim floor, so the command stands only
+     as tall as its words and a description follows them closely, however many lines
+     they take. */
   .lf-command-reference-command {
-    flex: none;
+    --lf-face-floor: 0px;
+    flex: 0 1 auto;
+    max-width: 100%;
     margin: 0;
     padding: 0;
     border: 0;
@@ -956,11 +961,6 @@ html[data-lf-region-capture] main * {
     position: absolute;
     inset: 0;
     border-radius: inherit;
-  }
-  .lf-command-reference-row:has(
-    .lf-command-reference-command:is(:hover, [data-lf-focus], [data-lf-selected="true"])
-  ) {
-    background: var(--chip);
   }
   .lf-command-reference-command[data-lf-focus-visible] {
     outline: none;
@@ -979,41 +979,23 @@ html[data-lf-region-capture] main * {
   .lf-inspection-head > strong {
     flex: 1;
   }
+  /* A press here is a row (controls.css, `.lf-row`), and a status beside it lays out
+     as one (`.lf-row-plain`), so their words share one edge. The user's turn paints
+     the row's ground as it paints its margin entry, in one rule set in base.css, and
+     the row's wash under the pointer lies over it. */
   .lf-page-map-action {
-    width: 100%;
-    min-width: 0;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 8px;
-    align-items: baseline;
-    border: 0;
-    border-radius: var(--r);
-    background: var(--lf-entry-tint, transparent);
+    background-color: var(--lf-entry-tint, transparent);
     color: inherit;
-    padding: 7px 8px;
-    font: inherit;
-    text-align: left;
     cursor: default;
+  }
+  /* Each group is a list of its own, so a kind's symbol, an icon, a glyph or an emoji,
+     stands centred in a square a line tall, and every group's names start on one edge. */
+  .lf-page-map-action > .lf-row-lead {
+    width: 1lh;
+    justify-items: center;
   }
   .lf-page-map-action:is(button, [role="button"]):not([aria-disabled="true"]) {
     cursor: pointer;
-  }
-  /* The user's turn paints this row as it paints its margin entry, in one rule set
-     in theme.css; the row's ground and hover read the wash it sets. */
-  .lf-page-map-action:is(button, [role="button"]):is(:hover, [data-lf-focus]):not(
-      [aria-disabled="true"]
-    ) {
-    background: color-mix(in srgb, var(--lf-entry-tint, var(--chip)) 92%, var(--ink));
-  }
-  .lf-page-map-action .lf-margin-kind {
-    align-self: center;
-  }
-  .lf-page-map-action-label {
-    min-width: 0;
-  }
-  .lf-page-map-action-label-word,
-  .lf-page-map-action-context {
-    display: block;
   }
   .lf-page-map-action-label-word,
   .lf-page-map-group h3 {
@@ -1022,12 +1004,6 @@ html[data-lf-region-capture] main * {
     -webkit-line-clamp: 2;
     overflow: hidden;
     overflow-wrap: anywhere;
-  }
-  .lf-page-map-action-context {
-    margin-block-start: 2px;
-    color: var(--muted);
-    font-size: var(--t-6);
-    line-height: 1.25;
   }
   /* Inset, because a row here fills the list to its own edge and the list is a
      scroller: there is nothing outside the row for a ring to be drawn in, and an
@@ -1104,10 +1080,6 @@ html[data-lf-region-capture] main * {
     justify-content: space-between;
     gap: 8px;
   }
-  .lf-copyable-head wa-copy-button::part(button) {
-    min-width: var(--aim-floor);
-    min-height: var(--aim-floor);
-  }
   .lf-copyable-text pre {
     margin-block: 0 10px;
     padding: 8px;
@@ -1157,8 +1129,7 @@ html[data-lf-region-capture] main * {
     line-height: 1.35;
   }
   .lf-page-map-actions {
-    display: grid;
-    gap: 2px;
+    row-gap: 2px;
   }
 
   @media (forced-colors: active) {
@@ -1173,6 +1144,11 @@ html[data-lf-region-capture] main * {
     align-items: center;
     gap: 1px;
     white-space: nowrap;
+  }
+  /* A step's keys are alternatives, as `z` and `⌘z` both undo a stroke: each stands
+     apart from the next, where a sequence's steps stand together. */
+  .lf-binding-sequence > kbd[data-lf-key-or] {
+    margin-inline-start: 4px;
   }
   .lf-binding-sequence > kbd[data-lf-sequence-step-state="pressed"] {
     border-color: var(--accent);
@@ -1338,7 +1314,7 @@ html[data-lf-region-capture] main * {
      the product palette with forced-color-adjust. The pressed border is important, so
      it holds over the more specific face of every control that can be pressed. The
      focus ring needs nothing here: --focus-ring is Highlight in a forced palette
-     (theme.css). */
+     (base.css). */
   @media (forced-colors: active) {
     .lf-dot {
       background: CanvasText;

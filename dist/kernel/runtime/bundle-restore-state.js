@@ -1,8 +1,8 @@
-import { afterSettling, canPlaceFocus, composedParentNode, excludedByInert, focusDestination, focused, onCurrentLocation, onUserInput, recoveredLabelFocus, renderedUnder, sizeObserver, takesLetters } from "./bundle-dom-move.js";
-import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, pagePresented, pageUpgraded, quickShortcuts, referencedCommandEntry, routedCommand, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-layer-client.js";
-import { nativeLayers } from "./bundle-geometry.js";
+import { afterSettling, composedParentNode, excludedByInert, pagePresented, pageUpgraded, renderedUnder, sizeObserver, tabStore } from "./bundle-portable.js";
+import { canPlaceFocus, focusDestination, focused, nativeLayers, onCurrentLocation, onUserInput, recoveredLabelFocus, takesLetters } from "./bundle-layer-stack.js";
+import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, quickShortcuts, referencedCommandEntry, routedCommand, runLanding, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-layer-client.js";
 import { whenArrived, whenArriving } from "./bundle-content-layout.js";
-import { DESIGN_MODE_KEY, ELEMENTS, pageScopes, stances, tabStore, textEntryScope, universalCommandReference } from "./bundle-data.js";
+import { DESIGN_MODE_KEY, ELEMENTS, pageScopes, stances, textEntryScope, universalCommandReference } from "./bundle-data.js";
 
 //#region runtime/sample-child.js
 const child = document.documentElement.lfSample;
@@ -247,7 +247,7 @@ function stack(binding = null) {
 	if (modalAt < 0) parts.push(...pool);
 	return ordered(parts);
 }
-const ownsLeafInvocation = (row) => Boolean(row.run) || commandRoutes(row).some((route) => routedCommand(route));
+const ownsLeafInvocation = (row) => Boolean(row.run) || [row, ...commandRoutes(row)].some((part) => part.control != null) || commandRoutes(row).some((route) => routedCommand(route));
 const runsElsewhere = (row, scope, control) => {
 	if (!scope.contextual && scopeRoot(scope) === control) return false;
 	const controls = [row, ...commandRoutes(row)].map((part) => word(part.control));
@@ -270,6 +270,7 @@ const shadow = (quick = quickShortcuts()) => {
 		}
 	};
 };
+const landing = (row, run) => () => runLanding(row, run, focused());
 function referencedInvocation(reference) {
 	if (!reference) return null;
 	const current = referencedCommandEntry(reference);
@@ -280,7 +281,7 @@ function referencedInvocation(reference) {
 		row: reference.row,
 		entry: current,
 		binding: reference.binding ?? void 0,
-		run,
+		run: landing(reference.row, run),
 		native: false
 	} : null;
 }
@@ -297,7 +298,7 @@ function invocationFor(row, binding, command, recovered = null) {
 		row,
 		entry: current,
 		binding,
-		run,
+		run: landing(row, run),
 		native: Boolean(row.native)
 	} : null;
 }

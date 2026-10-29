@@ -114,17 +114,18 @@ def keyed(tag: str, badge: str) -> str:
     """A widget module that declares a command with a context key on its element, and
     `badge` as the command's `bindingBadge` field, verbatim."""
     return f"""\
-import {{ commands, once }} from "/runtime/widget-api.js";
+import {{ once, commandsChanged }} from "/runtime/widget-api.js";
 
 customElements.define(
   "{tag}",
   class extends HTMLElement {{
     connectedCallback() {{
       if (!once(this)) return;
-      commands(this, "Keyed", [
+      this.lfCommands = {{ title: "Keyed", rows: [
         {{ id: "{tag[3:]}.go", keys: [], contextKeys: ["1"], control: this,
           title: "Go", run: () => {{}}{badge} }},
-      ]);
+      ] }};
+      commandsChanged(this);
     }}
   }},
 );
@@ -342,6 +343,7 @@ def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
         source,
         re.DOTALL,
     )
+    assert packaged is not None
     package = json.loads(packaged[1])
     composed = package["document"]
     held_document, entries = entry.subn("", composed)
@@ -349,6 +351,7 @@ def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
 
     def write_document(path, document):
         package["document"] = document
+        assert packaged is not None
         path.write_text(
             source[: packaged.start(1)]
             + json_script(package)

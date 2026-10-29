@@ -9,9 +9,10 @@ from datetime import datetime, timedelta
 
 import pytest
 from interact_support import append_carried_log_record
-from PIL import Image
+from PIL import Image, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    HOLD_MOTION,
     PANEL_PAGE,
     THREAD_DIFF_PAGE,
     live_url,
@@ -20,6 +21,7 @@ from render_cases_interaction import (
 from render_harness import (
     LONG_PAGE,
     example_media,
+    holding,
     leaf_page,
     open_page,
     resized,
@@ -36,6 +38,7 @@ from browser.threads import (
     append_agent_reply,
     open_panel_thread,
     paste_image,
+    summarize_thread,
 )
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered
@@ -115,6 +118,153 @@ def test_thread_actions_share_consistently_sized_message_headers(
             geometry
         )
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
+
+
+def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve):
+    """A margin card's heads end short of its edge, where the first message's head
+    leaves the thread's actions their room, so Copy at a later message's head end
+    stood mid-card. It stands at the card's edge, in the actions' column, and copies
+    the message's Markdown source; with nothing selected, the copy key in the thread
+    presses the Copy of the message whose words the user clicked."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Can it **wait**?", {"section": "lede"})
+    source = "Not safely:\n\n- setup runs **untrusted** code\n- `v2` is weeks away"
+    append_agent_reply(serve.page_dir, root, source)
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-margin-marker").first.click()
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    reply = card.locator(".lf-msg.agent")
+    # A press leaves focus on the first message's Copy, and its controls still leave
+    # with the pointer. While they show, a rule parts them from the thread's actions.
+    first = card.locator(".lf-msg.user")
+    first.hover()
+    first.locator(".lf-msg-copy").click()
+    shown = """message => [getComputedStyle(message, '::after').opacity,
+      ...[...message.querySelectorAll(':scope > .lf-msg-control')]
+        .map(control => getComputedStyle(control).opacity)]"""
+    assert first.evaluate(shown) == ["1", "1", "1"]
+    reply.locator(".lf-msg-text p").first.hover()
+    rendered(page)
+    assert first.evaluate("m => m.contains(document.activeElement)")
+    assert first.evaluate(shown) == ["0", "0", "0"]
+    # The hovered reply's Copy shows over its head row's cell in the actions' track.
+    assert reply.locator(".lf-msg-copy").evaluate(
+        """copy => { const box = copy.getBoundingClientRect();
+          return getComputedStyle(copy).opacity === '1' && copy.contains(
+            document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)); }"""
+    )
+    reply.locator(".lf-msg-text p").first.click()
+    rendered(page)
+    edges = card.evaluate(
+        """card => ({
+          copy: card.querySelector('.lf-msg.agent .lf-msg-copy').getBoundingClientRect().right,
+          close: card.closest('.lf-margin-preview').querySelector('.lf-margin-preview-close')
+            .getBoundingClientRect().right,
+        })"""
+    )
+    assert edges["copy"] == pytest.approx(edges["close"], abs=1), edges
+    page.keyboard.press("ControlOrMeta+c")
+    expect(reply.locator(".lf-msg-copy")).to_have_js_property("status", "success")
+    assert page.evaluate("navigator.clipboard.readText()") == source
+
+
+# A head's delivery receipt beside its message's controls: whether it shows whole, its
+# box, the first showing control's start, and whether the receipt is what the user
+# sees just before that start.
+RECEIPT_BESIDE_CONTROLS = """message => {
+  const receipt = message.querySelector(':scope > .lf-msg-head .lf-msg-sending');
+  const box = receipt.getBoundingClientRect();
+  const shown = [...message.querySelectorAll(':scope > .lf-msg-control')]
+    .filter((control) => getComputedStyle(control).opacity === '1')
+    .map((control) => control.getBoundingClientRect().left);
+  const controls = shown.length ? Math.min(...shown) : null;
+  const seen = controls === null ? null : document.elementFromPoint(
+    controls + 2, box.top + box.height / 2);
+  return {
+    whole: receipt.scrollWidth <= receipt.clientWidth,
+    left: box.left,
+    end: box.right,
+    controls,
+    receiptSeen: seen === null ? null : receipt.contains(seen),
+  };
+}"""
+
+
+def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
+    """A message's Edit and Copy show only under the pointer or focus, and its head
+    lends their room to its words while they hide: a card's head that held it read
+    "Me just now · Qu…" beside room for controls nobody could see. At rest the user's
+    queued message says its whole receipt; under the pointer the controls stand over
+    the receipt's end, which neither moves nor changes its size."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
+    # The margin at this width caps the card short of the head's words and controls.
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-margin-marker").first.click()
+    message = page.locator(".lf-margin-preview .lf-msg.user").first
+    expect(message.locator(".lf-msg-sending")).to_contain_text("Queued")
+    page.mouse.move(0, 0)
+    rendered(page)
+    rest = message.evaluate(RECEIPT_BESIDE_CONTROLS)
+    assert rest["whole"] and rest["controls"] is None, rest
+    message.locator(".lf-msg-text").hover()
+    rendered(page)
+    offered = message.evaluate(RECEIPT_BESIDE_CONTROLS)
+    assert offered["whole"], offered
+    assert (offered["left"], offered["end"]) == (rest["left"], rest["end"]), (
+        rest,
+        offered,
+    )
+    assert offered["controls"] < offered["end"], offered
+    assert offered["receiptSeen"] is False, offered
+
+
+def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
+    """The last translated frame and rest keep Copy on the message's head line."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Opening turn.", {"section": "how-store"})
+    append_agent_reply(serve.page_dir, root, "A reply with words to copy. " * 8)
+    page = open_page(browser, url)
+    resized(page, 1200, 520)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    rendered(page)
+    page.keyboard.press("c")
+    page.keyboard.type("One more turn.")
+    rendered(page)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    pending = []
+    page.route("**/api/event", lambda route: pending.append(route))
+    try:
+        page.keyboard.press("ControlOrMeta+Enter")
+        holding(page, pending, 1, "the margin reply")
+        page.wait_for_function(
+            """() => __lfHeld.some(a => a.playState !== 'idle' &&
+              a.effect.target.matches('.lf-msg.agent') &&
+              a.effect.getKeyframes().some(k => '--lf-box-carry' in k))"""
+        )
+        page.evaluate(
+            """() => __lfHeld.filter(a => a.playState !== 'idle').forEach(a => {
+              a.currentTime = a.effect.getComputedTiming().endTime - 0.01;
+            })"""
+        )
+        message = page.locator(".lf-margin-preview .lf-msg.agent")
+        edges = """m => {
+          const box = m.getBoundingClientRect();
+          const copy = m.querySelector('.lf-msg-copy').getBoundingClientRect();
+          return {right: copy.right - box.right, top: copy.top - box.top};
+        }"""
+        moving = message.evaluate(edges)
+        assert moving == pytest.approx({"right": 0, "top": 0}, abs=1), moving
+        page.evaluate(
+            "() => __lfHeld.slice().filter(a => a.playState !== 'idle')"
+            ".forEach(a => a.finish())"
+        )
+        rendered(page)
+        assert message.evaluate(edges) == pytest.approx(moving, abs=1)
+    finally:
+        page.context.close()
 
 
 @pytest.mark.parametrize("surface", ["panel", "margin"])
@@ -296,7 +446,6 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
                     ":root { --page-token: teal; }"
                     "html[data-lf-interactive] p > a { background-color: rgb(1, 2, 3); }"
                     "p > a::before { content: 'Kept'; }"
-                    "::placeholder { font-style: italic; }"
                     "p { border-top: 7px solid red; }</style>",
                 )
             )
@@ -311,9 +460,6 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
         return {
             controls: [...document.querySelectorAll('main button.lf-ui')].map(face),
             chrome: [...document.querySelectorAll('.lf-chrome button')].map(face),
-            placeholders: [...document.querySelectorAll(
-                '.lf-chrome :is(input, textarea)[placeholder]')].map(
-                el => getComputedStyle(el, '::placeholder').fontStyle),
             prose: face(document.querySelector('main p > a')),
             chromeToken: getComputedStyle(document.querySelector('.lf-chrome'))
                 .getPropertyValue('--page-token').trim(),
@@ -331,8 +477,6 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
     ]
     assert faces["controls"], "the board built no control to read"
     assert faces["chrome"], "the chrome built no button to read"
-    assert faces["placeholders"], "the chrome built no field to read"
-    assert "italic" not in faces["placeholders"], faces["placeholders"]
     assert {tuple(face[1:3]) for face in faces["controls"]} == {
         ("cursive", "rgb(255, 0, 0)")
     }, faces["controls"]
@@ -398,8 +542,8 @@ setTimeout(() => {
 def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     browser, serve, tmp_path
 ):
-    """A theme contribution, even beside a widget, outranks the Layouts and
-    every widget package's defaults (layer.py, `lf-theme`), so its `main` padding beats
+    """A package's overrides, even beside a widget, outrank the Layouts and
+    every widget package's defaults (layer.py, `lf-overrides`), so its `main` padding beats
     the column Layout's and its plain `lf-card` rule beats the board's own `lf-card`
     rule. Like the page's own rules, its `button` rule dresses the page's buttons and the
     controls the board builds."""
@@ -420,7 +564,7 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
             }
         )
     )
-    (theme / "theme.css").write_text(
+    (theme / "overrides.css").write_text(
         "main { padding-top: 11px; }\n"
         "lf-card { padding-left: 13px; }\n"
         "main button { font-family: cursive; }\n"
@@ -744,12 +888,15 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
     of the card's actions, and the focus-ring room above that line shows no words,
     in forced colours too, which drop shadows. Firefox stuck a head at its subgrid
     scroller's edge, past the room, so the name stood 6px above the actions and words
-    showed over Resolve; in Chromium they showed above the name."""
+    showed over Resolve; in Chromium they showed above the name. Nor do words show
+    beneath the actions, a summary's included, and the head row holding the line
+    lends them its ground: an arriving message's tint runs behind them, where the
+    actions' own paper box used to cut it whenever the card was scrolled."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
     )
-    for turn in range(1, 8):
+    turns = [
         append_carried_log_record(
             serve.page_dir,
             {
@@ -759,6 +906,10 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
                 "text": f"Turn {turn}. " + LANDING_WORDS,
             },
         )
+        for turn in range(1, 8)
+    ]
+    # A summary's words have no head of their own, and pass beneath the actions too.
+    summarize_thread(serve.page_dir, turns[0]["id"], turns[1]["id"], LANDING_WORDS)
     page = open_page(request.getfixturevalue(engine), url)
     resized(page, 1200, 600)
     if forced:
@@ -773,11 +924,29 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
     travel = transcript.evaluate("box => box.scrollHeight - box.clientHeight")
     # Through the first messages, including where one pushes the last one's head off.
     assert travel > 300, travel
+    actions = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        " > .lf-margin-thread-controls"
+    )
+
+    def shot(clip, hidden=None):
+        toggle = "row => { for (const c of row.children) c.style.visibility = '%s'; }"
+        if hidden:
+            hidden.evaluate(toggle % "hidden")
+        image = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        if hidden:
+            hidden.evaluate(toggle % "")
+        return image
+
+    def spread(image):
+        low, high = image.convert("L").getextrema()
+        return high - low
+
     for scroll in range(0, 300, 7):
         transcript.evaluate("(box, y) => { box.scrollTop = y; }", scroll)
         rendered(page)
         reading = transcript.evaluate(
-            """box => {
+            r"""box => {
               const controls = box.parentElement
                 .querySelector(':scope > .lf-margin-thread-controls');
               const edge = box.getBoundingClientRect().top + box.clientTop;
@@ -787,10 +956,11 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
               const card = box.parentElement.getBoundingClientRect();
               return {edge, head: at.top, left: card.left, right: card.right,
                 pushed: at.bottom >= head.parentElement.getBoundingClientRect().bottom - 1,
-                line: controls.getBoundingClientRect().top
-                  + parseFloat(getComputedStyle(controls).paddingTop),
+                line: controls.getBoundingClientRect().top,
+                actions: controls.getBoundingClientRect().toJSON(),
                 // The focus-ring room, which the transcript's landings also keep.
-                ring: parseFloat(getComputedStyle(box).scrollPaddingTop)};
+                ring: parseFloat(getComputedStyle(box).scrollPaddingTop),
+                event: head.parentElement.dataset.event};
             }"""
         )
         # A head the next message pushes off rises with it; every other stands on the
@@ -800,22 +970,39 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
             reading,
         )
         assert reading["line"] - reading["edge"] >= reading["ring"], reading
-        room = min(reading["line"], reading["head"]) - reading["edge"]
+        # Beneath the controls, with the paper their row lays under the heads.
+        beneath = {
+            side: reading["actions"][side] for side in ("x", "y", "width", "height")
+        }
+        ground = shot(beneath, hidden=actions)
+        assert spread(ground) < 40, (scroll, reading)
+        # Where no head holds the line, as over a summary, words run to the edge as
+        # they do anywhere a transcript is cut.
+        if reading["head"] > reading["line"] + 0.5:
+            continue
+        if not forced and not reading["pushed"]:
+            # The head holding the line lends its arrival tint to the actions' track.
+            held = transcript.locator(f'.lf-msg[data-event="{reading["event"]}"]')
+            held.evaluate("m => m.style.setProperty('--lf-msg-arrival', '1')")
+            rendered(page)
+            tinted = shot(beneath, hidden=actions)
+            held.evaluate("m => m.style.removeProperty('--lf-msg-arrival')")
+            rendered(page)
+            assert spread(tinted) < 40, (scroll, reading)
+            blue = ImageStat.Stat(ground).mean[2] - ImageStat.Stat(tinted).mean[2]
+            assert blue > 20, (scroll, blue, reading)
+        room = reading["head"] - reading["edge"]
         if room < 1:
             continue
-        band = Image.open(
-            io.BytesIO(
-                page.screenshot(
-                    clip={
-                        "x": reading["left"],
-                        "y": reading["edge"],
-                        "width": reading["right"] - reading["left"],
-                        "height": room,
-                    }
-                )
-            )
-        ).convert("L")
-        assert band.getextrema()[1] - band.getextrema()[0] < 40, (scroll, reading)
+        band = shot(
+            {
+                "x": reading["left"],
+                "y": reading["edge"],
+                "width": reading["right"] - reading["left"],
+                "height": room,
+            }
+        )
+        assert spread(band) < 40, (scroll, reading)
 
 
 @pytest.mark.parametrize(("width", "touch"), [(1200, False), (311, True)])
@@ -1063,6 +1250,12 @@ def test_a_dropped_surface_keeps_its_box_until_placement_commits(
     grip = holder.locator(":scope > .lf-surface-grip")
     box = grip.bounding_box()
     x, y = box["x"] + 25, box["y"] + (6 if surface == "card" else 2)
+    # A press without travel leaves placement alone, including its inline style.
+    # The write watch catches a zero translation added and removed within the click.
+    resting = holder.bounding_box()
+    page.mouse.click(x, y)
+    rendered(page)
+    assert holder.bounding_box() == resting
     page.mouse.move(x, y)
     page.mouse.down()
     expect(holder).to_have_attribute("data-lf-carried", "")

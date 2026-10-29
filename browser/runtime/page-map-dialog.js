@@ -39,10 +39,10 @@ import {
 } from "./focus.js";
 import { html, nothing, render, repeat } from "/runtime/framework.js";
 import { iconTemplate } from "./icons.js";
-import { keys, paintKeys } from "./keyboard/scopes.js";
+import { keys, paintKeys, paintKeysWithin } from "./keyboard/scopes.js";
 import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
-import { closeControl, el, searchField } from "./widget-elements.js";
+import { closeControl, el, offeredAction, searchField } from "./widget-elements.js";
 import { keepsHidden, keepsText } from "./keeps.js";
 import { placeKeeper } from "./user-place.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -155,20 +155,22 @@ export function createPageMapDialog({
     const thread = item && inventory.sourceItem(item)?.thread;
     return thread ? threadHeading(thread) : visibleLabel;
   };
+  // A row's kind leads it, its name follows, and what it says of its state, such as
+  // whose turn a thread is, ends it, where Threads says the same.
   const sheetFace = ({ icon, glyph, item, visibleLabel, context }) =>
-    html`${
-        icon
-          ? iconTemplate(icon, "lf-margin-kind")
-          : html`<span class="lf-margin-kind">${glyph}</span>`
-      }<span class="lf-page-map-action-label"
-        ><span class="lf-page-map-action-label-word"
-          >${sheetName(item, visibleLabel)}</span
+    html`<span class="lf-row-lead"
         >${
-          context
-            ? html`<span class="lf-page-map-action-context">${context}</span>`
-            : nothing
+          icon
+            ? iconTemplate(icon, "lf-margin-kind")
+            : html`<span class="lf-margin-kind">${glyph}</span>`
         }</span
-      >`;
+      ><span class="lf-page-map-action-label-word lf-row-main"
+        >${sheetName(item, visibleLabel)}</span
+      >${
+        context
+          ? html`<span class="lf-page-map-action-context lf-row-end">${context}</span>`
+          : nothing
+      }`;
 
   function activateSheetControl(event, action) {
     const { offered, record } = action;
@@ -219,7 +221,7 @@ export function createPageMapDialog({
   const sheetItemTemplate = (action) => html`
     <button
       type="button"
-      class="lf-page-map-action"
+      ${offeredAction("row", "lf-page-map-action")}
       data-lf-map-key=${action.key}
       data-lf-map-item=${action.item.id}
       aria-label=${[action.label, action.context].filter(Boolean).join(", ")}
@@ -249,7 +251,7 @@ export function createPageMapDialog({
     if (action.record.behavior === "status")
       return html`<span
         id=${action.id}
-        class="lf-page-map-action"
+        class="lf-page-map-action lf-row-plain"
         data-lf-map-key=${action.key}
         data-lf-map-margin-entry=${action.key}
         ${sheetHost(action, actions)}
@@ -259,7 +261,7 @@ export function createPageMapDialog({
     return html`<button
       id=${action.id}
       type="button"
-      class="lf-page-map-action"
+      ${offeredAction("row", "lf-page-map-action")}
       data-lf-map-key=${action.key}
       data-lf-map-margin-entry=${action.key}
       ${sheetHost(action, actions)}
@@ -277,7 +279,7 @@ export function createPageMapDialog({
       ?hidden=${Boolean(query) && !group.search.includes(query)}
     >
       <h3>${group.entry.title}</h3>
-      <div class="lf-page-map-actions">
+      <div class="lf-page-map-actions lf-rows">
         ${repeat(
           group.actions,
           ({ key }) => key,
@@ -295,6 +297,8 @@ export function createPageMapDialog({
     place.around(() => presentSheet());
     // A control the filter hid or the render removed hands the user to the search.
     restoreFocus?.(dialogSearch);
+    // Search bindings read the rendered rows, including those the query hid.
+    paintKeysWithin(dialog);
   }
 
   function presentSheet() {

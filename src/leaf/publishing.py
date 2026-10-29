@@ -204,6 +204,7 @@ def _stamp_locked(
     events = page.events
     activation = planned_activation(page_dir, checked)
     revision = activation.revision
+    assert revision is not None
     registry, projection, parser, spk = _stamp_reading(events, checked, revision)
     completed = _completed_tasks(events, revision, completes)
     settled_reports = _settled_reports(projection, parser, spk, registry)

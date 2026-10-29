@@ -4,7 +4,6 @@ import re
 from html import escape
 
 import pytest
-from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -21,6 +20,7 @@ from render_harness import (
 
 from leaf import data as data_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf_dev.example_data import patch_manifest
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -1132,7 +1132,7 @@ def test_a_file_conversation_ends_the_list_past_files_the_filter_hides(browser, 
       const head = file => file.querySelector(':scope > details');
       const outlet = box(files[0].querySelector('.lf-diff-file-thread-outlet'));
       return files.map(file => ({
-        shown: getComputedStyle(file).display !== 'none',
+        shown: !file.hidden,
         top: box(head(file)).top, bottom: box(head(file)).bottom, outlet: outlet.bottom,
         corner: getComputedStyle(head(file)).borderTopLeftRadius,
       }));

@@ -65,8 +65,8 @@ import {
   shownExtent,
   shownParts,
   shownWindow,
-  skipped,
 } from "../geometry.js";
+import { skipped } from "../shown-box.js";
 import {
   renderedChildren,
   renderedParent,
@@ -93,7 +93,7 @@ import { railStands } from "../content-layout.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { move } from "../dom-move.js";
 import { coarsePointer, hoveringPointer } from "../pointer.js";
-import { LAYOUT } from "../widget-elements.js";
+import { LAYOUT } from "../widget-upgrade.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
@@ -166,7 +166,7 @@ let layer = null;
 // scroll, so its carrier follows its anchor's block axis alone and stands across the
 // page where the window holds it. A box follows only its default anchor through a
 // scroll, not a second anchor `anchor()` names, so the column cannot carry it across;
-// the document scrolls sideways only by script (`overflow-x: hidden`, theme.css), and
+// the document scrolls sideways only by script (`overflow-x: hidden`, base.css), and
 // the pass that scroll brings places it again.
 // A carrier holds one run of consecutive rows, so rows keep document order across
 // carriers; a second run on the same anchor takes a second carrier. Carriers are kept
@@ -1112,7 +1112,7 @@ export function layoutMarginRows() {
       layer.root.parentElement.querySelector(
         '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
       )?.offsetWidth || restingRail().entry);
-  // The notes hanging in the margin the rail stands in (theme.css, aside.sidenote): a
+  // The notes hanging in the margin the rail stands in (base.css, aside.sidenote): a
   // marker level with one would be drawn over it.
   const notes = [...main.querySelectorAll("aside.sidenote")]
     .filter((note) => !skipped(note))

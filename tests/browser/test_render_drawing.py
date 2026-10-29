@@ -24,6 +24,7 @@ from render_harness import (
     open_threads,
     panel_settled,
     resized,
+    rgb_pixel,
     sending,
     stamp_page,
     told,
@@ -1737,7 +1738,7 @@ def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
         (low - band_top) / (1 - band_top), abs=0.05
     )
     # Drawn in the dark scheme: the page beside the swatch is dark.
-    assert sum(image.getpixel((2, 2))) < 200
+    assert sum(rgb_pixel(image, (2, 2))) < 200
 
     missing = CliRunner().invoke(
         cli_model.cli, ["page", "picture", str(serve.page_dir), "nope"]

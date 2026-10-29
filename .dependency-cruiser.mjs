@@ -37,9 +37,10 @@ const exactClosures = {
   "queued-work.js": [],
   "control-selectors.js": [],
   "shadow-tree.js": [],
-  "contribution-model.js": ["words.js", "kernel-facts.js"],
+  "contribution-model.js": ["icon-paths.js", "words.js", "kernel-facts.js"],
   "margin-model.js": [
     "contribution-model.js",
+    "icon-paths.js",
     "words.js",
     "kernel-facts.js",
     "thread/workflow.js",
@@ -47,6 +48,7 @@ const exactClosures = {
   "margin-map-model.js": [
     "margin-model.js",
     "contribution-model.js",
+    "icon-paths.js",
     "words.js",
     "kernel-facts.js",
     "thread/workflow.js",
@@ -98,6 +100,10 @@ const exactClosures = {
     "repaint.js",
     "shadow.js",
     "arrivals.js",
+    // A widget's declared commands arrive by the event it dispatches, and a malformed
+    // declaration is reported as its failure.
+    "widget-upgrade.js",
+    "page-paint.js",
   ],
 };
 

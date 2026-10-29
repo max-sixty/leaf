@@ -39,11 +39,13 @@ import re
 import shutil
 import subprocess
 import time
+from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Protocol, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
@@ -58,18 +60,6 @@ from interact_support import (
     record_claim,
     wait_for,
     write_record,
-)
-from leaf_dev import browser as dev_browser
-from leaf_dev.browser import ON_ME_MARK, scroll_settled, slow_cpu, threads_tab
-from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import (
-    example_media,
-    prepare_page,
-    read_fixture,
-    record_run_context,
-)
-from leaf_dev.thread_snapshot_plugin import (
-    image_snapshot,  # noqa: F401 — fixture for comparisons and explicit captures
 )
 from model_folds import leaf_page
 from PIL import Image
@@ -88,6 +78,18 @@ from leaf import structure as structure_model
 from leaf.findings import Finding, placed
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
+from leaf_dev import browser as dev_browser
+from leaf_dev.browser import ON_ME_MARK, scroll_settled, slow_cpu, threads_tab
+from leaf_dev.example_data import regression_sources
+from leaf_dev.page_fixtures import (
+    example_media,
+    prepare_page,
+    read_fixture,
+    record_run_context,
+)
+from leaf_dev.thread_snapshot_plugin import (
+    image_snapshot,  # noqa: F401 — fixture for comparisons and explicit captures
+)
 
 ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
@@ -524,6 +526,13 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
     first and appended the second's events to a log already holding the first's,
     which reads as a page rather than failing."""
 
+    class Serving(Protocol):
+        httpd: object
+        servers: list
+        page_dir: Path
+
+        def __call__(self, *args, **kwargs) -> str: ...
+
     def go(
         source,
         comments=0,
@@ -573,6 +582,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
             assert result.exit_code == 0, result.output
 
         def prepare(target):
+            assert fixture is not None
             prepare_page(
                 target,
                 fixture,
@@ -587,10 +597,15 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
         # An example is a shape of its own, versions stamped and log seeded, since
         # preparing one stamps every version it ships: seconds per page, paid once
         # per worker rather than once per test.
+        if fixture is not None:
+            assert example is not None
+            template = ((example.resolve(), seed_log), prepare)
+        else:
+            template = None
         initialized_page(
             d,
             selected_packages,
-            ((example.resolve(), seed_log), prepare) if fixture else None,
+            template,
         )
         if fixture:
             # The page pool can lend a copy hours after it stamped the template.
@@ -663,17 +678,18 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
             page_options={"publication": website_publication},
         ).start()
         servers.append(server)
-        go.httpd = server.httpd
-        go.servers = servers
-        go.page_dir = d  # for tests that publish a v2 or read the event log
+        serving.httpd = server.httpd
+        serving.servers = servers
+        serving.page_dir = d  # for tests that publish a v2 or read the event log
         # The key rides in the URL exactly as it does in a handover, so the first
         # navigation of each browser context earns the cookie the rest of the
         # page's own fetches go out under.
         version = len(fixture.versions) if fixture else 1
         return f"{server.origin}/versions/v{version}.html?t={TOKEN}"
 
+    serving = cast(Serving, go)
     servers = []
-    yield go
+    yield serving
     for server in servers:
         server.close()
 
@@ -1792,11 +1808,35 @@ def panel_settled(page, open=True, view=None):
     )
 
 
+def press_visible(page, control, *, touch=False):
+    """Press a control already in view without Playwright moving the page for it.
+
+    Locator click/tap on Chromium 156 can scroll the document while preparing a
+    visible fixed control. Coordinates exercise the user's visible route directly.
+    """
+    expect(control).to_be_in_viewport()
+    box = control.bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    if touch:
+        page.touchscreen.tap(x, y)
+    else:
+        page.mouse.click(x, y)
+
+
 def open_threads(page):
     """Open the panel's Threads view by pointer, as a user reaches it
     (`leaf_dev.browser.open_threads`), and wait for its motion to end."""
     dev_browser.open_threads(page)
     panel_settled(page, view="threads")
+
+
+def show_resolved(page):
+    """Open Threads and unfold its resolved threads (`leaf_dev.browser.show_resolved`),
+    returning their rows once the view's motion ends."""
+    open_threads(page)
+    rows = dev_browser.show_resolved(page)
+    panel_settled(page, view="threads")
+    return rows
 
 
 # How many open threads the page's reading holds, the number the Threads tab says
@@ -1851,17 +1891,17 @@ def panel_menu(page, at=None):
     leaf = page.locator(".lf-fp-leaf")
     menu = page.locator(".lf-fp-menu")
     if host.get_attribute("data-rest") == "mark":
-        leaf.click()
+        press_visible(page, leaf)
         expect(host).to_have_attribute("data-rest", "row")
     if host.get_attribute("data-menu") is None:
-        leaf.click()
+        press_visible(page, leaf)
         expect(host).to_have_attribute("data-menu", "")
     if menu.get_attribute("data-level") is not None:
-        menu.locator(".lf-fp-menu-back").click()
+        press_visible(page, menu.locator(".lf-fp-menu-back"))
         expect(menu).not_to_have_attribute("data-level", re.compile("."))
     if at is not None:
         door = "versions" if at == "versions" else f"group:{at}"
-        menu.locator(f'.lf-fp-item[data-row="{door}"]').click()
+        press_visible(page, menu.locator(f'.lf-fp-item[data-row="{door}"]'))
         expect(menu).to_have_attribute(
             "data-level", "versions" if at == "versions" else "group"
         )
@@ -2450,9 +2490,9 @@ def live_leaf(tmp_path, monkeypatch):
             id=f"s-{name}",
             cwd=str(tmp_path / f"{name}-work"),
         )
-        waiters.append(
-            leases_model.take_lease(leases_model.waiter_lease_path(d, f"s-{name}"))
-        )
+        lease_path = leases_model.waiter_lease_path(d, f"s-{name}")
+        assert lease_path is not None
+        waiters.append(leases_model.take_wait_lease(lease_path))
         # Use the durable server's maintenance loop: the row remains canonical
         # even while no browser has visited this neighboring page.
         url = hosting_model.start_server(d, persistent=True, harness=None).url
@@ -2702,6 +2742,18 @@ def compositor_trace(page, categories=()):
     )
 
 
+def rgb_pixel(image: Image.Image, point) -> tuple[int, int, int]:
+    """Read one RGB pixel; Pillow's mode-dependent return type cannot express RGB."""
+    assert image.mode == "RGB"
+    return cast(tuple[int, int, int], image.getpixel(point))
+
+
+def rgb_pixels(image: Image.Image) -> Iterable[tuple[int, int, int]]:
+    """Read an RGB image's pixels with its mode reflected in their channel type."""
+    assert image.mode == "RGB"
+    return cast(Iterable[tuple[int, int, int]], image.get_flattened_data())
+
+
 def frame_image(event):
     """A compositor `Screenshot` trace event's frame, as an RGB image."""
     return Image.open(io.BytesIO(base64.b64decode(event["args"]["snapshot"]))).convert(
@@ -2751,12 +2803,9 @@ def assert_follows_in_every_frame(page, scroller):
             continue
         image = frame_image(event)
         scale = width / image.width
-        tops = [None if top is None else top * scale for top in marked_tops(image)]
-        readings.append((*tops, scale))
-    assert all(
-        subject is not None and follower is not None
-        for subject, follower, _ in readings
-    ), readings
+        subject, follower = marked_tops(image)
+        assert subject is not None and follower is not None, readings
+        readings.append((subject * scale, follower * scale, scale))
     assert len({subject for subject, _, _ in readings}) >= 3, (
         "the scroller never scrolled",
         readings,

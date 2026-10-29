@@ -42,7 +42,9 @@ cancelling has put the DOM back; it draws the newest reading. A dragged widget
 (`dragging`, `module-input.md`, "Pointer presses") defers for the whole drag.
 
 Pass asynchronous preparation the page should wait for, such as a renderer loading, to
-`present(promise)`. Drawing that finishes a draw, such as highlighting what `render()`
+`present(promise)`, or, from a widget that also runs off Leaf, dispatch it as a
+`PendingTaskEvent` (`module-authoring.md`, "A widget that also runs off Leaf"), which
+Leaf passes to the same place. Drawing that finishes a draw, such as highlighting what `render()`
 placed, starts in `updated()` and extends the element's `updateComplete`, as any Lit
 element's completion waits for work its update starts:
 
@@ -275,12 +277,15 @@ Generation is available only on live pages, not captured documents, exports or l
 samples. It collects no external data and writes no page data or events: the caller
 supplies the context and decides how to use the returned value.
 
+To render generated Leaf source as an isolated working preview, use
+`mountSample(frame, {source})` from the same module. The [generated sample
+workflow](live-samples.md#generated-samples) covers readiness, sizing and disposal.
+
 The page must have an active Codex, Claude Code or Pi claim. The host reuses that harness's
 existing login and selects its model: Luna for Codex, Haiku for Claude, and the model
 the user configured for Pi. Pi has no structured-output mode, so it is given the schema
 and its answer is validated against it; an answer that doesn't match rejects the promise.
 Credentials stay on the host; a widget cannot choose the model or supply tools. Leaf does not yet enforce a
 spending allowance: repeated calls can continue to incur charges. Usage is returned
-per call, not retained as a billing ledger. Each page server runs one widget
-generation at a time and rejects overlapping calls as busy (HTTP 429), keeping
-ordinary page interactions responsive.
+per call, not retained as a billing ledger. Independent generation calls run
+concurrently, while ordinary page interactions remain available.

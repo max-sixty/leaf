@@ -8,6 +8,17 @@ generation invalidates them without page discovery, page locks or claim rewrites
 Desktop instance unloading closes observations while retaining chat ownership.
 A session's end removes the files nothing will read again (`_retire`).
 
+This module alone says what phase a session's turn is in. Its stamps encode four:
+no turn yet, open, closed and ended. Ending a session closes its turn too, and a
+turn is open only once it has an id, so `turn_open` and `turn_closed` read a record
+and a claim's view of it (`service.claim_reading`) alike, and `session_live` says
+whether the generation may open another. Code that holds a record or a claim asks
+these rather than reading its stamps. The page's served reading carries the claim's
+turn and stamps under the record's names (`presence.presence_with_activity`), so its
+readers ask these too, and activity folds the stamps as dated evidence. Every
+opening passes through `advance_turn`, which keeps the one rule the transitions
+share: a turn id the record holds closed never reopens.
+
 The session lock also serializes Codex transport reservation, making its
 revision a compare-and-swap token for observations. Lock order is page then
 session. Session transitions never acquire page locks or call an external harness;
@@ -23,17 +34,39 @@ import functools
 import hashlib
 import json
 import os
+import re
 import secrets
 import stat
 import sys
 import tempfile
 import time
-from datetime import datetime
+from collections.abc import Mapping
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING, Generic, TypeVar, cast
+
+if TYPE_CHECKING:
+    from typing import TypeGuard
 
 # Installation paths start at the plugin, independent of its instruction skills.
 # Keep this locator dependency-free for standalone SessionEnd and cold hooks.
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
+
+
+def plugin_cache_copy(root: Path) -> bool:
+    """Whether `root` is a copy Claude Code installed from a marketplace into its
+    plugin cache, `<config>/plugins/cache/<marketplace>/leaf/<version>`, rather
+    than a checkout. Leaf leaves its manifest version unset, so the version
+    component is the source commit's SHA."""
+    parents = root.parents
+    return (
+        len(parents) >= 4
+        and root.parent.name == "leaf"
+        and parents[2].name == "cache"
+        and parents[3].name == "plugins"
+        and re.fullmatch(r"[0-9a-f]{7,40}", root.name) is not None
+    )
+
 
 EVENTS_FILE = "events.jsonl"
 
@@ -74,8 +107,27 @@ def hold_mode(path: Path, mode: int) -> None:
 HOOKS_SUFFIX = "hooks"
 # The tool calls its hooks last ran before (`leases.first_hook_for_tool`).
 TOOLS_SUFFIX = "tools"
+# When its tool boundaries last checked its pages' status lines
+# (`hook_transport.status_reminders`), by the file's mtime.
+STATUS_CHECKED_SUFFIX = "status-checked"
+# How long the status line may stand unrenewed while the agent works before a tool
+# boundary reminds it, and how often a tool boundary checks.
+STATUS_RENEWAL = timedelta(minutes=2)
 # Its lifecycle outlives its instance while a claim reads it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
+
+
+def status_check_due(session_id: str) -> bool:
+    """Whether a tool boundary of the session checks its pages' status lines now
+    (`hook_transport.status_reminders`): at most once each `STATUS_RENEWAL`, by the
+    `status-checked` mark, so a tool hook that runs after every call reads the pages
+    only that often. Here rather than beside the check, so a hook with nothing due
+    imports no page model."""
+    try:
+        checked = session_file(session_id, STATUS_CHECKED_SUFFIX).stat().st_mtime
+    except FileNotFoundError:
+        return True
+    return time.time() - checked >= STATUS_RENEWAL.total_seconds()
 
 
 def sessions_home() -> Path:
@@ -244,9 +296,10 @@ def kernel_registry() -> dict:
 
 # Every declared `Record` by its kind, which names one shape.
 RECORDS: dict = {}
+_RecordValue = TypeVar("_RecordValue", bound=Mapping[str, object])
 
 
-class Record:
+class Record(Generic[_RecordValue]):
     """One kind of JSON object Leaf keeps outside a page's log and document, such as
     a page's stream, a claim or a session's lifecycle.
 
@@ -280,26 +333,26 @@ class Record:
     def format(self) -> str:
         return f"leaf-{self.kind}/{self.since}"
 
-    def read(self, path: Path) -> dict | None:
+    def read(self, path: Path) -> _RecordValue | None:
         """The record at `path`, less its `format`, or None where this Leaf reads
         none there."""
         stored = stored_record(path)
         if stored is None or stored.pop("format", None) != self.format:
             return None
-        return stored
+        return cast(_RecordValue, stored)
 
-    def stored(self, value: dict) -> dict:
+    def stored(self, value: _RecordValue) -> dict:
         """`value` as `write` stores it, led by its `format`."""
         return {"format": self.format} | {
             name: item for name, item in value.items() if name != "format"
         }
 
-    def encode(self, value: dict) -> bytes:
+    def encode(self, value: _RecordValue) -> bytes:
         """The bytes `write` writes, for a writer that replaces several files at
         once or writes through a lease it holds."""
         return json_bytes(self.stored(value))
 
-    def write(self, path: Path, value: dict) -> dict:
+    def write(self, path: Path, value: _RecordValue) -> _RecordValue:
         """Atomically replace the record at `path`, preserving a regular target's
         mode, and return `value` as `read` will."""
         replace_bytes([(path, self.encode(value), not path.is_symlink())])
@@ -465,6 +518,35 @@ def write_session(record: dict) -> dict:
     )
 
 
+def session_live(record: dict | None) -> TypeGuard[dict]:
+    """Whether the record names a session that has not ended, whose generation may
+    still open turns and own claims."""
+    return record is not None and record["ended"] is None
+
+
+def turn_open(record: dict | None, turn_id: str | None = None) -> TypeGuard[dict]:
+    """Whether the record's latest turn is open, and is `turn_id` where one is named.
+
+    A record with no turn yet has none open, and an ended one closed its turn as it
+    ended, so this reads a claim's view of the record as well as the record."""
+    return (
+        record is not None
+        and record["turn"] is not None
+        and record["turn_closed"] is None
+        and turn_id in (None, record["turn"])
+    )
+
+
+def turn_closed(record: dict | None, turn_id: str | None = None) -> TypeGuard[dict]:
+    """Whether the record's latest turn has closed, by a close or the session's end,
+    and is `turn_id` where one is named. That id never reopens (`advance_turn`)."""
+    return (
+        record is not None
+        and record["turn_closed"] is not None
+        and turn_id in (None, record["turn"])
+    )
+
+
 def chat_exists(record: dict | None) -> bool:
     """Whether the native chat source validated by its hooks still exists.
 
@@ -498,7 +580,7 @@ def ensure_session(session_id: str, lifetime: dict) -> dict:
     """
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
-        if record is None or record["ended"] is not None:
+        if not session_live(record):
             record = new_session(session_id, lifetime)
             record.update(turn=secrets.token_hex(8), turn_opened=now_iso())
         elif record["lifetime"] == lifetime:
@@ -512,8 +594,9 @@ def ensure_session(session_id: str, lifetime: dict) -> dict:
 
 
 def renew_turn(record: dict) -> dict:
-    """Renew a trusted prompt/tool observation under the caller's session lock."""
-    return write_session({**record, "turn_opened": now_iso(), "turn_closed": None})
+    """Renew the open turn of `record`, a trusted prompt or tool observation, under
+    the caller's session lock: `turn_opened` dates its last renewal."""
+    return write_session({**record, "turn_opened": now_iso()})
 
 
 def advance_turn(
@@ -523,10 +606,12 @@ def advance_turn(
     running: bool,
     observed_at: str | None = None,
 ) -> dict | None:
-    """Publish a turn observation under the caller's session lock.
+    """Publish a turn observation under the caller's session lock, or return None
+    where the record refuses it.
 
-    A closed provider identity never reopens. Unknown-id harnesses reuse their open
-    turn and mint a new identity after its ending. Callback callers validate the
+    Every opening passes through here, so this holds the rule the openings share: a
+    turn id the record holds closed never reopens. Unknown-id harnesses reuse their
+    open turn and mint a new identity after its ending. Callback callers validate the
     existing identity before calling this; prompts and guarded provider starts
     introduce a known replacement. A provider transcript observation supplies
     its own timestamp so reading old evidence does not renew its lifetime.
@@ -534,13 +619,14 @@ def advance_turn(
     record = session_record(session_id)
     if record is None:
         record = new_session(session_id, {})
-    if record["ended"] is not None:
+    if not session_live(record):
         return None
     if running:
+        if turn_id is not None and turn_closed(record, turn_id):
+            return None
         provider = turn_id is not None or record["provider"]
         if turn_id is None:
-            turn_id = record["turn"] if record["turn_closed"] is None else None
-            turn_id = turn_id or secrets.token_hex(8)
+            turn_id = record["turn"] if turn_open(record) else secrets.token_hex(8)
         if turn_id == record["turn"]:
             return record
         record = {
@@ -557,26 +643,17 @@ def advance_turn(
     return write_session(record)
 
 
-def open_session_turn(session_id: str, turn_id: str | None = None) -> dict | None:
+def open_session_turn(session_id: str) -> dict | None:
+    """Open the session's turn for an explicit reader acknowledgement
+    (`delivery.receive_delivery`). A provider names its own turns, so this opens
+    none of a provider's but the one it holds open: a late consumer or callback
+    can't restart a turn the harness ended. One after the session's files retired
+    starts a generation no claim names."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
-        if record is not None and (
-            record["ended"] is not None
-            or (record["provider"] and record["turn_closed"] is not None)
-        ):
-            # A late consumer/callback cannot restart a known provider turn; one
-            # after the session's files retired starts a generation no claim names.
+        if record is not None and record["provider"] and not turn_open(record):
             return None
-        if (
-            record
-            and turn_id is not None
-            and (
-                (record["provider"] and record["turn"] != turn_id)
-                or (record["turn"] == turn_id and record["turn_closed"] is not None)
-            )
-        ):
-            return None
-        return advance_turn(session_id, turn_id, running=True)
+        return advance_turn(session_id, None, running=True)
 
 
 def start_session_turn(
@@ -585,13 +662,6 @@ def start_session_turn(
     """Adopt a provider start result only if its request still owns this epoch."""
     with flocked(session_lock_path(session_id)):
         current = session_record(session_id)
-        if (
-            current
-            and current["provider"]
-            and current["turn"] == turn_id
-            and current["turn_closed"] is not None
-        ):
-            return None
         if current != expected:
             # The provider may run its synchronous prompt hook before replying
             # to turn/start. That exact publication is the successful adoption,
@@ -600,9 +670,8 @@ def start_session_turn(
                 current
                 and expected
                 and current["generation"] == expected["generation"]
-                and current["ended"] is None
                 and current["provider"]
-                and current["turn"] == turn_id
+                and turn_open(current, turn_id)
             ):
                 return current
             return None
@@ -610,23 +679,14 @@ def start_session_turn(
 
 
 def prompt_turn(session_id: str, turn_id: str | None = None) -> dict | None:
-    """A synchronous prompt starts/resumes the harness's generation before claims."""
+    """A synchronous prompt starts/resumes the harness's generation before claims:
+    it renews the open turn it names, or the open turn where it names none, and
+    otherwise opens a turn."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
-        if record is not None and record["ended"] is not None:
-            write_session(new_session(session_id, {}))
-        record = session_record(session_id)
-        if (
-            record
-            and turn_id is not None
-            and turn_id == record["turn"]
-            and record["turn_closed"] is not None
-        ):
-            return None
-        if record and (
-            turn_id == record["turn"]
-            or (turn_id is None and record["turn_closed"] is None)
-        ):
+        if record is not None and not session_live(record):
+            record = write_session(new_session(session_id, {}))
+        if turn_open(record, turn_id):
             return renew_turn(record)
         return advance_turn(session_id, turn_id, running=True)
 
@@ -644,8 +704,7 @@ def close_session_turn(
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if (
-            record is None
-            or record["ended"] is not None
+            not session_live(record)
             or (expected is not ... and record != expected)
             or (
                 ended_at is not None
@@ -743,7 +802,7 @@ def end_harness_instance(session_id: str) -> None:
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if record and record["lifetime"] and "pid" not in record["lifetime"]:
-            if record["ended"] is None and record["turn_closed"] is None:
+            if not turn_closed(record):
                 advance_turn(session_id, record["turn"], running=False)
             session_file(session_id, HOOKS_SUFFIX).unlink(missing_ok=True)
             return
@@ -828,6 +887,16 @@ def drop_locator(session_id: str, name: str) -> None:
         partition.rmdir()
 
 
+def worker_tool_batch(harness: str, payload: dict) -> bool:
+    """A Claude Code worker's batch names its parent's session but receives none
+    of that session's input. Both the standalone gate and the full hook skip it."""
+    return (
+        harness == "claude-code"
+        and payload.get("hook_event_name") == "PostToolBatch"
+        and bool(payload.get("agent_id"))
+    )
+
+
 def main() -> None:
     payload = json.load(sys.stdin)
     if payload.get("hook_event_name") == "SessionEnd":
@@ -839,7 +908,9 @@ if __name__ == "__main__":
     # with -S, so no site packages load. A hook it skips takes about 25 ms in
     # place of about 70 for starting the package (measured on macOS). Only status
     # 3 skips the hook; any failure runs it whole.
-    if sys.argv[1:] == ["hook-gate"]:
+    if len(sys.argv) == 3 and sys.argv[1] == "hook-gate":
         payload = json.load(sys.stdin)
+        if worker_tool_batch(sys.argv[2], payload):
+            sys.exit(3)
         sys.exit(0 if held_claims(payload.get("session_id") or "") else 3)
     main()

@@ -2,8 +2,9 @@
 
 Use `<lf-sample interactive>` to show working widgets inline, with a sample label
 and gutter. Its contents belong to the surrounding page: choices and edits use that
-page's event log, Undo and On me, and comments reach the same agent. Give every widget
-its own page-wide id. This mode has no inner page, panel, Reset or Full view controls:
+page's event log and Undo, and comments reach the same agent. Its widgets demonstrate
+rather than ask, so none of them goes on On me. Give every widget its own page-wide
+id. This mode has no inner page, panel, Reset or Full view controls:
 
 ```html
 <lf-sample id="delivery-sample" interactive label="Delivery choices">
@@ -113,3 +114,34 @@ this isolated mode even when `interactive` is present.
 An ordinary served Leaf page can also appear in a plain `<iframe src="…">`, with its own
 lasting history, but only inside a page of the same origin: the same scheme, hostname
 and port.
+
+## Generated samples
+
+A page module can render newly generated Leaf source without changing the surrounding
+page. Import `mountSample` from `/runtime/widget-api.js`, connect an iframe to the
+document, then pass a complete HTML document as `source`:
+
+```js
+import { mountSample } from "/runtime/widget-api.js";
+
+const host = await mountSample(frame, { source });
+const fit = ({ height }) => {
+  frame.style.height = `${height}px`;
+};
+host.on("height", fit);
+fit(await host.ready);
+```
+
+The source uses the layer the parent's revision selects and its captured files. Leaf checks it as an ordinary
+page before serving it, and its native controls use an independent, temporary event
+log. The iframe has an opaque origin: it cannot read the surrounding page's DOM or
+credentials. Generation happens in the parent; a sample cannot call `generate()`.
+
+`source` and `template` are alternatives. Pass `{template: "authored-template-id"}` to
+mount a declared template through the same API, or `{window: true}` alongside either
+source to keep a fixed viewport. The returned host has `ready`, `reset()`, `destroy()`
+and `on(type, callback)`; the latter returns an unsubscribe function. Reset starts a
+fresh child from the same source, and removing the iframe destroys its child.
+
+`ready` resolves after Leaf upgrades the interface and rejects if startup fails.
+It does not establish that the generated widget meets the user's request.

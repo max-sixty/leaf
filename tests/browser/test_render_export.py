@@ -9,7 +9,6 @@ from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
 )
-from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, live_url
 from render_cases_layout import solid_png
@@ -20,6 +19,7 @@ from render_harness import (
     leaf_page,
     open_page,
     round_trip,
+    scroll_settled,
     sending,
     write,
 )
@@ -30,8 +30,9 @@ from leaf import data as data_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import media as media_model
-from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
+from leaf.render_checks import HANDOVER_DEADLINE_MS, rendered, wait_until_ready
 from leaf.structure import UTF8_BOM
+from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -110,6 +111,54 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     expect(add).not_to_have_attribute("data-lf-empty", "")
 
 
+def test_exported_workspace_tabs_open_new_evidence_below_the_pinned_strip(
+    browser, serve, tmp_path
+):
+    """Exports register the Layout's scrollport, so nested navigation lands in it."""
+    paragraphs = "".join(f"<p>Evidence paragraph {i}.</p>" for i in range(24))
+    source = leaf_page(
+        "Evidence review",
+        f"""<header><h1>Evidence review</h1></header>
+<lf-tabs id="views">
+  <lf-tab id="intro" label="Introduction"><p>Open the review.</p></lf-tab>
+  <lf-tab id="review" label="Review"><lf-tabs id="evidence">
+    <lf-tab id="first" label="First"><h2>First evidence</h2>{paragraphs}</lf-tab>
+    <lf-tab id="second" label="Second"><h2>Second evidence</h2>{paragraphs}</lf-tab>
+  </lf-tabs></lf-tab>
+</lf-tabs>""",
+        head="<style>#views > lf-tab {padding-block-start:0}</style>",
+        layout="workspace",
+    )
+    serve(source)
+    out = tmp_path / "evidence-review.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    page = browser.new_page(viewport={"width": 900, "height": 600})
+    page.goto(out.as_uri(), wait_until="load")
+    wait_until_ready(page)
+    page.get_by_role("tab", name="Review", exact=True).click()
+    page.locator("#first p").nth(3).hover()
+    page.mouse.wheel(0, 150)
+    page.wait_for_function("document.querySelector('#views').scrollTop > 100")
+    scroll_settled(page, "#views")
+    # A sticky tab's visible box is the input target, rather than its flow position.
+    button = page.get_by_role("tab", name="Second", exact=True).bounding_box()
+    page.mouse.click(
+        button["x"] + button["width"] / 2, button["y"] + button["height"] / 2
+    )
+    rendered(page)
+    heading = page.locator("#second h2").bounding_box()
+    strip = page.locator("#evidence > .lf-tabstrip").bounding_box()
+    assert heading["y"] >= strip["y"] + strip["height"] - 1
+    assert heading["y"] + heading["height"] < 600
+    # Leaving and reopening the outer view keeps the nested selection readable too.
+    page.get_by_role("tab", name="Introduction", exact=True).click()
+    page.get_by_role("tab", name="Review", exact=True).click()
+    expect(page.get_by_role("tab", name="Second", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    expect(page.locator("#second h2")).to_be_in_viewport()
+
+
 def test_interactive_export_runs_captured_local_behavior_without_a_host(
     browser, serve, tmp_path
 ):
@@ -139,9 +188,8 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     expect(live.locator("#offline-widget #choice")).to_have_text("chosen")
     live.close()
 
-    # Export resolves the stamped artifact, never the mutable aliases left in the page
-    # directory after activation.
-    (serve.page_dir / "widgets" / "lf-offline-test.js").write_text(
+    # Export resolves the stamped artifact, never the page's mutable source.
+    (serve.page_dir / "page" / "widgets" / "lf-offline-test.js").write_text(
         'throw new Error("mutable widget source escaped its revision");',
         encoding="utf-8",
     )
@@ -319,7 +367,7 @@ def test_an_export_keeps_visual_review_images_and_inspection_offline(
     page.goto(out.as_uri(), wait_until="load")
     wait_until_ready(page)
     widget = page.locator("#review")
-    selected = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    selected = widget.locator(".lf-vr-case:not([hidden])")
     for index, case in enumerate(cases):
         if index:
             widget.locator('.lf-vr-case-button[aria-current="true"]').click()
@@ -500,22 +548,21 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
             "</pre></lf-diagram>",
         },
     )
-    assert (serve.page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
     out = tmp_path / "reachable.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
     html = out.read_text(encoding="utf-8")
-    composed = json.loads(
-        re.search(
-            r'<script type="application/json" data-lf-export>(.*?)</script>',
-            html,
-            re.DOTALL,
-        )[1]
-    )["document"]
-    imports = json.loads(
-        re.search(r'<script type="importmap"[^>]*>(.*?)</script>', composed, re.DOTALL)[
-            1
-        ]
-    )["imports"]
+    match = re.search(
+        r'<script type="application/json" data-lf-export>(.*?)</script>',
+        html,
+        re.DOTALL,
+    )
+    assert match is not None
+    composed = json.loads(match[1])["document"]
+    match_2 = re.search(
+        r'<script type="importmap"[^>]*>(.*?)</script>', composed, re.DOTALL
+    )
+    assert match_2 is not None
+    imports = json.loads(match_2[1])["imports"]
     assert {"leaf:/widgets/lf-code.js", "leaf:/widgets/lf-diagram.js"} <= set(imports)
     assert not {
         "leaf:/widgets/lf-diff.js",
@@ -563,16 +610,6 @@ body { --export-tone: rgb(12, 34, 56); }
     files_model.replace_files(
         [
             (
-                serve.page_dir / "theme.css",
-                b":root { --mutable-theme-only: 1; }",
-                False,
-            ),
-            (
-                serve.page_dir / "runtime/chrome.css",
-                b":root { --mutable-chrome-only: 1; }",
-                False,
-            ),
-            (
                 serve.page_dir / "page/styles/nested/palette.css",
                 b"body { --export-tone: red; }",
                 False,
@@ -586,9 +623,6 @@ body { --export-tone: rgb(12, 34, 56); }
     )
     out = tmp_path / "captured.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
-    exported = out.read_text(encoding="utf-8")
-    assert "--mutable-theme-only" not in exported
-    assert "--mutable-chrome-only" not in exported
     page = browser.new_page()
     requests = []
     page.on("request", lambda request: requests.append(request.url))

@@ -22,8 +22,9 @@ def test_initial_lit_drawings_keep_the_readers_nodes_through_upgrade(browser, se
     Generated controls stay hidden until upgrade. The reader can already focus an
     authored link; upgrade must retain that place and adopt the initial drawing,
     after which both the native disclosure and the activity control work. Pending
-    package faces keep their first boxes; the tally starts with no count or available
-    action, and the editor replaces its paragraph only once its real stage is ready.
+    package frames keep their first boxes; the tally starts with no count or available
+    action. Empty tree and editor frames need no initial nodes, and the recording's
+    waiting line is reserved by CSS before its live template owns the message.
     """
     url = live_url(
         serve(
@@ -68,20 +69,13 @@ def test_initial_lit_drawings_keep_the_readers_nodes_through_upgrade(browser, se
             )
             == "hidden"
         )
-        expect(page.locator("#files .lf-file-tree-empty")).to_have_text(
-            "No files available."
-        )
-        expect(page.locator("#editor .lf-file-editor-opening")).to_have_text(
-            "Opening file…"
-        )
-        expect(page.locator("#recording .lf-trace-waiting")).to_have_text(
-            "Waiting for a Playwright recording."
-        )
+        # Static pending frames need no parser-owned nodes or rendering lifecycle.
+        expect(page.locator("#files > *, #editor > *")).to_have_count(0)
+        expect(page.locator("#recording .lf-trace-waiting")).to_have_count(0)
         boxes = {
             name: page.locator(f"#{name}").bounding_box()
             for name in ("left", "files", "editor", "recording")
         }
-        opening = page.locator("#editor .lf-file-editor-opening").element_handle()
         page.keyboard.press("Tab")
         expect(page.locator("#early-link")).to_be_focused()
         early = page.evaluate_handle(
@@ -95,7 +89,6 @@ def test_initial_lit_drawings_keep_the_readers_nodes_through_upgrade(browser, se
         assert page.locator("#files .lf-file-tree-empty").evaluate(
             "node => node.getRootNode() === document.getElementById('files').shadowRoot"
         )
-        assert opening.evaluate("node => !node.isConnected")
         expect(page.locator("#left .lf-tally-words")).to_have_text("1 left to answer")
         expect(page.locator("#left .lf-tally-next")).to_be_enabled()
         expect(page.locator("#editor .cm-editor")).to_be_visible()
@@ -128,7 +121,7 @@ def test_initial_lit_drawings_keep_the_readers_nodes_through_upgrade(browser, se
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_streamed_initial_host_first_shows_its_complete_drawing(
-    engine, request, compiled_installation
+    engine, request, compiled_checkout
 ):
     """A pause inside a nested widget must not expose source layout before its drawing,
     and the drawn host stands among its authored siblings with no delivery script left.
@@ -139,7 +132,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
     so its run holds delivery to writing none.
     """
     browser = request.getfixturevalue(engine)
-    assets = compiled_installation / "browser"
+    assets = compiled_checkout / "browser"
     host_source = (
         '<lf-initial-outer id="outer"><aside data-lf-exhibit="">'
         '<lf-initial-inner id="inner"><p>Original nested prose</p>'
@@ -153,18 +146,20 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
     )
     producer = b"""
         const initial = document.documentElement.lfInitial;
+        const {html, ref} = initial.lit;
         initial.register('lf-initial-inner', (host, {tabStore}) => {
-            const reading = document.createElement('p');
-            reading.textContent = tabStore.get('restored-reading');
-            host.append(reading);
-            return {reading};
+            const authored = [...host.childNodes];
+            host.replaceChildren();
+            const view = {reading: null};
+            view.render = () => html`${authored}<p ${ref(node => {
+                if (node) view.reading = node;
+            })}>${tabStore.get('restored-reading')}</p>`;
+            return view;
         });
-        initial.register('lf-initial-outer', (host) => {
-            const frame = document.createElement('div');
+        initial.register('lf-initial-outer', (host, {authoredBody}) => {
+            const frame = authoredBody(document.createElement('div'));
             frame.className = 'initial-frame';
-            frame.append(...host.childNodes);
-            host.append(frame);
-            return {frame};
+            return {frame, render: () => html`${frame}`};
         });
     """
     # The kernel's modules over the source ones, as a vendored page has them.
@@ -173,7 +168,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             "/" + path.relative_to(root).as_posix(): Resource(
                 path.read_bytes(), "application/javascript"
             )
-            for root in (assets, compiled_installation / "dist/kernel")
+            for root in (assets, compiled_checkout / "dist/kernel")
             for path in root.rglob("*.js")
         },
         "/leaf.js": Resource(
@@ -187,9 +182,6 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             "application/javascript",
         ),
         "/vendor/initial.js": Resource(producer, "application/javascript"),
-        "/vendor/initial-dependencies.json": Resource(
-            b'{"/vendor/initial.js": []}', "application/json"
-        ),
         **{
             path: Resource(b"", "text/css")
             for path in (
@@ -210,7 +202,6 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
         1,
         None,
         executable="sha256:fixture",
-        widgets={},
         resources=resources,
         registry=registry,
         delivery=Delivery(
@@ -218,7 +209,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             runtime="",
             # The theme holds the arriving host out of the page.
             inline_stylesheet=lambda _: (
-                stylesheet(assets / "theme.css", assets)
+                stylesheet(assets / "base.css", assets)
                 + "lf-initial-outer{display:block;margin-block:16px}"
                 ".initial-frame{padding:24px;border:1px solid black}"
             ),
@@ -247,7 +238,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             elif self.path in resources:
                 self.wfile.write(resources[self.path].data)
 
-        def log_message(self, *args):
+        def log_message(self, format, *args):
             pass
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

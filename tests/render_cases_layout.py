@@ -11,12 +11,14 @@ from weakref import WeakKeyDictionary
 import tinycss2
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
+from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_harness import (
     LONG_PAGE,
     leaf_page,
     panel_settled,
+    rgb_pixel,
 )
 
 from leaf import render_checks as render_checks_model
@@ -1092,8 +1094,6 @@ def mark_edges(page, ident, ink):
     was multiplying first that made `round(gap * scale)` disagree with it — by a pixel the
     window below covers, until a scale of 4 makes it two. The window is kept for a device
     pixel of engine drift either side."""
-    from PIL import Image  # a dev dependency already, for the demo recorder
-
     box = page.locator(f"#{ident}").bounding_box()
     clip = {"x": math.floor(box["x"] - MARK_PAD), "y": math.floor(box["y"] - MARK_PAD)}
     clip["width"] = math.ceil(box["x"] + box["width"] + MARK_PAD) - clip["x"]
@@ -1147,8 +1147,10 @@ def mark_edges(page, ident, ink):
     def quarters(size):
         return (size // 4, size // 2, 3 * size // 4)
 
-    columns = [[image.getpixel((x, y)) for y in range(height)] for x in quarters(width)]
-    rows = [[image.getpixel((x, y)) for x in range(width)] for y in quarters(height)]
+    columns = [
+        [rgb_pixel(image, (x, y)) for y in range(height)] for x in quarters(width)
+    ]
+    rows = [[rgb_pixel(image, (x, y)) for x in range(width)] for y in quarters(height)]
     return {
         "top": {stroke(c, edge["top"]) for c in columns},
         "bottom": {stroke(c[::-1], edge["bottom"]) for c in columns},
@@ -1592,7 +1594,13 @@ def rings_drawn(page):
     as `ring_rules` reads it) and what is wrong with it.
 
     A non-focused element mark painting the band with no ring rule behind it is the
-    pointer's feedback contour rather than a ring, so it is left out."""
+    pointer's feedback contour rather than a ring, so it is left out.
+
+    It reads once the runtime has rendered what the input so far asked for. The probe
+    and the browser's matched styles are two reads, and a carrier the runtime replaces
+    between them, such as the projected focus mark after a focus move, has no styles
+    left to read."""
+    rendered(page)
     candidates = page.evaluate(RING_CANDIDATES)
     if not candidates:
         return []
@@ -1602,6 +1610,7 @@ def rings_drawn(page):
         geometry=True,
     )
     answers = page.evaluate(RINGS_DRAWN, rectangles)
+    _read_ring_pixels(page, answers)
     drawn = []
     for seen, rule in zip(answers, rules, strict=True):
         if seen.pop("mark") and not seen["focused"] and not rule:
@@ -1609,6 +1618,69 @@ def rings_drawn(page):
         seen["rule"] = rule
         drawn.append(seen)
     return drawn
+
+
+# The share of a run's samples the ring's colour must cover. A run hit testing found
+# clear but painted over, or never painted, reads near nought.
+RUN_DRAWN = 0.9
+# The fewest unpainted samples, 4px apart, that count: a neighbour's edge blending into
+# a short run's end sample is one.
+RUN_MISSED = 3
+# How far a sample's channels may stray from the ring's, summed: a band on a fractional
+# edge blends a little of the ground into its middle pixel, and ground or text that
+# covers it differs by far more.
+RUN_INK = 90
+
+
+def _read_ring_pixels(page, answers):
+    """Add to each ring's `covers` the runs its colour is missing from in a screenshot,
+    at the samples `ringsDrawn` (focus_rings.js) found nothing in front of that takes
+    hits, and drop the samples, ink and rectangle from each answer.
+
+    The screenshot is taken a round trip after the reading, so a caller reads a page at
+    rest (`rendered`); one still repainting can read a ring where it no longer is."""
+    sampled = [seen for seen in answers if seen["runs"]]
+    if sampled:
+        points = [p for seen in sampled for run in seen["runs"] for p in run["points"]]
+        # Whole CSS pixels, since Chrome truncates a clip to them before it scales.
+        left = math.floor(min(x for x, _ in points))
+        top = math.floor(min(y for _, y in points))
+        clip = {
+            "x": left,
+            "y": top,
+            "width": math.floor(max(x for x, _ in points)) + 1 - left,
+            "height": math.floor(max(y for _, y in points)) + 1 - top,
+        }
+        image = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        scale = image.width / clip["width"]
+    for seen in answers:
+        runs, ink, ring = seen.pop("runs"), seen.pop("ink"), seen.pop("ringAt")
+        for run in runs:
+            painted = [
+                sum(
+                    abs(a - b)
+                    for a, b in zip(
+                        rgb_pixel(
+                            image,
+                            (
+                                min(int((x - left) * scale), image.width - 1),
+                                min(int((y - top) * scale), image.height - 1),
+                            ),
+                        ),
+                        ink,
+                        strict=True,
+                    )
+                )
+                < RUN_INK
+                for x, y in run["points"]
+            ]
+            share = sum(painted) / len(painted)
+            if share < RUN_DRAWN and painted.count(False) >= RUN_MISSED:
+                seen["covers"].append(
+                    f"its {run['side']} edge shows the ring at {share:.0%} of its "
+                    f"{len(painted)} samples where nothing in front takes hits: paint "
+                    f"hit testing can't see is over it, or it isn't painted (ring {ring})"
+                )
 
 
 def current_location_ring(page):

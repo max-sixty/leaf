@@ -53,6 +53,7 @@ import {
   holdFocus,
   inChrome,
   initialRender,
+  render,
   keeps,
   landingInsets,
   LAYOUT,
@@ -139,11 +140,16 @@ customElements.define(
       const previous = this.#sections.map(({ destination }) => destination);
       const held = this.#sections.find(({ link }) => link === focused());
       const restore = held && holdFocus(this.#nav);
-      this.#sections = this.#drawing.update({
-        label: wrote,
-        chrome: inChrome,
-        lends: true,
-      });
+      render(
+        this.#drawing.render({
+          label: wrote,
+          chrome: inChrome,
+          lends: true,
+        }),
+        this,
+        { host: this },
+      );
+      this.#sections = this.#drawing.sections();
       // A new key still represents the user's place when its heading or destination
       // survives. Restore focus if Lit moved a retained row through the DOM.
       if (restore) {
@@ -154,7 +160,6 @@ customElements.define(
           );
         restore(continuation?.link);
       }
-      this.toggleAttribute("data-lf-toc-empty", !this.#sections.length);
       this.#observeDestinations(previous);
     }
 
@@ -180,7 +185,9 @@ customElements.define(
       // each kind of scroller.
       const scrollSource =
         this.#scroller === document.scrollingElement ? document : this.#scroller;
-      this.#watching = sizeObserver(() => this.#scheduleMeasure());
+      // The map writes only its own geometry. Measure during size delivery so
+      // the document and its section lengths paint together.
+      this.#watching = sizeObserver(() => this.#measure());
       this.#watching.observe(this.#main);
       this.#renamed = new MutationObserver(() => {
         this.#reconcile();

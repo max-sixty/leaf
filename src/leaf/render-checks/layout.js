@@ -89,7 +89,7 @@ export function geometryReading(open) {
 // same box, and the name every finding uses (locate.js). With `shown`, the walk keeps
 // to what the browser draws, leaving out skipped content such as a tab not chosen: a
 // reading of the view the user has asks nothing of it, and asking would make the
-// browser style and lay out each such subtree first (runtime/geometry.js, `skipped`).
+// browser style and lay out each such subtree first (runtime/shown-box.js, `skipped`).
 export function arrangedBoxes(open, { shown = false } = {}) {
   const main = pageDocument();
   if (!main) return [];
@@ -336,10 +336,14 @@ export function misplacedBoxes() {
   // container that clips without saying so in `overflow` is named for a spill it is
   // drawn nowhere near and left unnamed for the loss it did take, the walk at the foot
   // of this pass having gone straight past the container that cut it.
+  // A fixed box answers for itself wherever it stands, as a badge pinned to the
+  // window's corner across the column's edge does: it hangs off the window, so it can
+  // never scroll the page sideways, and where it sits is the author's call.
+  const pinned = (el) => getComputedStyle(el).position === "fixed";
   const answeredFor = (el) => {
-    if (isMarginContent(el)) return true;
+    if (isMarginContent(el) || pinned(el)) return true;
     for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
-      if (isMarginContent(a)) return true;
+      if (isMarginContent(a) || pinned(a)) return true;
       if (shownBand(a)) return true;
     }
     return false;
@@ -362,7 +366,7 @@ export function misplacedBoxes() {
   // — a widget that stands outside a frame, a tint or a fill reads as a broken page,
   // and one that grows through a transparent wrapper (a section, a tab's panel) reads
   // as the exhibit it is. A box that draws one says so where it draws it
-  // (--lf-block-frame: 1, theme.css) and the theme reads that declaration to withhold
+  // (--lf-block-frame: 1, base.css) and the theme reads that declaration to withhold
   // the room; this is what says so when a box that draws hasn't made it.
   const draws = (el) => {
     const s = getComputedStyle(el);

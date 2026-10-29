@@ -14,13 +14,9 @@ import { inputCount } from "../focus.js";
 import { randomId } from "../ids.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { notice } from "../notifications.js";
-import { pendingForParent } from "../pending/model.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
-
-const pendingSettlement = (entries, id) =>
-  pendingForParent(entries, id, ["resolve", "unresolve"]);
 
 export async function settleThread({
   parent,
@@ -32,7 +28,6 @@ export async function settleThread({
   landedAway,
   returnToThread,
 }) {
-  if (pendingSettlement(pendingEntries(), parent())) return;
   const land = prepareLanding?.();
   const since = inputCount();
   const attempt = randomId();
@@ -45,7 +40,7 @@ export async function settleThread({
   await landGesture({
     land,
     answer,
-    pending: () => Boolean(pendingSettlement(pendingEntries(), parent())),
+    pending: () => pendingEntries().some((entry) => entry.event.attempt === attempt),
     // The landing has moved focus, so the return is the user's while no input has
     // come since the gesture, wherever focus now stands.
     refused: async () => {

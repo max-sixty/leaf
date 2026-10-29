@@ -130,6 +130,10 @@ jobs:
       # follows runs the deployed turn alone rather than re-sampling readings the wait
       # settled.
       - name: Verify the exact public release in a browser
+        # Capture APIRequestContext's Node sockets, including failures before a
+        # Worker invocation exists. The preload emits only allowlisted metadata.
+        env:
+          NODE_OPTIONS: --require=${{ github.workspace }}/dev/leaf_dev/http_transport.cjs
         run: |
           release=$(jq --raw-output .release .tmp/site/_leaf/site.json)
           uv run leaf-dev verify-site --release "$release" --wait 900

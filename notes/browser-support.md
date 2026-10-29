@@ -88,7 +88,7 @@ review's 58rem container query, while the case list between them was an
 inline-size container, as the theme makes a pane's body. On 2026-10-25,
 narrowing `visual-review-gallery` from 1200px to 880px reproduced it on every
 crossing; Firefox 155 took the narrow padding. `.lf-vr-case-list` in
-`packages/visual-review/widgets.css` declares `container-type: normal`,
+`packages/visual-review/defaults.css` declares `container-type: normal`,
 since nothing in the list queries it. Recheck by deleting that declaration,
 narrowing the page with `leaf-dev probe` and reading a case button's computed
 padding; `test_page_fixture_renders[visual-review-gallery]` in
@@ -175,8 +175,8 @@ Recheck with real speech in the affected browser.
 
 ### Find-in-page scrolling to folded content
 
-`lf-tabs`, `lf-options` and `lf-trace-compare` use `hidden="until-found"`.
-WebKit's reported gap is that finding a match reveals folded content without
+Widgets fold content with `hidden="until-found"`, which Leaf's own travel reveals
+too (`runtime/widget-elements.js`, `reveal`). WebKit's reported gap is that finding a match reveals folded content without
 scrolling to the match. [WebKit 304174](https://webkit.org/b/304174) remained
 open when checked on 2026-10-22; this is published evidence, not a local Safari
 reproduction. Recheck native find-in-page on text inside a closed panel before
@@ -242,7 +242,7 @@ with caching enabled when changing the policy or sample lifetime.
 
 ### Frame margin trimming
 
-The frame-edge rules in `browser/theme.css` traverse bare wrappers,
+The frame-edge rules in `browser/base.css` traverse bare wrappers,
 skip generated apparatus and stop at declared rows. Native `margin-trim`
 cannot replace that behavior across the checked engines: on 2026-10-08,
 Chrome 155 trimmed block-flow margins but left flex and grid item margins;

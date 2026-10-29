@@ -40,7 +40,7 @@ import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
-import { slotTop } from "../geometry.js";
+import { showsContents, slotTop } from "../geometry.js";
 import {
   focusDestination,
   holdFocus,
@@ -127,10 +127,10 @@ export function createThreadPreview({
     "symbol",
     "lf-margin-preview-step",
     "Previous thread",
-    { icon: "previous" },
+    { action: "previous" },
   );
   const previewNext = offerAction("symbol", "lf-margin-preview-step", "Next thread", {
-    icon: "next",
+    action: "next",
   });
   previewNav.append(previewPrevious, previewPosition, previewNext);
   // Open in panel moves the card's thread into the floating panel's view of it, which
@@ -140,7 +140,7 @@ export function createThreadPreview({
     "symbol",
     "lf-margin-preview-expand",
     "Open in panel",
-    { icon: "expand" },
+    { action: "expand" },
   );
   const previewList = el("div", "lf-margin-preview-list");
   let dismiss = () => {};
@@ -295,15 +295,28 @@ export function createThreadPreview({
           // A head sticks only while its own message is under it. Follow its real
           // lower edge as the next message pushes it away; between messages the
           // transcript's edge is the cut. A declared head height cannot say this.
-          // The scroll clip includes focus-ring room above where the heads stick, which
-          // the heads and the actions cover once anything is scrolled away
-          // (`--lf-thread-room-cover`); at the top a message's ring still has it.
+          // Once anything is scrolled away, the head rows cover the room above them
+          // (`data-lf-scrolled`, annotation-chrome.css).
           let edge = 0;
           let height = above ? 12 : 0;
           const room = slotTop(transcript);
+          const top =
+            transcript.getBoundingClientRect().top + transcript.clientTop + room;
+          // A later message's controls stand in the actions' track at its head line
+          // (annotation-chrome.css), so while that line shares the actions' they
+          // stand aside.
+          for (const message of transcript.querySelectorAll(":scope > .lf-msg")) {
+            const head = message.querySelector(":scope > .lf-msg-head");
+            const box = head?.getBoundingClientRect();
+            keeps(
+              message,
+              "data-lf-beside-actions",
+              above && box && box.top < top + box.height && box.bottom > top
+                ? ""
+                : null,
+            );
+          }
           if (above) {
-            const top =
-              transcript.getBoundingClientRect().top + transcript.clientTop + room;
             for (const head of transcript.querySelectorAll(".lf-msg-head")) {
               const box = head.getBoundingClientRect();
               if (!box.height || box.bottom <= top) continue;
@@ -319,7 +332,7 @@ export function createThreadPreview({
           const card = transcript.parentElement;
           card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
           card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
-          card.style.setProperty("--lf-thread-room-cover", layoutPx(above ? room : 0));
+          keeps(card, "data-lf-scrolled", above ? "" : null);
         },
       });
   }
@@ -723,7 +736,7 @@ export function createThreadPreview({
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
       ".lf-page-thread > .lf-thread-reply";
     const lastShown = [...previewList.querySelectorAll(messageSelector)].findLast(
-      (node) => node.checkVisibility(),
+      (node) => showsContents(node),
     );
     const lastBox = lastShown?.getBoundingClientRect();
     const listBox = session.transcript?.getBoundingClientRect();

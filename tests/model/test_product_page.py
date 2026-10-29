@@ -7,7 +7,6 @@ from pathlib import Path
 
 import click
 from click.testing import CliRunner
-from leaf_dev.page_fixtures import authored_markup
 from unidiff import PatchSet
 
 from leaf import cli as cli_model
@@ -16,9 +15,11 @@ from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
+from leaf.registry.storage import load_registry
 from leaf.state import kernel_registry
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
+from leaf_dev.page_fixtures import authored_markup
 
 ROOT = Path(__file__).parents[2]
 ASSETS = ROOT / "browser"
@@ -88,7 +89,12 @@ def test_every_published_source_says_what_its_page_is():
 def links(name: str) -> set[tuple[str, str]]:
     """Each link one product source authors, as its target and its text."""
     tree = SourceDocument((DOCS / name).read_text()).tree
-    return {(link.attrs["href"], link.text) for link in tree.select("a[href]")}
+    found = set()
+    for link in tree.select("a[href]"):
+        href = link.attrs["href"]
+        assert isinstance(href, str)
+        found.add((href, link.text))
+    return found
 
 
 def test_extension_references_follow_the_concepts_they_explain():
@@ -108,7 +114,9 @@ def test_package_catalog_routes_every_optional_package_to_inspectable_content():
     assert [card.attrs["data-package"] for card in cards] == declared
     for card in cards:
         href = card.attrs["href"]
+        assert isinstance(href, str)
         if href.startswith("/examples/"):
+            assert href is not None
             assert href.endswith("/")
         else:
             source_prefix = "https://github.com/max-sixty/leaf/blob/main/"
@@ -118,8 +126,10 @@ def test_package_catalog_routes_every_optional_package_to_inspectable_content():
 
 def test_package_tutorial_registry_entry_is_valid(page_dir):
     tree = SourceDocument((DOCS / "extending.html").read_text()).tree
-    entry = json.loads(tree.select_one("#callout-registry").text)
-    registry = json.loads((page_dir / "registry.json").read_text()) | entry
+    select_one_result = tree.select_one("#callout-registry")
+    assert select_one_result is not None
+    entry = json.loads(select_one_result.text)
+    registry = load_registry(page_dir) | entry
 
     registry_validation.validate_registry(registry, "package tutorial")
     validation_model.validate_registry_examples(registry, "package tutorial")
@@ -130,7 +140,9 @@ EVENT_LOG = DOCS / "event-log.html"
 
 def code_block(page: SourceDocument, block_id: str) -> str:
     """The text of one authored `lf-code`'s `<pre>`."""
-    return page.tree.select_one(f"lf-code#{block_id} > pre").text
+    select_one_result_2 = page.tree.select_one(f"lf-code#{block_id} > pre")
+    assert select_one_result_2 is not None
+    return select_one_result_2.text
 
 
 def test_pr_walkthrough_excerpts_match_the_captured_patch():
@@ -142,7 +154,9 @@ def test_pr_walkthrough_excerpts_match_the_captured_patch():
     source = (EXAMPLES / "pr-walkthrough.html").read_text()
     page = SourceDocument(source)
     manifest = json.loads((EXAMPLES / "pr-walkthrough.data.json").read_text())
-    patch_source = page.tree.select_one("#pr-exact-patch").attrs["source"]
+    select_one_result_3 = page.tree.select_one("#pr-exact-patch")
+    assert select_one_result_3 is not None
+    patch_source = select_one_result_3.attrs["source"]
     capture = manifest["$captures"][patch_source]
     patch = PatchSet((EXAMPLES / capture["file"]).read_text())
     files = {file.path: file for file in patch}
@@ -151,7 +165,10 @@ def test_pr_walkthrough_excerpts_match_the_captured_patch():
     for block in blocks:
         block_id = block.attrs["id"]
         label = page.tree.select_one(f"#{block_id}-source")
-        path = label.select_one("code").text
+        assert label is not None
+        select_one_result_4 = label.select_one("code")
+        assert select_one_result_4 is not None
+        path = select_one_result_4.text
         right = {
             line.target_line_no: line.value
             for hunk in files[path]
@@ -159,15 +176,21 @@ def test_pr_walkthrough_excerpts_match_the_captured_patch():
             if line.target_line_no is not None
         }
         numbers = []
-        for interval in block.attrs["lines"].split(","):
+        line_numbers = block.attrs["lines"]
+        assert isinstance(line_numbers, str)
+        for interval in line_numbers.split(","):
             bounds = [int(bound) for bound in interval.split("-")]
             numbers.extend(range(bounds[0], bounds[-1] + 1))
         assert numbers == sorted(set(numbers)), block_id
-        assert block.select_one("pre").text.lstrip("\n") == "".join(
+        select_one_result_5 = block.select_one("pre")
+        assert select_one_result_5 is not None
+        assert select_one_result_5.text.lstrip("\n") == "".join(
             right[n] for n in numbers
         ), block_id
 
-    inline = page.tree.select_one("#pr-key-hunk pre").text.lstrip("\n")
+    select_one_result_6 = page.tree.select_one("#pr-key-hunk pre")
+    assert select_one_result_6 is not None
+    inline = select_one_result_6.text.lstrip("\n")
     [shown] = PatchSet(inline)
     captured = files[shown.path]
     assert shown
@@ -221,7 +244,9 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     what the door stores now has to be what the page shows, `id` and `ts` aside.
     A changed field, meaning, or refusal fails here with the records to paste."""
     source = SourceDocument(EVENT_LOG.read_text())
-    sample = source.tree.select_one("lf-sample#try-sample").inner_html
+    select_one_result_7 = source.tree.select_one("lf-sample#try-sample")
+    assert select_one_result_7 is not None
+    sample = select_one_result_7.inner_html
     (page_dir / "index.html").write_text(
         '<!doctype html><html lang="en"><head><title>Release question</title>'
         '<meta name="description" content="The sample."></head>'
@@ -309,9 +334,12 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     ]
     notes = source.tree.select("lf-code#captured-log > lf-note")
     assert '"answer": ' in lines[expected[3] - 1]
-    assert [int(note.attrs["at"]) for note in notes] == expected, (
-        f"place #captured-log's notes at {expected}"
-    )
+    positions = []
+    for note in notes:
+        position = note.attrs["at"]
+        assert isinstance(position, str)
+        positions.append(int(position))
+    assert positions == expected, f"place #captured-log's notes at {expected}"
 
 
 def test_the_event_log_page_quotes_the_registry():
@@ -363,7 +391,7 @@ def test_every_command_the_docs_show_is_one_leaf_has():
         for token in tokens:
             if not isinstance(command, click.Group):
                 break
-            sub = command.get_command(None, token)
+            sub = command.get_command(click.Context(command), token)
             if sub is None:
                 break
             path.append(token)

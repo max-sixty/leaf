@@ -1,16 +1,40 @@
 /* Build the small classic initial renderers from their single package-owned source.
  * Delivery inlines only a renderer the document uses; the same committed IIFE can
- * also load as a module for a widget arriving in a later revision or thread. */
+ * also load as a module for a widget arriving in a later revision or thread.
+ *
+ * A producer a widget also draws with off Leaf lives beside the widget and imports the
+ * portable helpers by their served path (`/runtime/portable-api.js`), as the widget
+ * does. Here those resolve to the runtime's sources, bundled for only the names the
+ * producer uses: none of them has a side effect a producer depends on, and Lit binds to
+ * the page's initialized instance as every producer's does. */
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "./esbuild.mjs";
-import { bindToInitialLit, initialLitPath } from "./lit.mjs";
+import { bindToInitialLit } from "./lit.mjs";
 import { checkModule } from "./browser/shipped.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
+const runtimeSources = {
+  name: "leaf-runtime-sources",
+  setup(builder) {
+    builder.onResolve({ filter: /^\/runtime\// }, ({ path: specifier }) => ({
+      path: path.join(root, "browser", specifier),
+      sideEffects: false,
+    }));
+    // What the producer leaves out may load vendor modules; one it uses may not.
+    builder.onResolve({ filter: /^\/vendor\// }, ({ path: specifier }) => ({
+      path: specifier,
+      external: true,
+    }));
+    builder.onResolve({ filter: /^\.\.?\// }, ({ path: specifier, importer }) =>
+      importer.startsWith(path.join(root, "browser", "runtime"))
+        ? { path: path.resolve(path.dirname(importer), specifier), sideEffects: false }
+        : undefined,
+    );
+  },
+};
 export async function initialOutputs() {
   const outputs = new Map();
-  const dependencies = {};
   const packages = path.join(root, "packages");
   for (const item of (await readdir(packages, { withFileTypes: true }))
     .filter((item) => item.isDirectory())
@@ -31,8 +55,7 @@ export async function initialOutputs() {
       const result = await build({
         entryPoints: [path.join(directory, "initial", `${tag}.js`)],
         bundle: true,
-        metafile: true,
-        plugins: [await bindToInitialLit()],
+        plugins: [await bindToInitialLit(), runtimeSources],
         format: "iife",
         write: false,
         minify: false,
@@ -41,18 +64,7 @@ export async function initialOutputs() {
       });
       checkModule(result.outputFiles[0].text, output);
       outputs.set(output, Buffer.from(result.outputFiles[0].contents));
-      if (
-        Object.keys(result.metafile.inputs).some((input) =>
-          input.startsWith("leaf-initial-lit:"),
-        )
-      )
-        dependencies[entry["x-initial"]] = [`/${initialLitPath}`];
     }
   }
-  // Delivery reads the build's dependency facts; it never names widget families.
-  outputs.set(
-    "browser/vendor/initial-dependencies.json",
-    Buffer.from(JSON.stringify(dependencies) + "\n"),
-  );
   return outputs;
 }

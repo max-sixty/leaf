@@ -12,7 +12,7 @@
     write(link, "href", href);
     if (href) write(link, "tabindex", null);
   }
-  function initialActivity(host, { offerElement, generatedElement, tabStore, keeps }) {
+  function initialActivity(host, { offerElement, offerActionElement, generatedElement, tabStore, keeps }) {
     const storageKey = ACTIVITY_VIEW + host.id;
     const saved = tabStore.get(storageKey);
     const reading = saved ? JSON.parse(saved) : { open: false, shown: "[]", label: "Show activity", news: false };
@@ -29,7 +29,7 @@
     const notice = (node) => {
       if (!node) return;
       drawing.notice = node;
-      offerElement(node, "lf-activity-news lf-thread-notice");
+      offerActionElement(node, "inline", "lf-activity-news");
     };
     const target = (row) => {
       if (row.thread)
@@ -69,51 +69,49 @@
       </p>
       ${row.excerpt ? html`<p class="lf-activity-excerpt">${row.excerpt}</p>` : nothing}
     </li>`;
-    const paint = (next = shown, live2 = capabilities) => {
+    const template = (next = shown, live2 = capabilities) => {
       shown = next;
       capabilities = live2;
       const rows = JSON.parse(shown.shown);
       const hidden = !shown.open && !capabilities.printing;
-      render(
-        html`
-        <button
-          ${ref(notice)}
-          type="button"
-          data-lf-carry="notice"
-          aria-expanded=${String(shown.open)}
-          ?data-lf-news=${shown.news}
-        >
-          ${shown.label}
-        </button>
-        <ol
-          class="lf-activity-list scroll"
-          ?hidden=${hidden}
-          ${ref((node) => {
-          if (node) drawing.list = generatedElement(node, { says: false });
-        })}
-        >
-          ${repeat(rows, (row) => row.id, rowTemplate)}
-        </ol>
-        <p
-          class="lf-activity-empty"
-          ?hidden=${hidden || rows.length > 0}
-          ${ref((node) => {
-          if (node) drawing.empty = generatedElement(node, { says: false });
-        })}
-        >
-          Nothing shown yet.
-        </p>
-      `,
-        host
-      );
+      return html`
+      <button
+        ${ref(notice)}
+        type="button"
+        data-lf-carry="notice"
+        aria-expanded=${String(shown.open)}
+        ?data-lf-news=${shown.news}
+      >
+        ${shown.label}
+      </button>
+      <ol
+        class="lf-activity-list scroll"
+        ?hidden=${hidden}
+        ${ref((node) => {
+        if (node) drawing.list = generatedElement(node, { says: false });
+      })}
+      >
+        ${repeat(rows, (row) => row.id, rowTemplate)}
+      </ol>
+      <p
+        class="lf-activity-empty"
+        ?hidden=${hidden || rows.length > 0}
+        ${ref((node) => {
+        if (node) drawing.empty = generatedElement(node, { says: false });
+      })}
+      >
+        Nothing shown yet.
+      </p>
+    `;
     };
     host.replaceChildren();
-    paint();
     if (host.ownerDocument.readyState === "loading")
-      host.ownerDocument.addEventListener("readystatechange", () => paint(), {
-        once: true
-      });
-    return Object.assign(drawing, { paint });
+      host.ownerDocument.addEventListener(
+        "readystatechange",
+        () => render(template(), host, { host }),
+        { once: true }
+      );
+    return Object.assign(drawing, { render: template });
   }
 
   // packages/default/initial/lf-activity.js

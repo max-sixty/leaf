@@ -15,8 +15,8 @@ from interact_support import (
     append_command,
     check_findings,
     element_declaration,
-    found,
     fresh_process,
+    page_packages,
     publish,
     registry_refusal,
     styled,
@@ -32,24 +32,13 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
+from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import page as registry_page
 from leaf.registry import storage as registry_storage
 from model.interact_contract import (
     _stateful_page_declaration,
 )
-
-
-def test_check_refuses_a_malformed_registry(page_dir):
-    (page_dir / "registry.json").write_text("{broken")
-    status, findings = check_findings(page_dir)
-    assert status != 0
-    assert found(
-        findings,
-        "registry-json",
-        registry=str(page_dir / "registry.json"),
-        revendor=str(page_dir.absolute()),
-    )
 
 
 def test_page_registry_composes_declarations_and_implementations_independently(
@@ -68,8 +57,10 @@ def test_page_registry_composes_declarations_and_implementations_independently(
     }
     layer_before = deepcopy(layer)
     page_before = deepcopy(declarations)
+    layer_2 = registry_storage.layer_record(page_dir)
+    assert layer_2 is not None
     widget_paths = {
-        *(f"widgets/{path.name}" for path in (page_dir / "widgets").glob("*.js")),
+        *registry_storage.layer_widgets(layer_2, page_dir),
         "widgets/lf-local.js",
         "page/widgets/lf-page-only.js",
         "page/widgets/lf-tabs.js",
@@ -108,7 +99,9 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
         }
     }
     member = {**deepcopy(layer["lf-old"]), "x-retired-when": "reject"}
-    widget_paths = {f"widgets/{path.name}" for path in (page_dir / "widgets").glob("*")}
+    layer_3 = registry_storage.layer_record(page_dir)
+    assert layer_3 is not None
+    widget_paths = set(registry_storage.layer_widgets(layer_3, page_dir))
 
     composed = registry_page.compose_page_registry(
         layer, {"lf-gone": member}, widget_paths
@@ -118,6 +111,29 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
         "accept": ["lf-old"],
         "reject": ["lf-new", "lf-gone"],
     }
+
+
+@pytest.mark.parametrize(("schema", "stamped"), [(True, "words"), (False, False)])
+def test_a_boolean_schema_for_a_toned_attribute_is_stamped_with_its_words(
+    page_dir, schema, stamped
+):
+    """An attribute that takes the layer's tones may have `true` for its schema, which
+    becomes the tones alone, or `false`, which admits none already."""
+    layer = registry_storage.load_registry(page_dir)
+    declaration = element_declaration("lf-local")
+    declaration["properties"]["tone"] = schema
+    declaration["x-tone"] = "tone"
+    layer_4 = registry_storage.layer_record(page_dir)
+    assert layer_4 is not None
+    widget_paths = set(registry_storage.layer_widgets(layer_4, page_dir))
+
+    composed = registry_page.compose_page_registry(
+        layer, {"lf-local": declaration}, widget_paths
+    ).registry
+
+    assert composed["lf-local"]["properties"]["tone"] == (
+        {"enum": layer["$tones"]["names"]} if stamped else False
+    )
 
 
 def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir):
@@ -140,7 +156,9 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
             "record": {"kind": "value", "attr": "reading"},
         },
     }
-    widget_paths = {f"widgets/{path.name}" for path in (page_dir / "widgets").glob("*")}
+    layer_5 = registry_storage.layer_record(page_dir)
+    assert layer_5 is not None
+    widget_paths = set(registry_storage.layer_widgets(layer_5, page_dir))
 
     composed = registry_page.compose_page_registry(
         layer, {"lf-local": declaration}, {*widget_paths, "widgets/lf-local.js"}
@@ -195,6 +213,7 @@ def test_page_registry_rejects_invalid_authored_contracts(
     page_dir, declarations, code, at
 ):
     authored = page_dir / "page" / "registry.json"
+    authored.parent.mkdir(exist_ok=True)
     authored.write_text(declarations)
 
     finding = registry_refusal(lambda: registry_storage.read_page_registry(page_dir))
@@ -203,8 +222,67 @@ def test_page_registry_rejects_invalid_authored_contracts(
     assert finding.values["registry"] == str(authored.absolute())
 
 
-def test_page_registry_reads_candidate_changes_without_mutating_the_layer(page_dir):
+def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
+    return {**element_declaration(tag, upgrade=upgrade), **keys}
+
+
+@pytest.mark.parametrize(
+    ("declarations", "expected"),
+    [
+        # Faults each declaration shows alone, beside a data contract's.
+        (
+            {
+                "lf-alpha": _faulty("lf-alpha", description=""),
+                "lf-beta": _faulty("lf-beta", **{"x-says": ["label"]}),
+                "$data": {
+                    "contracts": {"bad": {"description": "x", "schema": {"type": 3}}}
+                },
+            },
+            [
+                ("contract-schema", ""),
+                ("no-description", "<lf-alpha>"),
+                ("invalid-extensions", "<lf-beta>"),
+            ],
+        ),
+        # Faults against the other declarations, once every one holds alone.
+        (
+            {
+                "lf-beta": _faulty("lf-beta", **{"x-name": "label"}),
+                "lf-eps": _faulty("lf-eps", **{"x-initial": "/early.js"}),
+            },
+            [("undeclared-attributes", "<lf-beta>"), ("requires", "<lf-eps>")],
+        ),
+        # An example and a module, once the vocabulary holds.
+        (
+            {
+                "lf-gamma": _faulty(
+                    "lf-gamma",
+                    **{"x-example": '<lf-gamma id="g" tone="x">G</lf-gamma>'},
+                ),
+                "lf-delta": _faulty("lf-delta", upgrade=True),
+            },
+            [("invalid-example", "<lf-gamma>"), ("missing-module", "<lf-delta>")],
+        ),
+    ],
+)
+def test_one_check_reports_the_first_problem_in_each_declaration(
+    page_dir, declarations, expected
+):
+    """An author repairing page declarations reads every independent problem from
+    one `page check`, rather than one per run."""
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "registry.json").write_text(json.dumps(declarations))
+
+    status, findings = check_findings(page_dir)
+
+    assert status != 0
+    assert [
+        (finding.code, finding.at)
+        for finding in findings
+        if "registry" in finding.values
+    ] == expected
     authored = page_dir / "page"
+    authored.mkdir(exist_ok=True)
     source = authored / "registry.json"
     declaration = element_declaration("lf-local")
     source.write_text(json.dumps({"lf-local": declaration}))
@@ -225,6 +303,7 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
     readers and the append door both read the vocabulary it would be captured under:
     the layer composed with the page's own declarations, not the bare layer."""
     declaration = element_declaration("lf-local")
+    (page_dir / "page").mkdir(exist_ok=True)
     (page_dir / "page" / "registry.json").write_text(
         json.dumps({"lf-local": declaration})
     )
@@ -234,6 +313,7 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
         registry_storage.active_registry(page_dir),
         page_view_model.PageView(page_dir).registry(None),
     ):
+        assert vocabulary is not None
         assert vocabulary["lf-local"] == declaration
 
 
@@ -242,33 +322,32 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
 def test_late_gesture_wakes_for_the_active_vocabulary(
     page_dir, active_attention, declaration
 ):
-    """An old tab validates under its capture and changes the current page's obligations and requested input."""
+    """An old tab validates under its capture and changes the current page's
+    obligations and requested input. The page's own widget changes between the two
+    revisions, as its author's declarations do."""
     from leaf.state import write_json
 
-    layer = deepcopy(registry_storage.load_registry(page_dir))
-    awaits = layer["lf-options"].pop("x-awaits")
-
     def publish_choice(needs_attention):
-        vocabulary = deepcopy(layer)
+        pick = _stateful_page_declaration(page_dir, "lf-pick")
         if needs_attention and declaration == "obligation":
-            vocabulary["lf-options"]["x-awaits"] = awaits
+            pick["x-awaits"] = {"value": "first", "answered": {"first": {}}}
         elif needs_attention:
-            vocabulary["lf-options"]["x-state"]["choose"]["attention"] = True
-        write_json(page_dir / "registry.json", vocabulary)
-        group = (
-            '<lf-options id="choice" choose>'
-            '<lf-option id="first">First</lf-option>'
-            '<lf-option id="second">Second</lf-option></lf-options>'
+            pick["x-state"]["first"]["attention"] = True
+        write_json(page_dir / "page" / "registry.json", {"lf-pick": pick})
+        (page_dir / "index.html").write_text(
+            model.leaf_page(
+                "Choice", '<lf-pick id="choice" value="author">Pick</lf-pick>'
+            )
         )
-        if needs_attention and declaration == "obligation":
-            group = '<lf-ask id="ask"><h2>Which one?</h2>' + group + "</lf-ask>"
-        (page_dir / "index.html").write_text(model.leaf_page("Choice", group))
         publish(page_dir)
 
     publish_choice(not active_attention)
     original = files_model.latest_revision(page_dir)
     publish_choice(active_attention)
-    assert files_model.latest_revision(page_dir) > original
+    value_2 = files_model.latest_revision(page_dir)
+    assert value_2 is not None
+    assert original is not None
+    assert value_2 > original
 
     action = append_command(
         page_dir,
@@ -277,8 +356,8 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
             "author": "user",
             "revision": original,
             "widget": "choice",
-            "action": "choose",
-            "detail": {"value": ["first"]},
+            "action": "first",
+            "detail": {"value": "user"},
         },
     )
     assert action["attention"] is active_attention
@@ -320,16 +399,14 @@ def test_page_registry_cache_follows_layer_and_widget_files(page_dir):
     first = registry_storage.read_page_registry(page_dir)
     assert registry_storage.read_page_registry(page_dir) is first
 
-    layer_path = page_dir / "registry.json"
-    layer = json.loads(layer_path.read_text())
-    layer["lf-options"]["description"] = "Re-vendored options."
-    files_model.replace_files([(layer_path, json.dumps(layer).encode(), False)])
+    assert "lf-diff" in first.registry
+    vendoring_model.cmd_init(page_dir, selected=page_packages()[:-1])
     revendored = registry_storage.read_page_registry(page_dir)
     assert revendored is not first
-    assert revendored.registry["lf-options"]["description"] == "Re-vendored options."
+    assert "lf-diff" not in revendored.registry
 
     widgets = page_dir / "page" / "widgets"
-    widgets.mkdir(exist_ok=True)
+    widgets.mkdir(parents=True, exist_ok=True)
     implementation = widgets / "lf-options.js"
     implementation.write_text("export function upgrade() {}\n")
     overlaid = registry_storage.read_page_registry(page_dir)
@@ -399,6 +476,7 @@ def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page
         },
     )
     events = events_model.read_events(page_dir)
+    assert revision is not None
     historical = read_artifact(page_dir, revision)
     after_undo = [
         *events,
@@ -518,6 +596,7 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     assert activated.error is None and activated.created
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
+    assert first_revision is not None
     historical = page_reading(
         passages_model.SourceReading(
             structure_model.SourceDocument(original),
@@ -566,6 +645,7 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
     refused = revisioning_model.activate_source(page_dir)
 
     assert refused.error is None and refused.created
+    assert revision is not None
     assert refused.revision == revision + 1
 
 
@@ -574,14 +654,14 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
 ):
     """A revision's vocabulary was validated when it activated, so a process reading
     the page anew does not validate it again while it stands unchanged, and no check
-    parses the vendored sheets: together they were most of a cold first read."""
-    from leaf.validation import source as source_model
+    parses the layer's sheets: together they were most of a cold first read."""
+    from leaf import revision_artifact, styles
 
     (page_dir / "index.html").write_text(styled("main { color: red; }"))
     assert revisioning_model.activate_source(page_dir).error is None
     validated, linted = [], []
     real_validate = registry_page.validate_registry
-    real_lint = source_model.css_syntax_errors
+    real_lint = styles.dropped_css
     monkeypatch.setattr(
         registry_page,
         "validate_registry",
@@ -589,9 +669,10 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
             validated.append(source) or real_validate(registry, source)
         ),
     )
+    # The source check reads the document's sheets and each file under page/.
     monkeypatch.setattr(
-        source_model,
-        "css_syntax_errors",
+        revision_artifact,
+        "dropped_css",
         lambda css, where, **kw: linted.append(where) or real_lint(css, where, **kw),
     )
 

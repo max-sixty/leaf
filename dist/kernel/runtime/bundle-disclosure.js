@@ -1,6 +1,6 @@
 import { PENDING_TASK, actionIcon, afterScript, agentArrivalDuration, bindQueuedWork, byRenderedOrder, composedParentNode, failSoft, failSoftUnreported, frameVisibility, holdRendering, isNativeLayer, nextRender, onFrameVisibility, once, placesFailure, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, reportFailure, scrollBehavior, setScroll, shadowHost, sizeObserver, under, upFrom, watchOwner, whileConnected } from "./bundle-portable.js";
 import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, TEXT_FIELD, Z, actionForWidget, agentName, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, canPlaceFocus, closeLayer, closeNativeLayer, d, deepFocus, discussed, documentChanged, drawingSchema, drawn, editable, focusDestination, focused, handBack, holdFocus, html, inputCount, isMessageEvent, isThreadEvent, keeps, keepsHidden, keepsText, matchesWhen, move, moved, offlineInteractive, offlineState, onCurrentLocation, onUserInput, openLayer, openerOf, pageUrl, presentDocument, pressIsKeyboardActivation, projectionOrigins, q, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, stateCoordinate, tagsDeclaring, takesLetters, threadKey, tokenChoices, turns, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, x } from "./bundle-layer-stack.js";
-import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, elementDirective, generatedElement, holdingError, iconTemplate, isCommandScope, keys, layerHeaders, notice, offer, offerAction, paintKeys, paintKeysWithin, postEvent, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
+import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, elementDirective, generatedElement, holdingError, iconTemplate, isCommandScope, keys, layerHeaders, notice, offer, offerAction, offerActionElement, paintKeys, paintKeysWithin, postEvent, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
 import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleMarginContentLayout, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
 import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoLabel, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowLabel, workflowVoice } from "./bundle-data.js";
 import { clamp, clippedContents, clipsPastSurfaces, growthIsSeen, hasArea, intersect, layoutWindow, placeBox, placeHolder, presented as presented$1, seenRect, shownWindow, union, watchRoom, whenNone } from "./bundle-geometry.js";
@@ -606,7 +606,7 @@ const records = /* @__PURE__ */ new WeakMap();
 const controlContributions = /* @__PURE__ */ new WeakMap();
 const contributorClasses = /* @__PURE__ */ new WeakMap();
 function createContributionControl(record) {
-	return offer(record.behavior === "status" ? "span" : "button", "lf-margin-entry");
+	return offerActionElement(document.createElement(record.behavior === "status" ? "span" : "button"), "entry", "lf-margin-entry");
 }
 const contributionControlMatches = (control, record) => record.behavior === "status" ? control instanceof HTMLSpanElement : control instanceof HTMLButtonElement;
 function contributionEntryRecord(control) {
@@ -2287,7 +2287,7 @@ fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
-const fab = responseAction(el("button", "lf-ui lf-fab"), {
+const fab = responseAction(offerAction("response", "lf-fab"), {
 	action: "comment",
 	label: "Comment",
 	behavior: "disclosure"
@@ -2299,7 +2299,7 @@ fabOptions.id = "lf-response-options";
 fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
-const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
+const fabSuggest = responseAction(offerAction("response", "lf-fab-suggest"), {
 	action: "suggest",
 	label: "Suggest",
 	collapse: true
@@ -3488,7 +3488,7 @@ const reactionTokens = () => Object.entries(reactionVocabulary());
 const reactionAvailable = () => readThreads().phase === "ready";
 const anchorChoices = (anchor) => reactionAvailable() ? tokenChoices(reactionVocabulary(), anchor ? reactionsAt(allThreads(), anchor) : []) : [];
 function reactionChip({ name, glyph, label }, pressed) {
-	const chip = offer("button", `lf-react ${HOLDS_WORD}`);
+	const chip = offerAction("response", `lf-react ${HOLDS_WORD}`);
 	chip.dataset.token = name;
 	chip.title = label;
 	chip.setAttribute("aria-label", label);

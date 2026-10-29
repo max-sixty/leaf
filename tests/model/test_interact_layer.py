@@ -1587,18 +1587,6 @@ def _bundled_modules():
 # `test_every_press_is_built_by_role_or_family` refuses one built neither by role nor
 # with a family's class. A class that no press outside the roles wears leaves the list.
 PRESS_FAMILIES = {
-    "margin entries": (
-        {"lf-margin-entry", "lf-margin-spill", "lf-margin-more"},
-        "a glyph out in the margin whose label a pointer or a key reveals (theme.css)",
-    ),
-    "reaction chips": (
-        {"lf-react"},
-        "a reaction's own glyph, not an action's symbol, kept in sight while in force",
-    ),
-    "the response bar": (
-        {"lf-fab", "lf-fab-suggest"},
-        "floats over the page, so it wears the field's border, height and elevation",
-    ),
     "the command reference's commands": (
         {"lf-command-reference-command"},
         "a grid row's press, stretched over the row, which wears the row face and"

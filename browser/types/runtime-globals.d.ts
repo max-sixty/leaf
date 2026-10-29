@@ -36,7 +36,10 @@ type LeafActionRole =
   | "mark"
   | "inline"
   | "row"
-  | "answer";
+  | "answer"
+  | "entry"
+  | "reaction"
+  | "response";
 
 /** A package's retained template and optional rendering root. Node references and
  * mechanical inputs remain package-owned; the same render is used after upgrade. */

@@ -1,5 +1,6 @@
 import { LAYOUT, afterScript, cancelRender, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, skipped, under, upFrom } from "./bundle-portable.js";
 import { TAB_STOP, atLayoutPrecision, coarsePointer, hoveringPointer, keeps, layoutPx, move, renderedChildren } from "./bundle-layer-stack.js";
+import { offerActionElement } from "./bundle-layer-client.js";
 import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, effectiveScroller, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, shownRegionBounds, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { clamp, clippingAxes, overlaps, overlapsAcross, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, union } from "./bundle-geometry.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";
@@ -285,9 +286,7 @@ railMeasureRow.dataset.lfPlace = "rail";
 railMeasureRow.inert = true;
 railMeasureRow.setAttribute("aria-hidden", "true");
 railMeasureRow.style.visibility = "hidden";
-const railMeasureEntry = document.createElement("button");
-railMeasureEntry.className = "lf-margin-entry";
-railMeasureEntry.type = "button";
+const railMeasureEntry = offerActionElement(document.createElement("button"), "entry", "lf-margin-entry");
 railMeasureEntry.dataset.lfBehavior = "disclosure";
 railMeasureRow.append(railMeasureEntry);
 function restingRail() {

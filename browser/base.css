@@ -1633,9 +1633,11 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   padding: 0;
 }
-/* The pluggable RHS margin entry. Contributors choose glyph, label, tone, and behavior
-   through contributionEntry(); this declaration owns every visual and interactive
-   constant that makes unlike verbs read as one family.
+/* The entry face (prepaint.js, `ACTION_FACES`): the pluggable RHS margin entry.
+   Contributors choose glyph, label, tone, and behavior through contributionEntry(),
+   whose host is built by the `entry` role; this declaration owns every visual and
+   interactive constant that makes unlike verbs read as one family. The margin's
+   modules find an entry by `.lf-margin-entry` and never by this face's class.
 
    In the theme rather than in chrome.css, where it was, because a margin entry stands
    in the page's own margin and a package contributes to it. Adopted, its face beat
@@ -1646,7 +1648,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
    The states below stay in document order for the same reason: each reads the one
    above it. A surface supplying --lf-entry-ink retains that ink through the shared
    states, without competing with their selector specificity. */
-.lf-margin-entry {
+.lf-margin-face {
   position: relative;
   box-sizing: border-box;
   width: var(--margin-entry);
@@ -1674,39 +1676,39 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
    firmer single ring says it opens context; read-only status keeps only the page's
    ghost hairline. All three keep one silhouette and one place in the cluster,
    while the static status alone has no raised or responsive material. */
-.lf-margin-entry[data-lf-behavior="action"] {
+.lf-margin-face[data-lf-behavior="action"] {
   border-width: 2px;
   color: var(--lf-entry-ink, var(--ink));
   box-shadow: var(--lf-entry-lift);
 }
-.lf-margin-entry[data-lf-behavior="disclosure"] {
+.lf-margin-face[data-lf-behavior="disclosure"] {
   border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
   color: var(--lf-entry-ink, var(--ink-2));
   box-shadow: none;
 }
-.lf-margin-entry[data-lf-behavior="status"] {
+.lf-margin-face[data-lf-behavior="status"] {
   border-color: var(--rule);
   color: var(--lf-entry-ink, var(--ink-2));
   box-shadow: none;
   cursor: default;
 }
 /* Tone keeps an action's meaning on its icon throughout delivery and agent work. */
-.lf-margin-entry[data-lf-tone="positive"]
+.lf-margin-face[data-lf-tone="positive"]
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
-.lf-margin-entry[data-lf-tone="negative"]
+.lf-margin-face[data-lf-tone="negative"]
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--danger-ink);
 }
 /* Pointer and hover feedback belong to interactive offers. A status keeps its ghost
    ring in the page-map walk, while its hand and hover response go. */
-.lf-margin-entry:is(button, [role="button"]):not([data-lf-behavior="status"]):not(
+.lf-margin-face:is(button, [role="button"]):not([data-lf-behavior="status"]):not(
     :disabled
   ):not([aria-disabled="true"]) {
   cursor: pointer;
 }
-.lf-margin-entry:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not(
+.lf-margin-face:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not(
     [aria-disabled="true"]
   ) {
   background: var(--lf-entry-tint, var(--chip));
@@ -1721,7 +1723,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
    reached the first and not the second: the marker's selector carried one class more
    than the resting rule here, and the `…` carried exactly as many, so it lost on this
    sheet being adopted. One home for the state, and both say the same thing. */
-.lf-margin-entry[data-lf-behavior="disclosure"]:is(button, [role="button"]):is(
+.lf-margin-face[data-lf-behavior="disclosure"]:is(button, [role="button"]):is(
     :hover,
     [data-lf-focus],
     [aria-expanded="true"]
@@ -1732,17 +1734,17 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 /* A selected page reading and its compact Page Map projection share one accent. Reuse
    the entry's existing contour: category still owns its weight, and focus can
    add the one outer ring that says where input will land. */
-.lf-margin-entry[data-lf-target-selected] {
+.lf-margin-face[data-lf-target-selected] {
   border-color: var(--accent);
 }
-.lf-margin-entry[data-lf-focus-visible] {
+.lf-margin-face[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;
 }
-.lf-margin-entry[aria-disabled="true"] {
+.lf-margin-face[aria-disabled="true"] {
   cursor: default;
 }
-.lf-margin-entry.lf-react[aria-pressed="true"] {
+.lf-margin-face.lf-react[aria-pressed="true"] {
   background: var(--chip);
 }
 /* Opening a reaction in force leaves its familiar face in place and reveals the
@@ -1760,22 +1762,22 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
    on the same carrier has active agent work. Progress stays in the status words and
    the one arrival pulse rather than competing for the attention color. */
 :where(
-    .lf-margin-entry[data-lf-kinds~="comment"],
+    .lf-margin-face[data-lf-kinds~="comment"],
     .lf-page-map-action[data-lf-map-item^="comment:"],
-    .lf-margin-entry[data-lf-agent-workflow],
+    .lf-margin-face[data-lf-agent-workflow],
     .lf-page-map-action[data-lf-agent-workflow]
   )
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--accent);
 }
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]
+:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"]
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--turn-ink);
 }
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"] {
+:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"] {
   --lf-entry-tint: var(--turn-wash);
 }
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] {
+:is(.lf-margin-face, .lf-page-map-action)[data-lf-agent-arrival] {
   animation: lf-runtime-4f3c2a8d-agent-work-arrival var(--lf-motion-agent-arrival)
     ease-out var(--lf-agent-arrival-delay, 0ms) 1;
 }
@@ -1797,18 +1799,18 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] {
+  :is(.lf-margin-face, .lf-page-map-action)[data-lf-agent-arrival] {
     animation: none;
   }
 }
 /* The arrival pulse keeps the action's existing shadow beneath its transient ring. */
-.lf-margin-entry[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
+.lf-margin-face[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
   --lf-agent-stage-shadow: var(--lf-entry-lift);
 }
 /* Unread agent content marks the entry the way it marks the Threads toggle: a dot
    painted inside the box the entry already reserves, so it adds no width. It sits on
    the entry's corner, over its border, so a paper ring parts the two. */
-.lf-margin-entry[data-lf-unread]::after {
+.lf-margin-face[data-lf-unread]::after {
   content: "";
   position: absolute;
   inset-block-start: 0;
@@ -1822,10 +1824,10 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 .lf-margin-entry-glyph {
   line-height: 1;
 }
-.lf-margin-entry > .lf-margin-entry-space {
+.lf-margin-face > .lf-margin-entry-space {
   display: none;
 }
-.lf-margin-entry > .lf-margin-entry-label {
+.lf-margin-face > .lf-margin-entry-label {
   position: absolute;
   z-index: 3;
   inset-block-start: calc(100% + 6px);
@@ -1881,7 +1883,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 }
 /* Inline controls keep their native label. Physical margin controls take the
    geometry owner's placement, whose readiness gates their first visible paint. */
-.lf-margin-projection .lf-margin-entry[data-lf-label-side] > .lf-margin-entry-label {
+.lf-margin-projection .lf-margin-face[data-lf-label-side] > .lf-margin-entry-label {
   inset: auto;
   left: var(--lf-label-x);
   top: var(--lf-label-y);
@@ -1891,7 +1893,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
    would outstay the tap. A finger holds the entry to read it instead (held-word.js),
    and the focus a tap leaves behind says it only where the keyboard placed it, below. */
 @media (hover: hover) {
-  .lf-margin-entry:hover:not([aria-expanded="true"]) > .lf-margin-entry-label {
+  .lf-margin-face:hover:not([aria-expanded="true"]) > .lf-margin-entry-label {
     opacity: 1;
     visibility: visible;
     transform: translateY(0);
@@ -1902,7 +1904,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
    Besides avoiding a needless delay for the user, this keeps a contribution that is
    rebuilt while the margin projection settles from restarting three paint-only
    transitions at time zero forever. */
-.lf-margin-entry:is([data-lf-held-word], [data-lf-focus]:not([aria-expanded="true"]))
+.lf-margin-face:is([data-lf-held-word], [data-lf-focus]:not([aria-expanded="true"]))
   > .lf-margin-entry-label {
   opacity: 1;
   visibility: visible;
@@ -1910,14 +1912,14 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   transition: none;
 }
 @media (hover: none) {
-  .lf-margin-entry[data-lf-focus]:not(:focus-visible, [data-lf-held-word])
+  .lf-margin-face[data-lf-focus]:not(:focus-visible, [data-lf-held-word])
     > .lf-margin-entry-label {
     opacity: 0;
     visibility: hidden;
   }
 }
 .lf-margin-projection
-  .lf-margin-entry:not([data-lf-label-side])
+  .lf-margin-face:not([data-lf-label-side])
   > .lf-margin-entry-label {
   opacity: 0;
   visibility: hidden;

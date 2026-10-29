@@ -2,7 +2,7 @@
    registers template-owned controls and owns only disclosure, keyboard and focus. */
 import { html, render, repeat } from "/runtime/framework.js";
 import { HOLDS_WORD } from "../held-word.js";
-import { offered, offeredAction } from "../widget-elements.js";
+import { offeredAction } from "../widget-elements.js";
 
 let ordinal = 0;
 export class ReactionStripView {
@@ -46,7 +46,7 @@ export class ReactionStripView {
             (choice) => choice.name,
             (choice) =>
               html` <button
-                ${offered(`lf-react ${HOLDS_WORD}`)}
+                ${offeredAction("reaction", `lf-react ${HOLDS_WORD}`)}
                 data-token=${choice.name}
                 title=${choice.label}
                 aria-label=${choice.label}

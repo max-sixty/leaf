@@ -7,7 +7,7 @@ import { iconTemplate } from "./icons.js";
 import { HOLDS_WORD } from "./held-word.js";
 import { progressFace, workflowLabel } from "./thread/workflow.js";
 import { agentName } from "./semantic-state.js";
-import { elementDirective, offer } from "./widget-elements.js";
+import { elementDirective, offerActionElement } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { focusDestination } from "./focus.js";
@@ -123,7 +123,11 @@ const contributorClasses = new WeakMap();
 
 /** Create the native host for one generated margin entry reading. */
 function createContributionControl(record) {
-  return offer(record.behavior === "status" ? "span" : "button", "lf-margin-entry");
+  return offerActionElement(
+    document.createElement(record.behavior === "status" ? "span" : "button"),
+    "entry",
+    "lf-margin-entry",
+  );
 }
 
 const contributionControlMatches = (control, record) =>

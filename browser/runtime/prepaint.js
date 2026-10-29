@@ -480,6 +480,15 @@
   // - `answer`: one of the answers a question offers, such as a decision's choices on
   //   an On me card, framed so the set reads as one to pick from, the chosen one
   //   (`aria-pressed`) marked in the ok tone as the page marks its chosen option.
+  // - `entry`: a margin entry, a glyph out in the page's margin whose label a pointer
+  //   or a key reveals, framed by what it promises: an action raised, a disclosure
+  //   ringed, a status ghosted (contribution-controls.js). A reaction in the margin is
+  //   an entry.
+  // - `reaction`: a reaction's token in a message's strip, its own glyph rather than
+  //   an action's symbol, quiet until hovered and kept in the accent while in force.
+  // - `response`: a choice of the response bar, Comment, Suggest or a reaction, which
+  //   floats over the page and so wears the field's frame, height and lift
+  //   (widget-elements.js, `responseAction`).
   //
   // A difference that was only a past choice is not a role: a symbol once came bordered
   // in some widgets and quiet in others, a word framed in some, quiet in others and a
@@ -493,6 +502,9 @@
     inline: "lf-inline-action",
     row: "lf-row",
     answer: "lf-answer",
+    entry: "lf-margin-face",
+    reaction: "lf-reaction",
+    response: "lf-response-face",
   };
   const faceOf = (role) => {
     const face = ACTION_FACES[role];

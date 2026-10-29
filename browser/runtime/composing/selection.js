@@ -98,7 +98,7 @@ fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
-const fab = responseAction(el("button", "lf-ui lf-fab"), {
+const fab = responseAction(offerAction("response", "lf-fab"), {
   action: "comment",
   label: "Comment",
   behavior: "disclosure",
@@ -110,7 +110,7 @@ fabOptions.id = "lf-response-options";
 fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
-const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
+const fabSuggest = responseAction(offerAction("response", "lf-fab-suggest"), {
   action: "suggest",
   label: "Suggest",
   collapse: true,

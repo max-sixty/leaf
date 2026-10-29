@@ -17,7 +17,7 @@ import {
   presentContributionReceipts,
 } from "../contribution-controls.js";
 import { contributionSource } from "../contributions.js";
-import { el, generatedElement, offer } from "../widget-elements.js";
+import { el, generatedElement, offerAction } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { holdFocus } from "../focus.js";
 
@@ -201,7 +201,7 @@ export function createMarginClusterViews({
     }
     let spill = spills.get(model.entryKey);
     if (!spill) {
-      spill = offer("button", "lf-margin-spill");
+      spill = offerAction("entry", "lf-margin-spill");
       spill.type = "button";
       spills.set(model.entryKey, spill);
     }

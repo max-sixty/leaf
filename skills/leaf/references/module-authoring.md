@@ -439,6 +439,12 @@ The roles are:
 - `"answer"`, one of the answers a question offers the user, framed so the set reads
   as one to pick from; `label` is its words. Give the chosen one `aria-pressed="true"`,
   which marks it in the ok tone, as a chosen option is.
+- `"entry"`, a margin entry. Leaf builds these from a package's contributions
+  (`contributionEntry`); a widget doesn't build one itself.
+- `"reaction"`, a reaction's token in a message's strip, showing its own glyph. Give
+  one in force `aria-pressed="true"`, which keeps it in the accent.
+- `"response"`, a choice of the response bar, which Leaf builds for Comment, Suggest
+  and each reaction.
 
 `className` places the control; don't restyle its face. Use a symbol where a standard
 symbol for the action exists, one readers know from other software, and words where

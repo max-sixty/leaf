@@ -3869,7 +3869,7 @@ var ReactionStripView = class {
           aria-label="Reactions for this reply"
         >
           ${repeat(model.choices, (choice) => choice.name, (choice) => html` <button
-                ${offered(`lf-react ${HOLDS_WORD}`)}
+                ${offeredAction("reaction", `lf-react ${HOLDS_WORD}`)}
                 data-token=${choice.name}
                 title=${choice.label}
                 aria-label=${choice.label}

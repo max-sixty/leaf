@@ -105,7 +105,12 @@ import {
   currentLocationIn,
 } from "../focus.js";
 
-import { el, generatedElement, offer } from "../widget-elements.js";
+import {
+  el,
+  generatedElement,
+  offerAction,
+  offerActionElement,
+} from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
 import { PRESS, cycledRow, rowArrows } from "../keyboard/bindings.js";
@@ -280,7 +285,7 @@ export function createMarginProjection({
   // user's place. Its stable span owns the native-like press it needs while actionable;
   // ordinary contributed commands remain native buttons.
   const readingControl = (className) => {
-    const control = offer("span", className);
+    const control = offerActionElement(document.createElement("span"), "entry", className);
     keys(
       control,
       "On a margin entry",
@@ -1035,7 +1040,7 @@ export function createMarginProjection({
           { writesRelation: false, writesSeat: false },
         );
         // Its face is the cluster's to paint (margin-cluster-view.js).
-        more = offer("button", "lf-margin-more");
+        more = offerAction("entry", "lf-margin-more");
         const optionsId = `lf-margin-options-${++optionsOrdinal}`;
         host = clusterViews.createPage(marker, more, optionsId);
         keys(host, "In the margin", marginKeys, () => marginKeysAvailable);

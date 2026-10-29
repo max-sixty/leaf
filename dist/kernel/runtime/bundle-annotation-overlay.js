@@ -1,6 +1,6 @@
 import { LAYOUT, afterScript, cancelAnimation, cancelRender, nativeLayerHolding, nextAnimation, nextFrame, nextRender, renderedOrder, renderedUnder, setScroll, sizeObserver, skipped, tabStore, under } from "./bundle-portable.js";
 import { TEXT_FIELD, Z, bareReaction, closeLayer, coarsePointer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, hostIn, html, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, onCurrentLocation, onPressAway, onUserInput, pressLed, render, ringBox, roomPx, rove, sameAnchor, tabStops, turns, visibleFocus } from "./bundle-layer-stack.js";
-import { PRESS, closeControl, cycledRow, el, generatedElement, keys, notice, offer, offerAction, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
+import { PRESS, closeControl, cycledRow, el, generatedElement, keys, notice, offerAction, offerActionElement, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, setChildLists, setChildren, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
@@ -1031,7 +1031,7 @@ function createMarginClusterViews({ activateContribution, materializeReading, op
 		}
 		let spill = spills.get(model.entryKey);
 		if (!spill) {
-			spill = offer("button", "lf-margin-spill");
+			spill = offerAction("entry", "lf-margin-spill");
 			spill.type = "button";
 			spills.set(model.entryKey, spill);
 		}
@@ -1151,7 +1151,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 	}
 	const threadMarginEntry = (entry) => readingMarginEntry(entry, "comment");
 	const readingControl = (className) => {
-		const control = offer("span", className);
+		const control = offerActionElement(document.createElement("span"), "entry", className);
 		keys(control, "On a margin entry", [{
 			id: "margin.press",
 			keys: PRESS,
@@ -1632,7 +1632,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 					writesRelation: false,
 					writesSeat: false
 				});
-				more = offer("button", "lf-margin-more");
+				more = offerAction("entry", "lf-margin-more");
 				const optionsId = `lf-margin-options-${++optionsOrdinal}`;
 				host = clusterViews.createPage(marker, more, optionsId);
 				keys(host, "In the margin", marginKeys, () => marginKeysAvailable);

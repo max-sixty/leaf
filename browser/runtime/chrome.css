@@ -860,7 +860,9 @@ html[data-lf-region-capture] main * {
     grid-template-columns: 5.6em minmax(0, max-content) minmax(0, 1fr);
     grid-template-areas: "key action desc";
     align-items: baseline;
+    align-content: center;
     column-gap: 10px;
+    min-height: var(--aim-floor);
     margin-inline: -6px;
     /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
     padding-inline: 4px 6px;
@@ -914,11 +916,6 @@ html[data-lf-region-capture] main * {
       opacity: 1;
       white-space: normal;
     }
-    /* Up into the slack of its command's aim floor, which centers one line in 44px. */
-    .lf-command-reference-row:has(.lf-command-reference-command)
-      .lf-command-reference-description {
-      margin-top: calc((1lh - var(--aim-floor)) / 2);
-    }
   }
   /* A step's alternatives stand two to a line, so Move's arrows pair as ← → and ↑ ↓. */
   .lf-command-reference .lf-binding-sequence:has(> [data-lf-key-or]) {
@@ -942,8 +939,14 @@ html[data-lf-region-capture] main * {
   }
   /* A row's command is its one control: the button stretches over the row, so a press
      on its keys or description runs it too, and the row wears its wash and focus ring. */
+  /* It keeps to its column, so a long command wraps there beside its keys. Its row,
+     which its reach (`::after`) covers, meets the aim floor, so the command stands only
+     as tall as its words and a description follows them closely, however many lines
+     they take. */
   .lf-command-reference-command {
-    flex: none;
+    --lf-face-floor: 0px;
+    flex: 0 1 auto;
+    max-width: 100%;
     margin: 0;
     padding: 0;
     border: 0;

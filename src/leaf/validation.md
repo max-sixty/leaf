@@ -123,7 +123,8 @@ when the agent needs a fresh answer.
 Every check behind `page check` reports a record (`findings.py` owns its fields and
 words), and the browser probes return those records rather than sentences.
 
-A version that passes gets screens for its author to read (`render_gate/screens.py`).
+A render reading gets screens for its author to read, including when it reports
+findings (`render_gate/screens.py`).
 They are the command's, so the suite takes none.
 
 The gate serves its probe modules and the runtime they import from the Leaf running

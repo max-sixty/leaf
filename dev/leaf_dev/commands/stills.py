@@ -51,6 +51,7 @@ directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
 """
 
+import json
 import re
 import tempfile
 import traceback
@@ -462,6 +463,84 @@ def floating_thread_unread(page: Page) -> None:
     )
     floating_thread(page)
     expect(page.locator(".lf-fp-controls .lf-fp-next-unread")).to_be_visible()
+
+
+def panel_new_reply(page: Page) -> None:
+    """The same thread after the user's own turn, with the agent's answer to it too long
+    for the view, arrived below the fold behind New reply."""
+    floating_thread(page)
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    messages = view.locator(".lf-msg")
+    sent = messages.count() + 1
+    page.locator(".lf-fp-field leaf-text").click()
+    page.keyboard.insert_text("And over the weekend?")
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(messages).to_have_count(sent)
+    settle(page)
+    # The agent answers the turn through the delivery that hands it over.
+    served = served_page.get()
+    delivery = json.loads(served.leaf("wait", str(served.directory)).stdout)
+
+    def refs(node):
+        if isinstance(node, dict):
+            if isinstance(node.get("answer"), dict) and "ref" in node["answer"]:
+                yield node["answer"]["ref"]
+            for value in node.values():
+                yield from refs(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from refs(value)
+
+    served.leaf(
+        "thread",
+        "reply",
+        next(refs(delivery)),
+        "--done",
+        "--text",
+        "It would. " + "Someone stays on call through Sunday, and Monday too. " * 80,
+    )
+    expect(view.locator(".lf-fp-new-reply")).to_be_visible()
+
+
+def plan_head(page: Page) -> None:
+    """On the agent's tab with the agent's plan disclosed from its head at the view's
+    foot, one of its steps waiting on the user."""
+    as_agent(
+        "task",
+        "plan",
+        "--text",
+        '[{"depth": 0, "title": "Ship the resend", "state": "working"},'
+        ' {"depth": 1, "title": "Reproduce the stall", "state": "done"},'
+        ' {"depth": 1, "item": "widget:off-release"},'
+        ' {"depth": 1, "title": "Write the release note", "state": "open"}]',
+    )
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    on_agent(page)
+    page.locator(".lf-fp-plan-head").click()
+    expect(page.locator(".lf-fp-plan")).to_be_visible()
+
+
+def reaction_palette(page: Page) -> None:
+    """A reply's reactions in the floating panel's thread, the palette opened from the
+    strip's trigger, none in force."""
+    floating_thread(page)
+    message = page.locator(".lf-fp-view[data-view=thread] .lf-msg:has(.lf-react-strip)")
+    message.first.hover()
+    message.first.locator(".lf-react-trigger").click()
+    expect(message.first.locator(".lf-react-palette:popover-open")).to_be_visible()
+
+
+def reaction_pressed(page: Page) -> None:
+    """The same reply once the user has added its first reaction, which the closed
+    strip keeps in sight in the accent, under the pointer and away from it."""
+    reaction_palette(page)
+    strip = page.locator(".lf-fp-view[data-view=thread] .lf-react-strip").first
+    strip.locator(".lf-react").first.click()
+    expect(strip.locator('.lf-react[aria-pressed="true"]')).to_have_count(1)
+    # A press beside the palette puts it away, as any popover is.
+    page.locator(".lf-fp-view[data-view=thread] .lf-msg-body").first.click()
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
+    settle(page)
 
 
 def floating_thread_retitled(page: Page) -> None:
@@ -1928,6 +2007,29 @@ STATES = (
         floating_thread_retitled,
         region=".lf-fp-opened",
     ),
+    State("panel-new-reply", "ship-review", panel_new_reply, region=".lf-fp-opened"),
+    State(
+        "panel-new-reply-phone",
+        "ship-review",
+        panel_new_reply,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("plan-head", "ship-review", plan_head, region=".lf-floating-panel"),
+    State(
+        "plan-head-phone",
+        "ship-review",
+        plan_head,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "on-me-choice-phone",
+        "command-hub",
+        on_me_choice,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State(
         "playground-choice",
         "notification-playground",
@@ -2456,6 +2558,12 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State(
+        "selected-passage-responses-dark",
+        "review-a-plan",
+        selected_passage_responses,
+        scheme="dark",
+    ),
     State("command-reference-search", "review-a-plan", command_reference_search),
     State(
         "command-reference-search-dark",
@@ -2466,6 +2574,10 @@ STATES = (
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),
     State("plan-card", "review-a-plan", card_by_pointer),
+    State("reaction-palette", "ship-review", reaction_palette),
+    State("reaction-palette-dark", "ship-review", reaction_palette, scheme="dark"),
+    State("reaction-pressed", "ship-review", reaction_pressed),
+    State("reaction-pressed-dark", "ship-review", reaction_pressed, scheme="dark"),
     State(
         "plan-card-message-width",
         "review-a-plan",

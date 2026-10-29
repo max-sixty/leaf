@@ -70,6 +70,12 @@ and sizes of the controls and content the reader is using through those states,
 including at a narrow width; a settled screenshot cannot show whether changing
 feedback moved them.
 
+`leaf page check --render` also leaves the presented desktop page alone for three
+seconds and reports the browser's `layout-shift` entries affecting page content as
+advice, naming the nodes that moved and their before/after boxes. Those nodes show
+what moved, not necessarily what caused it. This finite observation does not exercise
+gestures, later timers, offscreen content or embedded documents.
+
 `page/registry.json` adds declarations in the package registry format; an element entry
 there replaces the layer's entry for that tag. `page/widgets/<tag>.js` replaces a
 package's module for that tag, with or without a page declaration.

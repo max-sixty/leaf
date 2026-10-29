@@ -624,6 +624,13 @@ summary {
   inherits: true;
   initial-value: transparent;
 }
+/* The room a head keeps for its message's controls (controls.css), typed so the
+   runtime reads it as a length (thread-card.js, `#fitMarginNews`). */
+@property --lf-msg-control {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
 @property --lf-msg-arrival {
   syntax: "<number>";
   inherits: false;
@@ -907,9 +914,8 @@ summary {
   > .lf-msg-head {
   anchor-name: --lf-thread-headline;
   margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
-  padding-inline-end: calc(
-    var(--lf-thread-notice-room) + var(--sp-2) + var(--lf-thread-message-control-room)
-  );
+  padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2));
+  --lf-msg-control: var(--lf-thread-message-control-room);
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
@@ -956,8 +962,12 @@ summary {
   display: inline-flex;
   flex: none;
   align-items: center;
+  block-size: var(--lf-icon-action-face);
   gap: 4px;
   margin-inline-start: auto;
+}
+.lf-thread-meta-actions > button {
+  block-size: 100%;
 }
 .lf-thread-controls > .lf-thread-meta-actions {
   min-height: var(--lf-thread-action-room);

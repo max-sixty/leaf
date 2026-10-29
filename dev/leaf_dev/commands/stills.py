@@ -589,6 +589,14 @@ def card_reply_resolved(page: Page) -> None:
     ).click()
 
 
+def card_reply_resolved_elsewhere(page: Page) -> None:
+    """An agent resolves the thread while the user keeps writing in its margin card."""
+    card_reply(page)
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    as_agent("thread", "resolve", card.get_attribute("data-thread"))
+    expect(card.locator(".lf-reopen")).to_be_visible()
+
+
 def as_agent(command: str, verb: str, *args: str) -> None:
     """Run `leaf COMMAND VERB PAGE ARGS` as the agent on the page being served, with
     its arm's launcher."""
@@ -2607,6 +2615,19 @@ STATES = (
         region=".lf-margin-preview .lf-thread-reply",
     ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
+    State(
+        "plan-card-reply-resolved-elsewhere",
+        "review-a-plan",
+        card_reply_resolved_elsewhere,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "plan-card-reply-resolved-elsewhere-dark",
+        "review-a-plan",
+        card_reply_resolved_elsewhere,
+        scheme="dark",
+        region=".lf-margin-preview",
+    ),
     State("triage", "triage-board", at_rest),
     State("triage-phone", "triage-board", at_rest, viewport=(390, 844), touch=True),
     State(

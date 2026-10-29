@@ -95,7 +95,7 @@ def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differ
         state = {
             "activity": {"obligations": [obligation]},
             "cursor": 1,
-            "claim_turn": "leaf-turn",
+            "turn": "leaf-turn",
         }
         return activity_model.blocking_obligations(state, watched=watched)
 

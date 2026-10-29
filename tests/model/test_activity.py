@@ -130,7 +130,7 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     codex = page_state(codex_claimed_page)
     # Every other clause of the rule holds, so only the watcher can read it away.
     assert codex["session_alive"] is True
-    assert codex["claim_turn"] and codex["turn_closed"] is None
+    assert codex["turn"] and codex["turn_closed"] is None
     assert codex["turn_opened"] and not codex["turn_takes_input"]
     assert codex["listening"] is False
     assert codex["activity"]["kind"] == "away"
@@ -494,7 +494,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         "session_alive": True,
         "live_turn": None,
         "claim_session": "session-1",
-        "claim_turn": "turn-1",
+        "turn": "turn-1",
         "cursor": 0,
         "turn_opened": old,
         "turn_closed": None,
@@ -1093,7 +1093,7 @@ def test_a_process_free_publication_keeps_input_without_claimant_facts(claimed):
             "live_turn",
             "claim_session",
             "session_name",
-            "claim_turn",
+            "turn",
             "turn_closed",
             "turn_opened",
             "session_cwd",
@@ -1432,3 +1432,27 @@ def test_newer_page_work_takes_the_activity_from_an_older_thread_start(page_dir)
     }
     [workflow] = [w for w in state["workflows"] if w["input"] == comment["id"]]
     assert workflow["at_work"]
+
+
+def test_a_claim_closed_before_its_first_turn_still_names_what_it_owes():
+    """A session record can close before it names a turn, as when a close reaches a
+    session Leaf has only seen through its transcript. The served reading's phase is
+    `state.turn_closed`'s, so the answers such a claim owes are left owed, and
+    named, as after any other closed turn."""
+    obligation = {
+        "seq": 1,
+        "stage": "picked_up",
+        "input": "e1",
+        "answer": {"kind": "reply", "ref": "t1"},
+        "response": None,
+        "delivery_seq": 1,
+        "started_by": [],
+    }
+    state = {
+        "activity": {"obligations": [obligation]},
+        "cursor": 1,
+        "claim_session": "s1",
+        "turn": None,
+        "turn_closed": "2026-10-28T12:00:00+00:00",
+    }
+    assert activity_model.left_owed(state, lambda _: False) == [obligation]

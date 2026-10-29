@@ -1,9 +1,10 @@
 # Packages
 
 A package is a directory Leaf adds to a page. It can hold a theme, widgets, helper
-modules, libraries and external-data contracts. `page init` combines Leaf's kernel with
-the page's packages, checks the result, and copies it into the page as the page's
-layer. Packages need no browser build or npm command: write widgets and helpers as
+modules, libraries and external-data contracts. `page init` records the selected
+packages and checks their composition. The Leaf serving, checking or exporting a page
+composes its layer from that selection ("Package reach", below).
+Packages need no browser build or npm command: write widgets and helpers as
 JavaScript the browser loads directly, importing the shipped `/runtime/widget-api.js`.
 
 This file covers what every package follows and how to declare a widget.

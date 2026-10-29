@@ -13,8 +13,8 @@ from PIL import Image
 def stills_catalogue(tmp_path, monkeypatch):
     """Replace build/server/browser boundaries, retaining the command, capture,
     drivers, screenshots, crops and style comparison. Image comparison stands in for
-    its browser module, and each arm's page computes its name as the root's colour,
-    so this tests catalogue orchestration without launching a browser.
+    its browser module, and each arm's page computes and declares its name as the
+    root's colour, so this tests catalogue orchestration without launching a browser.
     """
     visited = []
 
@@ -85,6 +85,11 @@ def stills_catalogue(tmp_path, monkeypatch):
         stills, "load", lambda page, address: setattr(page, "url", address)
     )
     monkeypatch.setattr(stills, "settle", lambda page: None)
+    monkeypatch.setattr(
+        stills,
+        "declarations",
+        lambda page: lambda key: [f"{key} {{ color: {page.url}; }}"],
+    )
     monkeypatch.setattr(stills, "differences", differences)
     return catalogue
 
@@ -133,7 +138,12 @@ def test_a_failed_driver_preserves_other_states_and_both_arm_diagnostics(
         )
     )
     assert (out / "healthy" / "styles.txt").read_text() == (
-        "color: base -> head  x1\n    html\n"
+        "color: base -> head  x1\n"
+        "    html\n"
+        "declarations that differ, on each group's first element\n"
+        "    html\n"
+        "        - html { color: base; }\n"
+        "        + html { color: head; }\n"
     )
     assert result.output.replace(str(out), "<stills>") == (
         "base bbbbbbbbbb vs head aaaaaaaaaa\n"

@@ -489,6 +489,9 @@
   // - `response`: a choice of the response bar, Comment, Suggest or a reaction, which
   //   floats over the page and so wears the field's frame, height and lift
   //   (widget-elements.js, `responseAction`).
+  // - `gutter`: a line's number in a code view's gutter, which takes a comment on its
+  //   line, as a diff's do: the number in the code's muted ink, a + before it under
+  //   the keys.
   //
   // A difference that was only a past choice is not a role: a symbol once came bordered
   // in some widgets and quiet in others, a word framed in some, quiet in others and a
@@ -505,6 +508,7 @@
     entry: "lf-margin-face",
     reaction: "lf-reaction",
     response: "lf-response-face",
+    gutter: "lf-gutter",
   };
   const faceOf = (role) => {
     const face = ACTION_FACES[role];

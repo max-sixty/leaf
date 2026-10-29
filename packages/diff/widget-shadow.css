@@ -355,6 +355,9 @@
   content: "-";
   color: var(--danger-ink);
 }
+/* A line's number is a gutter press (controls.css, `.lf-gutter`), standing over the
+   gutter's width on its line, its number set against the code, with its + in the
+   room before it; the + shows for the line the pointer is over. */
 .lf-diff-line-comment {
   position: absolute;
   z-index: 2;
@@ -366,33 +369,8 @@
   min-width: 0;
   min-height: 0;
   padding: 0 1ch 0 2ch;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--code-muted);
-  font: inherit;
-  display: flex;
-  align-items: start;
-  justify-content: end;
-  text-align: right;
-  user-select: none;
-  cursor: pointer;
 }
-.lf-diff-line-comment::before {
-  content: "+";
-  position: absolute;
-  inset-inline-start: 1px;
-  inset-block-start: 0;
-  width: calc(2ch - 2px);
-  border-radius: var(--r-s);
-  background: var(--accent-tint);
-  color: var(--accent);
-  font-weight: 700;
-  text-align: center;
-  opacity: 0;
-}
-.lf-diff-line:hover > .lf-diff-line-comment::before,
-.lf-diff-line-comment[data-lf-focus]::before {
+.lf-diff-line:hover > .lf-diff-line-comment::before {
   opacity: 1;
 }
 /* A file the filter leaves out keeps the box until-found gives it, which spends no room

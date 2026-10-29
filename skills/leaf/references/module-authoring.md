@@ -445,6 +445,9 @@ The roles are:
   one in force `aria-pressed="true"`, which keeps it in the accent.
 - `"response"`, a choice of the response bar, which Leaf builds for Comment, Suggest
   and each reaction.
+- `"gutter"`, a line's number in a code view's gutter that takes a comment on its
+  line; `label` is the number. Its seat places it over the gutter and shows its + for
+  the line under the pointer.
 
 `className` places the control; don't restyle its face. Use a symbol where a standard
 symbol for the action exists, one readers know from other software, and words where

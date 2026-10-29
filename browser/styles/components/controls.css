@@ -805,6 +805,40 @@ wa-copy-button.lf-icon-action {
   content: "✓";
   margin-inline-end: 6px;
 }
+/* The gutter face: a line's number in a code view's gutter, which takes a comment on
+   its line, as a diff's do (lf-diff.js). It is the number in the code's muted ink,
+   set against the code, with no frame, and a + in the accent's tint standing before
+   it once the keys stand on it; its seat shows the + for the line under the pointer
+   too, and places it over the gutter's width. */
+.lf-gutter {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--code-muted);
+  font: inherit;
+  display: flex;
+  align-items: start;
+  justify-content: end;
+  text-align: right;
+  user-select: none;
+  cursor: pointer;
+}
+.lf-gutter::before {
+  content: "+";
+  position: absolute;
+  inset-inline-start: 1px;
+  inset-block-start: 0;
+  width: calc(2ch - 2px);
+  border-radius: var(--r-s);
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-weight: 700;
+  text-align: center;
+  opacity: 0;
+}
+.lf-gutter[data-lf-focus]::before {
+  opacity: 1;
+}
 /* Standing on a press, in the band everything else the user is on is drawn in
    (--focus-ring). This was the last place on the product still wearing the browser's own
    ring: a user who backed out of the panel landed on Threads in Chrome's blue, beside

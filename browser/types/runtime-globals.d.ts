@@ -39,7 +39,8 @@ type LeafActionRole =
   | "answer"
   | "entry"
   | "reaction"
-  | "response";
+  | "response"
+  | "gutter";
 
 /** A package's retained template and optional rendering root. Node references and
  * mechanical inputs remain package-owned; the same render is used after upgrade. */

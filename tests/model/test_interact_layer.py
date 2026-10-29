@@ -1599,10 +1599,6 @@ PRESS_FAMILIES = {
         {"lf-mark-note", "lf-visual-action", "lf-gloss-mark"},
         "the keyboard's stop, unseen at rest, for what the pointer takes on the page",
     ),
-    "line numbers": (
-        {"lf-diff-line-comment"},
-        "a diff line's number, which takes a comment on its line from the gutter",
-    ),
 }
 
 

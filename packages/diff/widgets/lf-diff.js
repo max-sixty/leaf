@@ -217,7 +217,7 @@ function renderedLines(file, content) {
     const row = document.createElement("div");
     row.className = "lf-diff-line";
     row.dataset.lineType = node.dataset.lineType;
-    const comment = offer("button", "lf-diff-comment lf-diff-line-comment");
+    const comment = offerAction("gutter", "lf-diff-comment lf-diff-line-comment");
     comment.type = "button";
     comment.tabIndex = -1;
     comment.setAttribute("aria-label", `Comment on ${lineLabel(record)}`);

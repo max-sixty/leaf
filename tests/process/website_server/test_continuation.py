@@ -25,8 +25,6 @@ def unfollowed_turn(harness, page_dir, *, following=None, event_ids=("first-even
     turns read no connection: `following` is what happens in place of the reading,
     and the default is a turn that ended without incident.
     """
-    lifecycle = session_record("hosted-thread")
-    assert lifecycle is not None
 
     class FollowingTurn(website_server.HostedTurn):
         def follow(self):
@@ -40,7 +38,7 @@ def unfollowed_turn(harness, page_dir, *, following=None, event_ids=("first-even
         "delivery-1",
         event_ids,
         "provider-turn",
-        lifecycle=lifecycle,
+        lifecycle=session_record("hosted-thread"),
     )
     return turn
 

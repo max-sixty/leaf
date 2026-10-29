@@ -483,7 +483,7 @@ class HostedTurn(CarriedTurn):
         turn_id: str,
         socket=None,
         *,
-        lifecycle: dict,
+        lifecycle: dict | None,
         reply_target: dict | None = None,
         buffered=(),
     ):

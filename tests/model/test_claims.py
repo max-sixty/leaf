@@ -593,12 +593,11 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
         record_claim(page_dir, id="past-session")
         service_model.claim_page(page_dir)
     harness = harness_model.session_harness()
-    assert harness is not None
-    lease_path = (
-        page_dir / "waiter.lock"
-        if identity_names
-        else leases_model.waiter_lease_path(page_dir, harness.session)
-    )
+    if identity_names:
+        lease_path = page_dir / "waiter.lock"
+    else:
+        assert harness is not None
+        lease_path = leases_model.waiter_lease_path(page_dir, harness.session)
     first = spawn(
         [*LEAF_COMMAND, "wait", str(page_dir)],
         stdout=subprocess.PIPE,
@@ -627,7 +626,6 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     # SIGTERM unwinds the wait's application cleanup and releases its kernel lease.
     first.terminate()
     first.communicate(timeout=STATED_TIMEOUT)
-    assert lease_path is not None
     assert lease_path.exists()
     assert not leases_model.lock_is_held(lease_path)
 

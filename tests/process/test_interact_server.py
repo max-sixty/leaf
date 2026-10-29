@@ -4986,7 +4986,9 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
     stopped = []
     stopping = threading.Thread(
         target=lambda: stopped.append(
-            hosting_model.cmd_stop(page_dir, owner=owner if owned else None)
+            hosting_model.cmd_stop(page_dir, owner=owner)
+            if owned
+            else hosting_model.cmd_stop(page_dir)
         ),
         daemon=True,
     )

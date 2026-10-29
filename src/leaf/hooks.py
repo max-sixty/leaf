@@ -82,7 +82,6 @@ def cmd_hook(harness: str, payload: dict) -> None:
     """Answer one hook of `harness`, the name its registration passes."""
     started = time.monotonic()
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
-    assert isinstance(event, str)
     if worker_tool_batch(harness, payload):
         return
     if sid:
@@ -91,6 +90,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         mark_hooks(sid)
     if not sid:
         return
+    assert isinstance(event, str)
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
     ):

@@ -164,60 +164,56 @@ def _press_each_control(browser, url, tags):
     page = browser.new_page(viewport=RENDER_VIEWPORT)
     arm_interception(page)
     sent, failures, held = [], [], []
-    try:
-        page.goto(url)
-        wait_until_ready(page, served(page, url, "/api/state").json())
+    page.goto(url)
+    wait_until_ready(page, served(page, url, "/api/state").json())
+    rendered(page)
+    # A press may replace the controls beside it, as Accept's Undo takes Reject's
+    # seat, so the controls are read again after each, and each name pressed once.
+    pressed_names = set()
+    while names := [
+        (index, name)
+        for index, name in enumerate(page.evaluate(MARK_CONTROLS, tags))
+        if name not in pressed_names
+    ]:
+        index, name = names[0]
+        pressed_names.add(name)
+        control = page.locator(f'[data-lf-press-check="{index}"]')
+        control.scroll_into_view_if_needed()
+        box = control.bounding_box()
+        point = [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2]
+        page.route("**/api/event", lambda route: held.append(route))
+        before = page.evaluate(UNRESOLVED)
+        face = page.evaluate(FACE_AT, point)
+        page.mouse.click(*point)
         rendered(page)
-        # A press may replace the controls beside it, as Accept's Undo takes Reject's
-        # seat, so the controls are read again after each, and each name pressed once.
-        pressed_names = set()
-        while names := [
-            (index, name)
-            for index, name in enumerate(page.evaluate(MARK_CONTROLS, tags))
-            if name not in pressed_names
-        ]:
-            index, name = names[0]
-            pressed_names.add(name)
-            control = page.locator(f'[data-lf-press-check="{index}"]')
-            control.scroll_into_view_if_needed()
-            box = control.bounding_box()
-            point = [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2]
-            page.route("**/api/event", lambda route: held.append(route))
-            before = page.evaluate(UNRESOLVED)
-            face = page.evaluate(FACE_AT, point)
-            page.mouse.click(*point)
-            rendered(page)
-            travelling = page.evaluate(FACE_AT, point)
-            pressed = page.evaluate(UNRESOLVED)
-            # A press that left no control under the pointer leaves nothing to flicker.
-            if pressed != before and travelling:
-                sent.append(name)
-                if travelling != face:
+        travelling = page.evaluate(FACE_AT, point)
+        pressed = page.evaluate(UNRESOLVED)
+        # A press that left no control under the pointer leaves nothing to flicker.
+        if pressed != before and travelling:
+            sent.append(name)
+            if travelling != face:
+                failures.append(
+                    f"{name}: {face} before the press, {travelling} while its "
+                    "gesture travelled"
+                )
+            # A control the press replaced, as Undo takes Accept's seat, is another
+            # control, whose press may rightly send nothing.
+            elif page.evaluate(STILL_PRESSED, [*point, index]):
+                page.mouse.click(*point)
+                rendered(page)
+                if page.evaluate(UNRESOLVED) == pressed:
                     failures.append(
-                        f"{name}: {face} before the press, {travelling} while its "
-                        "gesture travelled"
+                        f"{name}: a second press while the first travelled sent nothing"
                     )
-                # A control the press replaced, as Undo takes Accept's seat, is another
-                # control, whose press may rightly send nothing.
-                elif page.evaluate(STILL_PRESSED, [*point, index]):
-                    page.mouse.click(*point)
-                    rendered(page)
-                    if page.evaluate(UNRESOLVED) == pressed:
-                        failures.append(
-                            f"{name}: a second press while the first travelled sent "
-                            "nothing"
-                        )
-            # The preview server refuses every gesture, which restores the page for
-            # the next control.
-            for route in held:
-                route.continue_()
-            held.clear()
-            page.unroute("**/api/event")
-            page.wait_for_function(DELIVERED)
-            rendered(page)
-            page.keyboard.press("Escape")
-    finally:
-        page.close()
+        # The preview server refuses every gesture, which restores the page for
+        # the next control.
+        for route in held:
+            route.continue_()
+        held.clear()
+        page.unroute("**/api/event")
+        page.wait_for_function(DELIVERED)
+        rendered(page)
+        page.keyboard.press("Escape")
     return pressed_names, sent, failures
 
 

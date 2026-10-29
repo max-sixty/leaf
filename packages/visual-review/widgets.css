@@ -85,27 +85,17 @@ lf-visual-review {
   --lf-pane-top: 0px;
   container-type: normal;
 }
+/* A case is a row (controls.css, `.lf-row`), the case shown its current row; its
+ * start keeps 6px beside the stripe, as the panel's rows do. */
 .lf-vr-case-button {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
   align-items: baseline;
   gap: 8px;
   inline-size: 100%;
-  text-align: start;
-  border: 0;
   border-block-end: 1px solid var(--rule);
-  border-radius: 0;
-  padding: 14px 4px;
-  background: transparent;
-  box-shadow: none;
-  color: var(--muted);
-  font: inherit;
+  padding: 14px 4px 14px 6px;
   cursor: pointer;
-}
-.lf-vr-case-button[aria-current="true"] {
-  color: var(--ink);
-  background: color-mix(in srgb, var(--ink) 4%, transparent);
-  border-block-end-color: var(--ink);
 }
 .lf-vr-case-number {
   font: var(--t-working-label)/1.5 var(--sans);
@@ -335,7 +325,7 @@ lf-visual-review {
     margin-block-start: 2px;
   }
   .lf-vr-case-button {
-    padding: 10px 8px;
+    padding: 10px 8px 10px 6px;
   }
   .lf-vr-caption {
     padding-block: 14px 8px;

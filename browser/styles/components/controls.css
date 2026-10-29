@@ -92,24 +92,30 @@
   gap: 4px;
   min-width: max(26px, var(--aim-floor));
 }
-.lf-reaction {
+/* A reaction's states, wherever one shows them: a strip's token, and a reaction among
+   the response bar's choices, whose role keeps only its own resting ground
+   (response.css). The margin draws a reaction as an entry (base.css). */
+:is(.lf-reaction, .lf-response-face.lf-react) {
   color: var(--muted);
   border-color: transparent;
   background: transparent;
 }
-.lf-reaction:is(:hover, [data-lf-focus]) {
+:is(.lf-reaction, .lf-response-face.lf-react):is(:hover, [data-lf-focus]) {
   color: var(--ink-2);
   border-color: var(--border-2);
   background: var(--chip);
 }
 /* A reaction the user added wears the accent, so it reads as theirs even alone in the
    closed strip, and its tint deepens under the pointer as a neighbour's chip rises. */
-.lf-reaction[aria-pressed="true"] {
+:is(.lf-reaction, .lf-response-face.lf-react)[aria-pressed="true"] {
   color: var(--accent);
   border-color: var(--accent);
   background: var(--accent-tint);
 }
-.lf-reaction[aria-pressed="true"]:is(:hover, [data-lf-focus]) {
+:is(.lf-reaction, .lf-response-face.lf-react)[aria-pressed="true"]:is(
+    :hover,
+    [data-lf-focus]
+  ) {
   background: color-mix(in srgb, var(--accent) 24%, var(--card));
 }
 /* A reaction's word, while a press on it is held or it has focus

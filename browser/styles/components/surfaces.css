@@ -962,8 +962,12 @@ summary {
   display: inline-flex;
   flex: none;
   align-items: center;
+  block-size: var(--lf-icon-action-face);
   gap: 4px;
   margin-inline-start: auto;
+}
+.lf-thread-meta-actions > button {
+  block-size: 100%;
 }
 .lf-thread-controls > .lf-thread-meta-actions {
   min-height: var(--lf-thread-action-room);

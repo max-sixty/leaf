@@ -144,9 +144,9 @@ def append_agent_reply(page_dir, parent, text, markup=None):
 def claim_for_codex(page_dir, request):
     """Claim the page for a Codex task listening on it, as App Server's adapter does."""
     claim = record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(page_dir, claim["id"])
-    )
+    lease_path = leases_model.waiter_lease_path(page_dir, claim["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     request.addfinalizer(lease.close)
     with service_model.PageTransaction(page_dir) as transaction:

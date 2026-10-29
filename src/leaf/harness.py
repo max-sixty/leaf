@@ -478,11 +478,17 @@ class ClaudeCodeHarness(EnvironmentHarness):
             or (expected is not None and expected["turn"] == turn)
         ):
             return expected
-        from .state import advance_turn, flocked, session_lock_path, session_record
+        from .state import (
+            advance_turn,
+            flocked,
+            session_live,
+            session_lock_path,
+            session_record,
+        )
 
         with flocked(session_lock_path(self.session)):
             record = session_record(self.session)
-            if record is None or record["ended"] is not None or record["turn"] == turn:
+            if not session_live(record) or record["turn"] == turn:
                 return record
             return advance_turn(self.session, turn, running=True)
 

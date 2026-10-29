@@ -23,6 +23,9 @@ lf-worktree,
 }
 
 lf-worktree {
+  /* The paths and commits it draws wear markup's reading face whatever look the page
+     takes, since they are the widget's own. */
+  --lf-reading-face: 1;
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;

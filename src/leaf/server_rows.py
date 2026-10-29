@@ -183,6 +183,7 @@ class RowPublisher:
             return
         # Only an idle harness record with no watcher can mean an interrupted turn
         # left input nothing carries; `nudge_interrupted` decides from there.
+        assert live is not None
         if (live["live_turn"] or {}).get("state") == "idle" and not live["listening"]:
             nudge_interrupted(self.page_dir)
         row, self.reading, self.live = self.service.activity_row()

@@ -437,6 +437,12 @@ def sweep(page, widths, open_tags) -> list[tuple[int, dict]]:
     return readings
 
 
+@dataclass
+class _SweepFault:
+    widths: list[int]
+    finding: Finding
+
+
 def _swept(readings, faults) -> list[Finding]:
     """Each unbroken run of sweep steps a fault stands across, widest first, as the
     finding it reads at the narrowest of them with the widths the run spans.
@@ -454,13 +460,13 @@ def _swept(readings, faults) -> list[Finding]:
             last = latest.get(key)
             if last is not None and last[0] == step - 1:
                 run = last[1]
-                run[0].append(width)
-                run[1] = finding
+                run.widths.append(width)
+                run.finding = finding
             else:
-                run = [[width], finding]
+                run = _SweepFault([width], finding)
                 runs.append(run)
             latest[key] = (step, run)
-    return [finding.but(widths=(min(widths), max(widths))) for widths, finding in runs]
+    return [run.finding.but(widths=(min(run.widths), max(run.widths))) for run in runs]
 
 
 def arrangement_changes(readings) -> list[tuple[int, str, str]]:

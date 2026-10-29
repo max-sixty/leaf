@@ -7,13 +7,13 @@ import urllib.request
 from email.message import Message
 from pathlib import Path
 
-import leaf_website as website_server
 import pytest
 from interact_support import route_answer_error
 
+import leaf_website as website_server
 from leaf.codex import accept_codex_delivery, delivery_records
 from leaf.codex_state import delivery_lock_path
-from leaf.state import flocked, open_session_turn, session_record, start_session_turn
+from leaf.state import flocked, session_record, start_session_turn, turn_open
 
 ROOT = Path(__file__).parents[3]
 
@@ -22,7 +22,7 @@ def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
     """Open the provider turn and accept the offered delivery into it, as
     `HostedTurn.begin` does."""
     assert start_session_turn(thread_id, turn, session_record(thread_id))
-    assert open_session_turn(thread_id, turn)
+    assert turn_open(session_record(thread_id), turn)
     with flocked(delivery_lock_path(thread_id)):
         [(path, _)] = [
             (path, record)

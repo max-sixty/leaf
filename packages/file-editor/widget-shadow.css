@@ -102,7 +102,7 @@
   min-height: 0;
 }
 /* The comparison opens only on the reader's Compare, below the editor, and the host's
- * grid gives it half the editing room (theme.css), so it sizes against a definite row. */
+ * grid gives it half the editing room (base.css), so it sizes against a definite row. */
 :host(lf-file-editor) .lf-file-editor-compared {
   display: flex;
   flex-direction: column;

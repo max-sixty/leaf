@@ -2,9 +2,11 @@
 through news, presses, reflows and scrolls, panes included."""
 
 import re
+from io import BytesIO
 
 import pytest
 from interact_support import append_carried_log_record
+from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
@@ -227,6 +229,50 @@ TIMES_WHOLE = """card => [...card.querySelectorAll('.lf-msg-head')]
   })"""
 
 
+def test_a_cut_name_leaves_the_gap_before_the_time_clear(browser, serve):
+    """A card held to 236px leaves the head of the user's message a few pixels for
+    "Me" beside its time and the room its controls keep. The name is cut, and the
+    gap before the time stays its ground, unpainted: the browser keeps a cut name's
+    first letter and draws its ellipsis after it, past the name's words, and where the
+    gap was the name's padding that ellipsis stood flush against the time, reading
+    "M…just now"."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
+    )
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.add_style_tag(
+        content=".lf-margin-preview, .lf-margin-preview .lf-margin-thread,"
+        " .lf-margin-preview .lf-page-thread { max-inline-size: 236px !important }"
+    )
+    page.locator(".lf-margin-marker").first.click()
+    preview = page.locator(".lf-margin-preview")
+    head = preview.locator(f'.lf-page-thread[data-thread="{root}"] .lf-msg-head').first
+    expect(head.locator("b")).to_have_text("Me")
+    page.mouse.move(0, 0)
+    rendered(page)
+    name = head.locator("b")
+    assert name.evaluate("node => node.scrollWidth > node.clientWidth")
+    time = head.locator("time").bounding_box()
+    at = name.bounding_box()
+    # The name's ground covers the gap, so what rises under the head stays hidden.
+    assert name.evaluate(
+        "(node, [x, y]) => node.contains(document.elementFromPoint(x, y))",
+        [time["x"] - 4, at["y"] + at["height"] / 2],
+    )
+    band = {
+        "x": time["x"] - 7,
+        "y": at["y"] + 2,
+        "width": 6,
+        "height": at["height"] - 4,
+    }
+    pixels = Image.open(BytesIO(page.screenshot(clip=band))).convert("RGB")
+    ground = Image.new("RGB", pixels.size, pixels.getpixel((0, pixels.height - 1)))
+    _low, ink = ImageChops.difference(pixels, ground).convert("L").getextrema()
+    assert isinstance(ink, (int, float)) and ink < 24, ink
+
+
 def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     """A narrow card, with Previous and Next for its target's two threads,
     holding news while the user writes: the notice reads whole beside the actions, the
@@ -295,8 +341,9 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     head keeps "Me" and its time whole. On a phone's card, whose three controls, the
     notice and the head's Edit each take a finger's width, the notice says one count,
     "2 new", and the head keeps its time whole and gives up its name, as any narrow
-    head does, showing none of it, so no sliver of it stands against the time. Drawn
-    whole, the notice stood over the head."""
+    head does, showing none of it, so no sliver of it stands against the time, and
+    shows it again once the news is shown. Drawn whole, the notice stood over the
+    head."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
@@ -342,13 +389,16 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     name = head.locator("b")
     expect(name).to_have_text("Me")
     if phone:
-        assert (
-            name.evaluate(
-                "node => node.hasAttribute('data-lf-nameless')"
-                " && getComputedStyle(node).color"
-            )
-            == "rgba(0, 0, 0, 0)"
-        )
+        assert name.evaluate(
+            "node => [node.hasAttribute('data-lf-nameless'), node.clientWidth]"
+        ) == [True, 0]
+        # Shown, the news takes its notice away, and the head its name gave room to
+        # shows the name again.
+        notice.tap()
+        expect(preview.get_by_text("Sent from my other tab.")).to_be_visible()
+        rendered(page)
+        assert not name.evaluate("node => node.hasAttribute('data-lf-nameless')")
+        assert name.evaluate("node => node.clientWidth") > 0
     else:
         assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
 

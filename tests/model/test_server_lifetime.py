@@ -269,7 +269,9 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
     assert read_record(page_dir / "service.json")["lifetime"] == "session"
     cleanup_model.end_harness_instance("bg-job")
-    assert cleanup_model.session_record("bg-job")["turn_closed"] is not None
+    turn_record = cleanup_model.session_record("bg-job")
+    assert turn_record is not None
+    assert turn_record["turn_closed"] is not None
     assert not reaper_retires(page_dir, monkeypatch)
     assert server_model.running_server(page_dir)
     assert service_model.owned_pages("bg-job") == [page_dir.resolve()]
@@ -300,8 +302,12 @@ def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "nested")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
-    assert service_model.page_claim(page_dir)["pid"] == os.getpid()
-    assert "job" not in service_model.page_claim(page_dir)
+    claim_record = service_model.page_claim(page_dir)
+    assert claim_record is not None
+    assert claim_record["pid"] == os.getpid()
+    value_2 = service_model.page_claim(page_dir)
+    assert value_2 is not None
+    assert "job" not in value_2
 
     (job / "state.json").unlink()
     with pytest.raises(Refused, match="names no job record"):
@@ -332,14 +338,16 @@ def test_a_desktop_app_sessions_server_lives_as_long_as_the_app_session(
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     assert service_model.claim_page(page_dir)
     assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
-    generation = service_model.page_claim(page_dir)["generation"]
+    claim_record_2 = service_model.page_claim(page_dir)
+    assert claim_record_2 is not None
+    generation = claim_record_2["generation"]
     cleanup_model.end_harness_instance("app-session")
     assert not reaper_retires(page_dir, monkeypatch)
     assert server_model.running_server(page_dir)
+    harness_2 = harness_model.session_harness()
+    assert harness_2 is not None
     assert (
-        cleanup_model.ensure_session(
-            "app-session", harness_model.session_harness().lifetime()
-        )["generation"]
+        cleanup_model.ensure_session("app-session", harness_2.lifetime())["generation"]
         == generation
     )
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
@@ -373,7 +381,9 @@ def test_a_claim_takes_the_app_lifetime_only_for_the_apps_own_session(
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     for host in ("local_one", "local_unrecorded"):
         monkeypatch.setenv("CLAUDE_CODE_HOST_SESSION_ID", host)
-        assert harness_model.session_harness().lifetime() == {"pid": os.getpid()}
+        harness_3 = harness_model.session_harness()
+        assert harness_3 is not None
+        assert harness_3.lifetime() == {"pid": os.getpid()}
 
 
 def test_a_server_exits_when_its_session_is_hard_killed(
@@ -424,8 +434,11 @@ def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
     assert info and info["url"] == url
     # The child claims only after its refusal and bind checks, which is what lets
     # the loop's hooks find the session's pages without a failed start taking one.
-    assert service_model.page_claim(page_dir)["id"] == "starter"
+    claim_record_3 = service_model.page_claim(page_dir)
+    assert claim_record_3 is not None
+    assert claim_record_3["id"] == "starter"
     service = server_model.read_service(page_dir)
+    assert service is not None
     assert service["lifetime"] == "session"
     assert set(service) == {
         "host",

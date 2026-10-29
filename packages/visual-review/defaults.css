@@ -9,6 +9,9 @@
    left the shots 5px. The shot is size-contained there, so that minimum is the floor
    and not the screenshots' natural height, which the shot fits to its room. */
 lf-visual-review {
+  /* The review it draws wears markup's reading face (`reading.css`) whatever theme the
+     page takes, since its headings and provenance lists are the widget's own. */
+  --lf-reading-face: 1;
   display: block;
   min-inline-size: 0;
   container-type: inline-size;
@@ -66,7 +69,7 @@ lf-visual-review {
   border-radius: 0;
   min-inline-size: 0;
 }
-/* The queue's body is no container, as a pane's body otherwise is (theme.css): the
+/* The queue's body is no container, as a pane's body otherwise is (base.css): the
    case buttons follow the review's own width (`visual-review`), and Chromium left
    them in the wide layout's padding the first time that width crossed a query
    after the review upgraded, while a container stood between them and it. Nothing

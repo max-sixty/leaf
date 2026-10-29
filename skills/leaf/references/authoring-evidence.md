@@ -100,7 +100,7 @@ Run `leaf page media <page> <file>…`, naming each file as its own argument as 
 such as `shots/*.png` does, and use each printed `/media/…` `path` for images, video
 and audio; never inline media bytes. To let the reader zoom into an image, link it
 to its own media URL: `<a href="/media/…"><img src="/media/…" alt="…"></a>`.
-The theme gives every image a thin outline and shadow, so its boundary remains visible
+The reading theme gives every image a thin outline and shadow, so its boundary remains visible
 when the image and page have the same background colour. To remove that treatment,
 for example from a badge or transparent logo, give the image
 `box-shadow: none; border-radius: 0` in the page's CSS.

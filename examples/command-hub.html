@@ -11,20 +11,47 @@
     />
   </head>
   <body>
-    <main class="layout-sidebar">
+    <main class="layout-sidebar density-working">
       <header>
         <p class="eyebrow">command hub · importer rewrite</p>
         <h1>Atlas importer rewrite</h1>
         <p class="lede" id="hub-lede">
-          Get the new importer through one shadow week with no unexplained variance. The
-          tree lists goals of the importer rewrite. The lead is assigned to the whole
-          rewrite, an area owner to one branch, and a specialist to a single task. Open
-          a worker to inspect its latest report and worktree, answer beside the goal
-          that stopped, and use
-          <em>Send &amp; pause</em>
-          when the thread itself should keep new workers away until you resolve it.
+          Get the new importer through one shadow week with no unexplained variance.
+          Review the stopped goals and answer beside their evidence.
         </p>
       </header>
+
+      <aside id="hub-rail">
+        <section class="panel atlas-overview" id="hub-readings">
+          <h2>Current work</h2>
+          <lf-tally id="hub-waiting" for="hub-plan" next></lf-tally>
+          <p class="atlas-progress">
+            <output data-atlas-count="progress">Plan loading</output>
+          </p>
+          <dl class="facts">
+            <dt>Running</dt>
+            <dd><output data-atlas-count="running">0</output></dd>
+            <dt>Workers</dt>
+            <dd><output data-atlas-count="workers">0</output></dd>
+            <dt>Quiet</dt>
+            <dd><output data-atlas-count="quiet">0</output></dd>
+            <dt>Stopped</dt>
+            <dd><output data-atlas-count="stopped">0</output></dd>
+          </dl>
+          <button type="button" class="button atlas-refresh" disabled>
+            Show latest
+          </button>
+          <details class="atlas-stopped" open>
+            <summary>Stopped work</summary>
+            <ul></ul>
+          </details>
+        </section>
+        <section class="panel" id="hub-record">
+          <h2>Record</h2>
+          <p>Recent actions, newest first. Each row links to the affected item.</p>
+          <lf-activity id="atlas-record"></lf-activity>
+        </section>
+      </aside>
 
       <section class="panel" id="hub-tree">
         <h2>Plan</h2>
@@ -47,22 +74,6 @@
               </div>
             </details></lf-atlas-worker
           >
-          <lf-atlas-task id="goal-ground" status="done" when="weeks 1–2">
-            <strong>Groundwork</strong>
-            <lf-atlas-task id="ground-corpus" status="done">
-              <strong>Snapshot the import corpus</strong> Nine months pinned by content
-              hash.
-            </lf-atlas-task>
-            <lf-atlas-task id="ground-harness" status="done">
-              <strong>Build the replay harness</strong> Old and new importer over the
-              same corpus.
-            </lf-atlas-task>
-            <lf-atlas-task id="ground-schema" status="done">
-              <strong>Map the legacy schema</strong> Every downstream field has an
-              owner.
-            </lf-atlas-task>
-          </lf-atlas-task>
-
           <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
             <strong>Replace the XML parser</strong>
             Two workers own separate worktrees; open each worker to inspect its
@@ -309,6 +320,22 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             </lf-atlas-task>
           </lf-atlas-task>
 
+          <lf-atlas-task id="goal-ground" status="done" when="weeks 1–2">
+            <strong>Groundwork</strong>
+            <lf-atlas-task id="ground-corpus" status="done">
+              <strong>Snapshot the import corpus</strong> Nine months pinned by content
+              hash.
+            </lf-atlas-task>
+            <lf-atlas-task id="ground-harness" status="done">
+              <strong>Build the replay harness</strong> Old and new importer over the
+              same corpus.
+            </lf-atlas-task>
+            <lf-atlas-task id="ground-schema" status="done">
+              <strong>Map the legacy schema</strong> Every downstream field has an
+              owner.
+            </lf-atlas-task>
+          </lf-atlas-task>
+
           <lf-atlas-task id="goal-docs" status="done" when="week 3">
             <strong>Document the operator path</strong>
             <lf-atlas-task id="docs-runbook" status="done">
@@ -342,37 +369,6 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           </lf-atlas-task>
         </lf-atlas-plan>
       </section>
-
-      <aside id="hub-rail">
-        <section class="panel atlas-overview" id="hub-readings">
-          <h2>Current work</h2>
-          <p class="atlas-progress">
-            <output data-atlas-count="progress">Plan loading</output>
-          </p>
-          <dl class="facts">
-            <dt>Running</dt>
-            <dd><output data-atlas-count="running">0</output></dd>
-            <dt>Workers</dt>
-            <dd><output data-atlas-count="workers">0</output></dd>
-            <dt>Quiet</dt>
-            <dd><output data-atlas-count="quiet">0</output></dd>
-            <dt>Stopped</dt>
-            <dd><output data-atlas-count="stopped">0</output></dd>
-          </dl>
-          <button type="button" class="button atlas-refresh" disabled>
-            Show latest
-          </button>
-          <details class="atlas-stopped">
-            <summary>Stopped work</summary>
-            <ul></ul>
-          </details>
-        </section>
-        <section class="panel" id="hub-record">
-          <h2>Record</h2>
-          <p>Recent actions, newest first. Each row links to the affected item.</p>
-          <lf-activity id="atlas-record"></lf-activity>
-        </section>
-      </aside>
     </main>
   </body>
 </html>

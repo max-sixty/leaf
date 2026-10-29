@@ -117,7 +117,7 @@ def test_a_decision_is_independent_and_survives_revision_until_restated():
 
 def test_obligations_name_their_exact_owning_message_without_conflating_thread_identity():
     document = page()
-    events = [
+    events: list[dict] = [
         {
             "kind": "note",
             "id": "stamp",
@@ -163,7 +163,7 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
 
 def test_partial_and_completed_empty_values_are_distinct_from_no_answer_and_undo_reopens():
     document = page("choose multiple")
-    events = [
+    events: list[dict] = [
         {
             "kind": "action",
             "widget": "choice",
@@ -257,7 +257,7 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
 
     earlier, later = registry("value"), registry("chosen")
     document = model.leaf_page("Value", '<p id="p">Notes.</p>')
-    events = model.served_reading(
+    events: list[dict] = model.served_reading(
         document,
         [
             {
@@ -359,7 +359,7 @@ def test_false_and_zero_are_typed_answers(value):
 
 
 def test_changed_partial_value_does_not_reuse_an_earlier_completion_event():
-    events = [
+    events: list[dict] = [
         {
             "kind": "action",
             "widget": "choice",
@@ -505,7 +505,9 @@ def test_on_me_lists_one_row_for_each_place_the_user_answers_at():
             ),
         ]
 
-    events = asked("about", "case", "r1", "r2") + asked("aside", "intro", "r3")
+    events: list[dict] = asked("about", "case", "r1", "r2") + asked(
+        "aside", "intro", "r3"
+    )
 
     def rows(state):
         return sorted(
@@ -683,7 +685,7 @@ def test_conditional_request_retains_registration_between_value_actions():
         "Conditional",
         '<lf-conditional id="conditional" phase="closed" ready></lf-conditional>',
     )
-    events = [
+    events: list[dict] = [
         {
             "kind": "action",
             "widget": "conditional",
@@ -767,7 +769,7 @@ def test_historical_conditional_registration_reuses_work_and_tracks_event_change
         revision: SourceReading(SourceDocument(document), registry)
         for revision in (1, 2)
     }
-    events = [
+    events: list[dict] = [
         {
             "kind": writer,
             "author": "agent" if writer == "report" else "user",
@@ -907,7 +909,7 @@ def test_todo_validation_does_not_rewrite_obligation_identity_and_refuses_bare_s
     door = ModelPage(
         documents={1: SourceDocument(document)}, registry=model.model_layer()
     )
-    events = [
+    events: list[dict] = [
         admitted_event(
             door,
             [],
@@ -940,7 +942,7 @@ def test_todo_validation_does_not_rewrite_obligation_identity_and_refuses_bare_s
 @pytest.mark.parametrize("state", ["answered", "withdrawn"])
 def test_user_work_can_stand_on_a_source_after_its_obligation_ends(state):
     documents = page() if state == "answered" else {1: page(), 2: page("")}
-    events = (
+    events: list[dict] = (
         [
             {
                 "kind": "action",
@@ -974,7 +976,7 @@ def test_repicking_a_withdrawn_request_records_provenance_without_reclosing_thre
         1: page('choose resolves="thread"'),
         2: page('choose settled resolves="thread"'),
     }
-    events = [
+    events: list[dict] = [
         {"kind": "comment", "id": "thread", "text": "Which choice resolves this?"},
         {
             "kind": "action",
@@ -1025,6 +1027,7 @@ def test_an_element_is_named_as_the_browser_names_it(case):
     the browser's `addressableName` reads off the live page."""
     document = SourceDocument(model.leaf_page("Names", case["markup"]))
     node = _element(document.authoring.content, "it")
+    assert node is not None
     assert element_name(node, case.get("registry", {})) == case["name"]
 
 
@@ -1250,9 +1253,9 @@ def test_record_obligations_validate_input_and_label_at_their_boundaries():
             / "examples/developer/visual-review-gallery.data.json"
         ).read_text()
     )["gallery-visual-run"]
-    assert "obligation label 'missing'" in payload_error(
-        "run", "visual-run", source, registry
-    )
+    value_2 = payload_error("run", "visual-run", source, registry)
+    assert value_2 is not None
+    assert "obligation label 'missing'" in value_2
     entry["x-awaits"]["records"]["label"] = "title"
     assert payload_error("run", "visual-run", source, registry) is None
     entry["x-awaits"]["answered"]["review"]["detail"] = {"approved": "yes"}

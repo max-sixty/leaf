@@ -1,5 +1,5 @@
 /* The floating panel (runtime/floating-panel.js): Leaf's chrome, one box over the foot
-   of the page. The theme keeps its row's room at the page's foot (theme.css,
+   of the page. The theme keeps its row's room at the page's foot (base.css,
    `--lf-foot-room`).
 
    The panel stands on the page's own ground, set off by a hairline and the faintest
@@ -64,7 +64,7 @@
      which the user singled out as the panel's best motion (15 October). A view the
      user opened, or put away, is what they asked to see, so it arrives almost at once,
      as the menu does: its outline in a disclosure's time (`--lf-motion-disclosure`,
-     theme.css), since the user found the full tween slow there (15 October), and its
+     base.css), since the user found the full tween slow there (15 October), and its
      words faded in at once after the leaving view's, which is gone before the arriving
      one shows, so the two never read through each other. The row gathers into its
      leaf on a curve of its own before that one object finishes travelling; its layout
@@ -299,15 +299,19 @@
   /* More room for a long draft (floating-panel.js, `expand`): past three lines the
      mark stands over the leaf, beside the field's first line, or at the end of an open
      view's head, so it takes no room the panel had not already given it. Pressed, the
-     panel widens to 1100px, where the window holds it (`--lf-fp-width`), and the field
-     stands at least six lines tall, so the wider lines don't leave it shorter than the
-     draft that brought the mark, and grows with the words up to three quarters of the
-     window, or half while a view stands above it, whose messages keep the rest. The
-     user asked on 25 October for much more than the 760px it widened to before; the
-     window's whole width ran lines past 200 characters and left a long draft fewer,
-     longer lines in a shorter box. The field first stood half the window tall however
-     little it held, which on 27 October the user found left a thread's message above
-     it too little room.
+     field stands at least six lines tall and grows with the words up to three quarters
+     of the window, or half while a view stands above it, whose messages keep the rest.
+     The panel widens to 61 of the field's ems, where the window holds it
+     (`--lf-fp-width`): a line of about 120 characters beside the leaf and Send, against
+     73 at rest. The measure is in the field's em rather than `ch`, the width of a 0,
+     since the system sans sets a 0 a third wider than its average letter, so 120ch held
+     157 characters; in ems it follows the face, as under a finger, where it grows. The
+     user found 760px, before the field grew tall, barely more room (25 October), then
+     the 1100px that replaced it, 157 characters a line, too wide to write in, and a
+     writing measure's 88 stingy beside the 73 at rest (28 October); the window's whole
+     width ran past 200.
+     The field first stood half the window tall however little it held, which on 27
+     October the user found left a thread's message above it too little room.
      The mark stands in its corner whether or not it shows, and fades in and out on the
      tween of the line that brings or takes it, as the fold's corner mark fades
      (`.lf-fp-minimize`), so the box's motion carries it with the corner it rides
@@ -326,7 +330,7 @@
     transition: opacity var(--lf-motion-box-resize);
   }
   .lf-floating-panel[data-expanded] {
-    --lf-fp-max: 1100px;
+    --lf-fp-max: calc(61 * var(--msg-size));
   }
   .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
     min-height: calc(6lh + var(--lf-line) - 1lh);
@@ -1245,15 +1249,53 @@
   a.lf-fp-page {
     padding-inline-start: 6px;
   }
+  /* The versions share one end column, as wide as Compare or Showing, whichever is
+     wider, each word set against the row's end (floating-panel.js, `versionsList`).
+     A version's press spans the row, so its wash and the shown version's mark run
+     across it; Compare stands over the press's end as a press of its own, and Showing
+     lets a press on it through to the version's. */
+  .lf-fp-versions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 4px;
+  }
   .lf-fp-version {
     --lf-line: var(--lf-fp-press);
-    display: flex;
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
     align-items: center;
-    gap: 4px;
   }
-  .lf-fp-version .lf-fp-item {
-    flex: 1;
-    min-width: 0;
+  /* The press has no value, key or chevron, so its words take the first column alone,
+     on one line; its number's digits share one width, so v1's note starts where v2's
+     does. The name reads over its note in weight and ink. */
+  .lf-fp-version > .lf-fp-item {
+    grid-area: 1 / 1 / 2 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+  }
+  .lf-fp-version > .lf-fp-item > .lf-fp-end {
+    display: none;
+  }
+  .lf-fp-version > .lf-fp-item > .lf-fp-label {
+    display: block;
+    white-space: nowrap;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .lf-fp-version > :is(.lf-fp-compare, .lf-fp-showing) {
+    grid-area: 1 / 2;
+    justify-self: end;
+    position: relative;
+  }
+  /* Showing says which version the page shows, in the accent the shown version wears;
+     Compare stays a quiet press, a word (controls.css), whose words Showing's end on:
+     its 10px padding and 1px border in. */
+  .lf-fp-showing {
+    padding-inline: 11px;
+    color: var(--accent);
+    font-size: 12px;
+    pointer-events: none;
   }
   /* What the check found in the agent's latest save, over the versions. */
   .lf-fp-failed {
@@ -1303,7 +1345,6 @@
     font-weight: 400;
   }
   .lf-fp-compare {
-    flex: none;
     font-size: 12px;
   }
   .lf-floating-panel hr {

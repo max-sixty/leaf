@@ -17,6 +17,7 @@ test("Promptfoo passes the saved task pages to one judge and returns its grade",
     providerResponse: {
       metadata: {
         work,
+        checks: { completed: true, page: true },
         diagnostics: {
           criterion: "Preserve the user's final decision.",
           payload: "/runtime",
@@ -77,4 +78,25 @@ ${output}`),
     assert.equal(result.pass, true);
     assert.equal(result.metadata.authoring_grade.status, "pass");
   }
+
+  // The same missing output means different things after a native failure or completion.
+  const missing = structuredClone(context);
+  delete missing.providerResponse.metadata.diagnostics.phases[4].page;
+  missing.providerResponse.metadata.checks.page = false;
+  let unexpectedCalls = 0;
+  const unexpectedJudge = async () => {
+    unexpectedCalls++;
+    throw new Error("Missing output must not reach the judge.");
+  };
+  missing.providerResponse.metadata.checks.completed = false;
+  const incomplete = await grade("Original task", missing, unexpectedJudge);
+  assert.equal(incomplete.metadata.authoring_grade.status, "unscored");
+  assert.match(incomplete.reason, /Native author did not complete/);
+  missing.providerResponse.metadata.checks.completed = true;
+  const completedWithoutPage = await grade("Original task", missing, unexpectedJudge);
+  assert.equal(
+    completedWithoutPage.metadata.authoring_grade.status,
+    "insufficient_evidence",
+  );
+  assert.equal(unexpectedCalls, 0);
 });

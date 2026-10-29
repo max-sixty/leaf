@@ -61,6 +61,7 @@ The update's record then waits on the user, and its workflow stays at `answered`
 the failed response, until the user acts again or the markup records the action.
 """
 
+from operator import itemgetter
 from typing import NamedTuple
 
 from .events import (
@@ -309,7 +310,7 @@ def handed_over(
                 for start in widget_starts.get(target["id"], [])
                 if start["seq"] >= delivered
             ),
-            key=lambda start: start["seq"],
+            key=itemgetter("seq"),
             default=None,
         )
 
@@ -493,6 +494,7 @@ def handed_over(
     # until the finishing action carries one. The two documents differ only in what
     # settles an action and which operation answers an owed one.
     def page_action(coordinate: tuple, source: dict, spec: dict, owed: bool):
+        assert page is not None
         return page_action_unsettled(
             coordinate,
             source,
@@ -616,6 +618,7 @@ def handed_over(
             else None
         )
         if gave_up:
+            assert obligation is not None
             workflows.append(failed(source, target, coordinate, gave_up, obligation))
         else:
             workflows.append(

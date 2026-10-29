@@ -182,6 +182,9 @@ class LeafHTTPServer:
     this server's own (`_page_uvicorn`).
     """
 
+    # Initialized by http.page_app while constructing the server application.
+    samples: dict
+
     def __init__(self, address, endpoint) -> None:
         import uvicorn
 
@@ -259,8 +262,8 @@ def _page_uvicorn():
     import uvicorn
 
     class PageUvicorn(uvicorn.Server):
-        _loop = None
-        _woken = None
+        _loop: asyncio.AbstractEventLoop | None = None
+        _woken: asyncio.Event | None = None
 
         async def main_loop(self) -> None:
             self._woken = asyncio.Event()
@@ -272,7 +275,7 @@ def _page_uvicorn():
                     await asyncio.wait_for(self._woken.wait(), 0.1)
 
         def wake(self) -> None:
-            if self._loop is None:
+            if self._loop is None or self._woken is None:
                 return  # not serving yet; the first tick reads `should_exit`
             # A loop that already closed has already stopped: nothing to wake.
             with contextlib.suppress(RuntimeError):
@@ -586,6 +589,7 @@ def cmd_serve(
                         if acquire and claimed:
                             with page.publishing_claim(prepared_claim) as (_, claim):
                                 if httpd is not None:
+                                    assert service is not None
                                     write_service(page_dir, service)
                         else:
                             _serve_claim(
@@ -593,6 +597,7 @@ def cmd_serve(
                             )
                             claim = page.claim if claimed else None
                             if httpd is not None:
+                                assert service is not None
                                 write_service(page_dir, service)
                 except BaseException:
                     # A freshly bound resource is ours to withdraw. Reused servers
@@ -785,8 +790,10 @@ def cmd_stop(
             if owner is not _StopScope.ANY_OWNER
             else contextlib.nullcontext() as page,
         ):
-            if owner is not _StopScope.ANY_OWNER and not same_claim(page.claim, owner):
-                return stopped
+            if owner is not _StopScope.ANY_OWNER:
+                assert page is not None
+                if not same_claim(page.claim, owner):
+                    return stopped
             # The server may release its lease immediately after we disable it.
             service = read_service(page_dir)
             # Whether a server runs is the lease's to say: one an older Leaf started

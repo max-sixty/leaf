@@ -62,7 +62,7 @@ lf-options {
   container-type: inline-size;
 }
 /* Options are read as lines of text, so the group keeps the reading measure as its
- * words do (theme.css), its outer width the measure whatever one option holds. */
+ * words do (base.css), its outer width the measure whatever one option holds. */
 @media screen {
   lf-options {
     box-sizing: border-box;
@@ -91,6 +91,12 @@ lf-options:has(> lf-option > strong) > lf-option {
   padding: var(--lf-option-pad-block) var(--sp-3);
   --lf-block-frame: 1;
 }
+/* A card's add field takes the type the cards take from the page, rather than the
+   controls' face, so the words typed stand as the option they become will. */
+lf-options:has(> lf-option > strong) > .lf-another {
+  font: inherit;
+  color: inherit;
+}
 @container style(--lf-joined: 0) {
   lf-options:has(> lf-option > strong) > lf-option {
     border: 1px solid var(--rule);
@@ -103,7 +109,7 @@ lf-options:has(> lf-option > strong) > lf-option {
     border: 1px solid transparent;
   }
 }
-/* A title heads its card, or, at working density (`--lf-density`, theme.css) in a card
+/* A title heads its card, or, at working density (`--lf-density`, base.css) in a card
  * at least 30rem wide, runs into its consequence on one row with the chips at its end.
  * A narrower card keeps the heading, since a row there broke the title around the
  * floated chips. The card is the container, so both conditions read the same box. */
@@ -133,13 +139,13 @@ lf-options:has(> lf-option > strong) > lf-option {
     }
   }
 }
-/* A chip is the author's markup and the shared chip face; the band adds only the
- * margins that space and wrap a row of them. */
+/* An option's chips wear the package's chip face (chip.css). The band adds the margins
+ * that space and wrap a row. */
 lf-option > .tag {
   margin: 0 6px 2px 0;
 }
 /* The titled form: cards stacked full width and read down, whatever their length. A
- * `.facts` list at the top of an option docks right where the row can spare it, so
+ * `dl.facts` list at the top of an option docks right where the row can spare it, so
  * scalars align down the group, and stacks above the prose where it cannot. */
 lf-options:has(> lf-option > strong) {
   display: block;
@@ -160,20 +166,20 @@ lf-options:has(> lf-option > strong) {
   }
   /* The rail declares its frame, so its first term's margin is trimmed rather than
    * collapsing into the option's padding and dropping the rail below the case. */
-  & > lf-option > .facts {
+  & > lf-option > dl.facts {
     display: block;
     margin: 0 0 var(--sp-2);
     --lf-block-frame: 1;
   }
   @container (min-width: calc(9.5em + 16px + 20em)) {
-    & > lf-option > .facts {
+    & > lf-option > dl.facts {
       float: right;
       clear: right;
       width: 9.5em;
       margin: 0 0 var(--sp-2) var(--sp-3);
     }
   }
-  & > lf-option > .facts dt {
+  & > lf-option > dl.facts dt {
     color: var(--muted);
     font-size: var(--t-6);
     text-transform: uppercase;
@@ -182,7 +188,7 @@ lf-options:has(> lf-option > strong) {
     margin-top: 6px;
     padding: 0;
   }
-  & > lf-option > .facts dd {
+  & > lf-option > dl.facts dd {
     font-size: var(--t-5);
     margin: 0;
   }
@@ -480,7 +486,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     & > lf-options-done {
       min-height: var(--lf-done-cell-height);
     }
-    /* The joined group draws a frame (--lf-block-frame, theme.css), and says its cells
+    /* The joined group draws a frame (--lf-block-frame, base.css), and says its cells
      * are joined for the rules that dress an option standing alone. */
     --lf-block-frame: 1;
     --lf-joined: 1;
@@ -489,7 +495,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     & > :not(lf-option) {
       grid-column: 1 / -1;
     }
-    /* The group clips to its frame, so a control's ring is drawn inset (theme.css,
+    /* The group clips to its frame, so a control's ring is drawn inset (base.css,
      * --focus-ring) or the clip cuts it. */
     & .lf-btn[data-lf-focus-visible] {
       outline-offset: calc(-1 * var(--focus-ring-w));
@@ -736,12 +742,14 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     outline: none;
     background: transparent;
     color: inherit;
-    font: var(--lf-option-font);
+    /* The words the option they become is set in: the group's font where it states one
+       (a row), and otherwise the type the card takes from the page. */
+    font: inherit;
     line-height: var(--lf-option-line);
     resize: none;
   }
   .lf-another .lf-compose-placeholder {
-    font: var(--lf-option-font);
+    font: inherit;
     line-height: var(--lf-option-line);
   }
   .lf-another .lf-compose-submit {

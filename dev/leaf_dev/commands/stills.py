@@ -593,7 +593,9 @@ def card_reply_resolved_elsewhere(page: Page) -> None:
     """An agent resolves the thread while the user keeps writing in its margin card."""
     card_reply(page)
     card = page.locator(".lf-margin-preview .lf-page-thread")
-    as_agent("thread", "resolve", card.get_attribute("data-thread"))
+    root = card.get_attribute("data-thread")
+    assert root
+    as_agent("thread", "resolve", root)
     expect(card.locator(".lf-reopen")).to_be_visible()
 
 

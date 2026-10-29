@@ -207,11 +207,15 @@ def page_data_document_readings(
     for event in events:
         if event.get("markup"):
             revision = event.get("revision") or max(registries, default=None)
+            selected_registry = registry
+            if registries:
+                assert revision is not None
+                selected_registry = registries[revision]
             documents.append(
                 data_document_readings(
                     logged_fragment(event),
                     f"event {event['id']!r} markup",
-                    registries[revision] if registries else registry,
+                    selected_registry,
                 )
             )
     # The active document owns current bindings ahead of older thread markup.

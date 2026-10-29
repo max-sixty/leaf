@@ -344,13 +344,15 @@ class SourceDocument:
         # The record of each lf-* element, by where its start tag begins, for the
         # authoring walk: the parser hands out a new object per visit of an element.
         self._records = {}
-        self.tree = (
+        tree = (
             turbohtml.parse_fragment(
                 source, context="template", scripting=True, source_locations=True
             ).parent
             if fragment
             else turbohtml.parse(source, scripting=True, source_locations=True)
         )
+        assert isinstance(tree, turbohtml.Document)
+        self.tree: turbohtml.Document = tree
         for child in self.tree.children:
             if isinstance(child, turbohtml.Element):
                 self._index(child, holder=None, in_svg=False)
@@ -641,6 +643,7 @@ class Authoring:
                 "head",
                 "body",
             }:
+                assert token.source is not None
                 start = document._source_index(token.line, token.col)
                 self.wrapper_tags.setdefault(
                     token.tag, (start, start + len(token.source))

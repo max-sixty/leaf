@@ -362,8 +362,10 @@ def _scaled(was: str, now: str, font: tuple[str, str] | None) -> bool:
     lengths = [_px(value) for value in (was, now, *font)]
     if None in lengths or not lengths[0] or not lengths[2]:
         return False
-    was, now, font_was, font_now = lengths
-    return abs(now / was - font_now / font_was) < 0.005
+    was_px, now_px, font_was, font_now = lengths
+    assert was_px is not None and now_px is not None
+    assert font_was is not None and font_now is not None
+    return abs(now_px / was_px - font_now / font_was) < 0.005
 
 
 def _styles(plain, served):
@@ -541,7 +543,7 @@ def static_site():
                 def __init__(self, *args, **kwargs):
                     super().__init__(*args, directory=str(directory), **kwargs)
 
-                def log_message(self, *args):
+                def log_message(self, format, *args):
                     pass
 
             httpd = servers.enter_context(
@@ -579,12 +581,14 @@ def checked(browser, page_dir: Path):
         artifact=result.artifact,
     )
     with preview_server(page_dir, snapshot) as url:
+        assert result.artifact is not None
         found = (
             run_page_code(browser, url)
             if needs_browser(result.document, result.artifact)
             else []
         )
         if not found:
+            assert result.artifact is not None
             found = render_version(
                 browser,
                 url,

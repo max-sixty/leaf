@@ -7,7 +7,6 @@ from html import escape
 from urllib.parse import quote
 
 import pytest
-from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE
 from render_harness import (
@@ -27,6 +26,7 @@ from render_harness import (
 )
 
 from leaf.render_checks import rendered
+from leaf_dev.browser import slow_cpu
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
 # field, or grows the field itself, as the page's `data-key` says.
@@ -788,6 +788,7 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
     action_after = page.locator("#action").bounding_box()
     assert action_after["x"] != before["x"]
     if fault == "escaping_outer":
+        assert outer_before is not None
         assert (
             before["x"] + before["width"] <= outer_before["x"] + outer_before["width"]
         )

@@ -981,10 +981,11 @@ def task_section(
     compared = set()
     for number, pair in enumerate(judged, 1):
         selected = [
-            (column, by_sample.get((column, name)))
+            (column, sample)
             for column, name in pair["samples"].items()
+            if (sample := by_sample.get((column, name))) is not None
         ]
-        if len(selected) != 2 or any(sample is None for _, sample in selected):
+        if len(selected) != 2:
             pair_sections.append(
                 f"<p>Pair {number}: saved samples unavailable; {escape(verdict_line(pair, labels))}.</p>"
             )
@@ -1476,7 +1477,7 @@ def judge_preferences(
         '<p>The five categories are ordinal judgments, not continuous quality scores. Each dot is one completed presentation-order judgment; two orders are not two author replications. Only Plain HTML/Leaf pairs appear on this axis. Absolute quality grades remain in the <a href="#scores">output index</a>.</p>'
         + (
             f"<p>{escape(review['preference_summary'])}</p>"
-            if (review or {}).get("preference_summary")
+            if review is not None and review.get("preference_summary")
             else ""
         )
         + (

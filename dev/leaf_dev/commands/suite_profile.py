@@ -221,7 +221,9 @@ def suite_profile(directory: Path, rate: float | None, top: int) -> None:
         click.echo("\n".join(lines[: top + 1]))
         # Accounting covers the whole machine, missing only what still runs when it
         # stops, so a total well short of the cgroups' means it stopped mid-run.
-        recorded = 60 * float(re.search(r"([\d.]+)cp", lines[0]).group(1))
+        matched = re.search(r"([\d.]+)cp", lines[0])
+        assert matched is not None
+        recorded = 60 * float(matched.group(1))
         if cpu is not None and recorded < 0.9 * cpu:
             click.echo(
                 f"sa recorded {minutes(recorded)} of the workers' cgroups' "
@@ -255,7 +257,9 @@ def read_cases(report: Path) -> list[dict]:
         ):
             entry["passed"] = False
         if (prop := case.find("properties/property[@name='profile']")) is not None:
-            entry["profile"] = json.loads(prop.get("value"))
+            value = prop.get("value")
+            assert value is not None
+            entry["profile"] = json.loads(value)
     for entry in cases.values():
         if entry["profile"]:
             entry["seconds"] = sum(entry["profile"].get(p, 0) for p in PHASES)
@@ -274,7 +278,11 @@ def report_cases(cases: list[dict], top: int) -> float | None:
     cpu = sum(prof["cpu"] for prof in profiled) if timed else None
     section(
         f"{len(cases)} tests, {minutes(total)} worker-minutes"
-        + (f", {minutes(cpu)} CPU-minutes in the workers' cgroups" if timed else "")
+        + (
+            f", {minutes(cpu)} CPU-minutes in the workers' cgroups"
+            if cpu is not None
+            else ""
+        )
     )
     if profiled:
         click.echo(
@@ -308,7 +316,7 @@ def report_cases(cases: list[dict], top: int) -> float | None:
                 share(waited, seconds),
             )
         )
-    section("By file" + (", most CPU first" if timed else ""))
+    section("By file" + (", most CPU first" if cpu is not None else ""))
     table(
         ("CPU min", "minutes", "tests", "median s", "setup", "Playwright", "file"),
         [

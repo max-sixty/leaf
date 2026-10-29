@@ -580,7 +580,7 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
     """
     source = Path(__file__) if root is None else root / "src/leaf/layer.py"
     root = PLUGIN_ROOT if root is None else root.resolve()
-    provenance = {"path": str(root)} if include_path else {}
+    provenance: dict = {"path": str(root)} if include_path else {}
     distribution = root / "leaf-distribution.json"
     if distribution.is_file():
         published = json.loads(distribution.read_text())

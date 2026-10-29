@@ -59,6 +59,7 @@ import time
 from concurrent.futures import Future
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from types import EllipsisType
 
 # The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
 # one binding: whatever takes a turn's readings there takes every client's too.
@@ -494,12 +495,16 @@ class TaskConnection:
             ) != "idle" or self.running is not None:
                 return
             for delivery_id in pending:
+                payload = codex.stored_delivery(delivery_id)
+                assert payload is not None
                 codex.abandon_uncertain_delivery(
                     self.thread_id,
-                    codex.stored_delivery(delivery_id),
+                    payload,
                 )
 
-    def _resume(self, thread: dict, expected: dict | None | object = ...) -> set[str]:
+    def _resume(
+        self, thread: dict, expected: dict | None | EllipsisType = ...
+    ) -> set[str]:
         """Reconcile task metadata; return turn IDs whose full items were read."""
         # A followed turn the snapshot does not list — a paginated thread's `turns`
         # can leave it out — stays disconnected until it says something.
@@ -537,7 +542,9 @@ class TaskConnection:
             )
         return hydrated
 
-    def _reconcile(self, turn: dict, expected: dict | None | object = ...) -> bool:
+    def _reconcile(
+        self, turn: dict, expected: dict | None | EllipsisType = ...
+    ) -> bool:
         """Bring one snapshot turn's fold up to what the snapshot says of it.
 
         A running turn is followed, whether or not it was before the connection
@@ -645,7 +652,7 @@ class TaskConnection:
         )
 
     def _observe_lifecycle(
-        self, turn_id: str, expected: dict | None | object = ...
+        self, turn_id: str, expected: dict | None | EllipsisType = ...
     ) -> bool:
         """Adopt ordered live provider evidence only against this subscription's epoch."""
         if turn_id in self.terminal_turns:

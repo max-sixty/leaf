@@ -367,7 +367,7 @@ def schema_entry(
     entry_id: str,
     heading: str,
     schema: dict,
-    notes: list[str] = (),
+    notes: list[str] | tuple[str, ...] = (),
     *,
     skip: frozenset = frozenset(),
 ) -> str:
@@ -525,7 +525,8 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
             edits.append((start, end, children))
             return
         line_start = markup.rfind("\n", 0, start) + 1
-        indent = re.match(r"[ \t]*", markup[line_start:]).group()
+        indent = markup[line_start:]
+        indent = indent[: len(indent) - len(indent.lstrip(" \t"))]
         inner = "".join(f"\n{indent}  {child}" for child in children)
         edits.append((start, end, f"{inner}\n{indent}"))
 
@@ -538,6 +539,7 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
             continue
         for image in link.select("img"):
             if "src" in image.attrs:
+                assert image.source_location is not None
                 raise ValueError(
                     f"{source.name}:{image.source_location.start_tag.start_line}: "
                     "an example link's image is its preview, composed from its owner "
@@ -545,6 +547,7 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
                 )
             if previews is None:
                 previews = assets or pinned_assets()
+            assert image.source_location is not None
             at = document.offsets(image.source_location.start_tag)[0] + len("<img")
             address = media_url(catalog_preview(previews, name))
             edits.append((at, at, f' src="{address}"'))
@@ -559,7 +562,9 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
     for listing in document.tree.select("div.reference-list"):
         fill(listing, key_entries())
     for listing in document.tree.select("div.schema-list"):
-        fill(listing, SCHEMA_LISTS[listing.attrs["data-schemas"]]())
+        name = listing.attrs["data-schemas"]
+        assert isinstance(name, str)
+        fill(listing, SCHEMA_LISTS[name]())
     for start, end, text in sorted(edits, reverse=True):
         markup = markup[:start] + text + markup[end:]
     return markup

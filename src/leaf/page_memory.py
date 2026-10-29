@@ -29,6 +29,7 @@ import threading
 import weakref
 from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 
 class PageMemory:
@@ -43,7 +44,7 @@ class PageMemory:
             held = self._memos.get(kind)
             if held is None:
                 held = self._memos[kind] = kind()
-            return held
+            return cast(T, held)
 
 
 class Slot:

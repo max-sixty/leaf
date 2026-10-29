@@ -139,7 +139,9 @@ def band_lines(band, surface) -> list[tuple[str, ...]]:
         if isinstance(node, str):
             return node
         if node["tag"] == "Markdown":
-            label = re.fullmatch(r"\[(.*)\]\(.*\)", node["props"]["text"])[1]
+            fullmatch_result = re.fullmatch(r"\[(.*)\]\(.*\)", node["props"]["text"])
+            assert fullmatch_result is not None
+            label = fullmatch_result[1]
             return re.sub(r"\\(.)", r"\1", label)
         return "".join(text(child) for child in node["children"])
 
@@ -153,7 +155,9 @@ def band_lines(band, surface) -> list[tuple[str, ...]]:
             )
             return [target] if linked else []
         if node["tag"] == "Markdown":
-            return [re.fullmatch(r"\[.*\]\((.*)\)", node["props"]["text"])[1]]
+            fullmatch_result_2 = re.fullmatch(r"\[.*\]\((.*)\)", node["props"]["text"])
+            assert fullmatch_result_2 is not None
+            return [fullmatch_result_2[1]]
         return [found for child in node["children"] for found in href(child)]
 
     return [
@@ -226,7 +230,9 @@ def test_the_band_follows_the_pages_the_session_holds(
 
     server_id = read_record(page_dir / "service.json")["server_id"]
     server_rows_model.RowPublisher(page_dir, server_id).refresh()
-    published = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))["row"]
+    read_result = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))
+    assert read_result is not None
+    published = read_result["row"]
     url, title = server_model.running_server(page_dir)["url"], published["title"]
     band([(f"Leaf {title}", url)])
     # A /clear ends the session and starts none; the next turn follows again.
@@ -290,9 +296,9 @@ def test_the_band_opens_a_page_from_the_keyboard(
         failure="the module drew no band",
     )
     url = server_model.running_server(page_dir)["url"]
-    title = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))["row"][
-        "title"
-    ]
+    read_result_2 = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))
+    assert read_result_2 is not None
+    title = read_result_2["row"]["title"]
     [button] = elements(band, "Button")
     assert button["props"]["label"] == ("copy link" if ssh else "open")
     assert button["props"]["autoFocus"] is True

@@ -51,7 +51,9 @@ def test_a_sandboxed_command_runs_outside_the_sandbox(page_dir):
         check=False,
     )
     assert claimed.returncode == 0, claimed.stderr
-    assert service_model.page_claim(page_dir)["id"] == "bridged"
+    claim_record = service_model.page_claim(page_dir)
+    assert claim_record is not None
+    assert claim_record["id"] == "bridged"
 
 
 @pytest.mark.usefixtures("bridged")
@@ -93,7 +95,7 @@ def test_a_bridged_command_refuses_a_socket_stdin_at_once(page_dir):
     with held, caller:
         refused = subprocess.run(
             [LAUNCHER, "data", "set", str(page_dir), "source"],
-            stdin=held,
+            stdin=held.fileno(),
             capture_output=True,
             text=True,
             timeout=STATED_TIMEOUT,
@@ -113,7 +115,7 @@ def test_a_bridged_command_reads_a_socket_stdin_it_names(page_dir):
         caller.shutdown(socket.SHUT_WR)
         read = subprocess.run(
             [LAUNCHER, "data", "set", str(page_dir), "source", "--file", "-"],
-            stdin=held,
+            stdin=held.fileno(),
             capture_output=True,
             text=True,
             timeout=STATED_TIMEOUT,

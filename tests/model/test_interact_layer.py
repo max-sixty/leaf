@@ -95,12 +95,15 @@ STORAGE_FILES, STORAGE_DIRECTORIES = storage_contract()
 
 def layer_files(page: Path) -> dict[str, bytes]:
     """The files the layer `page` selects serves, by rooted path."""
-    return registry_storage.selected(registry_storage.layer_record(page), page).files
+    layer_2 = registry_storage.layer_record(page)
+    assert layer_2 is not None
+    return registry_storage.selected(layer_2, page).files
 
 
 def layer_instructions(page: Path) -> dict[str, bytes]:
     """The instructions the layer `page` selects composes, by file name."""
     record = registry_storage.layer_record(page)
+    assert record is not None
     return registry_storage.selected(record, page).directory_files["instructions"]
 
 
@@ -313,7 +316,9 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
         assert same_record, command
         assert interact_files.list_revisions(claimed) == revisions
         assert fetch(f"{server}/api/state")[0] == 200
-    assert registry_storage.layer_record(claimed)["protocol"] == vendored
+    layer_3 = registry_storage.layer_record(claimed)
+    assert layer_3 is not None
+    assert layer_3["protocol"] == vendored
     assert vendoring_model.renew_layer(claimed, None, command=True) is None
     assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
 
@@ -331,7 +336,9 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
         assert refused.exit_code != 0
         assert f"Use a Leaf at protocol {foreign} or later" in refused.output
         assert "leaf page init" not in refused.output
-        assert registry_storage.layer_record(claimed)["protocol"] == foreign
+        layer_4 = registry_storage.layer_record(claimed)
+        assert layer_4 is not None
+        assert layer_4["protocol"] == foreign
     # A fresh process in a session that does not hold the page reads the state of
     # the revision published before, and reports the same refusal as its source
     # error.
@@ -1522,6 +1529,7 @@ def test_controls_are_built_by_role_and_never_by_face():
     where a string lists classes or a template's `class` attribute names them."""
     owner = schema_model.ASSETS / "runtime" / "prepaint.js"
     table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
+    assert table is not None
     roles = dict(re.findall(r"(\w+): \"([^\"]+)\"", table[1]))
     assert {"symbol", "word", "commit"} <= roles.keys(), roles
     reference = (SKILL_ROOT / "references" / "module-authoring.md").read_text()
@@ -4050,12 +4058,16 @@ def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
     (page / "index.html").write_text(PLAIN_PAGE)
     assert activate_source(page).error is None
     first = execution_identity(read_artifact(page, 1))
-    generation = registry_storage.layer_record(page)["generation"]
+    layer_5 = registry_storage.layer_record(page)
+    assert layer_5 is not None
+    generation = layer_5["generation"]
 
     (custom / "widgets" / "helper.js").write_text("export const value = 2;\n")
     assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
     assert execution_identity(read_artifact(page, 1)) != first
-    assert registry_storage.layer_record(page)["generation"] != generation
+    layer_6 = registry_storage.layer_record(page)
+    assert layer_6 is not None
+    assert layer_6["generation"] != generation
 
     cleared = CliRunner().invoke(
         cli_model.cli, ["page", "init", "--no-packages", str(page)]
@@ -4273,7 +4285,9 @@ def test_producer_instructions_names_a_package_script_the_run_door_reaches(tmp_p
         r"\| leaf package run (\S+) (\S+) \| leaf data set ",
         json.loads(producer.output)["producer"],
     )
-    assert (layer_model.named_package(package) / "scripts" / script).is_file()
+    named_package_result = layer_model.named_package(package)
+    assert named_package_result is not None
+    assert (named_package_result / "scripts" / script).is_file()
     assert not (page / "scripts").exists(), "a page never vendors scripts"
 
 

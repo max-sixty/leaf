@@ -434,7 +434,7 @@ button.lf-inline-action,
   .lf-compose-dictate,
   button.lf-inline-action,
   button.lf-mark-action,
-  button.lf-fp-face
+  button.lf-answer
 ) {
   --lf-face-floor: auto;
   position: relative;

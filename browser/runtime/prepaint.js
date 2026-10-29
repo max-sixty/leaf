@@ -472,10 +472,14 @@
   // - `inline`: a press read as part of the line of words it stands in, such as a
   //   thread's held news or a quote's Full quote, drawn as words in the accent at the
   //   line's size with no frame. One that announces news waiting says so with
-  //   `data-lf-news`, which draws it in the danger ink.
+  //   `data-lf-news`, which draws it in the danger ink, and one whose words say a
+  //   warning with `data-lf-tone="warn"`, in the warning's.
   // - `row`: one row of a list or menu, whose words are what the reader scans, so they
   //   stand in the ink; the row under the pointer or the keys is washed, and the row
   //   the list stands on (`aria-current`) wears the accent's stripe and tint.
+  // - `answer`: one of the answers a question offers, such as a decision's choices on
+  //   an On me card, framed so the set reads as one to pick from, the chosen one
+  //   (`aria-pressed`) marked in the ok tone as the page marks its chosen option.
   //
   // A difference that was only a past choice is not a role: a symbol once came bordered
   // in some widgets and quiet in others, a word framed in some, quiet in others and a
@@ -488,6 +492,7 @@
     mark: "lf-mark-action",
     inline: "lf-inline-action",
     row: "lf-row",
+    answer: "lf-answer",
   };
   const faceOf = (role) => {
     const face = ACTION_FACES[role];

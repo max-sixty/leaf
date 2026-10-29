@@ -374,7 +374,7 @@ customElements.define(
       return rows;
     }
     #grip(card) {
-      const grip = offer("button", "lf-grip", "⠿");
+      const grip = offerAction("symbol", "lf-grip", undefined, { action: "move" });
       this.#rows.set(grip, this.#keys(card, grip));
       // Leaving the grip drops the grab: restore the origin. Native moves retain
       // focus, so only a real departure still lacks focus when this settles.

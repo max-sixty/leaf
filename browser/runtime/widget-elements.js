@@ -280,8 +280,9 @@ const { offerAction, offerActionElement } = actionOffers({
 export { offerAction, offerActionElement };
 export const offeredAction = elementDirective("offeredAction", offerActionElement);
 
-// A press whose face its surface draws rather than a role, such as the floating
-// panel's or a message's controls, still takes its symbol and name from its action:
+// A press whose face its surface draws rather than a role, such as the composer's
+// Send and Dictate, still takes its symbol and name from its action, and a role's
+// symbol whose action follows its state takes its new one the same way:
 // `nameAction(button, action, {label, title, className})`, or in a template
 // `<button class="…" ${namedAction(action)}></button>`. It shows `action`'s symbol
 // first and says the action's name as tooltip and accessible name unless `label` says

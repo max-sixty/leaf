@@ -62,14 +62,14 @@ test("a press its surface faces takes its symbol and name from its action too", 
   const box = document.createElement("div");
   const draw = (action, options, count) =>
     render(
-      html`<button class="lf-fp-face" ${namedAction(action, options)}>
+      html`<button class="lf-compose-submit" ${namedAction(action, options)}>
         ${count}
       </button>`,
       box,
     );
   draw("show", undefined, "");
   const button = box.querySelector("button");
-  assert.equal(button.className, "lf-fp-face");
+  assert.equal(button.className, "lf-compose-submit");
   assert.deepEqual(symbolOf(button), ["locate"]);
   assert.equal(button.getAttribute("aria-label"), "Show");
   assert.equal(button.title, "Show");

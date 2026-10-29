@@ -34,24 +34,20 @@
   white-space: nowrap;
 }
 /* A status control stands in the slot's line, so it takes no block aim floor of its
- * own, which would grow the header as a failure or a conflict arrived. Its press
- * spans the header's whole height instead, through the header's padding, without
- * reaching past it into the editor; the inline floor still holds. */
-:host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict) {
-  position: relative;
+ * own, which would grow the header as a failure or a conflict arrived: Retry is a
+ * symbol a line of the status tall, and the conflict an inline press in the
+ * warning's tone (controls.css). Its press spans the header's whole height instead,
+ * through the header's padding, without reaching past it into the editor; the inline
+ * floor still holds. */
+:host(lf-file-editor) .lf-file-editor-status {
+  --lf-icon-action-face: 1lh;
+}
+:host(lf-file-editor) .lf-file-editor-conflict {
+  align-self: stretch;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 0.15rem;
-  align-self: stretch;
-  min-block-size: 0;
-  margin-inline: -0.3rem;
-  padding: 0 0.3rem;
-  border: 0;
-  border-radius: var(--r);
-  background: none;
-  font: inherit;
-  cursor: pointer;
+  anchor-name: --lf-file-editor-conflict;
 }
 :host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict)::before {
   content: "";
@@ -61,29 +57,6 @@
 }
 :host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict)[hidden] {
   display: none;
-}
-:host(lf-file-editor)
-  :is(.lf-file-editor-retry, .lf-file-editor-conflict)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 0;
-}
-:host(lf-file-editor) .lf-file-editor-retry {
-  color: var(--accent);
-}
-:host(lf-file-editor) .lf-file-editor-retry:not([aria-disabled="true"]):hover {
-  background: var(--accent-tint);
-}
-/* The conflict is a state before it is a press, so it wears the warning tone rather
- * than the accent a link would, and a fill under the pointer rather than a rule. */
-:host(lf-file-editor) .lf-file-editor-conflict {
-  color: var(--warn-ink);
-  anchor-name: --lf-file-editor-conflict;
-}
-:host(lf-file-editor) .lf-file-editor-conflict:hover,
-:host(lf-file-editor)
-  .lf-file-editor-view:has(.lf-file-editor-choices:popover-open)
-  .lf-file-editor-conflict {
-  background: var(--warn-tint);
 }
 :host(lf-file-editor) .lf-file-editor-icon {
   inline-size: 1em;

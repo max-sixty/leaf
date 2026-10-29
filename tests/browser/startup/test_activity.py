@@ -42,7 +42,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 # Where the leaf's peek says the status's whole sentence.
 PEEK = ".lf-fp-peek"
-LEAF_DOT = ".lf-fp-leaf .lf-dot"
+LEAF = ".lf-fp-leaf"
 
 
 def expect_status_says(page, words):
@@ -83,7 +83,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     disagree with itself, while the user's machine is not the page's to correct."""
     page = open_page(browser, serve(LONG_PAGE))
     d = serve.page_dir
-    dot = page.locator(LEAF_DOT)
+    leaf = page.locator(LEAF)
 
     def claim(detail):
         record_claim(d, id="s")
@@ -106,7 +106,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
         page,
         re.compile(r"^\s*waiting on the shard \(just now\)\."),
     )
-    expect(dot).to_have_class(re.compile(r"\bworking\b"))
+    expect(leaf).to_have_attribute("data-tone", "working")
 
 
 def test_a_thread_says_what_the_agent_is_doing_about_it(
@@ -294,7 +294,7 @@ def test_the_leaf_and_all_pages_say_the_served_activity(browser, serve, other_le
         page,
         re.compile(r"^\s*Writing the page \(just now\)\."),
     )
-    expect(page.locator(LEAF_DOT)).to_have_class(re.compile(r"\bworking\b"))
+    expect(page.locator(LEAF)).to_have_attribute("data-tone", "working")
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")

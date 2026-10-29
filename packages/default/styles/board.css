@@ -38,8 +38,6 @@ lf-board {
   --lf-board-columns: 1;
   --lf-grip-room: 0px;
   --lf-grip-block: 0px;
-  --lf-grip-pad-inline: 10px;
-  --lf-grip-pad-block: 8px;
 }
 @media screen {
   lf-board {
@@ -219,7 +217,7 @@ lf-card {
    and its width keeps the card's inset between the words and the grip.
 
    The board declares the grip's box once, for its column floor, hit target and float.
-   A grip gets one font-em across plus its padding, bounded by the touch target.
+   The grip is a symbol (controls.css), its hit box wide and its face tall.
    Interactive documents reserve the eventual grip before upgrade, so its arrival
    reflows nothing; scriptless copies retain the full reading width.
    The shared exhibit mark excludes quoted boards; paper keeps no grip room.
@@ -234,14 +232,8 @@ lf-card {
    and takes the card's width. An inline child ignores `clear`. */
 @media screen {
   html[data-lf-interactive] lf-board:not(:where([data-lf-exhibit]) *) {
-    --lf-grip-room: max(
-      var(--aim-floor),
-      calc(var(--t-5) + 2 * var(--lf-grip-pad-inline))
-    );
-    --lf-grip-block: max(
-      var(--aim-floor),
-      calc(var(--t-5) + 2 * var(--lf-grip-pad-block))
-    );
+    --lf-grip-room: var(--lf-icon-action-hit);
+    --lf-grip-block: var(--lf-icon-action-face);
   }
   html[data-lf-interactive] lf-card:not(:where([data-lf-exhibit]) *)::before {
     content: "";
@@ -267,25 +259,16 @@ lf-card > strong {
 lf-card > strong + p {
   margin-block-start: 0;
 }
-/* Enter grabs the grip and arrows move the card. Its type comes from .lf-ui;
-   the box and title float read the card's allocation above. A unit line-height
-   gives the glyph one font-em of block room. */
+/* Enter grabs the grip and arrows move the card. It is a symbol, the drag handle's
+   dots (icon-paths.js, `move`), placed in the card's top corner over the room the
+   card keeps for it above. */
 lf-card .lf-grip {
   position: absolute;
   top: var(--lf-grip-inset-block);
   right: 0;
-  color: var(--muted);
-  padding: var(--lf-grip-pad-block) var(--lf-grip-pad-inline);
   cursor: grab;
-  box-sizing: border-box;
-  inline-size: var(--lf-grip-room);
-  block-size: var(--lf-grip-block);
-  min-height: var(--aim-floor);
-  min-width: var(--aim-floor);
-  border-radius: var(--r-s);
   user-select: none;
   -webkit-user-select: none;
-  line-height: 1;
   touch-action: none; /* the handle owns the gesture; scroll stays on the card */
 }
 /* The grip names its card, so the browser's own reveal of a focused grip reveals the
@@ -296,12 +279,6 @@ lf-card .lf-grip {
 lf-card .lf-grip {
   scroll-margin-inline-start: calc(100cqi + 2 * var(--lf-card-inset));
 }
-lf-card:hover > .lf-grip {
-  color: var(--ink-2);
-}
-lf-card .lf-grip:hover {
-  background: var(--chip);
-}
 /* The ring is inset rather than offset a pixel out, as the layer's other small controls
    have theirs, because this one is flush with its card's edge inside lf-board, which
    scrolls sideways. At the width where three columns reach their 10rem floor the board
@@ -309,9 +286,7 @@ lf-card .lf-grip:hover {
    corners on that side fell outside the clip while the grip itself stayed whole. An
    inset ring cannot leave the box it names, at any scroll position. */
 lf-card .lf-grip[data-lf-focus-visible] {
-  outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
-  color: var(--ink-2);
 }
 /* SortableJS drag states on the real card: the in-flow slot and pressed card. */
 lf-card.lf-ghost {

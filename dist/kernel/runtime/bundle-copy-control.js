@@ -248,7 +248,8 @@ function copyThroughSelection(value, trigger) {
 		if (before?.isConnected) focusDestination(before, "return");
 	}
 }
-function copyControl(className, { label = "", success, error, action = "copy", role = void 0 }) {
+function copyControl(className, { label = "", success, error, action = "copy", role = void 0, trigger = null }) {
+	if (Boolean(role) === Boolean(trigger)) throw new TypeError("A copy control wears a role's face or wraps a trigger");
 	const copy = role ? offerActionElement(document.createElement("wa-copy-button"), role, className, void 0, { action }) : offer("wa-copy-button", className);
 	const symbol = copy.querySelector(":scope > svg[data-lf-icon]") ?? actionElement(action, "lf-copy-icon");
 	for (const [icon, slot] of [
@@ -256,6 +257,7 @@ function copyControl(className, { label = "", success, error, action = "copy", r
 		[iconElement("check", "lf-copy-icon"), "success-icon"],
 		[iconElement("cross", "lf-copy-icon"), "error-icon"]
 	]) copy.append(Object.assign(icon, { slot }));
+	if (trigger instanceof Element) copy.append(trigger);
 	if (label) copy.copyLabel = label;
 	copy.successLabel = success;
 	copy.errorLabel = error;

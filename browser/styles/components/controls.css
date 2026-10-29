@@ -583,10 +583,11 @@ summary,
  * role (`offerAction`), and prepaint.js (`ACTION_FACES`) lists the roles, is the one
  * place a role's classes are spelled and says what each role is for. Each face holds
  * across document and shadow trees; a package places a control and may set its
- * density (`--lf-icon-action-face`), but restates none of its face, so a surface's
- * own symbols and rows, the floating panel's included, stand beside its neighbours'
- * alike. The presses that keep a face of their own, each family drawn by its one
- * owner, are listed with the reason no role serves them in `PRESS_FAMILIES`
+ * density, the line a word or an answer stands (`--lf-line`) and a symbol's face
+ * (`--lf-icon-action-face`), but restates none of its face, so a surface's own
+ * presses, the floating panel's included, stand beside its neighbours' alike. The
+ * presses that still keep a face of their own, each family drawn by its one owner,
+ * are listed with the reason no role serves them yet in `PRESS_FAMILIES`
  * (tests/model/test_interact_layer.py).
  *
  * The word face: words in the muted ink with no frame, until a hovering pointer or
@@ -768,6 +769,46 @@ wa-copy-button.lf-icon-action {
   background: var(--paper);
   border-color: var(--border-2);
 }
+/* The answer face: one of the answers a question offers, as On me's cards offer a
+   decision's choices (floating-panel.js). Each stands in a hairline frame in the ink,
+   so the reader sees a set to pick from rather than presses that act, and the chosen
+   one is marked as the page marks its chosen option (lf-options), in the ok tone with
+   a check before its words. It stands exactly a line tall (`--lf-line`), so the words
+   an answer leaves in its place move nothing beside it, and at least as wide as the
+   floor, so the reach of an answer as short as "A" lies over no answer beside it.
+   Its words wrap rather than running past their surface's edge. */
+.lf-answer {
+  box-sizing: border-box;
+  min-width: var(--aim-floor);
+  padding: max(0px, (var(--lf-line) - 1lh) / 2 - 1px) 11px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  white-space: normal;
+  cursor: pointer;
+}
+/* It declines the wash every generated press takes under the pointer (surfaces.css),
+   which a finger's tap leaves behind too, for the chip a word takes. */
+.lf-answer:hover {
+  box-shadow: none;
+}
+@media (hover: hover) {
+  .lf-answer:where(:not(:disabled, [aria-disabled="true"])):hover {
+    background: var(--chip);
+  }
+}
+.lf-answer[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  background: var(--ok-tint);
+  color: var(--ok-ink);
+}
+.lf-answer[aria-pressed="true"]::before {
+  content: "✓";
+  margin-inline-end: 6px;
+}
 /* Standing on a press, in the band everything else the user is on is drawn in
    (--focus-ring). This was the last place on the product still wearing the browser's own
    ring: a user who backed out of the panel landed on Threads in Chrome's blue, beside
@@ -782,7 +823,7 @@ wa-copy-button.lf-icon-action {
    Beside the face above it, so a button inside a declared widget tree wears this ring
    too. In chrome.css, where it was, it reached neither that button nor a
    package wanting to answer it. */
-:is(.lf-btn, .button, .lf-icon-action)[data-lf-focus-visible] {
+:is(.lf-btn, .button, .lf-icon-action, .lf-answer)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
@@ -858,24 +899,30 @@ wa-copy-button.lf-icon-action {
    unread or a quote's Full quote. Its words take the accent ink at weight 600 and the
    line's own size, with no chip, fill or border, and an underline under a hovering
    pointer. One announcing news waiting (`data-lf-news`) takes the danger ink, as do
-   the words a seat's Resolved summary says its threads hold (thread/inline.js). The
+   the words a seat's Resolved summary says its threads hold (thread/inline.js), and
+   one whose words say a warning (`data-lf-tone="warn"`), as a file editor's conflict
+   does, the warning's ink. The
    four drew four faces (held news bold at 10px, the feed's notice underlined at rest,
    Next unread at the body's weight and Full quote muted, those two washed under the
-   pointer) until the user chose this one on 28 October. A generated control in the
-   document takes the chrome's size (surfaces.css, `.lf-ui-face`), so the face
-   inherits its line's; a press whose box stands beside its line rather than in it
-   states the line's size where it is placed. */
+   pointer) until the user chose this one on 28 October. It takes its line's whole
+   type, in a declared tree as in the document, where a button's own type is the
+   browser's rather than its line's, and a generated control's the chrome's
+   (surfaces.css, `.lf-ui-face`); a press whose box stands beside its line rather
+   than in it states the line's size where it is placed. */
 :where(button).lf-inline-action {
   border: 0;
   background: none;
   color: var(--accent);
-  font-size: inherit;
+  font: inherit;
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
 }
 :is(.lf-inline-action, .lf-resolved-summary *)[data-lf-news] {
   color: var(--danger);
+}
+:where(button).lf-inline-action[data-lf-tone="warn"] {
+  color: var(--warn-ink);
 }
 .lf-resolved-summary [data-lf-news] {
   font-weight: 600;
@@ -937,6 +984,11 @@ wa-copy-button.lf-icon-action {
   .lf-row:where(:not(:disabled, [aria-disabled="true"])):hover {
     background-image: linear-gradient(var(--offer-hover), var(--offer-hover));
   }
+}
+/* A row's ring lies inside it, since its neighbours meet it edge to edge and a list
+   that scrolls cuts what passes its edge. */
+.lf-row[data-lf-focus-visible] {
+  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-row[aria-current]:not([aria-current="false"]) {
   border-inline-start-color: var(--accent);

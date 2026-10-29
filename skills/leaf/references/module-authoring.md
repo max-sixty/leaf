@@ -432,10 +432,13 @@ The roles are:
 - `"inline"`, a press read as part of the line of words it stands in, such as a feed's
   "Show activity" or a quote's "Full quote"; `label` is its words, drawn in the accent
   at the line's size. Give one that announces news waiting `data-lf-news`, which draws
-  it in the danger ink.
+  it in the danger ink, and one whose words say a warning `data-lf-tone="warn"`.
 - `"row"`, one row of a list or menu, its words in the ink; the row under the pointer
   or the keys is washed. Give the row the list stands on, such as the step a timeline
   shows, `aria-current`, which draws it with the accent's stripe and tint.
+- `"answer"`, one of the answers a question offers the user, framed so the set reads
+  as one to pick from; `label` is its words. Give the chosen one `aria-pressed="true"`,
+  which marks it in the ok tone, as a chosen option is.
 
 `className` places the control; don't restyle its face. Use a symbol where a standard
 symbol for the action exists, one readers know from other software, and words where

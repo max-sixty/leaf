@@ -588,7 +588,8 @@ function dressing(node, parents, depth) {
 // - "made": a "button" made by `offer`, `el` or `createElement`, with the `className`
 //   later given to the variable it is bound to; "role as it is made" when it is made
 //   as `offerActionElement`'s element.
-// - "copy control": a `copyControl(…)`, "role in its options" when they name a role.
+// - "copy control": a `copyControl(…)`, "role in its options" when they name a role,
+//   "trigger in its options" when they hand it a trigger, a press read on its own.
 // - "scripted role": an element a module makes, bound in scope, and gives the role
 //   "button" with `setAttribute`, `keeps` or `keepsAttribute`. An element the code was
 //   handed, as a margin entry's host writer is, can't be followed and isn't read.
@@ -651,12 +652,16 @@ function presses() {
         ]);
       }
       if (name === "copyControl" && node.callee.type === "Identifier") {
-        const role = args[1]?.properties?.some(
-          (p) => p.key?.name === "role" && words(p.value, parents).length > 0,
+        const option = (name) =>
+          args[1]?.properties?.find((p) => p.key?.name === name);
+        const role = option("role") && words(option("role").value, parents).length;
+        press(
+          node.start,
+          node.end,
+          "copy control",
+          role ? "role in its options" : option("trigger") && "trigger in its options",
+          [...words(args[0], parents)],
         );
-        press(node.start, node.end, "copy control", role && "role in its options", [
-          ...words(args[0], parents),
-        ]);
       }
       const receiver =
         name === "setAttribute" &&

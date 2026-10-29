@@ -12,7 +12,7 @@
     write(link, "href", href);
     if (href) write(link, "tabindex", null);
   }
-  function initialActivity(host, { offerElement, offerActionElement, generatedElement, tabStore, keeps }) {
+  function initialActivity(host, { offerActionElement, generatedElement, tabStore, keeps }) {
     const storageKey = ACTIVITY_VIEW + host.id;
     const saved = tabStore.get(storageKey);
     const reading = saved ? JSON.parse(saved) : { open: false, shown: "[]", label: "Show activity", news: false };
@@ -35,7 +35,7 @@
       if (row.thread)
         return html`<button
         ${ref(
-          (node) => node && generatedElement(offerElement(node, "lf-activity-target"), {
+          (node) => node && generatedElement(offerActionElement(node, "inline", "lf-activity-target"), {
             says: "echo"
           })
         )}

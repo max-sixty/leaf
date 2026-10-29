@@ -31,13 +31,13 @@ const dialog = el("dialog", "lf-ui lf-inspection-dialog");
 dialog.setAttribute("aria-label", "About this page");
 const head = el("div", "lf-inspection-head");
 head.append(el("strong", "", "About this page"));
-const copy = copyControl("lf-inspection-copy", {
+const copyLabel = offerAction("word", "", "Copy diagnostics");
+const copy = copyControl("", {
 	label: "Copy diagnostics",
 	success: "Diagnostics copied",
-	error: "Diagnostics not copied. Select the report text to copy it manually."
+	error: "Diagnostics not copied. Select the report text to copy it manually.",
+	trigger: copyLabel
 });
-const copyLabel = offerAction("word", "", "Copy diagnostics");
-copy.append(copyLabel);
 const close = closeControl({
 	name: "Close about this page",
 	title: "Close about this page (Esc)"

@@ -26,7 +26,7 @@ function refreshTarget(link, row, write, names) {
 
 export function initialActivity(
   host,
-  { offerElement, offerActionElement, generatedElement, tabStore, keeps },
+  { offerActionElement, generatedElement, tabStore, keeps },
 ) {
   const storageKey = ACTIVITY_VIEW + host.id;
   const saved = tabStore.get(storageKey);
@@ -54,7 +54,7 @@ export function initialActivity(
         ${ref(
           (node) =>
             node &&
-            generatedElement(offerElement(node, "lf-activity-target"), {
+            generatedElement(offerActionElement(node, "inline", "lf-activity-target"), {
               says: "echo",
             }),
         )}

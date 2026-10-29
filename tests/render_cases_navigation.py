@@ -930,8 +930,9 @@ def live_watcher(page_dir, page):
 # paints it the shade it already was, and a reading that took the first rule it found
 # agreed with the leaf on the one state where nothing had to have happened.
 TAB_TONE = """(want) => {
-    const el = document.querySelector('.lf-fp-leaf .lf-dot');
-    const judged = el.className.replace('lf-dot', '').trim();
+    const leaf = document.querySelector('.lf-fp-leaf');
+    const el = leaf.querySelector('svg[data-lf-icon=leaf]');
+    const judged = leaf.dataset.tone ?? '';
     const prefix = 'data:image/svg+xml,';
     const href = document.querySelector('link[rel=icon]').getAttribute('href');
     const svg = href.startsWith(prefix)
@@ -942,7 +943,7 @@ TAB_TONE = """(want) => {
     const sheets = svg ? [...svg.querySelectorAll('style')] : [];
     const tone =
         sheets.length > 1 ? /fill: ([^}]+) \\}/.exec(sheets.at(-1).textContent)?.[1] : null;
-    const dot = getComputedStyle(el).backgroundColor;
+    const dot = getComputedStyle(el).color;
     return VERDICT;
 }"""
 # The same reading with nothing required of it, for a failure that says what it found.

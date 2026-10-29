@@ -419,27 +419,33 @@ html[data-lf-region-capture] main * {
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
      mask is the layer's own mark, so a package that replaces icon.svg does
      not keep an unrelated leaf-like glyph in the panel. Shape is identity and colour
-     is state, from the same registry-owned tones the tab icon wears. Each state adds
-     no specificity, so a forced palette's later rule replaces every tone. */
+     is state, from the same registry-owned tones the tab icon wears, as its ink. A
+     forced palette's later rule fills a list's dot in the system's text colour, and
+     forces the panel's leaf, a symbol's icon in its ink, to it by itself. */
   .lf-dot {
     width: var(--lf-mark-w);
     height: var(--lf-mark-w);
-    background: var(--muted-2);
+    background: currentColor;
     flex: none;
+  }
+  /* The leaf in the panel is a symbol whose action's icon is the mark (icon-paths.js,
+     `leaf`), its tone the press's (`data-tone`). */
+  :is(.lf-dot, svg[data-lf-icon="leaf"]) {
     -webkit-mask: url("/icon.svg") center / contain no-repeat;
     mask: url("/icon.svg") center / contain no-repeat;
+    color: var(--muted-2);
   }
-  .lf-dot:where(.working) {
-    background: var(--accent);
+  :is(.lf-dot.working, [data-tone="working"] > svg[data-lf-icon="leaf"]) {
+    color: var(--accent);
   }
-  .lf-dot:where(.listening) {
-    background: var(--ok);
+  :is(.lf-dot.listening, [data-tone="listening"] > svg[data-lf-icon="leaf"]) {
+    color: var(--ok);
   }
-  .lf-dot:where(.away) {
-    background: var(--warn);
+  :is(.lf-dot.away, [data-tone="away"] > svg[data-lf-icon="leaf"]) {
+    color: var(--warn);
   }
-  .lf-dot:where(.blocked) {
-    background: var(--danger);
+  :is(.lf-dot.blocked, [data-tone="blocked"] > svg[data-lf-icon="leaf"]) {
+    color: var(--danger);
   }
 
   /* The words in here the root leaves selectable: a quote is the page's words and a

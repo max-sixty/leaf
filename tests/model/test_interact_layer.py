@@ -1591,63 +1591,26 @@ PRESS_FAMILIES = {
         {"lf-fab", "lf-fab-suggest"},
         "floats over the page, so it wears the field's border, height and elevation",
     ),
-    "rows": (
+    "the command reference's commands": (
         {"lf-command-reference-command"},
-        "a whole row of a list, its columns more than a word, drawing the row's wash",
-    ),
-    "the panel's answers": (
-        {"lf-fp-answer"},
-        "On me's choices, each its name and what it gives, the chosen one marked",
-    ),
-    "the panel row's ends": (
-        {"lf-fp-leaf", "lf-fp-chip"},
-        "the leaf, and the On me mark, way out or notice at the row's end, a line tall",
-    ),
-    "the panel's words": (
-        {
-            "lf-fp-quiet",
-            "lf-fp-tab",
-            "lf-fp-plan-head",
-            "lf-fp-plan-tag",
-            "lf-fp-new-reply",
-        },
-        "words at the panel's density on its own face (`lf-fp-face`), some with a bar",
+        "a grid row's press, stretched over the row, which wears the row face and"
+        " carries aria-selected, as a grid's row must",
     ),
     "the composer's actions": (
         {"lf-compose-submit", "lf-compose-dictate"},
         "Send and Dictate, which wireInput draws as a glyph on a disc in the field",
     ),
-    "copy triggers": (
-        {"lf-fp-copy-item", "lf-inspection-copy"},
-        "a copy control around its own trigger, which Web Awesome shows for its button",
-    ),
     "pictures": (
         {"lf-media-open"},
         "a picture that opens the media viewer, its face the picture itself",
-    ),
-    "disclosures": (
-        {"lf-disclosure-marker"},
-        "opens and closes what follows it, with a summary's turning triangle",
     ),
     "keyboard stops": (
         {"lf-mark-note", "lf-visual-action", "lf-gloss-mark"},
         "the keyboard's stop, unseen at rest, for what the pointer takes on the page",
     ),
-    "grips": (
-        {"lf-grip"},
-        "a drag handle, grabbed rather than pressed, flush with its card's edge",
-    ),
     "line numbers": (
         {"lf-diff-line-comment"},
         "a diff line's number, which takes a comment on its line from the gutter",
-    ),
-    "links": (
-        {"lf-activity-target"},
-        "a press inside a line of the activity feed, drawn as the page's link",
-    ),
-    "status presses": (
-        {"lf-file-editor-retry", "lf-file-editor-conflict"},
-        "a file editor's status in its tone, accent or warning, the header's height",
     ),
 }
 
@@ -1686,6 +1649,7 @@ def test_every_press_is_built_by_role_or_family():
         "role through a name",
         "role as it is made",
         "role in its options",
+        "trigger in its options",
         "family",
     }, f"the reading missed a kind of press: {reached}"
     assert not unbuilt, (

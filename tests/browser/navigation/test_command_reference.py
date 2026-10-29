@@ -85,6 +85,23 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     page.keyboard.press("Escape")
 
 
+def test_an_option_that_runs_from_nowhere_still_says_its_keys_and_why(browser, serve):
+    """A row the reference lists but can't run from where the user is, such as caret
+    browsing, is a disabled option that still describes itself to a screen reader by
+    its keys and its description, as every runnable command does; the grid it
+    replaced said both in cells of the row."""
+    page = open_page(browser, serve(CONTROL_LABEL_PAGE))
+    page.keyboard.press("?")
+    caret = page.locator(
+        '.lf-command-reference [role=option][data-lf-command="browser.caret"]'
+    )
+    expect(caret).to_have_attribute("aria-disabled", "true")
+    expect(caret).to_have_accessible_name("Caret browsing")
+    expect(caret).to_have_accessible_description(
+        re.compile(r"F7.*Select text with the keyboard caret")
+    )
+
+
 def test_a_first_keyboard_opening_wires_the_references_close_control(browser, serve):
     """A first render's retained Close invokes the command its Escape key names."""
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))

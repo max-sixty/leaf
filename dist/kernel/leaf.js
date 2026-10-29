@@ -9716,6 +9716,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
 		label: entry.keyLabel
 	}) : nothing}</span>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}`;
 	const rowClass = `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`;
+	const describedBy = [entry.keySequence ? entry.keyId : null, entry.description ? entry.descriptionId : null].filter(Boolean).join(" ") || nothing;
 	if (!entry.actionable) return html`<div
       id=${entry.rowId}
       role="option"
@@ -9723,6 +9724,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
       data-lf-command=${entry.id}
       aria-disabled="true"
       aria-labelledby=${titleId}
+      aria-describedby=${describedBy}
       ?hidden=${!shown}
     >
       ${cells}
@@ -9737,7 +9739,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     data-lf-selected=${String(selected)}
     aria-selected=${String(selected)}
     aria-labelledby=${titleId}
-    aria-describedby=${[entry.keySequence ? entry.keyId : null, entry.description ? entry.descriptionId : null].filter(Boolean).join(" ") || nothing}
+    aria-describedby=${describedBy}
     title=${[entry.description, entry.available ? "" : entry.unavailableMessage].filter(Boolean).join("\n") || nothing}
     ?hidden=${!shown}
     @click=${() => activateCommandEntry(entry)}

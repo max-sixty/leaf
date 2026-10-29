@@ -1732,7 +1732,6 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
         "responds": comment["id"],
         "ref": response_reference(page_dir, comment),
     }
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
         "codex-thread", "turn-1", "delivery-1", target
     )
@@ -1765,7 +1764,7 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
     assert "answered" not in before["milestones"]
     assert "send_to_visible" not in before["milestones"]
     cleanup_model.close_session_turn("codex-thread", "turn-1")
-    cleanup_model.open_session_turn("codex-thread", "turn-2")
+    cleanup_model.prompt_turn("codex-thread", "turn-2")
 
     assert stream.finish("completed", "First turn reply") is None
 
@@ -1791,7 +1790,6 @@ def test_a_stream_reply_finishes_when_its_diagnostic_sink_is_unwritable(page_dir
         {"kind": "comment", "author": "user", "text": "Answer this input"},
     )
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
         "codex-thread",
         "turn-1",
@@ -1833,7 +1831,6 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
         "ref": response_reference(page_dir, comment),
     }
     thread_model.reserve_delivery_reply("codex-thread", "delivery-1", target)
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
         "codex-thread", "turn-1", "delivery-1", target
     )
@@ -1848,7 +1845,7 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
         }
     )
     cleanup_model.close_session_turn("codex-thread", "turn-1")
-    cleanup_model.open_session_turn("codex-thread", "turn-2")
+    cleanup_model.prompt_turn("codex-thread", "turn-2")
 
     assert stream.finish("interrupted") is None
 
@@ -1866,7 +1863,6 @@ def test_provider_reservation_refuses_unaddressed_competing_writes(page_dir):
         {"kind": "comment", "author": "user", "text": "Move this reply too"},
     )
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     target = {
         "page": str(page_dir),
         "parent": comment["id"],
@@ -1938,7 +1934,6 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
         {"kind": "comment", "author": "user", "text": "Answer this"},
     )
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
         "codex-thread",
         "turn-1",
@@ -1982,7 +1977,6 @@ def test_a_streamed_final_rejects_invalid_source_without_stranding_the_draft(pag
         {"kind": "comment", "author": "user", "text": "Change this page"},
     )
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     target = {
         "page": str(page_dir),
         "parent": comment["id"],
@@ -2019,7 +2013,6 @@ def test_partial_text_is_not_committed_without_a_completed_final(page_dir):
         {"kind": "comment", "author": "user", "text": "Answer this"},
     )
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    cleanup_model.open_session_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
         "codex-thread",
         "turn-1",

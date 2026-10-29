@@ -142,10 +142,12 @@ from .state import (
     flocked,
     renew_turn,
     retire_if_gone,
+    session_live,
     session_lock_path,
     session_record,
     sessions_home,
     start_session_turn,
+    turn_open,
 )
 
 START_TIMEOUT = 20
@@ -1106,8 +1108,7 @@ class AppServerReplyStream:
                 if (
                     claim is None
                     or claim["id"] != self.session_id
-                    or claim["turn"] != self.turn_id
-                    or claim["turn_closed"] is not None
+                    or not turn_open(claim, self.turn_id)
                 ):
                     return False
                 page.set_stream_reply(
@@ -1260,12 +1261,7 @@ def set_stream_activity(
     expected: dict | None,
 ) -> None:
     """Publish a running turn's activity under its admitted lifecycle epoch."""
-    if (
-        expected is None
-        or expected["ended"] is not None
-        or expected["turn"] != turn_id
-        or expected["turn_closed"] is not None
-    ):
+    if not turn_open(expected, turn_id):
         return
     with _locked_task_pages(session_id, expected=expected) as pages:
         for page in pages:
@@ -1340,8 +1336,7 @@ class TurnFold:
 
     def open(self) -> bool:
         """Follow the admitted provider identity without introducing another one."""
-        current = self.activity_epoch()
-        return current is not None and current["turn_closed"] is None
+        return turn_open(self.activity_epoch())
 
     def bind(self, delivery_id: str, reply_target: dict | None) -> None:
         """Name the delivery this turn carries, and open the reply it owes."""
@@ -1390,8 +1385,7 @@ class TurnFold:
         """Authorize live projection only for this fold's generation and turn."""
         current = session_record(self.session_id)
         if (
-            current is not None
-            and current["ended"] is None
+            session_live(current)
             and current["generation"] == self.generation
             and current["turn"] == self.turn_id
         ):
@@ -2169,11 +2163,7 @@ def offer_hook_delivery(
     so the caller cannot adopt a prompt that arrives during or after the offer.
     """
     lock = delivery_lock_path(session_id)
-    if not expected or (
-        expected["turn"] is None
-        or expected["ended"] is not None
-        or expected["turn_closed"] is not None
-    ):
+    if not turn_open(expected):
         return None, expected
     for page_dir in owned_pages(session_id):
         try:

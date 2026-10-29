@@ -54,7 +54,7 @@ from leaf.event_log import read_events
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
-from leaf.state import session_record
+from leaf.state import session_live, session_record, turn_open
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, environment, now, pi_home
 from leaf_dev.commands.journey import (
@@ -257,7 +257,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     claim = page_claim(page)
     assert claim is not None
     require(
-        claim["turn"] != turn and claim["turn_closed"] is None,
+        turn_open(claim) and claim["turn"] != turn,
         "the claim does not hold the user's run open",
     )
     turn = claim["turn"]
@@ -350,8 +350,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     except subprocess.TimeoutExpired:
         raise click.ClickException("Pi did not exit when its stdin closed") from None
     require(
-        require(session_record(pi.session), "the session has no record")["ended"]
-        is not None,
+        not session_live(session_record(pi.session)),
         "Pi's session ended without Leaf's SessionEnd",
     )
     require(

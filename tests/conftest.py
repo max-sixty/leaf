@@ -817,7 +817,8 @@ def browser(_browser, request):
     isolated. Rejecting browser problems and then closing every remaining context at
     teardown makes health and lifetime fixture guarantees instead of conventions
     repeated at the end of each journey. Closing may itself cancel outstanding requests,
-    so it happens after the health reading.
+    so it happens after the health reading. Unroute first so cancellations of handlers
+    still in flight cannot reach the shared driver's next test.
 
     Handed over wrapped, because the health half of that guarantee has to be installed
     on each page before it navigates: a test that makes its own page gets one already
@@ -830,6 +831,9 @@ def browser(_browser, request):
             yield WatchedBrowser(_browser)
     finally:
         for context in reversed(_browser.contexts):
+            for page in context.pages:
+                page.unroute_all(behavior="ignoreErrors")
+            context.unroute_all(behavior="ignoreErrors")
             context.close()
 
 

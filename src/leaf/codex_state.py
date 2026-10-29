@@ -43,8 +43,11 @@ from .state import (
     flocked,
     new_session,
     session_file,
+    session_live,
     session_lock_path,
     session_record,
+    turn_closed,
+    turn_open,
     write_session,
 )
 
@@ -219,7 +222,7 @@ def sync_transcript_turn(
     native evidence alone determines whether a turn has opened.
     """
     expected = session_record(session_id)
-    if expected is not None and expected["ended"] is not None:
+    if expected is not None and not session_live(expected):
         return expected
     source = transcript_path or (expected.get("transcript_path") if expected else None)
     if source is None:
@@ -255,8 +258,7 @@ def sync_transcript_turn(
             if current["provider"] and not ordered:
                 return current
             current = advance_turn(session_id, turn, running=True, observed_at=opened)
-            assert current is not None
-        if closed is not None and current["turn_closed"] is None:
+        if closed is not None and not turn_closed(current):
             current = advance_turn(session_id, turn, running=False, observed_at=closed)
         return current
 
@@ -278,14 +280,7 @@ def hook_turn(session_id: str) -> dict | None:
     record = session_record(session_id)
     if record is None:
         return None
-    return {
-        **record,
-        "running": bool(
-            record["ended"] is None
-            and record["turn"] is not None
-            and record["turn_closed"] is None
-        ),
-    }
+    return {**record, "running": turn_open(record)}
 
 
 def delivery_turn(session_id: str) -> str | None:

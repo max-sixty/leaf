@@ -592,3 +592,13 @@ def test_closed_provider_prompt_never_reopens_its_identity(claimed, capsys):
     )
     assert cleanup_model.session_record("s1") == ended
     assert capsys.readouterr().out == ""
+
+
+def test_an_unnamed_prompt_after_the_session_ended_opens_a_turn(claimed):
+    """A session resumed after its end, under a harness that names no turn, has a
+    turn of Leaf's from its first prompt, which pickups and starts name."""
+    cleanup_model.prompt_turn("s1")
+    cleanup_model.end_session("s1")
+    assert not cleanup_model.session_live(cleanup_model.session_record("s1"))
+    resumed = cleanup_model.prompt_turn("s1")
+    assert cleanup_model.session_live(resumed) and cleanup_model.turn_open(resumed)

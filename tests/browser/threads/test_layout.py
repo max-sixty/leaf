@@ -169,27 +169,34 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     assert page.evaluate("navigator.clipboard.readText()") == source
 
 
-# A head's delivery receipt beside its message's controls: whether it shows whole,
-# where it ends, and where the first of the controls showing starts.
+# A head's delivery receipt beside its message's controls: whether it shows whole, its
+# box, the first showing control's start, and whether the receipt is what the user
+# sees just before that start.
 RECEIPT_BESIDE_CONTROLS = """message => {
   const receipt = message.querySelector(':scope > .lf-msg-head .lf-msg-sending');
+  const box = receipt.getBoundingClientRect();
   const shown = [...message.querySelectorAll(':scope > .lf-msg-control')]
     .filter((control) => getComputedStyle(control).opacity === '1')
     .map((control) => control.getBoundingClientRect().left);
+  const controls = shown.length ? Math.min(...shown) : null;
+  const seen = controls === null ? null : document.elementFromPoint(
+    controls + 2, box.top + box.height / 2);
   return {
     whole: receipt.scrollWidth <= receipt.clientWidth,
-    end: receipt.getBoundingClientRect().right,
-    controls: shown.length ? Math.min(...shown) : null,
+    left: box.left,
+    end: box.right,
+    controls,
+    receiptSeen: seen === null ? null : receipt.contains(seen),
   };
 }"""
 
 
 def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
     """A message's Edit and Copy show only under the pointer or focus, and its head
-    keeps their room only while they show: a card's head that kept it at rest read
+    lends their room to its words while they hide: a card's head that held it read
     "Me just now · Qu…" beside room for controls nobody could see. At rest the user's
-    queued message says its whole receipt; under the pointer the receipt is cut short
-    of the controls, which cover none of it."""
+    queued message says its whole receipt; under the pointer the controls stand over
+    the receipt's end, which neither moves nor changes its size."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
     # The margin at this width caps the card short of the head's words and controls.
@@ -205,9 +212,13 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
     message.locator(".lf-msg-text").hover()
     rendered(page)
     offered = message.evaluate(RECEIPT_BESIDE_CONTROLS)
-    assert not offered["whole"], offered
-    assert offered["controls"] is not None, offered
-    assert offered["end"] <= offered["controls"] + 0.5, offered
+    assert offered["whole"], offered
+    assert (offered["left"], offered["end"]) == (rest["left"], rest["end"]), (
+        rest,
+        offered,
+    )
+    assert offered["controls"] < offered["end"], offered
+    assert offered["receiptSeen"] is False, offered
 
 
 def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):

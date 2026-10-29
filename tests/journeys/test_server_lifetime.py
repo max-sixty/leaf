@@ -44,7 +44,7 @@ def _another_selection(page_dir):
     re-vendor changes what the page runs under."""
     extra = page_dir.parent / "extra"
     extra.mkdir()
-    (extra / "theme.css").write_text("/* another selection */\n")
+    (extra / "overrides.css").write_text("/* another selection */\n")
     return package_selection_args((*page_packages(), "./extra"))
 
 
@@ -217,7 +217,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
 
     project_layer = page_dir.parent / ".leaf"
     project_layer.mkdir()
-    (project_layer / "theme.css").write_text(":root { --accent: red; }\n")
+    (project_layer / "overrides.css").write_text(":root { --accent: red; }\n")
     revendored = CliRunner().invoke(
         cli_model.cli,
         [

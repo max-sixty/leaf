@@ -88,7 +88,7 @@ review's 58rem container query, while the case list between them was an
 inline-size container, as the theme makes a pane's body. On 2026-10-25,
 narrowing `visual-review-gallery` from 1200px to 880px reproduced it on every
 crossing; Firefox 155 took the narrow padding. `.lf-vr-case-list` in
-`packages/visual-review/widgets.css` declares `container-type: normal`,
+`packages/visual-review/defaults.css` declares `container-type: normal`,
 since nothing in the list queries it. Recheck by deleting that declaration,
 narrowing the page with `leaf-dev probe` and reading a case button's computed
 padding; `test_page_fixture_renders[visual-review-gallery]` in
@@ -242,7 +242,7 @@ with caching enabled when changing the policy or sample lifetime.
 
 ### Frame margin trimming
 
-The frame-edge rules in `browser/theme.css` traverse bare wrappers,
+The frame-edge rules in `browser/base.css` traverse bare wrappers,
 skip generated apparatus and stop at declared rows. Native `margin-trim`
 cannot replace that behavior across the checked engines: on 2026-10-08,
 Chrome 155 trimmed block-flow margins but left flex and grid item margins;

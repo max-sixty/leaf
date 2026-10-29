@@ -893,10 +893,14 @@ html[data-lf-interactive] [data-lf-arriving] {
  * its settled upgrade geometry; durable controls still guard mutation until presentation.
  * Ordinary prose, links, scrolling, and layout remain available.
  *
- * The anonymous layer leads lf-base, which only lf-reset precedes, and lf-reset states
- * nothing important, so these important declarations outrank every other layer and
- * unlayered stylesheet declaration without reserving a named layer custom CSS could
- * append to. Only inline importance ranks higher.
+ * Importance reverses layer order, so an important declaration in an earlier layer
+ * wins. This anonymous layer sits early in lf-base, which only lf-reset precedes, so
+ * these declarations outrank every later layer and every unlayered stylesheet
+ * declaration without reserving a named layer custom CSS could append to. What ranks
+ * higher is what comes earlier: lf-reset, which states nothing important; Web
+ * Awesome's sheet (lf-base.lf-vendor, imported at the top of this file), whose one
+ * important rule hides its own page frame's desktop or mobile parts; and inline
+ * importance.
  *
  * The same rank makes `hidden` hide whatever display another rule states for the
  * element, which the UA's own rule loses to, so no rule restores it per selector. A box
@@ -1377,7 +1381,7 @@ details::details-content {
  * The secondary interface ink and not the document's muted, because a row's ground is
  * one of the surfaces the layer itself paints: a chosen row wears --ok-tint, and
  * --muted reads 4.43:1 on it, under AA. --muted-2 is the ink the palette holds to
- * 4.5:1 against the surfaces it lands on (theme.css), which is the promise this
+ * 4.5:1 against the surfaces it lands on (base.css), which is the promise this
  * reference needs and the document's own muted does not make. */
 .lf-ref {
   font-size: var(--t-6);
@@ -1468,12 +1472,6 @@ lf-old {
 }
 lf-new {
   background: var(--add-tint);
-}
-/* How many passages a version changed, counted on what holds them (a tab, a settled
-   decision): a .tag in the tint the changed words wear. */
-.tag.lf-change-count {
-  background: var(--add-tint);
-  color: var(--ok-ink);
 }
 /* The words that moved, deepened against the slot's own tint: the module's ranges
  * through the highlight registry (lf-suggestion.js #emphasize), so no node is
@@ -1719,7 +1717,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
    never reaches this rule, because inert status takes an interactive accent from
    neither pointer nor keyboard.
 
-   The ink was stated in theme.css, on `.lf-margin-marker` and `.lf-margin-more`, and
+   The ink was stated in base.css, on `.lf-margin-marker` and `.lf-margin-more`, and
    reached the first and not the second: the marker's selector carried one class more
    than the resting rule here, and the `…` carried exactly as many, so it lost on this
    sheet being adopted. One home for the state, and both say the same thing. */

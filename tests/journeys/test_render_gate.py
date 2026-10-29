@@ -13,7 +13,6 @@ from interact_support import (
     append_carried_log_record,
     append_command,
 )
-from leaf_dev.example_data import named_source
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
@@ -69,6 +68,7 @@ from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.revision_artifact import read_revision
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -757,6 +757,7 @@ def test_page_fixture_renders(browser, serve, source):
     (`untouched_resize_findings`)."""
     url = serve(source)
     revision = latest_revision(serve.page_dir)
+    assert revision is not None
     snapshot = capture_page_snapshot(
         serve.page_dir,
         read_revision(serve.page_dir, revision).document,
@@ -817,7 +818,7 @@ def test_page_fixture_opens_without_firefox_console_warnings(
     response blocked as opaque. Every page of the corpus, each live sample loaded,
     leaves the console as `firefox_browser` requires: empty."""
     page = open_page(firefox_browser, serve(source))
-    for sample in page.locator("lf-sample[data-lf-sample-live]").all():
+    for sample in page.locator("lf-sample:has(> template[data-sample])").all():
         sample.scroll_into_view_if_needed()
         sample.evaluate(
             """sample => Promise.race([sample.ready, new Promise((_, reject) =>
@@ -885,7 +886,9 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     owners = wrapped("sessions")
     assert owners and all("Owners" in widths for widths in owners), advice
     phone = [a for a in advice if a.at == "<table id=options>"]
-    assert phone and all(a.widths[0] == 360 for a in phone), advice
+    assert phone and all(a.widths is not None and a.widths[0] == 360 for a in phone), (
+        advice
+    )
     assert len(squeezed) + len(owners) + len(phone) == len(advice), advice
 
 

@@ -37,6 +37,7 @@ from .state import (
     PLUGIN_ROOT,
     flocked,
     plugin_cache_copy,
+    session_live,
     session_lock_path,
     session_record,
     write_session,
@@ -52,7 +53,7 @@ def delivering_launcher(session_id: str) -> Path:
 def selected_launcher(session_id: str) -> Path | None:
     """A live generation's selection, where its launcher still runs."""
     record = session_record(session_id)
-    if record is None or record["ended"] is not None:
+    if not session_live(record):
         return None
     value = record.get("launcher")
     if value is not None and os.access(value, os.X_OK):
@@ -94,7 +95,7 @@ def select_launcher(session_id: str, launcher: Path) -> None:
         raise Refused(f"the selected Leaf launcher is not executable: {launcher}")
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
-        if record is None or record["ended"] is not None:
+        if not session_live(record):
             raise Refused("a session must be established before selecting its Leaf")
         if record.get("launcher") != str(launcher):
             write_session({**record, "launcher": str(launcher)})
@@ -130,12 +131,7 @@ def select_checkout(session_id: str) -> None:
     the session lives. Only a command selects: a hook runs the delivering Leaf
     already, and a write to the lifecycle record would change the snapshot its own
     readings compare against."""
-    record = session_record(session_id)
-    if (
-        not plugin_cache_copy(PLUGIN_ROOT)
-        and record is not None
-        and record["ended"] is None
-    ):
+    if not plugin_cache_copy(PLUGIN_ROOT) and session_live(session_record(session_id)):
         select_launcher(session_id, own_launcher())
 
 

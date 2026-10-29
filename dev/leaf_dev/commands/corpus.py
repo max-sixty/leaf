@@ -194,7 +194,9 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
         raise ValueError(f"{source.name}: expected exactly one <main>…</main>")
     [main] = mains
     text = parsed.html
+    assert main.source_location is not None
     _, start = parsed.offsets(main.source_location.start_tag)
+    assert main.source_location is not None
     end, _ = parsed.offsets(main.source_location.end_tag)
 
     first = next(
@@ -206,8 +208,10 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
         and first.tag == "p"
         and first.attrs.get("class") == ["eyebrow"]
     ):
+        assert first.source_location is not None
         cut_start = parsed.offsets(first.source_location.start_tag)[0]
         if not text[start:cut_start].strip():
+            assert first.source_location is not None
             start = parsed.offsets(first.source_location.end_tag)[1]
     return text[start:end].strip()
 
@@ -226,7 +230,7 @@ def build(inputs: list[Path]) -> str:
         authored_assets.extend(
             f"<!-- {source.name} authored {asset.tag} -->\n{asset.html}"
             for asset in parsed.tree.select("head > style, head > script, head > link")
-            if asset.tag != "link" or "stylesheet" in rel_tokens(asset.attrs)
+            if asset.tag != "link" or "stylesheet" in rel_tokens(dict(asset.attrs))
         )
         for i in ["corpus-" + stem] + parsed.all_ids:
             if i in owner:

@@ -14,7 +14,7 @@ import { offlineInteractive } from "../context.js";
 import { retainUserIntent } from "../user-intent.js";
 import { leafSurface, closestAcross } from "../passages.js";
 import { pressIsKeyboardActivation } from "../pointer.js";
-import { onCurrentLocation } from "../focus.js";
+import { onCurrentLocation, pressHolds, pressRecords } from "../focus.js";
 import { raiseError } from "../errors.js";
 
 export function createRegionCapture({
@@ -26,8 +26,11 @@ export function createRegionCapture({
 }) {
   let opening = false;
   let selector = null;
-  let claimedPointer = null;
-  let throughClick = false;
+  // A claimed drag owns its compatibility mouse events, even after release, for as long
+  // as the press lasts (focus.js, `pressRecords`), and the next primary press starts a
+  // new gesture, including on a chrome control. A timer cannot delimit that ownership:
+  // its work may outlive the next tap.
+  const claimed = pressRecords();
   const active = () => opening;
   const claim = (event) => {
     event.preventDefault();
@@ -50,22 +53,15 @@ export function createRegionCapture({
     document.addEventListener(
       type,
       (event) => {
-        // A claimed drag owns its compatibility mouse events, even after release.
-        // The next primary press starts a new gesture, including on a chrome control.
-        // A timer cannot delimit that ownership: its work may outlive the next tap.
-        if (type === "pointerdown" && event.isPrimary) throughClick = false;
-        const held = event.pointerId === claimedPointer;
+        const held = Boolean(claimed.kept()) && pressHolds(event);
         if (!held && (!selector || leafSurface(event.composedPath()[0]))) return;
         if (type === "pointerdown") {
           if (!event.isPrimary || event.button !== 0) return;
-          claimedPointer = event.pointerId;
-          throughClick = true;
+          claimed.keep(event, true);
           document.documentElement.setPointerCapture(event.pointerId);
         }
         claim(event);
         selector?.pointer(event);
-        if (held && (type === "pointerup" || type === "pointercancel"))
-          claimedPointer = null;
       },
       { capture: true },
     );
@@ -75,7 +71,7 @@ export function createRegionCapture({
       (event) => {
         if (
           !pressIsKeyboardActivation(event) &&
-          (throughClick || (selector && !leafSurface(event.composedPath()[0])))
+          (claimed.kept() || (selector && !leafSurface(event.composedPath()[0])))
         )
           claim(event);
       },

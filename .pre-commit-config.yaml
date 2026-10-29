@@ -17,7 +17,7 @@ repos:
       - id: check-added-large-files
         exclude: *generated
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.1
+    rev: v0.17.3
     hooks:
       - id: ruff-check
         args: [--fix]
@@ -36,9 +36,15 @@ repos:
     hooks:
       - id: eslint
         args: [--max-warnings=0, --no-warn-ignored]
-  # Whole-graph check; files only wakes it. Install independently of pnpm setup.
   - repo: local
     hooks:
+      - id: ty
+        name: ty
+        language: system
+        entry: uv run ty check
+        pass_filenames: false
+        files: '(\.(py|pyi)$|(^|/)pyproject\.toml$|^uv\.lock$)'
+      # Whole-graph check; files only wakes it. Install independently of pnpm setup.
       - id: dependency-cruiser
         name: dependency-cruiser
         language: node

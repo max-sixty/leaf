@@ -169,11 +169,13 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
         "<lf-pinned id=pinned>": 100,
         "<lf-shallow id=shallow>": 10,
     }
-    grown = {
-        re.fullmatch(r"<lf-[a-z]+ id=(\w+)>", at)[1]: round(v["now"]["height"])
-        - round(v["first"]["height"])
-        for at, v in named["keeps-first-box"].items()
-    }
+    grown = {}
+    for at, value in named["keeps-first-box"].items():
+        match = re.fullmatch(r"<lf-[a-z]+ id=(\w+)>", at)
+        assert match is not None
+        grown[match[1]] = round(value["now"]["height"]) - round(
+            value["first"]["height"]
+        )
     assert all(grown.pop(word) > 0 for word in ("word", "spoken", "line")), findings
     assert grown == {"grow": 40, "held": 40, "fixed": 40, "inner": 40}, findings
 

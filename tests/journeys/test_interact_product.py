@@ -13,13 +13,13 @@ from interact_support import (
     fragment_errors,
     publish,
 )
-from leaf_dev.example_data import named_source
-from leaf_dev.page_fixtures import prepare_page, read_fixture
 from model.test_interact_product import CORPUS_SOURCES, PAGE_FIXTURES, run_leaf
 
 import leaf.validation.command as checking_command
 from leaf import cli as cli_model
 from leaf.registry import storage as registry_storage
+from leaf_dev.example_data import named_source
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_dir):

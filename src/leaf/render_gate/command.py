@@ -154,6 +154,7 @@ class BrowserCheck:
         if self.unavailable is not None:
             reading["unavailable"] = self.unavailable
         if self.render is not None:
+            assert self.desktop is not None
             reading["desktop"] = self.desktop.json()
             reading["margin_widths"] = self.render.margin_widths
         if self.screens is not None:
@@ -192,6 +193,7 @@ def browser_check(
         errors = run_page_code(browser, url) if page_code else None
         if errors or not render:
             return errors, None, None
+        assert desktop is not None
         reading = render_version(
             browser,
             url,

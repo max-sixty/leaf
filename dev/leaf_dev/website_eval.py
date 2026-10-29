@@ -173,7 +173,6 @@ def grade(
 def run_hosted() -> None:
     """The isolated child, importing the arm's production hosted implementation."""
     import leaf_website
-
     from leaf import __file__ as leaf_source
     from leaf.event_log import read_events
     from leaf.interaction_log import read_interactions

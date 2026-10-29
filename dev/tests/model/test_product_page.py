@@ -1,14 +1,16 @@
 """Developer tooling checks; run explicitly from dev/tests."""
 
 import html
+import subprocess
+from typing import cast
 
 import pytest
-from leaf_dev import declared_records, docs
-from leaf_dev.commands import record_demo
-from leaf_dev.example_data import document_metadata
 from model.test_product_page import DOCS, EXAMPLES
 
 from leaf.structure import SourceDocument
+from leaf_dev import declared_records, docs
+from leaf_dev.commands import record_demo
+from leaf_dev.example_data import document_metadata
 
 
 def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
@@ -38,13 +40,14 @@ def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
     ]
     for link in composed.select("a.example-link"):
         _, expected = document_metadata(tmp_path / f"{docs.example_name(link)}.html")
-        assert link.select_one(".example-description").text == expected
-    assert (
-        composed.select_one(
-            'a[href="/examples/review-a-plan/"] .example-description'
-        ).text
-        == description
+        select_one_result = link.select_one(".example-description")
+        assert select_one_result is not None
+        assert select_one_result.text == expected
+    select_one_result_2 = composed.select_one(
+        'a[href="/examples/review-a-plan/"] .example-description'
     )
+    assert select_one_result_2 is not None
+    assert select_one_result_2.text == description
 
 
 @pytest.mark.parametrize(
@@ -86,7 +89,11 @@ def test_data_structures_page_lists_every_declared_schema():
         *(f"record-{kind}" for kind in declared_records()),
     }
     assert entries == expected
-    targets = {link.attrs["href"][1:] for link in tree.select('a[href^="#"]')}
+    targets = set()
+    for link in tree.select('a[href^="#"]'):
+        href = link.attrs["href"]
+        assert isinstance(href, str)
+        targets.add(href[1:])
     assert targets - entries <= {"events"}
 
 
@@ -99,7 +106,8 @@ def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():
             return "", "the page closed while waiting\n"
 
     waiter = object.__new__(record_demo.DemoWaiter)
-    waiter.process = FailedWait()
+    # The waiter only observes communicate and returncode in this failure path.
+    waiter.process = cast(subprocess.Popen[str], FailedWait())
 
     with pytest.raises(
         RuntimeError,

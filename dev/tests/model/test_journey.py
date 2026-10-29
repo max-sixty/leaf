@@ -11,9 +11,17 @@ from contextlib import contextmanager
 from itertools import count
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from interact_support import STATED_TIMEOUT
+from playwright.sync_api import BrowserContext
+from playwright.sync_api import Page as BrowserPage
+
+from leaf import harness
+from leaf.harness import NUDGE_WORDS
+from leaf.hook_transport import INLINE_OPENING
+from leaf.interaction_log import read_interactions
 from leaf_dev import ROOT, journey_claude_code, journey_pi
 from leaf_dev.commands import journey, journey_chart
 from leaf_dev.page_fixtures import record_run_context
@@ -26,11 +34,6 @@ from leaf_dev.reply_phases import (
     turn_phases,
 )
 from leaf_dev.review_scenario import SLEEP
-
-from leaf import harness
-from leaf.harness import NUDGE_WORDS
-from leaf.hook_transport import INLINE_OPENING
-from leaf.interaction_log import read_interactions
 
 
 def at(seconds: float) -> str:
@@ -76,10 +79,13 @@ def test_release_publication_requires_the_marker_in_board_markup():
 
     request = Request()
     end = journey.BrowserEnd(
-        SimpleNamespace(
-            context=SimpleNamespace(request=request),
-            url="https://leaf.page/",
-            pause=lambda _: None,
+        cast(
+            journey.Session,
+            SimpleNamespace(
+                context=SimpleNamespace(request=request),
+                url="https://leaf.page/",
+                pause=lambda _: None,
+            ),
         )
     )
     active = {"url": "revisions/2.html"}
@@ -170,6 +176,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
 
         def evaluate(self, script, arg=None):
             assert script == "window.__leafVerifier.replyShownAt"
+            assert arg is not None
             shown.append(arg["id"])
             # The row shows the reply first; its message comes into view a read later.
             message = 1_000_000 + 9_520 if len(shown) > 1 else None
@@ -177,7 +184,18 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
 
     url = "http://127.0.0.1:1/?t=token"
     user_end = (
-        journey.BrowserEnd(journey.Session(None, Page(), [], url, url, {}, {}, None))
+        journey.BrowserEnd(
+            journey.Session(
+                cast(BrowserContext, None),
+                cast(BrowserPage, Page()),
+                [],
+                url,
+                url,
+                {},
+                {},
+                None,
+            )
+        )
         if end == "browser"
         else journey.HttpEnd(url, Path("page"), time.sleep)
     )
@@ -400,16 +418,18 @@ def test_the_journey_reads_claude_codes_status_as_it_is_now(tmp_path, monkeypatc
     cc = journey_claude_code.ClaudeCode.__new__(journey_claude_code.ClaudeCode)
     cc.session = "s"
     write("idle", 1)
-    assert (
-        harness.ClaudeCodeHarness(session="s", agent="Claude").live_turn()["state"]
-        == "idle"
-    )
+    live_turn_result = harness.ClaudeCodeHarness(
+        session="s", agent="Claude"
+    ).live_turn()
+    assert live_turn_result is not None
+    assert live_turn_result["state"] == "idle"
     assert cc.idle()
     write("busy", 2)
-    assert (
-        harness.ClaudeCodeHarness(session="s", agent="Claude").live_turn()["state"]
-        == "idle"
-    )
+    live_turn_result_2 = harness.ClaudeCodeHarness(
+        session="s", agent="Claude"
+    ).live_turn()
+    assert live_turn_result_2 is not None
+    assert live_turn_result_2["state"] == "idle"
     assert cc.state() == "busy"
 
 
@@ -535,6 +555,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         ran(12, 12.8),
     ]
     reply = reply_breakdown(records, commands, at(1), at(5.2), at(12.5))
+    assert reply is not None
     # With no requests or first outputs in the record, the model's time is unsplit.
     assert {key: value for key, value in reply.items() if key != "phases"} == {
         "wholeMs": 11500,
@@ -565,6 +586,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
     # Where the agent works before the pickup, the boundary handed it a pointer it
     # read and acknowledged itself, and the delivery ended at that boundary.
     acknowledged = reply_breakdown(records, [], at(1), at(9.2), at(12.5))
+    assert acknowledged is not None
     assert (acknowledged["busyMs"], acknowledged["deliveryMs"]) == (4000, 0)
     assert acknowledged["modelMs"] == 5700
     # A busy turn that ends before the agent takes the comment leaves the harness
@@ -577,6 +599,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         result(33.5, "r"),
     ]
     later = reply_breakdown(ended, [], at(1), at(34), at(35))
+    assert later is not None
     assert (later["busyMs"], later["idleMs"], later["modelMs"]) == (1000, 30000, 2500)
     # Calls out together at the admission hold the harness until the last returns.
     batch = [
@@ -587,6 +610,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         result(10, "b"),
     ]
     drained = reply_breakdown(batch, [], at(1), at(10.2), at(12))
+    assert drained is not None
     assert (drained["busyMs"], drained["deliveryMs"]) == (9000, 200)
     # A call an interrupted turn left without a result holds no later turn.
     interrupted = [
@@ -598,6 +622,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         result(6, "y"),
     ]
     later = reply_breakdown(interrupted, [], at(5), at(6.2), at(8))
+    assert later is not None
     assert (later["busyMs"], later["deliveryMs"]) == (1000, 200)
     assert later["phases"][2]["phase"] == "model"
 
@@ -757,6 +782,7 @@ def test_a_reply_is_attributed_to_leaf_the_harness_and_the_models_wait_and_outpu
         {"started": at(10), "ts": at(10.4)},
     ]
     reply = reply_breakdown(records, commands, at(0), at(0.5), at(10.3))
+    assert reply is not None
     parts = {key: value for key, value in reply.items() if key != "phases"}
     assert parts == {
         "wholeMs": 10300,
@@ -872,11 +898,10 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
     check as in a browser waits on its turn, title and answer, requiring a published
     revision naming the release; it reads nothing a browser would. A step's comment
     is posted on its section."""
-    from leaf_dev.arms import run_leaf, serving
-    from leaf_dev.review_scenario import post, prepare
-
     from leaf.event_log import append_event, read_events
     from leaf.thread import post_reply, title_event
+    from leaf_dev.arms import run_leaf, serving
+    from leaf_dev.review_scenario import post, prepare
 
     state, page = tmp_path / "state", tmp_path / "page"
     prepare(ROOT, state, page)
@@ -953,10 +978,19 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
             journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)
             if browser is None
             else journey.BrowserEnd(
-                journey.Session(None, None, [], "u", "u", {}, {}, None)
+                journey.Session(
+                    cast(BrowserContext, None),
+                    cast(BrowserPage, None),
+                    [],
+                    "u",
+                    "u",
+                    {},
+                    {},
+                    None,
+                )
             )
         )
-        end.close = lambda: None
+        monkeypatch.setattr(end, "close", lambda: None)
         yield journey.User(end, "v"), {"target": target}, lambda: None
 
     monkeypatch.setattr(journey, "headless_shell", headless_shell)

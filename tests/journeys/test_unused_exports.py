@@ -67,10 +67,16 @@ def test_every_export_has_a_reader_in_another_file():
         except UnicodeDecodeError:
             continue
     sources = [relative for relative in texts if relative.endswith(SOURCES)]
+    # A TypeScript owner and its emitted JavaScript are one authored module.
+    typed_outputs = {
+        name.removesuffix(".ts") + ".js" for name in sources if name.endswith(".ts")
+    }
     modules = [
         relative
         for relative in sources
-        if not BUNDLED.search(relative) and not UNCHECKED.search(relative)
+        if not BUNDLED.search(relative)
+        and not UNCHECKED.search(relative)
+        and relative not in typed_outputs
     ]
     exported = json.loads(js_facts("exports", modules))
     imported = json.loads(js_facts("imports", sources))

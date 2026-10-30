@@ -123,7 +123,7 @@ const cellHeads = (from) => {
 			if ((rtl ? at.left >= box.right - 1 : at.right <= box.left + 1) && at.top <= y && y < at.bottom) rows.push(head);
 		} else if (at.bottom <= box.top + 1 && at.left <= x && x < at.right) columns.push(head);
 	}
-	return [...new Set([...columns, ...rows].map(says).filter(Boolean))].join(" · ");
+	return [...new Set([...columns, ...rows].map((head) => says(head)).filter(Boolean))].join(" · ");
 };
 const open = async (source, alt, from) => {
 	const attempt = ++opening;

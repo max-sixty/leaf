@@ -924,7 +924,7 @@ def restarting_server(page_dir: Path, harness: Harness | None):
     try:
         start_server(page_dir, persistent=persistent, revive=True, harness=harness)
     except StartRefused as error:
-        raise Refused(f"{page_dir}'s server did not start again: {error}")
+        raise Refused(f"{page_dir}'s server did not start again: {error}") from error
 
 
 def _restarts_for_session(page_dir: Path, harness: Harness | None) -> bool:

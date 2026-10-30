@@ -290,6 +290,8 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     """Entry URLs resolve to logical captured modules, including native URL syntax."""
     from urllib.parse import quote
 
+    from model_folds import served_reading
+
     from leaf.exporting import _module_urls, export_document
     from leaf.revision_artifact import capture_artifact
     from leaf.structure import SourceDocument
@@ -333,7 +335,7 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     exported = export_document(
         artifact,
         document,
-        {"events": []},
+        served_reading(document.html),
         {},
         1,
         1,

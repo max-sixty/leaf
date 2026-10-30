@@ -788,7 +788,8 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
     """The frame reaches the window's foot; its final control scrolls clear of chrome.
 
     Nested page and side views exercise the transfer: reserving clearance on the
-    outside view instead leaves a band below the actual reading pane.
+    outside view instead leaves a band below the actual reading pane. Keyboard travel
+    reveals the whole option above the panel, without needing a scroll to the end.
     """
     reading = '<p>Start</p><div style="height:1200px"></div><button id="reading-end">Finish review</button>'
     if container.endswith("footer"):
@@ -817,6 +818,26 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
         )
         scroller = "#reading"
     elif container == "pane":
+        reading = reading.replace(
+            '<button id="reading-end">',
+            """<lf-ask id="release-ask"><h2>What should the review record?</h2>
+              <p>Comment on the code before making your final call. A selection records
+                your review decision; it does not deploy code or mark tests as passed.</p>
+              <p>Ship with changes keeps the retry budget within the deadline.
+                Update the acceptance checks before beginning rollout.</p>
+              <lf-options id="release-options" choose closed>
+              <lf-option id="ship-written"><strong>Ship as written</strong>
+                <p>Keep the supplied retry policy and require passing tests.</p></lf-option>
+              <lf-option id="ship-changes"><strong>Ship with changes</strong>
+                <p>Reduce the retry budget and update acceptance checks before rollout.</p></lf-option>
+              <lf-option id="hold-release"><strong>Hold</strong>
+                <p>Keep the proposal unapproved and do not begin rollout. Resolve deadline
+                or exception-contract concerns and gather test evidence before revisiting.</p></lf-option>
+            </lf-options></lf-ask><button id="reading-end">""",
+        )
+        reading = reading.replace(
+            "<p>Start</p>", '<p><a href="#release-ask">Record decision</a></p>'
+        )
         content = (
             '<lf-pane id="frame" label="Review"><div id="reading">'
             + reading
@@ -838,6 +859,22 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
             )
         ),
     )
+    if container == "pane":
+        resized(page, 900, 500)
+        page.get_by_role("link", name="Record decision").click()
+        scroll_settled(page, scroller)
+        page.get_by_role("checkbox", name=re.compile("Ship with changes")).click()
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("Space")
+        expect(
+            page.get_by_role("checkbox", name=re.compile("selected: Hold"))
+        ).to_be_checked()
+        scroll_settled(page, scroller)
+        landing = page.evaluate("""() => ({
+            option: document.querySelector('#hold-release').getBoundingClientRect().bottom,
+            panel: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
+        })""")
+        assert landing["option"] <= landing["panel"] + 1, landing
     for width, height in [(1440, 1000), (695, 988)]:
         resized(page, width, height)
         if width >= 720:

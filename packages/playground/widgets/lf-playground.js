@@ -443,10 +443,9 @@ customElements.define(
     }
 
     #instruction() {
-      return says(this.#view.output)
-        .replace(/\s+/g, " ")
-        .replace(/\s+([,.;:!?])(?=\s|$)/g, "$1")
-        .trim();
+      const provided = this.#providedInstruction();
+      if (provided !== null) return provided;
+      return says(this.#view.output, { format: "lines" }).trim();
     }
 
     #choose() {

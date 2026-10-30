@@ -166,6 +166,16 @@ FIRST_PAINT_PAGE = leaf_page(
     + '<lf-diff id="folded" collapsed><pre>'
     + _patch_file("src/app.py", 1, ["x = 1"])
     + _patch_file("src/util.py", 1, ["z = 3"])
+    + "</pre></lf-diff>"
+    # A selected-file reader opens only its first file, even when authored collapsed.
+    # A later metadata-only file contributes no height to that first reading.
+    + '<lf-diff id="file-view" view="file" collapsed><pre>'
+    + _patch_file("docs/first.md", 1, ["The first file remains readable. " * 12])
+    + "diff --git a/later.txt b/later.txt\nold mode 100644\nnew mode 100755\n"
+    + '</pre></lf-diff><lf-diff id="relative-font" style="--code-size:1em" overflow="wrap"><pre>'
+    + _patch_file(
+        "docs/font.md", 1, ["A wrapped row uses its inherited code font. " * 12]
+    )
     + "</pre></lf-diff><p id='after'>After the diffs.</p>",
 )
 
@@ -173,13 +183,11 @@ FIRST_PAINT_PAGE = leaf_page(
 @pytest.mark.parametrize(
     "viewport, touch", [((1280, 900), False), ((390, 844), True)], ids=["wide", "touch"]
 )
-def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
+def test_an_inline_patch_stays_readable_until_its_drawing_arrives(
     browser, serve, viewport, touch
 ):
-    """An inline patch's first paint holds the height its drawing lands at, so nothing
-    after it moves when it upgrades: each file's frame and name row, a row per line
-    and hunk separator, and each prose row as many lines as it wraps to at the column
-    the drawing gives it. Under a finger the name rows stand at a finger's reach."""
+    """Authored source is readable with modules held; the live drawing then keeps
+    file selection, collapsed files, and wrapped prose at desktop and touch widths."""
     context = browser.new_context(
         viewport={"width": viewport[0], "height": viewport[1]},
         has_touch=touch,
@@ -188,29 +196,36 @@ def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
     page = context.new_page()
     boot = []
     page.route("**/leaf.js", lambda route: boot.append(route))
-    heights = "() => [...document.querySelectorAll('lf-diff')].map(d => [d.id, d.getBoundingClientRect().height])"
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(serve(FIRST_PAINT_PAGE), wait_until="commit")
         displayed(page)
         assert boot, "the runtime was not held"
-        first = page.evaluate(heights)
+        # First paint can precede later patches; measure their complete authored input.
+        page.wait_for_function("document.readyState !== 'loading'")
+        sources = page.locator("lf-diff > pre")
+        expect(sources).to_have_count(6)
+        for source in sources.all():
+            expect(source).to_be_visible()
+            expect(source).to_contain_text("diff --git")
         boot.pop().continue_()
         wait_until_ready(page)
         page.wait_for_function(
             "() => [...document.querySelectorAll('lf-diff')].every(d => d.matches('.lf-rendered'))"
         )
-        drawn = page.evaluate(heights)
+        expect(page.locator("#code [data-line]").last).to_contain_text("z = 3")
+        expect(page.locator("#folded details[open]")).to_have_count(0)
+        expect(page.locator("#file-view [data-line]").last).to_contain_text(
+            "The first file remains readable."
+        )
+        expect(page.locator("#file-view .lf-diff-fold:visible")).to_have_count(1)
+        expect(page.locator("#relative-font [data-line]").last).to_contain_text(
+            "A wrapped row uses its inherited code font."
+        )
     finally:
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-    moved = [
-        (id, before, after)
-        for (id, before), (_, after) in zip(first, drawn, strict=True)
-        if abs(after - before) >= 1
-    ]
-    assert not moved, moved
 
 
 def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, serve):

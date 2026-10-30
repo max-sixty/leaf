@@ -6672,7 +6672,7 @@ const messageAt = (node) => (node instanceof Element ? node : node?.parentElemen
 function messageCopy(thread) {
 	if (!thread) return null;
 	const caret = getSelection().anchorNode;
-	return (messageAt(focused()) ?? (thread.contains(caret) ? messageAt(caret) : null) ?? [...thread.querySelectorAll(".lf-msg")].at(-1))?.querySelector(":scope > .lf-msg-copy") ?? null;
+	return (messageAt(focused()) ?? (thread.contains(caret) ? messageAt(caret) : null) ?? [...thread.querySelectorAll(".lf-msg")].at(-1))?.querySelector(":scope > .lf-msg-head .lf-msg-copy") ?? null;
 }
 function prepareLanding({ held = null, box, route = null }) {
 	if (!box) return false;

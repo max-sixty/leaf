@@ -7,8 +7,11 @@ module owes.
 
 Read an element's words with `says(element)`, which returns them as passages and
 comments read them; `textContent` also returns words a widget generated that passages
-leave out. To name
-one of the widget's own parts, use `wrote(element)`, which returns only the words the
+leave out. For text to copy or send, `says(element, {format: "lines"})` keeps rendered
+block boundaries, explicit line breaks and preformatted whitespace. Read a connected
+element so its computed styles supply these boundaries; a closed popover is supported.
+Inline values stay in their sentence, and ordinary HTML source indentation collapses.
+To name one of the widget's own parts, use `wrote(element)`, which returns only the words the
 author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims leading
 blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters,
 as in a diff.

@@ -81,11 +81,18 @@ document.addEventListener(PAGE_INTERFACE, event => {
 
 
 def test_playground_contributor_needs_no_scalar_control(browser, serve):
-    """Native preview inputs can own the whole configuration through contributors."""
+    """Native preview inputs own the configuration; the provider's plain-text task
+    keeps its lines when shown, copied and submitted."""
     start = CONTRIBUTOR_PAGE.index("  <lf-playground-control")
     end = CONTRIBUTOR_PAGE.index("  <lf-playground-preview>")
-    source = (CONTRIBUTOR_PAGE[:start] + CONTRIBUTOR_PAGE[end:]).replace(
-        "${values.stream}", "checkout"
+    source = (
+        (CONTRIBUTOR_PAGE[:start] + CONTRIBUTOR_PAGE[end:])
+        .replace("${values.stream}", "checkout")
+        .replace(
+            "alerts for region ${values.filters.region}.",
+            "alerts.\\n\\nRegion: ${values.filters.region}"
+            "\\n  Keep the stable release available.",
+        )
     )
     url = serve(source)
     page = open_page(browser, url)
@@ -100,15 +107,57 @@ def test_playground_contributor_needs_no_scalar_control(browser, serve):
     expect(field).to_have_value("eu-west-1")
 
     field.fill("ap-south-1")
+    instruction = (
+        "Implement checkout alerts.\n\nRegion: ap-south-1"
+        "\n  Keep the stable release available."
+    )
+    playground.get_by_role("button", name="Show instruction").click()
+    output = playground.locator("lf-playground-output")
+    expect(output).to_be_visible()
+    assert output.inner_text() == instruction
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    playground.get_by_role("button", name="Copy instruction").click()
+    expect(page.get_by_text("Instruction copied", exact=True)).to_be_visible()
+    assert page.evaluate("navigator.clipboard.readText()") == instruction
+    page.keyboard.press("Escape")
     with sending(page, "the contributor-only configuration"):
         playground.get_by_role("button", name="Use these settings").click()
     assert actions(serve.page_dir)[-1]["detail"] == {
         "values": {"filters": {"region": "ap-south-1"}},
-        "instruction": "Implement checkout alerts for region ap-south-1.",
+        "instruction": instruction,
     }
     playground.get_by_role("button", name="Undo choice").click()
     expect(playground.get_by_role("button", name="Use these settings")).to_be_visible()
     expect(field).to_have_value("ap-south-1")
+
+
+def test_authored_playground_copies_and_sends_its_instruction_blocks(browser, serve):
+    script = CONTRIBUTOR_PAGE.index('<script type="module">')
+    end = CONTRIBUTOR_PAGE.index("</script>", script) + len("</script>")
+    source = CONTRIBUTOR_PAGE[:script] + CONTRIBUTOR_PAGE[end:]
+    source = source.replace(
+        "Implement the selected query.",
+        """<p>Implement <lf-playground-value for="stream"></lf-playground-value> alerts.</p>
+        <ul><li>Region: eu-west-1</li><li>Keep the stable release available.</li></ul>
+        <p>Record these settings.<br>Show me the config diff.</p>
+        <pre>mode: stable
+  </pre>""",
+    )
+    page = open_page(browser, serve(source))
+    playground = page.locator("#query-config")
+    playground.get_by_role("button", name="Show instruction").click()
+    instruction = (
+        "Implement checkout alerts.\nRegion: eu-west-1\nKeep the stable release available."
+        "\nRecord these settings.\nShow me the config diff.\nmode: stable"
+    )
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    playground.get_by_role("button", name="Copy instruction").click()
+    expect(page.get_by_text("Instruction copied", exact=True)).to_be_visible()
+    assert page.evaluate("navigator.clipboard.readText()") == instruction
+    page.keyboard.press("Escape")
+    with sending(page, "the authored configuration"):
+        playground.get_by_role("button", name="Use these settings").click()
+    assert actions(serve.page_dir)[-1]["detail"]["instruction"] == instruction
 
 
 def test_playground_select_keeps_the_same_working_configuration(browser, serve):
@@ -243,6 +292,9 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
         "font-family", 'system-ui, -apple-system, "Segoe UI", sans-serif'
     )
     expect(page.locator("#card-instruction")).to_have_css("font-size", "14px")
+    playground.get_by_role("button", name="Show instruction").click()
+    assert "\n" not in page.locator("#card-instruction").inner_text()
+    page.keyboard.press("Escape")
 
     with sending(page, "the playground configuration"):
         playground.get_by_role("button", name="Use these settings").click()

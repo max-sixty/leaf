@@ -52,6 +52,8 @@
   background: none;
   font: inherit;
   cursor: pointer;
+  /* On its edge (base.css, "Where it stands"): it fills the header's line. */
+  outline-offset: 0;
 }
 :host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict)::before {
   content: "";
@@ -61,11 +63,6 @@
 }
 :host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict)[hidden] {
   display: none;
-}
-:host(lf-file-editor)
-  :is(.lf-file-editor-retry, .lf-file-editor-conflict)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 0;
 }
 :host(lf-file-editor) .lf-file-editor-retry {
   color: var(--accent);
@@ -121,8 +118,8 @@
   color: var(--accent);
 }
 /* A row is packed against the menu's edge, so its ring is drawn inset. */
-:host(lf-file-editor) .lf-file-editor-choices .lf-btn[data-lf-focus-visible] {
-  outline-offset: calc(-1 * var(--focus-ring-w));
+:host(lf-file-editor) .lf-file-editor-choices .lf-btn {
+  outline-offset: var(--focus-ring-inset);
 }
 :host(lf-file-editor) .lf-file-editor-edit {
   min-width: 0;
@@ -169,7 +166,7 @@
   z-index: 1;
   pointer-events: none;
   outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 :host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus-visible]) {
   --lf-wears-ring: 1;

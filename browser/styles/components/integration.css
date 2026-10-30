@@ -223,9 +223,7 @@ html[data-lf-draw-mode] main {
 :is(.lf-video-play, .lf-video-full-screen) {
   flex: none;
   /* Flush with the bar's edge, the ring stays inside the press. */
-  &[data-lf-focus-visible] {
-    outline-offset: calc(-1 * var(--focus-ring-w));
-  }
+  outline-offset: var(--focus-ring-inset);
 }
 .lf-video-play > .lf-action-icon {
   grid-area: 1 / 1;

@@ -535,24 +535,36 @@
      - A quiet ground (--focus-surface): a large composite holding focus, such as a
        thread, where a band would be a second box round the box.
 
-     Where it stands, which the box decides and the mark never does:
+     Where it stands, which the box decides and the mark never does. The box states it
+     as its own `outline-offset`, which every mark reads: the focus ring and the
+     location ring draw at it, and an overlay mark reads it off the box
+     (target-paint-geometry.js, `standOver`). So a box an overlay can stand over states
+     it in the rule that draws its face, not in one that waits for focus, and a box
+     that wears the ring for a control inside it states it on itself. A box that states
+     none stands at a control's gap when it holds focus (the floor, surfaces.css), and
+     at a region's under an overlay mark. A rule names the token of the box's kind,
+     never a length (`test_every_ring_stands_at_a_kind_of_box`):
      - A region, a block of the page standing among others (a section, a question, a
        figure, a paragraph): outside it at --focus-region-gap. Every mark on a region
        stands on this one perimeter, so going from aim to comment to arrival changes
        only the stroke, and two marks on one region draw one line.
-     - A control standing on its own: outside its edge at --focus-ring-gap, or at a
-       smaller gap of its own where its neighbours stand closer (controls.css).
-     - A field: on its border, which the ring replaces.
-     - A box packed into a list, padded inside a frame it fills, or whose clip leaves
-       no room outside it, region or control: one band inside its edge
-       (`calc(-1 * var(--focus-ring-w))`).
+     - A control standing on its own: outside its edge at --focus-ring-gap.
+     - A box that draws its own edge, such as a field, a mark (controls.css) or a margin
+       entry, or a control whose neighbours stand closer than a control's gap, such as
+       a reaction beside others: on its edge, at 0. A field's ring replaces its border.
+       An overlay mark can't tell 0 from a box that states nothing, since 0 is
+       `outline-offset`'s initial value, so it stands round a field at a control's gap.
+     - A box packed edge to edge with others, such as a list's row or a table's cell, a
+       box padded inside a frame it fills, or one whose clip leaves no room outside it:
+       one band inside its edge, at --focus-ring-inset. An overlay mark stands there too
+       wherever it finds the clip leaves no room.
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be
      read back in a calc, and the number was therefore being retyped wherever the
      room was worked out. --focus-ring is composed from it, --focus-ring-room adds
-     the gap to it, and every control that insets its ring by one width negates
-     it, so there is still one place the band's thickness is decided. */
+     the gap to it, and --focus-ring-inset negates it, so there is still one place
+     the band's thickness is decided. */
   --focus-ring-w: 2px;
   --focus-ring: var(--focus-ring-w) solid var(--accent);
   /* A forced palette replaces the accent with its own ink for every outline, so the
@@ -566,6 +578,7 @@
   }
   --focus-ring-gap: 3px;
   --focus-ring-room: calc(var(--focus-ring-w) + var(--focus-ring-gap));
+  --focus-ring-inset: calc(-1 * var(--focus-ring-w));
   /* A region's gap is wider than a control's: a control's label already has its
      padding inside the ring, while prose has none, so at the control's 3px the band
      stood 3px from the first letter of every line (the user's choice, 29 October
@@ -1580,6 +1593,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   line-height: 1;
   white-space: nowrap;
   scroll-margin-block: var(--focus-ring-landing);
+  /* On its edge (:root, "Where it stands"), since a cluster's entries stand 4px apart
+     (`--margin-gap`), closer than a control's ring reaches. */
+  outline-offset: 0;
   /* The raised face a pressable entry wears, beneath any pulse that rings it. */
   --lf-entry-lift: 0 1px 0 var(--border-2), var(--raise-1);
 }
@@ -1648,10 +1664,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
    add the one outer ring that says where input will land. */
 .lf-margin-entry[data-lf-target-selected] {
   border-color: var(--accent);
-}
-.lf-margin-entry[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 1px;
 }
 .lf-margin-entry[aria-disabled="true"] {
   cursor: default;
@@ -1898,7 +1910,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   z-index: 1;
   pointer-events: none;
   outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 /* The pane role's box: a grid of header, body and footer, whose rows the grammar
  * (layouts.css) places. It stands with the base its widget's rules share, so a widget

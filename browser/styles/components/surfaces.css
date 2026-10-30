@@ -251,15 +251,13 @@ a[data-lf-external]::after,
  * same pair for the same reason (chrome.css); this reaches the controls that are
  * not one.
  *
- * The ring is the fallback rather than the rule: every control with a ring of its own
- * outranks this, and what is left is the controls that were wearing the platform's
- * outline or, where a widget had restyled them, nothing at all.
+ * The ring is the layer's floor (below), which every box holding visible focus wears,
+ * an offer or not.
  *
  * Every rule here is written to be outranked. The value guard sits in :where() so it
- * costs nothing, which leaves each rule at the weight of the thing it is answering — the
- * ring at a plain attribute and a state, so lf-option's own pick ring and chrome's .lf-btn
- * ring both still win and keep their names. A floor is only a floor if what is built on
- * it comes out on top.
+ * costs nothing, which leaves each rule at the weight of the thing it is answering, a
+ * plain attribute and a state, so a widget's own face still wins. A floor is only a
+ * floor if what is built on it comes out on top.
  *
  * The value and not the bare attribute, because `offer` writes two different facts into
  * one dataset key: "button" or a native choice's input type for a press it built, the
@@ -275,12 +273,15 @@ a[data-lf-external]::after,
  * document's stylesheet does not reach, and a floor that stopped at the light DOM would
  * be a floor the newest kind of widget is the one to fall through. */
 /* A visible focus destination wears the layer's band unless its own rule supplies
-   a carrier. Controls and reading destinations follow browser focus visibility.
+   a carrier, or a mark over the page carries it (`.lf-projected-mark`,
+   visual-mark-paint.js), which reads the gap the destination states rather than this
+   one. Controls and reading destinations follow browser focus visibility.
    Current location remains separate, so pointer focus can reveal controls without
    drawing a ring.
-   At no weight, each control's own band wins. Retargeting shadow hosts and a
-   label press's intermediate nodes get no band. */
-:where([data-lf-focus-visible]) {
+   At no weight, so a box that states where its marks stand (base.css, "Where it
+   stands") keeps that place, and a carrier's band wins. Retargeting shadow hosts and
+   a label press's intermediate nodes get no band. */
+:where([data-lf-focus-visible]:not(.lf-projected-mark)) {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
@@ -341,10 +342,6 @@ a[data-lf-external]::after,
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
   cursor: default;
   opacity: 0.55;
-}
-[data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
 }
 /* The floor under every aim the layer offers, stated once for all of them rather
    than left to whatever each control's type and padding happened to add up to.
@@ -516,14 +513,14 @@ summary {
   pointer-events: none;
   border-radius: inherit;
   outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 /* A forced palette paints every ground in Canvas, so the quiet ground of a thread
    holding focus would vanish; the thread wears the ring instead. */
 @media (forced-colors: active) {
   .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
     outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
+    outline-offset: var(--focus-ring-inset);
   }
 }
 .lf-say {

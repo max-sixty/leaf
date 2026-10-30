@@ -108,10 +108,7 @@
   background: var(--card);
   color: var(--ink);
   box-shadow: var(--raise-2);
-}
-:is(.lf-mark-note, .lf-visual-action)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 .lf-mark-note[data-lf-focus] {
   opacity: 1;
@@ -368,15 +365,15 @@ html[data-lf-region-capture] main * {
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
   }
-  /* On the region's perimeter (base.css, --focus-region-gap), where the location ring
-     stands too: brackets are two 8px end strips of the outline keyboard focus draws
-     whole there. No state changes bounds, radius or offset, and an outline drawn at the
-     gap rounds its corners as the location ring's does. `--lf-mark-room` is how far the
-     band reaches outside the target, which each strip's clip starts from.
-     The placement owner supplies the target rectangle and its corner shape.
+  /* On the target's perimeter, where its focus ring and location ring stand too
+     (base.css, "Where it stands"): brackets are two 8px end strips of the outline
+     keyboard focus draws whole there. No state changes bounds, radius or offset, and
+     an outline drawn at the gap rounds its corners as the location ring's does. The
+     placement owner (target-paint-geometry.js, `standOver`) supplies the target
+     rectangle, its corner shape and the gap, `--lf-mark-offset`. `--lf-mark-room` is
+     how far the band reaches outside the target, which each strip's clip starts from.
      Keep this in shared chrome so Aim and an optional annotation painter agree. */
   :is(.lf-aim, .lf-target-trace, .lf-visual-mark):not(.lf-shaped) {
-    --lf-mark-offset: var(--focus-region-gap);
     --lf-mark-room: calc(var(--focus-ring-w) + var(--lf-mark-offset));
     &::before,
     &::after {
@@ -399,15 +396,6 @@ html[data-lf-region-capture] main * {
         calc(-1 * var(--lf-mark-room)) calc(-1 * var(--lf-mark-room))
           calc(-1 * var(--lf-mark-room)) calc(100% + var(--lf-mark-room) - 8px)
       );
-    }
-    /* A control's marks stand at its ring's gap. A clip that leaves no room outside
-       the target (target-paint-geometry.js, `standOver`) puts them just inside its
-       edge, as a control packed into a list insets its own ring (base.css). */
-    &[data-lf-mark-on="control"] {
-      --lf-mark-offset: var(--focus-ring-gap);
-    }
-    &[data-lf-mark-on="inset"] {
-      --lf-mark-offset: calc(-1 * var(--focus-ring-w));
     }
     &.lf-visual-mark-focus::after {
       clip-path: none;
@@ -486,10 +474,6 @@ html[data-lf-region-capture] main * {
   }
   .lf-quote:is(:hover, [data-lf-focus]) {
     color: var(--ink-2);
-  }
-  .lf-quote[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: 2px;
   }
 
   .lf-quote.detached {
@@ -980,7 +964,6 @@ html[data-lf-region-capture] main * {
   }
   .lf-command-reference-row:has(.lf-command-reference-command[data-lf-focus-visible]) {
     outline: var(--focus-ring);
-    outline-offset: 1px;
   }
   /* A dialog's head holds its title, then its other controls, with Close last. Every
      dialog the chrome opens sets its title in one face, the chrome's sans at weight
@@ -1020,15 +1003,6 @@ html[data-lf-region-capture] main * {
     -webkit-line-clamp: 2;
     overflow: hidden;
     overflow-wrap: anywhere;
-  }
-  /* Inset, because a row here fills the list to its own edge and the list is a
-     scroller: there is nothing outside the row for a ring to be drawn in, and an
-     outset one is cut on both sides by the box it scrolls in. The layer's rule for
-     a box whose edge touches something that paints. The ring's width is the inset,
-     so the band lands just inside the row's own edge. */
-  .lf-page-map-action[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
   }
   /* The sheet's top belongs to the window, so narrowing its list never carries the
      search or Close under the user's aim. The same top bounds its scrolling room. */

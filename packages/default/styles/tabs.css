@@ -44,7 +44,6 @@ lf-tabs[data-lf-views] > lf-tab {
   anchor-scope: --lf-tab-mark;
   display: none;
   gap: 2px;
-  --lf-tab-focus-gap: 2px;
   --lf-tabstrip-flow: row;
   border-bottom: 1px solid var(--border-2);
 }
@@ -74,13 +73,14 @@ lf-tabs[data-lf-views] > lf-tab {
 }
 /* Focus follows the name, as in the ARIA tabs example: selection and keyboard focus
  * remain separate marks on one compact face. The containing tab keeps its larger aim
- * floor; neither mark changes layout. The gap fits inside that target's padding. */
+ * floor; neither mark changes layout. The name stands among the strip's others as a
+ * control does, so its ring stands at a control's gap, inside the strip. */
 .lf-tabstrip .lf-tab-btn[data-lf-focus-visible] {
   outline: none;
 }
 .lf-tabstrip .lf-tab-btn[data-lf-focus-visible] > .lf-tab-name {
   outline: var(--focus-ring);
-  outline-offset: var(--lf-tab-focus-gap);
+  outline-offset: var(--focus-ring-gap);
 }
 /* The open tab's mark follows the strip's flow (`--lf-tabstrip-flow`), the one fact
  * that also lays the strip out, so every strip, whichever widget writes it, marks its
@@ -286,7 +286,7 @@ lf-tabs[data-lf-views] > lf-tab {
       z-index: 1;
       pointer-events: none;
       outline: var(--focus-ring);
-      outline-offset: calc(-1 * var(--focus-ring-w));
+      outline-offset: var(--focus-ring-inset);
     }
     /* until-found keeps the element's own box in flow; zero it so inactive panels
      * leave no stray gap below the active one. */
@@ -358,11 +358,13 @@ lf-tabs[data-lf-views] > lf-tab {
       align-self: stretch;
     }
     /* A row is its name, then its diff count, with the summary on a line under them.
-     * The count's margin leaves the name's focus ring clear of it, and a tab with no
-     * count ends at its words. Such a tab's rule stands at its foot, a line of its own
-     * under its last line, so along a row it underlines the whole tab as a lone name's
-     * rule underlines the name, and takes the 2px the name gives up. The lines keep to
-     * the top of a tab the strip stretches, so the rule stays against the last of them. */
+     * A tab with no count ends at its words. Such a tab's rule stands at its foot, a
+     * line of its own under its last line, so along a row it underlines the whole tab
+     * as a lone name's rule underlines the name, and takes the 2px the name gives up.
+     * The lines keep to the top of a tab the strip stretches, so the rule stays against
+     * the last of them. The keyboard rings the whole row, inside its edge, as a list's
+     * row is (base.css, "Where it stands"): round the name alone, the ring ran over
+     * the summary under it. */
     :is(lf-tabs[list="side"], lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-btn {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -370,6 +372,13 @@ lf-tabs[data-lf-views] > lf-tab {
       align-items: baseline;
       justify-items: start;
       text-align: start;
+      outline-offset: var(--focus-ring-inset);
+      &[data-lf-focus-visible] {
+        outline: var(--focus-ring);
+        & > .lf-tab-name {
+          outline: none;
+        }
+      }
       & > .lf-tab-mark {
         position: static;
         grid-column: 1 / -1;
@@ -379,7 +388,7 @@ lf-tabs[data-lf-views] > lf-tab {
         border-bottom: 0;
       }
       & > .lf-tabdiff {
-        margin-left: calc(6px + var(--focus-ring-w) + var(--lf-tab-focus-gap));
+        margin-left: 6px;
       }
     }
     /* The outcome has its own reserved line below the authored summary. Neither
@@ -456,6 +465,14 @@ lf-tabs[data-lf-views] > lf-tab {
     lf-tabs[list="side"][data-lf-views] > lf-tab {
       grid-column: 2;
       grid-row: 1;
+    }
+    /* The open panel fills its cell, so the ring the set draws round it (above) meets
+       the frame on every side, as the list beside it does, where a list taller than
+       the panel would leave an empty band under the ring. Only the open one: a closed
+       panel keeps its box in the same cell (until-found), and stretched it lay over
+       the open panel and took its presses. */
+    lf-tabs[list="side"][data-lf-views] > lf-tab:not([hidden]) {
+      align-self: stretch;
     }
     @container (width < 36rem) {
       lf-tabs[list="side"][data-lf-views]::before {

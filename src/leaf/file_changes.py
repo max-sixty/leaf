@@ -132,7 +132,7 @@ class FileChanges:
                     self.condition.notify_all()
             if not self.stop.is_set():
                 raise RuntimeError("the filesystem subscription was interrupted")
-        except Exception as error:  # noqa: BLE001 - propagate watcher failures to its owner
+        except Exception as error:
             with self.condition:
                 self.error = error
                 self.condition.notify_all()

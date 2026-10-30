@@ -1,26 +1,37 @@
-/* The page's own rules stop at the chrome. The page's sheet is unlayered, as this one
-   is, so a page rule for `button`, `summary` or `p` would otherwise dress every chrome
-   element of that type. Here every chrome element rolls each property back to the
-   layered cascade (Leaf's faces in shadow.css and base.css), and the chrome's own
-   rules after this one restate the rest. The guard weighs one class and is adopted
-   after the page's sheets, so a page selector of up to one class, attribute or
-   pseudo-class (`button`, `.card`, `[type=button]`) loses to it. What still reaches the
-   chrome: a heavier selector (`button:hover`, `html.dark a`, an id), an `!important`
-   declaration, a rule aimed at a pseudo-element (`button::after`, `::placeholder`), and
-   any layered rule, such as a page `@layer` rule or a theme package's `lf-overrides`
-   rule, which outranks the layered faces the chrome's controls wear. A style the runtime
-   puts inside the chrome, such as a dependency's, goes in `lf-base` (`inBaseLayer`) so
-   the guard rolls back to it rather than past it. The guard stands first in the chrome
-   sheet and outside its @scope, so every chrome rule of the same weight wins by order or
-   scope proximity. Custom properties are outside `all`, so a token the page sets on
-   :root still reaches the chrome. A shadow root would stop all of these. Its spike
-   (e7745b70d, #2828) left the card, passage outlines and margin carriers at their
-   fallback positions, since no
-   engine yet lets a shadow tree's own styles name an `anchor-name` in the document
-   (csswg-drafts#9408 allows it). A document `::part()` rule that sets `position-anchor`
-   does anchor, in Chromium 156, Firefox 157 and WebKit 27.2, so the shadow root is a
-   cost to weigh rather than a block; the user set the direction aside in #3579, and
-   #4030 (a page restyling the chrome through named parts) would bring it back.
+/* The page's own rules stop at the chrome unless they mean to reach it. Restyling the
+   chrome on purpose is intended, and Leaf should allow more of it, such as a theme
+   reshaping the panel (#4030). What this rule stops is accidental reach: the page's
+   sheet is unlayered, as this one is, so a page rule for `button`, `summary` or `p`,
+   written for the page's own elements, would otherwise dress every chrome element of
+   that type, and a page font would set the panel's. Here every chrome element rolls
+   each property back to the layered cascade (Leaf's faces in shadow.css and base.css),
+   and the chrome's own rules after this one restate the rest. The guard weighs one
+   class and is adopted after the page's sheets, so a page selector of up to one class,
+   attribute or pseudo-class (`button`, `.card`, `[type=button]`) loses to it. What
+   still reaches the chrome: a heavier selector (`button:hover`, `html.dark a`, an id),
+   an `!important` declaration, a rule aimed at a pseudo-element (`button::after`,
+   `::placeholder`), and any layered rule, such as a page `@layer` rule or a theme
+   package's `lf-overrides` rule, which outranks the layered faces the chrome's controls
+   wear. A style the runtime puts inside the chrome, such as a dependency's, goes in
+   `lf-base` (`inBaseLayer`) so the guard rolls back to it rather than past it. The
+   guard stands first in the chrome sheet and outside its @scope, so every chrome rule
+   of the same weight wins by order or scope proximity. Custom properties are outside
+   `all`, so a token the page sets on :root still reaches the chrome, as it would reach
+   a shadow tree.
+
+   What gets past by accident in practice is a page's state face on a bare element rule
+   (`button:hover`, `button:focus`, `button:disabled`), which few pages write. Two
+   stronger boundaries were weighed and set aside as costing more than that, and both
+   would also narrow the routes for restyling on purpose. A shadow root would stop every
+   route above, leaving the page only tokens and named parts, and each anchored box
+   would take its `position-anchor` from a document `::part()` rule, since no engine yet
+   lets a shadow tree's own styles name a document `anchor-name` (interop#1351), and the
+   chrome's sheets, selection, hit testing and document-state rules would have to be
+   carried across the boundary (spike e7745b70d, #2828). Giving this rule and the
+   chrome's own rules an id's weight stops those state faces, but a page rule would then
+   need an id to restyle the chrome, and each shared rule that dresses a chrome element
+   would need a branch of that weight too. An engine that resolves higher-tree anchor
+   names, or #4030 settling on named parts, would reopen the shadow root.
 
    A pseudo-element inherits from its element, which the guard covers. The guard once
    also covered `::before`, `::after` and `::placeholder` themselves, but no authored

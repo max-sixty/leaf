@@ -213,7 +213,9 @@ const cellHeads = (from) => {
       columns.push(head);
   }
   // A header row repeated before a later section stands above the capture twice.
-  return [...new Set([...columns, ...rows].map(says).filter(Boolean))].join(" · ");
+  return [
+    ...new Set([...columns, ...rows].map((head) => says(head)).filter(Boolean)),
+  ].join(" · ");
 };
 
 // The viewer hands the user back to the image they opened it from (focus.js,

@@ -219,7 +219,11 @@ moving anything. `leaf package check --render` reports a widget that moves as
   nested hosts first, so the widget first appears
   whole. Delivery inlines each used bundle once in the head; for later revisions and
   thread messages the loader imports the bundle before the behavior module.
-  `tools` provides `tabStore`, `offer`, `offerElement`, `offerAction`,
+  `tools.inputValue(name)` reads a compatible declared `x-data` source input from the initial
+  data delivery, or returns null when it has no available value. It returns a copy;
+  widget-output inputs await their producer, and the normal module reads subsequent
+  values through its declared property. This reading carries no event state.
+  `tools` also provides `tabStore`, `offer`, `offerElement`, `offerAction`,
   `offerActionElement`, `selectableOffer`, `selectableOfferElement`,
   `generatedElement`, `keeps` (the attribute keeper) and `authoredBody`.
   Leaf keeps the authored markup before drawing, so source readings and comparisons

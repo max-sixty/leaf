@@ -165,10 +165,11 @@ def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
             expect(part).to_have_css("background-color", "rgba(0, 0, 0, 0)")
 
 
-def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
-    """Space adds no blank line when the words fit beside Send. The text keeps
-    the shared comment inset before Send's hit box, without reserving its width
-    a second time."""
+def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
+    """At a narrow allocation, Space must not create a blank line while the words
+    still fit. Under a mouse the words keep no room for Send, which takes the corner
+    they leave free (drafts/test_send_corner.py), so they end as far inside the field
+    as they start."""
     page = open_page(
         browser,
         serve(
@@ -197,19 +198,13 @@ def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
     after = resting_box()
     assert after["height"] == pytest.approx(before["height"], abs=1)
     assert after["y"] == pytest.approx(before["y"], abs=1)
-    reservation = field.evaluate("""el => {
-      const style = getComputedStyle(el), box = el.getBoundingClientRect();
-      const send = el.parentElement.querySelector('.lf-compose-submit');
-      // The shared comment column keeps the action inset before Send, plus
-      // the frame between the field and the action's containing box.
-      const gap = parseFloat(getComputedStyle(send).insetInlineEnd)
-        + send.parentElement.getBoundingClientRect().right - box.right;
-      return {textEnd: box.right - parseFloat(style.borderInlineEndWidth)
-        - parseFloat(style.paddingInlineEnd)
-        - parseFloat(style.getPropertyValue('--lf-field-end-room')),
-        textLimit: send.getBoundingClientRect().left - gap};
+    insets = field.evaluate("""el => {
+      const style = getComputedStyle(el);
+      return [parseFloat(style.borderInlineStartWidth) + parseFloat(style.paddingInlineStart),
+        parseFloat(style.borderInlineEndWidth) + parseFloat(style.paddingInlineEnd)
+        + (parseFloat(style.getPropertyValue('--lf-field-end-room')) || 0)];
     }""")
-    assert reservation["textEnd"] == pytest.approx(reservation["textLimit"], abs=0.1)
+    assert insets[1] == pytest.approx(insets[0], abs=0.1), insets
 
 
 # The field's shadow root is closed, so the reading keeps each root as it is attached.
@@ -389,8 +384,10 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
                 navLeft: box('.lf-margin-preview-nav').left,
                 navRight: box('.lf-margin-preview-nav').right,
                 resolveLeft: box('.lf-resolve').left,
+                // The head's items, not its controls' reach past its edge.
                 overflow: actions.scrollWidth - actions.clientWidth
-                  + head.scrollWidth - head.clientWidth,
+                  + Math.max(0, ...[...head.children].map((item) =>
+                    item.getBoundingClientRect().right - head.getBoundingClientRect().right)),
               };
             }"""
         )
@@ -1340,7 +1337,10 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
 
     def find(node):
         attrs = node.get("attributes", [])
-        if dict(zip(attrs[::2], attrs[1::2])).get("id") == "draft-face-editor":
+        if (
+            dict(zip(attrs[::2], attrs[1::2], strict=True)).get("id")
+            == "draft-face-editor"
+        ):
             return node
         for child in node.get("children", []) + node.get("shadowRoots", []):
             if found := find(child):

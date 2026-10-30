@@ -731,7 +731,7 @@ class TaskConnection:
         for fold in list(self.turns.values()):
             try:
                 fold.disconnect()
-            except Exception as error:  # noqa: BLE001
+            except Exception as error:
                 failures.append(error)
         if failures:
             print(
@@ -749,7 +749,7 @@ class TaskConnection:
                     failures = 0
                 # This is the connection thread's recovery boundary: nothing it reads may
                 # take the process down, and a lost connection is retried.
-                except Exception as error:  # noqa: BLE001
+                except Exception as error:
                     self._disconnect_turns()
                     if not self.started:
                         self.ready.put(error)
@@ -971,7 +971,7 @@ def run_adapter(
                     )
             # Transport and page errors belong to this retry boundary; neither
             # may end the adapter and strand the pages it claims.
-            except Exception as error:  # noqa: BLE001 - retried, never raised
+            except Exception as error:
                 failures += 1
                 if failures == 1:
                     print(

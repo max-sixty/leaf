@@ -35,6 +35,48 @@ def test_package_imports_fail_at_the_browser_module_boundary(browser, serve):
     assert "setRuntimeRootStyle" in problem["message"]
 
 
+def test_formatted_page_words_follow_rendered_blocks_and_whitespace(browser, serve):
+    page = open_page(
+        browser, serve(leaf_page("Formatted words", "<p>A package page.</p>"))
+    )
+    readings = page.evaluate("""async () => {
+      const {says} = await import('/runtime/widget-api.js');
+      return lfUnwatched(() => {
+        const cases = {
+          divs: '<div>Step one</div><div>Step two</div>',
+          indented: '<div>Step one</div>\\n  <div>Step two</div>',
+          pre: '<p>Apply:</p><pre>a: 1\\n  b: 2</pre>',
+          preWrap: '<div style="white-space:pre-wrap">a: 1\\n  b: 2</div>',
+          preLine: '<div style="white-space:pre-line">a:  1  \\n  b: 2</div>',
+          table: '<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>',
+          list: '<ul><li>Outer<ul><li>Inner</li></ul></li><li>Next</li></ul>',
+          inline: '<div>Use <span data-lf-gen="1" data-lf-said>cpu</span>.</div>',
+          br: 'Line one<br>Line two',
+          island: '<div>Intro <span data-lf-markdown-words><strong>bold</strong> tail</span> rest</div>',
+          inlineDiv: '<div style="display:inline">Alpha</div><div style="display:inline">beta</div>',
+          blockSpan: '<span style="display:block">Alpha</span><span style="display:block">beta</span>',
+          ruby: '<p>Use <ruby>漢<rt>kan</rt></ruby> here.</p>',
+          chrome: '<p>Apply <b>these settings</b><span class="lf-ui">1 comment</span>.</p>',
+        };
+        return Object.fromEntries(Object.entries(cases).map(([name, html]) => {
+          const root = document.createElement('section');
+          root.innerHTML = html;
+          document.body.append(root);
+          const lines = says(root, {format: 'lines'});
+          root.querySelectorAll('.lf-ui').forEach(node => node.remove());
+          const shown = root.innerText;
+          root.remove();
+          // Lines keeps boundaries, not the browser's extra paragraph spacing.
+          const normalize = text => text.replace(/\\n{2,}/g, '\\n');
+          return [name, {lines: normalize(lines), shown: normalize(shown)}];
+        }));
+      });
+    }""")
+    assert {name: value["lines"] for name, value in readings.items()} == {
+        name: value["shown"] for name, value in readings.items()
+    }
+
+
 def test_independent_document_headers_contribute_measured_landing_room(browser, serve):
     page = open_page(browser, serve(leaf_page("Headers", "<p>A package page.</p>")))
     initial = page.evaluate("""async () => {

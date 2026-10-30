@@ -160,7 +160,7 @@ class RowPublisher:
                 if self.transition is not None:
                     delay = min(delay, max(0.0, self.transition - time.time()))
                 changes.wait(mark, delay)
-        except Exception as error:  # noqa: BLE001 - a producer must not die under a live lease
+        except Exception as error:
             print(
                 f"leaf server: {self.page_dir}: row publication failed: {error}",
                 file=sys.stderr,

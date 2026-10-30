@@ -262,8 +262,11 @@ controls and contributor slices, required names and any bounds. Each instance ca
 select a different contract. Admission validates that schema before recording a
 submission; an unbound playground uses the package's open values schema.
 The `data-explorer` example shows a scalar limit beside structured filter rows.
-An instruction provider describes the configuration as a task that makes sense
-without the preview.
+An instruction provider returns plain text describing the configuration as a task
+that makes sense without the preview. Its line breaks and indentation appear in the
+instruction and remain when copied or sent. An authored `lf-playground-output` keeps
+rendered block boundaries and preformatted whitespace when copied or sent. Both forms
+trim leading and trailing whitespace.
 
 When both candidates draw from shared state, keep dynamic rows under stable keys, apply
 each add, remove, reorder or edit once, and derive both candidates' rows and counts from

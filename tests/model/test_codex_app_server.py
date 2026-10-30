@@ -2997,7 +2997,7 @@ assert ready.wait(20)
     ],
 )
 def test_codex_activity_rejects_nonlocal_or_invalid_app_servers(endpoint):
-    with pytest.raises(Refused, match="local|valid"):
+    with pytest.raises(Refused, match=r"local|valid"):
         codex_model.app_server_socket_path(endpoint)
 
 

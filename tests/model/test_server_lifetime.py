@@ -536,7 +536,7 @@ def test_server_stop_waits_for_the_live_server_to_release_its_lease(
     def stop():
         try:
             outcomes.append(hosting_model.cmd_stop(page_dir))
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
+        except BaseException as error:
             errors.append(error)
 
     stopping = threading.Thread(target=stop)

@@ -1538,7 +1538,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
                     {"parent": asked["id"], "responds": asked["id"]},
                     "Because B preserves the invariant",
                 )
-            except Exception as error:  # noqa: BLE001 - forward worker failures to assertion
+            except Exception as error:
                 errors.append(error)
 
         writer = threading.Thread(target=settle, daemon=True)

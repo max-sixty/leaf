@@ -1,3 +1,4 @@
+// @ts-check
 /* Passive names and constants shared by design mode and its renderers.
  *
  * Command owners receive the live mode query from createDesignMode. These
@@ -13,6 +14,7 @@ export const DESIGN_MODE_KEY = "lf-design-mode";
 // The name a design target wears — under the pointer, in the composer, beside its
 // thread. A widget is its tag and id, because both are what a fix is written against; a
 // page element takes the user's word for its kind.
+/** @param {Element} element */
 export function designName(element) {
   const tag = element.tagName.toLowerCase();
   return `${tag.startsWith("lf-") ? tag : addressableWord(element)} · ${element.id}`;

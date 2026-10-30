@@ -296,7 +296,7 @@ def _page_uvicorn():
             for connection in list(self.server_state.connections):
                 connection.shutdown()
             state = self.server_state
-            while (state.connections or state.tasks) and not self.force_exit:
+            while (state.connections or state.tasks) and not self.force_exit:  # noqa: ASYNC110 - Uvicorn owns this state and exposes no completion event.
                 await asyncio.sleep(0.005)
             for server in self.servers:
                 await server.wait_closed()
@@ -647,7 +647,8 @@ def cmd_serve(
         ).start()
         try:
             httpd.serve_forever()
-        except BaseException:  # noqa: BLE001 - reported, since `exit_serving` skips the interpreter's report
+        except BaseException:
+            # exit_serving skips the interpreter's exception report.
             traceback.print_exc()
         exit_serving(1)
     finally:
@@ -924,7 +925,7 @@ def restarting_server(page_dir: Path, harness: Harness | None):
     try:
         start_server(page_dir, persistent=persistent, revive=True, harness=harness)
     except StartRefused as error:
-        raise Refused(f"{page_dir}'s server did not start again: {error}")
+        raise Refused(f"{page_dir}'s server did not start again: {error}") from error
 
 
 def _restarts_for_session(page_dir: Path, harness: Harness | None) -> bool:

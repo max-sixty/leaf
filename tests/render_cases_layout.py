@@ -226,7 +226,7 @@ def moved_at(cdp, node):
     cdp.send("DOM.getDocument", {"depth": 1})
     described = cdp.send("DOM.describeNode", {"backendNodeId": node})["node"]
     pairs = described.get("attributes", [])
-    attributes = dict(zip(pairs[::2], pairs[1::2]))
+    attributes = dict(zip(pairs[::2], pairs[1::2], strict=True))
     name = described.get("localName") or described.get("nodeName")
     if attributes.get("id"):
         return f"{name}#{attributes['id']}"
@@ -810,12 +810,12 @@ def displaced(before, boxes, news=False):
         if news and was[4] != now[4]:
             held = was[0] == now[0] or was[0] + was[2] == now[0] + now[2]
             return not held or was[1] != now[1] or was[3] != now[3]
-        return any(a != b for a, b in zip(was[:4], now[:4]))
+        return any(a != b for a, b in zip(was[:4], now[:4], strict=True))
 
     return [
         f"{name} moved by "
-        f"{[round(a - b, 1) for a, b in zip(now[:4], was[:4])]} (left, top, width, height)"
-        for name, was, now in zip(before["names"], before["boxes"], boxes)
+        f"{[round(a - b, 1) for a, b in zip(now[:4], was[:4], strict=True)]} (left, top, width, height)"
+        for name, was, now in zip(before["names"], before["boxes"], boxes, strict=True)
         if moved(was, now)
     ]
 
@@ -1134,7 +1134,8 @@ def mark_edges(page, ident, ink):
     def stroke(scan, at):
         """Mark-coloured pixels contiguous with the element's edge, and no others."""
         inked = [
-            all(abs(a - b) <= MARK_NEAR for a, b in zip(pixel, ink)) for pixel in scan
+            all(abs(a - b) <= MARK_NEAR for a, b in zip(pixel, ink, strict=True))
+            for pixel in scan
         ]
         start = next((i for i in range(at - 1, at + 2) if inked[i]), None)
         if start is None:

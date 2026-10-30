@@ -393,7 +393,7 @@ controls, marked as Leaf-generated; the browser keeps its activation, focus and
 accessibility. `inputType` is for an `input`. Pass `pressable: true` for a custom element
 whose host implements `focus()` and `click()`. In a template, `<div
 ${offered("my-tools")}>` does the same, with an input's `type` binding placed before
-`offered`. `offerElement(node, className, {pressable})` marks an existing node.
+`offered`. `offerElement(node, className, pressable)` marks an existing node.
 
 A button that looks like Leaf's own controls is built by its role, so every control of
 one kind wears one face: `offerAction(role, className, label, {title, action})`, or

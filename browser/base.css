@@ -980,6 +980,11 @@ html[data-lf-interactive] [data-lf-arriving] {
   inherits: true;
   initial-value: 0px;
 }
+@property --lf-field-corner {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
 /* A floating box's translation and clips paint together rather than advancing
    independently on the compositor (runtime/box-motion.js). */
 @property --lf-box-carry {

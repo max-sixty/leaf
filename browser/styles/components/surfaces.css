@@ -16,10 +16,10 @@
  * this sheet, it beat them, and .lf-compose-submit drew near-black on Send and on Add
  * option instead of the accent. It keeps a class's specificity, so the element rules of the
  * layered sheets lose to it; the page's own rules are unlayered and win over it, as they
- * win over every layer. And it matches only under the document's root: a declared tree copies this
- * sheet, but no element in a shadow tree descends from `:root`, so what a widget draws
- * there keeps its host's face. lf-diff marks its line numbers and hunk separators `lf-ui`,
- * and a plain `.lf-ui` repainted them at the control's size and ink.
+ * win over every layer. It applies under both the document root and a declared shadow
+ * host, so native controls share one face in either tree. It does not select the
+ * general `lf-ui` apparatus: lf-diff's line numbers and hunk separators retain their
+ * component's type and ink.
  *
  * It cannot live in runtime/chrome.css, which is adopted and so cascades after all of
  * them: the same declarations there beat every component's own rule, and .lf-ref drew

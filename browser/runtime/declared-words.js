@@ -55,6 +55,7 @@ import { move } from "./dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { marks } from "./kernel-facts.js";
 import { generatedElement } from "./widget-elements.js";
+import { viewMembers } from "./storage.js";
 
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // Whether an attribute on the page's own element is paint rather than the author's: the
@@ -254,9 +255,8 @@ export function paintDeclaredWords(root) {
 // and stays at it; a board's columns and a diagram's graph are as wide as what they hold,
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
-// the widget declares its capacity (x-space) and the theme spends the room the layout
-// resolved by the CSS shell (--lf-room): `wide` uses the shared evidence cap, and
-// `available` uses all remaining room.
+// the widget declares its capacity (x-space) and the Layout assigns its grid tracks:
+// `wide` uses the shared evidence cap, and `available` uses all remaining room.
 // Internal arrangement remains package-owned.
 //
 // Whether the widget is set among the words around it is the second (x-inline). What
@@ -314,12 +314,7 @@ export function markDeclared(root) {
       for (const el of elementsIn(root, tag)) {
         const value = key === "x-exhibit" ? exhibits(el, registry[tag]) : declared;
         if (key === "x-views") {
-          keeps(el, paint, declared.parts ? "parts" : "");
-          for (const child of el.children)
-            child.toggleAttribute(
-              "data-lf-view",
-              !child.hasAttribute("data-lf-gen") && child.matches(declared.members),
-            );
+          viewMembers(el);
           continue;
         }
         keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);

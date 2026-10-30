@@ -230,7 +230,8 @@ native disclosures, links and authored content need no such wait.
   the selector matches direct authored children. Delivery marks these members, and
   one browser owner shows the chosen member before modules load. Their native
   `hidden` attribute is view state.
-  Read `viewMembers(holder)` for the canonical member list. During setup, open the
+  Read `viewMembers(holder)` for the canonical member list; the view APIs also mark
+  members of holders a module creates, using that same declaration. During setup, open the
   member `openingView(holder)` returns, and show each later member with
   `keepView(holder, member)`, which applies native visibility and remembers it for reload.
   Passing null shows none without forgetting the last member. During an exit animation,

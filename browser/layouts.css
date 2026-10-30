@@ -306,7 +306,6 @@
     padding-inline: var(--col-pad);
     padding-block: var(--page-pad-start) var(--page-pad-end);
     --lf-measure: var(--col);
-    --lf-room: 100%;
   }
   /* An authored note column centers the prose and note together when both fit.
    * Narrower columns keep centered prose and wrap the note. The author chooses
@@ -339,8 +338,13 @@
   @container style(--lf-measure) {
     .layout-flow {
       display: grid;
-      grid-template-columns: subgrid;
+      grid-template-columns:
+        [full-start prose-start] minmax(0, 1fr)
+        [prose-end full-end];
       align-content: start;
+    }
+    :is(.layout-column, .layout-flow) > .layout-flow {
+      grid-template-columns: subgrid;
     }
   }
   @property --lf-breakout {
@@ -362,8 +366,7 @@
   :is(.layout-column, .layout-flow) {
     > :is(
       [data-lf-space="wide"],
-      [data-lf-content="markup"]:not(.layout-flow):has(> [data-lf-space="wide"]),
-      .callout:has(> [data-lf-space="wide"])
+      [data-lf-content="markup"]:not(.layout-flow):has(> [data-lf-space="wide"])
     ) {
       grid-column: prose-start / full-end;
       max-inline-size: min(100%, var(--wide));
@@ -371,8 +374,7 @@
     }
     > :is(
       [data-lf-space="available"],
-      [data-lf-content="markup"]:not(.layout-flow):has(> [data-lf-space="available"]),
-      .callout:has(> [data-lf-space="available"])
+      [data-lf-content="markup"]:not(.layout-flow):has(> [data-lf-space="available"])
     ) {
       grid-column: full;
       max-inline-size: 100%;
@@ -421,10 +423,11 @@
    * without moving children into a runtime-owned wrapper. */
   .layout-sidebar {
     grid-column: full;
+    box-sizing: border-box;
+    inline-size: 100%;
     padding-inline: clamp(var(--col-pad), 4cqi, 64px);
     padding-block: var(--page-pad-start) var(--page-pad-end);
     --lf-measure: var(--col);
-    --lf-room: 100%;
     --lf-wide-page: 1;
     --lf-holds-edge: 1;
     --aside: auto;

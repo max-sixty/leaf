@@ -557,7 +557,7 @@ lf-roomy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
 </style>
 <h1 id="t">Available package surface</h1>
-<lf-roomy id="roomy"><section>One</section><section>Two</section></lf-roomy></div></div>
+<lf-roomy id="roomy"><section>One</section><section>Two</section></lf-roomy>
 """,
     )
     page = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
@@ -568,14 +568,9 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
       return {
         left: box.left, right: box.right, width: box.width, children,
         room: (() => {
-          const probe = document.createElement('i');
-          probe.style.cssText = 'position:fixed;visibility:hidden;width:var(--lf-room)';
-          // Children of a breakout reset --lf-room to 100%; read its parent's
-          // allocation, which is the room the breakout itself received.
-          el.parentElement.append(probe);
-          const width = probe.getBoundingClientRect().width;
-          probe.remove();
-          return width;
+          const parent = el.parentElement, style = getComputedStyle(parent);
+          return parent.clientWidth - parseFloat(style.paddingLeft)
+            - parseFloat(style.paddingRight);
         })(),
       };
     }""")

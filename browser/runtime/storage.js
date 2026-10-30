@@ -1,6 +1,9 @@
 /* Browser working state has one backing policy, selected by prepaint and shared
  * by bootstrap and the runtime. Isolated samples keep stores inside their disposable realm; ordinary
  * documents use native scoped storage, whose refusal never prevents reading. */
+import { registry } from "./registry.js";
+import { keeps } from "./keeps.js";
+import { marks } from "./kernel-facts.js";
 
 // ---------- which page the stores are scoped to ----------
 // Prepaint declares the page scope once; widget state and chrome use that same prefix.
@@ -36,9 +39,28 @@ const { stored } = document.documentElement.lfStorage;
 // collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
 // the user arranges is the runtime's own, and an export nothing imports is a promise
 // nobody asked for. tab-store.js owns the portable widget store.
-export const viewMembers = document.documentElement.lfViews.members;
-export const openingView = document.documentElement.lfViews.opening;
-export const keepView = document.documentElement.lfViews.keep;
+// Delivery marks authored views before modules load. A package can also construct
+// a view while rendering: resolve the same declaration at this capability boundary,
+// before prepaint's shared selection owner reads its marks.
+export function viewMembers(holder) {
+  const declaration = registry[holder.localName]?.["x-views"];
+  if (!declaration) return [];
+  keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
+  for (const child of holder.children)
+    child.toggleAttribute(
+      "data-lf-view",
+      !child.hasAttribute("data-lf-gen") && child.matches(declaration.members),
+    );
+  return document.documentElement.lfViews.members(holder);
+}
+export function openingView(holder, ...fallback) {
+  viewMembers(holder);
+  return document.documentElement.lfViews.opening(holder, ...fallback);
+}
+export function keepView(holder, member, leaving = null) {
+  viewMembers(holder);
+  return document.documentElement.lfViews.keep(holder, member, leaving);
+}
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.

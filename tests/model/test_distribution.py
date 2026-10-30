@@ -99,7 +99,7 @@ def test_runtime_identity_names_every_composed_core_stylesheet(
     """A CSS-only restart cannot reuse the identity of the old rendered page."""
     assets = tmp_path / "browser"
     (assets / "styles").mkdir(parents=True)
-    (assets / "theme.css").write_text(":root { color: black; }\n")
+    (assets / "base.css").write_text(":root { color: black; }\n")
     (assets / "shadow.css").write_text('@import "./styles/shared.css";\n')
     for name in (
         "styles/shadow-leading.css",

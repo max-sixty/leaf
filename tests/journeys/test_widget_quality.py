@@ -130,7 +130,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
 def test_complete_views_restore_native_values_in_wrapped_layouts(
     browser, serve, width, gallery_page_files
 ):
-    """Desktop and phone views reveal complete controls and restore saved inputs."""
+    """Readable desktop and phone source enhances into controls with saved inputs."""
     url = serve(
         leaf_page(
             "First drawing",
@@ -153,7 +153,11 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
         page.route("**/leaf.js", lambda route: boot.append(route))
         with page.expect_request("**/leaf.js"):
             navigate()
-        expect(page.locator("main")).to_be_hidden()
+        expect(page.locator("main")).to_be_visible()
+        expect(page.locator("#drawing lf-playground-preview")).to_have_text(
+            "The actual preview, with its own words."
+        )
+        expect(page.locator("#drawing input")).to_have_count(0)
         assert boot, "the positive control did not hold the entry module"
         page.unroute("**/leaf.js")
         boot.pop().continue_()

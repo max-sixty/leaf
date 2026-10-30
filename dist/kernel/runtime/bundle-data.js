@@ -1018,6 +1018,35 @@ async function highlightBlocks(root) {
 }
 
 //#endregion
+//#region runtime/storage.js
+const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
+const { stored } = document.documentElement.lfStorage;
+function viewMembers(holder) {
+	const declaration = registry$1[holder.localName]?.["x-views"];
+	if (!declaration) return [];
+	keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
+	for (const child of holder.children) child.toggleAttribute("data-lf-view", !child.hasAttribute("data-lf-gen") && child.matches(declaration.members));
+	return document.documentElement.lfViews.members(holder);
+}
+function openingView(holder, ...fallback) {
+	viewMembers(holder);
+	return document.documentElement.lfViews.opening(holder, ...fallback);
+}
+function keepView(holder, member, leaving = null) {
+	viewMembers(holder);
+	return document.documentElement.lfViews.keep(holder, member, leaving);
+}
+const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
+const userStore = document.documentElement.lfStorage.userStore;
+const userChoice = (key, values) => Object.freeze({
+	read: () => {
+		const value = userStore.get(key);
+		return values.includes(value) ? value : null;
+	},
+	write: (value) => userStore.set(key, value)
+});
+
+//#endregion
 //#region runtime/declared-words.js
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 const isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(marks).some((mark) => mark.paint === name);
@@ -1163,8 +1192,7 @@ function markDeclared(root) {
 			for (const el of elementsIn(root, tag)) {
 				const value = key === "x-exhibit" ? exhibits(el, registry$1[tag]) : declared;
 				if (key === "x-views") {
-					keeps(el, paint, declared.parts ? "parts" : "");
-					for (const child of el.children) child.toggleAttribute("data-lf-view", !child.hasAttribute("data-lf-gen") && child.matches(declared.members));
+					viewMembers(el);
 					continue;
 				}
 				keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
@@ -2770,23 +2798,6 @@ async function upgradeWidgets({ buildReactionBar }) {
 	await installDocument(document.body);
 	return true;
 }
-
-//#endregion
-//#region runtime/storage.js
-const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
-const { stored } = document.documentElement.lfStorage;
-const viewMembers = document.documentElement.lfViews.members;
-const openingView = document.documentElement.lfViews.opening;
-const keepView = document.documentElement.lfViews.keep;
-const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
-const userStore = document.documentElement.lfStorage.userStore;
-const userChoice = (key, values) => Object.freeze({
-	read: () => {
-		const value = userStore.get(key);
-		return values.includes(value) ? value : null;
-	},
-	write: (value) => userStore.set(key, value)
-});
 
 //#endregion
 //#region runtime/drafts.js

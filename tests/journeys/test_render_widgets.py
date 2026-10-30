@@ -470,7 +470,13 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert nav_box is not None
     assert rows_box is not None
     assert toc_box is not None
-    assert 23 <= nav_box["x"] <= 25
+    assert nav_box["x"] == pytest.approx(
+        page.locator("#route .layout-track").evaluate(
+            "node => node.getBoundingClientRect().left + node.clientLeft "
+            "+ parseFloat(getComputedStyle(node).paddingLeft)"
+        ),
+        abs=1,
+    )
     assert nav_box["y"] == pytest.approx(0, abs=1)
     assert nav_box["height"] >= 740, f"the reading map used only {nav_box['height']}px"
     padding = nav.evaluate(

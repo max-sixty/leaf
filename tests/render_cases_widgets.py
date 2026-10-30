@@ -355,12 +355,7 @@ DIAGRAM_ROOM = """() => {
     const svg = holder.querySelector('svg');
     const board = document.getElementById('plan');
     const main = document.querySelector('main'), ms = getComputedStyle(main);
-    const mb = main.getBoundingClientRect();
-    const probe = document.createElement('i');
-    probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--lf-room)';
-    main.append(probe);
-    const room = probe.getBoundingClientRect().width;
-    probe.remove();
+    const room = main.clientWidth - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight);
     return { drawn: svg.getBoundingClientRect().width,
              natural: svg.viewBox.baseVal.width,
              box: holder.clientWidth,
@@ -368,7 +363,7 @@ DIAGRAM_ROOM = """() => {
              wide: parseFloat(getComputedStyle(document.body)
                        .getPropertyValue('--wide')),
              board: board.getBoundingClientRect().width,
-             column: mb.width - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight),
+             column: main.querySelector('h1').getBoundingClientRect().width,
              scrolls: holder.scrollWidth > holder.clientWidth };
 }"""
 # A diagram whose renderer rejects the type, which is the shape of every soft failure: the

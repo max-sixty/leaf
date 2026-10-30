@@ -53,7 +53,7 @@ def test_package_render_check_compares_held_and_presented_boxes(tmp_path, browse
         '<lf-first-box id="reserved"></lf-first-box>'
     )
     registry_path.write_text(json.dumps(registry))
-    (package / "widgets.css").write_text(
+    (package / "defaults.css").write_text(
         "lf-first-box { display: block; } #reserved { block-size: 40px; }"
     )
     (package / "widgets/lf-first-box.js").write_text("""\
@@ -147,7 +147,7 @@ def gallery_page_files_fixture():
 def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
     browser, serve, tmp_path, gallery_page_files
 ):
-    """A running export reveals complete widgets; an unavailable entry reveals source."""
+    """Exports start readable, enhance into widgets, and retain source on failure."""
     serve(
         leaf_page(
             "Exported",
@@ -193,7 +193,12 @@ def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
 
     first_page = browser.new_page(viewport={"width": 1200, "height": 900})
     first_page.goto(held.as_uri(), wait_until="load")
-    expect(first_page.locator("main")).to_be_hidden()
+    expect(first_page.locator("main")).to_be_visible()
+    expect(first_page.locator("#drawing lf-playground-preview")).to_have_text(
+        "The actual preview, with its own words."
+    )
+    expect(first_page.locator("#drawing input")).to_have_count(0)
+    assert first_page.evaluate(SHOWN_PANELS) == ["one", "near"]
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.goto(exported.as_uri(), wait_until="load")
@@ -205,12 +210,15 @@ def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
     expect(page.locator("#faces-one .margin-entry-gallery-item")).to_have_count(22)
     expect(page.locator("html")).not_to_have_attribute("data-lf-live", "")
 
-    # An export whose runtime cannot start has no server to wait for, but it still
-    # gives back the readable fallback: every panel, under its label.
+    # An export whose runtime cannot start retains readable authored content.
     broken = browser.new_page(viewport={"width": 1200, "height": 900})
     broken.goto(failed.as_uri(), wait_until="load")
     expect(broken.locator("html")).to_have_attribute(
         "data-lf-startup-error", "entry module did not load"
+    )
+    expect(broken.locator("main")).to_be_visible()
+    expect(broken.locator("#drawing lf-playground-preview")).to_have_text(
+        "The actual preview, with its own words."
     )
     assert broken.evaluate(SHOWN_PANELS) == ["one", "two", "near", "far"]
     consume_browser_errors(broken, "missing.js", "net::ERR_FAILED")

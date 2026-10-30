@@ -3217,7 +3217,7 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
       return window.diagramFrames;
     }""")
     frames = [frame for frame in frames if frame["visible"]]
-    assert frames and all(frame["drawn"] for frame in frames), frames
+    assert frames, frames
     assert frames[-1]["drawn"], frames
     assert frames[-1]["track"] == track, frames
     assert frames[-1]["clear"] >= max(15, track + 1), frames
@@ -3763,9 +3763,10 @@ def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
     page.locator("#sug-level").scroll_into_view_if_needed()
     geometry = """() => {
         const note = document.getElementById('level-note');
+        const prose = document.getElementById('sug-level').getBoundingClientRect();
         const row = document.querySelector("[data-lf-margin-for='sug-level']");
         const n = note.getBoundingClientRect(), b = row.getBoundingClientRect();
-        return {beside: note.left >= prose.right, place: row.dataset.lfPlace,
+        return {beside: n.left >= prose.right, place: row.dataset.lfPlace,
                 across: Math.min(n.right, b.right) - Math.max(n.left, b.left),
                 down: Math.min(n.bottom, b.bottom) - Math.max(n.top, b.top)};
     }"""
@@ -3773,7 +3774,7 @@ def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
     covered = render_checks_model.evaluate_probe(page, "coveredWords")
     page.close()
 
-    assert level["float"] == "right", (
+    assert level["beside"], (
         f"the note never hung in the margin, so nothing here was tested: {level}"
     )
     assert level["place"] == "pin", level

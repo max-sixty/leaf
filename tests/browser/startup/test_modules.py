@@ -71,14 +71,11 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
 Two classic models.</pre></lf-code>
 <h2 id="notes">""",
     )
-    page = open_page(
-        browser,
-        serve(html, anchored=[("intro", SENTENCE)]),
-        init_script=gate_registry,
-        wait_until="domcontentloaded",
-        # The held registry is this test's subject, so the upgrade stamp never lands and
-        # waiting for it would hang out a whole timeout.
-        upgraded=False,
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.add_init_script(gate_registry)
+    # This interval precedes chrome construction as well as widget preparation.
+    page.goto(
+        serve(html, anchored=[("intro", SENTENCE)]), wait_until="domcontentloaded"
     )
     page.wait_for_function("() => window.lfRegistryBlocked === true")
     page.wait_for_function("() => window.lfInitialStateReceived === true")

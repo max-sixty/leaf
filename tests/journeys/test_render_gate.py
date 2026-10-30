@@ -986,13 +986,9 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     viewport still belongs to page flow, and offered controls still lose presses
     when clipped, beside a clean control the viewport shows completely.
 
-    A choose group clips its own box too, so a note pulled into the page's margin from
-    inside one is painted nowhere. Every other reading calls that well — the column
-    check excuses margin content, checkVisibility() is true of a clipped box so
-    screen and print agree, and the copy, which withholds the clip, shows the words the
-    live page dropped — so the user is the only party who loses them. A section, a tab
-    panel and a disclosure all pass a note through to the margin, so the gate names the
-    box that doesn't, at handover, to the one party who can still move it.
+    A note in an option now wraps inside its native row rather than being pulled
+    into the page's margin. It remains readable inside the group's clip and must not
+    be reported alongside the genuinely lost boxes.
 
     A box's own content has no box to lose, so the box answers for it, down as well as
     across: a log capped by a max-height, a short box of paragraphs and a label that
@@ -1011,24 +1007,18 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     expect(page.locator("lf-test-drawing-control [data-lf-offer]")).to_have_count(2)
     expect(page.locator("#clipped-drawing-control")).to_have_text("Inspect")
     expect(page.locator("#clean-drawing-control")).to_have_text("Inspect")
-    # elementFromPoint answers about the viewport, so the question can only be put to
-    # a note that is in it. The group is what gets scrolled to, never the note:
-    # `overflow: hidden` refuses a user and not a script, so scrolling to the clipped
-    # element hands the group's own box sideways until the note is inside it.
+    # Scroll the group rather than its note, so scrolling cannot conceal a clipped
+    # child by moving its overflow-hidden container's contents.
     page.locator("#where").scroll_into_view_if_needed()
     seen = page.evaluate("""() => {
         const n = document.getElementById('boxed-note');
         const b = n.getBoundingClientRect();
         const mid = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-        // The note or something of its own, never an ancestor: a clipped note leaves
-        // the point to <body>, which contains it and paints none of it.
         return {painted: !!mid && (n === mid || n.contains(mid)),
                 at: mid && mid.tagName};
     }""")
     page.close()
-    assert not seen["painted"], (
-        f"nothing clipped the note, so this proves nothing about the gate: {seen}"
-    )
+    assert seen["painted"], f"the option clipped its wrapped note: {seen}"
     failures = render_gate_model.render_version(browser, url).failures
     clipped = {
         (f.at, f.values["container"]) for f in failures if f.code == "clipped-out"
@@ -1038,7 +1028,7 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     assert (
         "<aside id=boxed-note>",
         "<lf-options id=where>",
-    ) in clipped, f"a note the user never sees went out with the handover: {failures}"
+    ) not in clipped, f"the visible wrapped note was reported as clipped: {failures}"
     assert (
         "<div id=eaten>",
         "<div id=clipping>",

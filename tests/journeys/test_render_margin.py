@@ -236,8 +236,7 @@ THREAD_CARD_GEOMETRY = """() => {
     .getBoundingClientRect();
   return {
     mainLeft: main.left, mainRight: main.right,
-    wordsRight: main.right - parseFloat(getComputedStyle(document.querySelector('main'))
-      .paddingRight),
+    wordsRight: document.querySelector('main h1').getBoundingClientRect().right,
     controlsLeft: controls.left, controlsRight: controls.right,
     controlsTop: controls.top,
     controlsBottom: controls.bottom,

@@ -221,8 +221,8 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
         "A passage",
         '<p id="passage">A passage to discuss.</p>',
         head=(
-            "<style>main { width: min(var(--wide), var(--lf-room)); "
-            "max-width: var(--wide); }</style>"
+            "<style>main { box-sizing: border-box; width: 100%; "
+            "max-width: var(--wide); margin-inline: auto; }</style>"
             if wide
             else ""
         ),

@@ -1557,15 +1557,18 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
     assert at["wrapped"] == at["wrapper"], at
-    # An obligation that spans its block is a breakout the theme grows, so the gate reads it
-    # as one, even where it reaches further than a table of two columns does; a box the
-    # page pulls out of the column by its margins, an inline one, or one it grows round
-    # its block by margins and padding of its own, still stands in the margin. A fixed
-    # box across the column's edges answers for itself, as it hangs off the window.
+    # Native grid owns the full page width: negative margins can leave the prose
+    # track without leaving the page. Only the padded box exceeds that actual room.
+    boxes = column.evaluate("""() => Object.fromEntries(
+      ['main', '#pulled', '#spilled'].map(selector => {
+        const box = document.querySelector(selector).getBoundingClientRect();
+        return [selector, {left: box.left, right: box.right}];
+      }))""")
+    for selector in ("#pulled", "#spilled"):
+        assert boxes[selector]["left"] >= boxes["main"]["left"], boxes
+        assert boxes[selector]["right"] <= boxes["main"]["right"], boxes
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
-        ("past-column", "<div id=pulled>"),
-        ("past-column", "<span id=spilled>"),
         ("past-column", "<div id=padded>"),
         ("clipped-out", "<div id=padded>"),
     ], misplaced
@@ -2322,21 +2325,13 @@ def test_a_drawing_the_room_can_hold_is_shown_whole(browser, serve):
     premise: the graph is wider than the column and narrower than the room."""
     url = serve(DRAWN_PAST_A_RAIL_PAGE)
     page = open_page(browser, url)
-    # The shell owns --lf-room in CSS, so its computed value is the unresolved
-    # expression and only a probe answers in the width a wide exhibit would receive.
     fit = page.evaluate("""() => {
         const el = document.getElementById('flow');
         const m = document.querySelector('main');
-        const s = getComputedStyle(m), b = m.getBoundingClientRect();
-        const probe = document.createElement('i');
-        probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;'
-          + 'border:0;width:var(--lf-room)';
-        el.append(probe);
-        const room = probe.getBoundingClientRect().width;
-        probe.remove();
+        const s = getComputedStyle(m);
+        const room = m.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
         return { shows: el.clientWidth, drawn: el.scrollWidth, room,
-                 column: b.width - parseFloat(s.paddingLeft)
-                         - parseFloat(s.paddingRight) };
+                 column: m.querySelector('h1').getBoundingClientRect().width };
     }""")
     assert fit["column"] < fit["drawn"] <= fit["room"], (
         f"the premise is gone — the graph must need growing and fit the room, or "
@@ -2833,7 +2828,9 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve):
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_note_hangs_in_the_margin_where_the_room_holds_it(browser, serve, direction):
     """Notes wrap after their passage without shifting centered prose."""
-    source = NOTE_AND_WIDE_PAGE.replace("<html", f'<html dir="{direction}"', 1)
+    source = NOTE_AND_WIDE_PAGE.replace(" layout-notes", "", 1).replace(
+        "<html", f'<html dir="{direction}"', 1
+    )
     page = open_page(browser, serve(source))
     for width, beside in ((1100, False), (1190, False), (1600, True)):
         resized(page, width, 900)

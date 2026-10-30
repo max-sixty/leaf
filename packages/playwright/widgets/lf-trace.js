@@ -1942,7 +1942,7 @@ customElements.define(
               >Open in Playwright</a
             >
           </div>
-          <div class="lf-trace-bookmark-list" ?hidden=${!this.#moments.length}>
+          <div class="lf-trace-bookmark-list lf-rows" ?hidden=${!this.#moments.length}>
             ${repeat(
               this.#moments,
               (moment) => moment.index,
@@ -1958,9 +1958,10 @@ customElements.define(
                   aria-current=${this.#momentSelected(moment) ? "true" : nothing}
                   @click=${() => this.#visitMoment(moment.target, moment.index)}
                 >
-                  <span class="lf-trace-moment-number">${moment.number}</span
-                  ><span class="lf-trace-moment-label">${moment.label}</span
-                  ><span class="lf-trace-moment-time">${time}</span>
+                  <span class="lf-row-lead"
+                    ><span class="lf-trace-moment-number">${moment.number}</span></span
+                  ><span class="lf-trace-moment-label lf-row-main">${moment.label}</span
+                  ><span class="lf-trace-moment-time lf-row-end">${time}</span>
                 </button>`;
               },
             )}

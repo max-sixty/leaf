@@ -127,10 +127,11 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["F", "E", "W", "I", "UP"]
+select = ["F", "E", "W", "I", "UP", "B"]
 # The formatter owns line wrapping; existing module setup and callable expressions
 # may put imports after setup or use a lambda as a value.
-ignore = ["E402", "E501", "E731"]
+# Review zip length semantics separately before enabling B905.
+ignore = ["E402", "E501", "E731", "B905"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["leaf", "leaf_dev", "leaf_website"]

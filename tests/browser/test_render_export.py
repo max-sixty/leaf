@@ -47,8 +47,9 @@ from journeys.test_render_export import (  # noqa: F401 (fixtures)
 )
 
 
+@pytest.mark.parametrize("draft", [False, True], ids=["stamped", "draft"])
 def test_interactive_export_with_an_obligation_reaches_application_presentation(
-    browser, serve, tmp_path
+    browser, serve, tmp_path, draft
 ):
     """Offline mode omits page controls without leaving their ticket pending."""
     serve(ROOT / "examples" / "notification-playground.html")
@@ -61,6 +62,7 @@ def test_interactive_export_with_an_obligation_reaches_application_presentation(
             str(serve.page_dir),
             "--out",
             str(interactive),
+            *(["--draft"] if draft else []),
         ],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )

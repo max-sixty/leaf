@@ -7,16 +7,20 @@ Leaf updates and resuming a page.
 ## Exported files
 
 When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the main
-skill's "Publish and review" section), since
-only a stamped version exports, then
-run:
+skill's "Publish and review" section), then run:
 
 ```bash
 leaf page export <page> -o <file>
 ```
 
+By default export writes the latest stamped version; `--version N` selects an older
+stamp. The result names its `version` and captured `revision`. To inspect work in
+progress without adding a checkpoint, use `leaf page export <page> --draft -o <file>`;
+it checks and captures current source and reports `version: null`. `--draft` and
+`--version` cannot be combined.
+
 Hand back the `file://` URL; don't start a server or wait. The file opens offline with
-the stamped content and recorded decisions. Reading controls and the page's own code
+the selected content and recorded decisions. Reading controls and the page's own code
 work, but recording new Leaf choices or updates, Undo and threads require the served
 page and its server; an active agent is not required to record a choice. A page with a
 live sample can't be exported. Write the file where the project keeps files for the

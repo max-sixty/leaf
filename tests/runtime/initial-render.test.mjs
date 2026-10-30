@@ -388,3 +388,66 @@ test("off Leaf, a producer gets both role constructors in prepaint's shapes", ()
     root.lfInitial = leaf;
   }
 });
+
+test("initial input values use declarations and leave accepted source values immutable", async () => {
+  const { acceptData } = await import("/runtime/data.js");
+  const initial = document.documentElement.lfInitial;
+  adoptRegistry({
+    "lf-input-initial": {
+      "x-data": {
+        document: { source: "data-feed", contract: "document", property: "value" },
+        derived: { widget: "producer", output: "document", property: "derived" },
+      },
+    },
+  });
+  acceptData(
+    {
+      version: "initial-input",
+      sources: { notes: { contract: "document", value: { text: "Original" } } },
+    },
+    1,
+  );
+  const host = document.createElement("lf-input-initial");
+  host.setAttribute("data-feed", "notes");
+  let reading;
+  initial.register("lf-input-initial", (node, tools) => {
+    reading = tools.inputValue("document");
+    assert.equal(tools.inputValue("derived"), null);
+    reading.text = "Local";
+    return null;
+  });
+  initial.paint(host);
+  assert.deepEqual(reading, { text: "Local" });
+  assert.deepEqual(initial.source("notes").value, { text: "Original" });
+  assert.equal(initial.initialData(), null);
+});
+
+test("initial and live inputs both refuse a source with another contract", async (t) => {
+  const { acceptData, dataReader } = await import("/runtime/data.js");
+  t.mock.method(globalThis, "fetch", async () => Response.json({ ok: true }));
+  const initial = document.documentElement.lfInitial;
+  adoptRegistry({
+    "lf-mismatch-initial": {
+      "x-data": {
+        document: { source: "source", contract: "patch", property: "value" },
+      },
+    },
+  });
+  acceptData(
+    {
+      version: "mismatch",
+      sources: { patch: { contract: "text", value: "same bytes, wrong meaning" } },
+    },
+    2,
+  );
+  const host = document.createElement("lf-mismatch-initial");
+  host.setAttribute("source", "patch");
+  let early = "not read";
+  initial.register("lf-mismatch-initial", (node, tools) => {
+    early = tools.inputValue("document");
+    return null;
+  });
+  initial.paint(host);
+  assert.equal(early, null);
+  assert.equal(dataReader(host, "document", () => {})(), null);
+});

@@ -405,7 +405,7 @@ export function createFloatingPanel({
     // the seat moving with it moves nothing the user didn't ask to move.
     const closeAbove = expanded && exit?.press === close && viewControls !== nothing;
     const quickHidden =
-      initial || closeAbove || (search ? !exit : drafted && !seatHeld);
+      initial || closeAbove || (search ? !exit : (writing || drafted) && !seatHeld);
     const notice = initial || search ? null : olderVersion();
     const peek = initial ? null : peekPresentation();
     const mode = search
@@ -819,6 +819,11 @@ export function createFloatingPanel({
     paint();
     focusDestination(shownView(), "return");
   }
+  // While the user writes, the field runs to the row's end, the mark and the row's
+  // notice stepped aside, from the moment they open it: Dictate, then Send, stand in
+  // the one corner, and the first key moves nothing. The user chose this on 29
+  // October over the field widening at the first key, which moved its end and the
+  // action under it by the mark's width as typing began.
   let writing = false;
   // Whether the field holds a draft, as the row last showed it: Send in the field's
   // corner, the mark stepped aside. The row takes that posture, or gives it up, only
@@ -829,8 +834,7 @@ export function createFloatingPanel({
   // each time the user stepped out and again as they came back. Words a refused send
   // hands back move nothing, so its action stays in the seat the empty field gave it,
   // Dictate's, until the user types again; emptying the field always ends it. A draft is
-  // anything typed, a line break included: a new line grows the field as words do, so
-  // the field takes its room from the first key (20 October).
+  // anything typed, a line break included.
   let drafted = false;
   let seatHeld = false;
   let postureMoved = true;
@@ -1709,7 +1713,10 @@ export function createFloatingPanel({
   }
   stage.addEventListener("click", (event) => pressAt(event.target), { capture: true });
   stage.addEventListener("click", judgePress);
-  const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+  const inRewrite = (node) =>
+    Boolean(
+      node && closestAcross(node, ".lf-msg:has(> .lf-msg-body > .lf-msg-editor)"),
+    );
   // A modal over the panel, such as the image viewer opened from a rewrite's attachment,
   // is a layer the user steps into from the panel, which hands them back as it closes:
   // standing in it leaves them rewriting, so the view keeps the height it holds for the
@@ -2065,8 +2072,8 @@ export function createFloatingPanel({
       ?data-opens=${opens}
       @click=${press}
     >
-      <span class="lf-fp-label">${label}</span
-      ><span class="lf-fp-end"
+      <span class="lf-fp-label lf-row-main">${label}</span
+      ><span class="lf-fp-end lf-row-end"
         >${end}${opens ? iconTemplate("next", "lf-fp-chevron") : nothing}</span
       >
     </button>`;
@@ -2298,7 +2305,7 @@ export function createFloatingPanel({
             </div>`
           : nothing
       }
-      <div class="lf-fp-versions" role="none">
+      <div class="lf-fp-versions lf-rows" role="none">
         ${repeat(
           versions,
           (entry) =>
@@ -2560,7 +2567,7 @@ export function createFloatingPanel({
     return html`<h3 class="lf-label lf-fp-on-group lf-fp-settled-group">
       <button
         type="button"
-        class="lf-fp-face lf-fp-settled lf-disclosure-marker"
+        ${offeredAction("row", "lf-fp-face lf-fp-settled lf-disclosure-marker")}
         aria-expanded=${open ? "true" : "false"}
         @click=${() => {
           if (open) unfolded.delete(key);
@@ -2569,8 +2576,8 @@ export function createFloatingPanel({
           paint();
         }}
       >
-        <span class="lf-fp-label">${title}</span
-        ><span class="lf-fp-count">${count}</span>
+        <span class="lf-fp-label lf-row-main">${title}</span
+        ><span class="lf-fp-count lf-row-end">${count}</span>
       </button>
     </h3>`;
   }
@@ -2592,14 +2599,16 @@ export function createFloatingPanel({
         ?data-yours=${threadAttention(thread, agentName())?.kind === "needs_user"}
         @click=${() => open({ view: "thread", thread: thread.key })}
       >
-        <span class="lf-fp-news-mark lf-unread-dot"
-          >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
+        <span class="lf-row-lead"
+          ><span class="lf-fp-news-mark lf-unread-dot"
+            >${isNews(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
+          ></span
         >
-        <span class="lf-fp-label">${threadHeading(thread)}</span>
-        <span class="lf-fp-value">${threadStatus(thread)}</span>
+        <span class="lf-fp-label lf-row-main">${threadHeading(thread)}</span>
+        <span class="lf-row-end">${threadStatus(thread)}</span>
       </button>`;
     const rowsOf = (threads) => repeat(threads, (thread) => thread.key, row);
-    return html`<div class="lf-fp-list">
+    return html`<div class="lf-fp-list lf-rows">
       ${
         listed.length
           ? rowsOf(listed)
@@ -3467,8 +3476,8 @@ export function createFloatingPanel({
         ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
         @click=${() => toggleItem(key)}
       >
-        <span class="lf-fp-value lf-fp-on-noun">${kind}</span
-        ><span class="lf-fp-on-says"
+        <span class="lf-fp-value lf-fp-on-noun lf-row-lead">${kind}</span
+        ><span class="lf-fp-on-says lf-row-main"
           ><span class="lf-fp-label">${name}</span>${end}</span
         >
       </button>
@@ -3514,7 +3523,7 @@ export function createFloatingPanel({
       for (const item of group.items)
         rows.push({ key: queueItemKey(item), item, group });
     }
-    return html`<div class="lf-fp-on-list">
+    return html`<div class="lf-fp-on-list lf-rows">
       ${repeat(
         rows,
         (row) => row.key,
@@ -4143,7 +4152,6 @@ export function createFloatingPanel({
     if (exit) seatHeld = true;
     postureMoved = false;
     keeps(host, "data-drafted", drafted ? "" : null);
-    keeps(host, "data-words", words ? "" : null);
     if (!words) expanded = false;
     markRoom();
     keeps(host, "data-expanded", expanded ? "" : null);

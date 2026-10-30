@@ -1617,7 +1617,9 @@ def is_problem(problem, expected):
         if name in {"node", "field", "place"} and isinstance(value, list):
             if not isinstance(actual, list) or len(actual) != len(value):
                 return False
-            if not all(place_step_matches(a, e) for a, e in zip(actual, value)):
+            if not all(
+                place_step_matches(a, e) for a, e in zip(actual, value, strict=True)
+            ):
                 return False
         elif actual != value:
             return False

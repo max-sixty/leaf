@@ -432,7 +432,7 @@ def pytest_collection_modifyitems(config, items):
     if since := config.getoption("--changed-since"):
         changed = _base_sources(config.rootpath, since)
     kept, skipped = [], []
-    for item, tiered in zip(items, tiers):
+    for item, tiered in zip(items, tiers, strict=True):
         runs = not item.get_closest_marker("network") and (
             tiered is None or tiered in reached or _touches(item, changed)
         )

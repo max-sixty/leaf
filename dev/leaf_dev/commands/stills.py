@@ -3100,7 +3100,7 @@ def style_changes(
     each group's first element."""
     groups: dict[tuple[str, str, str], list[str]] = {}
     for key in base.keys() & head.keys():
-        for name, before, after in zip(STYLED, base[key], head[key]):
+        for name, before, after in zip(STYLED, base[key], head[key], strict=True):
             if before != after:
                 groups.setdefault((name, before, after), []).append(key)
     alone = {

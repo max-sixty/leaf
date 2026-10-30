@@ -1342,7 +1342,10 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
 
     def find(node):
         attrs = node.get("attributes", [])
-        if dict(zip(attrs[::2], attrs[1::2])).get("id") == "draft-face-editor":
+        if (
+            dict(zip(attrs[::2], attrs[1::2], strict=True)).get("id")
+            == "draft-face-editor"
+        ):
             return node
         for child in node.get("children", []) + node.get("shadowRoots", []):
             if found := find(child):

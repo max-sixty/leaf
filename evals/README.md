@@ -65,6 +65,8 @@ The judge explores disposable live copies of the final page and, where applicabl
 the page before the user's decision, at the declared window sizes. It chooses which controls, disclosures and scroll routes to inspect,
 and reads screenshots it takes. The harness serves disposable page copies and
 supplies the existing browser CLI; the judge opens and operates its own browser.
+User and judge browsers grant clipboard access, so a page's Copy route can complete
+in the headless shell as it does in the host browser.
 The native agent stream and its screenshots retain the evidence. Report
 screenshots show arrival only. Unvisited required content remains
 insufficient evidence, while supported defects still fail when other parts remain

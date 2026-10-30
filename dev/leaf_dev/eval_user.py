@@ -42,6 +42,10 @@ from leaf_dev.arms import (
 from leaf_dev.browser import headless_shell, load, settle, tab
 from leaf_dev.eval_cases import definition
 
+# A decision can leave the page through Copy. User and judge browsers accept that
+# permission alike; the headless shell otherwise refuses a normal clicked write.
+CLIPBOARD_PERMISSIONS = ["clipboard-read", "clipboard-write"]
+
 # Elements a reader clicks to open what a list or a disclosure holds.
 OPENERS = (
     "a, button, summary, label, li, tr, [role=button], [role=tab], [role=option], "
@@ -277,7 +281,7 @@ def decide(url: str, task: str, evidence: Path, *, viewport: tuple[int, int]) ->
         scratch() as cwd,
         tempfile.TemporaryDirectory(prefix="leaf-pw-", dir="/tmp") as sockets,
     ):
-        view.context.grant_permissions(["clipboard-read", "clipboard-write"])
+        view.context.grant_permissions(CLIPBOARD_PERMISSIONS)
         view.context.add_init_script(COPY_SPY)
         view.goto(url, wait_until="load")
         session = f"leaf-user-{cwd.parent.name}"

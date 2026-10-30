@@ -65,7 +65,13 @@ from leaf_dev.eval_cases import (
     definition,
     selected_viewports,
 )
-from leaf_dev.eval_user import COMMAND_LIMIT, cli, comment_on_passage, decide
+from leaf_dev.eval_user import (
+    CLIPBOARD_PERMISSIONS,
+    COMMAND_LIMIT,
+    cli,
+    comment_on_passage,
+    decide,
+)
 from leaf_dev.leaf_assets import pinned_copy
 
 TASKS = ROOT / "evals"
@@ -615,7 +621,8 @@ def judge_pages(
                                 # The judge's inherited sandbox already covers Chromium;
                                 # macOS refuses Chromium's nested sandbox initialization.
                                 "chromiumSandbox": False,
-                            }
+                            },
+                            "contextOptions": {"permissions": CLIPBOARD_PERMISSIONS},
                         }
                     }
                 )

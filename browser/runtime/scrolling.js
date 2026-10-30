@@ -30,6 +30,7 @@
 
 import { nextFrame, sizeObserver } from "./rendering.js";
 import { setScroll, watchOwner } from "./arrivals.js";
+import { skipped } from "./shown-box.js";
 
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI
@@ -56,7 +57,9 @@ function watchLayout(box) {
   extents.set(box, extentOf(box));
   const root = box === pageScroller ? document.documentElement : box;
   const sizes = new WeakMap();
-  const measure = (node) => [node.clientWidth, node.clientHeight, node.scrollHeight];
+  // Observe skipped children too, so revealing them supplies their first reading.
+  const measure = (node) =>
+    skipped(node) ? null : [node.clientWidth, node.clientHeight, node.scrollHeight];
   const observer = sizeObserver(
     (entries) => {
       let changed = false;
@@ -64,7 +67,8 @@ function watchLayout(box) {
         const next = measure(target);
         const before = sizes.get(target);
         sizes.set(target, next);
-        if (before?.some((value, index) => value !== next[index])) changed = true;
+        if (next && (!before || before.some((value, index) => value !== next[index])))
+          changed = true;
       }
       if (changed) {
         if (ended.has(box) && box.scrollTop !== ended.get(box)) layoutMoved.add(box);
@@ -161,6 +165,7 @@ document.addEventListener(
   "scroll",
   ({ target }) => {
     const box = eventScroller(target);
+    if (skipped(box)) return;
     watchLayout(box);
     scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
     if (moving.get(box)?.glide) return;
@@ -186,6 +191,12 @@ document.addEventListener(
   "scrollend",
   ({ target }) => {
     const box = eventScroller(target);
+    if (skipped(box)) {
+      moving.delete(box);
+      scrollSteps.delete(box);
+      layoutMoved.delete(box);
+      return;
+    }
     watchLayout(box);
     const wasMoving = moving.get(box);
     moving.delete(box);

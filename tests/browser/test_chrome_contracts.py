@@ -31,6 +31,7 @@ from render_harness import (
     panel_field,
     panel_settled,
     panel_view,
+    primed,
     resized,
     round_trip,
     select,
@@ -658,11 +659,20 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
         " ![blocked *image*](javascript&#58;window.leaked=true)"
         " beside [the page](https://example.com/?a=1&amp;b=2)"
         " and <https://example.com/?a=1&amp;b=2>"
-        ' and ![Q&amp;A *chart* with [details](https://example.com/)](/icon.svg "Sales &amp; revenue")'
+        ' and ![Q&amp;A *chart* with [details](https://example.com/)](/chart.png "Sales &amp; revenue")'
         f" and ![A **media** chart]({media})",
         {"section": "p0"},
     )
-    page = open_page(browser, url)
+    prepared = primed(
+        browser,
+        lambda page: page.route(
+            "**/chart.png",
+            lambda route: route.fulfill(
+                content_type="image/png", body=pixels.getvalue()
+            ),
+        ),
+    )
+    page = open_page(prepared, url)
     view = open_panel_thread(page, root)
 
     prose = view.locator(".lf-msg-text").first

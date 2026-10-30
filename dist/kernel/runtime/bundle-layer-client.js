@@ -1525,8 +1525,8 @@ function nameAction(control, action, { label, title, className } = {}) {
 	showAction(control, action, className);
 }
 const namedAction = elementDirective("namedAction", nameAction);
-const selectableOfferElement = (node, role, cls) => document.documentElement.lfInitial.selectableOfferElement(node, role, cls);
-const selectableOffer = (role, cls, label) => document.documentElement.lfInitial.selectableOffer(role, cls, label);
+const selectableOfferElement = (node, role, cls, face) => document.documentElement.lfInitial.selectableOfferElement(node, role, cls, face);
+const selectableOffer = (role, cls, label, face) => document.documentElement.lfInitial.selectableOffer(role, cls, label, face);
 const selectableOffered = elementDirective("selectableOffered", selectableOfferElement);
 const PRESSABLE = "[data-lf-offer]:not([data-lf-offer=\"\"])";
 function reachedForWords(el) {

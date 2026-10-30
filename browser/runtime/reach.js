@@ -102,7 +102,7 @@ function returnStop(el, authored) {
 // the side never is. The page itself is the down direction and the window's own bar
 // answers for it.
 //
-// The marks are paint (theme.css, [data-lf-more-before/after]). Writing them from a
+// The marks are paint (base.css, [data-lf-more-before/after]). Writing them from a
 // resize observation moves nothing and cannot feed itself. Among declared surfaces,
 // computed `overflow-x` decides which can scroll sideways. `overflow-x: visible`
 // computes to `auto` beside vertical scrolling, but the mark still requires measured

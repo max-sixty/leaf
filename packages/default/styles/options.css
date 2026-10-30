@@ -62,7 +62,7 @@ lf-options {
   container-type: inline-size;
 }
 /* Options are read as lines of text, so the group keeps the reading measure as its
- * words do (theme.css), its outer width the measure whatever one option holds. */
+ * words do (base.css), its outer width the measure whatever one option holds. */
 @media screen {
   lf-options {
     box-sizing: border-box;
@@ -109,7 +109,7 @@ lf-options:has(> lf-option > strong) > .lf-another {
     border: 1px solid transparent;
   }
 }
-/* A title heads its card, or, at working density (`--lf-density`, theme.css) in a card
+/* A title heads its card, or, at working density (`--lf-density`, base.css) in a card
  * at least 30rem wide, runs into its consequence on one row with the chips at its end.
  * A narrower card keeps the heading, since a row there broke the title around the
  * floated chips. The card is the container, so both conditions read the same box. */
@@ -139,42 +139,8 @@ lf-options:has(> lf-option > strong) > .lf-another {
     }
   }
 }
-/* A chip is the author's markup (`small.tag`, as lf-option's instructions ask) in the
- * shared chip face, which the card states for itself so it keeps it on a page that
- * takes no theme; at a class's weight, as the reading theme's `.tag` is, so the two
- * agree wherever both apply. The band adds the margins that space and wrap a row. */
-:where(lf-option) > .tag {
-  display: inline-block;
-  font-size: var(--t-6);
-  line-height: var(--chip-lh);
-  padding: var(--chip-pad);
-  box-sizing: border-box;
-  max-width: 100%;
-  overflow-wrap: break-word;
-  border-radius: var(--chip-r);
-  background: var(--chip);
-  color: var(--ink-2);
-  font-family: var(--sans);
-  font-variant-numeric: tabular-nums;
-  vertical-align: middle;
-  align-self: center;
-}
-:where(lf-option) > .tag.ok {
-  --lf-tone-tint: var(--ok-tint);
-  --lf-tone-ink: var(--ok-ink);
-}
-:where(lf-option) > .tag.warn {
-  --lf-tone-tint: var(--warn-tint);
-  --lf-tone-ink: var(--warn-ink);
-}
-:where(lf-option) > .tag.danger {
-  --lf-tone-tint: var(--danger-tint);
-  --lf-tone-ink: var(--danger-ink);
-}
-:where(lf-option) > .tag:is(.ok, .warn, .danger) {
-  background: var(--lf-tone-tint);
-  color: var(--lf-tone-ink);
-}
+/* An option's chips wear the package's chip face (chip.css). The band adds the margins
+ * that space and wrap a row. */
 lf-option > .tag {
   margin: 0 6px 2px 0;
 }
@@ -520,7 +486,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     & > lf-options-done {
       min-height: var(--lf-done-cell-height);
     }
-    /* The joined group draws a frame (--lf-block-frame, theme.css), and says its cells
+    /* The joined group draws a frame (--lf-block-frame, base.css), and says its cells
      * are joined for the rules that dress an option standing alone. */
     --lf-block-frame: 1;
     --lf-joined: 1;
@@ -529,7 +495,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     & > :not(lf-option) {
       grid-column: 1 / -1;
     }
-    /* The group clips to its frame, so a control's ring is drawn inset (theme.css,
+    /* The group clips to its frame, so a control's ring is drawn inset (base.css,
      * --focus-ring) or the clip cuts it. */
     & .lf-btn[data-lf-focus-visible] {
       outline-offset: calc(-1 * var(--focus-ring-w));

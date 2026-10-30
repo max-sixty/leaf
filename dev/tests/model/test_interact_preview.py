@@ -57,7 +57,7 @@ def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_pat
 
     personal = tmp_path / "personal"
     personal.mkdir()
-    (personal / "theme.css").write_text(":root { --accent: #814b07; }")
+    (personal / "overrides.css").write_text(":root { --accent: #814b07; }")
     cmd_package_install(personal)
     config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
     config.parent.mkdir(parents=True)
@@ -213,7 +213,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     layer_2 = layer_record(page)
     assert layer_2 is not None
     assert (
-        stylesheet(package / "theme.css", package).rstrip()
+        stylesheet(package / "overrides.css", package).rstrip()
         in selected(layer_2, page).top_files["theme.css"].decode()
     )
     watched = preview.watch_paths(source, ROOT, [])
@@ -873,6 +873,7 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
     """Dropping a reused server's real handshake withdraws no existing service."""
     page = codex_claimed_page
     before = server.running_server(page)
+    assert before is not None
     caller, child = socket.socketpair()
     task = spawn(
         [
@@ -940,7 +941,8 @@ def test_failed_delivery_preserves_the_existing_preview(
         assert page_claim(page_dir) == claim
         assert not original.ended
         assert json.loads((page_dir / "service.json").read_text()) == published
-        assert running_server(page_dir)["url"] == url
+        assert (current := running_server(page_dir)) is not None
+        assert current["url"] == url
         assert fetch(url)[0] == 200
     finally:
         cmd_stop(page_dir)

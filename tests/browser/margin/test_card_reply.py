@@ -155,13 +155,29 @@ def test_floating_thread_pages_on_to_its_page(browser, serve, long):
         if not card.evaluate("card => card.getBoundingClientRect().bottom > 0"):
             break
         page.keyboard.press("d")
+        # The card follows document scrolling during rendering. Read its delivered
+        # position before deciding whether another press is needed.
+        rendered(page)
     expect(card.locator(".lf-page-thread")).to_be_focused()
-    assert not card.evaluate("card => card.getBoundingClientRect().bottom > 0")
+    assert not card.evaluate("card => card.getBoundingClientRect().bottom > 0"), {
+        "scroll": page.evaluate("scrollY"),
+        "card": card.evaluate("card => card.getBoundingClientRect().toJSON()"),
+    }
     for key in ("d", "u"):
         page_at = page.evaluate("scrollY")
         page.keyboard.press(key)
         moved = page.evaluate("scrollY") - page_at
-        assert moved > 20 if key == "d" else moved < -20
+        assert moved > 20 if key == "d" else moved < -20, {
+            "key": key,
+            "before": page_at,
+            "moved": moved,
+            "geometry": card.evaluate("""card => ({
+                scroll: scrollY,
+                limit: document.scrollingElement.scrollHeight - innerHeight,
+                card: card.getBoundingClientRect().toJSON(),
+                transcript: card.querySelector('.lf-thread-transcript').scrollTop,
+            })"""),
+        }
 
 
 @pytest.mark.parametrize("height", [900, 250])
@@ -825,6 +841,10 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(browser, serve
     preview = page.locator(".lf-margin-preview")
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
     expect(reply).to_be_visible()
+    # Playwright reveals its target before hover and click. Measure after that
+    # setup scroll, so the comparison isolates entering the field.
+    reply.scroll_into_view_if_needed()
+    rendered(page)
     resting_box = reply.bounding_box()
     field = preview.locator(".lf-thread-reply .lf-compose-field")
     resting_field_box = field.bounding_box()
@@ -848,6 +868,7 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(browser, serve
     )
 
     reply.hover()
+    assert reply.bounding_box() == pytest.approx(resting_box, abs=0.5)
     expect(field).to_have_css("background-color", resting_face[0])
     reply.click()
     expect(reply).to_be_focused()
@@ -1174,14 +1195,14 @@ def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, se
         },
     )
     told(page)
-    expect(preview.locator(".lf-thread-notice-news")).to_have_text("1 new reply")
+    expect(preview.locator(".lf-thread-news")).to_have_text("1 new reply")
     expect(preview).not_to_contain_text(
         "An agent answer arriving while the user types."
     )
     rendered(page)
     expect(editor).to_be_focused()
     assert preview.evaluate(DRAFTING_CARD) == before
-    preview.locator(".lf-thread-notice-news").click()
+    preview.locator(".lf-thread-news").click()
     expect(preview).to_contain_text("An agent answer arriving while the user types.")
     rendered(page)
     assert preview.evaluate(DRAFTING_CARD) == before
@@ -1339,7 +1360,7 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     )
     told(page)
     if accepted["side"] == "above":
-        notice = preview.locator(".lf-thread-notice-news")
+        notice = preview.locator(".lf-thread-news")
         expect(notice).to_have_text("1 new reply")
         finish(accepted, "top", "foot", "editorTop", "editorFoot")
         begin()
@@ -1527,7 +1548,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     )
     stream_reply(serve.page_dir, root, waiting)
     told(page)
-    expect(card.locator(".lf-thread-notice-news")).to_have_text("1 new reply")
+    expect(card.locator(".lf-thread-news")).to_have_text("1 new reply")
     expect(streamed).to_have_text("The answer has started.")
     expect(card.locator("leaf-text")).to_be_focused()
     rendered(page)
@@ -1547,7 +1568,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     expect(sent).to_be_visible()
     expect(sent).to_have_attribute("aria-busy", "true")
     expect(streamed).to_have_text(waiting.strip())
-    expect(card.locator(".lf-thread-notice-news")).to_have_count(0)
+    expect(card.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
     assert positions()["reply"] == pytest.approx(before_send["reply"], abs=0.5)
     if not pending:
@@ -1566,7 +1587,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
         told(page)
         expect(streamed).to_have_text(text.strip())
         rendered(page)
-        expect(card.locator(".lf-thread-notice-news")).to_have_count(0)
+        expect(card.locator(".lf-thread-news")).to_have_count(0)
 
     def append_tokens(repetitions):
         before = positions()

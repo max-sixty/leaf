@@ -127,7 +127,7 @@ export const inUi = (node) =>
 // during upgrade so the stage below stays synchronous for its callers.
 export let shadowRules = "";
 // Every legitimate page shadow tree is built here, so repeat the theme's leading layer
-// inside it: `hidden` hiding whatever display a rule states (theme.css), the
+// inside it: `hidden` hiding whatever display a rule states (base.css), the
 // generated-interface boundary, and transition suppression. The shadow's ordinary contents paint
 // immediately and its generated interface paints after upgrade, on the same boundaries
 // as authored and generated light DOM. A selector in the tree cannot see body's stamps,

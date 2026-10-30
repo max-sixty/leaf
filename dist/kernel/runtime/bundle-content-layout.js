@@ -749,7 +749,7 @@ function watchLayout(box) {
 	extents.set(box, extentOf(box));
 	const root = box === pageScroller ? document.documentElement : box;
 	const sizes = /* @__PURE__ */ new WeakMap();
-	const measure = (node) => [
+	const measure = (node) => skipped(node) ? null : [
 		node.clientWidth,
 		node.clientHeight,
 		node.scrollHeight
@@ -760,7 +760,7 @@ function watchLayout(box) {
 			const next = measure(target);
 			const before = sizes.get(target);
 			sizes.set(target, next);
-			if (before?.some((value, index) => value !== next[index])) changed = true;
+			if (next && (!before || before.some((value, index) => value !== next[index]))) changed = true;
 		}
 		if (changed) {
 			if (ended.has(box) && box.scrollTop !== ended.get(box)) layoutMoved.add(box);
@@ -823,6 +823,7 @@ document.addEventListener("beforematch", () => {
 const eventScroller = (target) => target === document ? pageScroller : target;
 document.addEventListener("scroll", ({ target }) => {
 	const box = eventScroller(target);
+	if (skipped(box)) return;
 	watchLayout(box);
 	scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
 	if (moving.get(box)?.glide) return;
@@ -840,6 +841,12 @@ function placeKept(...boxes) {
 }
 document.addEventListener("scrollend", ({ target }) => {
 	const box = eventScroller(target);
+	if (skipped(box)) {
+		moving.delete(box);
+		scrollSteps.delete(box);
+		layoutMoved.delete(box);
+		return;
+	}
 	watchLayout(box);
 	const wasMoving = moving.get(box);
 	moving.delete(box);
@@ -1394,7 +1401,7 @@ const asRegion = (regionOrNode) => typeof regionOrNode === "string" ? regions.ge
 const scrolls = (box) => userScrollport(getComputedStyle(box).overflowY);
 const regionScrollBehavior = (regionOrNode) => {
 	const region = asRegion(regionOrNode);
-	return region && live(region) && scrolls(region.body) ? "bounded" : "flow";
+	return region && live(region) && !concealed(region) && !skipped(region.body) && scrolls(region.body) ? "bounded" : "flow";
 };
 function effectiveScroller(regionOrNode) {
 	const region = asRegion(regionOrNode);
@@ -1545,7 +1552,7 @@ function holdBlock(bounded) {
 	};
 	let stopRegion = null;
 	const onScroll = () => {
-		if (bounded.hasAttribute("hidden")) return;
+		if (bounded.hasAttribute("hidden") || skipped(bounded)) return;
 		hold.left = !atScrollEnd(hold.box);
 		if (!hold.left) hold.pinned = hold.box.scrollTop;
 	};

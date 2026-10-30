@@ -117,7 +117,7 @@ export function standInChrome(control, block, levels) {
 /** The reading `aimControl` writes from: whether `block` renders near the window,
  * kept current while the control stands, and the block's anchor name. A control
  * whose block is away is `hidden`, which hides it whatever display its own rules give
- * it (theme.css). */
+ * it (base.css). */
 export function anchorControl(control, block) {
   const place = () => {
     keepsHidden(control, !anchorView(control, block, place));

@@ -2,7 +2,7 @@
 <!--
   Extending: how to implement widgets, themes and packages that participate in
   Leaf's shared mechanisms. How it works introduces those mechanisms;
-  Pages and interface covers composing and operating a page with them.
+  UI covers composing and operating a page with them.
 -->
 <html lang="en">
   <head>
@@ -63,7 +63,7 @@
         }
       }
       /* "Which rule wins": a band per rule in tier order, the card beside them. Each
-         switch turns on a rule in the tier it names (lf-base, lf-theme, or the page's
+         switch turns on a rule in the tier it names (lf-base, lf-overrides, or the page's
          unlayered sheet), so the card shows what the real cascade picks; the
          highest rule that is on is outlined. */
       .try {
@@ -147,7 +147,7 @@
           --try-says: "Padding 8px, from the widget's package";
         }
       }
-      @layer lf-theme {
+      @layer lf-overrides {
         #styles-try:has(#try-theme:checked) .card {
           --try-pad: 18px;
           --try-tint: var(--ok-tint);
@@ -181,8 +181,8 @@
           This guide covers the interfaces for implementing widgets, themes and
           packages, with a package tutorial and CSS contracts.
           <a href="/how-it-works/">How it works</a> introduces Leaf's core concepts and
-          how they fit together. <a href="/ui/">Pages and interface</a> covers composing
-          and operating a page with existing capabilities.
+          how they fit together. <a href="/ui/">UI</a> covers composing and operating a
+          page with existing capabilities.
         </p>
       </header>
 
@@ -453,7 +453,7 @@ $ leaf package check packages/callout</code></pre>
             <pre id="callout-files">
 packages/callout/
   registry.json
-  widgets.css
+  defaults.css
 </pre>
 
             <p>
@@ -501,7 +501,7 @@ packages/callout/
           <section id="theme">
             <h2>Style the element</h2>
             <p>
-              A package's <code>widgets.css</code> joins Leaf's existing cascade as
+              A package's <code>defaults.css</code> joins Leaf's existing cascade as
               written, so its rules name the elements they style, starting with
               <code>lf-callout</code> itself:
             </p>
@@ -635,8 +635,8 @@ $ leaf page check PAGE --render</code></pre>
               Widget packages style their own elements; theme packages supply
               presentation across the page. Stylesheet roles set where rules reach, and
               the cascade sets which rule wins.
-              <a href="/ui/#styles">Themes in Pages and interface</a> covers selecting a
-              theme and making local page adjustments.
+              <a href="/ui/#styles">Themes in the UI guide</a> covers selecting a theme
+              and making local page adjustments.
             </p>
             <h3 id="styles-try-title">Which rule wins</h3>
             <p id="styles-try-lede">
@@ -696,10 +696,10 @@ $ leaf page check PAGE --render</code></pre>
                 <pre>
 flowchart TD
   accTitle: CSS precedence in the page document
-  accDescr: For normal declarations, unlayered page rules have the highest precedence, then the page's own layers, lf-state, lf-theme, lf-layouts, lf-base and lf-reset. Each arrow points from a higher tier to a lower tier.
+  accDescr: For normal declarations, unlayered page rules have the highest precedence, then the page's own layers, lf-state, lf-overrides, lf-layouts, lf-base and lf-reset. Each arrow points from a higher tier to a lower tier.
   Page["Page rules · unlayered"] --> Layers["Page's own layers"]
   Layers --> State["lf-state · Leaf"]
-  State --> Theme["lf-theme · packages"]
+  State --> Theme["lf-overrides · packages"]
   Theme --> Layout["lf-layouts · Leaf"]
   Layout --> Base["lf-base · Leaf and widgets"]
   Base --> Reset["lf-reset · Leaf"]
@@ -710,9 +710,9 @@ flowchart TD
                 <pre>
 flowchart TD
   accTitle: CSS precedence inside a widget's shadow tree
-  accDescr: For normal declarations, Leaf's marks have the highest precedence, then lf-state, lf-theme, lf-shadow and lf-base. Page rules and Layouts do not enter the shadow tree.
+  accDescr: For normal declarations, Leaf's marks have the highest precedence, then lf-state, lf-overrides, lf-shadow and lf-base. Page rules and Layouts do not enter the shadow tree.
   Marks["Marks · Leaf"] --> State["lf-state · Leaf"]
-  State --> Theme["lf-theme · theme packages"]
+  State --> Theme["lf-overrides · theme packages"]
   Theme --> Shadow["lf-shadow · Leaf and widgets"]
   Shadow --> Base["lf-base · widget defaults"]
 </pre>
@@ -741,8 +741,10 @@ flowchart TD
                 </thead>
                 <tbody>
                   <tr>
-                    <td><code>lf-theme</code></td>
-                    <td>Each package's <code>theme.css</code>, in package order.</td>
+                    <td><code>lf-overrides</code></td>
+                    <td>
+                      Each package's <code>overrides.css</code>, in package order.
+                    </td>
                   </tr>
                   <tr>
                     <td><code>lf-layouts</code></td>
@@ -758,8 +760,8 @@ flowchart TD
                   <tr>
                     <td><code>lf-base</code></td>
                     <td>
-                      In the document: Leaf’s theme, then packages’
-                      <code>widgets.css</code> and <code>widget-shadow.css</code>. In a
+                      In the document: Leaf’s <code>base.css</code>, then packages’
+                      <code>defaults.css</code> and <code>widget-shadow.css</code>. In a
                       shadow tree: defaults the widget adopts with
                       <code>inBaseLayer()</code>.
                     </td>
@@ -828,7 +830,7 @@ flowchart TD
                 </thead>
                 <tbody>
                   <tr>
-                    <td><code>widgets.css</code></td>
+                    <td><code>defaults.css</code></td>
                     <td>The page document, below Leaf's Layouts.</td>
                   </tr>
                   <tr>
@@ -839,7 +841,7 @@ flowchart TD
                     </td>
                   </tr>
                   <tr>
-                    <td><code>theme.css</code></td>
+                    <td><code>overrides.css</code></td>
                     <td>The page document, above Leaf's Layouts.</td>
                   </tr>
                 </tbody>
@@ -1026,8 +1028,7 @@ flowchart TD
       <footer class="site-footer" id="colophon">
         <p id="links">
           <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
-          <a href="/how-it-works/">How it works</a> ·
-          <a href="/ui/">Pages and interface</a> ·
+          <a href="/how-it-works/">How it works</a> · <a href="/ui/">UI</a> ·
           <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>

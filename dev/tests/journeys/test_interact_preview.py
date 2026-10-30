@@ -130,7 +130,8 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         # Allow the real watchdog's orphan window to pass without any HTTP
         # request renewing page files; aged ownership must keep its listener.
         time.sleep(2)
-        assert server.running_server(page)["url"] == url
+        assert (current := server.running_server(page)) is not None
+        assert current["url"] == url
         if retirement != "stop":
             shutil.copytree(
                 page, sibling, ignore=shutil.ignore_patterns("service.json")
@@ -152,7 +153,8 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         assert turn_record["generation"] == before["generation"]
         assert state.held_claims(sid)
         assert leases.lock_is_held(preview.preview_lease(page))
-        assert server.running_server(page)["url"] == url
+        assert (current := server.running_server(page)) is not None
+        assert current["url"] == url
 
         source.write_text(
             source.read_text().replace("Original candidate", "Revised candidate")
@@ -565,7 +567,7 @@ def test_preview_tracks_committed_layer_across_refused_source_edits(
     package = tmp_path / "package"
     package.mkdir()
     (package / "registry.json").write_text("{}")
-    theme = package / "theme.css"
+    theme = package / "overrides.css"
     theme.write_text(":root { --proof: 1; }")
     (tmp_path / "layer.json").write_text(
         json.dumps(["./" + os.path.relpath(package, ROOT)])
@@ -636,7 +638,7 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
     package = tmp_path / "elsewhere/package"
     package.mkdir(parents=True)
     (package / "registry.json").write_text("{}")
-    theme = package / "theme.css"
+    theme = package / "overrides.css"
     theme.write_text(":root { --package-proof: 1; }")
     selection = "./" + os.path.relpath(package, ROOT)
     page = tmp_path / "preview"
@@ -666,7 +668,7 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
             # The page's copy of the package takes the edit.
             assert (
                 "--package-proof: 2"
-                in (page / "packages" / "package" / "theme.css").read_text()
+                in (page / "packages" / "package" / "overrides.css").read_text()
             )
 
     monkeypatch.setattr(
@@ -759,7 +761,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     package = tmp_path / "package"
     package.mkdir()
     (package / "registry.json").write_text("{}")
-    theme = package / "theme.css"
+    theme = package / "overrides.css"
     theme.write_text(":root { --proof: 1; }")
     (tmp_path / "layer.json").write_text(
         json.dumps(["default", "./" + os.path.relpath(package, ROOT)])
@@ -1022,7 +1024,8 @@ def test_fresh_preview_preparation_cannot_remove_a_successor(
             preview.run_preview(source, page, ROOT / "bin/leaf", ROOT, True)
         assert service.page_claim(page) == held["claim"]
         assert (page / "events.jsonl").read_bytes() == held["log"]
-        assert server.running_server(page)["url"] == held["url"]
+        assert (current := server.running_server(page)) is not None
+        assert current["url"] == held["url"]
         assert fetch(held["url"], token=None)[0] == 200
     finally:
         successor.stop()

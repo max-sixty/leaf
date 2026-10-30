@@ -624,3 +624,25 @@ def unreserved_height_advice(page, declarations: dict) -> list[Finding]:
         Finding.read(reading, severity="advice")
         for reading in evaluate_probe(page, "unreservedHeights", declarations)
     ]
+
+
+# One passive reading on the loaded desktop, rather than a wait in every scheme and
+# sweep width. Three seconds reaches the reported 1.5s autoplay tick twice without
+# slowing plain page check or message admission. It promises only this observation.
+PASSIVE_OBSERVATION_MS = 3000
+
+
+def passive_layout_shift_advice(page) -> list[Finding]:
+    """Painted movement while no gate action changes the page, as author advice."""
+    rendered(page)
+    evaluate_probe(page, "startPassiveLayoutShifts")
+    # This is an observation interval, not a readiness wait: let real timers and
+    # Chrome's compositor run, with Playwright still dispatching page events.
+    page.wait_for_timeout(PASSIVE_OBSERVATION_MS)
+    one_frame(page)
+    return [
+        Finding.read(record, severity="advice").but(
+            values={"observed_ms": PASSIVE_OBSERVATION_MS}
+        )
+        for record in evaluate_probe(page, "finishPassiveLayoutShifts")
+    ]

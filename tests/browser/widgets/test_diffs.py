@@ -1423,7 +1423,7 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     )
     # The pane's body is a Tab stop because it scrolls, and it fills its pane, so its
     # band stays inside the pane: the pane draws it inset over the body's cell
-    # (theme.css), where outset on the body the workspace body clipped its right and
+    # (base.css), where outset on the body the workspace body clipped its right and
     # lower runs.
     # The selected row retargets document focus to this host. Leave it first so
     # focusing the host itself publishes a new location and its pane band.

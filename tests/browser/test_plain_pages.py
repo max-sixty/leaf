@@ -71,7 +71,7 @@ OBSTACLES = {
         " so a grid row holding a table is that much taller"
     ),
     "canvas": (
-        "body is a size container (theme.css, container: lf-shell), the shell a Layout"
+        "body is a size container (base.css, container: lf-shell), the shell a Layout"
         " and a widget's 100cqi ask, and containment keeps its background off the"
         " canvas, so a page shorter than the window ends in the browser's canvas below"
         " the body the author coloured"

@@ -1666,13 +1666,14 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 			let step = view.moveVertically(range, forward);
 			const here = view.lineBlockAt(range.head);
 			const at = forward ? here.to + 1 : here.from - 1;
-			if ((step.head < here.from || step.head > here.to) && at >= 0 && at <= doc.length) {
-				const beside = view.lineBlockAt(at);
-				if (beside.height < view.defaultLineHeight) {
-					const column = range.head - doc.lineAt(range.head).from;
-					const head = Math.min(beside.from + column, doc.lineAt(at).to);
-					step = EditorSelection.cursor(head, 0, void 0, step.goalColumn);
-				}
+			const beside = at >= 0 && at <= doc.length ? view.lineBlockAt(at) : null;
+			const passed = (block) => step.head < block.from || step.head > block.to;
+			if (beside && passed(here) && passed(beside)) {
+				const head = view.posAtCoords({
+					x: view.contentDOM.getBoundingClientRect().left + step.goalColumn,
+					y: view.documentTop + beside.top + beside.height / 2
+				}, false);
+				step = EditorSelection.cursor(head, 0, void 0, step.goalColumn);
 			}
 			return extend ? EditorSelection.range(range.anchor, step.head, step.goalColumn) : step;
 		}), selection.mainIndex);

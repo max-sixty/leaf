@@ -682,9 +682,9 @@ function fieldEditor(
 
   // Up and Down step to the next line, however short the preview draws it. CodeMirror's
   // vertical motion aims half a line of text past the caret's line, so it passes over a
-  // line the preview shortens, as a rule's or a fence's while the caret is away, and a
-  // rule's 1px is its border, which no aim lands in. A step that leaves the caret's
-  // line for a line shorter than text goes to that line, at the caret's column, which
+  // line shorter than that, as a rule's is while the caret is away. Where its step
+  // passes over the line beside the caret's, the caret goes to that line instead, at
+  // the goal column CodeMirror aimed for, found in its own map of line heights, and
   // the line then shows at its height. Without Shift, a selection collapses to its end
   // that way, as CodeMirror's own step does.
   const lineStep = (forward, extend) => (view) => {
@@ -696,14 +696,17 @@ function fieldEditor(
         let step = view.moveVertically(range, forward);
         const here = view.lineBlockAt(range.head);
         const at = forward ? here.to + 1 : here.from - 1;
-        const left = step.head < here.from || step.head > here.to;
-        if (left && at >= 0 && at <= doc.length) {
-          const beside = view.lineBlockAt(at);
-          if (beside.height < view.defaultLineHeight) {
-            const column = range.head - doc.lineAt(range.head).from;
-            const head = Math.min(beside.from + column, doc.lineAt(at).to);
-            step = EditorSelection.cursor(head, 0, undefined, step.goalColumn);
-          }
+        const beside = at >= 0 && at <= doc.length ? view.lineBlockAt(at) : null;
+        const passed = (block) => step.head < block.from || step.head > block.to;
+        if (beside && passed(here) && passed(beside)) {
+          const head = view.posAtCoords(
+            {
+              x: view.contentDOM.getBoundingClientRect().left + step.goalColumn,
+              y: view.documentTop + beside.top + beside.height / 2,
+            },
+            false,
+          );
+          step = EditorSelection.cursor(head, 0, undefined, step.goalColumn);
         }
         return extend
           ? EditorSelection.range(range.anchor, step.head, step.goalColumn)

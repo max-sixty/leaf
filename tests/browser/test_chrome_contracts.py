@@ -1531,11 +1531,17 @@ def test_a_draft_draws_what_its_message_shows_for_the_source(browser, serve):
         for place in read.values():
             del place["y"]
     assert draft == sent
-    task = box.evaluate(f"""box => {{
+    # The box's centre once it holds still, where the field takes the press.
+    centre = f"""box => {{
       const r = {content}.querySelector('input[type=checkbox]').getBoundingClientRect();
-      return [r.x + r.width / 2, r.y + r.height / 2];
-    }}""")
-    page.mouse.click(*task)
+      const x = r.x + r.width / 2, y = r.y + r.height / 2;
+      return [x, y, box.getRootNode().elementFromPoint(x, y) === box];
+    }}"""
+    task = None
+    while task != (task := box.evaluate(centre)):
+        rendered(page)
+    assert task[2], "the field doesn't hold the task's box under the pointer"
+    page.mouse.click(*task[:2])
     expect(box).to_be_focused()
     rendered(page)
     brackets = SPELLED.index("[ ]")
@@ -1567,6 +1573,67 @@ def test_arrow_keys_step_onto_a_drawn_rule(engine, source, request, serve):
     on_rule = [rule <= at <= rule + 3 for at in landed]
     # Up from the last line reaches the rule, Up leaves it, Down comes back.
     assert on_rule[-3:] == [True, False, True], landed
+
+
+# The caret's left edge in the field's content: a collapsed range at it, measured on
+# the text node holding it in the line it stands on.
+CARET_X = """box => {
+  const root = window.__lfRoots.get(box);
+  const content = root.querySelector('.cm-content');
+  const at = box.selectionStart;
+  const line = box.value.slice(0, at).split('\\n').length - 1;
+  let column = at - box.value.lastIndexOf('\\n', at - 1) - 1;
+  const row = content.querySelectorAll('.cm-line')[line];
+  const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  range.setStart(row, 0);
+  for (let node; (node = walker.nextNode()); ) {
+    if (column <= node.data.length) { range.setStart(node, column); break; }
+    column -= node.data.length;
+  }
+  const rect = range.getBoundingClientRect();
+  const left = rect.top || rect.left ? rect.left : row.getBoundingClientRect().left;
+  return [line, at - box.value.lastIndexOf('\\n', at - 1) - 1,
+          left - content.getBoundingClientRect().left];
+}"""
+
+
+@pytest.mark.parametrize("column", [0, 14])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_arrow_keys_keep_their_column_across_a_fence(engine, column, request, serve):
+    """Up through a fence and its code visits every line, keeping the caret as near
+    the column it set out from as each line allows, as CodeMirror's own motion does.
+    The step onto a short line placed the caret by the character column it carried,
+    which a blank line resets to 0, on every short line, and code lines, a pixel
+    shorter than prose, counted as short."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    source = (
+        "Para above the fence.\n\n```\ncode line that is long\n```\n\n"
+        "after the fence, too"
+    )
+    write(field, source)
+    last = source.rindex("\n") + 1
+    field.evaluate("(box, at) => box.setSelectionRange(at, at)", last + column)
+    # An arrow there and back reads the place as the user's, and sets the goal.
+    page.keyboard.press("ArrowRight" if column == 0 else "ArrowLeft")
+    page.keyboard.press("ArrowLeft" if column == 0 else "ArrowRight")
+    *_, goal = field.evaluate(CARET_X)
+    lines = source.split("\n")
+    landed = []
+    for _ in range(len(lines) - 1):
+        page.keyboard.press("ArrowUp")
+        landed.append(field.evaluate(CARET_X))
+    assert [line for line, _, _ in landed] == list(range(len(lines) - 2, -1, -1))
+    for (line, at, x), text in zip(landed, reversed(lines[:-1])):
+        if column == 0:
+            assert at == 0, (line, landed)
+        # A line shorter than the goal holds the caret at its end, a blank one at 0;
+        # code's characters are wider than prose's, so the caret is a character off.
+        elif len(text) > column + 2:
+            assert x == pytest.approx(goal, abs=9), (line, landed, goal)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

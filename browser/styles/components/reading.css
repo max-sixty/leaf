@@ -180,15 +180,15 @@
   inset-inline-start: 0;
   max-inline-size: 100cqi;
 }
-/* A cell the user is on, as a thread's target once its card closes, wears the ring
- * inside its own box. The table scrolls its columns, so it clips to its own edges, and
- * the outer columns, the header row and the last row stand flush with them: the layer's
- * outward ring there lost the side on the table's edge. Room outside the table would
- * have to come from a negative margin, which overflows any scroller holding the table
- * flush, as an x-bound box does. Inset, the ring stands where the card's target trace
- * outlined the cell. */
-:where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus-visible] {
-  outline-offset: calc(-1 * var(--focus-ring-w));
+/* A cell's marks, the ring of a cell the user is on, as a thread's target once its card
+ * closes, among them, stand inside its own box: cells meet edge to edge, and the table
+ * scrolls its columns, so it clips to its own edges, and the outer columns, the header
+ * row and the last row stand flush with them. The layer's outward ring there lost the
+ * side on the table's edge. Room outside the table would have to come from a negative
+ * margin, which overflows any scroller holding the table flush, as an x-bound box
+ * does. */
+:where(:root, .lf-thread-transcript) :is(th, td) {
+  outline-offset: var(--focus-ring-inset);
 }
 
 /* Every picture in reading content wears one face: a 1px ring in its surface's edge

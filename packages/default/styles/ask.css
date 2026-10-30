@@ -30,7 +30,7 @@ lf-ask[data-lf-obligation]::after {
 }
 @container style(--lf-full-height: 1) {
   lf-ask[data-lf-obligation]::after {
-    outline-offset: calc(-1 * var(--focus-ring-w));
+    outline-offset: var(--focus-ring-inset);
   }
 }
 /* An lf-ask frames prose, so it keeps the reading measure as its text does (base.css),

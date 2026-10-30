@@ -39,6 +39,9 @@ leaf-composition-field {
 .lf-compose-field {
   --lf-compose-pad-block: 8px;
   --lf-compose-pad-inline-start: 10px;
+  /* A field: the ring a surface draws round it for the words being typed stands on
+     its edge (base.css, "Where it stands"). */
+  outline-offset: 0;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -192,7 +195,7 @@ leaf-composition-field {
     > .lf-compose-submit[data-lf-focus-visible]::before {
     background: var(--accent-tint);
     outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
+    outline-offset: var(--focus-ring-inset);
   }
   .lf-compose-field:has(> leaf-text:state(corner-taken)):not([data-send-pointed])
     > .lf-compose-submit:not([data-lf-focus-visible]) {
@@ -253,10 +256,6 @@ leaf-composition-field {
   place-items: center;
   border-radius: var(--r);
   cursor: pointer;
-}
-:where(.lf-compose-submit, .lf-compose-dictate)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
 }
 :is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
@@ -423,10 +422,6 @@ leaf-composition-field {
 }
 button.lf-media-open {
   cursor: zoom-in;
-}
-.lf-media-open[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
 }
 /* Each attachment is its picture alone and its controls marks on its corners: there
    under a finger, and shown to a pointer over the picture or a key on it. The user

@@ -188,6 +188,43 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
     assert all(min(widths) >= 1 for widths in edges.values()), edges
 
 
+def test_a_side_lists_open_panel_rings_its_whole_cell(browser, serve):
+    """A list taller than the open panel leaves the panel its whole cell, so the ring
+    the set draws round the panel meets the frame on every side, where it stopped under
+    the panel's last line. The closed panels in that cell stay flat, so the open
+    panel's words still take the pointer."""
+    tabs = "".join(
+        f'<lf-tab id="item-{i}" label="Item {i}"><p id="words-{i}">Item {i}.</p></lf-tab>'
+        for i in range(6)
+    )
+    url = serve(
+        leaf_page(
+            "Queue", f'<h1>Queue</h1><lf-tabs id="queue" list="side">{tabs}</lf-tabs>'
+        )
+    )
+    page = open_page(browser, url)
+    page.get_by_role("tab").first.click()
+    page.keyboard.press("Tab")
+    expect(page.locator("#item-0")).to_be_focused()
+    rendered(page)
+    reach = page.evaluate(
+        """() => {
+          const strip = document.querySelector('#queue > .lf-tabstrip');
+          const words = document.getElementById('words-0').getBoundingClientRect();
+          return {
+            panel: document.getElementById('item-0').getBoundingClientRect().bottom,
+            list: strip.getBoundingClientRect().bottom,
+            hit: document.elementFromPoint(words.left + 2, words.top + 2)?.id,
+          };
+        }"""
+    )
+    assert reach["hit"] == "words-0", reach
+    assert reach["panel"] == pytest.approx(reach["list"], abs=1), reach
+    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    edges = mark_edges(page, "item-0", accent)
+    assert all(min(widths) >= 1 for widths in edges.values()), edges
+
+
 def test_an_open_part_wears_a_tab_panels_ring_on_its_own_edge(browser, serve):
     """A part is a tab panel under another tag, so it is ringed as one is: inset from
     its border box, whose start edge here is the rule between the list and the part.

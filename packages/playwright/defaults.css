@@ -24,7 +24,7 @@ lf-trace {
   border-radius: var(--r);
   padding: var(--sp-3);
   background: var(--paper);
-  font: var(--t-5) / 1.45 var(--sans);
+  font: var(--voice-ui);
   overflow-wrap: anywhere;
 }
 
@@ -947,7 +947,7 @@ lf-trace-compare {
   min-inline-size: 0;
   --lf-trace-control-size: 44px;
   --lf-trace-chooser-padding: var(--sp-2);
-  font: var(--t-5) / 1.45 var(--sans);
+  font: var(--voice-ui);
 }
 .lf-trace-compare-controls {
   position: sticky;

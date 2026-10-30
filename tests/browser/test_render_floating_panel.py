@@ -240,7 +240,7 @@ def test_a_send_moves_the_panel_s_view_as_one_stream(browser, serve):
                 .map(node => node.getBoundingClientRect().top)""",
             [title, turns],
         )
-        return [d - r for d, r in zip(drawn, rest)]
+        return [d - r for d, r in zip(drawn, rest, strict=True)]
 
     page.evaluate("() => {" + HOLD_MOTION + "}")
     write(field(page), "Could the rollback cover the weekend?")
@@ -1651,7 +1651,10 @@ def risen(before, after, by):
         (seat is None) == (after[name] is None)
         and (
             seat is None
-            or all(abs(a - b) < 0.5 for a, b in zip(after[name], moved(name, seat)))
+            or all(
+                abs(a - b) < 0.5
+                for a, b in zip(after[name], moved(name, seat), strict=True)
+            )
         )
         for name, seat in before.items()
     )

@@ -1025,7 +1025,7 @@ def task_section(
             right = [
                 s for s in ys if run in s["runs"] and sample_anchor(s) not in compared
             ]
-            for x, y in zip(left, right):
+            for x, y in zip(left, right, strict=False):
                 if (x, y) not in matches:
                     matches.append((x, y))
         for number, (x, y) in enumerate(matches, len(judged) + 1):

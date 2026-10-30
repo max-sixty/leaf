@@ -70,7 +70,7 @@ def _ring_gaps(page, target):
             clip={"x": px - 0.5, "y": py - 0.5, "width": 1, "height": 1}
         )
         seen = rgb_pixel(Image.open(io.BytesIO(shot)).convert("RGB"), (0, 0))
-        if max(abs(a - b) for a, b in zip(seen, color)) > 40:
+        if max(abs(a - b) for a, b in zip(seen, color, strict=True)) > 40:
             gaps.append(side)
     return gaps
 
@@ -1497,7 +1497,7 @@ def test_a_rewrite_leaves_a_card_at_the_windows_foot_as_it_stood(browser, serve)
     words.dblclick()
     expect(editor).to_be_focused()
     rendered(page)
-    for edge, at in zip(editor.evaluate(column), text_column):
+    for edge, at in zip(editor.evaluate(column), text_column, strict=True):
         assert abs(edge - at) < 0.5, (editor.evaluate(column), text_column)
     # Open, the rewrite takes the message's place exactly: the card neither grows nor
     # scrolls the rewrite's top under the message's head, and its words keep their line.

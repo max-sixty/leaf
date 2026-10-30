@@ -18,6 +18,7 @@
     "exactOptionalPropertyTypes": true,
     "noEmit": true,
     "noUnusedLocals": true,
+    "noUncheckedSideEffectImports": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
     "skipLibCheck": false

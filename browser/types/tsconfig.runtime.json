@@ -6,6 +6,7 @@
     "strictBindCallApply": true,
     "strictFunctionTypes": true,
     "noImplicitThis": true,
+    "useUnknownInCatchVariables": true,
     "strictBuiltinIteratorReturn": true,
     "noUncheckedIndexedAccess": false,
     "exactOptionalPropertyTypes": false,

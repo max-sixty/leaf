@@ -765,7 +765,8 @@
           rules = [...sheet.cssRules].map((rule) => rule.cssText).join("\n");
         } catch (error) {
           // An opaque cross-origin sheet cannot be modified through CSSOM either.
-          if (error.name !== "SecurityError") throw error;
+          if (!(error instanceof DOMException) || error.name !== "SecurityError")
+            throw error;
           rules = null;
         }
         return [sheet, sheet.disabled, sheet.media.mediaText, rules];

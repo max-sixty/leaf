@@ -236,6 +236,30 @@ def _line(at: str, v: dict) -> str:
     return f"{at} (line {v['line']})"
 
 
+def _blocks(v: dict) -> str:
+    """The blocks of the author's file a finding lists (`values.elements`), as they
+    find them: a run of one tag in a row, under one enclosing id, reads as one, with
+    its count and its lines."""
+    runs: list[list[dict]] = []
+    for element in v["elements"]:
+        if runs and all(
+            runs[-1][0].get(key) == element.get(key) for key in ("tag", "enclosing")
+        ):
+            runs[-1].append(element)
+        else:
+            runs.append([element])
+
+    def said(run: list[dict]) -> str:
+        first, last = run[0]["line"], run[-1]["line"]
+        lines = f"line {first}" if first == last else f"lines {first}–{last}"
+        count = f"{len(run)} " if len(run) > 1 else ""
+        enclosing = run[0].get("enclosing")
+        within = f" in #{enclosing}" if enclosing else ""
+        return f"{count}<{run[0]['tag']}> ({lines}){within}"
+
+    return ", ".join(said(run) for run in runs)
+
+
 def _bearing(at: str, v: dict, value: str) -> str:
     """The element `at` names, written with the attribute the finding is about and
     its `value` as the words quote it."""
@@ -417,6 +441,23 @@ def _fixture(words):
 
 def _listed(findings: list[dict]) -> str:
     return "\n".join(f"  - {Finding.loads(found)}" for found in findings)
+
+
+# What each element `structure.document_declarations` holds declares.
+_DECLARES = {"<base>": "base URL", "<meta>": "HTTP headers", "<script>": "import map"}
+
+# How a page names a module, since delivery owns the import map: said the same way
+# where a bare name is refused and where the page's own map is.
+_IMPORT_BY_URL = (
+    "import a file under page/ by its path, or a package by its full http(s) URL"
+    " (such as https://esm.sh/NAME)"
+)
+
+# The fix for a page's own file named outside page/, whichever reference names it.
+_MOVE_UNDER_PAGE = (
+    "move the file into page/ beside index.html and name it by that path, such as"
+    " page/style.css or page/app.js"
+)
 
 
 # The words for each code, from the finding's `at` and `values`. A console code's
@@ -772,8 +813,8 @@ _TEXT = {
         f"<template data-sample> at line {v['line']}: needs a stable id"
     ),
     "document-declaration": lambda at, v: (
-        f"{_line(at, v)} declares something about the whole document, which delivery"
-        " owns"
+        f"{_line(at, v)} declares the document's {_DECLARES[at]}, which delivery"
+        " owns; remove it" + (f", and {_IMPORT_BY_URL}" if at == "<script>" else "")
     ),
     "allocation-value": lambda at, v: (
         f"{_bearing(at, v, _json(v['value']))} has an invalid value; expected "
@@ -982,16 +1023,17 @@ _TEXT = {
     ),
     # Advice on the source.
     "unpointable-section": lambda at, v: (
-        f"unpointable — {_line(at, v)} has no id, so no comment or reading position"
-        " can hold to it"
+        "unpointable — no comment or reading position can hold to a section with"
+        f" no id: {_blocks(v)}; give each an id"
     ),
     "unpointable": lambda at, v: (
-        f"unpointable — {_line(at, v)} has no id, nor anything enclosing it, so"
-        " element selection has no target"
+        "unpointable — these blocks have no id, nor does anything enclosing them, so"
+        f" element selection has no target: {_blocks(v)}; give main's sections ids,"
+        " or each block a reader may point at alone"
     ),
     "unpointable-wide": lambda at, v: (
-        f"unpointable — {_line(at, v)} has no id, so a comment aimed at it lands on"
-        f" the whole of #{v['enclosing']}"
+        "unpointable — a comment aimed at a block with no id lands on the whole of"
+        f" the section named: {_blocks(v)}; give each block its own id"
     ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
@@ -1518,8 +1560,7 @@ _TEXT = {
     "dependency-outside-page": _captured(
         lambda v: (
             "a page's own files (stylesheets, scripts, images, data) live under page/"
-            " beside index.html, or media/; move the file there and name it by that"
-            " path, such as page/style.css"
+            f" or media/; {_MOVE_UNDER_PAGE}"
         )
     ),
     "dependency-symlink": _captured(
@@ -1530,9 +1571,7 @@ _TEXT = {
     ),
     "module-not-local": _captured(
         lambda v: (
-            "a bare module name has no import map to resolve it; import a file under"
-            " page/ by its path, or a package by its full http(s) URL (such as"
-            " https://esm.sh/NAME)"
+            f"a bare module name has no import map to resolve it; {_IMPORT_BY_URL}"
         )
     ),
     "module-type": _captured(
@@ -1540,8 +1579,9 @@ _TEXT = {
     ),
     "module-outside-page": _captured(
         lambda v: (
-            "a module the page imports lives under page/, is a public entry point"
-            " such as /runtime/widget-api.js, or is an http(s) URL"
+            "a module the page imports is a public entry point such as"
+            " /runtime/widget-api.js, an http(s) URL, or the page's own file under"
+            f" page/; {_MOVE_UNDER_PAGE}"
         )
     ),
     "script-not-utf8": _captured(lambda v: "JavaScript is not UTF-8"),

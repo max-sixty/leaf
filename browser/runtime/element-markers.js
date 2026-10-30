@@ -151,9 +151,9 @@ export { offerAction, offeredActionElement as offerActionElement };
 export const offeredAction = elementDirective("offeredAction", offeredActionElement);
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
-// settled decision. Chromium does not begin text selection inside a form control, so those
-// few controls deliberately remain spans and their owning widget supplies the complete
-// key contract. Keeping this constructor separate makes selectable control text a visible
+// settled decision. WebKit begins no text selection inside a form control, whatever its
+// `user-select` (widget-elements.js says what was measured), so those few controls
+// deliberately remain spans and their owning widget supplies the complete key contract. Keeping this constructor separate makes selectable control text a visible
 // design decision instead of the behavior of every injected control.
 // The selectable offer's template form; Lit owns its label and tab stop.
 export const selectableOffered = elementDirective(

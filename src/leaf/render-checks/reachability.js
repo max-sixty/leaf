@@ -285,9 +285,9 @@ export function unreachableWords() {
   return unique(found);
 }
 
-// A declared label inside a form control is out of reach whatever it is marked: Chrome
-// starts no pointer selection inside one, which is why `offer` builds a press as a span
-// wearing role="button". A widget module reaching for <button> anyway puts its label
+// A declared label inside a form control is out of reach whatever it is marked: WebKit
+// starts no pointer selection inside one, whatever its `user-select`, which is why
+// `selectableOffer` builds a press as a span wearing its role (widget-elements.js). A widget module reaching for <button> anyway puts its label
 // where no selection can go. The suite asks it of Leaf's own widgets over the shipped
 // pages; an authored page has never been found doing it.
 export function wordsInFormControls() {

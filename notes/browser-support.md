@@ -209,6 +209,23 @@ whether WebKit reveals those across a frame is unverified. Recheck
 in `tests/journeys/test_render_controls.py` with the focus listener writing the
 selection on every arrival (`#focusing` never set).
 
+### Selecting words inside a button in WebKit
+
+WebKit begins no text selection inside a form control, whatever its
+`user-select`: `HTMLFormControlElement::canStartSelection` is final and returns
+false. On 2026-10-30, a `<button>` in a paragraph styled `user-select: text;
+-webkit-user-select: text` selected nothing in Playwright WebKit 27.2, build
+2370, under a drag, a double click or a triple click inside it, nor with
+`appearance: none`, `display: inline` or `contents`, or an inner span of its
+own; `user-select: all` selected the whole label at once. Chromium 156.0.8078.4
+and Firefox 157.0, build 1555, selected part of the label, a word and the
+paragraph. A drag beginning outside still extends into the button in all three.
+So a control whose label is the page's own words is a span with a role
+(`selectableOffer`, `browser/runtime/widget-elements.js`), and its widget
+declares the key presses a button would have; off Leaf, where nothing reads that
+declaration, Enter and Space do nothing on it. Recheck with that button and a
+double click on one of its words, reading `getSelection().toString()`.
+
 ### Sample document admission and native navigation
 
 `browser/runtime/sample.js` admits the initial document with a credentialless
